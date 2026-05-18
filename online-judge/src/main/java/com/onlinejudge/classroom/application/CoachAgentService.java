@@ -1,0 +1,327 @@
+package com.onlinejudge.classroom.application;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onlinejudge.classroom.domain.Assignment;
+import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
+import com.onlinejudge.submission.domain.Submission;
+import com.onlinejudge.submission.domain.SubmissionAnalysis;
+import lombok.Builder;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class CoachAgentService {
+
+    private final ObjectMapper objectMapper;
+    private final DiagnosisTaxonomy diagnosisTaxonomy;
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
+
+    @Value("${ai.enabled:true}")
+    private boolean enabled;
+
+    @Value("${ai.base-url:https://api-inference.modelscope.cn/v1}")
+    private String baseUrl;
+
+    @Value("${ai.api-key:}")
+    private String apiKey;
+
+    @Value("${ai.model:MiniMax/MiniMax-M2.7}")
+    private String model;
+
+    @Value("${ai.timeout-seconds:25}")
+    private long timeoutSeconds;
+
+    public CoachDraft generateInitialQuestion(Submission submission,
+                                              SubmissionAnalysis analysis,
+                                              String primaryTag,
+                                              Assignment.HintPolicy hintPolicy,
+                                              String contextSummary,
+                                              List<String> evidenceRefs,
+                                              CoachDraft fallback) {
+        Map<String, Object> context = baseContext(submission, analysis, primaryTag, hintPolicy, contextSummary, evidenceRefs);
+        context.put("turnType", "INITIAL_QUESTION");
+        return generate(context, hintPolicy, evidenceRefs, fallback);
+    }
+
+    public CoachDraft generateFollowUpQuestion(Submission submission,
+                                               SubmissionAnalysis analysis,
+                                               String primaryTag,
+                                               Assignment.HintPolicy hintPolicy,
+                                               String contextSummary,
+                                               List<String> evidenceRefs,
+                                               String studentAnswer,
+                                               Integer currentTurnIndex,
+                                               CoachDraft fallback) {
+        Map<String, Object> context = baseContext(submission, analysis, primaryTag, hintPolicy, contextSummary, evidenceRefs);
+        context.put("turnType", "FOLLOW_UP");
+        context.put("studentAnswer", studentAnswer == null ? "" : studentAnswer);
+        context.put("currentTurnIndex", currentTurnIndex == null ? 0 : currentTurnIndex);
+        return generate(context, hintPolicy, evidenceRefs, fallback);
+    }
+
+    private CoachDraft generate(Map<String, Object> context,
+                                Assignment.HintPolicy hintPolicy,
+                                List<String> allowedEvidenceRefs,
+                                CoachDraft fallback) {
+        CoachDraft safeFallback = fallback == null ? CoachDraft.fallback("请先补一个最小样例，说明你准备验证什么。") : fallback;
+        if (!canCallAi()) {
+            return safeFallback;
+        }
+        try {
+            String raw = chatCompletion(systemPrompt(), "请基于以下上下文生成 JSON：" + objectMapper.writeValueAsString(context));
+            CoachPayload payload = parsePayload(raw);
+            CoachDraft draft = toDraft(payload, allowedEvidenceRefs, safeFallback);
+            if (!isSafe(draft, hintPolicy, allowedEvidenceRefs)) {
+                log.warn("Coach model draft rejected by safety gate. answerLeakRisk={}, questionPreview={}",
+                        draft.getAnswerLeakRisk(),
+                        preview(draft.getQuestion()));
+                return safeFallback;
+            }
+            return draft;
+        } catch (Exception exception) {
+            log.warn("Coach model generation failed. fallback=rule question. reason={}", exception.getMessage());
+            return safeFallback;
+        }
+    }
+
+    private Map<String, Object> baseContext(Submission submission,
+                                            SubmissionAnalysis analysis,
+                                            String primaryTag,
+                                            Assignment.HintPolicy hintPolicy,
+                                            String contextSummary,
+                                            List<String> evidenceRefs) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("submissionId", submission == null ? null : submission.getId());
+        context.put("verdict", submission == null || submission.getVerdict() == null ? "UNKNOWN" : submission.getVerdict().name());
+        context.put("scenario", analysis == null ? "" : analysis.getScenario());
+        context.put("headline", analysis == null ? "" : analysis.getHeadline());
+        context.put("primaryTag", primaryTag == null ? "NEEDS_MORE_EVIDENCE" : primaryTag);
+        context.put("primaryTagLabel", diagnosisTaxonomy.label(primaryTag));
+        context.put("hintPolicy", hintPolicy == null ? Assignment.HintPolicy.L2.name() : hintPolicy.name());
+        context.put("contextSummary", contextSummary == null ? "" : contextSummary);
+        context.put("evidenceRefs", evidenceRefs == null ? List.of() : evidenceRefs);
+        return context;
+    }
+
+    private String systemPrompt() {
+        return """
+                你是中文 OJ AI 教练，只生成苏格拉底式追问。
+                必须返回严格 JSON，不要 Markdown 代码块，不要解释，不要思考过程。
+
+                JSON 字段：
+                question(string),
+                rationale(string),
+                evidenceRefs(string[]),
+                confidence(number 0-1),
+                answerLeakRisk("LOW"|"MEDIUM"|"HIGH")
+
+                安全规则：
+                1. 只能追问学生下一步如何验证，不给完整答案、完整代码、最终算法步骤或隐藏测试数据。
+                2. 不要直接说“把 X 改成 Y”，不要提供可照抄的修复。
+                3. 必须引用输入 evidenceRefs 中已有的证据 ID，不要编造证据。
+                4. 如果证据不足，就追问最小样例、变量变化、边界类别或复杂度数量级。
+                5. 所有面向学生的文本必须简体中文，语气短、具体、可执行。
+                6. 如果你不确定是否安全，将 answerLeakRisk 设为 HIGH。
+                """;
+    }
+
+    protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
+        Map<String, Object> requestBody = Map.of(
+                "model", model,
+                "messages", List.of(
+                        Map.of("role", "system", "content", systemPrompt),
+                        Map.of("role", "user", "content", userPrompt)
+                ),
+                "temperature", 0.2,
+                "stream", false
+        );
+        String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(endpoint))
+                .timeout(Duration.ofSeconds(Math.max(timeoutSeconds, 5)))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + apiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody), StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IOException("AI API returned status " + response.statusCode());
+        }
+        JsonNode root = objectMapper.readTree(response.body());
+        JsonNode messageContent = root.path("choices").path(0).path("message").path("content");
+        if (messageContent.isMissingNode() || messageContent.isNull()) {
+            throw new IOException("AI response did not include message content");
+        }
+        return messageContent.isTextual() ? messageContent.asText() : messageContent.toString();
+    }
+
+    private CoachPayload parsePayload(String raw) {
+        String normalized = cleanup(raw);
+        try {
+            return objectMapper.readValue(normalized, CoachPayload.class);
+        } catch (JsonProcessingException firstError) {
+            int start = normalized.indexOf('{');
+            int end = normalized.lastIndexOf('}');
+            if (start >= 0 && end > start) {
+                try {
+                    return objectMapper.readValue(normalized.substring(start, end + 1), CoachPayload.class);
+                } catch (JsonProcessingException ignored) {
+                    return null;
+                }
+            }
+            return null;
+        }
+    }
+
+    private CoachDraft toDraft(CoachPayload payload,
+                               List<String> allowedEvidenceRefs,
+                               CoachDraft fallback) {
+        if (payload == null || payload.question == null || payload.question.isBlank()) {
+            return fallback;
+        }
+        return CoachDraft.builder()
+                .question(cleanup(payload.question))
+                .rationale(cleanup(payload.rationale))
+                .evidenceRefs(normalizeEvidenceRefs(payload.evidenceRefs, allowedEvidenceRefs))
+                .confidence(payload.confidence == null ? 0.5 : Math.max(0, Math.min(1, payload.confidence)))
+                .answerLeakRisk(normalizeLeakRisk(payload.answerLeakRisk))
+                .source("MODEL")
+                .build();
+    }
+
+    private List<String> normalizeEvidenceRefs(List<String> candidate, List<String> allowed) {
+        LinkedHashSet<String> allowedSet = new LinkedHashSet<>(allowed == null ? List.of() : allowed);
+        if (allowedSet.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> refs = new LinkedHashSet<>();
+        if (candidate != null) {
+            candidate.stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(allowedSet::contains)
+                    .forEach(refs::add);
+        }
+        return List.copyOf(refs);
+    }
+
+    private boolean isSafe(CoachDraft draft,
+                           Assignment.HintPolicy hintPolicy,
+                           List<String> allowedEvidenceRefs) {
+        if (draft == null || draft.getQuestion() == null || draft.getQuestion().isBlank()) {
+            return false;
+        }
+        if ("HIGH".equalsIgnoreCase(draft.getAnswerLeakRisk())) {
+            return false;
+        }
+        Assignment.HintPolicy effectivePolicy = hintPolicy == null ? Assignment.HintPolicy.L2 : hintPolicy;
+        if (diagnosisTaxonomy.isBeyondPolicy(draft.getQuestion(), effectivePolicy)) {
+            return false;
+        }
+        if (containsLeakLikeText(draft.getQuestion()) || containsLeakLikeText(draft.getRationale())) {
+            return false;
+        }
+        return allowedEvidenceRefs == null || allowedEvidenceRefs.isEmpty() || !draft.getEvidenceRefs().isEmpty();
+    }
+
+    private boolean containsLeakLikeText(String text) {
+        String normalized = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        return normalized.contains("完整代码")
+                || normalized.contains("参考代码")
+                || normalized.contains("答案如下")
+                || normalized.contains("直接改成")
+                || normalized.contains("#include")
+                || normalized.contains("int main")
+                || normalized.contains("def ")
+                || normalized.contains("```");
+    }
+
+    private String normalizeLeakRisk(String risk) {
+        String normalized = cleanup(risk).toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "LOW", "MEDIUM", "HIGH" -> normalized;
+            default -> "UNKNOWN";
+        };
+    }
+
+    private boolean canCallAi() {
+        return enabled && apiKey != null && !apiKey.isBlank();
+    }
+
+    private String cleanup(String text) {
+        if (text == null) {
+            return "";
+        }
+        String normalized = text.trim()
+                .replaceAll("(?is)<think>.*?</think>", "")
+                .replace("<think>", "")
+                .replace("</think>", "")
+                .trim();
+        if (normalized.startsWith("```")) {
+            normalized = normalized.replaceFirst("^```[a-zA-Z0-9_-]*\\s*", "");
+            normalized = normalized.replaceFirst("\\s*```$", "");
+        }
+        return normalized.trim();
+    }
+
+    private String preview(String text) {
+        String normalized = text == null ? "" : text.replace("\r", "").replace("\n", "\\n").trim();
+        return normalized.length() <= 120 ? normalized : normalized.substring(0, 117) + "...";
+    }
+
+    @Data
+    @Builder
+    public static class CoachDraft {
+        private String question;
+        private String rationale;
+        private List<String> evidenceRefs;
+        private Double confidence;
+        private String answerLeakRisk;
+        private String source;
+
+        public static CoachDraft fallback(String question) {
+            return CoachDraft.builder()
+                    .question(question)
+                    .rationale("规则追问回退。")
+                    .evidenceRefs(List.of())
+                    .confidence(1.0)
+                    .answerLeakRisk("LOW")
+                    .source("RULE")
+                    .build();
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class CoachPayload {
+        public String question;
+        public String rationale;
+        public List<String> evidenceRefs;
+        public Double confidence;
+        public String answerLeakRisk;
+    }
+}

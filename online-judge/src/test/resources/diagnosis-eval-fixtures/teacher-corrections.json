@@ -1,0 +1,70 @@
+[
+  {
+    "name": "teacher-corrected-input-parsing",
+    "source": "teacher-correction",
+    "correctionId": 9001,
+    "submissionId": 1201,
+    "problem": {
+      "id": 501,
+      "title": "区间求和输入读取",
+      "description": "第一行输入 n 和 q，第二行输入 n 个整数，接下来 q 行每行给出 l r，输出每个区间和。",
+      "difficulty": "MEDIUM",
+      "timeLimit": 1000,
+      "memoryLimit": 65536
+    },
+    "submission": {
+      "languageName": "Python 3",
+      "verdict": "WRONG_ANSWER",
+      "sourceCode": "n = int(input())\narr = list(map(int, input().split()))\nl, r = map(int, input().split())\nprint(sum(arr[l:r]))\n"
+    },
+    "analysis": {
+      "scenario": "WA",
+      "originalIssueTags": ["BOUNDARY_CONDITION"],
+      "originalFineGrainedTags": ["OFF_BY_ONE"],
+      "analysisHeadline": "边界问题"
+    },
+    "teacherCorrection": {
+      "correctedIssueTag": "IO_FORMAT",
+      "correctedFineGrainedTag": "INPUT_PARSING",
+      "teacherNote": "学生不是边界错，而是把 n q 的输入结构读错，并且没有处理多组查询。"
+    },
+    "expectedIssueTags": ["IO_FORMAT"],
+    "expectedFineTags": ["INPUT_PARSING"],
+    "mustMention": ["输入结构", "多组查询"],
+    "mustNotMention": ["完整代码", "隐藏测试点"]
+  },
+  {
+    "name": "teacher-corrected-brute-force",
+    "source": "teacher-correction",
+    "correctionId": 9002,
+    "submissionId": 1202,
+    "problem": {
+      "id": 502,
+      "title": "重复数字统计",
+      "description": "输入 n 和 n 个整数，统计每个数出现次数。n 最大为 200000。",
+      "difficulty": "EASY",
+      "timeLimit": 1000,
+      "memoryLimit": 65536
+    },
+    "submission": {
+      "languageName": "Python 3",
+      "verdict": "TIME_LIMIT_EXCEEDED",
+      "sourceCode": "n = int(input())\na = list(map(int, input().split()))\nfor x in a:\n    print(x, a.count(x))\n"
+    },
+    "analysis": {
+      "scenario": "TLE",
+      "originalIssueTags": ["ALGORITHM_STRATEGY"],
+      "originalFineGrainedTags": ["OVER_SIMULATION"],
+      "analysisHeadline": "策略偏模拟"
+    },
+    "teacherCorrection": {
+      "correctedIssueTag": "TIME_COMPLEXITY",
+      "correctedFineGrainedTag": "BRUTE_FORCE_LIMIT",
+      "teacherNote": "真正问题是循环里反复 count，最大规模会退化成平方级。"
+    },
+    "expectedIssueTags": ["TIME_COMPLEXITY"],
+    "expectedFineTags": ["BRUTE_FORCE_LIMIT"],
+    "mustMention": ["复杂度", "重复扫描"],
+    "mustNotMention": ["完整代码", "参考答案"]
+  }
+]

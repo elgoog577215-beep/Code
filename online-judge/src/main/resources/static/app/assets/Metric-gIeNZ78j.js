@@ -1,0 +1,1 @@
+import{k as s}from"./index-brj8FVWy.js";function c({label:i,value:e,note:r}){return s.jsxs("div",{className:"metric",children:[s.jsx("span",{children:i}),s.jsx("strong",{children:e}),r&&s.jsx("small",{children:r})]})}export{c as M};
