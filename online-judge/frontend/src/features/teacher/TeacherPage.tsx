@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChartNoAxesColumnIncreasing, Copy, PenLine, RefreshCw, RotateCw, Settings } from "lucide-react";
 import { ApiError, api } from "../../shared/api/client";
-import type { AiQualityOverview, Assignment, AssignmentOverview, ClassGroup, DiagnosisTag, ProblemCatalogItem } from "../../shared/api/types";
+import type {
+  AiQualityOverview,
+  AiQualityTrend,
+  Assignment,
+  AssignmentOverview,
+  ClassGroup,
+  DiagnosisTag,
+  ProblemCatalogItem,
+  RecommendationEffectiveness
+} from "../../shared/api/types";
 import {
   answerLeakRiskLabel,
   assignmentStatusLabel,
@@ -92,6 +101,46 @@ function answerLeakRiskTone(value?: string | null): PillTone {
   }
 }
 
+function classReviewFeedbackLabel(value?: string | null) {
+  switch ((value || "").toUpperCase()) {
+    case "ACCEPTED":
+      return "已采纳";
+    case "DISMISSED":
+      return "已忽略";
+    case "MODIFIED":
+      return "已调整";
+    default:
+      return "";
+  }
+}
+
+function classReviewFeedbackTone(value?: string | null): PillTone {
+  switch ((value || "").toUpperCase()) {
+    case "ACCEPTED":
+      return "success";
+    case "DISMISSED":
+      return "neutral";
+    case "MODIFIED":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+function rateText(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "0%";
+  }
+  return `${Math.round(value * 10) / 10}%`;
+}
+
+function rateWidth(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "0%";
+  }
+  return `${Math.max(0, Math.min(100, value))}%`;
+}
+
 function TeacherOverviewSkeleton() {
   return (
     <div className="teacher-overview-skeleton" aria-label="正在加载课堂过程数据">
@@ -138,6 +187,8 @@ export default function TeacherPage() {
   const [diagnosisTags, setDiagnosisTags] = useState<DiagnosisTag[]>([]);
   const [overview, setOverview] = useState<AssignmentOverview | null>(null);
   const [aiQuality, setAiQuality] = useState<AiQualityOverview | null>(null);
+  const [aiQualityTrend, setAiQualityTrend] = useState<AiQualityTrend | null>(null);
+  const [recommendationEffectiveness, setRecommendationEffectiveness] = useState<RecommendationEffectiveness | null>(null);
   const [activeAssignmentId, setActiveAssignmentId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_ASSIGNMENT);
   const [correctionDraft, setCorrectionDraft] = useState<CorrectionDraft | null>(null);
@@ -182,6 +233,10 @@ export default function TeacherPage() {
   const diagnosisAssignment = overview?.assignment || selectedCleanAssignment || selectedAssignment;
   const activeInviteCode = selectedCleanAssignment?.inviteCode || selectedAssignment?.inviteCode || "";
   const activeTaskCount = selectedCleanAssignment?.tasks?.length || selectedAssignment?.tasks?.length || 0;
+  const trendAssignments = (aiQualityTrend?.assignments || []).slice(0, 5);
+  const trendSources = (aiQualityTrend?.sourceSegments || []).slice(0, 3);
+  const recommendationTypes = (recommendationEffectiveness?.byType || []).slice(0, 3);
+  const recommendationFocusTags = (recommendationEffectiveness?.focusTags || []).slice(0, 4);
   const passRate = overview?.attemptCount ? Math.round((overview.passedAttemptCount / overview.attemptCount) * 100) : 0;
   const attentionStudents = overview?.students?.filter(student => student.needsAttention) || [];
   const visibleStudents = attentionStudents.length ? attentionStudents.slice(0, 6) : overview?.students?.slice(0, 6) || [];
@@ -228,14 +283,18 @@ export default function TeacherPage() {
   async function loadAll() {
     setBusy(true);
     try {
-      const [assignmentResult, classResult, problemResult] = await Promise.all([
+      const [assignmentResult, classResult, problemResult, trendResult, recommendationEffectResult] = await Promise.all([
         api.assignments(),
         api.classes(),
-        api.problemCatalog()
+        api.problemCatalog(),
+        api.aiQualityTrend().catch(() => null),
+        api.recommendationEffectiveness().catch(() => null)
       ]);
       setAssignments(assignmentResult);
       setClasses(classResult);
       setProblems(problemResult);
+      setAiQualityTrend(trendResult);
+      setRecommendationEffectiveness(recommendationEffectResult);
       if (!diagnosisTags.length) {
         setDiagnosisTags(await api.diagnosisTags());
       }
@@ -250,6 +309,8 @@ export default function TeacherPage() {
         setOverview(null);
       }
     } catch (error) {
+      setAiQualityTrend(null);
+      setRecommendationEffectiveness(null);
       setAlert({ type: "error", message: teacherErrorMessage(error, "课堂数据读取失败。") });
     } finally {
       setBusy(false);
@@ -276,6 +337,50 @@ export default function TeacherPage() {
       }
     } finally {
       setOverviewLoading(false);
+    }
+  }
+
+  async function loadAiQualityTrend() {
+    try {
+      const [trendResult, recommendationEffectResult] = await Promise.all([
+        api.aiQualityTrend(),
+        api.recommendationEffectiveness().catch(() => null)
+      ]);
+      setAiQualityTrend(trendResult);
+      setRecommendationEffectiveness(recommendationEffectResult);
+    } catch {
+      setAiQualityTrend(null);
+      setRecommendationEffectiveness(null);
+    }
+  }
+
+  async function recordClassReviewFeedback(
+    suggestion: NonNullable<AssignmentOverview["classReviewSuggestions"]>[number],
+    actionType: "ACCEPTED" | "DISMISSED" | "MODIFIED"
+  ) {
+    if (!activeAssignmentId || !suggestion.suggestionKey) {
+      return;
+    }
+    const note =
+      actionType === "ACCEPTED"
+        ? "课堂采用原建议"
+        : actionType === "MODIFIED"
+          ? "课堂调整后采用"
+          : "本轮暂不采用";
+    try {
+      await api.recordClassReviewFeedback(activeAssignmentId, {
+        suggestionKey: suggestion.suggestionKey,
+        actionType,
+        targetAbility: suggestion.targetAbility,
+        exampleProblemId: suggestion.exampleProblemId,
+        evidenceTags: suggestion.evidenceTags || [],
+        teacherNote: note,
+        createdBy: "teacher"
+      });
+      await loadOverview(activeAssignmentId);
+      setAlert({ type: "success", message: "已记录课堂复盘反馈。" });
+    } catch (error) {
+      setAlert({ type: "error", message: teacherErrorMessage(error, "课堂复盘反馈保存失败。") });
     }
   }
 
@@ -394,6 +499,7 @@ export default function TeacherPage() {
       setAlert({ type: "success", message: "教师校正已保存，并会作为后续 eval 候选样例。" });
       setCorrectionDraft(null);
       await loadOverview(activeAssignmentId);
+      await loadAiQualityTrend();
     } catch (error) {
       setAlert({ type: "error", message: teacherErrorMessage(error, "教师校正保存失败。") });
     } finally {
@@ -413,7 +519,6 @@ export default function TeacherPage() {
       <section className="teacher-studio-shell">
         <header className="teacher-studio-topbar">
           <div>
-            <p className="eyebrow">教师工作台</p>
             <h1>课堂过程</h1>
           </div>
           <div className="actions">
@@ -437,7 +542,7 @@ export default function TeacherPage() {
           <aside className="teacher-rail">
             <div className="teacher-rail__head">
               <div>
-                <p className="eyebrow">作业</p>
+                <StatusPill tone="neutral">作业</StatusPill>
                 <h2>{cleanAssignments.length}</h2>
               </div>
               {activeInviteCode && <StatusPill tone="info">{activeInviteCode}</StatusPill>}
@@ -470,7 +575,7 @@ export default function TeacherPage() {
                   </button>
                 ))
               ) : (
-                <EmptyState title="还没有作业" description="创建作业后，这里会显示邀请码、班级和任务数。" />
+                <EmptyState title="还没有作业" />
               )}
             </div>
           </aside>
@@ -478,7 +583,6 @@ export default function TeacherPage() {
           <main className="teacher-stage">
             <div className="teacher-stage__head">
               <div>
-                <p className="eyebrow">当前作业</p>
                 <h2>{cleanAssignmentTitle(diagnosisAssignment?.title, "请选择作业")}</h2>
                 <div className="status-box-row teacher-stage__meta">
                   <StatusPill tone="info">{diagnosisAssignment ? displayText(diagnosisAssignment.className, "未绑定班级") : "未选择作业"}</StatusPill>
@@ -492,10 +596,7 @@ export default function TeacherPage() {
             {overviewLoading ? (
               <TeacherOverviewSkeleton />
             ) : !overview ? (
-              <EmptyState
-                title={selectedAssignment ? "暂无过程数据" : "请选择作业"}
-                description={selectedAssignment ? "学生完成提交后，这里会出现过程统计。" : "从左侧选择一个作业查看班级过程。"}
-              />
+              <EmptyState title={selectedAssignment ? "暂无过程数据" : "请选择作业"} />
             ) : (
               <>
                 <div className="teacher-kpi-strip">
@@ -518,11 +619,11 @@ export default function TeacherPage() {
                 </div>
 
                 {aiQuality && (
-                  <section className="teacher-ai-quality" aria-label="AI 质量概览">
+                  <section className="teacher-ai-quality" aria-label="反馈质量">
                     <div className="teacher-ai-quality__head">
                       <div>
-                        <p className="eyebrow">AI 质量</p>
-                        <h3>{aiQuality.summary || "继续观察 AI 诊断质量"}</h3>
+                        <StatusPill tone="neutral">反馈质量</StatusPill>
+                        <h3>{aiQuality.summary || "诊断样本"}</h3>
                       </div>
                       <StatusPill tone={aiQuality.highLeakRiskCount ? "danger" : aiQuality.correctionCount || aiQuality.lowConfidenceCount ? "warning" : "success"}>
                         {aiQuality.highLeakRiskCount ? "需复核" : aiQuality.correctionCount ? "有校正" : "稳定"}
@@ -546,7 +647,7 @@ export default function TeacherPage() {
                         <strong>{aiQuality.highLeakRiskCount}</strong>
                       </div>
                       <div>
-                        <span>Eval 候选</span>
+                        <span>复核样本</span>
                         <strong>{aiQuality.evalCandidateCount}</strong>
                       </div>
                     </div>
@@ -556,6 +657,186 @@ export default function TeacherPage() {
                           <span key={`${item.originalTag}-${item.correctedTag}`}>
                             {item.originalLabel || issueLabel(item.originalTag)} → {item.correctedLabel || issueLabel(item.correctedTag)}
                             <strong>{item.count}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                )}
+
+                {aiQualityTrend && (
+                  <section className="teacher-ai-quality teacher-ai-trend" aria-label="跨作业 AI 质量趋势">
+                    <div className="teacher-ai-quality__head">
+                      <div>
+                        <StatusPill tone="neutral">跨作业趋势</StatusPill>
+                        <h3>{aiQualityTrend.summary || "AI 质量趋势"}</h3>
+                      </div>
+                      <StatusPill
+                        tone={
+                          aiQualityTrend.highLeakRiskCount
+                            ? "danger"
+                            : aiQualityTrend.correctionCount || aiQualityTrend.lowConfidenceCount
+                              ? "warning"
+                              : "success"
+                        }
+                      >
+                        {aiQualityTrend.highLeakRiskCount
+                          ? "需复核"
+                          : aiQualityTrend.correctionCount
+                            ? "有校正"
+                            : aiQualityTrend.lowConfidenceCount
+                              ? "低置信度"
+                              : "稳定"}
+                      </StatusPill>
+                    </div>
+                    <div className="teacher-ai-quality__metrics teacher-ai-trend__metrics">
+                      <div>
+                        <span>作业</span>
+                        <strong>{aiQualityTrend.assignmentCount}</strong>
+                      </div>
+                      <div>
+                        <span>诊断样本</span>
+                        <strong>{aiQualityTrend.analyzedSubmissionCount}</strong>
+                      </div>
+                      <div>
+                        <span>校正率</span>
+                        <strong>{rateText(aiQualityTrend.correctionRate)}</strong>
+                      </div>
+                      <div>
+                        <span>低置信度率</span>
+                        <strong>{rateText(aiQualityTrend.lowConfidenceRate)}</strong>
+                      </div>
+                      <div>
+                        <span>eval 候选</span>
+                        <strong>{aiQualityTrend.evalCandidateCount}</strong>
+                      </div>
+                    </div>
+                    {trendAssignments.length ? (
+                      <div className="teacher-ai-trend__points">
+                        {trendAssignments.map(item => (
+                          <div className="teacher-ai-trend__point" key={item.assignmentId || item.assignmentTitle || item.summary}>
+                            <div>
+                              <h4>{cleanAssignmentTitle(item.assignmentTitle, "课堂作业")}</h4>
+                              <small>
+                                {item.analyzedSubmissionCount} 个样本 · {item.correctionCount} 次校正 · {item.evalCandidateCount} 个 eval
+                              </small>
+                            </div>
+                            <div>
+                              <span>{rateText(item.correctionRate)}</span>
+                              <div className="teacher-ai-trend__bar" aria-label="校正率">
+                                <i style={{ width: rateWidth(item.correctionRate) }} />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {aiQualityTrend.evalNeededTags?.length ? (
+                      <div className="teacher-ai-quality__corrections teacher-ai-trend__tags">
+                        {aiQualityTrend.evalNeededTags.slice(0, 4).map(item => (
+                          <span key={item.tag}>
+                            {item.label || issueLabel(item.tag)}
+                            <strong>{item.count}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {trendSources.length ? (
+                      <div className="teacher-ai-source-segments" aria-label="AI 来源版本质量">
+                        <span>来源版本</span>
+                        {trendSources.map(item => (
+                          <div key={`${item.sourceType}-${item.versionLabel || "unknown"}`}>
+                            <div>
+                              <strong>{item.sourceType || "UNKNOWN"}</strong>
+                              <small>{item.versionLabel || "unknown"}</small>
+                            </div>
+                            <div>
+                              <span>{item.analyzedSubmissionCount} 样本</span>
+                              <span>{rateText(item.correctionRate)} 校正</span>
+                              <span>{rateText(item.lowConfidenceRate)} 低置信</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                )}
+
+                {recommendationEffectiveness && (
+                  <section className="teacher-ai-quality teacher-recommendation-effect" aria-label="推荐效果">
+                    <div className="teacher-ai-quality__head">
+                      <div>
+                        <StatusPill tone="neutral">推荐效果</StatusPill>
+                        <h3>{recommendationEffectiveness.summary || "观察推荐后的学习行动"}</h3>
+                      </div>
+                      <StatusPill
+                        tone={
+                          recommendationEffectiveness.acceptedFollowupCount
+                            ? "success"
+                            : recommendationEffectiveness.sameFocusIssueCount
+                              ? "warning"
+                              : recommendationEffectiveness.clickedWithoutSubmissionCount
+                                ? "info"
+                                : "neutral"
+                        }
+                      >
+                        {recommendationEffectiveness.acceptedFollowupCount
+                          ? "已有通过"
+                          : recommendationEffectiveness.sameFocusIssueCount
+                            ? "仍有同类错因"
+                            : recommendationEffectiveness.clickedWithoutSubmissionCount
+                              ? "等待提交"
+                              : "观察中"}
+                      </StatusPill>
+                    </div>
+                    <div className="teacher-ai-quality__metrics teacher-ai-trend__metrics">
+                      <div>
+                        <span>推荐曝光</span>
+                        <strong>{recommendationEffectiveness.exposureCount}</strong>
+                      </div>
+                      <div>
+                        <span>点击率</span>
+                        <strong>{rateText(recommendationEffectiveness.clickThroughRate)}</strong>
+                      </div>
+                      <div>
+                        <span>后续提交</span>
+                        <strong>{recommendationEffectiveness.followupSubmissionCount}</strong>
+                      </div>
+                      <div>
+                        <span>后续通过率</span>
+                        <strong>{rateText(recommendationEffectiveness.acceptedFollowupRate)}</strong>
+                      </div>
+                      <div>
+                        <span>点击未提交</span>
+                        <strong>{recommendationEffectiveness.clickedWithoutSubmissionCount}</strong>
+                      </div>
+                    </div>
+                    {recommendationTypes.length ? (
+                      <div className="teacher-ai-trend__points">
+                        {recommendationTypes.map(item => (
+                          <div className="teacher-ai-trend__point" key={item.key}>
+                            <div>
+                              <h4>{item.label || item.key}</h4>
+                              <small>
+                                {item.exposureCount} 次曝光 · {item.clickCount} 次点击 · {item.followupSubmissionCount} 次提交
+                              </small>
+                            </div>
+                            <div>
+                              <span>{rateText(item.acceptedFollowupRate)}</span>
+                              <div className="teacher-ai-trend__bar" aria-label="后续通过率">
+                                <i style={{ width: rateWidth(item.acceptedFollowupRate) }} />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {recommendationFocusTags.length ? (
+                      <div className="teacher-ai-quality__corrections teacher-recommendation-effect__tags">
+                        {recommendationFocusTags.map(item => (
+                          <span key={item.key}>
+                            {item.label || item.key}
+                            <strong>{item.followupSubmissionCount}</strong>
                           </span>
                         ))}
                       </div>
@@ -588,7 +869,7 @@ export default function TeacherPage() {
                         </div>
                       ))
                     ) : (
-                      <EmptyState title="暂无问题分类" description="当前提交没有明显集中问题。" />
+                      <EmptyState title="暂无问题分类" />
                     )}
                     {overview.classAbilityWeaknesses?.length ? (
                       <div className="teacher-class-ability">
@@ -597,6 +878,30 @@ export default function TeacherPage() {
                           <div key={item.abilityPoint}>
                             <strong>{item.abilityPoint}</strong>
                             <small>{item.taskCount} 题 · {item.submissionCount} 次提交</small>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {overview.classReviewSuggestions?.length ? (
+                      <div className="teacher-class-review">
+                        <span>课堂复盘建议</span>
+                        {overview.classReviewSuggestions.slice(0, 3).map(item => (
+                          <div key={`${item.title}-${item.exampleProblemId || item.targetAbility || item.guidingQuestion}`}>
+                            <strong>{item.title}</strong>
+                            {item.latestFeedback?.actionType ? (
+                              <StatusPill tone={classReviewFeedbackTone(item.latestFeedback.actionType)}>
+                                {classReviewFeedbackLabel(item.latestFeedback.actionType)}
+                              </StatusPill>
+                            ) : null}
+                            {item.exampleProblemTitle ? <small>示例题：{item.exampleProblemTitle}</small> : null}
+                            {item.guidingQuestion ? <p>{item.guidingQuestion}</p> : null}
+                            {item.action ? <small>{item.action}</small> : null}
+                            {item.evidenceSummary ? <small>{item.evidenceSummary}</small> : null}
+                            <div className="teacher-class-review__actions">
+                              <button type="button" onClick={() => void recordClassReviewFeedback(item, "ACCEPTED")}>采纳</button>
+                              <button type="button" onClick={() => void recordClassReviewFeedback(item, "MODIFIED")}>调整</button>
+                              <button type="button" onClick={() => void recordClassReviewFeedback(item, "DISMISSED")}>忽略</button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -633,7 +938,7 @@ export default function TeacherPage() {
                               {student.primaryAbilityFocus && <StatusPill tone="info">能力 {student.primaryAbilityFocus}</StatusPill>}
                               {student.latestCoachInteraction?.prompted && (
                                 <StatusPill tone={student.latestCoachInteraction.answered ? "success" : "warning"}>
-                                  {student.latestCoachInteraction.statusLabel || "AI 追问"}
+                                  {student.latestCoachInteraction.statusLabel || "追问"}
                                 </StatusPill>
                               )}
                               {student.latestCorrection && (
@@ -646,8 +951,6 @@ export default function TeacherPage() {
                               )}
                             </div>
                             {student.attentionReason && <p>{student.attentionReason}</p>}
-                            {student.latestCoachInteraction?.summary && <p className="teacher-ai-uncertainty">{student.latestCoachInteraction.summary}</p>}
-                            {student.crossProblemSummary && <p className="teacher-ai-uncertainty">{student.crossProblemSummary}</p>}
                             {student.attentionEvidence?.length ? (
                               <div className="teacher-attention-evidence" aria-label="需关注证据链">
                                 {student.attentionEvidence.slice(0, 3).map(evidence => (
@@ -668,7 +971,6 @@ export default function TeacherPage() {
                                 ))}
                               </div>
                             ) : null}
-                            {student.latestUncertainty && <p className="teacher-ai-uncertainty">{student.latestUncertainty}</p>}
                             {student.latestCorrection?.teacherNote && <p className="teacher-ai-uncertainty">{student.latestCorrection.teacherNote}</p>}
                           </div>
                           <div className="actions">
@@ -689,7 +991,7 @@ export default function TeacherPage() {
                         </div>
                       ))
                     ) : (
-                      <EmptyState title="暂无学生提交" description="学生开始提交后，这里会显示最近过程。" />
+                      <EmptyState title="暂无学生提交" />
                     )}
                   </div>
                 </section>
@@ -699,7 +1001,7 @@ export default function TeacherPage() {
 
           <aside className="teacher-action-panel">
             <section>
-              <p className="eyebrow">下一步</p>
+              <StatusPill tone="neutral">处理项</StatusPill>
               <h2>{nextAction}</h2>
               <div className="status-box-row teacher-action-state">
                 <StatusPill tone={overview?.strugglingStudentCount || (overview && passRate < 50) ? "warning" : overview ? "success" : "neutral"}>

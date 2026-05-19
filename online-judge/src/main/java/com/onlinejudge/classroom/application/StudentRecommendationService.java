@@ -23,6 +23,7 @@ public class StudentRecommendationService {
     private final StudentAbilityProfileService abilityProfileService;
     private final ProblemRepository problemRepository;
     private final SubmissionRepository submissionRepository;
+    private final StudentRecommendationEventService recommendationEventService;
 
     public StudentRecommendationResponse recommend(Long studentProfileId) {
         StudentAbilityProfileResponse profile = abilityProfileService.buildProfile(studentProfileId);
@@ -48,13 +49,17 @@ public class StudentRecommendationService {
         addNewPracticeRecommendation(profile, problems, attemptedProblemIds, items);
         addReviewRecommendation(profile, items);
 
+        List<StudentRecommendationResponse.RecommendationItem> recommendations = items.stream()
+                .sorted(Comparator.comparing(StudentRecommendationResponse.RecommendationItem::getPriority))
+                .limit(3)
+                .peek(item -> item.setRecommendationToken(recommendationEventService.tokenFor(studentProfileId, item)))
+                .toList();
+        recommendations.forEach(item -> recommendationEventService.recordExposure(studentProfileId, item));
+
         return StudentRecommendationResponse.builder()
                 .student(profile.getStudent())
-                .summary(buildSummary(profile, items))
-                .recommendations(items.stream()
-                        .sorted(Comparator.comparing(StudentRecommendationResponse.RecommendationItem::getPriority))
-                        .limit(3)
-                        .toList())
+                .summary(buildSummary(profile, recommendations))
+                .recommendations(recommendations)
                 .build();
     }
 

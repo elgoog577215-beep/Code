@@ -394,6 +394,7 @@ a {
 :root[data-theme="dark"] .teacher-config-drawer,
 :root[data-theme="dark"] .management-console,
 :root[data-theme="dark"] .management-task-card,
+:root[data-theme="dark"] .management-identity-groups > div,
 :root[data-theme="dark"] .editor-command,
 :root[data-theme="dark"] .overview-command,
 :root[data-theme="dark"] .overview-action-card,
@@ -1363,12 +1364,127 @@ a {
   color: var(--ink);
 }
 
+.teacher-ai-trend {
+  background: color-mix(in srgb, var(--success-soft) 42%, var(--surface-strong));
+}
+
+.teacher-recommendation-effect {
+  background: color-mix(in srgb, var(--warning-soft) 34%, var(--surface-strong));
+}
+
+.teacher-ai-trend__metrics {
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+}
+
+.teacher-ai-trend__points {
+  display: grid;
+  gap: 0.48rem;
+}
+
+.teacher-ai-trend__point {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(120px, 0.7fr);
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.62rem 0.68rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.teacher-ai-trend__point h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.teacher-ai-trend__point small,
+.teacher-ai-trend__point span {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.teacher-ai-trend__point > div:last-child {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.teacher-ai-trend__bar {
+  height: 0.46rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+.teacher-ai-trend__bar i {
+  display: block;
+  height: 100%;
+  min-width: 0.18rem;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand), var(--warning));
+}
+
+.teacher-ai-trend__tags::before {
+  content: "待补 eval";
+  color: var(--ink-soft);
+  font-weight: 800;
+}
+
+.teacher-ai-source-segments {
+  display: grid;
+  gap: 0.46rem;
+  padding-top: 0.25rem;
+}
+
+.teacher-ai-source-segments > span {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.teacher-ai-source-segments > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.54rem 0.62rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.teacher-ai-source-segments strong,
+.teacher-ai-source-segments small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.teacher-ai-source-segments small,
+.teacher-ai-source-segments span {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.teacher-ai-source-segments > div > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
 .teacher-class-ability {
   display: grid;
   gap: 0.45rem;
   margin-top: 0.45rem;
   padding-top: 0.7rem;
   border-top: 1px solid var(--line);
+}
+
+.teacher-recommendation-effect__tags::before {
+  content: "关注标签";
+  color: var(--ink-soft);
+  font-weight: 800;
 }
 
 .teacher-class-ability > span {
@@ -1391,6 +1507,68 @@ a {
 
 .teacher-class-ability small {
   color: var(--ink-soft);
+}
+
+.teacher-class-review {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.teacher-class-review > span {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.teacher-class-review > div {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.62rem 0.68rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.teacher-class-review strong {
+  min-width: 0;
+}
+
+.teacher-class-review p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.teacher-class-review small {
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.teacher-class-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+
+.teacher-class-review__actions button {
+  min-height: 32px;
+  padding: 0.28rem 0.52rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 0.76rem;
+}
+
+.teacher-class-review__actions button:hover {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--line));
+  color: var(--brand-strong);
 }
 
 .teacher-attention-evidence {
@@ -2006,6 +2184,49 @@ a {
 
 .management-import-result h3 {
   margin: 0 0 0.45rem;
+}
+
+.management-identity-audit__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.management-identity-audit__head h3 {
+  margin: 0.35rem 0 0;
+  font-size: 1.1rem;
+}
+
+.management-identity-audit__metrics {
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+}
+
+.management-identity-groups {
+  display: grid;
+  gap: 0.62rem;
+}
+
+.management-identity-groups > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.72rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.management-identity-groups strong,
+.management-identity-groups small {
+  display: block;
+}
+
+.management-identity-groups small {
+  margin-top: 0.18rem;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 
 .task-editor-page {
@@ -3318,9 +3539,12 @@ tr:last-child td {
 :root[data-theme="dark"] .teacher-student-row,
 :root[data-theme="dark"] .teacher-attention-evidence > div,
 :root[data-theme="dark"] .teacher-class-ability > div,
+:root[data-theme="dark"] .teacher-class-review > div,
 :root[data-theme="dark"] .teacher-ai-quality,
 :root[data-theme="dark"] .teacher-ai-quality__metrics > div,
 :root[data-theme="dark"] .teacher-ai-quality__corrections span,
+:root[data-theme="dark"] .teacher-ai-trend__point,
+:root[data-theme="dark"] .teacher-ai-source-segments > div,
 :root[data-theme="dark"] .teacher-next-card,
 :root[data-theme="dark"] .teacher-assignment-item,
 :root[data-theme="dark"] .management-status-item,
@@ -4464,6 +4688,10 @@ tr:last-child td {
 
   .teacher-ai-quality__head {
     align-items: flex-start;
+  }
+
+  .teacher-ai-trend__point {
+    grid-template-columns: 1fr;
   }
 
   .teacher-block {

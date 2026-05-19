@@ -21,6 +21,7 @@ public class AiQualityTrendResponse {
     private List<AssignmentQualityPoint> assignments;
     private List<TagTrendStat> correctedTags;
     private List<TagTrendStat> evalNeededTags;
+    private List<SourceQualitySegment> sourceSegments;
 
     @Data
     @Builder
@@ -45,5 +46,19 @@ public class AiQualityTrendResponse {
         private String label;
         private long count;
         private long evalCandidateCount;
+    }
+
+    @Data
+    @Builder
+    public static class SourceQualitySegment {
+        private String sourceType;
+        private String versionLabel;
+        private long analyzedSubmissionCount;
+        private long correctionCount;
+        private long lowConfidenceCount;
+        private long highLeakRiskCount;
+        private double correctionRate;
+        private double lowConfidenceRate;
+        private double highLeakRiskRate;
     }
 }

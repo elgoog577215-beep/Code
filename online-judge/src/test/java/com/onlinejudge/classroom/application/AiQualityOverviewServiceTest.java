@@ -159,6 +159,13 @@ class AiQualityOverviewServiceTest {
         }
 
         @Override
+        public List<Submission> findByAssignmentIdIn(Collection<Long> assignmentIds) {
+            return items.stream()
+                    .filter(item -> assignmentIds.contains(item.getAssignmentId()))
+                    .toList();
+        }
+
+        @Override
         public List<Submission> findByStudentProfileIdInOrderBySubmittedAtDesc(Collection<Long> studentProfileIds) {
             return List.of();
         }
@@ -245,6 +252,13 @@ class AiQualityOverviewServiceTest {
         public List<TeacherDiagnosisCorrection> findBySubmissionIdIn(Collection<Long> submissionIds) {
             return saved.stream()
                     .filter(item -> submissionIds.contains(item.getSubmissionId()))
+                    .toList();
+        }
+
+        @Override
+        public List<TeacherDiagnosisCorrection> findByAssignmentIdIn(Collection<Long> assignmentIds) {
+            return saved.stream()
+                    .filter(item -> assignmentIds.contains(item.getAssignmentId()))
                     .toList();
         }
 

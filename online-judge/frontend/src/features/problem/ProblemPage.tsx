@@ -88,6 +88,7 @@ export default function ProblemPage() {
   const problemId = Number(params.problemId);
   const assignmentId = searchParams.get("assignmentId") ? Number(searchParams.get("assignmentId")) : null;
   const studentProfileId = searchParams.get("studentProfileId") ? Number(searchParams.get("studentProfileId")) : loadStudent(assignmentId)?.id ?? null;
+  const recommendationToken = searchParams.get("recommendationToken");
 
   const [problem, setProblem] = useState<Problem | null>(null);
   const [languageId, setLanguageId] = useState(71);
@@ -133,6 +134,13 @@ export default function ProblemPage() {
   }, [assignmentId, studentProfileId, latest]);
 
   useEffect(() => {
+    if (!studentProfileId || !recommendationToken) {
+      return;
+    }
+    void api.recordRecommendationEvent(studentProfileId, recommendationToken, "ENTERED_PROBLEM");
+  }, [studentProfileId, recommendationToken]);
+
+  useEffect(() => {
     setCoachPrompt(null);
     setCoachAnswer("");
     if (!latest?.id || !latest.analysis) {
@@ -162,6 +170,7 @@ export default function ProblemPage() {
         problemId: problem.id,
         assignmentId,
         studentProfileId,
+        recommendationToken,
         languageId,
         sourceCode
       });
@@ -232,7 +241,7 @@ export default function ProblemPage() {
   }
 
   if (!problem) {
-    return <EmptyState title="正在加载题目" description="正在读取题面、样例和提交记录。" />;
+    return <EmptyState title="正在加载题目" />;
   }
 
   const passed = latest?.testCaseResults?.filter(item => item.passed).length || 0;
@@ -254,7 +263,6 @@ export default function ProblemPage() {
             <ArrowLeft size={14} /> 返回作业
           </Link>
           <h1>{problem.title}</h1>
-          <p>阅读题面，编写代码，提交后查看结果。</p>
           <div className="problem-hero__flow" aria-label="练习流程">
             <span>
               <FileText size={16} /> 读题
@@ -290,21 +298,25 @@ export default function ProblemPage() {
 
       <section className="practice-focus-strip" aria-label="本次练习焦点">
         <div>
-          <span>下一步</span>
+          <span>状态</span>
           <strong>{focusText}</strong>
         </div>
         <div>
-          <span>代码状态</span>
-          <strong>{languageId === 54 ? "C++17" : "Python 3"} · {codeLineCount} 行有效代码</strong>
+          <span>代码</span>
+          <strong>{languageId === 54 ? "C++17" : "Python 3"} · {codeLineCount} 行</strong>
         </div>
         <div>
-          <span>测试反馈</span>
-          <strong>{total ? `${passed}/${total} 个测试点通过` : "提交后显示测试点结果"}</strong>
+          <span>测试点</span>
+          <strong>{total ? `${passed}/${total} 通过` : "未提交"}</strong>
         </div>
       </section>
 
       <section className="problem-layout">
-        <Panel title="题目说明" eyebrow="题面" description={problem.aiPromptDirection || "阅读题面、样例和限制后开始编写。"} className="panel--statement">
+        <Panel
+          title="题目"
+          className="panel--statement"
+          action={problem.difficulty ? <DifficultyPill difficulty={problem.difficulty} /> : undefined}
+        >
           <div className="statement">{renderMarkdownLike(problem.description)}</div>
           <div className="stack" style={{ marginTop: "1rem" }}>
             <h3>公开样例</h3>
@@ -328,9 +340,7 @@ export default function ProblemPage() {
         </Panel>
 
         <Panel
-          title="代码练习区"
-          eyebrow="练习区"
-          description="选择语言，完成代码后提交。"
+          title="代码"
           className="panel--editor"
           action={
             <Field label="语言">
@@ -353,12 +363,12 @@ export default function ProblemPage() {
             </div>
             <div className="practice-submit-strip">
               <div>
-                <span>保存状态</span>
-                <strong>草稿已自动保存在本机</strong>
+                <span>草稿</span>
+                <strong>已自动保存</strong>
               </div>
               <div>
-                <span>反馈方式</span>
-                <strong>提交后查看测试点结果</strong>
+                <span>结果</span>
+                <strong>{latest ? verdictLabel(latest.verdict) : "未提交"}</strong>
               </div>
             </div>
             <div className="actions">
@@ -379,18 +389,16 @@ export default function ProblemPage() {
 
         <div className="stack problem-sidebar">
           <Panel
-            title="本次反馈"
-            eyebrow="提交结果"
-            description="查看本次提交结果和需要修改的地方。"
+            title="提交结果"
             className="panel--ai"
             action={latest ? <VerdictPill verdict={latest.verdict} /> : <Lightbulb size={18} />}
           >
             {!latest ? (
-              <EmptyState title="还没有提交" description="提交代码后这里会显示结果。" />
+              <EmptyState title="还没有提交" />
             ) : (
               <div className="stack">
                 <div className="coach-focus-card">
-                  <span>本次需要处理</span>
+                  <span>处理项</span>
                   <strong>{focusText}</strong>
                 </div>
                 <div className="metric-grid">
@@ -511,15 +519,15 @@ export default function ProblemPage() {
                     </div>
                   </div>
                 ) : (
-                  <EmptyState title="反馈生成中" description="系统已记录评测结果。" />
+                  <EmptyState title="反馈生成中" />
                 )}
               </div>
             )}
           </Panel>
 
-          <Panel title="作业记录" eyebrow="过程记录" description="提交后同步更新本次作业记录。">
+          <Panel title="作业记录" action={<StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? "已同步" : "未确认"}</StatusPill>}>
             {!trajectory ? (
-              <EmptyState title="未确认作业身份" description="从学生入口进入题目后，会显示本次作业记录。" />
+              <EmptyState title="未确认作业身份" />
             ) : (
               <div className="stack">
                 <div className="metric-grid">
@@ -528,12 +536,12 @@ export default function ProblemPage() {
                   <Metric label="卡点" value={trajectory.repeatedIssueTag ? issueLabel(trajectory.repeatedIssueTag) : "暂无"} />
                   <Metric label="阶段" value={trajectory.stageTransition || "观察中"} />
                 </div>
-                <div className="alert">{trajectory.nextStep || "下一次提交后会给出更具体建议。"}</div>
+                <div className="alert">{trajectory.nextStep || "暂无新的处理项。"}</div>
               </div>
             )}
           </Panel>
 
-          <Panel title="尝试记录" eyebrow="提交历史" description="看见每次修改后的变化。" action={<History size={18} />}>
+          <Panel title="尝试记录" action={<History size={18} />}>
             <div className="stack">
               {history.length ? (
                 history.slice(0, 6).map(item => (

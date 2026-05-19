@@ -113,6 +113,20 @@ public class DiagnosisReportReader {
         };
     }
 
+    public String analysisSchemaVersion(SubmissionAnalysis analysis) {
+        String value = stringValue(analysis, "analysisSchemaVersion");
+        return value.isBlank() ? "diagnosis-v1" : value;
+    }
+
+    public String diagnosticTrace(SubmissionAnalysis analysis) {
+        return stringValue(analysis, "diagnosticTrace");
+    }
+
+    private String stringValue(SubmissionAnalysis analysis, String key) {
+        Object value = payloadValue(analysis, key);
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
     private Object payloadValue(SubmissionAnalysis analysis, String key) {
         if (analysis == null || analysis.getReportJson() == null || analysis.getReportJson().isBlank()) {
             return null;

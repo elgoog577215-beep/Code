@@ -45,6 +45,7 @@ public class ClassroomService {
     private final AbilitySignalAnalyzer abilitySignalAnalyzer;
     private final CoachInteractionAnalyzer coachInteractionAnalyzer;
     private final StudentIdentityService studentIdentityService;
+    private final ClassReviewFeedbackService classReviewFeedbackService;
 
     public List<ClassGroupResponse> getClassGroups() {
         return classGroupRepository.findAllByOrderByCreatedAtDesc()
@@ -213,6 +214,13 @@ public class ClassroomService {
                         }
                 ));
         Map<Long, CoachInteractionSummaryResponse> coachInteractions = coachInteractionAnalyzer.summarize(submissionIds);
+        Map<Long, Problem> submittedProblems = problemRepository.findAllById(submissions.stream()
+                        .map(Submission::getProblemId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList())
+                .stream()
+                .collect(Collectors.toMap(Problem::getId, Function.identity()));
 
         Map<Long, List<Submission>> byStudent = submissions.stream()
                 .filter(submission -> submission.getStudentProfileId() != null)
@@ -259,6 +267,15 @@ public class ClassroomService {
                         .evidenceTags(signal.getEvidenceTags())
                         .build())
                 .toList();
+        List<AssignmentOverviewResponse.ClassReviewSuggestion> classReviewSuggestions = buildClassReviewSuggestions(
+                assignmentId,
+                submissions,
+                analyses,
+                submittedProblems,
+                topIssues,
+                classAbilityWeaknesses,
+                latestClassReviewFeedbackByKey(assignmentId)
+        );
 
         return AssignmentOverviewResponse.builder()
                 .assignment(assignmentResponse)
@@ -268,6 +285,7 @@ public class ClassroomService {
                 .strugglingStudentCount(studentSummaries.stream().filter(AssignmentOverviewResponse.StudentProgressSummary::isNeedsAttention).count())
                 .topIssues(topIssues)
                 .classAbilityWeaknesses(classAbilityWeaknesses)
+                .classReviewSuggestions(classReviewSuggestions)
                 .students(studentSummaries)
                 .build();
     }
@@ -313,6 +331,194 @@ public class ClassroomService {
             case "CODE_QUALITY", "CODE_READABILITY", "GENERALIZATION_CHECK" -> "让学生用自己的话复述思路、复杂度和一个边界样例。";
             default -> "让学生先用一个最小样例说明当前思路，再决定是否改代码。";
         };
+    }
+
+    private List<AssignmentOverviewResponse.ClassReviewSuggestion> buildClassReviewSuggestions(
+            Long assignmentId,
+            List<Submission> submissions,
+            Map<Long, SubmissionAnalysis> analyses,
+            Map<Long, Problem> problems,
+            List<AssignmentOverviewResponse.IssueStat> topIssues,
+            List<AssignmentOverviewResponse.AbilityStat> classAbilityWeaknesses,
+            Map<String, ClassReviewFeedback> feedbackByKey) {
+        if (submissions == null || submissions.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashMap<String, AssignmentOverviewResponse.ClassReviewSuggestion> suggestions = new LinkedHashMap<>();
+        for (AssignmentOverviewResponse.AbilityStat ability : safeList(classAbilityWeaknesses)) {
+            if (ability.getAbilityPoint() == null || ability.getAbilityPoint().isBlank()) {
+                continue;
+            }
+            ClassReviewEvidence evidence = findClassReviewEvidence(submissions, analyses, problems, ability.getAbilityPoint(), ability.getEvidenceTags());
+            if (evidence == null) {
+                continue;
+            }
+            String suggestionKey = classReviewSuggestionKey(assignmentId, "ability", ability.getAbilityPoint(), evidence.problemId(), evidence.primaryTag());
+            suggestions.putIfAbsent(suggestionKey, AssignmentOverviewResponse.ClassReviewSuggestion.builder()
+                    .suggestionKey(suggestionKey)
+                    .title("复盘：" + ability.getAbilityPoint())
+                    .targetAbility(ability.getAbilityPoint())
+                    .exampleProblemId(evidence.problemId())
+                    .exampleProblemTitle(evidence.problemTitle())
+                    .evidenceTags(evidence.evidenceTags())
+                    .evidenceSubmissionIds(evidence.submissionIds())
+                    .guidingQuestion(buildGuidingQuestion(evidence.primaryTag(), ability.getAbilityPoint()))
+                    .action(resolveInterventionSuggestion(evidence.primaryTag()))
+                    .evidenceSummary("涉及 " + ability.getTaskCount() + " 题、" + ability.getSubmissionCount() + " 次提交。")
+                    .latestFeedback(toClassReviewFeedbackSummary(feedbackByKey.get(suggestionKey)))
+                    .build());
+            if (suggestions.size() >= 3) {
+                return List.copyOf(suggestions.values());
+            }
+        }
+        for (AssignmentOverviewResponse.IssueStat issue : safeList(topIssues)) {
+            String abilityPoint = issue.getAbilityPoint() == null ? diagnosisTaxonomy.label(issue.getLabel()) : issue.getAbilityPoint();
+            ClassReviewEvidence evidence = findClassReviewEvidence(submissions, analyses, problems, abilityPoint, List.of(issue.getLabel()));
+            if (evidence == null) {
+                continue;
+            }
+            String suggestionKey = classReviewSuggestionKey(assignmentId, "issue", issue.getLabel(), evidence.problemId(), evidence.primaryTag());
+            suggestions.putIfAbsent(suggestionKey, AssignmentOverviewResponse.ClassReviewSuggestion.builder()
+                    .suggestionKey(suggestionKey)
+                    .title("复盘：" + diagnosisTaxonomy.label(issue.getLabel()))
+                    .targetAbility(abilityPoint)
+                    .exampleProblemId(evidence.problemId())
+                    .exampleProblemTitle(evidence.problemTitle())
+                    .evidenceTags(evidence.evidenceTags())
+                    .evidenceSubmissionIds(evidence.submissionIds())
+                    .guidingQuestion(buildGuidingQuestion(issue.getLabel(), abilityPoint))
+                    .action(resolveInterventionSuggestion(issue.getLabel()))
+                    .evidenceSummary("该问题出现 " + issue.getCount() + " 次。")
+                    .latestFeedback(toClassReviewFeedbackSummary(feedbackByKey.get(suggestionKey)))
+                    .build());
+            if (suggestions.size() >= 3) {
+                break;
+            }
+        }
+        return List.copyOf(suggestions.values());
+    }
+
+    private Map<String, ClassReviewFeedback> latestClassReviewFeedbackByKey(Long assignmentId) {
+        return classReviewFeedbackService.latestByAssignment(assignmentId)
+                .stream()
+                .filter(feedback -> feedback.getSuggestionKey() != null && !feedback.getSuggestionKey().isBlank())
+                .collect(Collectors.toMap(
+                        ClassReviewFeedback::getSuggestionKey,
+                        Function.identity(),
+                        (first, ignored) -> first,
+                        LinkedHashMap::new
+                ));
+    }
+
+    private AssignmentOverviewResponse.ClassReviewFeedbackSummary toClassReviewFeedbackSummary(ClassReviewFeedback feedback) {
+        if (feedback == null) {
+            return null;
+        }
+        return AssignmentOverviewResponse.ClassReviewFeedbackSummary.builder()
+                .actionType(feedback.getActionType())
+                .teacherNote(feedback.getTeacherNote())
+                .createdBy(feedback.getCreatedBy())
+                .createdAt(feedback.getCreatedAt())
+                .build();
+    }
+
+    private String classReviewSuggestionKey(Long assignmentId, String kind, String focus, Long problemId, String primaryTag) {
+        return String.join(":",
+                "review",
+                String.valueOf(assignmentId == null ? 0 : assignmentId),
+                normalizeKeyPart(kind),
+                normalizeKeyPart(focus),
+                String.valueOf(problemId == null ? 0 : problemId),
+                normalizeKeyPart(primaryTag)
+        );
+    }
+
+    private String normalizeKeyPart(String value) {
+        String normalized = normalizeNullable(value).toLowerCase(Locale.ROOT);
+        return normalized.replaceAll("[^a-z0-9\\u4e00-\\u9fa5_-]+", "-");
+    }
+
+    private ClassReviewEvidence findClassReviewEvidence(List<Submission> submissions,
+                                                        Map<Long, SubmissionAnalysis> analyses,
+                                                        Map<Long, Problem> problems,
+                                                        String abilityPoint,
+                                                        List<String> preferredTags) {
+        LinkedHashSet<String> tags = new LinkedHashSet<>();
+        if (preferredTags != null) {
+            preferredTags.stream()
+                    .filter(tag -> tag != null && !tag.isBlank())
+                    .forEach(tags::add);
+        }
+        List<String> normalizedPreferredTags = List.copyOf(tags);
+        return submissions.stream()
+                .filter(Objects::nonNull)
+                .filter(submission -> submission.getVerdict() != Submission.Verdict.ACCEPTED)
+                .filter(submission -> {
+                    SubmissionAnalysis analysis = analyses.get(submission.getId());
+                    if (analysis == null) {
+                        return false;
+                    }
+                    List<String> submissionTags = mergedDiagnosisTags(analysis);
+                    if (!normalizedPreferredTags.isEmpty() && submissionTags.stream().noneMatch(normalizedPreferredTags::contains)) {
+                        return false;
+                    }
+                    return abilityPoint == null || abilityPoint.isBlank()
+                            || submissionTags.stream().map(this::resolveAbilityPoint).anyMatch(abilityPoint::equals);
+                })
+                .findFirst()
+                .map(submission -> toClassReviewEvidence(submission, analyses.get(submission.getId()), problems.get(submission.getProblemId()), normalizedPreferredTags))
+                .orElse(null);
+    }
+
+    private ClassReviewEvidence toClassReviewEvidence(Submission submission,
+                                                      SubmissionAnalysis analysis,
+                                                      Problem problem,
+                                                      List<String> preferredTags) {
+        LinkedHashSet<String> tags = new LinkedHashSet<>();
+        mergedDiagnosisTags(analysis).stream()
+                .filter(tag -> preferredTags == null || preferredTags.isEmpty() || preferredTags.contains(tag))
+                .forEach(tags::add);
+        if (tags.isEmpty()) {
+            tags.addAll(mergedDiagnosisTags(analysis));
+        }
+        String primaryTag = tags.stream().findFirst().orElse("NEEDS_MORE_EVIDENCE");
+        return new ClassReviewEvidence(
+                submission.getProblemId(),
+                problem == null ? "题目 #" + submission.getProblemId() : problem.getTitle(),
+                tags.stream().limit(4).toList(),
+                List.of(submission.getId()),
+                primaryTag
+        );
+    }
+
+    private List<String> mergedDiagnosisTags(SubmissionAnalysis analysis) {
+        LinkedHashSet<String> tags = new LinkedHashSet<>();
+        diagnosisReportReader.fineGrainedTags(analysis).forEach(tags::add);
+        diagnosisReportReader.issueTags(analysis).forEach(tags::add);
+        return List.copyOf(tags);
+    }
+
+    private String buildGuidingQuestion(String tagId, String abilityPoint) {
+        return switch (tagId == null ? "" : tagId) {
+            case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "这道题里循环第一次、最后一次分别处理了哪个位置？少算或多算一个位置会怎样？";
+            case "INPUT_PARSING", "IO_FORMAT", "OUTPUT_FORMAT_DETAIL" -> "题面每一行输入/输出分别对应代码里的哪个变量或打印位置？";
+            case "BRUTE_FORCE_LIMIT", "TIME_COMPLEXITY", "MAX_BOUNDARY" -> "如果输入达到最大规模，这段循环大约会执行多少次？";
+            case "INITIAL_STATE", "STATE_RESET", "VARIABLE_INITIALIZATION" -> "每个变量第一次赋值在哪里？多组数据或多轮循环前有没有被重置？";
+            case "SAMPLE_OVERFIT", "SAMPLE_ONLY" -> "能不能构造一个不同于样例的最小反例，让当前代码暴露问题？";
+            default -> "这道题最小失败样例是什么？它暴露的关键判断步骤和 " + (abilityPoint == null ? "当前能力点" : abilityPoint) + " 有什么关系？";
+        };
+    }
+
+    private <T> List<T> safeList(List<T> values) {
+        return values == null ? List.of() : values;
+    }
+
+    private record ClassReviewEvidence(
+            Long problemId,
+            String problemTitle,
+            List<String> evidenceTags,
+            List<Long> submissionIds,
+            String primaryTag) {
     }
 
     @Transactional
@@ -365,17 +571,34 @@ public class ClassroomService {
                 : submissionAnalysisRepository.findBySubmissionIdIn(submissionIds)
                 .stream()
                 .collect(Collectors.toMap(SubmissionAnalysis::getSubmissionId, Function.identity()));
+        Map<Long, Problem> problems = submissions.values().stream()
+                .map(Submission::getProblemId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.collectingAndThen(Collectors.toList(), ids -> ids.isEmpty()
+                        ? Map.of()
+                        : problemRepository.findAllById(ids)
+                        .stream()
+                        .collect(Collectors.toMap(Problem::getId, Function.identity()))));
 
         List<DiagnosisEvalCandidateResponse.Candidate> candidates = corrections.stream()
                 .map(correction -> {
                     Submission submission = submissions.get(correction.getSubmissionId());
                     SubmissionAnalysis analysis = analyses.get(correction.getSubmissionId());
+                    Problem problem = submission == null ? null : problems.get(submission.getProblemId());
                     return DiagnosisEvalCandidateResponse.Candidate.builder()
                             .correctionId(correction.getId())
                             .submissionId(correction.getSubmissionId())
                             .studentProfileId(correction.getStudentProfileId())
                             .problemId(submission == null ? null : submission.getProblemId())
+                            .problemTitle(problem == null ? "" : problem.getTitle())
+                            .problemDescription(problem == null ? "" : problem.getDescription())
+                            .problemDifficulty(problem == null || problem.getDifficulty() == null ? "" : problem.getDifficulty().name())
+                            .problemTimeLimit(problem == null ? null : problem.getTimeLimit())
+                            .problemMemoryLimit(problem == null ? null : problem.getMemoryLimit())
                             .verdict(submission == null || submission.getVerdict() == null ? "UNKNOWN" : submission.getVerdict().name())
+                            .languageName(submission == null ? "" : submission.getLanguageName())
+                            .sourceCode(submission == null ? "" : trimToLength(submission.getSourceCode(), 8000))
                             .scenario(analysis == null ? "" : analysis.getScenario())
                             .originalIssueTag(correction.getOriginalIssueTag())
                             .originalFineGrainedTag(correction.getOriginalFineGrainedTag())
@@ -544,11 +767,18 @@ public class ClassroomService {
         if (submission == null || submission.getSourceCode() == null) {
             return "";
         }
-        String sourceCode = submission.getSourceCode().strip();
-        if (sourceCode.length() <= 800) {
-            return sourceCode;
+        return trimToLength(submission.getSourceCode(), 800);
+    }
+
+    private String trimToLength(String value, int maxLength) {
+        if (value == null) {
+            return "";
         }
-        return sourceCode.substring(0, 800) + "\n...";
+        String normalized = value.strip();
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, maxLength) + "\n...";
     }
 
     private boolean matchesRepeatedEvidence(Submission submission,

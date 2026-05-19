@@ -16,6 +16,7 @@ public class AssignmentOverviewResponse {
     private long strugglingStudentCount;
     private List<IssueStat> topIssues;
     private List<AbilityStat> classAbilityWeaknesses;
+    private List<ClassReviewSuggestion> classReviewSuggestions;
     private List<StudentProgressSummary> students;
 
     @Data
@@ -66,6 +67,31 @@ public class AssignmentOverviewResponse {
         private long taskCount;
         private long submissionCount;
         private List<String> evidenceTags;
+    }
+
+    @Data
+    @Builder
+    public static class ClassReviewSuggestion {
+        private String suggestionKey;
+        private String title;
+        private String targetAbility;
+        private Long exampleProblemId;
+        private String exampleProblemTitle;
+        private List<String> evidenceTags;
+        private List<Long> evidenceSubmissionIds;
+        private String guidingQuestion;
+        private String action;
+        private String evidenceSummary;
+        private ClassReviewFeedbackSummary latestFeedback;
+    }
+
+    @Data
+    @Builder
+    public static class ClassReviewFeedbackSummary {
+        private String actionType;
+        private String teacherNote;
+        private String createdBy;
+        private LocalDateTime createdAt;
     }
 
     @Data

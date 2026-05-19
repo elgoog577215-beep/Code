@@ -1,6 +1,7 @@
 package com.onlinejudge.submission.application;
 
 import com.onlinejudge.execution.CodeExecutor;
+import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.system.application.ExecutorStatusService;
 import com.onlinejudge.submission.dto.SubmissionRequest;
 import com.onlinejudge.submission.dto.SubmissionResponse;
@@ -37,6 +38,7 @@ public class JudgeService {
     private final SubmissionAnalysisService submissionAnalysisService;
     private final SubmissionAnalysisAsyncService submissionAnalysisAsyncService;
     private final ExecutorStatusService executorStatusService;
+    private final StudentRecommendationEventService recommendationEventService;
 
     @PostConstruct
     public void init() {
@@ -61,20 +63,20 @@ public class JudgeService {
         if (!LANGUAGE_NAMES.containsKey(request.getLanguageId())) {
             submission.setVerdict(Submission.Verdict.INTERNAL_ERROR);
             submission.setErrorMessage("暂不支持该语言，当前课堂试点开放：Python 3、C++17");
-            return finalizeAndQueue(problem, submission, List.of());
+            return finalizeAndQueue(problem, submission, List.of(), request.getRecommendationToken());
         }
 
         if (request.getLanguageId() == 54 && !executorStatusService.getStatus().isCppAvailable()) {
             submission.setVerdict(Submission.Verdict.INTERNAL_ERROR);
             submission.setErrorMessage("C++ 执行环境未就绪：当前系统未检测到可用的 g++ 或 Docker 沙箱，请联系老师完成部署配置。");
-            return finalizeAndQueue(problem, submission, List.of());
+            return finalizeAndQueue(problem, submission, List.of(), request.getRecommendationToken());
         }
 
         List<TestCase> testCases = testCaseRepository.findByProblemIdOrderByOrderIndexAsc(problem.getId());
         if (testCases.isEmpty()) {
             submission.setVerdict(Submission.Verdict.INTERNAL_ERROR);
             submission.setErrorMessage("该题目尚未配置测试点");
-            return finalizeAndQueue(problem, submission, List.of());
+            return finalizeAndQueue(problem, submission, List.of(), request.getRecommendationToken());
         }
 
         List<SubmissionCaseResult> caseResults = new ArrayList<>();
@@ -101,7 +103,7 @@ public class JudgeService {
                     submission.setCompileOutput(executionResult.stderr);
                     submission.setExecutionTime(millisecondsToSeconds(maxExecutionTimeMs));
                     submission.setMemoryUsed(maxMemoryUsed);
-                    return finalizeAndQueue(problem, submission, caseResults);
+                    return finalizeAndQueue(problem, submission, caseResults, request.getRecommendationToken());
                 }
                 case TIME_LIMIT_EXCEEDED -> {
                     finalVerdict = Submission.Verdict.TIME_LIMIT_EXCEEDED;
@@ -109,7 +111,7 @@ public class JudgeService {
                     submission.setExecutionTime(millisecondsToSeconds(maxExecutionTimeMs));
                     submission.setMemoryUsed(maxMemoryUsed);
                     caseResults.add(buildCaseResult(index + 1, false, testCase, "", normalizeOutput(testCase.getExpectedOutput()), 0.0, 0));
-                    return finalizeAndQueue(problem, submission, caseResults);
+                    return finalizeAndQueue(problem, submission, caseResults, request.getRecommendationToken());
                 }
                 case MEMORY_LIMIT_EXCEEDED -> {
                     finalVerdict = Submission.Verdict.MEMORY_LIMIT_EXCEEDED;
@@ -117,7 +119,7 @@ public class JudgeService {
                     submission.setExecutionTime(millisecondsToSeconds(maxExecutionTimeMs));
                     submission.setMemoryUsed(problem.getMemoryLimit());
                     caseResults.add(buildCaseResult(index + 1, false, testCase, "", normalizeOutput(testCase.getExpectedOutput()), 0.0, problem.getMemoryLimit()));
-                    return finalizeAndQueue(problem, submission, caseResults);
+                    return finalizeAndQueue(problem, submission, caseResults, request.getRecommendationToken());
                 }
                 case RUNTIME_ERROR -> {
                     finalVerdict = Submission.Verdict.RUNTIME_ERROR;
@@ -136,14 +138,14 @@ public class JudgeService {
                             millisecondsToSeconds(executionResult.executionTimeMs),
                             0
                     ));
-                    return finalizeAndQueue(problem, submission, caseResults);
+                    return finalizeAndQueue(problem, submission, caseResults, request.getRecommendationToken());
                 }
                 case INTERNAL_ERROR -> {
                     submission.setVerdict(Submission.Verdict.INTERNAL_ERROR);
                     submission.setErrorMessage(executionResult.errorMessage);
                     submission.setExecutionTime(millisecondsToSeconds(maxExecutionTimeMs));
                     submission.setMemoryUsed(maxMemoryUsed);
-                    return finalizeAndQueue(problem, submission, caseResults);
+                    return finalizeAndQueue(problem, submission, caseResults, request.getRecommendationToken());
                 }
                 case SUCCESS -> {
                     String actualOutput = normalizeOutput(executionResult.stdout);
@@ -175,7 +177,7 @@ public class JudgeService {
         submission.setVerdict(finalVerdict);
         submission.setExecutionTime(millisecondsToSeconds(maxExecutionTimeMs));
         submission.setMemoryUsed(maxMemoryUsed);
-        return finalizeAndQueue(problem, submission, caseResults);
+        return finalizeAndQueue(problem, submission, caseResults, request.getRecommendationToken());
     }
 
     public SubmissionResponse getSubmission(Long submissionId) {
@@ -203,8 +205,10 @@ public class JudgeService {
 
     private SubmissionResponse finalizeAndQueue(Problem problem,
                                                 Submission submission,
-                                                List<SubmissionCaseResult> caseResults) {
+                                                List<SubmissionCaseResult> caseResults,
+                                                String recommendationToken) {
         SubmissionResponse response = submissionAnalysisService.finalizeSubmission(problem, submission, caseResults);
+        recommendationEventService.recordSubmission(submission, recommendationToken);
         submissionAnalysisAsyncService.enqueue(response.getId());
         return response;
     }

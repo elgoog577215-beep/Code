@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CheckCircle2, FileText, FlaskConical, Save, ShieldCheck } from "lucide-react";
+import { Save } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { ProblemCatalogItem, ProblemManage } from "../../shared/api/types";
 import { difficultyLabel } from "../../shared/format";
@@ -43,42 +43,20 @@ export default function TaskEditorPage() {
   const qualityItems = useMemo(
     () => [
       { label: "题目标题", ready: Boolean(form.title.trim()), note: form.title.trim() ? "已填写" : "需要学生一眼看懂任务" },
-      { label: "题面说明", ready: form.description.trim().length >= 20, note: form.description.trim().length >= 20 ? "已填写" : "写清输入、输出和边界" },
+      { label: "题面", ready: form.description.trim().length >= 20, note: form.description.trim().length >= 20 ? "已填写" : "未完成" },
       { label: "公开测试点", ready: visibleCount > 0, note: visibleCount > 0 ? `${visibleCount} 个可见` : "至少保留 1 个样例" },
-      { label: "隐藏测试点", ready: hiddenCount > 0, note: hiddenCount > 0 ? `${hiddenCount} 个用于泛化验证` : "建议增加边界或反例" },
+      { label: "隐藏测试点", ready: hiddenCount > 0, note: hiddenCount > 0 ? `${hiddenCount} 个隐藏` : "未设置" },
       {
-        label: "知识元数据",
+        label: "知识点",
         ready: Boolean(form.knowledgePointsText.trim() || form.commonMistakesText.trim() || form.boundaryTypesText.trim()),
-        note: form.knowledgePointsText.trim() ? "已维护" : "写入知识点、误区或边界类型"
+        note: form.knowledgePointsText.trim() ? "已填写" : "未填写"
       }
     ],
     [form.boundaryTypesText, form.commonMistakesText, form.description, form.knowledgePointsText, form.title, hiddenCount, visibleCount]
   );
   const readyQualityCount = qualityItems.filter(item => item.ready).length;
-  const readinessPercent = Math.round((readyQualityCount / qualityItems.length) * 100);
-  const nextMissingItem = qualityItems.find(item => !item.ready);
   const publishState = readyQualityCount >= qualityItems.length ? "检查完成" : readyQualityCount >= 4 ? "基本完整" : "继续完善";
   const readinessTone = readyQualityCount >= qualityItems.length ? "success" : readyQualityCount >= 4 ? "info" : "warning";
-  const editorCoachItems = [
-    {
-      title: "题面完整",
-      body: form.description.trim().length >= 20 ? "题面已填写。" : "补齐输入、输出和范围。",
-      ready: form.description.trim().length >= 20,
-      icon: FileText
-    },
-    {
-      title: "测试点完整",
-      body: visibleCount && hiddenCount ? `${visibleCount} 个公开点、${hiddenCount} 个隐藏点。` : "至少保留公开样例，再补一个隐藏边界点。",
-      ready: visibleCount > 0 && hiddenCount > 0,
-      icon: FlaskConical
-    },
-    {
-      title: "提示要求",
-      body: form.aiPromptDirection.trim() ? "提示要求已填写。" : "写提示范围，不写答案。",
-      ready: Boolean(form.aiPromptDirection.trim()),
-      icon: ShieldCheck
-    }
-  ];
 
   useEffect(() => {
     void loadCatalog();
@@ -193,9 +171,7 @@ export default function TaskEditorPage() {
     <div className="stack task-editor-page">
       <section className="editor-command">
         <div>
-          <p className="eyebrow">题目编辑</p>
           <h1>{form.title || "新建题目"}</h1>
-          <p>填写题面、测试点和提示要求。</p>
         </div>
         <div className="editor-command__actions">
           <StatusPill tone={visibleCount ? "success" : "danger"}>{visibleCount} 个公开测试点</StatusPill>
@@ -209,36 +185,12 @@ export default function TaskEditorPage() {
 
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
-      <section className="editor-readiness" aria-label="题目检查">
-        <div className="editor-readiness__score">
-          <StatusPill tone={readinessTone}>{publishState}</StatusPill>
-          <strong>{readinessPercent}%</strong>
-          <span>题目完整度</span>
-          <div className="editor-readiness__bar" aria-hidden="true">
-            <i style={{ width: `${readinessPercent}%` }} />
-          </div>
-          <p>{nextMissingItem ? `下一项：${nextMissingItem.note}` : "保存后可在教师工作台绑定到作业。"}</p>
-        </div>
-        <div className="editor-readiness__checks">
-          {editorCoachItems.map(item => (
-            <div className={item.ready ? "is-ready" : ""} key={item.title}>
-              <item.icon size={18} />
-              <div>
-                <span>{item.title}</span>
-                <strong>{item.body}</strong>
-              </div>
-              {item.ready && <CheckCircle2 size={17} />}
-            </div>
-          ))}
-        </div>
-      </section>
-
       <section className="editor-layout">
-        <Panel title="题目信息" eyebrow="1 / 题面" description="填写学生看到的题目内容。">
+        <Panel title="题目信息" action={<StatusPill tone={readinessTone}>{publishState}</StatusPill>}>
           <div className="stack">
             <div className="form-grid">
               <Field label="题目标题">
-                <TextInput value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} placeholder="例如 两数求和" />
+                <TextInput value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} placeholder="两数求和" />
               </Field>
               <Field label="难度">
                 <Select value={form.difficulty} onChange={event => setForm({ ...form, difficulty: event.target.value })}>
@@ -251,44 +203,44 @@ export default function TaskEditorPage() {
                 <TextInput type="number" value={form.timeLimit} onChange={event => setForm({ ...form, timeLimit: Number(event.target.value) })} />
               </Field>
             </div>
-            <Field label="题面说明">
+            <Field label="题面">
               <TextArea value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} />
             </Field>
             <div className="form-grid">
               <Field label="内存 KB">
                 <TextInput type="number" value={form.memoryLimit} onChange={event => setForm({ ...form, memoryLimit: Number(event.target.value) })} />
               </Field>
-              <Field label="提示要求" hint="写提示范围，不写参考答案。">
+              <Field label="反馈范围">
                 <TextInput
                   value={form.aiPromptDirection}
                   onChange={event => setForm({ ...form, aiPromptDirection: event.target.value })}
-                  placeholder="例如 关注空输入、循环边界、复杂度"
+                  placeholder="空输入、循环边界、复杂度"
                 />
               </Field>
             </div>
             <div className="knowledge-grid">
-              <Field label="知识点" hint="例如 前缀和、循环边界、输入读取">
+              <Field label="知识点">
                 <TextArea
                   value={form.knowledgePointsText}
                   onChange={event => setForm({ ...form, knowledgePointsText: event.target.value })}
                   rows={3}
                 />
               </Field>
-              <Field label="算法策略" hint="例如 预处理、哈希统计、双指针">
+              <Field label="算法策略">
                 <TextArea
                   value={form.algorithmStrategiesText}
                   onChange={event => setForm({ ...form, algorithmStrategiesText: event.target.value })}
                   rows={3}
                 />
               </Field>
-              <Field label="常见误区" hint="例如 只处理样例、漏读查询次数">
+              <Field label="常见误区">
                 <TextArea
                   value={form.commonMistakesText}
                   onChange={event => setForm({ ...form, commonMistakesText: event.target.value })}
                   rows={3}
                 />
               </Field>
-              <Field label="边界类型" hint="例如 n=1、重复元素、最大规模">
+              <Field label="边界类型">
                 <TextArea
                   value={form.boundaryTypesText}
                   onChange={event => setForm({ ...form, boundaryTypesText: event.target.value })}
@@ -302,8 +254,6 @@ export default function TaskEditorPage() {
         <aside className="editor-side">
           <Panel
             title="题目列表"
-            eyebrow="题目库"
-            description="选择已有题目继续编辑。"
             action={<StatusPill tone="info">{catalog.length} 个题目</StatusPill>}
           >
             <div className="stack">
@@ -316,12 +266,12 @@ export default function TaskEditorPage() {
                   </button>
                 ))
               ) : (
-                <EmptyState title="暂无题目" description="保存第一个题目后会出现在这里。" />
+                <EmptyState title="暂无题目" />
               )}
             </div>
           </Panel>
 
-          <Panel title="题目检查" eyebrow="保存前" description="确认题面和测试点是否完整。">
+          <Panel title="保存检查" action={<StatusPill tone={readinessTone}>{readyQualityCount}/5</StatusPill>}>
             <div className="editor-quality-list">
               {qualityItems.map(item => (
                 <div className={item.ready ? "is-ready" : ""} key={item.label}>
@@ -334,27 +284,15 @@ export default function TaskEditorPage() {
               ))}
             </div>
           </Panel>
-
-          <Panel title="提示要求" eyebrow="3 / 反馈" description="只写提示范围，不写参考答案。">
-            <div className="editor-safety-note">
-              <ShieldCheck size={18} />
-              <div>
-                <StatusPill tone="info">教师可编辑</StatusPill>
-                <h3>提示要求</h3>
-                <p>写常见错因、边界条件或复杂度要求。</p>
-              </div>
-            </div>
-          </Panel>
         </aside>
       </section>
 
       <Panel
         title="测试点"
-        eyebrow="2 / 测试数据"
-        description="至少保留一个公开测试点；隐藏测试点用于验证学生代码是否真正泛化。"
         action={
           <div className="actions">
             <StatusPill tone={visibleCount ? "success" : "danger"}>{visibleCount} 个公开</StatusPill>
+            <StatusPill tone={hiddenCount ? "warning" : "neutral"}>{hiddenCount} 个隐藏</StatusPill>
             <Button type="button" variant="secondary" onClick={() => addTestCase(false)}>
               添加公开点
             </Button>

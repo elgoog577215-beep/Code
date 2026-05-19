@@ -1,9 +1,11 @@
 package com.onlinejudge.classroom.application;
 
 import com.onlinejudge.classroom.domain.StudentProfile;
+import com.onlinejudge.classroom.domain.StudentRecommendationEvent;
 import com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse;
 import com.onlinejudge.classroom.dto.StudentAbilityProfileResponse;
 import com.onlinejudge.classroom.dto.StudentProfileResponse;
+import com.onlinejudge.classroom.persistence.StudentRecommendationEventRepository;
 import com.onlinejudge.classroom.persistence.StudentProfileRepository;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.persistence.ProblemRepository;
@@ -38,6 +40,7 @@ public class StudentAbilityProfileService {
     private final AbilitySignalAnalyzer abilitySignalAnalyzer;
     private final CoachInteractionAnalyzer coachInteractionAnalyzer;
     private final StudentIdentityService studentIdentityService;
+    private final StudentRecommendationEventRepository recommendationEventRepository;
 
     public StudentAbilityProfileResponse buildProfile(Long studentProfileId) {
         StudentProfile student = studentProfileRepository.findById(studentProfileId)
@@ -93,9 +96,10 @@ public class StudentAbilityProfileService {
                 .primaryAbilityFocus(abilitySignals.stream()
                         .findFirst()
                         .map(AbilitySignalAnalyzer.AbilitySignal::getAbilityPoint)
-                        .orElse(null))
+                .orElse(null))
                 .summary(buildSummary(submissions, abilitySignals))
                 .trendSignal(buildTrendSignal(submissions, abilitySignals))
+                .recommendationEffectSummary(buildRecommendationEffectSummary(profileIds))
                 .latestCoachInteraction(coachInteractionAnalyzer.latestForOrderedSubmissions(submissionIds, coachInteractions))
                 .abilityGaps(abilityGaps)
                 .knowledgeFocus(summarizeProblemTags(submissions, problems, Problem::getKnowledgePoints))
@@ -108,6 +112,10 @@ public class StudentAbilityProfileService {
         LinkedHashMap<Long, StudentProfile> merged = new LinkedHashMap<>();
         addProfile(merged, student);
         if (student.getClassGroupId() == null) {
+            return List.copyOf(merged.values());
+        }
+        if (studentIdentityService.isManualIdentityKey(student.getIdentityKey())) {
+            addProfiles(merged, studentProfileRepository.findByIdentityKeyOrderByCreatedAtDesc(student.getIdentityKey()));
             return List.copyOf(merged.values());
         }
         String stableIdentityKey = studentIdentityService.buildStableIdentityKey(
@@ -124,16 +132,25 @@ public class StudentAbilityProfileService {
         }
         String studentNo = normalize(student.getStudentNo());
         if (!studentNo.isBlank()) {
-            addProfiles(merged, studentProfileRepository
+            addHeuristicProfiles(merged, studentProfileRepository
                     .findByClassGroupIdAndStudentNoIgnoreCaseOrderByCreatedAtDesc(student.getClassGroupId(), studentNo));
             return List.copyOf(merged.values());
         }
         String displayName = normalize(student.getDisplayName());
         if (!displayName.isBlank()) {
-            addProfiles(merged, studentProfileRepository
+            addHeuristicProfiles(merged, studentProfileRepository
                     .findByClassGroupIdAndDisplayNameIgnoreCaseOrderByCreatedAtDesc(student.getClassGroupId(), displayName));
         }
         return List.copyOf(merged.values());
+    }
+
+    private void addHeuristicProfiles(Map<Long, StudentProfile> merged, List<StudentProfile> candidates) {
+        if (candidates == null) {
+            return;
+        }
+        candidates.stream()
+                .filter(candidate -> !studentIdentityService.isManualIdentityKey(candidate.getIdentityKey()))
+                .forEach(candidate -> addProfile(merged, candidate));
     }
 
     private void addProfiles(Map<Long, StudentProfile> merged, List<StudentProfile> candidates) {
@@ -224,6 +241,60 @@ public class StudentAbilityProfileService {
             return "同一能力点多次出现，下一轮应验证是否真正理解，而不是只改代码。";
         }
         return "趋势还在形成中，继续用下一次提交补充证据。";
+    }
+
+    private String buildRecommendationEffectSummary(List<Long> profileIds) {
+        if (profileIds == null || profileIds.isEmpty()) {
+            return null;
+        }
+        List<StudentRecommendationEvent> events = profileIds.stream()
+                .filter(Objects::nonNull)
+                .flatMap(profileId -> recommendationEventRepository.findByStudentProfileIdOrderByCreatedAtDesc(profileId).stream())
+                .filter(Objects::nonNull)
+                .toList();
+        if (events.isEmpty()) {
+            return null;
+        }
+        long exposed = countEvents(events, StudentRecommendationEventService.EVENT_EXPOSED);
+        long clicked = countEvents(events, StudentRecommendationEventService.EVENT_CLICKED);
+        List<StudentRecommendationEvent> submittedEvents = events.stream()
+                .filter(event -> StudentRecommendationEventService.EVENT_SUBMITTED.equals(event.getEventType()))
+                .toList();
+        long submitted = submittedEvents.size();
+        long accepted = submittedEvents.stream()
+                .filter(event -> Submission.Verdict.ACCEPTED.name().equals(event.getFollowupVerdict()))
+                .count();
+        long stillSameFocus = submittedEvents.stream()
+                .filter(event -> event.getFocusTags() != null)
+                .filter(event -> containsFocusTag(event.getFocusTags(), event.getFollowupFineGrainedTag())
+                        || containsFocusTag(event.getFocusTags(), event.getFollowupIssueTag()))
+                .count();
+        if (accepted > 0) {
+            return "推荐后已有 " + accepted + " 次提交通过，继续观察能否迁移到新题。";
+        }
+        if (submitted > 0 && stillSameFocus > 0) {
+            return "推荐后已有 " + submitted + " 次提交，但仍有 " + stillSameFocus + " 次命中同类错因，建议先收窄到最小失败样例。";
+        }
+        if (submitted > 0) {
+            return "推荐后已有 " + submitted + " 次提交，暂未观察到通过，可继续看下一次诊断标签是否变化。";
+        }
+        if (clicked > 0) {
+            return "学生已点击 " + clicked + " 次推荐，还需要一次提交来验证是否有效。";
+        }
+        if (exposed > 0) {
+            return "已生成 " + exposed + " 条推荐，等待学生点击或提交来形成效果证据。";
+        }
+        return null;
+    }
+
+    private long countEvents(List<StudentRecommendationEvent> events, String eventType) {
+        return events.stream()
+                .filter(event -> eventType.equals(event.getEventType()))
+                .count();
+    }
+
+    private boolean containsFocusTag(String focusTags, String tag) {
+        return focusTags != null && tag != null && !tag.isBlank() && focusTags.contains(tag);
     }
 
     private String normalize(String value) {

@@ -234,6 +234,14 @@ class CoachPromptServiceTest {
         }
 
         @Override
+        public List<Submission> findByAssignmentIdIn(Collection<Long> assignmentIds) {
+            return items.values()
+                    .stream()
+                    .filter(item -> assignmentIds.contains(item.getAssignmentId()))
+                    .toList();
+        }
+
+        @Override
         public List<Submission> findByStudentProfileIdInOrderBySubmittedAtDesc(Collection<Long> studentProfileIds) {
             return List.of();
         }

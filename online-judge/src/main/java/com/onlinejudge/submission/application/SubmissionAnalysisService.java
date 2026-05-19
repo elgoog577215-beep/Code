@@ -3,6 +3,7 @@ package com.onlinejudge.submission.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.application.HintSafetyService;
+import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.classroom.persistence.AssignmentRepository;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
@@ -60,6 +61,7 @@ public class SubmissionAnalysisService {
     private final DiagnosticAgentService diagnosticAgentService;
     private final DiagnosisReportReader diagnosisReportReader;
     private final DiagnosisEvidencePackageReader diagnosisEvidencePackageReader;
+    private final StudentRecommendationEventService recommendationEventService;
 
     @Transactional
     public SubmissionResponse finalizeSubmission(Problem problem, Submission submission, List<SubmissionCaseResult> caseResults) {
@@ -149,6 +151,8 @@ public class SubmissionAnalysisService {
             log.info("Reusing existing submission analysis. submissionId={}, sourceType={}",
                     submissionId,
                     existing.getSourceType());
+            submissionAnalysisRepository.findBySubmissionId(submissionId)
+                    .ifPresent(analysis -> recommendationEventService.backfillSubmissionAnalysis(submission, analysis));
             return existing;
         }
 
@@ -198,6 +202,7 @@ public class SubmissionAnalysisService {
                 submission.getId(),
                 analysis.getSourceType(),
                 savedAnalysis.getGeneratedAt());
+        recommendationEventService.backfillSubmissionAnalysis(submission, savedAnalysis);
         analysis.setGeneratedAt(savedAnalysis.getGeneratedAt());
         return analysis;
     }

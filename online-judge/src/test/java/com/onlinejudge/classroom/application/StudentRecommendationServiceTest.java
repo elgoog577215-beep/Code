@@ -3,7 +3,9 @@ package com.onlinejudge.classroom.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.CoachPrompt;
 import com.onlinejudge.classroom.domain.StudentProfile;
+import com.onlinejudge.classroom.domain.StudentRecommendationEvent;
 import com.onlinejudge.classroom.persistence.CoachPromptRepository;
+import com.onlinejudge.classroom.persistence.StudentRecommendationEventRepository;
 import com.onlinejudge.classroom.persistence.StudentProfileRepository;
 import com.onlinejudge.leaderboard.persistence.ProblemSubmissionStatsProjection;
 import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
@@ -33,6 +35,7 @@ class StudentRecommendationServiceTest {
     private final FakeSubmissionAnalysisRepository analysisRepository = new FakeSubmissionAnalysisRepository();
     private final FakeProblemRepository problemRepository = new FakeProblemRepository();
     private final FakeCoachPromptRepository coachPromptRepository = new FakeCoachPromptRepository();
+    private final FakeStudentRecommendationEventRepository recommendationEventRepository = new FakeStudentRecommendationEventRepository();
     private final DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final StudentAbilityProfileService abilityProfileService = new StudentAbilityProfileService(
@@ -42,12 +45,20 @@ class StudentRecommendationServiceTest {
             problemRepository,
             new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
             new CoachInteractionAnalyzer(coachPromptRepository),
-            new StudentIdentityService()
+            new StudentIdentityService(),
+            recommendationEventRepository
+    );
+    private final StudentRecommendationEventService recommendationEventService = new StudentRecommendationEventService(
+            recommendationEventRepository,
+            analysisRepository,
+            new DiagnosisReportReader(objectMapper, taxonomy),
+            objectMapper
     );
     private final StudentRecommendationService service = new StudentRecommendationService(
             abilityProfileService,
             problemRepository,
-            submissionRepository
+            submissionRepository,
+            recommendationEventService
     );
 
     @Test
@@ -66,6 +77,73 @@ class StudentRecommendationServiceTest {
         assertThat(response.getRecommendations().get(0).getProblemId()).isEqualTo(101L);
         assertThat(response.getRecommendations().get(1).getProblemId()).isEqualTo(102L);
         assertThat(response.getRecommendations().get(1).getFocusTags()).contains("数组", "边界漏判");
+    }
+
+    @Test
+    void recommendationsCarryTokensAndEventsCanTrackClickAndSubmission() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+        problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(11L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+
+        var response = service.recommend(1L);
+        String token = response.getRecommendations().get(0).getRecommendationToken();
+        Submission followup = submission(12L, 1L, 101L, 7L, Submission.Verdict.ACCEPTED, 1);
+        analysisRepository.save(analysis(12L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+
+        recommendationEventService.recordClick(1L, token);
+        recommendationEventService.recordEnteredProblem(1L, token);
+        recommendationEventService.recordSubmission(followup, token);
+
+        assertThat(response.getRecommendations()).allSatisfy(item -> assertThat(item.getRecommendationToken()).isNotBlank());
+        assertThat(recommendationEventRepository.items)
+                .filteredOn(item -> StudentRecommendationEventService.EVENT_EXPOSED.equals(item.getEventType()))
+                .hasSize(3);
+        assertThat(recommendationEventRepository.items)
+                .extracting(StudentRecommendationEvent::getEventType)
+                .contains(
+                        StudentRecommendationEventService.EVENT_CLICKED,
+                        StudentRecommendationEventService.EVENT_ENTERED_PROBLEM,
+                        StudentRecommendationEventService.EVENT_SUBMITTED
+                );
+        assertThat(recommendationEventRepository.items)
+                .filteredOn(item -> StudentRecommendationEventService.EVENT_SUBMITTED.equals(item.getEventType()))
+                .first()
+                .satisfies(item -> {
+                    assertThat(item.getFollowupSubmissionId()).isEqualTo(12L);
+                    assertThat(item.getFollowupVerdict()).isEqualTo(Submission.Verdict.ACCEPTED.name());
+                    assertThat(item.getFollowupFineGrainedTag()).isEqualTo("OFF_BY_ONE");
+                });
+    }
+
+    @Test
+    void submittedRecommendationEventCanBackfillAnalysisWhenDiagnosisArrivesLater() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+        problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(11L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+
+        var response = service.recommend(1L);
+        String token = response.getRecommendations().get(0).getRecommendationToken();
+        Submission followup = submission(12L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 1);
+
+        recommendationEventService.recordSubmission(followup, token);
+
+        StudentRecommendationEvent submitted = recommendationEventRepository.items.stream()
+                .filter(item -> StudentRecommendationEventService.EVENT_SUBMITTED.equals(item.getEventType()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(submitted.getFollowupIssueTag()).isNull();
+        assertThat(submitted.getFollowupFineGrainedTag()).isNull();
+
+        SubmissionAnalysis generated = analysisRepository.save(analysis(12L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        recommendationEventService.backfillSubmissionAnalysis(followup, generated);
+
+        assertThat(submitted.getFollowupIssueTag()).isEqualTo("BOUNDARY_CONDITION");
+        assertThat(submitted.getFollowupFineGrainedTag()).isEqualTo("OFF_BY_ONE");
+        assertThat(submitted.getFollowupVerdict()).isEqualTo(Submission.Verdict.WRONG_ANSWER.name());
     }
 
     private StudentProfile student(Long id, Long classGroupId, String displayName, String studentNo) {
@@ -200,6 +278,13 @@ class StudentRecommendationServiceTest {
         }
 
         @Override
+        public List<Submission> findByAssignmentIdIn(Collection<Long> assignmentIds) {
+            return items.stream()
+                    .filter(item -> assignmentIds.contains(item.getAssignmentId()))
+                    .toList();
+        }
+
+        @Override
         public List<Submission> findByStudentProfileIdInOrderBySubmittedAtDesc(Collection<Long> studentProfileIds) {
             return items.stream()
                     .filter(item -> studentProfileIds.contains(item.getStudentProfileId()))
@@ -317,6 +402,52 @@ class StudentRecommendationServiceTest {
         @Override
         public List<CoachPrompt> findBySubmissionIdIn(Collection<Long> submissionIds) {
             return List.of();
+        }
+    }
+
+    private static class FakeStudentRecommendationEventRepository extends UnsupportedJpaRepository<StudentRecommendationEvent, Long> implements StudentRecommendationEventRepository {
+        private final List<StudentRecommendationEvent> items = new ArrayList<>();
+
+        @Override
+        public StudentRecommendationEvent save(StudentRecommendationEvent event) {
+            if (event.getId() == null) {
+                event.setId((long) items.size() + 1);
+            }
+            items.add(event);
+            return event;
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findByStudentProfileIdOrderByCreatedAtDesc(Long studentProfileId) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getStudentProfileId(), studentProfileId))
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .toList();
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findTop500ByOrderByCreatedAtDesc() {
+            return items.stream()
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .limit(500)
+                    .toList();
+        }
+
+        @Override
+        public Optional<StudentRecommendationEvent> findTopByRecommendationTokenAndEventTypeOrderByCreatedAtDesc(String recommendationToken, String eventType) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getRecommendationToken(), recommendationToken))
+                    .filter(item -> Objects.equals(item.getEventType(), eventType))
+                    .max(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)));
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findByFollowupSubmissionIdAndEventTypeOrderByCreatedAtDesc(Long followupSubmissionId, String eventType) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getFollowupSubmissionId(), followupSubmissionId))
+                    .filter(item -> Objects.equals(item.getEventType(), eventType))
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .toList();
         }
     }
 

@@ -2,6 +2,8 @@ package com.onlinejudge.classroom.application;
 
 import com.onlinejudge.classroom.domain.ClassGroup;
 import com.onlinejudge.classroom.domain.StudentProfile;
+import com.onlinejudge.classroom.dto.StudentIdentityMergeRequest;
+import com.onlinejudge.classroom.dto.StudentIdentitySplitRequest;
 import com.onlinejudge.classroom.persistence.ClassGroupRepository;
 import com.onlinejudge.classroom.persistence.StudentProfileRepository;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,12 @@ class StudentIdentityAuditServiceTest {
             studentProfileRepository,
             new StudentIdentityService()
     );
+    private final StudentIdentityAdminService adminService = new StudentIdentityAdminService(
+            classGroupRepository,
+            studentProfileRepository,
+            new StudentIdentityService(),
+            service
+    );
 
     @Test
     void reportsStableLegacyAndDuplicateIdentityGroups() {
@@ -38,6 +46,7 @@ class StudentIdentityAuditServiceTest {
 
         assertThat(audit.getTotalProfiles()).isEqualTo(3);
         assertThat(audit.getStableIdentityCount()).isEqualTo(2);
+        assertThat(audit.getManualIdentityCount()).isEqualTo(0);
         assertThat(audit.getLegacyIdentityCount()).isEqualTo(1);
         assertThat(audit.getMissingStudentNoCount()).isEqualTo(1);
         assertThat(audit.getDuplicateGroupCount()).isEqualTo(1);
@@ -47,6 +56,48 @@ class StudentIdentityAuditServiceTest {
                     assertThat(group.getStudentProfileIds()).containsExactly(1L, 2L);
                     assertThat(group.getIdentityKeys()).contains("class:9:08", "7:9:张三:08");
                 });
+    }
+
+    @Test
+    void mergeProfilesRekeysSelectedProfilesWithoutDeletingHistory() {
+        classGroupRepository.items.put(9L, ClassGroup.builder()
+                .id(9L)
+                .name("class-a")
+                .build());
+        studentProfileRepository.items.put(1L, student(1L, "student-a", "08", "class:9:08"));
+        studentProfileRepository.items.put(2L, student(2L, "student-a", "08", "7:9:student-a:08"));
+
+        StudentIdentityMergeRequest request = new StudentIdentityMergeRequest();
+        request.setStudentProfileIds(List.of(1L, 2L));
+        request.setTargetStudentProfileId(1L);
+
+        var audit = adminService.mergeProfiles(9L, request);
+
+        assertThat(studentProfileRepository.items.get(1L).getIdentityKey()).isEqualTo("manual-merge:9:1");
+        assertThat(studentProfileRepository.items.get(2L).getIdentityKey()).isEqualTo("manual-merge:9:1");
+        assertThat(audit.getManualIdentityCount()).isEqualTo(2);
+        assertThat(audit.getDuplicateGroupCount()).isZero();
+        assertThat(studentProfileRepository.items).containsKeys(1L, 2L);
+    }
+
+    @Test
+    void splitProfileGivesProfileIndependentManualIdentity() {
+        classGroupRepository.items.put(9L, ClassGroup.builder()
+                .id(9L)
+                .name("class-a")
+                .build());
+        studentProfileRepository.items.put(1L, student(1L, "student-a", "08", "class:9:08"));
+        studentProfileRepository.items.put(2L, student(2L, "student-a", "08", "class:9:08"));
+
+        StudentIdentitySplitRequest request = new StudentIdentitySplitRequest();
+        request.setStudentProfileId(2L);
+
+        var audit = adminService.splitProfile(9L, request);
+
+        assertThat(studentProfileRepository.items.get(1L).getIdentityKey()).isEqualTo("class:9:08");
+        assertThat(studentProfileRepository.items.get(2L).getIdentityKey()).isEqualTo("manual-split:9:2");
+        assertThat(audit.getManualIdentityCount()).isEqualTo(1);
+        assertThat(audit.getDuplicateGroupCount()).isZero();
     }
 
     private StudentProfile student(Long id, String displayName, String studentNo, String identityKey) {
@@ -92,6 +143,37 @@ class StudentIdentityAuditServiceTest {
                     .stream()
                     .filter(item -> Objects.equals(item.getIdentityKey(), identityKey))
                     .findFirst();
+        }
+
+        @Override
+        public Optional<StudentProfile> findById(Long id) {
+            return Optional.ofNullable(items.get(id));
+        }
+
+        @Override
+        public List<StudentProfile> findAllById(Iterable<Long> ids) {
+            Set<Long> wanted = new LinkedHashSet<>();
+            ids.forEach(wanted::add);
+            return items.values()
+                    .stream()
+                    .filter(item -> wanted.contains(item.getId()))
+                    .toList();
+        }
+
+        @Override
+        public <S extends StudentProfile> S save(S entity) {
+            items.put(entity.getId(), entity);
+            return entity;
+        }
+
+        @Override
+        public <S extends StudentProfile> List<S> saveAll(Iterable<S> entities) {
+            List<S> saved = new ArrayList<>();
+            entities.forEach(entity -> {
+                items.put(entity.getId(), entity);
+                saved.add(entity);
+            });
+            return saved;
         }
 
         @Override

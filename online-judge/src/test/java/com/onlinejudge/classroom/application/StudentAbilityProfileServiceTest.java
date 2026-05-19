@@ -3,7 +3,9 @@ package com.onlinejudge.classroom.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.CoachPrompt;
 import com.onlinejudge.classroom.domain.StudentProfile;
+import com.onlinejudge.classroom.domain.StudentRecommendationEvent;
 import com.onlinejudge.classroom.persistence.CoachPromptRepository;
+import com.onlinejudge.classroom.persistence.StudentRecommendationEventRepository;
 import com.onlinejudge.classroom.persistence.StudentProfileRepository;
 import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
@@ -33,6 +35,7 @@ class StudentAbilityProfileServiceTest {
     private final FakeSubmissionAnalysisRepository analysisRepository = new FakeSubmissionAnalysisRepository();
     private final FakeProblemRepository problemRepository = new FakeProblemRepository();
     private final FakeCoachPromptRepository coachPromptRepository = new FakeCoachPromptRepository();
+    private final FakeStudentRecommendationEventRepository recommendationEventRepository = new FakeStudentRecommendationEventRepository();
     private final DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final StudentAbilityProfileService service = new StudentAbilityProfileService(
@@ -42,7 +45,8 @@ class StudentAbilityProfileServiceTest {
             problemRepository,
             new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
             new CoachInteractionAnalyzer(coachPromptRepository),
-            new StudentIdentityService()
+            new StudentIdentityService(),
+            recommendationEventRepository
     );
 
     @Test
@@ -120,6 +124,81 @@ class StudentAbilityProfileServiceTest {
 
         assertThat(profile.getMergedStudentProfileIds()).containsExactly(1L, 2L);
         assertThat(profile.getAssignmentCount()).isEqualTo(2);
+    }
+
+    @Test
+    void manualSplitIdentityPreventsHeuristicStudentNoMerge() {
+        StudentProfile current = student(1L, 9L, "student-a", "08");
+        current.setIdentityKey("manual-split:9:1");
+        StudentProfile sameStudentNo = student(2L, 9L, "student-a", "08");
+        sameStudentNo.setIdentityKey("class:9:08");
+        studentProfileRepository.items.put(1L, current);
+        studentProfileRepository.items.put(2L, sameStudentNo);
+        problemRepository.items.put(101L, problem(101L, "array boundary", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 4));
+        submissionRepository.items.add(submission(12L, 2L, 101L, 8L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(11L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(12L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+
+        var profile = service.buildProfile(1L);
+
+        assertThat(profile.getMergedStudentProfileIds()).containsExactly(1L);
+        assertThat(profile.getTotalSubmissions()).isEqualTo(1);
+    }
+
+    @Test
+    void manualMergeIdentityMergesSelectedProfiles() {
+        StudentProfile current = student(1L, 9L, "student-a", "08");
+        current.setIdentityKey("manual-merge:9:1");
+        StudentProfile merged = student(2L, 9L, "student-b", "09");
+        merged.setIdentityKey("manual-merge:9:1");
+        studentProfileRepository.items.put(1L, current);
+        studentProfileRepository.items.put(2L, merged);
+        problemRepository.items.put(101L, problem(101L, "array boundary", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 4));
+        submissionRepository.items.add(submission(12L, 2L, 101L, 8L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(11L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(12L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+
+        var profile = service.buildProfile(1L);
+
+        assertThat(profile.getMergedStudentProfileIds()).containsExactly(1L, 2L);
+        assertThat(profile.getTotalSubmissions()).isEqualTo(2);
+    }
+
+    @Test
+    void profileIncludesRecommendationEffectSignal() {
+        StudentProfile current = student(1L, 9L, "student-a", "08");
+        studentProfileRepository.items.put(1L, current);
+        problemRepository.items.put(101L, problem(101L, "array boundary", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(11L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        recommendationEventRepository.items.add(StudentRecommendationEvent.builder()
+                .recommendationToken("rec:1:REDO:101:test")
+                .studentProfileId(1L)
+                .type("REDO")
+                .problemId(101L)
+                .focusTags("[\"OFF_BY_ONE\"]")
+                .eventType(StudentRecommendationEventService.EVENT_EXPOSED)
+                .createdAt(LocalDateTime.of(2026, 5, 18, 9, 30))
+                .build());
+        recommendationEventRepository.items.add(StudentRecommendationEvent.builder()
+                .recommendationToken("rec:1:REDO:101:test")
+                .studentProfileId(1L)
+                .type("REDO")
+                .problemId(101L)
+                .focusTags("[\"OFF_BY_ONE\"]")
+                .eventType(StudentRecommendationEventService.EVENT_SUBMITTED)
+                .followupSubmissionId(11L)
+                .followupVerdict(Submission.Verdict.WRONG_ANSWER.name())
+                .followupFineGrainedTag("OFF_BY_ONE")
+                .createdAt(LocalDateTime.of(2026, 5, 18, 10, 0))
+                .build());
+
+        var profile = service.buildProfile(1L);
+
+        assertThat(profile.getRecommendationEffectSummary()).isNotBlank();
+        assertThat(profile.getRecommendationEffectSummary()).contains("1");
     }
 
     private StudentProfile student(Long id, Long classGroupId, String displayName, String studentNo) {
@@ -268,6 +347,13 @@ class StudentAbilityProfileServiceTest {
         }
 
         @Override
+        public List<Submission> findByAssignmentIdIn(Collection<Long> assignmentIds) {
+            return items.stream()
+                    .filter(item -> assignmentIds.contains(item.getAssignmentId()))
+                    .toList();
+        }
+
+        @Override
         public List<Submission> findByStudentProfileIdInOrderBySubmittedAtDesc(Collection<Long> studentProfileIds) {
             return items.stream()
                     .filter(item -> studentProfileIds.contains(item.getStudentProfileId()))
@@ -392,6 +478,43 @@ class StudentAbilityProfileServiceTest {
         public List<CoachPrompt> findBySubmissionIdIn(Collection<Long> submissionIds) {
             return saved.stream()
                     .filter(item -> submissionIds.contains(item.getSubmissionId()))
+                    .toList();
+        }
+    }
+
+    private static class FakeStudentRecommendationEventRepository extends UnsupportedJpaRepository<StudentRecommendationEvent, Long> implements StudentRecommendationEventRepository {
+        private final List<StudentRecommendationEvent> items = new ArrayList<>();
+
+        @Override
+        public List<StudentRecommendationEvent> findByStudentProfileIdOrderByCreatedAtDesc(Long studentProfileId) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getStudentProfileId(), studentProfileId))
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .toList();
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findTop500ByOrderByCreatedAtDesc() {
+            return items.stream()
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .limit(500)
+                    .toList();
+        }
+
+        @Override
+        public Optional<StudentRecommendationEvent> findTopByRecommendationTokenAndEventTypeOrderByCreatedAtDesc(String recommendationToken, String eventType) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getRecommendationToken(), recommendationToken))
+                    .filter(item -> Objects.equals(item.getEventType(), eventType))
+                    .max(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)));
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findByFollowupSubmissionIdAndEventTypeOrderByCreatedAtDesc(Long followupSubmissionId, String eventType) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getFollowupSubmissionId(), followupSubmissionId))
+                    .filter(item -> Objects.equals(item.getEventType(), eventType))
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
                     .toList();
         }
     }

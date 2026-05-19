@@ -2,8 +2,13 @@ package com.onlinejudge.classroom.api;
 
 import com.onlinejudge.classroom.application.ClassroomService;
 import com.onlinejudge.classroom.application.AiQualityOverviewService;
+import com.onlinejudge.classroom.application.AiQualityTrendService;
+import com.onlinejudge.classroom.application.ClassReviewFeedbackService;
+import com.onlinejudge.classroom.application.RecommendationEffectivenessService;
 import com.onlinejudge.classroom.application.StudentAbilityProfileService;
+import com.onlinejudge.classroom.application.StudentIdentityAdminService;
 import com.onlinejudge.classroom.application.StudentIdentityAuditService;
+import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.classroom.application.StudentRecommendationService;
 import com.onlinejudge.classroom.application.StudentTrajectoryService;
 import com.onlinejudge.classroom.dto.*;
@@ -22,11 +27,16 @@ public class ClassroomController {
 
     private final ClassroomService classroomService;
     private final AiQualityOverviewService aiQualityOverviewService;
+    private final AiQualityTrendService aiQualityTrendService;
+    private final ClassReviewFeedbackService classReviewFeedbackService;
+    private final RecommendationEffectivenessService recommendationEffectivenessService;
     private final ClassroomImportService classroomImportService;
     private final StudentTrajectoryService studentTrajectoryService;
     private final StudentAbilityProfileService studentAbilityProfileService;
+    private final StudentIdentityAdminService studentIdentityAdminService;
     private final StudentIdentityAuditService studentIdentityAuditService;
     private final StudentRecommendationService studentRecommendationService;
+    private final StudentRecommendationEventService studentRecommendationEventService;
     private final DiagnosisTaxonomy diagnosisTaxonomy;
 
     @GetMapping("/api/teacher/classes")
@@ -42,6 +52,18 @@ public class ClassroomController {
     @GetMapping("/api/teacher/classes/{classGroupId}/identity-audit")
     public ResponseEntity<StudentIdentityAuditResponse> getStudentIdentityAudit(@PathVariable Long classGroupId) {
         return ResponseEntity.ok(studentIdentityAuditService.auditClass(classGroupId));
+    }
+
+    @PostMapping("/api/teacher/classes/{classGroupId}/identity-merge")
+    public ResponseEntity<StudentIdentityAuditResponse> mergeStudentIdentities(@PathVariable Long classGroupId,
+                                                                               @Valid @RequestBody StudentIdentityMergeRequest request) {
+        return ResponseEntity.ok(studentIdentityAdminService.mergeProfiles(classGroupId, request));
+    }
+
+    @PostMapping("/api/teacher/classes/{classGroupId}/identity-split")
+    public ResponseEntity<StudentIdentityAuditResponse> splitStudentIdentity(@PathVariable Long classGroupId,
+                                                                             @Valid @RequestBody StudentIdentitySplitRequest request) {
+        return ResponseEntity.ok(studentIdentityAdminService.splitProfile(classGroupId, request));
     }
 
     @GetMapping("/api/teacher/assignments")
@@ -100,6 +122,22 @@ public class ClassroomController {
         return ResponseEntity.ok(aiQualityOverviewService.buildOverview(assignmentId));
     }
 
+    @GetMapping("/api/teacher/ai-quality/trend")
+    public ResponseEntity<AiQualityTrendResponse> getAiQualityTrend() {
+        return ResponseEntity.ok(aiQualityTrendService.buildTrend());
+    }
+
+    @GetMapping("/api/teacher/recommendations/effectiveness")
+    public ResponseEntity<RecommendationEffectivenessResponse> getRecommendationEffectiveness() {
+        return ResponseEntity.ok(recommendationEffectivenessService.buildOverview());
+    }
+
+    @PostMapping("/api/teacher/assignments/{assignmentId}/class-review-feedback")
+    public ResponseEntity<ClassReviewFeedbackResponse> recordClassReviewFeedback(@PathVariable Long assignmentId,
+                                                                                 @Valid @RequestBody ClassReviewFeedbackRequest request) {
+        return ResponseEntity.ok(classReviewFeedbackService.recordFeedback(assignmentId, request));
+    }
+
     @PostMapping("/api/teacher/assignments/{assignmentId}/diagnosis-corrections")
     public ResponseEntity<TeacherDiagnosisCorrectionResponse> correctDiagnosis(@PathVariable Long assignmentId,
                                                                                @Valid @RequestBody TeacherDiagnosisCorrectionRequest request) {
@@ -148,5 +186,16 @@ public class ClassroomController {
     @GetMapping("/api/student/profile/{studentProfileId}/recommendations")
     public ResponseEntity<StudentRecommendationResponse> getStudentRecommendations(@PathVariable Long studentProfileId) {
         return ResponseEntity.ok(studentRecommendationService.recommend(studentProfileId));
+    }
+
+    @PostMapping("/api/student/profile/{studentProfileId}/recommendation-clicks")
+    public ResponseEntity<Void> recordRecommendationClick(@PathVariable Long studentProfileId,
+                                                          @Valid @RequestBody RecommendationEventRequest request) {
+        if (StudentRecommendationEventService.EVENT_ENTERED_PROBLEM.equals(request.getEventType())) {
+            studentRecommendationEventService.recordEnteredProblem(studentProfileId, request.getRecommendationToken());
+        } else {
+            studentRecommendationEventService.recordClick(studentProfileId, request.getRecommendationToken());
+        }
+        return ResponseEntity.noContent().build();
     }
 }

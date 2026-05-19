@@ -12,6 +12,7 @@ public class StudentIdentityAuditResponse {
     private String className;
     private long totalProfiles;
     private long stableIdentityCount;
+    private long manualIdentityCount;
     private long legacyIdentityCount;
     private long missingStudentNoCount;
     private long duplicateGroupCount;

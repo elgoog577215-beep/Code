@@ -15,6 +15,7 @@ public class StudentRecommendationResponse {
     @Data
     @Builder
     public static class RecommendationItem {
+        private String recommendationToken;
         private String type;
         private String title;
         private String reason;

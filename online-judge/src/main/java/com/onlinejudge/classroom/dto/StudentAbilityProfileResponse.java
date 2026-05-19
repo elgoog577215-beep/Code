@@ -17,6 +17,7 @@ public class StudentAbilityProfileResponse {
     private String primaryAbilityFocus;
     private String summary;
     private String trendSignal;
+    private String recommendationEffectSummary;
     private CoachInteractionSummaryResponse latestCoachInteraction;
     private List<AbilityStat> abilityGaps;
     private List<ProfileStat> knowledgeFocus;

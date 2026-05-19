@@ -110,7 +110,7 @@ export default function App() {
     <div className="app-shell">
       <Header />
       <main className="main-shell">
-        <Suspense fallback={<EmptyState title="正在加载页面" description="正在准备学习平台界面。" />}>
+        <Suspense fallback={<EmptyState title="正在加载页面" />}>
           <Routes>
             <Route path="/" element={<RoleEntryPage />} />
             <Route path="/app" element={<RoleEntryPage />} />

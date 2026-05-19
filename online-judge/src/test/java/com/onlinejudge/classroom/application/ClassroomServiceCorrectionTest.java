@@ -32,7 +32,9 @@ class ClassroomServiceCorrectionTest {
     private final FakeSubmissionRepository submissionRepository = new FakeSubmissionRepository();
     private final FakeSubmissionAnalysisRepository submissionAnalysisRepository = new FakeSubmissionAnalysisRepository();
     private final FakeTeacherDiagnosisCorrectionRepository correctionRepository = new FakeTeacherDiagnosisCorrectionRepository();
+    private final FakeClassReviewFeedbackRepository classReviewFeedbackRepository = new FakeClassReviewFeedbackRepository();
     private final FakeCoachPromptRepository coachPromptRepository = new FakeCoachPromptRepository();
+    private final FakeProblemRepository problemRepository = new FakeProblemRepository();
     private final DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -42,7 +44,7 @@ class ClassroomServiceCorrectionTest {
             assignmentRepository,
             new EmptyAssignmentInviteRepository(),
             new EmptyAssignmentTaskRepository(),
-            new EmptyProblemRepository(),
+            problemRepository,
             submissionRepository,
             submissionAnalysisRepository,
             correctionRepository,
@@ -51,7 +53,8 @@ class ClassroomServiceCorrectionTest {
             new DiagnosisReportReader(objectMapper, taxonomy),
             new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
             new CoachInteractionAnalyzer(coachPromptRepository),
-            new StudentIdentityService()
+            new StudentIdentityService(),
+            new ClassReviewFeedbackService(classReviewFeedbackRepository, assignmentRepository, objectMapper)
     );
 
     @Test
@@ -71,6 +74,14 @@ class ClassroomServiceCorrectionTest {
                 .submittedAt(LocalDateTime.of(2026, 5, 18, 10, 0))
                 .build();
         assignmentRepository.items.put(assignment.getId(), assignment);
+        problemRepository.items.put(101L, Problem.builder()
+                .id(101L)
+                .title("array boundary")
+                .description("array boundary")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build());
         submissionRepository.items.put(submission.getId(), submission);
         submissionAnalysisRepository.save(SubmissionAnalysis.builder()
                 .submissionId(submission.getId())
@@ -112,11 +123,139 @@ class ClassroomServiceCorrectionTest {
     }
 
     @Test
+    void overviewIncludesClassReviewSuggestions() {
+        Assignment assignment = Assignment.builder()
+                .id(17L)
+                .title("class review")
+                .build();
+        Submission submission = Submission.builder()
+                .id(31L)
+                .assignmentId(assignment.getId())
+                .studentProfileId(5L)
+                .problemId(101L)
+                .languageId(71)
+                .sourceCode("print(1)")
+                .verdict(Submission.Verdict.WRONG_ANSWER)
+                .submittedAt(LocalDateTime.of(2026, 5, 18, 10, 0))
+                .build();
+        assignmentRepository.items.put(assignment.getId(), assignment);
+        problemRepository.items.put(101L, Problem.builder()
+                .id(101L)
+                .title("array boundary")
+                .description("array boundary")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build());
+        submissionRepository.items.put(submission.getId(), submission);
+        submissionAnalysisRepository.save(SubmissionAnalysis.builder()
+                .submissionId(submission.getId())
+                .analysisSource("RULE_BASED_V1")
+                .scenario("WA")
+                .headline("boundary")
+                .summary("boundary")
+                .reportMarkdown("boundary")
+                .reportJson("""
+                        {
+                          "issueTags": ["BOUNDARY_CONDITION"],
+                          "fineGrainedTags": ["OFF_BY_ONE"]
+                        }
+                        """)
+                .build());
+
+        var overview = service.getAssignmentOverview(assignment.getId());
+
+        assertThat(overview.getClassReviewSuggestions()).first()
+                .satisfies(suggestion -> {
+                    assertThat(suggestion.getSuggestionKey()).startsWith("review:17:");
+                    assertThat(suggestion.getExampleProblemId()).isEqualTo(101L);
+                    assertThat(suggestion.getExampleProblemTitle()).isEqualTo("array boundary");
+                    assertThat(suggestion.getEvidenceTags()).contains("OFF_BY_ONE");
+                    assertThat(suggestion.getEvidenceSubmissionIds()).contains(submission.getId());
+                    assertThat(suggestion.getGuidingQuestion()).isNotBlank();
+                    assertThat(suggestion.getAction()).isNotBlank();
+                });
+    }
+
+    @Test
+    void overviewIncludesLatestClassReviewFeedback() {
+        Assignment assignment = Assignment.builder()
+                .id(18L)
+                .title("class review feedback")
+                .build();
+        Submission submission = Submission.builder()
+                .id(32L)
+                .assignmentId(assignment.getId())
+                .studentProfileId(5L)
+                .problemId(101L)
+                .languageId(71)
+                .sourceCode("print(1)")
+                .verdict(Submission.Verdict.WRONG_ANSWER)
+                .submittedAt(LocalDateTime.of(2026, 5, 18, 10, 0))
+                .build();
+        assignmentRepository.items.put(assignment.getId(), assignment);
+        problemRepository.items.put(101L, Problem.builder()
+                .id(101L)
+                .title("array boundary")
+                .description("array boundary")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build());
+        submissionRepository.items.put(submission.getId(), submission);
+        submissionAnalysisRepository.save(SubmissionAnalysis.builder()
+                .submissionId(submission.getId())
+                .analysisSource("RULE_BASED_V1")
+                .scenario("WA")
+                .headline("boundary")
+                .summary("boundary")
+                .reportMarkdown("boundary")
+                .reportJson("""
+                        {
+                          "issueTags": ["BOUNDARY_CONDITION"],
+                          "fineGrainedTags": ["OFF_BY_ONE"]
+                        }
+                        """)
+                .build());
+
+        var initialOverview = service.getAssignmentOverview(assignment.getId());
+        var suggestion = initialOverview.getClassReviewSuggestions().get(0);
+
+        var request = new com.onlinejudge.classroom.dto.ClassReviewFeedbackRequest();
+        request.setSuggestionKey(suggestion.getSuggestionKey());
+        request.setActionType(ClassReviewFeedbackService.ACTION_MODIFIED);
+        request.setTargetAbility(suggestion.getTargetAbility());
+        request.setExampleProblemId(suggestion.getExampleProblemId());
+        request.setEvidenceTags(suggestion.getEvidenceTags());
+        request.setTeacherNote("改成先做一个更小的边界样例");
+        request.setCreatedBy("teacher");
+        new ClassReviewFeedbackService(classReviewFeedbackRepository, assignmentRepository, objectMapper)
+                .recordFeedback(assignment.getId(), request);
+
+        var overview = service.getAssignmentOverview(assignment.getId());
+
+        assertThat(overview.getClassReviewSuggestions()).first()
+                .satisfies(item -> {
+                    assertThat(item.getLatestFeedback()).isNotNull();
+                    assertThat(item.getLatestFeedback().getActionType()).isEqualTo(ClassReviewFeedbackService.ACTION_MODIFIED);
+                    assertThat(item.getLatestFeedback().getTeacherNote()).contains("更小的边界样例");
+                });
+    }
+
+    @Test
     void exportsTeacherCorrectionsAsEvalCandidates() {
         TestFixture fixture = createFixture(7L, 11L);
         fixture.submission().setProblemId(101L);
         fixture.submission().setVerdict(Submission.Verdict.WRONG_ANSWER);
         fixture.submission().setSourceCode("print('wrong')");
+        problemRepository.items.put(101L, Problem.builder()
+                .id(101L)
+                .title("array boundary")
+                .description("array boundary")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build());
         submissionAnalysisRepository.save(SubmissionAnalysis.builder()
                 .submissionId(fixture.submission().getId())
                 .analysisSource("RULE_BASED_V1")
@@ -153,7 +292,13 @@ class ClassroomServiceCorrectionTest {
                 .satisfies(candidate -> {
                     assertThat(candidate.getSubmissionId()).isEqualTo(fixture.submission().getId());
                     assertThat(candidate.getProblemId()).isEqualTo(101L);
+                    assertThat(candidate.getProblemTitle()).isEqualTo("array boundary");
+                    assertThat(candidate.getProblemDescription()).isEqualTo("array boundary");
+                    assertThat(candidate.getProblemDifficulty()).isEqualTo("EASY");
+                    assertThat(candidate.getProblemTimeLimit()).isEqualTo(1000);
+                    assertThat(candidate.getProblemMemoryLimit()).isEqualTo(65536);
                     assertThat(candidate.getVerdict()).isEqualTo("WRONG_ANSWER");
+                    assertThat(candidate.getSourceCode()).contains("wrong");
                     assertThat(candidate.getScenario()).isEqualTo("WA");
                     assertThat(candidate.getCorrectedIssueTag()).isEqualTo("IO_FORMAT");
                     assertThat(candidate.getCorrectedFineGrainedTag()).isEqualTo("INPUT_PARSING");
@@ -292,6 +437,14 @@ class ClassroomServiceCorrectionTest {
         }
 
         @Override
+        public List<Submission> findByAssignmentIdIn(Collection<Long> assignmentIds) {
+            return items.values()
+                    .stream()
+                    .filter(item -> assignmentIds.contains(item.getAssignmentId()))
+                    .toList();
+        }
+
+        @Override
         public List<Submission> findByStudentProfileIdInOrderBySubmittedAtDesc(Collection<Long> studentProfileIds) {
             return List.of();
         }
@@ -401,6 +554,13 @@ class ClassroomServiceCorrectionTest {
         }
 
         @Override
+        public List<TeacherDiagnosisCorrection> findByAssignmentIdIn(Collection<Long> assignmentIds) {
+            return saved.stream()
+                    .filter(item -> assignmentIds.contains(item.getAssignmentId()))
+                    .toList();
+        }
+
+        @Override
         public List<TeacherDiagnosisCorrection> findByAssignmentIdOrderByCorrectedAtDesc(Long assignmentId) {
             return saved.stream()
                     .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
@@ -415,6 +575,43 @@ class ClassroomServiceCorrectionTest {
                     .filter(TeacherDiagnosisCorrection::isEvalCandidate)
                     .sorted(Comparator.comparing(TeacherDiagnosisCorrection::getCorrectedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
                     .toList();
+        }
+    }
+
+    private static class FakeClassReviewFeedbackRepository extends UnsupportedJpaRepository<ClassReviewFeedback, Long>
+            implements ClassReviewFeedbackRepository {
+        private final List<ClassReviewFeedback> saved = new ArrayList<>();
+        private long nextId = 1;
+
+        @Override
+        public ClassReviewFeedback save(ClassReviewFeedback feedback) {
+            feedback.setId(nextId++);
+            feedback.setCreatedAt(LocalDateTime.of(2026, 5, 18, 12, 0).plusMinutes(saved.size()));
+            saved.add(feedback);
+            return feedback;
+        }
+
+        @Override
+        public List<ClassReviewFeedback> findByAssignmentIdOrderByCreatedAtDesc(Long assignmentId) {
+            return saved.stream()
+                    .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
+                    .sorted(Comparator.comparing(ClassReviewFeedback::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .toList();
+        }
+
+        @Override
+        public List<ClassReviewFeedback> findByAssignmentIdIn(Collection<Long> assignmentIds) {
+            return saved.stream()
+                    .filter(item -> assignmentIds.contains(item.getAssignmentId()))
+                    .toList();
+        }
+
+        @Override
+        public Optional<ClassReviewFeedback> findTopByAssignmentIdAndSuggestionKeyOrderByCreatedAtDesc(Long assignmentId, String suggestionKey) {
+            return saved.stream()
+                    .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
+                    .filter(item -> Objects.equals(item.getSuggestionKey(), suggestionKey))
+                    .max(Comparator.comparing(ClassReviewFeedback::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)));
         }
     }
 
@@ -534,10 +731,17 @@ class ClassroomServiceCorrectionTest {
         }
     }
 
-    private static class EmptyProblemRepository extends UnsupportedJpaRepository<Problem, Long> implements ProblemRepository {
+    private static class FakeProblemRepository extends UnsupportedJpaRepository<Problem, Long> implements ProblemRepository {
+        private final Map<Long, Problem> items = new LinkedHashMap<>();
+
         @Override
         public List<Problem> findAllById(Iterable<Long> ids) {
-            return List.of();
+            Set<Long> wanted = new LinkedHashSet<>();
+            ids.forEach(wanted::add);
+            return items.values()
+                    .stream()
+                    .filter(item -> wanted.contains(item.getId()))
+                    .toList();
         }
 
         @Override

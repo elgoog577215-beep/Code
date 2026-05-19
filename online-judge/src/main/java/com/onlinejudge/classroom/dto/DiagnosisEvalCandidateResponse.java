@@ -20,7 +20,14 @@ public class DiagnosisEvalCandidateResponse {
         private Long submissionId;
         private Long studentProfileId;
         private Long problemId;
+        private String problemTitle;
+        private String problemDescription;
+        private String problemDifficulty;
+        private Integer problemTimeLimit;
+        private Integer problemMemoryLimit;
         private String verdict;
+        private String languageName;
+        private String sourceCode;
         private String scenario;
         private String originalIssueTag;
         private String originalFineGrainedTag;

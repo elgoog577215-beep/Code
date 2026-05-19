@@ -55,6 +55,15 @@ GET /api/teacher/assignments/{assignmentId}/diagnosis-eval-candidates
 
 然后把候选样例整理成 `teacher-corrections.json` 中相同结构。整理时注意：
 
+也可以先保存候选 JSON，再用脚本生成 fixture 草稿：
+
+```powershell
+curl http://localhost:8081/api/teacher/assignments/7/diagnosis-eval-candidates -o candidates.json
+node scripts/export-diagnosis-eval-fixture.mjs --input candidates.json --output src/test/resources/diagnosis-eval-fixtures/teacher-corrections.generated.json
+```
+
+脚本产物仍建议人工快速复核后，再合并进长期维护的 `teacher-corrections.json`。
+
 - 不要保留学生隐私信息。
 - 源码只保留复现诊断所需部分。
 - `expectedIssueTags` 和 `expectedFineTags` 应以老师修正为准。

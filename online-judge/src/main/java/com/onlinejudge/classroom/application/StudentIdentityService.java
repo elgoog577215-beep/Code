@@ -55,6 +55,25 @@ public class StudentIdentityService {
         return normalized.startsWith("class:") || normalized.startsWith("class-name:");
     }
 
+    public boolean isManualIdentityKey(String identityKey) {
+        String normalized = normalizeNullable(identityKey).toLowerCase(Locale.ROOT);
+        return normalized.startsWith("manual-merge:") || normalized.startsWith("manual-split:");
+    }
+
+    public String buildManualMergeIdentityKey(Long classGroupId, Long targetStudentProfileId) {
+        if (classGroupId == null || targetStudentProfileId == null) {
+            throw new IllegalArgumentException("班级和目标学生画像不能为空");
+        }
+        return "manual-merge:" + classGroupId + ":" + targetStudentProfileId;
+    }
+
+    public String buildManualSplitIdentityKey(Long classGroupId, Long studentProfileId) {
+        if (classGroupId == null || studentProfileId == null) {
+            throw new IllegalArgumentException("班级和学生画像不能为空");
+        }
+        return "manual-split:" + classGroupId + ":" + studentProfileId;
+    }
+
     private String buildPersonKey(String displayName, String studentNo) {
         String normalizedStudentNo = normalizeKeyPart(studentNo);
         if (!normalizedStudentNo.isBlank()) {

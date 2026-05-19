@@ -131,6 +131,7 @@ export interface StudentAbilityProfile {
   primaryAbilityFocus?: string | null;
   summary?: string | null;
   trendSignal?: string | null;
+  recommendationEffectSummary?: string | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
   abilityGaps?: AbilityStat[];
   knowledgeFocus?: ProfileStat[];
@@ -148,6 +149,7 @@ export interface StudentRecommendationItem {
   focusAbility?: string | null;
   focusTags?: string[];
   evidenceProblemIds?: number[];
+  recommendationToken?: string | null;
   priority: number;
 }
 
@@ -312,6 +314,24 @@ export interface AssignmentOverview {
     interventionSuggestion?: string | null;
   }>;
   classAbilityWeaknesses?: AbilityStat[];
+  classReviewSuggestions?: Array<{
+    suggestionKey?: string | null;
+    title: string;
+    targetAbility?: string | null;
+    exampleProblemId?: number | null;
+    exampleProblemTitle?: string | null;
+    evidenceTags?: string[];
+    evidenceSubmissionIds?: number[];
+    guidingQuestion?: string | null;
+    action?: string | null;
+    evidenceSummary?: string | null;
+    latestFeedback?: {
+      actionType?: string | null;
+      teacherNote?: string | null;
+      createdBy?: string | null;
+      createdAt?: string | null;
+    } | null;
+  }>;
   students: Array<{
     studentProfileId: number;
     displayName: string;
@@ -371,6 +391,90 @@ export interface AiQualityOverview {
   }>;
 }
 
+export interface AiQualityTrend {
+  assignmentCount: number;
+  analyzedSubmissionCount: number;
+  correctionCount: number;
+  evalCandidateCount: number;
+  lowConfidenceCount: number;
+  highLeakRiskCount: number;
+  correctionRate: number;
+  lowConfidenceRate: number;
+  highLeakRiskRate: number;
+  summary?: string | null;
+  assignments: AiQualityTrendPoint[];
+  correctedTags: AiQualityTrendTag[];
+  evalNeededTags: AiQualityTrendTag[];
+  sourceSegments: AiQualitySourceSegment[];
+}
+
+export interface AiQualityTrendPoint {
+  assignmentId?: number | null;
+  assignmentTitle?: string | null;
+  analyzedSubmissionCount: number;
+  correctionCount: number;
+  evalCandidateCount: number;
+  lowConfidenceCount: number;
+  highLeakRiskCount: number;
+  correctionRate: number;
+  lowConfidenceRate: number;
+  highLeakRiskRate: number;
+  summary?: string | null;
+}
+
+export interface AiQualityTrendTag {
+  tag: string;
+  label?: string | null;
+  count: number;
+  evalCandidateCount: number;
+}
+
+export interface AiQualitySourceSegment {
+  sourceType: string;
+  versionLabel?: string | null;
+  analyzedSubmissionCount: number;
+  correctionCount: number;
+  lowConfidenceCount: number;
+  highLeakRiskCount: number;
+  correctionRate: number;
+  lowConfidenceRate: number;
+  highLeakRiskRate: number;
+}
+
+export interface RecommendationEffectiveness {
+  recentEventCount: number;
+  uniqueRecommendationCount: number;
+  exposureCount: number;
+  clickCount: number;
+  enteredProblemCount: number;
+  followupSubmissionCount: number;
+  acceptedFollowupCount: number;
+  sameFocusIssueCount: number;
+  clickedWithoutSubmissionCount: number;
+  clickThroughRate: number;
+  followupSubmissionRate: number;
+  acceptedFollowupRate: number;
+  sameFocusIssueRate: number;
+  summary?: string | null;
+  byType: RecommendationEffectivenessSegment[];
+  focusTags: RecommendationEffectivenessSegment[];
+}
+
+export interface RecommendationEffectivenessSegment {
+  key: string;
+  label?: string | null;
+  exposureCount: number;
+  clickCount: number;
+  enteredProblemCount: number;
+  followupSubmissionCount: number;
+  acceptedFollowupCount: number;
+  sameFocusIssueCount: number;
+  clickThroughRate: number;
+  followupSubmissionRate: number;
+  acceptedFollowupRate: number;
+  sameFocusIssueRate: number;
+}
+
 export interface TeacherDiagnosisCorrection {
   id: number;
   assignmentId: number;
@@ -401,6 +505,25 @@ export interface ClassGroup {
   grade?: string | null;
   teacherName?: string | null;
   createdAt?: string;
+}
+
+export interface StudentIdentityAudit {
+  classGroupId: number;
+  className?: string | null;
+  totalProfiles: number;
+  stableIdentityCount: number;
+  manualIdentityCount?: number;
+  legacyIdentityCount: number;
+  missingStudentNoCount: number;
+  duplicateGroupCount: number;
+  duplicateGroups: Array<{
+    stableIdentityKey: string;
+    reason?: string | null;
+    studentProfileIds: number[];
+    displayNames: string[];
+    studentNos: string[];
+    identityKeys: string[];
+  }>;
 }
 
 export interface ExecutorStatus {

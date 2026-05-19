@@ -2,6 +2,7 @@ import type {
   Assignment,
   AssignmentOverview,
   AiQualityOverview,
+  AiQualityTrend,
   ClassGroup,
   CoachPrompt,
   DiagnosisTag,
@@ -12,7 +13,9 @@ import type {
   Problem,
   ProblemCatalogItem,
   ProblemManage,
+  RecommendationEffectiveness,
   StudentAbilityProfile,
+  StudentIdentityAudit,
   StudentRecommendation,
   StudentProfile,
   StudentTrajectory,
@@ -87,6 +90,11 @@ export const api = {
     request<StudentAbilityProfile>(`/api/student/profile/${studentProfileId}/ability-profile`),
   studentRecommendations: (studentProfileId: number) =>
     request<StudentRecommendation>(`/api/student/profile/${studentProfileId}/recommendations`),
+  recordRecommendationEvent: (studentProfileId: number, recommendationToken: string, eventType = "CLICKED") =>
+    request<void>(`/api/student/profile/${studentProfileId}/recommendation-clicks`, {
+      method: "POST",
+      body: jsonBody({ recommendationToken, eventType })
+    }),
 
   problems: () => request<Problem[]>("/api/problems"),
   problemCatalog: () => request<ProblemCatalogItem[]>("/api/problems/catalog"),
@@ -101,6 +109,7 @@ export const api = {
     problemId: number;
     assignmentId?: number | null;
     studentProfileId?: number | null;
+    recommendationToken?: string | null;
     languageId: number;
     sourceCode: string;
   }) =>
@@ -127,6 +136,18 @@ export const api = {
   classes: () => request<ClassGroup[]>("/api/teacher/classes"),
   createClass: (payload: { name: string; grade?: string; teacherName?: string }) =>
     request<ClassGroup>("/api/teacher/classes", { method: "POST", body: jsonBody(payload) }),
+  studentIdentityAudit: (classGroupId: number) =>
+    request<StudentIdentityAudit>(`/api/teacher/classes/${classGroupId}/identity-audit`),
+  mergeStudentIdentities: (classGroupId: number, payload: { studentProfileIds: number[]; targetStudentProfileId?: number | null }) =>
+    request<StudentIdentityAudit>(`/api/teacher/classes/${classGroupId}/identity-merge`, {
+      method: "POST",
+      body: jsonBody(payload)
+    }),
+  splitStudentIdentity: (classGroupId: number, payload: { studentProfileId: number }) =>
+    request<StudentIdentityAudit>(`/api/teacher/classes/${classGroupId}/identity-split`, {
+      method: "POST",
+      body: jsonBody(payload)
+    }),
 
   assignments: () => request<Assignment[]>("/api/teacher/assignments"),
   assignment: (id: number) => request<Assignment>(`/api/teacher/assignments/${id}`),
@@ -138,6 +159,24 @@ export const api = {
     request<Assignment>(`/api/teacher/assignments/${id}/invite`, { method: "POST" }),
   assignmentOverview: (id: number) => request<AssignmentOverview>(`/api/teacher/assignments/${id}/overview`),
   aiQualityOverview: (id: number) => request<AiQualityOverview>(`/api/teacher/assignments/${id}/ai-quality`),
+  aiQualityTrend: () => request<AiQualityTrend>("/api/teacher/ai-quality/trend"),
+  recommendationEffectiveness: () => request<RecommendationEffectiveness>("/api/teacher/recommendations/effectiveness"),
+  recordClassReviewFeedback: (
+    assignmentId: number,
+    payload: {
+      suggestionKey: string;
+      actionType: "ACCEPTED" | "DISMISSED" | "MODIFIED";
+      targetAbility?: string | null;
+      exampleProblemId?: number | null;
+      evidenceTags?: string[];
+      teacherNote?: string;
+      createdBy?: string;
+    }
+  ) =>
+    request<void>(`/api/teacher/assignments/${assignmentId}/class-review-feedback`, {
+      method: "POST",
+      body: jsonBody(payload)
+    }),
   diagnosisTags: () => request<DiagnosisTag[]>("/api/teacher/diagnosis-tags"),
   correctDiagnosis: (
     assignmentId: number,

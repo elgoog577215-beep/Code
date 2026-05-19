@@ -31,18 +31,18 @@ export default function ClassOverviewPage() {
   const actionPlan = useMemo(
     () => [
       {
-        title: reviewEntries.length ? "建议讲评" : "推进正常",
-        note: reviewEntries.length ? `先看 ${reviewEntries[0].problemTitle}。` : "暂无通过率偏低的任务。",
+        title: reviewEntries.length ? "需讲评" : "正常",
+        note: reviewEntries.length ? reviewEntries[0].problemTitle : "无低通过率任务",
         tone: reviewEntries.length ? "warning" : "success"
       },
       {
         title: idleCount ? "未提交任务" : "均有提交",
-        note: idleCount ? `${idleCount} 个任务还没有提交。` : "所有任务已有提交。",
+        note: idleCount ? `${idleCount} 个` : "已覆盖",
         tone: idleCount ? "info" : "success"
       },
       {
         title: totals.avg < 50 ? "通过率偏低" : "通过率正常",
-        note: totals.avg < 50 ? "建议检查题面、样例和课堂讲解。" : "继续观察后续提交。",
+        note: percent(totals.avg),
         tone: totals.avg < 50 ? "warning" : "info"
       }
     ],
@@ -53,13 +53,11 @@ export default function ClassOverviewPage() {
     <div className="stack class-overview-page">
       <section className="overview-command">
         <div className="overview-command__main">
-          <p className="eyebrow">班级学习概览</p>
           <h1>班级作业概览</h1>
-          <p>查看任务参与、提交和通过情况。</p>
         </div>
         <div className="overview-command__note">
-          <StatusPill tone="info">任务概览</StatusPill>
-          <strong>{reviewEntries.length ? `${reviewEntries.length} 个任务建议讲评` : "暂无需讲评任务"}</strong>
+          <StatusPill tone={reviewEntries.length ? "warning" : "success"}>{reviewEntries.length ? "需要关注" : "正常"}</StatusPill>
+          <strong>{reviewEntries.length ? `${reviewEntries.length} 个任务` : "暂无需讲评"}</strong>
         </div>
       </section>
 
@@ -82,20 +80,20 @@ export default function ClassOverviewPage() {
       </section>
 
       <section className="overview-insight-grid" aria-label="班级数据">
-        <Panel title="建议讲评" eyebrow="通过率偏低" description="优先检查这些题目的题面、样例和讲解。">
+        <Panel title="需讲评" action={<StatusPill tone="warning">{reviewEntries.length} 个</StatusPill>}>
           <InsightList entries={reviewEntries} emptyTitle="暂无需讲评任务" tone="warning" />
         </Panel>
-        <Panel title="推进正常" eyebrow="通过率较高" description="这些任务整体完成较顺利。">
+        <Panel title="正常推进" action={<StatusPill tone="success">{stableEntries.length} 个</StatusPill>}>
           <InsightList entries={stableEntries} emptyTitle="还没有稳定任务" tone="success" />
         </Panel>
-        <Panel title="提交较多" eyebrow="课堂参与" description="这些任务提交次数较多。">
+        <Panel title="提交较多" action={<StatusPill tone="info">{activeEntries.length} 个</StatusPill>}>
           <InsightList entries={activeEntries} emptyTitle="暂无提交数据" tone="info" />
         </Panel>
       </section>
 
-      <Panel title="任务表现" eyebrow="提交数据" description="按任务查看提交数、通过数和通过率。">
+      <Panel title="任务表现" action={<StatusPill tone="neutral">{entries.length} 个任务</StatusPill>}>
         {!entries.length ? (
-          <EmptyState title="暂无学习数据" description="学生完成提交后，这里会出现任务层面的过程概览。" />
+          <EmptyState title="暂无学习数据" />
         ) : (
           <div className="table-wrap">
             <table>

@@ -13,6 +13,8 @@ public class SubmissionRequest {
     private Long assignmentId;
 
     private Long studentProfileId;
+
+    private String recommendationToken;
     
     @NotNull(message = "语言不能为空")
     private Integer languageId;

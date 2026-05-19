@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, CheckCircle2, Database, RefreshCw, ServerCog, UploadCloud, UsersRound } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { ClassGroup, ExecutorStatus, ImportCommit, ImportPreview, ProblemCatalogItem } from "../../shared/api/types";
+import type { ClassGroup, ExecutorStatus, ImportCommit, ImportPreview, ProblemCatalogItem, StudentIdentityAudit } from "../../shared/api/types";
 import { displayText } from "../../shared/format";
 import { Button } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -23,6 +23,7 @@ export default function TeacherManagementPage() {
   const [problemImport, setProblemImport] = useState({ format: "markdown", content: "" });
   const [classImportResult, setClassImportResult] = useState<ImportPreview | ImportCommit | null>(null);
   const [problemImportResult, setProblemImportResult] = useState<ImportPreview | ImportCommit | null>(null);
+  const [identityAudit, setIdentityAudit] = useState<StudentIdentityAudit | null>(null);
   const [classFileName, setClassFileName] = useState("");
   const [problemFileName, setProblemFileName] = useState("");
   const [alert, setAlert] = useState<Alert | null>(null);
@@ -85,6 +86,8 @@ export default function TeacherManagementPage() {
       if (!targetClassGroupId && classResult[0]) {
         setTargetClassGroupId(String(classResult[0].id));
       }
+      const auditTargetId = targetClassGroupId ? Number(targetClassGroupId) : classResult[0]?.id || null;
+      setIdentityAudit(auditTargetId ? await api.studentIdentityAudit(auditTargetId) : null);
       setDataReady(true);
     } catch (error) {
       setLoadFailed(true);
@@ -111,6 +114,56 @@ export default function TeacherManagementPage() {
       await loadData();
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "班级创建失败。" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadIdentityAudit(classGroupId = targetClassGroupId) {
+    if (!classGroupId) {
+      setIdentityAudit(null);
+      return;
+    }
+    setBusy(true);
+    try {
+      setIdentityAudit(await api.studentIdentityAudit(Number(classGroupId)));
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "身份审计读取失败。" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function mergeIdentityGroup(profileIds: number[]) {
+    if (!targetClassGroupId || profileIds.length < 2) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const audit = await api.mergeStudentIdentities(Number(targetClassGroupId), {
+        studentProfileIds: profileIds,
+        targetStudentProfileId: profileIds[0]
+      });
+      setIdentityAudit(audit);
+      setAlert({ type: "success", message: "学生画像已合并为同一人工身份。" });
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "学生画像合并失败。" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function splitIdentityProfile(profileId: number) {
+    if (!targetClassGroupId) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const audit = await api.splitStudentIdentity(Number(targetClassGroupId), { studentProfileId: profileId });
+      setIdentityAudit(audit);
+      setAlert({ type: "success", message: "学生画像已拆分为独立人工身份。" });
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "学生画像拆分失败。" });
     } finally {
       setBusy(false);
     }
@@ -213,7 +266,13 @@ export default function TeacherManagementPage() {
               <div className="management-task-card management-task-card--large">
                 <div className="management-form-row">
                   <Field label="导入到班级">
-                    <Select value={targetClassGroupId} onChange={event => setTargetClassGroupId(event.target.value)}>
+                    <Select
+                      value={targetClassGroupId}
+                      onChange={event => {
+                        setTargetClassGroupId(event.target.value);
+                        void loadIdentityAudit(event.target.value);
+                      }}
+                    >
                       <option value="">不指定班级</option>
                       {cleanClasses.map(item => (
                         <option value={item.id} key={item.id}>
@@ -248,6 +307,74 @@ export default function TeacherManagementPage() {
                 </div>
                 <ImportResult result={classImportResult} />
               </div>
+
+              <section className="management-task-card management-identity-audit">
+                <div className="management-identity-audit__head">
+                  <div>
+                    <p className="eyebrow">身份审计</p>
+                    <h3>{identityAudit?.className || "学生画像"}</h3>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void loadIdentityAudit()}
+                    disabled={busy || !targetClassGroupId}
+                    icon={<RefreshCw size={16} />}
+                  >
+                    刷新审计
+                  </Button>
+                </div>
+                {identityAudit ? (
+                  <>
+                    <div className="management-status-grid management-identity-audit__metrics">
+                      <StatusItem label="画像" value={String(identityAudit.totalProfiles)} />
+                      <StatusItem label="稳定身份" value={String(identityAudit.stableIdentityCount)} />
+                      <StatusItem label="人工身份" value={String(identityAudit.manualIdentityCount || 0)} />
+                      <StatusItem label="旧版身份" value={String(identityAudit.legacyIdentityCount)} ready={!identityAudit.legacyIdentityCount} />
+                      <StatusItem label="缺学号" value={String(identityAudit.missingStudentNoCount)} ready={!identityAudit.missingStudentNoCount} />
+                      <StatusItem label="疑似重复" value={String(identityAudit.duplicateGroupCount)} ready={!identityAudit.duplicateGroupCount} />
+                    </div>
+                    {identityAudit.duplicateGroups.length ? (
+                      <div className="management-identity-groups">
+                        {identityAudit.duplicateGroups.slice(0, 6).map(group => (
+                          <div key={group.stableIdentityKey}>
+                            <div>
+                              <strong>{group.displayNames.join(" / ") || group.stableIdentityKey}</strong>
+                              <small>{group.studentProfileIds.join(", ")} · {group.identityKeys.join(" / ")}</small>
+                              {group.reason ? <small>{group.reason}</small> : null}
+                            </div>
+                            <div className="actions">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={busy}
+                                onClick={() => void mergeIdentityGroup(group.studentProfileIds)}
+                              >
+                                合并这组
+                              </Button>
+                              {group.studentProfileIds.map(profileId => (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  key={profileId}
+                                  disabled={busy}
+                                  onClick={() => void splitIdentityProfile(profileId)}
+                                >
+                                  拆分 #{profileId}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState title="暂无疑似重复画像" />
+                    )}
+                  </>
+                ) : (
+                  <EmptyState title="请选择班级后查看身份审计" />
+                )}
+              </section>
 
               <details className="management-compact-details">
                 <summary>

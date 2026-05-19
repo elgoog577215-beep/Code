@@ -34,9 +34,11 @@ build/
 
 ### Runtime ###
 data/
+output/
 *.log
 tmp-*.md
 tmp-*.pdf
+tmp-*.txt
 
 ### Frontend ###
 frontend/node_modules/

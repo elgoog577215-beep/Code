@@ -310,6 +310,7 @@ export default function StudentPage() {
                       <span>长期能力画像</span>
                       <strong>{abilityProfile.primaryAbilityFocus || "继续积累证据"}</strong>
                       {abilityProfile.summary && <p>{abilityProfile.summary}</p>}
+                      {abilityProfile.recommendationEffectSummary && <p>{abilityProfile.recommendationEffectSummary}</p>}
                       <div className="student-ability-tags">
                         {abilityProfile.abilityGaps?.slice(0, 2).map(item => (
                           <span key={item.abilityPoint}>{item.abilityPoint} · {item.submissionCount} 次</span>
@@ -328,6 +329,9 @@ export default function StudentPage() {
                         const query = new URLSearchParams();
                         query.set("assignmentId", String(assignment.id));
                         query.set("studentProfileId", String(student.id));
+                        if (item.recommendationToken) {
+                          query.set("recommendationToken", item.recommendationToken);
+                        }
                         return (
                           <div className="student-recommendation-item" key={`${item.type}-${item.problemId || item.title}`}>
                             <strong>{item.title}</strong>
@@ -342,6 +346,11 @@ export default function StudentPage() {
                               <ButtonLink
                                 to={`/app/problem/${item.problemId}?${query.toString()}`}
                                 variant="secondary"
+                                onClick={() => {
+                                  if (item.recommendationToken) {
+                                    void api.recordRecommendationEvent(student.id, item.recommendationToken);
+                                  }
+                                }}
                                 icon={<ArrowRight size={16} />}
                               >
                                 {item.actionLabel || "去练习"}

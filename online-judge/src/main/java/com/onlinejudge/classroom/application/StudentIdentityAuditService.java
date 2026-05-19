@@ -33,7 +33,9 @@ public class StudentIdentityAuditService {
 
         List<StudentIdentityAuditResponse.DuplicateGroup> duplicateGroups = groups.entrySet()
                 .stream()
-                .filter(entry -> !entry.getKey().isBlank() && entry.getValue().size() > 1)
+                .filter(entry -> !entry.getKey().isBlank()
+                        && entry.getValue().size() > 1
+                        && !studentIdentityService.isManualIdentityKey(entry.getKey()))
                 .map(entry -> StudentIdentityAuditResponse.DuplicateGroup.builder()
                         .stableIdentityKey(entry.getKey())
                         .reason("同一稳定身份下存在多个学生画像，建议后续合并学习记录。")
@@ -49,7 +51,9 @@ public class StudentIdentityAuditService {
                 .className(classGroup.getName())
                 .totalProfiles(profiles.size())
                 .stableIdentityCount(profiles.stream().filter(profile -> studentIdentityService.isStableIdentityKey(profile.getIdentityKey())).count())
-                .legacyIdentityCount(profiles.stream().filter(profile -> !studentIdentityService.isStableIdentityKey(profile.getIdentityKey())).count())
+                .manualIdentityCount(profiles.stream().filter(profile -> studentIdentityService.isManualIdentityKey(profile.getIdentityKey())).count())
+                .legacyIdentityCount(profiles.stream().filter(profile -> !studentIdentityService.isStableIdentityKey(profile.getIdentityKey())
+                        && !studentIdentityService.isManualIdentityKey(profile.getIdentityKey())).count())
                 .missingStudentNoCount(profiles.stream().filter(profile -> profile.getStudentNo() == null || profile.getStudentNo().isBlank()).count())
                 .duplicateGroupCount(duplicateGroups.size())
                 .duplicateGroups(duplicateGroups.stream().limit(20).toList())
@@ -57,6 +61,9 @@ public class StudentIdentityAuditService {
     }
 
     private String stableKeyFor(StudentProfile profile, String className) {
+        if (studentIdentityService.isManualIdentityKey(profile.getIdentityKey())) {
+            return profile.getIdentityKey();
+        }
         return studentIdentityService.buildStableIdentityKey(
                 profile.getClassGroupId(),
                 className,
