@@ -3,7 +3,23 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   base: "/app/",
-  plugins: [react()],
+  plugins: [
+    {
+      name: "app-root-redirect",
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url === "/app") {
+            res.statusCode = 302;
+            res.setHeader("Location", "/app/");
+            res.end();
+            return;
+          }
+          next();
+        });
+      }
+    },
+    react()
+  ],
   resolve: {
     preserveSymlinks: true
   },

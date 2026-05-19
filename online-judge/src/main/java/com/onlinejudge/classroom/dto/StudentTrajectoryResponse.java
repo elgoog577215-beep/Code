@@ -24,6 +24,7 @@ public class StudentTrajectoryResponse {
     private String primaryAbilityFocus;
     private String crossProblemSummary;
     private CoachInteractionSummaryResponse latestCoachInteraction;
+    private CoachImpactResponse latestCoachImpact;
     private List<IssueStat> recentIssueDistribution;
     private List<IssueStat> recentFineGrainedIssueDistribution;
     private List<AbilityStat> abilitySummary;
@@ -58,6 +59,7 @@ public class StudentTrajectoryResponse {
         private String latestHint;
         private String latestImprovementSignal;
         private CoachInteractionSummaryResponse latestCoachInteraction;
+        private CoachImpactResponse latestCoachImpact;
         private List<SubmissionPoint> submissions;
     }
 
@@ -72,5 +74,6 @@ public class StudentTrajectoryResponse {
         private String progressSignal;
         private String improvementSignal;
         private CoachInteractionSummaryResponse coachInteraction;
+        private CoachImpactResponse coachImpact;
     }
 }

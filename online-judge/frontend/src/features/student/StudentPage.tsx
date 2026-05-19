@@ -2,13 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, CheckCircle2, KeyRound, UserRound } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
-import type {
-  Assignment,
-  StudentAbilityProfile,
-  StudentProfile,
-  StudentRecommendation,
-  StudentTrajectory
-} from "../../shared/api/types";
+import type { Assignment, StudentAbilityProfile, StudentProfile, StudentRecommendation, StudentTrajectory } from "../../shared/api/types";
 import { issueLabel, verdictLabel } from "../../shared/format";
 import { loadStudent, saveStudent } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
@@ -303,6 +297,9 @@ export default function StudentPage() {
                       <span>{trajectory.latestCoachInteraction.statusLabel || "AI 教练"}</span>
                       <strong>{trajectory.latestCoachInteraction.summary || "已进入 AI 追问。"}</strong>
                       {trajectory.latestCoachInteraction.latestFeedback && <p>{trajectory.latestCoachInteraction.latestFeedback}</p>}
+                      {(trajectory.latestCoachImpact?.summary || trajectory.latestCoachInteraction.impact?.summary) && (
+                        <p>{trajectory.latestCoachImpact?.summary || trajectory.latestCoachInteraction.impact?.summary}</p>
+                      )}
                     </div>
                   )}
                   {abilityProfile && (
@@ -310,6 +307,7 @@ export default function StudentPage() {
                       <span>长期能力画像</span>
                       <strong>{abilityProfile.primaryAbilityFocus || "继续积累证据"}</strong>
                       {abilityProfile.summary && <p>{abilityProfile.summary}</p>}
+                      {abilityProfile.coachImpactSummary && <p>{abilityProfile.coachImpactSummary}</p>}
                       {abilityProfile.recommendationEffectSummary && <p>{abilityProfile.recommendationEffectSummary}</p>}
                       <div className="student-ability-tags">
                         {abilityProfile.abilityGaps?.slice(0, 2).map(item => (
@@ -339,7 +337,9 @@ export default function StudentPage() {
                             {item.reason && <p className="student-recommendation-reason">{item.reason}</p>}
                             {item.focusTags?.length ? (
                               <div className="student-ability-tags">
-                                {item.focusTags.slice(0, 2).map(tag => <span key={tag}>{tag}</span>)}
+                                {item.focusTags.slice(0, 3).map(tag => (
+                                  <span key={tag}>{issueLabel(tag)}</span>
+                                ))}
                               </div>
                             ) : null}
                             {item.problemId ? (
@@ -377,6 +377,7 @@ export default function StudentPage() {
                         {task.latestCoachInteraction?.prompted && (
                           <p className="student-coach-inline">
                             {task.latestCoachInteraction.statusLabel} · {task.latestCoachInteraction.turnCount} 轮
+                            {task.latestCoachImpact?.statusLabel ? ` · ${task.latestCoachImpact.statusLabel}` : ""}
                           </p>
                         )}
                       </div>

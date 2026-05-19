@@ -21,6 +21,7 @@ public class CoachPromptResponse {
     private String question;
     private String studentAnswer;
     private String coachFeedback;
+    private LocalDateTime answeredAt;
     private String rationale;
     private String contextSummary;
     private List<String> evidenceRefs;
@@ -43,6 +44,7 @@ public class CoachPromptResponse {
                 .question(prompt.getQuestion())
                 .studentAnswer(prompt.getStudentAnswer())
                 .coachFeedback(prompt.getCoachFeedback())
+                .answeredAt(prompt.getAnsweredAt())
                 .rationale(prompt.getRationale())
                 .contextSummary(prompt.getContextSummary())
                 .evidenceRefs(evidenceRefs)

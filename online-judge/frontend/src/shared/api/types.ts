@@ -62,6 +62,8 @@ export interface StudentTrajectoryPoint {
   fineGrainedTags?: string[];
   progressSignal?: string | null;
   improvementSignal?: string | null;
+  coachInteraction?: CoachInteractionSummary | null;
+  coachImpact?: CoachImpact | null;
 }
 
 export interface StudentTrajectoryTask {
@@ -75,6 +77,7 @@ export interface StudentTrajectoryTask {
   latestHint?: string | null;
   latestImprovementSignal?: string | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
+  latestCoachImpact?: CoachImpact | null;
   submissions: StudentTrajectoryPoint[];
 }
 
@@ -91,6 +94,24 @@ export interface CoachInteractionSummary {
   latestAnswer?: string | null;
   latestFeedback?: string | null;
   latestAt?: string | null;
+  impact?: CoachImpact | null;
+}
+
+export interface CoachImpact {
+  coachedSubmissionId?: number | null;
+  followupSubmissionId?: number | null;
+  problemId?: number | null;
+  status?: string | null;
+  statusLabel?: string | null;
+  summary?: string | null;
+  previousVerdict?: string | null;
+  followupVerdict?: string | null;
+  previousIssueTag?: string | null;
+  previousFineGrainedTag?: string | null;
+  followupIssueTag?: string | null;
+  followupFineGrainedTag?: string | null;
+  answeredAt?: string | null;
+  followupSubmittedAt?: string | null;
 }
 
 export interface StudentTrajectory {
@@ -109,6 +130,7 @@ export interface StudentTrajectory {
   primaryAbilityFocus?: string | null;
   crossProblemSummary?: string | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
+  latestCoachImpact?: CoachImpact | null;
   recentIssueDistribution: StudentTrajectoryIssue[];
   recentFineGrainedIssueDistribution?: StudentTrajectoryIssue[];
   abilitySummary?: AbilityStat[];
@@ -132,7 +154,9 @@ export interface StudentAbilityProfile {
   summary?: string | null;
   trendSignal?: string | null;
   recommendationEffectSummary?: string | null;
+  coachImpactSummary?: string | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
+  latestCoachImpact?: CoachImpact | null;
   abilityGaps?: AbilityStat[];
   knowledgeFocus?: ProfileStat[];
   commonMistakeFocus?: ProfileStat[];
@@ -245,6 +269,7 @@ export interface CoachPrompt {
   question: string;
   studentAnswer?: string | null;
   coachFeedback?: string | null;
+  answeredAt?: string | null;
   rationale?: string | null;
   contextSummary?: string | null;
   evidenceRefs?: string[];
@@ -349,6 +374,7 @@ export interface AssignmentOverview {
     latestAnswerLeakRisk?: string | null;
     latestCorrection?: TeacherDiagnosisCorrection | null;
     latestCoachInteraction?: CoachInteractionSummary | null;
+    latestCoachImpact?: CoachImpact | null;
     primaryAbilityFocus?: string | null;
     crossProblemSummary?: string | null;
     abilitySummary?: AbilityStat[];

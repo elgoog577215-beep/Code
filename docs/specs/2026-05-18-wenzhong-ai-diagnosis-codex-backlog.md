@@ -115,7 +115,7 @@
 
 - [x] 学生轨迹 DTO 增加最近教练互动摘要。
 - [x] 教师概览/学生轨迹中展示最近追问状态：已追问、已回答、待继续。
-- [~] 将教练轮次与提交改善信号关联：回答后下一次提交是否改变错因/通过。
+- [x] 将教练轮次与提交改善信号关联：回答后下一次提交是否改变错因/通过。
 - [x] 增加 `CoachInteractionSummary` 聚合器。
 - [x] 增加测试：回答后再次提交，轨迹显示改善/未改善。
 - [x] 前端学生端作业记录展示“最近追问”。
@@ -136,7 +136,17 @@
 - 学生端作业记录展示最近 AI 教练状态和每题追问轮次。
 - 教师端学生过程列表展示“待回答追问 / 已回答追问 / 继续追问中”状态。
 - 已通过 `npm run typecheck`、`mvn -q -Dtest=CoachInteractionAnalyzerTest,CoachPromptServiceTest,ClassroomServiceCorrectionTest test`、`mvn -q test`。
-- 剩余半步：目前已能显示教练互动状态；“回答后下一次提交是否改变错因/通过”的更强关联指标留到后续学习轨迹 v2 中继续深化。
+- 2026-05-19 追加一轮：新增 `CoachImpactAnalyzer` 和 `CoachImpactResponse`，将已回答的 AI 追问与同题后续提交关联，输出“追问后通过 / 错因变化 / 仍卡同类问题 / 评测阶段变化 / 等待后续提交”等观察性信号。
+- 学生轨迹、每题轨迹、提交点、长期能力画像、教师作业概览和最近教练互动摘要均接入 `latestCoachImpact` / `impact`，让学生和老师能看到追问后是否出现同题改善。
+- `CoachImpactAnalyzer` 以后续提交时间晚于“原提交时间与学生回答追问时间的较晚者”为准，避免把学生回答前已经发生的提交误算成追问效果；旧追问记录没有回答时间时回退到追问创建时间。
+- 学生端提交结果区展示追问后改善摘要，长期能力画像展示 `coachImpactSummary`；教师端学生过程列表显示追问效果状态和摘要。
+- 新增 `CoachImpactAnalyzerTest`，扩展 `StudentAbilityProfileServiceTest` 和 `ClassroomServiceCorrectionTest`，覆盖追问后通过、仍卡同类问题、等待后续提交、画像摘要和教师概览接线。
+- `browser-smoke.mjs` mock 数据加入追问效果字段，`visual-smoke.mjs` 检查构建产物中的 `latestCoachImpact` 和 `coachImpactSummary`。
+- 已通过 `npm run typecheck`、`npm run build`、`npm run smoke:visual`、`npm run smoke:browser`、`./mvnw.cmd -q "-Dtest=CoachImpactAnalyzerTest,StudentAbilityProfileServiceTest,StudentRecommendationServiceTest,ClassroomServiceCorrectionTest" test`。
+- 2026-05-19 追加一轮：`CoachPrompt` 增加 `answeredAt`，学生提交追问回答时写入独立回答时间；`CoachPromptResponse` 和前端类型同步暴露该字段。
+- `CoachImpactAnalyzer` 改为优先使用 `answeredAt` 作为后续提交锚点，并新增测试覆盖“回答前已有一次提交，不应算作追问后改善”和“旧数据无回答时间时回退 createdAt”。
+- 已通过 `./mvnw.cmd -q "-Dtest=CoachImpactAnalyzerTest,CoachPromptServiceTest,CoachInteractionAnalyzerTest" test`。
+- 剩余风险：当前追问效果仍是观察性分析，不声称严格因果；`answeredAt` 能提升时间归因精度，但还不能证明改善一定由 AI 追问导致。
 
 ## C4: 题目知识点与误区标准库
 

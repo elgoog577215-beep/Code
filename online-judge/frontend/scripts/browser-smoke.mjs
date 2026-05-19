@@ -35,6 +35,23 @@ const student = {
   studentNo: "12"
 };
 
+const coachImpact = {
+  coachedSubmissionId: 9001,
+  followupSubmissionId: 9002,
+  problemId: 101,
+  status: "FOLLOWUP_ACCEPTED",
+  statusLabel: "追问后通过",
+  summary: "学生回答追问后的下一次同题提交已通过，说明这轮追问可能帮助其完成了关键修正。",
+  previousVerdict: "WRONG_ANSWER",
+  followupVerdict: "ACCEPTED",
+  previousIssueTag: "BOUNDARY",
+  previousFineGrainedTag: "OFF_BY_ONE",
+  followupIssueTag: null,
+  followupFineGrainedTag: null,
+  answeredAt: "2026-05-19T09:05:00",
+  followupSubmittedAt: "2026-05-19T09:16:00"
+};
+
 const trajectory = {
   assignment,
   student,
@@ -61,8 +78,10 @@ const trajectory = {
     summary: "Student explained the boundary guess.",
     latestQuestion: "What happens when n is 1?",
     latestAnswer: "The loop should still run once.",
-    latestFeedback: "Good. Now test the zero-length branch."
+    latestFeedback: "Good. Now test the zero-length branch.",
+    impact: coachImpact
   },
+  latestCoachImpact: coachImpact,
   recentIssueDistribution: [{ label: "BOUNDARY", count: 2 }],
   recentFineGrainedIssueDistribution: [{ label: "OFF_BY_ONE", count: 2 }],
   abilitySummary: [{ abilityPoint: "Boundary reasoning", taskCount: 2, submissionCount: 4, evidenceTags: ["OFF_BY_ONE"] }],
@@ -85,8 +104,10 @@ const trajectory = {
         answered: true,
         status: "ANSWERED",
         statusLabel: "Coach answered",
-        summary: "Student answered the boundary question."
+        summary: "Student answered the boundary question.",
+        impact: coachImpact
       },
+      latestCoachImpact: coachImpact,
       submissions: [
         {
           submissionId: 9001,
@@ -95,7 +116,19 @@ const trajectory = {
           issueTags: ["BOUNDARY"],
           fineGrainedTags: ["OFF_BY_ONE"],
           progressSignal: "Narrowed to boundary case",
-          improvementSignal: "Input parsing improved"
+          improvementSignal: "Input parsing improved",
+          coachInteraction: {
+            submissionId: 9001,
+            turnCount: 1,
+            answeredTurnCount: 1,
+            prompted: true,
+            answered: true,
+            status: "ANSWERED",
+            statusLabel: "Coach answered",
+            summary: "Student answered the boundary question.",
+            impact: coachImpact
+          },
+          coachImpact
         }
       ]
     },
@@ -124,7 +157,9 @@ const abilityProfile = {
   summary: "Recent evidence points to off-by-one mistakes, not syntax problems.",
   trendSignal: "Accuracy improves after explicit boundary checks.",
   recommendationEffectSummary: "Follow-up practice led to one accepted solution.",
+  coachImpactSummary: "AI 追问后已有 1 次同题后续提交通过，建议复盘学生回答中有效的证据意识。",
   latestCoachInteraction: trajectory.latestCoachInteraction,
+  latestCoachImpact: coachImpact,
   abilityGaps: [{ abilityPoint: "Boundary reasoning", taskCount: 2, submissionCount: 4, evidenceTags: ["OFF_BY_ONE"] }],
   knowledgeFocus: [{ label: "for loop", count: 3, evidenceProblemIds: [101] }],
   commonMistakeFocus: [{ label: "off by one", count: 2, evidenceProblemIds: [101] }],
@@ -308,6 +343,7 @@ const assignmentOverview = {
       latestAnswerLeakRisk: "LOW",
       latestCorrection: null,
       latestCoachInteraction: trajectory.latestCoachInteraction,
+      latestCoachImpact: coachImpact,
       primaryAbilityFocus: "Boundary reasoning",
       crossProblemSummary: "Repeated endpoint mistakes across two problems.",
       abilitySummary: [{ abilityPoint: "Boundary reasoning", taskCount: 2, submissionCount: 4, evidenceTags: ["OFF_BY_ONE"] }],
@@ -474,6 +510,13 @@ const scenarios = [
   {
     name: "teacher-management",
     path: "/app/teacher-management",
+    beforeChecks: async page => {
+      const identityDetails = page.locator("details.management-compact-details", { hasText: "身份审计" }).first();
+      await identityDetails.waitFor({ state: "attached", timeout: 10000 });
+      await identityDetails.evaluate(element => {
+        element.open = true;
+      });
+    },
     selectors: [
       [".management-console", "management console"],
       [".management-identity-audit", "identity audit panel"],

@@ -49,6 +49,7 @@ public class AssignmentOverviewResponse {
         private String latestAnswerLeakRisk;
         private TeacherDiagnosisCorrectionResponse latestCorrection;
         private CoachInteractionSummaryResponse latestCoachInteraction;
+        private CoachImpactResponse latestCoachImpact;
         private String primaryAbilityFocus;
         private String crossProblemSummary;
         private List<AbilityStat> abilitySummary;

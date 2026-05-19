@@ -46,7 +46,8 @@ class StudentRecommendationServiceTest {
             new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
             new CoachInteractionAnalyzer(coachPromptRepository),
             new StudentIdentityService(),
-            recommendationEventRepository
+            recommendationEventRepository,
+            new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
     );
     private final StudentRecommendationEventService recommendationEventService = new StudentRecommendationEventService(
             recommendationEventRepository,

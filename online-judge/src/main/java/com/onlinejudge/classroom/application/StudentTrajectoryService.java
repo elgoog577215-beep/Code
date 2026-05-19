@@ -39,6 +39,7 @@ public class StudentTrajectoryService {
     private final TrajectorySignalAnalyzer trajectorySignalAnalyzer;
     private final AbilitySignalAnalyzer abilitySignalAnalyzer;
     private final CoachInteractionAnalyzer coachInteractionAnalyzer;
+    private final CoachImpactAnalyzer coachImpactAnalyzer;
 
     public StudentTrajectoryResponse buildTrajectory(Long assignmentId, Long studentProfileId) {
         AssignmentResponse assignment = classroomService.getAssignment(assignmentId);
@@ -54,6 +55,8 @@ public class StudentTrajectoryService {
                 .collect(Collectors.toMap(SubmissionAnalysis::getSubmissionId, Function.identity()));
         Map<Long, com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse> coachInteractions =
                 coachInteractionAnalyzer.summarize(submissionIds);
+        Map<Long, com.onlinejudge.classroom.dto.CoachImpactResponse> coachImpacts =
+                coachImpactAnalyzer.summarizeByCoachedSubmission(submissions, analyses, coachInteractionAnalyzer.findPrompts(submissionIds));
 
         Map<Long, Problem> problems = problemRepository.findAllById(assignment.getTasks().stream()
                         .map(AssignmentResponse.TaskSummary::getProblemId)
@@ -62,7 +65,7 @@ public class StudentTrajectoryService {
                 .collect(Collectors.toMap(Problem::getId, Function.identity()));
 
         List<StudentTrajectoryResponse.TaskTrajectory> taskTrajectories = assignment.getTasks().stream()
-                .map(task -> buildTaskTrajectory(task, problems.get(task.getProblemId()), submissions, analyses, coachInteractions))
+                .map(task -> buildTaskTrajectory(task, problems.get(task.getProblemId()), submissions, analyses, coachInteractions, coachImpacts))
                 .toList();
 
         List<String> recentTags = submissions.stream()
@@ -122,7 +125,11 @@ public class StudentTrajectoryService {
                 .improvementSignal(improvementSignal)
                 .primaryAbilityFocus(primaryAbilityFocus)
                 .crossProblemSummary(crossProblemSummary)
-                .latestCoachInteraction(coachInteractionAnalyzer.latestForOrderedSubmissions(submissionIds, coachInteractions))
+                .latestCoachInteraction(withImpact(
+                        coachInteractionAnalyzer.latestForOrderedSubmissions(submissionIds, coachInteractions),
+                        coachImpacts
+                ))
+                .latestCoachImpact(coachImpactAnalyzer.latestForOrderedSubmissions(submissionIds, coachImpacts))
                 .recentIssueDistribution(tagCounts.entrySet().stream()
                         .map(entry -> StudentTrajectoryResponse.IssueStat.builder()
                                 .label(entry.getKey())
@@ -151,14 +158,15 @@ public class StudentTrajectoryService {
                                                                          Problem problem,
                                                                          List<Submission> allSubmissions,
                                                                          Map<Long, SubmissionAnalysis> analyses) {
-        return buildTaskTrajectory(task, problem, allSubmissions, analyses, Map.of());
+        return buildTaskTrajectory(task, problem, allSubmissions, analyses, Map.of(), Map.of());
     }
 
     private StudentTrajectoryResponse.TaskTrajectory buildTaskTrajectory(AssignmentResponse.TaskSummary task,
                                                                          Problem problem,
                                                                          List<Submission> allSubmissions,
                                                                          Map<Long, SubmissionAnalysis> analyses,
-                                                                         Map<Long, com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse> coachInteractions) {
+                                                                         Map<Long, com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse> coachInteractions,
+                                                                         Map<Long, com.onlinejudge.classroom.dto.CoachImpactResponse> coachImpacts) {
         List<Submission> submissions = allSubmissions.stream()
                 .filter(submission -> Objects.equals(submission.getProblemId(), task.getProblemId()))
                 .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
@@ -177,7 +185,11 @@ public class StudentTrajectoryService {
                 .latestProgressSignal(resolveProgressSignal(latestAnalysis, latest))
                 .latestHint(extractStudentHint(latestAnalysis))
                 .latestImprovementSignal(latestImprovementSignal)
-                .latestCoachInteraction(latest == null ? null : coachInteractions.get(latest.getId()))
+                .latestCoachInteraction(latestCoachInteraction(submissions, coachInteractions, coachImpacts))
+                .latestCoachImpact(coachImpactAnalyzer.latestForOrderedSubmissions(
+                        submissions.stream().map(Submission::getId).toList(),
+                        coachImpacts
+                ))
                 .submissions(submissions.stream()
                         .limit(8)
                         .map(submission -> StudentTrajectoryResponse.SubmissionPoint.builder()
@@ -188,10 +200,29 @@ public class StudentTrajectoryService {
                                 .fineGrainedTags(diagnosisReportReader.fineGrainedTags(analyses.get(submission.getId())))
                                 .progressSignal(resolveProgressSignal(analyses.get(submission.getId()), submission))
                                 .improvementSignal(buildPointImprovementSignal(submission, submissions))
-                                .coachInteraction(coachInteractions.get(submission.getId()))
+                                .coachInteraction(withImpact(coachInteractions.get(submission.getId()), coachImpacts))
+                                .coachImpact(coachImpacts.get(submission.getId()))
                                 .build())
                         .toList())
                 .build();
+    }
+
+    private com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse latestCoachInteraction(
+            List<Submission> submissions,
+            Map<Long, com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse> coachInteractions,
+            Map<Long, com.onlinejudge.classroom.dto.CoachImpactResponse> coachImpacts) {
+        List<Long> submissionIds = submissions.stream().map(Submission::getId).toList();
+        return withImpact(coachInteractionAnalyzer.latestForOrderedSubmissions(submissionIds, coachInteractions), coachImpacts);
+    }
+
+    private com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse withImpact(
+            com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse interaction,
+            Map<Long, com.onlinejudge.classroom.dto.CoachImpactResponse> coachImpacts) {
+        if (interaction == null || coachImpacts == null) {
+            return interaction;
+        }
+        interaction.setImpact(coachImpacts.get(interaction.getSubmissionId()));
+        return interaction;
     }
 
     private String buildStageTransition(List<Submission> submissions) {

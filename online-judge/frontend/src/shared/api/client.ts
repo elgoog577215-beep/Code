@@ -45,7 +45,9 @@ async function readJson<T>(response: Response): Promise<T> {
         ? String((payload as { error?: unknown }).error)
         : typeof payload === "object" && payload && "message" in payload
           ? String((payload as { message?: unknown }).message)
-          : `请求失败 (${response.status})`;
+          : response.status >= 500
+            ? "服务暂时不可用"
+            : "操作未完成";
     throw new ApiError(message, response.status, payload);
   }
   return payload as T;

@@ -62,6 +62,8 @@ const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, fi
   "/api/teacher/assignments/",
   "class-review-feedback",
   "课堂复盘建议",
+  "latestCoachImpact",
+  "coachImpactSummary",
   "recordRecommendationEvent",
   "ENTERED_PROBLEM"
 ].forEach(text => ok(`bundle contains ${text}`, jsText.includes(text)));

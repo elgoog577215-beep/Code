@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -99,6 +100,7 @@ public class CoachPromptService {
         String answer = sanitizeAnswer(request == null ? "" : request.getAnswer());
         current.setStudentAnswer(answer);
         current.setCoachFeedback(buildCoachFeedback(current, answer));
+        current.setAnsweredAt(LocalDateTime.now());
         coachPromptRepository.save(current);
 
         Assignment.HintPolicy hintPolicy = resolveHintPolicy(submission);

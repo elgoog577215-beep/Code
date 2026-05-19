@@ -41,6 +41,7 @@ public class StudentAbilityProfileService {
     private final CoachInteractionAnalyzer coachInteractionAnalyzer;
     private final StudentIdentityService studentIdentityService;
     private final StudentRecommendationEventRepository recommendationEventRepository;
+    private final CoachImpactAnalyzer coachImpactAnalyzer;
 
     public StudentAbilityProfileResponse buildProfile(Long studentProfileId) {
         StudentProfile student = studentProfileRepository.findById(studentProfileId)
@@ -76,6 +77,15 @@ public class StudentAbilityProfileService {
                 .stream()
                 .collect(Collectors.toMap(Problem::getId, Function.identity()));
         Map<Long, CoachInteractionSummaryResponse> coachInteractions = coachInteractionAnalyzer.summarize(submissionIds);
+        Map<Long, com.onlinejudge.classroom.dto.CoachImpactResponse> coachImpacts =
+                coachImpactAnalyzer.summarizeByCoachedSubmission(submissions, analyses, coachInteractionAnalyzer.findPrompts(submissionIds));
+        com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse latestCoachInteraction =
+                coachInteractionAnalyzer.latestForOrderedSubmissions(submissionIds, coachInteractions);
+        if (latestCoachInteraction != null) {
+            latestCoachInteraction.setImpact(coachImpacts.get(latestCoachInteraction.getSubmissionId()));
+        }
+        com.onlinejudge.classroom.dto.CoachImpactResponse latestCoachImpact =
+                coachImpactAnalyzer.latestForOrderedSubmissions(submissionIds, coachImpacts);
         List<AbilitySignalAnalyzer.AbilitySignal> abilitySignals = abilitySignalAnalyzer.summarize(submissions, analyses);
         List<StudentAbilityProfileResponse.AbilityStat> abilityGaps = abilitySignals.stream()
                 .map(signal -> StudentAbilityProfileResponse.AbilityStat.builder()
@@ -100,7 +110,9 @@ public class StudentAbilityProfileService {
                 .summary(buildSummary(submissions, abilitySignals))
                 .trendSignal(buildTrendSignal(submissions, abilitySignals))
                 .recommendationEffectSummary(buildRecommendationEffectSummary(profileIds))
-                .latestCoachInteraction(coachInteractionAnalyzer.latestForOrderedSubmissions(submissionIds, coachInteractions))
+                .coachImpactSummary(buildCoachImpactSummary(coachImpacts))
+                .latestCoachInteraction(latestCoachInteraction)
+                .latestCoachImpact(latestCoachImpact)
                 .abilityGaps(abilityGaps)
                 .knowledgeFocus(summarizeProblemTags(submissions, problems, Problem::getKnowledgePoints))
                 .commonMistakeFocus(summarizeProblemTags(submissions, problems, Problem::getCommonMistakes))
@@ -283,6 +295,37 @@ public class StudentAbilityProfileService {
         }
         if (exposed > 0) {
             return "已生成 " + exposed + " 条推荐，等待学生点击或提交来形成效果证据。";
+        }
+        return null;
+    }
+
+    private String buildCoachImpactSummary(Map<Long, com.onlinejudge.classroom.dto.CoachImpactResponse> coachImpacts) {
+        if (coachImpacts == null || coachImpacts.isEmpty()) {
+            return null;
+        }
+        long accepted = coachImpacts.values().stream()
+                .filter(impact -> "FOLLOWUP_ACCEPTED".equals(impact.getStatus()))
+                .count();
+        long shifted = coachImpacts.values().stream()
+                .filter(impact -> "ISSUE_SHIFTED".equals(impact.getStatus()) || "VERDICT_CHANGED".equals(impact.getStatus()))
+                .count();
+        long same = coachImpacts.values().stream()
+                .filter(impact -> "SAME_ISSUE".equals(impact.getStatus()))
+                .count();
+        long awaiting = coachImpacts.values().stream()
+                .filter(impact -> "AWAITING_FOLLOWUP".equals(impact.getStatus()))
+                .count();
+        if (accepted > 0) {
+            return "AI 追问后已有 " + accepted + " 次同题后续提交通过，建议复盘学生回答中有效的证据意识。";
+        }
+        if (shifted > 0) {
+            return "AI 追问后已有 " + shifted + " 次后续提交出现错因或评测阶段变化，说明追问可能推动了问题进入新阶段。";
+        }
+        if (same > 0) {
+            return "AI 追问后仍有 " + same + " 次同题后续提交卡在同类问题，下一轮需要更小样例或教师介入。";
+        }
+        if (awaiting > 0) {
+            return "学生已回答 AI 追问，但还缺少同题后续提交来判断效果。";
         }
         return null;
     }

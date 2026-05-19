@@ -147,6 +147,8 @@ class CoachPromptServiceTest {
         assertThat(next.getTurns()).hasSize(2);
         assertThat(next.getTurns().get(0).getStudentAnswer()).contains("最大 n=100000");
         assertThat(next.getTurns().get(0).getCoachFeedback()).contains("证据意识");
+        assertThat(next.getTurns().get(0).getAnsweredAt()).isNotNull();
+        assertThat(promptRepository.saved.get(0).getAnsweredAt()).isNotNull();
         assertThat(next.getTurns().get(1).getQuestion()).isEqualTo(next.getQuestion());
     }
 

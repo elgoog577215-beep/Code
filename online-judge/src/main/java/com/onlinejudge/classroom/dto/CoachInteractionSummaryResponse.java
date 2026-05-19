@@ -20,4 +20,5 @@ public class CoachInteractionSummaryResponse {
     private String latestAnswer;
     private String latestFeedback;
     private LocalDateTime latestAt;
+    private CoachImpactResponse impact;
 }

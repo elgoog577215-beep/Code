@@ -46,7 +46,8 @@ class StudentAbilityProfileServiceTest {
             new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
             new CoachInteractionAnalyzer(coachPromptRepository),
             new StudentIdentityService(),
-            recommendationEventRepository
+            recommendationEventRepository,
+            new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
     );
 
     @Test
@@ -104,6 +105,24 @@ class StudentAbilityProfileServiceTest {
         assertThat(profile.getMergedStudentProfileIds()).containsExactly(1L, 2L);
         assertThat(profile.getMergedStudentProfileIds()).doesNotContain(3L);
         assertThat(profile.getTotalSubmissions()).isEqualTo(2);
+    }
+
+    @Test
+    void profileIncludesCoachImpactSignalWhenAnsweredPromptHasFollowup() {
+        StudentProfile current = student(1L, 9L, "student-a", "08");
+        studentProfileRepository.items.put(1L, current);
+        problemRepository.items.put(101L, problem(101L, "array boundary", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 8));
+        submissionRepository.items.add(submission(12L, 1L, 101L, 7L, Submission.Verdict.ACCEPTED, 1));
+        analysisRepository.save(analysis(11L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        coachPromptRepository.saved.add(prompt(31L, 11L, LocalDateTime.of(2026, 5, 18, 9, 55)));
+
+        var profile = service.buildProfile(1L);
+
+        assertThat(profile.getCoachImpactSummary()).contains("同题后续提交通过");
+        assertThat(profile.getLatestCoachImpact()).isNotNull();
+        assertThat(profile.getLatestCoachImpact().getStatus()).isEqualTo("FOLLOWUP_ACCEPTED");
+        assertThat(profile.getLatestCoachInteraction().getImpact().getFollowupSubmissionId()).isEqualTo(12L);
     }
 
     @Test
@@ -258,6 +277,10 @@ class StudentAbilityProfileServiceTest {
     }
 
     private CoachPrompt prompt(Long id, Long submissionId) {
+        return prompt(id, submissionId, LocalDateTime.of(2026, 5, 18, 10, 20));
+    }
+
+    private CoachPrompt prompt(Long id, Long submissionId, LocalDateTime createdAt) {
         return CoachPrompt.builder()
                 .id(id)
                 .submissionId(submissionId)
@@ -267,7 +290,7 @@ class StudentAbilityProfileServiceTest {
                 .question("请手推边界")
                 .studentAnswer("我会手推单元素")
                 .coachFeedback("回答包含边界意识")
-                .createdAt(LocalDateTime.of(2026, 5, 18, 10, 20))
+                .createdAt(createdAt)
                 .build();
     }
 

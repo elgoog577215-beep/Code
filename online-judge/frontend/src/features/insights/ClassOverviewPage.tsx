@@ -70,7 +70,7 @@ export default function ClassOverviewPage() {
         <Metric label="整体通过率" value={percent(totals.avg)} />
       </div>
 
-      <section className="overview-action-plan" aria-label="课堂建议">
+      <section className="overview-action-plan" aria-label="课堂状态">
         {actionPlan.map(item => (
           <div className={`overview-action-card overview-action-card--${item.tone}`} key={item.title}>
             <span>{item.title}</span>

@@ -938,7 +938,7 @@ export default function TeacherPage() {
                               {student.primaryAbilityFocus && <StatusPill tone="info">能力 {student.primaryAbilityFocus}</StatusPill>}
                               {student.latestCoachInteraction?.prompted && (
                                 <StatusPill tone={student.latestCoachInteraction.answered ? "success" : "warning"}>
-                                  {student.latestCoachInteraction.statusLabel || "追问"}
+                                  {student.latestCoachImpact?.statusLabel || student.latestCoachInteraction.impact?.statusLabel || student.latestCoachInteraction.statusLabel || "追问"}
                                 </StatusPill>
                               )}
                               {student.latestCorrection && (
@@ -951,6 +951,11 @@ export default function TeacherPage() {
                               )}
                             </div>
                             {student.attentionReason && <p>{student.attentionReason}</p>}
+                            {(student.latestCoachImpact?.summary || student.latestCoachInteraction?.impact?.summary) && (
+                              <p className="teacher-ai-uncertainty">
+                                {student.latestCoachImpact?.summary || student.latestCoachInteraction?.impact?.summary}
+                              </p>
+                            )}
                             {student.attentionEvidence?.length ? (
                               <div className="teacher-attention-evidence" aria-label="需关注证据链">
                                 {student.attentionEvidence.slice(0, 3).map(evidence => (

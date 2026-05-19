@@ -130,7 +130,7 @@ export default function TaskEditorPage() {
 
   async function save() {
     if (!form.title.trim() || !form.description.trim()) {
-      setAlert({ type: "error", message: "请填写标题和题面说明。" });
+      setAlert({ type: "error", message: "请填写标题和题面。" });
       return;
     }
     if (visibleCount < 1) {

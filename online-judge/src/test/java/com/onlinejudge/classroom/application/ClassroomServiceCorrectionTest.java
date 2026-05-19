@@ -54,7 +54,8 @@ class ClassroomServiceCorrectionTest {
             new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
             new CoachInteractionAnalyzer(coachPromptRepository),
             new StudentIdentityService(),
-            new ClassReviewFeedbackService(classReviewFeedbackRepository, assignmentRepository, objectMapper)
+            new ClassReviewFeedbackService(classReviewFeedbackRepository, assignmentRepository, objectMapper),
+            new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
     );
 
     @Test
@@ -239,6 +240,79 @@ class ClassroomServiceCorrectionTest {
                     assertThat(item.getLatestFeedback()).isNotNull();
                     assertThat(item.getLatestFeedback().getActionType()).isEqualTo(ClassReviewFeedbackService.ACTION_MODIFIED);
                     assertThat(item.getLatestFeedback().getTeacherNote()).contains("更小的边界样例");
+                });
+    }
+
+    @Test
+    void overviewIncludesCoachImpactForStudentProgress() {
+        Assignment assignment = Assignment.builder()
+                .id(19L)
+                .title("coach impact")
+                .build();
+        Submission coached = Submission.builder()
+                .id(41L)
+                .assignmentId(assignment.getId())
+                .studentProfileId(5L)
+                .problemId(101L)
+                .languageId(71)
+                .sourceCode("print(1)")
+                .verdict(Submission.Verdict.WRONG_ANSWER)
+                .submittedAt(LocalDateTime.of(2026, 5, 18, 10, 0))
+                .build();
+        Submission followup = Submission.builder()
+                .id(42L)
+                .assignmentId(assignment.getId())
+                .studentProfileId(5L)
+                .problemId(101L)
+                .languageId(71)
+                .sourceCode("print(sum(values))")
+                .verdict(Submission.Verdict.ACCEPTED)
+                .submittedAt(LocalDateTime.of(2026, 5, 18, 10, 12))
+                .build();
+        assignmentRepository.items.put(assignment.getId(), assignment);
+        problemRepository.items.put(101L, Problem.builder()
+                .id(101L)
+                .title("array boundary")
+                .description("array boundary")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build());
+        submissionRepository.items.put(coached.getId(), coached);
+        submissionRepository.items.put(followup.getId(), followup);
+        submissionAnalysisRepository.save(SubmissionAnalysis.builder()
+                .submissionId(coached.getId())
+                .analysisSource("RULE_BASED_V1")
+                .scenario("WA")
+                .headline("boundary")
+                .summary("boundary")
+                .reportMarkdown("boundary")
+                .reportJson("""
+                        {
+                          "issueTags": ["BOUNDARY_CONDITION"],
+                          "fineGrainedTags": ["OFF_BY_ONE"]
+                        }
+                        """)
+                .build());
+        coachPromptRepository.saved.add(CoachPrompt.builder()
+                .id(51L)
+                .submissionId(coached.getId())
+                .turnIndex(1)
+                .hintPolicy("L2")
+                .promptType("SOCRATIC_NEXT_STEP")
+                .question("请手推 n=1")
+                .studentAnswer("循环应该执行一次")
+                .coachFeedback("继续验证最后一个元素")
+                .createdAt(LocalDateTime.of(2026, 5, 18, 10, 5))
+                .build());
+
+        var overview = service.getAssignmentOverview(assignment.getId());
+
+        assertThat(overview.getStudents()).first()
+                .satisfies(student -> {
+                    assertThat(student.getLatestCoachImpact()).isNotNull();
+                    assertThat(student.getLatestCoachImpact().getStatus()).isEqualTo("FOLLOWUP_ACCEPTED");
+                    assertThat(student.getLatestCoachInteraction().getImpact().getFollowupSubmissionId()).isEqualTo(followup.getId());
                 });
     }
 

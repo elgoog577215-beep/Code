@@ -235,7 +235,6 @@ export default function TeacherManagementPage() {
       <section className="management-console">
         <aside className="management-console__nav">
           <div className="management-console__brand">
-            <p className="eyebrow">教师管理</p>
             <h1>管理中心</h1>
             <Button type="button" variant="ghost" onClick={() => void loadData()} disabled={busy} icon={<RefreshCw size={17} />}>
               刷新
@@ -308,74 +307,6 @@ export default function TeacherManagementPage() {
                 <ImportResult result={classImportResult} />
               </div>
 
-              <section className="management-task-card management-identity-audit">
-                <div className="management-identity-audit__head">
-                  <div>
-                    <p className="eyebrow">身份审计</p>
-                    <h3>{identityAudit?.className || "学生画像"}</h3>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => void loadIdentityAudit()}
-                    disabled={busy || !targetClassGroupId}
-                    icon={<RefreshCw size={16} />}
-                  >
-                    刷新审计
-                  </Button>
-                </div>
-                {identityAudit ? (
-                  <>
-                    <div className="management-status-grid management-identity-audit__metrics">
-                      <StatusItem label="画像" value={String(identityAudit.totalProfiles)} />
-                      <StatusItem label="稳定身份" value={String(identityAudit.stableIdentityCount)} />
-                      <StatusItem label="人工身份" value={String(identityAudit.manualIdentityCount || 0)} />
-                      <StatusItem label="旧版身份" value={String(identityAudit.legacyIdentityCount)} ready={!identityAudit.legacyIdentityCount} />
-                      <StatusItem label="缺学号" value={String(identityAudit.missingStudentNoCount)} ready={!identityAudit.missingStudentNoCount} />
-                      <StatusItem label="疑似重复" value={String(identityAudit.duplicateGroupCount)} ready={!identityAudit.duplicateGroupCount} />
-                    </div>
-                    {identityAudit.duplicateGroups.length ? (
-                      <div className="management-identity-groups">
-                        {identityAudit.duplicateGroups.slice(0, 6).map(group => (
-                          <div key={group.stableIdentityKey}>
-                            <div>
-                              <strong>{group.displayNames.join(" / ") || group.stableIdentityKey}</strong>
-                              <small>{group.studentProfileIds.join(", ")} · {group.identityKeys.join(" / ")}</small>
-                              {group.reason ? <small>{group.reason}</small> : null}
-                            </div>
-                            <div className="actions">
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                disabled={busy}
-                                onClick={() => void mergeIdentityGroup(group.studentProfileIds)}
-                              >
-                                合并这组
-                              </Button>
-                              {group.studentProfileIds.map(profileId => (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  key={profileId}
-                                  disabled={busy}
-                                  onClick={() => void splitIdentityProfile(profileId)}
-                                >
-                                  拆分 #{profileId}
-                                </Button>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyState title="暂无疑似重复画像" />
-                    )}
-                  </>
-                ) : (
-                  <EmptyState title="请选择班级后查看身份审计" />
-                )}
-              </section>
-
               <details className="management-compact-details">
                 <summary>
                   <span>创建班级</span>
@@ -396,6 +327,78 @@ export default function TeacherManagementPage() {
                   <Button type="button" variant="primary" onClick={() => void createClass()} disabled={busy}>
                     创建班级
                   </Button>
+                </div>
+              </details>
+
+              <details className="management-compact-details">
+                <summary>
+                  <span>身份审计</span>
+                  <StatusPill tone={identityAudit?.duplicateGroupCount ? "warning" : "neutral"}>
+                    {identityAudit ? `${identityAudit.duplicateGroupCount} 组重复` : "未读取"}
+                  </StatusPill>
+                </summary>
+                <div className="management-compact-details__body management-identity-audit">
+                  <div className="management-identity-audit__head">
+                    <h3>{identityAudit?.className || "学生身份"}</h3>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => void loadIdentityAudit()}
+                      disabled={busy || !targetClassGroupId}
+                      icon={<RefreshCw size={16} />}
+                    >
+                      刷新
+                    </Button>
+                  </div>
+                  {identityAudit ? (
+                    <>
+                      <div className="management-status-grid management-identity-audit__metrics">
+                        <StatusItem label="画像" value={String(identityAudit.totalProfiles)} />
+                        <StatusItem label="稳定身份" value={String(identityAudit.stableIdentityCount)} />
+                        <StatusItem label="人工身份" value={String(identityAudit.manualIdentityCount || 0)} />
+                        <StatusItem label="旧版身份" value={String(identityAudit.legacyIdentityCount)} ready={!identityAudit.legacyIdentityCount} />
+                        <StatusItem label="缺学号" value={String(identityAudit.missingStudentNoCount)} ready={!identityAudit.missingStudentNoCount} />
+                        <StatusItem label="疑似重复" value={String(identityAudit.duplicateGroupCount)} ready={!identityAudit.duplicateGroupCount} />
+                      </div>
+                      {identityAudit.duplicateGroups.length ? (
+                        <div className="management-identity-groups">
+                          {identityAudit.duplicateGroups.slice(0, 6).map(group => (
+                            <div key={group.stableIdentityKey}>
+                              <div>
+                                <strong>{group.displayNames.join(" / ") || group.stableIdentityKey}</strong>
+                                <small>{group.studentProfileIds.join(", ")} · {group.identityKeys.join(" / ")}</small>
+                              </div>
+                              <div className="actions">
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  disabled={busy}
+                                  onClick={() => void mergeIdentityGroup(group.studentProfileIds)}
+                                >
+                                  合并
+                                </Button>
+                                {group.studentProfileIds.map(profileId => (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    key={profileId}
+                                    disabled={busy}
+                                    onClick={() => void splitIdentityProfile(profileId)}
+                                  >
+                                    拆分 #{profileId}
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyState title="暂无疑似重复画像" />
+                      )}
+                    </>
+                  ) : (
+                    <EmptyState title="未读取身份审计" />
+                  )}
                 </div>
               </details>
             </section>

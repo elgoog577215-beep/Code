@@ -59,9 +59,9 @@ function Header() {
   const location = useLocation();
   const navItems = useMemo(
     () => [
-      { to: "/app/student", label: "学生任务", icon: GraduationCap },
-      { to: "/app/teacher", label: "教师工作台", icon: UsersRound },
-      { to: "/app/teacher-management", label: "教师管理", icon: Settings }
+      { to: "/app/student", label: "学生", icon: GraduationCap },
+      { to: "/app/teacher", label: "教师", icon: UsersRound },
+      { to: "/app/teacher-management", label: "管理", icon: Settings }
     ],
     []
   );
@@ -78,7 +78,6 @@ function Header() {
         </span>
         <span>
           <strong>温中编程学习平台</strong>
-          <small>课堂作业与过程记录</small>
         </span>
       </NavLink>
       <button type="button" className="nav-toggle" aria-label={open ? "收起导航" : "展开导航"} onClick={() => setOpen(value => !value)}>

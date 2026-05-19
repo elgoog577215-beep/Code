@@ -34,6 +34,13 @@ public class CoachInteractionAnalyzer {
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> summarize(entry.getKey(), entry.getValue())));
     }
 
+    public List<CoachPrompt> findPrompts(Collection<Long> submissionIds) {
+        if (submissionIds == null || submissionIds.isEmpty()) {
+            return List.of();
+        }
+        return coachPromptRepository.findBySubmissionIdIn(submissionIds);
+    }
+
     public CoachInteractionSummaryResponse latestForOrderedSubmissions(List<Long> orderedSubmissionIds,
                                                                        Map<Long, CoachInteractionSummaryResponse> summaries) {
         if (orderedSubmissionIds == null || summaries == null || summaries.isEmpty()) {
@@ -55,7 +62,9 @@ public class CoachInteractionAnalyzer {
         CoachPrompt latest = sorted.isEmpty() ? null : sorted.get(sorted.size() - 1);
         CoachPrompt latestAnswered = sorted.stream()
                 .filter(prompt -> hasText(prompt.getStudentAnswer()) || hasText(prompt.getCoachFeedback()))
-                .reduce((left, right) -> right)
+                .max(Comparator
+                        .comparing(this::answeredAtOrCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo))
+                        .thenComparing(CoachPrompt::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)))
                 .orElse(null);
         int answeredCount = (int) sorted.stream().filter(prompt -> hasText(prompt.getStudentAnswer())).count();
         String status = resolveStatus(sorted.size(), answeredCount, latest);
@@ -78,7 +87,7 @@ public class CoachInteractionAnalyzer {
                 .latestQuestion(latest == null ? null : latest.getQuestion())
                 .latestAnswer(latestAnswered == null ? null : latestAnswered.getStudentAnswer())
                 .latestFeedback(latestAnswered == null ? null : latestAnswered.getCoachFeedback())
-                .latestAt(latest == null ? null : latest.getCreatedAt())
+                .latestAt(latestAnswered == null ? (latest == null ? null : latest.getCreatedAt()) : answeredAtOrCreatedAt(latestAnswered))
                 .build();
     }
 
@@ -108,5 +117,12 @@ public class CoachInteractionAnalyzer {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private LocalDateTime answeredAtOrCreatedAt(CoachPrompt prompt) {
+        if (prompt == null) {
+            return null;
+        }
+        return prompt.getAnsweredAt() == null ? prompt.getCreatedAt() : prompt.getAnsweredAt();
     }
 }

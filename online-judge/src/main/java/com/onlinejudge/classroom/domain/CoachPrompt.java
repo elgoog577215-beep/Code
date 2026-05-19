@@ -56,6 +56,9 @@ public class CoachPrompt {
     @Column(name = "coach_feedback", columnDefinition = "TEXT")
     private String coachFeedback;
 
+    @Column(name = "answered_at")
+    private LocalDateTime answeredAt;
+
     @Column(name = "rationale", columnDefinition = "TEXT")
     private String rationale;
 

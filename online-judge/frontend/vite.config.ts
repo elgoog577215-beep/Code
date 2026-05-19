@@ -3,7 +3,24 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   base: "/app/",
-  plugins: [react()],
+  plugins: [
+    {
+      name: "app-root-redirect",
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          const requestUrl = (req as { url?: string }).url;
+          if (requestUrl === "/app") {
+            res.statusCode = 302;
+            res.setHeader("Location", "/app/");
+            res.end();
+            return;
+          }
+          next();
+        });
+      }
+    },
+    react()
+  ],
   server: {
     proxy: {
       "/api": "http://localhost:8081",

@@ -46,6 +46,7 @@ public class ClassroomService {
     private final CoachInteractionAnalyzer coachInteractionAnalyzer;
     private final StudentIdentityService studentIdentityService;
     private final ClassReviewFeedbackService classReviewFeedbackService;
+    private final CoachImpactAnalyzer coachImpactAnalyzer;
 
     public List<ClassGroupResponse> getClassGroups() {
         return classGroupRepository.findAllByOrderByCreatedAtDesc()
@@ -214,6 +215,11 @@ public class ClassroomService {
                         }
                 ));
         Map<Long, CoachInteractionSummaryResponse> coachInteractions = coachInteractionAnalyzer.summarize(submissionIds);
+        Map<Long, CoachImpactResponse> coachImpacts = coachImpactAnalyzer.summarizeByCoachedSubmission(
+                submissions,
+                analyses,
+                coachInteractionAnalyzer.findPrompts(submissionIds)
+        );
         Map<Long, Problem> submittedProblems = problemRepository.findAllById(submissions.stream()
                         .map(Submission::getProblemId)
                         .filter(Objects::nonNull)
@@ -231,7 +237,7 @@ public class ClassroomService {
 
         List<AssignmentOverviewResponse.StudentProgressSummary> studentSummaries = byStudent.entrySet()
                 .stream()
-                .map(entry -> toStudentSummary(entry.getKey(), students.get(entry.getKey()), entry.getValue(), analyses, corrections, coachInteractions))
+                .map(entry -> toStudentSummary(entry.getKey(), students.get(entry.getKey()), entry.getValue(), analyses, corrections, coachInteractions, coachImpacts))
                 .sorted(Comparator.comparing(AssignmentOverviewResponse.StudentProgressSummary::isNeedsAttention).reversed()
                         .thenComparing(AssignmentOverviewResponse.StudentProgressSummary::getDisplayName, Comparator.nullsLast(String::compareTo)))
                 .toList();
@@ -663,7 +669,8 @@ public class ClassroomService {
                                                                                List<Submission> submissions,
                                                                                Map<Long, SubmissionAnalysis> analyses,
                                                                                Map<Long, TeacherDiagnosisCorrection> corrections,
-                                                                               Map<Long, CoachInteractionSummaryResponse> coachInteractions) {
+                                                                               Map<Long, CoachInteractionSummaryResponse> coachInteractions,
+                                                                               Map<Long, CoachImpactResponse> coachImpacts) {
         List<Submission> sorted = submissions.stream()
                 .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
                 .toList();
@@ -672,6 +679,13 @@ public class ClassroomService {
         CoachInteractionSummaryResponse latestCoachInteraction = coachInteractionAnalyzer.latestForOrderedSubmissions(
                 sorted.stream().map(Submission::getId).toList(),
                 coachInteractions
+        );
+        if (latestCoachInteraction != null) {
+            latestCoachInteraction.setImpact(coachImpacts.get(latestCoachInteraction.getSubmissionId()));
+        }
+        CoachImpactResponse latestCoachImpact = coachImpactAnalyzer.latestForOrderedSubmissions(
+                sorted.stream().map(Submission::getId).toList(),
+                coachImpacts
         );
         long passedCount = sorted.stream().filter(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED).count();
         Map.Entry<String, Long> repeatedIssue = resolveRepeatedIssue(sorted, analyses);
@@ -703,6 +717,7 @@ public class ClassroomService {
                 .latestAnswerLeakRisk(diagnosisReportReader.answerLeakRisk(latestAnalysis))
                 .latestCorrection(TeacherDiagnosisCorrectionResponse.from(latest == null ? null : corrections.get(latest.getId())))
                 .latestCoachInteraction(latestCoachInteraction)
+                .latestCoachImpact(latestCoachImpact)
                 .primaryAbilityFocus(abilitySignals.stream()
                         .findFirst()
                         .map(AbilitySignalAnalyzer.AbilitySignal::getAbilityPoint)
