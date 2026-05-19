@@ -59,8 +59,11 @@ class DiagnosticAgentServiceTest {
         assertThat(result.analysis().getIssueTags()).contains("LOOP_BOUNDARY");
         assertThat(result.analysis().getFineGrainedTags()).contains("OFF_BY_ONE");
         assertThat(result.analysis().getEvidenceRefs()).contains("code:plus_minus_one");
-        assertThat(result.traceSummary()).contains("diagnostic-agent:v1");
-        assertThat(result.analysis().getDiagnosticTrace()).contains("model=completed");
+        assertThat(result.traceSummary()).contains("diagnostic-agent-v2");
+        assertThat(result.analysis().getDiagnosticTrace()).contains("model=rule-fallback");
+        assertThat(result.analysis().getAiInvocation()).isNotNull();
+        assertThat(result.analysis().getAiInvocation().getAgentVersion()).isEqualTo("diagnostic-agent-v2");
+        assertThat(result.analysis().getAiInvocation().isFallbackUsed()).isTrue();
     }
 
     @Test

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, CheckCircle2, KeyRound, UserRound } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
-import type { Assignment, StudentAbilityProfile, StudentProfile, StudentRecommendation, StudentTrajectory } from "../../shared/api/types";
+import type { Assignment, StudentAbilityProfile, StudentProfile, StudentRecommendation, StudentRecommendationItem, StudentTrajectory } from "../../shared/api/types";
 import { issueLabel, verdictLabel } from "../../shared/format";
 import { loadStudent, saveStudent } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
@@ -18,7 +18,7 @@ export default function StudentPage() {
   const [student, setStudent] = useState<StudentProfile | null>(null);
   const [trajectory, setTrajectory] = useState<StudentTrajectory | null>(null);
   const [abilityProfile, setAbilityProfile] = useState<StudentAbilityProfile | null>(null);
-  const [recommendation, setRecommendation] = useState<StudentRecommendation | null>(null);
+  const [recommendations, setRecommendations] = useState<StudentRecommendation | null>(null);
   const [className, setClassName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [studentNo, setStudentNo] = useState("");
@@ -42,7 +42,7 @@ export default function StudentPage() {
       setStudent(restored);
       setDisplayName(restored.displayName || "");
       setStudentNo(restored.studentNo || "");
-      void loadTrajectory(assignment.id, restored.id);
+      void loadStudentAiContext(assignment.id, restored.id);
     }
     if (assignment.className) {
       setClassName(assignment.className);
@@ -102,7 +102,7 @@ export default function StudentPage() {
       });
       saveStudent(assignment.id, result);
       setStudent(result);
-      await loadTrajectory(assignment.id, result.id);
+      await loadStudentAiContext(assignment.id, result.id);
       setAlert(null);
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "身份确认失败。" });
@@ -113,17 +113,32 @@ export default function StudentPage() {
 
   async function loadTrajectory(assignmentId: number, studentProfileId: number) {
     try {
-      const [trajectoryResult, profileResult, recommendationResult] = await Promise.all([
-        api.studentTrajectory(assignmentId, studentProfileId),
-        api.studentAbilityProfile(studentProfileId),
-        api.studentRecommendations(studentProfileId)
-      ]);
-      setTrajectory(trajectoryResult);
-      setAbilityProfile(profileResult);
-      setRecommendation(recommendationResult);
+      setTrajectory(await api.studentTrajectory(assignmentId, studentProfileId));
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "提交记录加载失败。" });
     }
+  }
+
+  async function loadStudentAiContext(assignmentId: number, studentProfileId: number) {
+    try {
+      const [trajectoryResult, profileResult, recommendationResult] = await Promise.all([
+        api.studentTrajectory(assignmentId, studentProfileId),
+        api.studentAbilityProfile(studentProfileId).catch(() => null),
+        api.studentRecommendations(studentProfileId).catch(() => null)
+      ]);
+      setTrajectory(trajectoryResult);
+      setAbilityProfile(profileResult);
+      setRecommendations(recommendationResult);
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "提交记录加载失败。" });
+    }
+  }
+
+  async function openRecommendation(item: StudentRecommendationItem) {
+    if (!student || !item.recommendationToken) {
+      return;
+    }
+    await api.recordRecommendationEvent(student.id, item.recommendationToken, "CLICKED").catch(() => undefined);
   }
 
   if (!assignment) {
@@ -259,8 +274,8 @@ export default function StudentPage() {
             </div>
           </Panel>
 
-            <Panel
-              title="提交结果"
+          <Panel
+            title="提交结果"
               action={<StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory?.stageTransition || "等待提交"}</StatusPill>}
             >
               {!trajectory ? (
@@ -281,86 +296,21 @@ export default function StudentPage() {
                     <span style={{ "--progress": `${completion}%` } as React.CSSProperties} />
                   </div>
                   <div className="student-record-note">
-                    <span>{trajectory.repeatedFineGrainedTag || trajectory.repeatedIssueTag ? "需要注意" : "下一步"}</span>
+                    <span>{trajectory.repeatedFineGrainedTag || trajectory.repeatedIssueTag ? "处理项" : "状态"}</span>
                     <strong>
                       {trajectory.repeatedFineGrainedTag
                         ? issueLabel(trajectory.repeatedFineGrainedTag)
                         : trajectory.repeatedIssueTag
                           ? issueLabel(trajectory.repeatedIssueTag)
-                          : trajectory.nextStep || "继续完成一次提交"}
+                          : trajectory.nextStep || "待提交"}
                     </strong>
-                    {trajectory.attentionReason && <p>{trajectory.attentionReason}</p>}
-                    {trajectory.improvementSignal && <p>{trajectory.improvementSignal}</p>}
                   </div>
                   {trajectory.latestCoachInteraction?.prompted && (
                     <div className="student-coach-summary">
-                      <span>{trajectory.latestCoachInteraction.statusLabel || "AI 教练"}</span>
-                      <strong>{trajectory.latestCoachInteraction.summary || "已进入 AI 追问。"}</strong>
-                      {trajectory.latestCoachInteraction.latestFeedback && <p>{trajectory.latestCoachInteraction.latestFeedback}</p>}
-                      {(trajectory.latestCoachImpact?.summary || trajectory.latestCoachInteraction.impact?.summary) && (
-                        <p>{trajectory.latestCoachImpact?.summary || trajectory.latestCoachInteraction.impact?.summary}</p>
-                      )}
+                      <span>{trajectory.latestCoachInteraction.statusLabel || "追问"}</span>
+                      <strong>{trajectory.latestCoachInteraction.answered ? "已回答" : "待回答"}</strong>
                     </div>
                   )}
-                  {abilityProfile && (
-                    <div className="student-ability-profile">
-                      <span>长期能力画像</span>
-                      <strong>{abilityProfile.primaryAbilityFocus || "继续积累证据"}</strong>
-                      {abilityProfile.summary && <p>{abilityProfile.summary}</p>}
-                      {abilityProfile.coachImpactSummary && <p>{abilityProfile.coachImpactSummary}</p>}
-                      {abilityProfile.recommendationEffectSummary && <p>{abilityProfile.recommendationEffectSummary}</p>}
-                      <div className="student-ability-tags">
-                        {abilityProfile.abilityGaps?.slice(0, 2).map(item => (
-                          <span key={item.abilityPoint}>{item.abilityPoint} · {item.submissionCount} 次</span>
-                        ))}
-                        {abilityProfile.knowledgeFocus?.slice(0, 2).map(item => (
-                          <span key={item.label}>{item.label}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {recommendation?.recommendations?.length ? (
-                    <div className="student-recommendations">
-                      <span>下一步推荐</span>
-                      {recommendation.summary && <p>{recommendation.summary}</p>}
-                      {recommendation.recommendations.slice(0, 3).map(item => {
-                        const query = new URLSearchParams();
-                        query.set("assignmentId", String(assignment.id));
-                        query.set("studentProfileId", String(student.id));
-                        if (item.recommendationToken) {
-                          query.set("recommendationToken", item.recommendationToken);
-                        }
-                        return (
-                          <div className="student-recommendation-item" key={`${item.type}-${item.problemId || item.title}`}>
-                            <strong>{item.title}</strong>
-                            {item.problemTitle && <p>{item.problemTitle}</p>}
-                            {item.reason && <p className="student-recommendation-reason">{item.reason}</p>}
-                            {item.focusTags?.length ? (
-                              <div className="student-ability-tags">
-                                {item.focusTags.slice(0, 3).map(tag => (
-                                  <span key={tag}>{issueLabel(tag)}</span>
-                                ))}
-                              </div>
-                            ) : null}
-                            {item.problemId ? (
-                              <ButtonLink
-                                to={`/app/problem/${item.problemId}?${query.toString()}`}
-                                variant="secondary"
-                                onClick={() => {
-                                  if (item.recommendationToken) {
-                                    void api.recordRecommendationEvent(student.id, item.recommendationToken);
-                                  }
-                                }}
-                                icon={<ArrowRight size={16} />}
-                              >
-                                {item.actionLabel || "去练习"}
-                              </ButtonLink>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
                   <div className="student-latest-status">
                     <h3>每题状态</h3>
                     {trajectory.tasks.map(task => (
@@ -373,17 +323,96 @@ export default function StudentPage() {
                         <p>
                           {task.attemptCount} 次尝试 · {task.latestHint || verdictLabel(task.latestVerdict)}
                         </p>
-                        {task.latestImprovementSignal && <p>{task.latestImprovementSignal}</p>}
-                        {task.latestCoachInteraction?.prompted && (
-                          <p className="student-coach-inline">
-                            {task.latestCoachInteraction.statusLabel} · {task.latestCoachInteraction.turnCount} 轮
-                            {task.latestCoachImpact?.statusLabel ? ` · ${task.latestCoachImpact.statusLabel}` : ""}
-                          </p>
-                        )}
                       </div>
                     ))}
                   </div>
                 </div>
+              )}
+            </Panel>
+
+            <Panel
+              className="student-ability-profile"
+              title="长期能力画像"
+              action={<StatusPill tone={abilityProfile ? "info" : "neutral"}>{abilityProfile?.primaryAbilityFocus || "学习画像"}</StatusPill>}
+            >
+              {!abilityProfile ? (
+                <EmptyState title="继续提交后会形成能力画像" />
+              ) : (
+                <div className="stack">
+                  <p>{abilityProfile.summary || "系统会根据跨作业提交、错因和 AI 教练互动持续更新画像。"}</p>
+                  <div className="student-profile-metrics">
+                    <div>
+                      <span>提交</span>
+                      <strong>{abilityProfile.totalSubmissions}</strong>
+                    </div>
+                    <div>
+                      <span>题目</span>
+                      <strong>{abilityProfile.problemCount}</strong>
+                    </div>
+                    <div>
+                      <span>作业</span>
+                      <strong>{abilityProfile.assignmentCount}</strong>
+                    </div>
+                  </div>
+                  {abilityProfile.abilityGaps?.length ? (
+                    <div className="student-profile-tags">
+                      {abilityProfile.abilityGaps.slice(0, 3).map(item => (
+                        <span key={item.abilityPoint}>{item.abilityPoint}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {(abilityProfile.recommendationEffectSummary || abilityProfile.coachImpactSummary) && (
+                    <p className="student-record-note">
+                      {abilityProfile.recommendationEffectSummary || abilityProfile.coachImpactSummary}
+                    </p>
+                  )}
+                </div>
+              )}
+            </Panel>
+
+            <Panel
+              className="student-recommendations"
+              title="下一步推荐"
+              action={<StatusPill tone={recommendations?.recommendations?.length ? "success" : "neutral"}>{recommendations?.recommendations?.length || 0} 项</StatusPill>}
+            >
+              {recommendations?.recommendations?.length ? (
+                <div className="student-recommendation-list">
+                  {recommendations.recommendations.slice(0, 3).map(item => {
+                    const query = new URLSearchParams();
+                    if (assignment) {
+                      query.set("assignmentId", String(assignment.id));
+                    }
+                    if (student) {
+                      query.set("studentProfileId", String(student.id));
+                    }
+                    if (item.recommendationToken) {
+                      query.set("recommendationToken", item.recommendationToken);
+                    }
+                    return (
+                      <article className="student-recommendation-item" key={`${item.type}-${item.problemId || item.title}`}>
+                        <div>
+                          <StatusPill tone="info">{item.actionLabel || item.type}</StatusPill>
+                          <h3>{item.title}</h3>
+                          <p>{item.reason || item.focusAbility || "根据你的能力画像生成。"}</p>
+                        </div>
+                        {item.problemId ? (
+                          <ButtonLink
+                            to={`/app/problem/${item.problemId}?${query.toString()}`}
+                            variant="primary"
+                            onClick={() => void openRecommendation(item)}
+                            icon={<ArrowRight size={16} />}
+                          >
+                            去练习
+                          </ButtonLink>
+                        ) : (
+                          <StatusPill tone="neutral">复盘</StatusPill>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyState title="继续提交后会生成推荐" />
               )}
             </Panel>
         </aside>

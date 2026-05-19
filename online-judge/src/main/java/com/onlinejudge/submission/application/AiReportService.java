@@ -36,6 +36,8 @@ public class AiReportService {
 
     private static final int MAX_SOURCE_CODE_LENGTH = 12000;
     private static final String AI_SOURCE = "MODEL_SCOPE_MINIMAX_M2_7";
+    private static final String PROVIDER = "ModelScope";
+    private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
     private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^(\\d+):\\s?(.*)$", Pattern.MULTILINE);
     private static final Pattern REPORT_LINE_ISSUE_PATTERN = Pattern.compile(
             "行号[：:]\\s*(\\d+)\\s*错误[：:]\\s*(.+?)\\s*建议[：:]\\s*(.+?)(?=(?:\\n\\s*行号[：:])|\\Z)",
@@ -215,6 +217,8 @@ public class AiReportService {
                             .progressSignal(fallback.getProgressSignal())
                             .confidence(fallback.getConfidence())
                             .uncertainty(fallback.getUncertainty())
+                            .diagnosticTrace(fallback.getDiagnosticTrace())
+                            .aiInvocation(modelInvocation(fallback, "MODEL_TEXT_FALLBACK", false))
                             .answerLeakRisk(fallback.getAnswerLeakRisk())
                             .wrongSolution(fallback.getWrongSolution())
                             .correctSolution(fallback.getCorrectSolution())
@@ -247,6 +251,8 @@ public class AiReportService {
                     .progressSignal(defaultIfBlank(payload.progressSignal, fallback.getProgressSignal()))
                     .confidence(resolveConfidence(payload.confidence, fallback.getConfidence()))
                     .uncertainty(defaultIfBlank(payload.uncertainty, fallback.getUncertainty()))
+                    .diagnosticTrace(fallback.getDiagnosticTrace())
+                    .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false))
                     .answerLeakRisk(resolveAnswerLeakRisk(payload.answerLeakRisk, fallback.getAnswerLeakRisk()))
                     .wrongSolution(defaultNullable(payload.wrongSolution, fallback.getWrongSolution()))
                     .correctSolution(defaultNullable(payload.correctSolution, fallback.getCorrectSolution()))
@@ -620,6 +626,25 @@ public class AiReportService {
             return normalized;
         }
         return fallback == null || fallback.isBlank() ? "UNKNOWN" : fallback;
+    }
+
+    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
+                                                                    String status,
+                                                                    boolean fallbackUsed) {
+        return SubmissionAnalysisResponse.AiInvocation.builder()
+                .provider(PROVIDER)
+                .model(model)
+                .modelVersion(model)
+                .promptVersion(PROMPT_VERSION)
+                .agentVersion(fallback == null || fallback.getAiInvocation() == null
+                        ? null
+                        : fallback.getAiInvocation().getAgentVersion())
+                .analysisSchemaVersion(fallback == null ? "diagnosis-v1" : fallback.getAnalysisSchemaVersion())
+                .evidenceSchemaVersion(fallback == null ? DiagnosisEvidencePackage.SCHEMA_VERSION : fallback.getEvidenceSchemaVersion())
+                .taxonomyVersion(fallback == null ? null : fallback.getTaxonomyVersion())
+                .status(status)
+                .fallbackUsed(fallbackUsed)
+                .build();
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

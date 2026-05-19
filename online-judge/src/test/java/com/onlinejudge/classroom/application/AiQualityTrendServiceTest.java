@@ -47,9 +47,9 @@ class AiQualityTrendServiceTest {
         submissionRepository.items.add(submission(11L, 7L));
         submissionRepository.items.add(submission(12L, 7L));
         submissionRepository.items.add(submission(21L, 8L));
-        analysisRepository.save(analysis(11L, 0.55, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
-        analysisRepository.save(analysis(12L, 0.82, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
-        analysisRepository.save(analysis(21L, 0.72, "HIGH", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]"));
+        analysisRepository.save(analysis(11L, 0.55, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(12L, 0.82, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(21L, 0.72, "HIGH", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]", "RULE_FALLBACK", true));
         correctionRepository.saved.add(correction(1L, 7L, 11L, "BOUNDARY_CONDITION", "OFF_BY_ONE", "IO_FORMAT", "INPUT_PARSING", true));
         correctionRepository.saved.add(correction(2L, 8L, 21L, "BOUNDARY_CONDITION", "OFF_BY_ONE", "IO_FORMAT", "INPUT_PARSING", false));
 
@@ -77,16 +77,29 @@ class AiQualityTrendServiceTest {
                     assertThat(tag.getTag()).isEqualTo("INPUT_PARSING");
                     assertThat(tag.getCount()).isEqualTo(1);
                 });
-        assertThat(trend.getSourceSegments()).hasSize(1);
+        assertThat(trend.getSourceSegments()).hasSize(2);
         assertThat(trend.getSourceSegments().get(0))
                 .satisfies(segment -> {
                     assertThat(segment.getSourceType()).isEqualTo("TEST");
-                    assertThat(segment.getVersionLabel()).isEqualTo("diagnosis-v1 / agent-v1");
-                    assertThat(segment.getAnalyzedSubmissionCount()).isEqualTo(3);
-                    assertThat(segment.getCorrectionCount()).isEqualTo(2);
+                    assertThat(segment.getProvider()).isEqualTo("ModelScope");
+                    assertThat(segment.getModelVersion()).isEqualTo("MiniMax/MiniMax-M2.7");
+                    assertThat(segment.getPromptVersion()).isEqualTo("submission-diagnosis-prompt-v2");
+                    assertThat(segment.getAgentVersion()).isEqualTo("diagnostic-agent-v2");
+                    assertThat(segment.getVersionLabel()).contains("submission-diagnosis-prompt-v2");
+                    assertThat(segment.getAnalyzedSubmissionCount()).isEqualTo(2);
+                    assertThat(segment.getCorrectionCount()).isEqualTo(1);
                     assertThat(segment.getLowConfidenceCount()).isEqualTo(1);
+                    assertThat(segment.getHighLeakRiskCount()).isZero();
+                    assertThat(segment.getFallbackCount()).isZero();
+                    assertThat(segment.getCorrectionRate()).isEqualTo(50.0);
+                });
+        assertThat(trend.getSourceSegments().get(1))
+                .satisfies(segment -> {
+                    assertThat(segment.getStatus()).isEqualTo("RULE_FALLBACK");
+                    assertThat(segment.getFallbackCount()).isEqualTo(1);
+                    assertThat(segment.getAnalyzedSubmissionCount()).isEqualTo(1);
+                    assertThat(segment.getCorrectionCount()).isEqualTo(1);
                     assertThat(segment.getHighLeakRiskCount()).isEqualTo(1);
-                    assertThat(segment.getCorrectionRate()).isEqualTo(66.7);
                 });
     }
 
@@ -102,7 +115,13 @@ class AiQualityTrendServiceTest {
                 .build();
     }
 
-    private SubmissionAnalysis analysis(Long submissionId, double confidence, String leakRisk, String issueTags, String fineTags) {
+    private SubmissionAnalysis analysis(Long submissionId,
+                                        double confidence,
+                                        String leakRisk,
+                                        String issueTags,
+                                        String fineTags,
+                                        String status,
+                                        boolean fallbackUsed) {
         return SubmissionAnalysis.builder()
                 .submissionId(submissionId)
                 .analysisSource("TEST")
@@ -116,9 +135,21 @@ class AiQualityTrendServiceTest {
                           "fineGrainedTags": %s,
                           "confidence": %s,
                           "answerLeakRisk": "%s",
-                          "diagnosticTrace": "diagnostic-agent:v1 signals=2 evidenceRefs=3 source=TEST model=completed"
+                          "diagnosticTrace": "diagnostic-agent-v2 signals=2 evidenceRefs=3 source=TEST model=completed",
+                          "aiInvocation": {
+                            "provider": "ModelScope",
+                            "model": "MiniMax/MiniMax-M2.7",
+                            "modelVersion": "MiniMax/MiniMax-M2.7",
+                            "promptVersion": "submission-diagnosis-prompt-v2",
+                            "agentVersion": "diagnostic-agent-v2",
+                            "analysisSchemaVersion": "diagnosis-v1",
+                            "evidenceSchemaVersion": "diagnosis-evidence-v1",
+                            "taxonomyVersion": "diagnosis-taxonomy-v1",
+                            "status": "%s",
+                            "fallbackUsed": %s
+                          }
                         }
-                        """.formatted(issueTags, fineTags, confidence, leakRisk))
+                        """.formatted(issueTags, fineTags, confidence, leakRisk, status, fallbackUsed))
                 .build();
     }
 

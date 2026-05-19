@@ -42,7 +42,7 @@ export default function TaskEditorPage() {
   const hiddenCount = useMemo(() => form.testCases.filter(item => item.hidden).length, [form.testCases]);
   const qualityItems = useMemo(
     () => [
-      { label: "题目标题", ready: Boolean(form.title.trim()), note: form.title.trim() ? "已填写" : "需要学生一眼看懂任务" },
+      { label: "题目标题", ready: Boolean(form.title.trim()), note: form.title.trim() ? "已填写" : "未填写" },
       { label: "题面", ready: form.description.trim().length >= 20, note: form.description.trim().length >= 20 ? "已填写" : "未完成" },
       { label: "公开测试点", ready: visibleCount > 0, note: visibleCount > 0 ? `${visibleCount} 个可见` : "至少保留 1 个样例" },
       { label: "隐藏测试点", ready: hiddenCount > 0, note: hiddenCount > 0 ? `${hiddenCount} 个隐藏` : "未设置" },
@@ -55,7 +55,7 @@ export default function TaskEditorPage() {
     [form.boundaryTypesText, form.commonMistakesText, form.description, form.knowledgePointsText, form.title, hiddenCount, visibleCount]
   );
   const readyQualityCount = qualityItems.filter(item => item.ready).length;
-  const publishState = readyQualityCount >= qualityItems.length ? "检查完成" : readyQualityCount >= 4 ? "基本完整" : "继续完善";
+  const publishState = readyQualityCount >= qualityItems.length ? "检查完成" : readyQualityCount >= 4 ? "基本完整" : "未完成";
   const readinessTone = readyQualityCount >= qualityItems.length ? "success" : readyQualityCount >= 4 ? "info" : "warning";
 
   useEffect(() => {
@@ -134,7 +134,7 @@ export default function TaskEditorPage() {
       return;
     }
     if (visibleCount < 1) {
-      setAlert({ type: "error", message: "至少需要 1 个公开测试点，方便学生理解输入输出。" });
+      setAlert({ type: "error", message: "至少需要 1 个公开测试点。" });
       return;
     }
     setBusy(true);
@@ -206,48 +206,56 @@ export default function TaskEditorPage() {
             <Field label="题面">
               <TextArea value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} />
             </Field>
-            <div className="form-grid">
-              <Field label="内存 KB">
-                <TextInput type="number" value={form.memoryLimit} onChange={event => setForm({ ...form, memoryLimit: Number(event.target.value) })} />
-              </Field>
-              <Field label="反馈范围">
-                <TextInput
-                  value={form.aiPromptDirection}
-                  onChange={event => setForm({ ...form, aiPromptDirection: event.target.value })}
-                  placeholder="空输入、循环边界、复杂度"
-                />
-              </Field>
-            </div>
-            <div className="knowledge-grid">
-              <Field label="知识点">
-                <TextArea
-                  value={form.knowledgePointsText}
-                  onChange={event => setForm({ ...form, knowledgePointsText: event.target.value })}
-                  rows={3}
-                />
-              </Field>
-              <Field label="算法策略">
-                <TextArea
-                  value={form.algorithmStrategiesText}
-                  onChange={event => setForm({ ...form, algorithmStrategiesText: event.target.value })}
-                  rows={3}
-                />
-              </Field>
-              <Field label="常见误区">
-                <TextArea
-                  value={form.commonMistakesText}
-                  onChange={event => setForm({ ...form, commonMistakesText: event.target.value })}
-                  rows={3}
-                />
-              </Field>
-              <Field label="边界类型">
-                <TextArea
-                  value={form.boundaryTypesText}
-                  onChange={event => setForm({ ...form, boundaryTypesText: event.target.value })}
-                  rows={3}
-                />
-              </Field>
-            </div>
+            <details className="editor-compact-details">
+              <summary>
+                <span>题目设置</span>
+                <StatusPill tone={qualityItems[4].ready ? "success" : "neutral"}>{qualityItems[4].ready ? "已填写" : "选填"}</StatusPill>
+              </summary>
+              <div className="editor-compact-details__body">
+                <div className="form-grid">
+                  <Field label="内存 KB">
+                    <TextInput type="number" value={form.memoryLimit} onChange={event => setForm({ ...form, memoryLimit: Number(event.target.value) })} />
+                  </Field>
+                  <Field label="反馈范围">
+                    <TextInput
+                      value={form.aiPromptDirection}
+                      onChange={event => setForm({ ...form, aiPromptDirection: event.target.value })}
+                      placeholder="空输入、循环边界、复杂度"
+                    />
+                  </Field>
+                </div>
+                <div className="knowledge-grid">
+                  <Field label="知识点">
+                    <TextArea
+                      value={form.knowledgePointsText}
+                      onChange={event => setForm({ ...form, knowledgePointsText: event.target.value })}
+                      rows={3}
+                    />
+                  </Field>
+                  <Field label="算法策略">
+                    <TextArea
+                      value={form.algorithmStrategiesText}
+                      onChange={event => setForm({ ...form, algorithmStrategiesText: event.target.value })}
+                      rows={3}
+                    />
+                  </Field>
+                  <Field label="常见误区">
+                    <TextArea
+                      value={form.commonMistakesText}
+                      onChange={event => setForm({ ...form, commonMistakesText: event.target.value })}
+                      rows={3}
+                    />
+                  </Field>
+                  <Field label="边界类型">
+                    <TextArea
+                      value={form.boundaryTypesText}
+                      onChange={event => setForm({ ...form, boundaryTypesText: event.target.value })}
+                      rows={3}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </details>
           </div>
         </Panel>
 

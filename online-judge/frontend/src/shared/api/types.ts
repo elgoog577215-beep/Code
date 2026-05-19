@@ -458,6 +458,13 @@ export interface AiQualityTrendTag {
 export interface AiQualitySourceSegment {
   sourceType: string;
   versionLabel?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  modelVersion?: string | null;
+  promptVersion?: string | null;
+  agentVersion?: string | null;
+  status?: string | null;
+  fallbackCount?: number;
   analyzedSubmissionCount: number;
   correctionCount: number;
   lowConfidenceCount: number;

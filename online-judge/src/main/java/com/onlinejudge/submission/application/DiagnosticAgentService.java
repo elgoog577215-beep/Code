@@ -16,6 +16,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DiagnosticAgentService {
 
+    private static final String AGENT_VERSION = "diagnostic-agent-v2";
+    private static final String RULE_PROMPT_VERSION = "rule-signal-diagnosis-v1";
+
     private final DiagnosisEvidencePackageBuilder evidencePackageBuilder;
     private final RuleSignalAnalyzer ruleSignalAnalyzer;
     private final AiReportService aiReportService;
@@ -56,6 +59,7 @@ public class DiagnosticAgentService {
         enhanced = hintSafetyService.verifyAndRecord(enhanced, effectivePolicy);
         String traceSummary = buildTraceSummary(ruleSignals, enhanced, modelStage.fallbackUsed());
         enhanced.setDiagnosticTrace(traceSummary);
+        enhanced.setAiInvocation(resolveInvocation(enhanced, modelStage.fallbackUsed()));
         return new AgentResult(enhanced, evidencePackage, ruleSignals, traceSummary);
     }
 
@@ -72,7 +76,10 @@ public class DiagnosticAgentService {
                     evidencePackage,
                     ruleSignals
             );
-            return new ModelStageResult(enhanced == null ? ruleAware : enhanced, enhanced == null);
+            boolean fallbackUsed = enhanced == null
+                    || enhanced == ruleAware
+                    || (enhanced.getSourceType() != null && enhanced.getSourceType().equals(ruleAware.getSourceType()));
+            return new ModelStageResult(enhanced == null ? ruleAware : enhanced, fallbackUsed);
         } catch (RuntimeException exception) {
             return new ModelStageResult(ruleAware, true);
         }
@@ -171,10 +178,45 @@ public class DiagnosticAgentService {
         int evidenceRefCount = analysis == null || analysis.getEvidenceRefs() == null ? 0 : analysis.getEvidenceRefs().size();
         String source = analysis == null ? "UNKNOWN" : analysis.getSourceType();
         String modelStage = modelFallbackUsed ? "model=rule-fallback" : "model=completed";
-        return "diagnostic-agent:v1 signals=" + signalCount
+        return AGENT_VERSION + " signals=" + signalCount
                 + " evidenceRefs=" + evidenceRefCount
                 + " source=" + source
                 + " " + modelStage;
+    }
+
+    private SubmissionAnalysisResponse.AiInvocation resolveInvocation(SubmissionAnalysisResponse analysis,
+                                                                      boolean modelFallbackUsed) {
+        SubmissionAnalysisResponse.AiInvocation existing = analysis == null ? null : analysis.getAiInvocation();
+        boolean fallbackUsed = modelFallbackUsed || (existing != null && existing.isFallbackUsed());
+        String status = fallbackUsed ? "RULE_FALLBACK" : defaultIfBlank(existing == null ? null : existing.getStatus(), "MODEL_COMPLETED");
+        return SubmissionAnalysisResponse.AiInvocation.builder()
+                .provider(defaultIfBlank(existing == null ? null : existing.getProvider(), modelFallbackUsed ? "LOCAL_RULES" : "AI_PROVIDER"))
+                .model(defaultIfBlank(existing == null ? null : existing.getModel(), modelFallbackUsed ? "rule-signals" : "unknown-model"))
+                .modelVersion(defaultIfBlank(existing == null ? null : existing.getModelVersion(), modelFallbackUsed ? "rule-signals-v1" : "unknown-model"))
+                .promptVersion(defaultIfBlank(existing == null ? null : existing.getPromptVersion(), RULE_PROMPT_VERSION))
+                .agentVersion(AGENT_VERSION)
+                .analysisSchemaVersion(defaultIfBlank(
+                        existing == null ? null : existing.getAnalysisSchemaVersion(),
+                        analysis == null ? "diagnosis-v1" : analysis.getAnalysisSchemaVersion()
+                ))
+                .evidenceSchemaVersion(defaultIfBlank(
+                        existing == null ? null : existing.getEvidenceSchemaVersion(),
+                        analysis == null ? DiagnosisEvidencePackage.SCHEMA_VERSION : analysis.getEvidenceSchemaVersion()
+                ))
+                .taxonomyVersion(defaultIfBlank(
+                        existing == null ? null : existing.getTaxonomyVersion(),
+                        analysis == null ? DiagnosisTaxonomy.TAXONOMY_VERSION : analysis.getTaxonomyVersion()
+                ))
+                .status(status)
+                .fallbackUsed(fallbackUsed)
+                .build();
+    }
+
+    private String defaultIfBlank(String candidate, String fallback) {
+        if (candidate != null && !candidate.isBlank()) {
+            return candidate;
+        }
+        return fallback == null ? "" : fallback;
     }
 
     public record AgentResult(SubmissionAnalysisResponse analysis,

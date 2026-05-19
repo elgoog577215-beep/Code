@@ -648,9 +648,7 @@ a {
 
 .student-identity-summary,
 .student-record-summary,
-.student-record-note,
-.student-ability-profile,
-.student-recommendations {
+.student-record-note {
   display: grid;
   gap: 0.55rem;
 }
@@ -658,10 +656,7 @@ a {
 .student-identity-summary > div,
 .student-record-summary > div,
 .student-record-note,
-.student-coach-summary,
-.student-ability-profile,
-.student-recommendations,
-.student-recommendation-item {
+.student-coach-summary {
   display: grid;
   gap: 0.18rem;
   padding: 0.7rem 0.78rem;
@@ -673,9 +668,7 @@ a {
 .student-identity-summary span,
 .student-record-summary span,
 .student-record-note span,
-.student-coach-summary span,
-.student-ability-profile span,
-.student-recommendations > span {
+.student-coach-summary span {
   color: var(--ink-soft);
   font-size: 0.8rem;
 }
@@ -683,9 +676,7 @@ a {
 .student-identity-summary strong,
 .student-record-summary strong,
 .student-record-note strong,
-.student-coach-summary strong,
-.student-ability-profile strong,
-.student-recommendation-item strong {
+.student-coach-summary strong {
   min-width: 0;
   line-height: 1.35;
 }
@@ -700,65 +691,6 @@ a {
   margin: 0;
   color: var(--ink-soft);
   font-size: 0.82rem;
-}
-
-.student-ability-profile {
-  border-color: color-mix(in srgb, var(--blue) 22%, var(--line));
-  background: color-mix(in srgb, var(--blue-soft) 36%, var(--surface-strong));
-}
-
-.student-ability-profile p {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 0.82rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.student-recommendations {
-  border-color: color-mix(in srgb, var(--brand) 22%, var(--line));
-  background: color-mix(in srgb, var(--brand-soft) 44%, var(--surface-strong));
-}
-
-.student-recommendations > p,
-.student-recommendation-item p {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 0.82rem;
-}
-
-.student-recommendation-item {
-  padding: 0.62rem;
-  background: var(--surface);
-}
-
-.student-recommendation-reason {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.student-recommendation-item .ui-button {
-  width: fit-content;
-  margin-top: 0.38rem;
-}
-
-.student-ability-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.28rem;
-}
-
-.student-ability-tags span {
-  padding: 0.25rem 0.48rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink);
 }
 
 .student-record-summary {
@@ -1246,6 +1178,136 @@ a {
   padding: 1.15rem;
 }
 
+.teacher-ai-quality,
+.teacher-ai-trend,
+.teacher-recommendation-effect {
+  display: grid;
+  gap: 0.85rem;
+  margin: 1.15rem 1.15rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+}
+
+.teacher-ai-quality__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.teacher-ai-quality__head h3 {
+  margin: 0.32rem 0 0;
+}
+
+.teacher-ai-trend p,
+.teacher-recommendation-effect p {
+  margin: 0.22rem 0 0;
+  color: var(--ink-soft);
+}
+
+.teacher-ai-quality__metrics,
+.teacher-ai-trend__metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.teacher-ai-quality__metrics > div,
+.teacher-ai-trend__metrics > div,
+.teacher-ai-trend__assignments > div {
+  min-width: 0;
+  padding: 0.62rem 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.teacher-ai-quality__metrics span,
+.teacher-ai-trend__metrics span,
+.teacher-ai-trend__assignments span,
+.teacher-ai-quality__corrections span,
+.teacher-recommendation-effect__segments span {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.teacher-ai-quality__metrics strong,
+.teacher-ai-trend__metrics strong,
+.teacher-ai-trend__assignments strong,
+.teacher-ai-quality__corrections strong,
+.teacher-recommendation-effect__segments strong {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--ink);
+}
+
+.teacher-ai-quality__corrections,
+.teacher-recommendation-effect__segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.teacher-ai-quality__corrections > span,
+.teacher-recommendation-effect__segments > span {
+  padding: 0.52rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.teacher-ai-trend__assignments {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.teacher-ai-source-segments {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
+}
+
+.teacher-ai-source-segments > span {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.teacher-ai-source-segments > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.58rem 0.64rem;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.teacher-ai-source-segments strong,
+.teacher-ai-source-segments small,
+.teacher-ai-source-segments span {
+  display: block;
+  min-width: 0;
+}
+
+.teacher-ai-source-segments small,
+.teacher-ai-source-segments span {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+.teacher-ai-source-segments > div > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem 0.55rem;
+}
+
 .teacher-block {
   min-width: 0;
   display: grid;
@@ -1294,186 +1356,6 @@ a {
   font-size: 0.82rem;
 }
 
-.teacher-ai-quality {
-  display: grid;
-  gap: 0.75rem;
-  margin: 0 1.15rem 1rem;
-  padding: 0.9rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--blue-soft) 36%, var(--surface-strong));
-}
-
-.teacher-ai-quality__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
-}
-
-.teacher-ai-quality__head h3 {
-  margin: 0.1rem 0 0;
-  font-size: 0.98rem;
-}
-
-.teacher-ai-quality__metrics {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
-  gap: 0.55rem;
-}
-
-.teacher-ai-quality__metrics > div {
-  display: grid;
-  gap: 0.08rem;
-  padding: 0.58rem 0.62rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-}
-
-.teacher-ai-quality__metrics span,
-.teacher-ai-quality__corrections {
-  color: var(--ink-soft);
-  font-size: 0.8rem;
-}
-
-.teacher-ai-quality__corrections {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.42rem;
-}
-
-.teacher-ai-quality__corrections span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  max-width: 100%;
-  padding: 0.28rem 0.48rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
-  overflow-wrap: anywhere;
-}
-
-.teacher-ai-quality__corrections strong {
-  color: var(--ink);
-}
-
-.teacher-ai-trend {
-  background: color-mix(in srgb, var(--success-soft) 42%, var(--surface-strong));
-}
-
-.teacher-recommendation-effect {
-  background: color-mix(in srgb, var(--warning-soft) 34%, var(--surface-strong));
-}
-
-.teacher-ai-trend__metrics {
-  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
-}
-
-.teacher-ai-trend__points {
-  display: grid;
-  gap: 0.48rem;
-}
-
-.teacher-ai-trend__point {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(120px, 0.7fr);
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.62rem 0.68rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-}
-
-.teacher-ai-trend__point h4 {
-  margin: 0;
-  font-size: 0.9rem;
-  overflow-wrap: anywhere;
-}
-
-.teacher-ai-trend__point small,
-.teacher-ai-trend__point span {
-  color: var(--ink-soft);
-  font-size: 0.78rem;
-}
-
-.teacher-ai-trend__point > div:last-child {
-  display: grid;
-  gap: 0.28rem;
-}
-
-.teacher-ai-trend__bar {
-  height: 0.46rem;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--surface-soft);
-}
-
-.teacher-ai-trend__bar i {
-  display: block;
-  height: 100%;
-  min-width: 0.18rem;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--brand), var(--warning));
-}
-
-.teacher-ai-trend__tags::before {
-  content: "待补 eval";
-  color: var(--ink-soft);
-  font-weight: 800;
-}
-
-.teacher-ai-source-segments {
-  display: grid;
-  gap: 0.46rem;
-  padding-top: 0.25rem;
-}
-
-.teacher-ai-source-segments > span {
-  color: var(--ink-soft);
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-
-.teacher-ai-source-segments > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.6rem;
-  align-items: center;
-  padding: 0.54rem 0.62rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-}
-
-.teacher-ai-source-segments strong,
-.teacher-ai-source-segments small {
-  display: block;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.teacher-ai-source-segments small,
-.teacher-ai-source-segments span {
-  color: var(--ink-soft);
-  font-size: 0.78rem;
-}
-
-.teacher-ai-source-segments > div > div:last-child {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.35rem;
-}
-
-.teacher-recommendation-effect__tags::before {
-  content: "关注标签";
-  color: var(--ink-soft);
-  font-weight: 800;
-}
-
 .teacher-class-ability {
   display: grid;
   gap: 0.45rem;
@@ -1506,9 +1388,9 @@ a {
 
 .teacher-class-review {
   display: grid;
-  gap: 0.5rem;
-  margin-top: 0.55rem;
-  padding-top: 0.75rem;
+  gap: 0.52rem;
+  margin-top: 0.7rem;
+  padding-top: 0.72rem;
   border-top: 1px solid var(--line);
 }
 
@@ -1517,53 +1399,89 @@ a {
   font-size: 0.82rem;
 }
 
-.teacher-class-review > div {
+.teacher-class-review article {
   display: grid;
-  gap: 0.22rem;
-  padding: 0.62rem 0.68rem;
+  gap: 0.62rem;
+  padding: 0.68rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--surface-strong);
 }
 
-.teacher-class-review strong {
-  min-width: 0;
+.teacher-class-review strong,
+.teacher-class-review small {
+  display: block;
+}
+
+.teacher-class-review small,
+.teacher-class-review p {
+  color: var(--ink-soft);
 }
 
 .teacher-class-review p {
-  margin: 0;
-  color: var(--ink);
-  font-size: 0.9rem;
-  line-height: 1.45;
+  margin: 0.32rem 0 0;
 }
 
-.teacher-class-review small {
+.teacher-class-review .actions {
+  gap: 0.38rem;
+}
+
+.student-ability-profile p,
+.student-recommendation-item p {
+  margin: 0.3rem 0 0;
   color: var(--ink-soft);
-  overflow-wrap: anywhere;
 }
 
-.teacher-class-review__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.2rem;
+.student-profile-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
-.teacher-class-review__actions button {
-  min-height: 32px;
-  padding: 0.28rem 0.52rem;
+.student-profile-metrics > div {
+  padding: 0.62rem;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--surface-strong);
-  color: var(--ink);
-  cursor: pointer;
-  font-weight: 800;
-  font-size: 0.76rem;
 }
 
-.teacher-class-review__actions button:hover {
-  border-color: color-mix(in srgb, var(--brand) 45%, var(--line));
-  color: var(--brand-strong);
+.student-profile-metrics span {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.student-profile-tags,
+.student-recommendation-list {
+  display: grid;
+  gap: 0.52rem;
+}
+
+.student-recommendations {
+  min-width: 0;
+}
+
+.student-profile-tags {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.student-profile-tags span,
+.student-recommendation-item {
+  padding: 0.62rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+}
+
+.student-recommendation-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.student-recommendation-item h3 {
+  margin: 0.35rem 0 0;
 }
 
 .teacher-attention-evidence {
@@ -2294,6 +2212,34 @@ a {
   margin-top: 0.12rem;
   color: var(--ink-soft);
   line-height: 1.35;
+}
+
+.editor-compact-details {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.editor-compact-details > summary {
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  font-weight: 900;
+  list-style: none;
+}
+
+.editor-compact-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.editor-compact-details__body {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0 0.75rem 0.75rem;
 }
 
 .editor-safety-note {
@@ -3440,12 +3386,17 @@ tr:last-child td {
 :root[data-theme="dark"] .teacher-student-row,
 :root[data-theme="dark"] .teacher-attention-evidence > div,
 :root[data-theme="dark"] .teacher-class-ability > div,
-:root[data-theme="dark"] .teacher-class-review > div,
+:root[data-theme="dark"] .teacher-class-review article,
 :root[data-theme="dark"] .teacher-ai-quality,
+:root[data-theme="dark"] .teacher-ai-trend,
+:root[data-theme="dark"] .teacher-recommendation-effect,
 :root[data-theme="dark"] .teacher-ai-quality__metrics > div,
-:root[data-theme="dark"] .teacher-ai-quality__corrections span,
-:root[data-theme="dark"] .teacher-ai-trend__point,
+:root[data-theme="dark"] .teacher-ai-trend__metrics > div,
+:root[data-theme="dark"] .teacher-ai-trend__assignments > div,
 :root[data-theme="dark"] .teacher-ai-source-segments > div,
+:root[data-theme="dark"] .student-profile-metrics > div,
+:root[data-theme="dark"] .student-profile-tags span,
+:root[data-theme="dark"] .student-recommendation-item,
 :root[data-theme="dark"] .teacher-next-card,
 :root[data-theme="dark"] .teacher-assignment-item,
 :root[data-theme="dark"] .management-status-item,
@@ -3458,9 +3409,6 @@ tr:last-child td {
 :root[data-theme="dark"] .student-record-summary > div,
 :root[data-theme="dark"] .student-record-note,
 :root[data-theme="dark"] .student-coach-summary,
-:root[data-theme="dark"] .student-ability-profile,
-:root[data-theme="dark"] .student-recommendations,
-:root[data-theme="dark"] .student-recommendation-item,
 :root[data-theme="dark"] .student-guide > div,
 :root[data-theme="dark"] .student-muted-block,
 :root[data-theme="dark"] .control,
@@ -4574,14 +4522,6 @@ tr:last-child td {
     padding: 0.82rem;
   }
 
-  .teacher-ai-quality {
-    margin-inline: 0.82rem;
-  }
-
-  .teacher-ai-quality__head {
-    align-items: flex-start;
-  }
-
   .teacher-block {
     gap: 0.55rem;
   }
@@ -5163,6 +5103,51 @@ tr:last-child td {
 
   .teacher-assignment-item {
     flex-basis: 82vw;
+  }
+}
+
+@media (max-width: 1180px) {
+  .ui-button,
+  .top-nav__link,
+  .theme-toggle,
+  .nav-toggle {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 760px) {
+  .top-nav {
+    padding: 0.35rem;
+  }
+
+  .theme-toggle,
+  .nav-toggle {
+    width: 44px;
+    min-width: 44px;
+  }
+
+  .role-entry h1 {
+    font-size: 1.55rem;
+  }
+
+  .editor-command__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .editor-command__actions .ui-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .editor-compact-details > summary {
+    min-height: 48px;
+    padding: 0.68rem 0.72rem;
+  }
+
+  .teacher-quick-actions .ui-button {
+    min-height: 44px;
   }
 }
 

@@ -56,6 +56,40 @@ class DiagnosisReportReaderTest {
     }
 
     @Test
+    void readsAiInvocationSnapshotWhenPresent() {
+        SubmissionAnalysis analysis = SubmissionAnalysis.builder()
+                .headline("模型诊断")
+                .reportJson("""
+                        {
+                          "issueTags": ["TIME_COMPLEXITY"],
+                          "aiInvocation": {
+                            "provider": "ModelScope",
+                            "model": "MiniMax/MiniMax-M2.7",
+                            "modelVersion": "MiniMax/MiniMax-M2.7",
+                            "promptVersion": "submission-diagnosis-prompt-v2",
+                            "agentVersion": "diagnostic-agent-v2",
+                            "analysisSchemaVersion": "diagnosis-v1",
+                            "evidenceSchemaVersion": "diagnosis-evidence-v1",
+                            "taxonomyVersion": "diagnosis-taxonomy-v1",
+                            "status": "MODEL_COMPLETED",
+                            "fallbackUsed": false
+                          }
+                        }
+                        """)
+                .build();
+
+        var snapshot = reader.aiInvocation(analysis);
+
+        assertThat(snapshot).isNotNull();
+        assertThat(snapshot.provider()).isEqualTo("ModelScope");
+        assertThat(snapshot.modelVersion()).isEqualTo("MiniMax/MiniMax-M2.7");
+        assertThat(snapshot.promptVersion()).isEqualTo("submission-diagnosis-prompt-v2");
+        assertThat(snapshot.agentVersion()).isEqualTo("diagnostic-agent-v2");
+        assertThat(snapshot.status()).isEqualTo("MODEL_COMPLETED");
+        assertThat(snapshot.fallbackUsed()).isFalse();
+    }
+
+    @Test
     void fallsBackToHeadlineWhenReportJsonIsInvalid() {
         SubmissionAnalysis analysis = SubmissionAnalysis.builder()
                 .headline("旧版轻量标题")

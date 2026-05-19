@@ -479,7 +479,7 @@ export default function ProblemPage() {
                                   <span>第 {turn.turnIndex || 1} 轮</span>
                                   <strong>{turn.question}</strong>
                                   {turn.studentAnswer && <p>我的回答：{turn.studentAnswer}</p>}
-                                  {turn.coachFeedback && <p>教练反馈：{turn.coachFeedback}</p>}
+                                  {turn.coachFeedback && <p>反馈：{turn.coachFeedback}</p>}
                                 </div>
                               ))}
                             </div>
@@ -505,7 +505,7 @@ export default function ProblemPage() {
                           )}
                         </>
                       ) : (
-                        <strong>让 AI 根据本次诊断问你一个定位问题。</strong>
+                        <strong>生成一个定位问题。</strong>
                       )}
                       <Button
                         type="button"

@@ -53,6 +53,13 @@ public class AiQualityTrendResponse {
     public static class SourceQualitySegment {
         private String sourceType;
         private String versionLabel;
+        private String provider;
+        private String model;
+        private String modelVersion;
+        private String promptVersion;
+        private String agentVersion;
+        private String status;
+        private long fallbackCount;
         private long analyzedSubmissionCount;
         private long correctionCount;
         private long lowConfidenceCount;

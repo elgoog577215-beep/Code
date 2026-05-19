@@ -145,9 +145,9 @@ export default function TeacherManagementPage() {
         targetStudentProfileId: profileIds[0]
       });
       setIdentityAudit(audit);
-      setAlert({ type: "success", message: "学生画像已合并为同一人工身份。" });
+      setAlert({ type: "success", message: "学生身份已合并。" });
     } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "学生画像合并失败。" });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "学生身份合并失败。" });
     } finally {
       setBusy(false);
     }
@@ -161,9 +161,9 @@ export default function TeacherManagementPage() {
     try {
       const audit = await api.splitStudentIdentity(Number(targetClassGroupId), { studentProfileId: profileId });
       setIdentityAudit(audit);
-      setAlert({ type: "success", message: "学生画像已拆分为独立人工身份。" });
+      setAlert({ type: "success", message: "学生身份已拆分。" });
     } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "学生画像拆分失败。" });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "学生身份拆分失败。" });
     } finally {
       setBusy(false);
     }
@@ -353,7 +353,7 @@ export default function TeacherManagementPage() {
                   {identityAudit ? (
                     <>
                       <div className="management-status-grid management-identity-audit__metrics">
-                        <StatusItem label="画像" value={String(identityAudit.totalProfiles)} />
+                        <StatusItem label="学生记录" value={String(identityAudit.totalProfiles)} />
                         <StatusItem label="稳定身份" value={String(identityAudit.stableIdentityCount)} />
                         <StatusItem label="人工身份" value={String(identityAudit.manualIdentityCount || 0)} />
                         <StatusItem label="旧版身份" value={String(identityAudit.legacyIdentityCount)} ready={!identityAudit.legacyIdentityCount} />
@@ -393,7 +393,7 @@ export default function TeacherManagementPage() {
                           ))}
                         </div>
                       ) : (
-                        <EmptyState title="暂无疑似重复画像" />
+                        <EmptyState title="暂无疑似重复身份" />
                       )}
                     </>
                   ) : (

@@ -33,6 +33,7 @@ public class SubmissionAnalysisResponse {
     private Double confidence;
     private String uncertainty;
     private String diagnosticTrace;
+    private AiInvocation aiInvocation;
     private String answerLeakRisk;
     private String wrongSolution;
     private String correctSolution;
@@ -61,5 +62,22 @@ public class SubmissionAnalysisResponse {
         private Integer lineNumber;
         private String error;
         private String suggestion;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AiInvocation {
+        private String provider;
+        private String model;
+        private String modelVersion;
+        private String promptVersion;
+        private String agentVersion;
+        private String analysisSchemaVersion;
+        private String evidenceSchemaVersion;
+        private String taxonomyVersion;
+        private String status;
+        private boolean fallbackUsed;
     }
 }

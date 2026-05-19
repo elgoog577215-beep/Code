@@ -409,6 +409,18 @@ public class SubmissionAnalysisService {
                 .progressSignal(progressSignal)
                 .confidence(confidence)
                 .uncertainty(buildUncertainty(scenario, failedCase))
+                .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                        .provider("LOCAL_RULES")
+                        .model("rule-signals")
+                        .modelVersion("rule-signals-v1")
+                        .promptVersion("rule-signal-diagnosis-v1")
+                        .agentVersion("diagnostic-agent-v2")
+                        .analysisSchemaVersion("diagnosis-v1")
+                        .evidenceSchemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
+                        .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
+                        .status("RULE_BASELINE")
+                        .fallbackUsed(true)
+                        .build())
                 .answerLeakRisk(answerLeakRisk)
                 .wrongSolution(wrongSolution)
                 .correctSolution(correctSolution)
@@ -616,6 +628,20 @@ public class SubmissionAnalysisService {
                 response.setEvidenceSchemaVersion(firstNonBlank(response.getEvidenceSchemaVersion(), DiagnosisEvidencePackage.SCHEMA_VERSION));
                 response.setTaxonomyVersion(firstNonBlank(response.getTaxonomyVersion(), DiagnosisTaxonomy.TAXONOMY_VERSION));
                 response.setUncertainty(firstNonBlank(response.getUncertainty(), "旧版诊断未记录不确定性说明。"));
+                if (response.getAiInvocation() == null) {
+                    response.setAiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                            .provider("UNKNOWN")
+                            .model(response.getSourceType())
+                            .modelVersion(response.getSourceType())
+                            .promptVersion("unknown")
+                            .agentVersion("")
+                            .analysisSchemaVersion(response.getAnalysisSchemaVersion())
+                            .evidenceSchemaVersion(response.getEvidenceSchemaVersion())
+                            .taxonomyVersion(response.getTaxonomyVersion())
+                            .status("LEGACY_REPORT")
+                            .fallbackUsed(false)
+                            .build());
+                }
                 response.setGeneratedAt(analysis.getGeneratedAt());
                 return response;
             } catch (Exception exception) {
@@ -649,6 +675,18 @@ public class SubmissionAnalysisService {
                 .progressSignal(buildProgressSignal(analysis.getScenario()))
                 .confidence(0.55)
                 .uncertainty("旧版轻量报告缺少完整证据结构，需要结合原始提交继续判断。")
+                .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                        .provider("UNKNOWN")
+                        .model(analysis.getAnalysisSource())
+                        .modelVersion(analysis.getAnalysisSource())
+                        .promptVersion("unknown")
+                        .agentVersion("")
+                        .analysisSchemaVersion("diagnosis-v1")
+                        .evidenceSchemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
+                        .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
+                        .status("LEGACY_LIGHTWEIGHT")
+                        .fallbackUsed(false)
+                        .build())
                 .answerLeakRisk("UNKNOWN")
                 .lineIssues(List.of())
                 .reportMarkdown(analysis.getReportMarkdown())

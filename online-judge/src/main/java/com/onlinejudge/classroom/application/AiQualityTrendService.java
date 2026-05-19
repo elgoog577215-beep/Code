@@ -174,10 +174,11 @@ public class AiQualityTrendService {
                 .filter(Objects::nonNull)
                 .forEach(analysis -> {
                     String key = sourceSegmentKey(analysis);
-                    SourceAccumulator accumulator = accumulators.computeIfAbsent(key, ignored -> new SourceAccumulator(
-                            firstNonBlank(analysis.getAnalysisSource(), "UNKNOWN"),
-                            versionLabel(analysis)
-                    ));
+                    SourceAccumulator accumulator = accumulators.computeIfAbsent(
+                            key,
+                            ignored -> new SourceAccumulator(analysis, diagnosisReportReader)
+                    );
+                    accumulator.recordInvocation(analysis, diagnosisReportReader);
                     accumulator.analyzedSubmissionCount++;
                     Double confidence = diagnosisReportReader.confidence(analysis);
                     if (confidence == null || confidence < AiQualityMetrics.LOW_CONFIDENCE_THRESHOLD) {
@@ -192,10 +193,9 @@ public class AiQualityTrendService {
         for (TeacherDiagnosisCorrection correction : corrections == null ? List.<TeacherDiagnosisCorrection>of() : corrections) {
             SubmissionAnalysis analysis = safeAnalyses.get(correction.getSubmissionId());
             String key = analysis == null ? "UNKNOWN|unknown" : sourceSegmentKey(analysis);
-            SourceAccumulator accumulator = accumulators.computeIfAbsent(key, ignored -> new SourceAccumulator(
-                    analysis == null ? "UNKNOWN" : firstNonBlank(analysis.getAnalysisSource(), "UNKNOWN"),
-                    analysis == null ? "unknown" : versionLabel(analysis)
-            ));
+            SourceAccumulator accumulator = accumulators.computeIfAbsent(key, ignored -> analysis == null
+                    ? new SourceAccumulator("UNKNOWN", "unknown")
+                    : new SourceAccumulator(analysis, diagnosisReportReader));
             accumulator.correctionCount++;
         }
 
@@ -210,6 +210,13 @@ public class AiQualityTrendService {
                 .map(accumulator -> AiQualityTrendResponse.SourceQualitySegment.builder()
                         .sourceType(accumulator.sourceType)
                         .versionLabel(accumulator.versionLabel)
+                        .provider(accumulator.provider)
+                        .model(accumulator.model)
+                        .modelVersion(accumulator.modelVersion)
+                        .promptVersion(accumulator.promptVersion)
+                        .agentVersion(accumulator.agentVersion)
+                        .status(accumulator.status)
+                        .fallbackCount(accumulator.fallbackCount)
                         .analyzedSubmissionCount(accumulator.analyzedSubmissionCount)
                         .correctionCount(accumulator.correctionCount)
                         .lowConfidenceCount(accumulator.lowConfidenceCount)
@@ -222,13 +229,36 @@ public class AiQualityTrendService {
     }
 
     private String sourceSegmentKey(SubmissionAnalysis analysis) {
+        DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+        if (invocation != null) {
+            return String.join("|",
+                    firstNonBlank(analysis.getAnalysisSource(), "UNKNOWN"),
+                    firstNonBlank(invocation.provider(), "UNKNOWN"),
+                    firstNonBlank(invocation.modelVersion(), invocation.model(), "unknown-model"),
+                    firstNonBlank(invocation.promptVersion(), "unknown-prompt"),
+                    firstNonBlank(invocation.agentVersion(), "unknown-agent"),
+                    firstNonBlank(invocation.status(), "unknown-status")
+            );
+        }
         return firstNonBlank(analysis.getAnalysisSource(), "UNKNOWN") + "|" + versionLabel(analysis);
     }
 
     private String versionLabel(SubmissionAnalysis analysis) {
+        DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+        if (invocation != null) {
+            return String.join(" / ",
+                    firstNonBlank(invocation.analysisSchemaVersion(), diagnosisReportReader.analysisSchemaVersion(analysis)),
+                    firstNonBlank(invocation.agentVersion(), "unknown-agent"),
+                    firstNonBlank(invocation.promptVersion(), "unknown-prompt"),
+                    firstNonBlank(invocation.modelVersion(), invocation.model(), "unknown-model")
+            );
+        }
         String schemaVersion = diagnosisReportReader.analysisSchemaVersion(analysis);
         String trace = diagnosisReportReader.diagnosticTrace(analysis);
         String agentVersion = extractTraceToken(trace, "diagnostic-agent:");
+        if (agentVersion.isBlank()) {
+            agentVersion = extractTraceToken(trace, "diagnostic-agent-");
+        }
         if (!agentVersion.isBlank()) {
             return schemaVersion + " / agent-" + agentVersion;
         }
@@ -316,14 +346,49 @@ public class AiQualityTrendService {
     private static class SourceAccumulator {
         private final String sourceType;
         private final String versionLabel;
+        private final String provider;
+        private final String model;
+        private final String modelVersion;
+        private final String promptVersion;
+        private final String agentVersion;
+        private final String status;
         private long analyzedSubmissionCount;
         private long correctionCount;
         private long lowConfidenceCount;
         private long highLeakRiskCount;
+        private long fallbackCount;
 
         private SourceAccumulator(String sourceType, String versionLabel) {
             this.sourceType = sourceType;
             this.versionLabel = versionLabel;
+            this.provider = "";
+            this.model = "";
+            this.modelVersion = "";
+            this.promptVersion = "";
+            this.agentVersion = "";
+            this.status = "";
+        }
+
+        private SourceAccumulator(SubmissionAnalysis analysis,
+                                  DiagnosisReportReader diagnosisReportReader) {
+            DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+            this.sourceType = analysis == null ? "UNKNOWN" : staticFirstNonBlank(analysis.getAnalysisSource(), "UNKNOWN");
+            this.versionLabel = analysis == null ? "unknown" : buildVersionLabel(analysis, invocation, diagnosisReportReader);
+            this.provider = invocation == null ? "" : invocation.provider();
+            this.model = invocation == null ? "" : invocation.model();
+            this.modelVersion = invocation == null ? "" : invocation.modelVersion();
+            this.promptVersion = invocation == null ? "" : invocation.promptVersion();
+            this.agentVersion = invocation == null ? "" : invocation.agentVersion();
+            this.status = invocation == null ? "" : invocation.status();
+            this.fallbackCount = 0;
+        }
+
+        private void recordInvocation(SubmissionAnalysis analysis,
+                                      DiagnosisReportReader diagnosisReportReader) {
+            DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+            if (invocation != null && invocation.fallbackUsed()) {
+                fallbackCount++;
+            }
         }
 
         private long getAnalyzedSubmissionCount() {
@@ -341,5 +406,50 @@ public class AiQualityTrendService {
         private String getVersionLabel() {
             return versionLabel;
         }
+    }
+
+    private static String buildVersionLabel(SubmissionAnalysis analysis,
+                                            DiagnosisReportReader.AiInvocationSnapshot invocation,
+                                            DiagnosisReportReader diagnosisReportReader) {
+        if (invocation != null) {
+            return String.join(" / ",
+                    staticFirstNonBlank(invocation.analysisSchemaVersion(), diagnosisReportReader.analysisSchemaVersion(analysis)),
+                    staticFirstNonBlank(invocation.agentVersion(), "unknown-agent"),
+                    staticFirstNonBlank(invocation.promptVersion(), "unknown-prompt"),
+                    staticFirstNonBlank(invocation.modelVersion(), invocation.model(), "unknown-model")
+            );
+        }
+        String schemaVersion = diagnosisReportReader.analysisSchemaVersion(analysis);
+        String trace = diagnosisReportReader.diagnosticTrace(analysis);
+        String agentVersion = staticExtractTraceToken(trace, "diagnostic-agent:");
+        if (agentVersion.isBlank()) {
+            agentVersion = staticExtractTraceToken(trace, "diagnostic-agent-");
+        }
+        return agentVersion.isBlank() ? schemaVersion : schemaVersion + " / agent-" + agentVersion;
+    }
+
+    private static String staticFirstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private static String staticExtractTraceToken(String trace, String prefix) {
+        if (trace == null || trace.isBlank()) {
+            return "";
+        }
+        int start = trace.indexOf(prefix);
+        if (start < 0) {
+            return "";
+        }
+        int valueStart = start + prefix.length();
+        int end = trace.indexOf(' ', valueStart);
+        if (end < 0) {
+            end = trace.length();
+        }
+        return trace.substring(valueStart, end).trim();
     }
 }

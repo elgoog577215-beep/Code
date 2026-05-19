@@ -8,7 +8,7 @@ export default function RoleEntryPage() {
     <div className="stack role-entry-page">
       <section className="role-entry role-entry--compact">
         <div>
-          <h1>温中编程学习平台</h1>
+          <h1>选择入口</h1>
         </div>
       </section>
 

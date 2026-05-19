@@ -122,6 +122,25 @@ public class DiagnosisReportReader {
         return stringValue(analysis, "diagnosticTrace");
     }
 
+    public AiInvocationSnapshot aiInvocation(SubmissionAnalysis analysis) {
+        Object value = payloadValue(analysis, "aiInvocation");
+        if (!(value instanceof Map<?, ?> map)) {
+            return null;
+        }
+        return new AiInvocationSnapshot(
+                stringValue(map, "provider"),
+                stringValue(map, "model"),
+                stringValue(map, "modelVersion"),
+                stringValue(map, "promptVersion"),
+                stringValue(map, "agentVersion"),
+                stringValue(map, "analysisSchemaVersion"),
+                stringValue(map, "evidenceSchemaVersion"),
+                stringValue(map, "taxonomyVersion"),
+                stringValue(map, "status"),
+                booleanValue(map.get("fallbackUsed"))
+        );
+    }
+
     private String stringValue(SubmissionAnalysis analysis, String key) {
         Object value = payloadValue(analysis, key);
         return value == null ? "" : String.valueOf(value).trim();
@@ -144,5 +163,32 @@ public class DiagnosisReportReader {
             return List.of();
         }
         return List.of(analysis.getHeadline());
+    }
+
+    private String stringValue(Map<?, ?> payload, String key) {
+        Object value = payload.get(key);
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private boolean booleanValue(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof String text) {
+            return Boolean.parseBoolean(text.trim());
+        }
+        return false;
+    }
+
+    public record AiInvocationSnapshot(String provider,
+                                       String model,
+                                       String modelVersion,
+                                       String promptVersion,
+                                       String agentVersion,
+                                       String analysisSchemaVersion,
+                                       String evidenceSchemaVersion,
+                                       String taxonomyVersion,
+                                       String status,
+                                       boolean fallbackUsed) {
     }
 }
