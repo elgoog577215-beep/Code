@@ -176,7 +176,6 @@ export default function TaskEditorPage() {
         <div className="editor-command__actions">
           <StatusPill tone={visibleCount ? "success" : "danger"}>{visibleCount} 个公开测试点</StatusPill>
           <StatusPill tone={readyQualityCount >= 4 ? "success" : "warning"}>{readyQualityCount}/5 检查完成</StatusPill>
-          <StatusPill tone="info">{catalog.length} 个题目</StatusPill>
           <Button type="button" variant="primary" onClick={() => void save()} disabled={busy} icon={<Save size={18} />}>
             保存题目
           </Button>
@@ -185,86 +184,132 @@ export default function TaskEditorPage() {
 
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
-      <section className="editor-layout">
-        <Panel title="题目信息" action={<StatusPill tone={readinessTone}>{publishState}</StatusPill>}>
-          <div className="stack">
-            <div className="form-grid">
-              <Field label="题目标题">
-                <TextInput value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} placeholder="两数求和" />
-              </Field>
-              <Field label="难度">
-                <Select value={form.difficulty} onChange={event => setForm({ ...form, difficulty: event.target.value })}>
-                  <option value="EASY">基础</option>
-                  <option value="MEDIUM">提高</option>
-                  <option value="HARD">挑战</option>
-                </Select>
-              </Field>
-              <Field label="时限 ms">
-                <TextInput type="number" value={form.timeLimit} onChange={event => setForm({ ...form, timeLimit: Number(event.target.value) })} />
-              </Field>
-            </div>
-            <Field label="题面">
-              <TextArea value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} />
-            </Field>
-            <details className="editor-compact-details">
-              <summary>
-                <span>题目设置</span>
-                <StatusPill tone={qualityItems[4].ready ? "success" : "neutral"}>{qualityItems[4].ready ? "已填写" : "选填"}</StatusPill>
-              </summary>
-              <div className="editor-compact-details__body">
-                <div className="form-grid">
-                  <Field label="内存 KB">
-                    <TextInput type="number" value={form.memoryLimit} onChange={event => setForm({ ...form, memoryLimit: Number(event.target.value) })} />
-                  </Field>
-                  <Field label="反馈范围">
-                    <TextInput
-                      value={form.aiPromptDirection}
-                      onChange={event => setForm({ ...form, aiPromptDirection: event.target.value })}
-                      placeholder="空输入、循环边界、复杂度"
-                    />
-                  </Field>
-                </div>
-                <div className="knowledge-grid">
-                  <Field label="知识点">
-                    <TextArea
-                      value={form.knowledgePointsText}
-                      onChange={event => setForm({ ...form, knowledgePointsText: event.target.value })}
-                      rows={3}
-                    />
-                  </Field>
-                  <Field label="算法策略">
-                    <TextArea
-                      value={form.algorithmStrategiesText}
-                      onChange={event => setForm({ ...form, algorithmStrategiesText: event.target.value })}
-                      rows={3}
-                    />
-                  </Field>
-                  <Field label="常见误区">
-                    <TextArea
-                      value={form.commonMistakesText}
-                      onChange={event => setForm({ ...form, commonMistakesText: event.target.value })}
-                      rows={3}
-                    />
-                  </Field>
-                  <Field label="边界类型">
-                    <TextArea
-                      value={form.boundaryTypesText}
-                      onChange={event => setForm({ ...form, boundaryTypesText: event.target.value })}
-                      rows={3}
-                    />
-                  </Field>
-                </div>
+      <section className="editor-workbench">
+        <div className="editor-primary-stack">
+          <Panel title="题目信息" action={<StatusPill tone={readinessTone}>{publishState}</StatusPill>}>
+            <div className="stack">
+              <div className="form-grid">
+                <Field label="题目标题">
+                  <TextInput value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} placeholder="两数求和" />
+                </Field>
+                <Field label="难度">
+                  <Select value={form.difficulty} onChange={event => setForm({ ...form, difficulty: event.target.value })}>
+                    <option value="EASY">基础</option>
+                    <option value="MEDIUM">提高</option>
+                    <option value="HARD">挑战</option>
+                  </Select>
+                </Field>
+                <Field label="时限 ms">
+                  <TextInput type="number" value={form.timeLimit} onChange={event => setForm({ ...form, timeLimit: Number(event.target.value) })} />
+                </Field>
               </div>
-            </details>
-          </div>
-        </Panel>
+              <Field label="题面">
+                <TextArea value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} />
+              </Field>
+              <details className="editor-compact-details">
+                <summary>
+                  <span>题目设置</span>
+                  <StatusPill tone={qualityItems[4].ready ? "success" : "neutral"}>{qualityItems[4].ready ? "已填写" : "选填"}</StatusPill>
+                </summary>
+                <div className="editor-compact-details__body">
+                  <div className="form-grid">
+                    <Field label="内存 KB">
+                      <TextInput type="number" value={form.memoryLimit} onChange={event => setForm({ ...form, memoryLimit: Number(event.target.value) })} />
+                    </Field>
+                    <Field label="反馈范围">
+                      <TextInput
+                        value={form.aiPromptDirection}
+                        onChange={event => setForm({ ...form, aiPromptDirection: event.target.value })}
+                        placeholder="空输入、循环边界、复杂度"
+                      />
+                    </Field>
+                  </div>
+                  <div className="knowledge-grid">
+                    <Field label="知识点">
+                      <TextArea value={form.knowledgePointsText} onChange={event => setForm({ ...form, knowledgePointsText: event.target.value })} rows={3} />
+                    </Field>
+                    <Field label="算法策略">
+                      <TextArea value={form.algorithmStrategiesText} onChange={event => setForm({ ...form, algorithmStrategiesText: event.target.value })} rows={3} />
+                    </Field>
+                    <Field label="常见误区">
+                      <TextArea value={form.commonMistakesText} onChange={event => setForm({ ...form, commonMistakesText: event.target.value })} rows={3} />
+                    </Field>
+                    <Field label="边界类型">
+                      <TextArea value={form.boundaryTypesText} onChange={event => setForm({ ...form, boundaryTypesText: event.target.value })} rows={3} />
+                    </Field>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </Panel>
 
-        <aside className="editor-side">
           <Panel
-            title="题目列表"
-            action={<StatusPill tone="info">{catalog.length} 个题目</StatusPill>}
+            title="测试点"
+            action={
+              <div className="actions">
+                <StatusPill tone={visibleCount ? "success" : "danger"}>{visibleCount} 个公开</StatusPill>
+                <StatusPill tone={hiddenCount ? "warning" : "neutral"}>{hiddenCount} 个隐藏</StatusPill>
+                <Button type="button" variant="secondary" onClick={() => addTestCase(false)}>
+                  添加公开点
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => addTestCase(true)}>
+                  添加隐藏点
+                </Button>
+              </div>
+            }
           >
             <div className="stack">
+              {form.testCases.map((item, index) => (
+                <div className="list-row editor-test-row" key={index}>
+                  <div className="actions">
+                    <StatusPill tone={item.hidden ? "warning" : "success"}>{item.hidden ? "隐藏测试点" : "公开测试点"}</StatusPill>
+                    <label className="actions editor-test-toggle">
+                      <input type="checkbox" checked={item.hidden} onChange={event => updateTestCase(index, { hidden: event.target.checked })} />
+                      隐藏
+                    </label>
+                    <Button type="button" variant="danger" onClick={() => removeTestCase(index)}>
+                      删除
+                    </Button>
+                  </div>
+                  <div className="two-column">
+                    <Field label="输入">
+                      <TextArea value={item.input} onChange={event => updateTestCase(index, { input: event.target.value })} />
+                    </Field>
+                    <Field label="期望输出">
+                      <TextArea value={item.expectedOutput} onChange={event => updateTestCase(index, { expectedOutput: event.target.value })} />
+                    </Field>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
+
+        <aside className="editor-side">
+          <details className="editor-compact-details editor-compact-details--side" open>
+            <summary>
+              <span>保存检查</span>
+              <StatusPill tone={readinessTone}>{readyQualityCount}/5</StatusPill>
+            </summary>
+            <div className="editor-quality-list">
+              {qualityItems.map(item => (
+                <div className={item.ready ? "is-ready" : ""} key={item.label}>
+                  <span>{item.ready ? "✓" : "!"}</span>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <small>{item.note}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+
+          <details className="editor-compact-details editor-compact-details--side">
+            <summary>
+              <span>题目列表</span>
+              <StatusPill tone="info">{catalog.length} 个</StatusPill>
+            </summary>
+            <div className="stack editor-problem-list">
               {catalog.length ? (
                 catalog.map(item => (
                   <button type="button" className="list-row" key={item.id} onClick={() => void loadProblem(item.id)} style={{ textAlign: "left" }}>
@@ -277,64 +322,9 @@ export default function TaskEditorPage() {
                 <EmptyState title="暂无题目" />
               )}
             </div>
-          </Panel>
-
-          <Panel title="保存检查" action={<StatusPill tone={readinessTone}>{readyQualityCount}/5</StatusPill>}>
-            <div className="editor-quality-list">
-              {qualityItems.map(item => (
-                <div className={item.ready ? "is-ready" : ""} key={item.label}>
-                  <span>{item.ready ? "✓" : "!"}</span>
-                  <div>
-                    <strong>{item.label}</strong>
-                    <small>{item.note}</small>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Panel>
+          </details>
         </aside>
       </section>
-
-      <Panel
-        title="测试点"
-        action={
-          <div className="actions">
-            <StatusPill tone={visibleCount ? "success" : "danger"}>{visibleCount} 个公开</StatusPill>
-            <StatusPill tone={hiddenCount ? "warning" : "neutral"}>{hiddenCount} 个隐藏</StatusPill>
-            <Button type="button" variant="secondary" onClick={() => addTestCase(false)}>
-              添加公开点
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => addTestCase(true)}>
-              添加隐藏点
-            </Button>
-          </div>
-        }
-      >
-        <div className="stack">
-          {form.testCases.map((item, index) => (
-            <div className="list-row" key={index}>
-              <div className="actions">
-                <StatusPill tone={item.hidden ? "warning" : "success"}>{item.hidden ? "隐藏测试点" : "公开测试点"}</StatusPill>
-                <label className="actions">
-                  <input type="checkbox" checked={item.hidden} onChange={event => updateTestCase(index, { hidden: event.target.checked })} />
-                  隐藏
-                </label>
-                <Button type="button" variant="danger" onClick={() => removeTestCase(index)}>
-                  删除
-                </Button>
-              </div>
-              <div className="two-column">
-                <Field label="输入">
-                  <TextArea value={item.input} onChange={event => updateTestCase(index, { input: event.target.value })} />
-                </Field>
-                <Field label="期望输出">
-                  <TextArea value={item.expectedOutput} onChange={event => updateTestCase(index, { expectedOutput: event.target.value })} />
-                </Field>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Panel>
 
     </div>
   );

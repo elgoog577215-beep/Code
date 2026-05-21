@@ -1,6 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+const yingqiBanner =
+  "/*! owner=yingqi; signature=00f40662ae433dacddf0157fca60a279bf71a54fbf04ee7d50d3190752554b5d; claim=yingqi|wenzhong-ai-learning-platform|nboj|2026-05-19 */";
+
 export default defineConfig({
   base: "/app/",
   plugins: [
@@ -33,6 +36,7 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
+        banner: yingqiBanner,
         manualChunks: {
           react: ["react", "react-dom", "react-router-dom"]
         }

@@ -61,6 +61,9 @@ export interface StudentTrajectoryPoint {
   issueTags?: string[];
   fineGrainedTags?: string[];
   progressSignal?: string | null;
+  learningTrajectorySignal?: LearningTrajectorySignal | null;
+  learningInterventionPlan?: LearningInterventionPlan | null;
+  learningInterventionImpact?: LearningInterventionImpact | null;
   improvementSignal?: string | null;
   coachInteraction?: CoachInteractionSummary | null;
   coachImpact?: CoachImpact | null;
@@ -74,6 +77,9 @@ export interface StudentTrajectoryTask {
   passed: boolean;
   latestVerdict?: Verdict | string | null;
   latestProgressSignal?: string | null;
+  latestLearningTrajectorySignal?: LearningTrajectorySignal | null;
+  latestLearningInterventionPlan?: LearningInterventionPlan | null;
+  latestLearningInterventionImpact?: LearningInterventionImpact | null;
   latestHint?: string | null;
   latestImprovementSignal?: string | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
@@ -127,6 +133,9 @@ export interface StudentTrajectory {
   nextStep?: string | null;
   attentionReason?: string | null;
   improvementSignal?: string | null;
+  latestLearningTrajectorySignal?: LearningTrajectorySignal | null;
+  latestLearningInterventionPlan?: LearningInterventionPlan | null;
+  latestLearningInterventionImpact?: LearningInterventionImpact | null;
   primaryAbilityFocus?: string | null;
   crossProblemSummary?: string | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
@@ -224,6 +233,55 @@ export interface ProblemManage extends Problem {
   }>;
 }
 
+export interface StudentHintPlan {
+  hintLevel?: string;
+  problemType?: string;
+  evidenceAnchor?: string;
+  nextAction?: string;
+  coachQuestion?: string;
+  teachingAction?: string;
+  evidenceRefs?: string[];
+  answerLeakRisk?: string;
+}
+
+export interface LearningTrajectorySignal {
+  phase?: string;
+  label?: string;
+  evidenceRef?: string;
+  summary?: string;
+  nextFocus?: string;
+  needsTeacherAttention?: boolean;
+}
+
+export interface LearningInterventionPlan {
+  interventionType?: string;
+  goal?: string;
+  studentTask?: string;
+  checkQuestion?: string;
+  completionSignal?: string;
+  evidenceRefs?: string[];
+  estimatedMinutes?: number;
+  answerLeakRisk?: string;
+}
+
+export interface LearningInterventionImpact {
+  interventionSubmissionId?: number | null;
+  followupSubmissionId?: number | null;
+  problemId?: number | null;
+  interventionType?: string | null;
+  status?: string | null;
+  statusLabel?: string | null;
+  summary?: string | null;
+  previousVerdict?: string | null;
+  followupVerdict?: string | null;
+  previousIssueTag?: string | null;
+  previousFineGrainedTag?: string | null;
+  followupIssueTag?: string | null;
+  followupFineGrainedTag?: string | null;
+  plannedAt?: string | null;
+  followupSubmittedAt?: string | null;
+}
+
 export interface SubmissionAnalysis {
   submissionId: number;
   sourceType?: string;
@@ -235,8 +293,11 @@ export interface SubmissionAnalysis {
   focusPoints?: string[];
   fixDirections?: string[];
   studentHint?: string;
+  studentHintPlan?: StudentHintPlan | null;
+  learningInterventionPlan?: LearningInterventionPlan | null;
   teacherNote?: string;
   progressSignal?: string;
+  learningTrajectorySignal?: LearningTrajectorySignal | null;
   confidence?: number;
   fineGrainedTags?: string[];
   evidenceRefs?: string[];
@@ -566,6 +627,9 @@ export interface ExecutorStatus {
   pythonAvailable: boolean;
   cppAvailable: boolean;
   message: string;
+  projectOwner?: string;
+  ownershipSignature?: string;
+  ownershipClaim?: string;
 }
 
 export interface ImportPreview {

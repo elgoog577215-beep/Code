@@ -64,6 +64,16 @@ class DiagnosticAgentServiceTest {
         assertThat(result.analysis().getAiInvocation()).isNotNull();
         assertThat(result.analysis().getAiInvocation().getAgentVersion()).isEqualTo("diagnostic-agent-v2");
         assertThat(result.analysis().getAiInvocation().isFallbackUsed()).isTrue();
+        assertThat(result.analysis().getStudentHintPlan()).isNotNull();
+        assertThat(result.analysis().getStudentHintPlan().getHintLevel()).isEqualTo("L2");
+        assertThat(result.analysis().getStudentHintPlan().getProblemType()).isEqualTo("差一位错误");
+        assertThat(result.analysis().getStudentHintPlan().getTeachingAction()).isEqualTo("TRACE_VARIABLES");
+        assertThat(result.analysis().getStudentHintPlan().getEvidenceRefs()).contains("code:plus_minus_one");
+        assertThat(result.analysis().getLearningInterventionPlan()).isNotNull();
+        assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isEqualTo("VARIABLE_TRACE");
+        assertThat(result.analysis().getLearningInterventionPlan().getStudentTask()).isNotBlank();
+        assertThat(result.analysis().getLearningInterventionPlan().getCompletionSignal()).isNotBlank();
+        assertThat(result.analysis().getLearningInterventionPlan().getEvidenceRefs()).contains("code:plus_minus_one");
     }
 
     @Test
@@ -110,6 +120,162 @@ class DiagnosticAgentServiceTest {
 
         assertThat(result.analysis().getFineGrainedTags()).contains("PARTIAL_FIX_REGRESSION");
         assertThat(result.analysis().getEvidenceRefs()).contains("history:verdict_transition");
+        assertThat(result.analysis().getLearningTrajectorySignal()).isNotNull();
+        assertThat(result.analysis().getLearningTrajectorySignal().getPhase()).isEqualTo("REGRESSION");
+        assertThat(result.analysis().getLearningInterventionPlan()).isNotNull();
+        assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isEqualTo("COMPARE_SUBMISSIONS");
+    }
+
+    @Test
+    void diagnoseBuildsFixedCompilationTrajectorySignal() {
+        DiagnosticAgentService service = newService();
+
+        Submission submission = Submission.builder()
+                .id(14L)
+                .languageName("Python 3")
+                .verdict(Submission.Verdict.WRONG_ANSWER)
+                .sourceCode("""
+                        n = int(input())
+                        print(n + 1)
+                        """)
+                .build();
+        Problem problem = Problem.builder()
+                .id(4L)
+                .title("trajectory")
+                .description("Read an integer and output the expected value.")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build();
+        SubmissionAnalysisResponse baseline = SubmissionAnalysisResponse.builder()
+                .submissionId(14L)
+                .sourceType("RULE_BASED_V1")
+                .scenario("WA")
+                .issueTags(List.of("BOUNDARY_CONDITION"))
+                .fineGrainedTags(List.of())
+                .evidenceRefs(List.of())
+                .build();
+        DiagnosisEvidencePackage.HistoryEvidence history = DiagnosisEvidencePackage.HistoryEvidence.builder()
+                .previousVerdict("COMPILATION_ERROR")
+                .transitionSignal("compilation fixed, now wrong answer")
+                .build();
+
+        DiagnosticAgentService.AgentResult result = service.diagnose(
+                problem,
+                submission,
+                List.of(),
+                baseline,
+                Assignment.HintPolicy.L2,
+                history
+        );
+
+        assertThat(result.analysis().getLearningTrajectorySignal()).isNotNull();
+        assertThat(result.analysis().getLearningTrajectorySignal().getPhase()).isEqualTo("FIXED_COMPILATION");
+        assertThat(result.analysis().getLearningTrajectorySignal().isNeedsTeacherAttention()).isFalse();
+        assertThat(result.analysis().getEvidenceRefs()).contains("history:fixed_compilation");
+        assertThat(result.traceSummary()).contains("trajectory=FIXED_COMPILATION");
+    }
+
+    @Test
+    void diagnoseBuildsRepeatedStuckTrajectorySignal() {
+        DiagnosticAgentService service = newService();
+
+        Submission submission = Submission.builder()
+                .id(15L)
+                .languageName("Python 3")
+                .verdict(Submission.Verdict.WRONG_ANSWER)
+                .sourceCode("""
+                        n = int(input())
+                        print(n - 1)
+                        """)
+                .build();
+        Problem problem = Problem.builder()
+                .id(5L)
+                .title("repeated")
+                .description("Read an integer and output the expected value.")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build();
+        SubmissionAnalysisResponse baseline = SubmissionAnalysisResponse.builder()
+                .submissionId(15L)
+                .sourceType("RULE_BASED_V1")
+                .scenario("WA")
+                .issueTags(List.of("BOUNDARY_CONDITION"))
+                .fineGrainedTags(List.of())
+                .evidenceRefs(List.of())
+                .build();
+        DiagnosisEvidencePackage.HistoryEvidence history = DiagnosisEvidencePackage.HistoryEvidence.builder()
+                .previousVerdict("WRONG_ANSWER")
+                .repeatedIssueCount(4L)
+                .transitionSignal("same verdict remains")
+                .build();
+
+        DiagnosticAgentService.AgentResult result = service.diagnose(
+                problem,
+                submission,
+                List.of(),
+                baseline,
+                Assignment.HintPolicy.L2,
+                history
+        );
+
+        assertThat(result.analysis().getLearningTrajectorySignal()).isNotNull();
+        assertThat(result.analysis().getLearningTrajectorySignal().getPhase()).isEqualTo("REPEATED_STUCK");
+        assertThat(result.analysis().getLearningTrajectorySignal().isNeedsTeacherAttention()).isTrue();
+        assertThat(result.analysis().getEvidenceRefs()).contains("history:repeated_stuck");
+        assertThat(result.analysis().getLearningInterventionPlan()).isNotNull();
+        assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isEqualTo("MIN_CASE_TRACE");
+        assertThat(result.analysis().getLearningInterventionPlan().getStudentTask()).isNotBlank();
+        assertThat(result.analysis().getLearningInterventionPlan().getCompletionSignal()).isNotBlank();
+    }
+
+    @Test
+    void diagnoseBuildsAcceptedAfterFixTrajectorySignal() {
+        DiagnosticAgentService service = newService();
+
+        Submission submission = Submission.builder()
+                .id(16L)
+                .languageName("Python 3")
+                .verdict(Submission.Verdict.ACCEPTED)
+                .sourceCode("print(int(input()))")
+                .build();
+        Problem problem = Problem.builder()
+                .id(6L)
+                .title("accepted")
+                .description("Read an integer and output the expected value.")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build();
+        SubmissionAnalysisResponse baseline = SubmissionAnalysisResponse.builder()
+                .submissionId(16L)
+                .sourceType("RULE_BASED_V1")
+                .scenario("AC")
+                .issueTags(List.of("GENERALIZATION_CHECK"))
+                .fineGrainedTags(List.of())
+                .evidenceRefs(List.of())
+                .build();
+        DiagnosisEvidencePackage.HistoryEvidence history = DiagnosisEvidencePackage.HistoryEvidence.builder()
+                .previousVerdict("WRONG_ANSWER")
+                .transitionSignal("wrong answer fixed to accepted")
+                .build();
+
+        DiagnosticAgentService.AgentResult result = service.diagnose(
+                problem,
+                submission,
+                List.of(),
+                baseline,
+                Assignment.HintPolicy.L2,
+                history
+        );
+
+        assertThat(result.analysis().getLearningTrajectorySignal()).isNotNull();
+        assertThat(result.analysis().getLearningTrajectorySignal().getPhase()).isEqualTo("ACCEPTED_AFTER_FIX");
+        assertThat(result.analysis().getLearningTrajectorySignal().isNeedsTeacherAttention()).isFalse();
+        assertThat(result.analysis().getEvidenceRefs()).contains("history:accepted_after_fix");
+        assertThat(result.analysis().getLearningInterventionPlan()).isNotNull();
+        assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isEqualTo("EXPLAIN_GENERALITY");
     }
 
     @Test
@@ -202,6 +368,10 @@ class DiagnosticAgentServiceTest {
         assertThat(result.analysis().getIssueTags()).contains("NEEDS_MORE_EVIDENCE");
         assertThat(result.analysis().getEvidenceRefs()).contains("agent:low_confidence");
         assertThat(result.analysis().getUncertainty()).contains("置信度较低");
+        assertThat(result.analysis().getStudentHintPlan().getProblemType()).isEqualTo("证据不足");
+        assertThat(result.analysis().getStudentHintPlan().getTeachingAction()).isEqualTo("COLLECT_EVIDENCE");
+        assertThat(result.analysis().getLearningInterventionPlan()).isNotNull();
+        assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isEqualTo("COLLECT_EVIDENCE");
     }
 
     private DiagnosticAgentService newService() {

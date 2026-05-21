@@ -88,6 +88,23 @@ class ModelDiagnosisEvalTest {
                 });
     }
 
+    @Test
+    void studentHintFixturesLoadAsLargeScaleEvalCases() throws IOException {
+        List<StudentHintEvalFixtureLoader.Fixture> fixtures =
+                new StudentHintEvalFixtureLoader(objectMapper).loadDefault();
+
+        assertThat(fixtures).hasSize(100);
+        assertThat(fixtures)
+                .allSatisfy(fixture -> {
+                    assertThat(fixture.source()).isEqualTo("synthetic-student-hint-v1");
+                    assertThat(fixture.expected().issueTags()).isNotEmpty();
+                    assertThat(fixture.expected().teachingAction()).isNotBlank();
+                    assertThat(fixture.expected().mustNotMention()).contains("完整代码", "参考答案", "隐藏测试点");
+                    assertThat(fixture.toSubmission().getSourceCode()).isNotBlank();
+                    assertThat(fixture.toBaseline().getStudentHint()).isNotBlank();
+                });
+    }
+
     private DiagnosticAgentService newLiveService(String apiKey) {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         AiReportService aiReportService = new AiReportService(objectMapper, new AiCodeAssistSupport());

@@ -24,9 +24,9 @@ export default function ClassOverviewPage() {
     const avg = submissions ? (accepted / submissions) * 100 : 0;
     return { submissions, accepted, avg };
   }, [entries]);
-  const reviewEntries = useMemo(() => entries.filter(item => (item.acceptanceRate || 0) < 40).slice(0, 4), [entries]);
-  const stableEntries = useMemo(() => entries.filter(item => (item.acceptanceRate || 0) >= 70).slice(0, 4), [entries]);
-  const activeEntries = useMemo(() => [...entries].sort((a, b) => (b.totalSubmissions || 0) - (a.totalSubmissions || 0)).slice(0, 4), [entries]);
+  const reviewEntries = useMemo(() => entries.filter(item => (item.acceptanceRate || 0) < 40).slice(0, 3), [entries]);
+  const stableEntries = useMemo(() => entries.filter(item => (item.acceptanceRate || 0) >= 70).slice(0, 2), [entries]);
+  const activeEntries = useMemo(() => [...entries].sort((a, b) => (b.totalSubmissions || 0) - (a.totalSubmissions || 0)).slice(0, 2), [entries]);
   const idleCount = useMemo(() => entries.filter(item => (item.totalSubmissions || 0) === 0).length, [entries]);
   const actionPlan = useMemo(
     () => [
@@ -91,7 +91,11 @@ export default function ClassOverviewPage() {
         </Panel>
       </section>
 
-      <Panel title="任务表现" action={<StatusPill tone="neutral">{entries.length} 个任务</StatusPill>}>
+      <details className="overview-compact-details">
+        <summary>
+          <span>任务表现</span>
+          <StatusPill tone="neutral">{entries.length} 个任务</StatusPill>
+        </summary>
         {!entries.length ? (
           <EmptyState title="暂无学习数据" />
         ) : (
@@ -104,7 +108,7 @@ export default function ClassOverviewPage() {
                   <th>提交</th>
                   <th>通过</th>
                   <th>通过率</th>
-                  <th>教师观察</th>
+                  <th>状态</th>
                 </tr>
               </thead>
               <tbody>
@@ -119,7 +123,7 @@ export default function ClassOverviewPage() {
                     <td>{percent(item.acceptanceRate || 0)}</td>
                     <td>
                       <StatusPill tone={(item.acceptanceRate || 0) < 40 ? "warning" : "success"}>
-                        {(item.acceptanceRate || 0) < 40 ? "适合讲评" : "推进正常"}
+                        {(item.acceptanceRate || 0) < 40 ? "需讲评" : "正常"}
                       </StatusPill>
                     </td>
                   </tr>
@@ -128,7 +132,7 @@ export default function ClassOverviewPage() {
             </table>
           </div>
         )}
-      </Panel>
+      </details>
     </div>
   );
 }
@@ -146,7 +150,7 @@ function InsightList({ entries, emptyTitle, tone }: { entries: LeaderboardEntry[
             <h3>{item.problemTitle}</h3>
             <p>{item.totalSubmissions} 次提交 · {item.acceptedSubmissions} 次通过</p>
           </div>
-          <StatusPill tone={tone}>{percent(item.acceptanceRate || 0)}</StatusPill>
+          <strong>{percent(item.acceptanceRate || 0)}</strong>
         </div>
       ))}
     </div>

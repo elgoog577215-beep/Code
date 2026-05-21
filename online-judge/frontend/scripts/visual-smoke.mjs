@@ -5,7 +5,6 @@ import { join, resolve } from "node:path";
 const appDir = resolve(import.meta.dirname, "../../src/main/resources/static/app");
 const indexPath = join(appDir, "index.html");
 const assetDir = join(appDir, "assets");
-
 const checks = [];
 
 function ok(name, passed, detail = "") {
@@ -38,35 +37,34 @@ const cssText = (await Promise.all(cssFiles.map(file => readFile(join(assetDir, 
 const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, file), "utf8")))).join("\n");
 
 [
-  ".student-ability-profile",
-  ".student-recommendations",
-  ".student-recommendation-item",
-  ".teacher-ai-quality",
-  ".teacher-ai-trend",
-  ".teacher-ai-source-segments",
-  ".teacher-recommendation-effect",
-  ".teacher-class-ability",
-  ".teacher-class-review",
-  ".coach-next-question",
+  ".role-entry-secondary",
+  ".student-assignment-grid",
+  ".teacher-compact-details",
+  ".problem-compact-details",
+  ".editor-workbench",
+  ".overview-compact-details",
   "@media(max-width:760px)",
   "[data-theme=dark]"
 ].forEach(selector => ok(`css contains ${selector}`, cssText.includes(selector)));
 
 [
-  "长期能力画像",
-  "下一步推荐",
-  "AI 质量",
-  "来源版本",
-  "/api/teacher/ai-quality/trend",
-  "/api/teacher/recommendations/effectiveness",
+  "学生任务",
+  "教师工作台",
+  "讲评参考",
+  "作业记录",
+  "保存检查",
+  "任务表现",
   "/api/teacher/assignments/",
   "class-review-feedback",
-  "课堂复盘建议",
-  "latestCoachImpact",
-  "coachImpactSummary",
-  "recordRecommendationEvent",
   "ENTERED_PROBLEM"
 ].forEach(text => ok(`bundle contains ${text}`, jsText.includes(text)));
+
+[
+  "长期能力画像",
+  "下一步推荐",
+  "AI 质量趋势",
+  "推荐效果"
+].forEach(text => ok(`bundle omits ${text}`, !jsText.includes(text)));
 
 const failed = checks.filter(check => !check.passed);
 if (failed.length) {

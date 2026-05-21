@@ -23,6 +23,7 @@ import type {
   SubmissionResult,
   TeacherDiagnosisCorrection
 } from "./types";
+import { YINGQI_SIGNATURE } from "../identity/yingqiSignature";
 
 export class ApiError extends Error {
   status: number;
@@ -55,6 +56,9 @@ async function readJson<T>(response: Response): Promise<T> {
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
+  headers.set(YINGQI_SIGNATURE.headers.owner, YINGQI_SIGNATURE.owner);
+  headers.set(YINGQI_SIGNATURE.headers.signature, YINGQI_SIGNATURE.fingerprint);
+  headers.set(YINGQI_SIGNATURE.headers.claim, YINGQI_SIGNATURE.claim);
   const hasBody = init?.body !== undefined && init.body !== null;
   if (hasBody && !headers.has("Content-Type") && !(init?.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");

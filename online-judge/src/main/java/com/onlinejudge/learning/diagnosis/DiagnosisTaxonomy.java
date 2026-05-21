@@ -31,6 +31,11 @@ public class DiagnosisTaxonomy {
         return tag == null ? id : tag.getLabel();
     }
 
+    public String teachingAction(String id) {
+        DiagnosisTag tag = get(id);
+        return tag == null || tag.getTeachingAction() == null ? "TRACE_VARIABLES" : tag.getTeachingAction();
+    }
+
     public List<String> normalizeIssueTags(List<String> issueTags) {
         if (issueTags == null || issueTags.isEmpty()) {
             return List.of("NEEDS_MORE_EVIDENCE");
@@ -149,6 +154,7 @@ public class DiagnosisTaxonomy {
                 .fineGrained(false)
                 .parentTag(null)
                 .severity("MEDIUM")
+                .teachingAction(resolveTeachingAction(id))
                 .commonSignals(List.of())
                 .examples(List.of())
                 .build());
@@ -171,6 +177,7 @@ public class DiagnosisTaxonomy {
                 .fineGrained(true)
                 .parentTag(resolveParentTag(id))
                 .severity("MEDIUM")
+                .teachingAction(resolveTeachingAction(id))
                 .commonSignals(List.of())
                 .examples(List.of())
                 .build());
@@ -189,6 +196,29 @@ public class DiagnosisTaxonomy {
         };
     }
 
+    private String resolveTeachingAction(String id) {
+        return switch (id) {
+            case "SYNTAX_ERROR" -> "FIX_FIRST_COMPILER_ERROR";
+            case "IO_FORMAT", "OUTPUT_FORMAT_DETAIL" -> "COMPARE_OUTPUT";
+            case "BOUNDARY_CONDITION", "EMPTY_INPUT", "MAX_BOUNDARY", "DUPLICATE_CASE" -> "ASK_MIN_CASE";
+            case "CONDITION_BRANCH" -> "CHECK_BRANCH_COVERAGE";
+            case "LOOP_BOUNDARY", "OFF_BY_ONE" -> "TRACE_VARIABLES";
+            case "DATA_STRUCTURE_CHOICE", "SPACE_COMPLEXITY" -> "COMPARE_STRUCTURES";
+            case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION" -> "COUNT_COMPLEXITY";
+            case "VARIABLE_INITIALIZATION", "INITIAL_STATE", "STATE_RESET" -> "TRACE_STATE";
+            case "STATE_TRANSITION", "DP_STATE_DESIGN" -> "DEFINE_STATE";
+            case "RECURSION_EXIT" -> "DRAW_RECURSION_TREE";
+            case "CODE_READABILITY", "CODE_QUALITY", "GENERALIZATION_CHECK" -> "EXPLAIN_GENERALITY";
+            case "SAMPLE_ONLY", "SAMPLE_OVERFIT" -> "BUILD_COUNTEREXAMPLE";
+            case "ALGORITHM_STRATEGY", "GREEDY_ASSUMPTION" -> "CHECK_INVARIANT";
+            case "RUNTIME_STABILITY" -> "CHECK_RUNTIME_GUARDS";
+            case "INPUT_PARSING" -> "COMPARE_INPUT_SPEC";
+            case "PARTIAL_FIX_REGRESSION" -> "COMPARE_SUBMISSIONS";
+            case "NEEDS_MORE_EVIDENCE" -> "COLLECT_EVIDENCE";
+            default -> "TRACE_VARIABLES";
+        };
+    }
+
     @Data
     @Builder
     public static class DiagnosisTag {
@@ -201,6 +231,7 @@ public class DiagnosisTaxonomy {
         private boolean fineGrained;
         private String parentTag;
         private String severity;
+        private String teachingAction;
         private List<String> commonSignals;
         private List<String> examples;
     }

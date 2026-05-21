@@ -58,9 +58,58 @@ public class DiagnosisReportReader {
         return value == null ? "" : String.valueOf(value);
     }
 
+    public StudentHintPlanSnapshot studentHintPlan(SubmissionAnalysis analysis) {
+        Object value = payloadValue(analysis, "studentHintPlan");
+        if (!(value instanceof Map<?, ?> map)) {
+            return null;
+        }
+        return new StudentHintPlanSnapshot(
+                stringValue(map, "hintLevel"),
+                stringValue(map, "problemType"),
+                stringValue(map, "evidenceAnchor"),
+                stringValue(map, "nextAction"),
+                stringValue(map, "coachQuestion"),
+                stringValue(map, "teachingAction"),
+                stringListValue(map.get("evidenceRefs")),
+                stringValue(map, "answerLeakRisk")
+        );
+    }
+
+    public LearningInterventionPlanSnapshot learningInterventionPlan(SubmissionAnalysis analysis) {
+        Object value = payloadValue(analysis, "learningInterventionPlan");
+        if (!(value instanceof Map<?, ?> map)) {
+            return null;
+        }
+        return new LearningInterventionPlanSnapshot(
+                stringValue(map, "interventionType"),
+                stringValue(map, "goal"),
+                stringValue(map, "studentTask"),
+                stringValue(map, "checkQuestion"),
+                stringValue(map, "completionSignal"),
+                stringListValue(map.get("evidenceRefs")),
+                integerValue(map.get("estimatedMinutes")),
+                stringValue(map, "answerLeakRisk")
+        );
+    }
+
     public String progressSignal(SubmissionAnalysis analysis) {
         Object value = payloadValue(analysis, "progressSignal");
         return value == null ? "" : String.valueOf(value);
+    }
+
+    public LearningTrajectorySignalSnapshot learningTrajectorySignal(SubmissionAnalysis analysis) {
+        Object value = payloadValue(analysis, "learningTrajectorySignal");
+        if (!(value instanceof Map<?, ?> map)) {
+            return null;
+        }
+        return new LearningTrajectorySignalSnapshot(
+                stringValue(map, "phase"),
+                stringValue(map, "label"),
+                stringValue(map, "evidenceRef"),
+                stringValue(map, "summary"),
+                stringValue(map, "nextFocus"),
+                booleanValue(map.get("needsTeacherAttention"))
+        );
     }
 
     public List<String> evidenceRefs(SubmissionAnalysis analysis) {
@@ -180,6 +229,36 @@ public class DiagnosisReportReader {
         return false;
     }
 
+    private Integer integerValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private List<String> stringListValue(Object value) {
+        if (value instanceof Iterable<?> iterable) {
+            List<String> values = new ArrayList<>();
+            iterable.forEach(item -> {
+                if (item != null) {
+                    String text = String.valueOf(item).trim();
+                    if (!text.isBlank()) {
+                        values.add(text);
+                    }
+                }
+            });
+            return values.stream().distinct().toList();
+        }
+        return List.of();
+    }
+
     public record AiInvocationSnapshot(String provider,
                                        String model,
                                        String modelVersion,
@@ -190,5 +269,33 @@ public class DiagnosisReportReader {
                                        String taxonomyVersion,
                                        String status,
                                        boolean fallbackUsed) {
+    }
+
+    public record StudentHintPlanSnapshot(String hintLevel,
+                                          String problemType,
+                                          String evidenceAnchor,
+                                          String nextAction,
+                                          String coachQuestion,
+                                          String teachingAction,
+                                          List<String> evidenceRefs,
+                                          String answerLeakRisk) {
+    }
+
+    public record LearningInterventionPlanSnapshot(String interventionType,
+                                                   String goal,
+                                                   String studentTask,
+                                                   String checkQuestion,
+                                                   String completionSignal,
+                                                   List<String> evidenceRefs,
+                                                   Integer estimatedMinutes,
+                                                   String answerLeakRisk) {
+    }
+
+    public record LearningTrajectorySignalSnapshot(String phase,
+                                                   String label,
+                                                   String evidenceRef,
+                                                   String summary,
+                                                   String nextFocus,
+                                                   boolean needsTeacherAttention) {
     }
 }

@@ -36,10 +36,22 @@ public class HintSafetyService {
         }
 
         analysis.setIssueTags(diagnosisTaxonomy.normalizeIssueTags(analysis.getIssueTags()));
-        SafetyResult result = verify(analysis.getStudentHint(), analysis.getReportMarkdown(), hintPolicy);
+        SafetyResult result = verify(
+                analysis.getStudentHint(),
+                analysis.getStudentHintPlan(),
+                analysis.getLearningInterventionPlan(),
+                analysis.getReportMarkdown(),
+                hintPolicy
+        );
         String riskLevel = maxRisk(result.riskLevel(), analysis.getAnswerLeakRisk());
         analysis.setStudentHint(result.safeHint());
         analysis.setAnswerLeakRisk(riskLevel);
+        analysis.setStudentHintPlan(resolveSafeHintPlan(analysis.getStudentHintPlan(), result.safeHint(), riskLevel, hintPolicy));
+        analysis.setLearningInterventionPlan(resolveSafeInterventionPlan(
+                analysis.getLearningInterventionPlan(),
+                result.safeHint(),
+                riskLevel
+        ));
         if (riskWeight(riskLevel) >= 2) {
             analysis.setReportMarkdown("""
                     ## 提示已安全降级
@@ -52,19 +64,28 @@ public class HintSafetyService {
                     """.formatted(result.safeHint()));
         }
 
-        hintSafetyCheckRepository.save(HintSafetyCheck.builder()
-                .submissionId(analysis.getSubmissionId())
-                .riskLevel(riskLevel)
-                .blockedReasonsJson(toJson(result.reasons()))
-                .originalHint(Optional.ofNullable(result.originalHint()).orElse(""))
-                .safeHint(result.safeHint())
-                .build());
+        if (hintSafetyCheckRepository != null) {
+            hintSafetyCheckRepository.save(HintSafetyCheck.builder()
+                    .submissionId(analysis.getSubmissionId())
+                    .riskLevel(riskLevel)
+                    .blockedReasonsJson(toJson(result.reasons()))
+                    .originalHint(Optional.ofNullable(result.originalHint()).orElse(""))
+                    .safeHint(result.safeHint())
+                    .build());
+        }
         return analysis;
     }
 
-    private SafetyResult verify(String studentHint, String reportMarkdown, Assignment.HintPolicy hintPolicy) {
+    private SafetyResult verify(String studentHint,
+                                SubmissionAnalysisResponse.StudentHintPlan hintPlan,
+                                SubmissionAnalysisResponse.LearningInterventionPlan interventionPlan,
+                                String reportMarkdown,
+                                Assignment.HintPolicy hintPolicy) {
         String originalHint = Optional.ofNullable(studentHint).orElse("");
-        String combined = (originalHint + "\n" + Optional.ofNullable(reportMarkdown).orElse("")).toLowerCase(Locale.ROOT);
+        String combined = (originalHint + "\n"
+                + hintPlanText(hintPlan) + "\n"
+                + interventionPlanText(interventionPlan) + "\n"
+                + Optional.ofNullable(reportMarkdown).orElse("")).toLowerCase(Locale.ROOT);
         List<String> reasons = new ArrayList<>();
         if (combined.contains("```") || combined.contains("#include") || combined.contains("int main")
                 || combined.contains("def ") || combined.contains("class solution")) {
@@ -93,6 +114,76 @@ public class HintSafetyService {
         };
         String riskLevel = reasons.size() >= 2 ? "HIGH" : "MEDIUM";
         return new SafetyResult(riskLevel, originalHint, safeHint, reasons);
+    }
+
+    private SubmissionAnalysisResponse.StudentHintPlan resolveSafeHintPlan(SubmissionAnalysisResponse.StudentHintPlan original,
+                                                                           String safeHint,
+                                                                           String riskLevel,
+                                                                           Assignment.HintPolicy hintPolicy) {
+        Assignment.HintPolicy policy = hintPolicy == null ? Assignment.HintPolicy.L2 : hintPolicy;
+        if (riskWeight(riskLevel) < 2 && original != null) {
+            original.setAnswerLeakRisk(riskLevel);
+            return original;
+        }
+        return SubmissionAnalysisResponse.StudentHintPlan.builder()
+                .hintLevel(policy.name())
+                .problemType(original == null || original.getProblemType() == null || original.getProblemType().isBlank()
+                        ? "提示安全降级"
+                        : original.getProblemType())
+                .evidenceAnchor("原始提示可能过于直接，系统已仅保留可验证的定位方向。")
+                .nextAction(safeHint)
+                .coachQuestion("你能先构造一个最小样例，说明自己准备验证什么吗？")
+                .teachingAction("COLLECT_EVIDENCE")
+                .evidenceRefs(original == null || original.getEvidenceRefs() == null ? List.of() : original.getEvidenceRefs())
+                .answerLeakRisk(riskLevel)
+                .build();
+    }
+
+    private SubmissionAnalysisResponse.LearningInterventionPlan resolveSafeInterventionPlan(
+            SubmissionAnalysisResponse.LearningInterventionPlan original,
+            String safeHint,
+            String riskLevel) {
+        if (riskWeight(riskLevel) < 2 && original != null) {
+            original.setAnswerLeakRisk(riskLevel);
+            return original;
+        }
+        if (original == null && riskWeight(riskLevel) < 2) {
+            return null;
+        }
+        return SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                .interventionType("COLLECT_EVIDENCE")
+                .goal("把当前提示降级成一个安全、可验证的学习动作。")
+                .studentTask(safeHint)
+                .checkQuestion("你能先补充一个最小样例或一条运行证据，再说明自己要验证什么吗？")
+                .completionSignal("学生能提供最小样例、输出对比或错误信息，而不是直接复述答案。")
+                .evidenceRefs(original == null || original.getEvidenceRefs() == null ? List.of() : original.getEvidenceRefs())
+                .estimatedMinutes(original == null || original.getEstimatedMinutes() == null ? 5 : original.getEstimatedMinutes())
+                .answerLeakRisk(riskLevel)
+                .build();
+    }
+
+    private String hintPlanText(SubmissionAnalysisResponse.StudentHintPlan hintPlan) {
+        if (hintPlan == null) {
+            return "";
+        }
+        return String.join("\n", List.of(
+                Optional.ofNullable(hintPlan.getProblemType()).orElse(""),
+                Optional.ofNullable(hintPlan.getEvidenceAnchor()).orElse(""),
+                Optional.ofNullable(hintPlan.getNextAction()).orElse(""),
+                Optional.ofNullable(hintPlan.getCoachQuestion()).orElse("")
+        ));
+    }
+
+    private String interventionPlanText(SubmissionAnalysisResponse.LearningInterventionPlan interventionPlan) {
+        if (interventionPlan == null) {
+            return "";
+        }
+        return String.join("\n", List.of(
+                Optional.ofNullable(interventionPlan.getGoal()).orElse(""),
+                Optional.ofNullable(interventionPlan.getStudentTask()).orElse(""),
+                Optional.ofNullable(interventionPlan.getCheckQuestion()).orElse(""),
+                Optional.ofNullable(interventionPlan.getCompletionSignal()).orElse("")
+        ));
     }
 
     private String toJson(List<String> reasons) {

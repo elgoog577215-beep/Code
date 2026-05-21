@@ -473,9 +473,8 @@ const scenarios = [
     path: "/app/student?code=WZAI01",
     selectors: [
       [".student-assignment-grid.is-ready", "student assignment shell"],
-      [".student-ability-profile", "student ability profile"],
-      [".student-recommendations", "student recommendations"],
-      [".student-recommendation-item", "student recommendation item"],
+      [".student-task-panel", "student task panel"],
+      [".student-side-flow", "student status side flow"],
       [".student-task-card .ui-button", "student problem action"]
     ]
   },
@@ -484,6 +483,11 @@ const scenarios = [
     path: "/app/problem/101?assignmentId=7&studentProfileId=41&recommendationToken=rec-next-101",
     beforeChecks: async page => {
       await page.locator(".panel--editor button.ui-button--primary").first().click();
+      const details = page.locator("details.problem-compact-details", { hasText: "下一问" }).first();
+      await details.waitFor({ state: "attached", timeout: 10000 });
+      await details.evaluate(element => {
+        element.open = true;
+      });
       await page.locator(".coach-next-question").first().waitFor({ state: "visible", timeout: 10000 });
     },
     selectors: [
@@ -498,12 +502,10 @@ const scenarios = [
     name: "teacher",
     path: "/app/teacher",
     selectors: [
-      [".teacher-ai-quality", "teacher AI quality panel"],
-      [".teacher-ai-trend", "teacher AI trend panel"],
-      [".teacher-ai-source-segments", "teacher AI source/version quality"],
-      [".teacher-recommendation-effect", "teacher recommendation effect panel"],
-      [".teacher-class-ability", "teacher class ability panel"],
-      [".teacher-class-review", "teacher class review suggestions"],
+      [".teacher-rail", "teacher assignment rail"],
+      [".teacher-stage", "teacher classroom stage"],
+      [".teacher-main-grid", "teacher classroom grid"],
+      [".teacher-compact-details", "teacher compact details"],
       [".teacher-student-row", "teacher student row"]
     ]
   },

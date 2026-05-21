@@ -13,6 +13,7 @@ public class DiagnosisTagResponse {
     private String abilityPoint;
     private boolean fineGrained;
     private String parentTag;
+    private String teachingAction;
 
     public static DiagnosisTagResponse from(DiagnosisTaxonomy.DiagnosisTag tag) {
         return DiagnosisTagResponse.builder()
@@ -22,6 +23,7 @@ public class DiagnosisTagResponse {
                 .abilityPoint(tag.getAbilityPoint())
                 .fineGrained(tag.isFineGrained())
                 .parentTag(tag.getParentTag())
+                .teachingAction(tag.getTeachingAction())
                 .build();
     }
 }

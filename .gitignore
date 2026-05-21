@@ -10,6 +10,8 @@ logs/
 *.log
 tmp-*.md
 tmp-*.pdf
+tmp/
+**/tmp/
 
 # Build outputs and dependency folders
 target/

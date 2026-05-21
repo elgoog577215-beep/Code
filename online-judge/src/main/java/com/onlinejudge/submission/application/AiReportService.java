@@ -123,6 +123,26 @@ public class AiReportService {
                     fixDirections(string[]),
                     evidenceRefs(string[]),
                     studentHint(string),
+                    studentHintPlan({
+                      hintLevel("L1"|"L2"|"L3"|"L4"),
+                      problemType(string),
+                      evidenceAnchor(string),
+                      nextAction(string),
+                      coachQuestion(string),
+                      teachingAction(string),
+                      evidenceRefs(string[]),
+                      answerLeakRisk("LOW"|"MEDIUM"|"HIGH")
+                    }),
+                    learningInterventionPlan({
+                      interventionType(string),
+                      goal(string),
+                      studentTask(string),
+                      checkQuestion(string),
+                      completionSignal(string),
+                      evidenceRefs(string[]),
+                      estimatedMinutes(number),
+                      answerLeakRisk("LOW"|"MEDIUM"|"HIGH")
+                    }),
                     teacherNote(string),
                     progressSignal(string),
                     confidence(number),
@@ -143,6 +163,9 @@ public class AiReportService {
                     7. studentHint should be scaffolded at hint level 1-2: problem type and locating direction, not a full fix.
                     8. teacherNote should summarize what the teacher can act on.
                     9. answerLeakRisk must be HIGH if the response contains complete code, direct final solution, or hidden data.
+                    10. studentHintPlan must split the student-facing guidance into: current problem type, evidence anchor, next action, and one coach question. Keep it short and actionable.
+                    11. teachingAction must be one of ASK_MIN_CASE, TRACE_VARIABLES, COMPARE_OUTPUT, COUNT_COMPLEXITY, DEFINE_STATE, CHECK_INVARIANT, BUILD_COUNTEREXAMPLE, COMPARE_SUBMISSIONS, CHECK_RUNTIME_GUARDS, COLLECT_EVIDENCE, FIX_FIRST_COMPILER_ERROR, COMPARE_INPUT_SPEC, TRACE_STATE, COMPARE_STRUCTURES, DRAW_RECURSION_TREE, EXPLAIN_GENERALITY, CHECK_BRANCH_COVERAGE.
+                    12. learningInterventionPlan must describe one small, verifiable learning action. It must not include complete code or final solution. The completionSignal must tell a teacher what observable student work counts as done.
 
                     Rules for line-aware analysis:
                     1. You must analyze sourceCodeForLineAnalysis first. It contains the real source code with line numbers.
@@ -213,6 +236,8 @@ public class AiReportService {
                             .fixDirections(cleanList(fallback.getFixDirections(), List.of()))
                             .evidenceRefs(cleanList(fallback.getEvidenceRefs(), List.of()))
                             .studentHint(fallback.getStudentHint())
+                            .studentHintPlan(fallback.getStudentHintPlan())
+                            .learningInterventionPlan(fallback.getLearningInterventionPlan())
                             .teacherNote(fallback.getTeacherNote())
                             .progressSignal(fallback.getProgressSignal())
                             .confidence(fallback.getConfidence())
@@ -247,6 +272,8 @@ public class AiReportService {
                     .fixDirections(cleanList(payload.fixDirections, fallback.getFixDirections()))
                     .evidenceRefs(cleanList(payload.evidenceRefs, fallback.getEvidenceRefs()))
                     .studentHint(defaultIfBlank(payload.studentHint, fallback.getStudentHint()))
+                    .studentHintPlan(cleanHintPlan(payload.studentHintPlan, fallback.getStudentHintPlan()))
+                    .learningInterventionPlan(cleanInterventionPlan(payload.learningInterventionPlan, fallback.getLearningInterventionPlan()))
                     .teacherNote(defaultIfBlank(payload.teacherNote, fallback.getTeacherNote()))
                     .progressSignal(defaultIfBlank(payload.progressSignal, fallback.getProgressSignal()))
                     .confidence(resolveConfidence(payload.confidence, fallback.getConfidence()))
@@ -409,6 +436,97 @@ public class AiReportService {
                 .filter(item -> item != null)
                 .map(item -> new AiCodeAssistSupport.LineIssueCandidate(item.lineNumber, item.error, item.suggestion))
                 .toList();
+    }
+
+    private SubmissionAnalysisResponse.StudentHintPlan cleanHintPlan(AiStudentHintPlanPayload candidate,
+                                                                     SubmissionAnalysisResponse.StudentHintPlan fallback) {
+        if (candidate == null) {
+            return fallback;
+        }
+        String hintLevel = normalizeHintLevel(candidate.hintLevel, fallback == null ? null : fallback.getHintLevel());
+        String problemType = defaultIfBlank(candidate.problemType, fallback == null ? "" : fallback.getProblemType());
+        String evidenceAnchor = defaultIfBlank(candidate.evidenceAnchor, fallback == null ? "" : fallback.getEvidenceAnchor());
+        String nextAction = defaultIfBlank(candidate.nextAction, fallback == null ? "" : fallback.getNextAction());
+        String coachQuestion = defaultIfBlank(candidate.coachQuestion, fallback == null ? "" : fallback.getCoachQuestion());
+        String teachingAction = normalizeTeachingAction(candidate.teachingAction, fallback == null ? null : fallback.getTeachingAction());
+        List<String> evidenceRefs = cleanList(candidate.evidenceRefs, fallback == null ? List.of() : fallback.getEvidenceRefs());
+        String answerLeakRisk = resolveAnswerLeakRisk(candidate.answerLeakRisk, fallback == null ? "UNKNOWN" : fallback.getAnswerLeakRisk());
+        if (problemType.isBlank() && evidenceAnchor.isBlank() && nextAction.isBlank() && coachQuestion.isBlank()) {
+            return fallback;
+        }
+        return SubmissionAnalysisResponse.StudentHintPlan.builder()
+                .hintLevel(hintLevel)
+                .problemType(problemType)
+                .evidenceAnchor(evidenceAnchor)
+                .nextAction(nextAction)
+                .coachQuestion(coachQuestion)
+                .teachingAction(teachingAction)
+                .evidenceRefs(evidenceRefs)
+                .answerLeakRisk(answerLeakRisk)
+                .build();
+    }
+
+    private SubmissionAnalysisResponse.LearningInterventionPlan cleanInterventionPlan(
+            AiLearningInterventionPlanPayload candidate,
+            SubmissionAnalysisResponse.LearningInterventionPlan fallback) {
+        if (candidate == null) {
+            return fallback;
+        }
+        String interventionType = normalizeInterventionType(
+                candidate.interventionType,
+                fallback == null ? null : fallback.getInterventionType()
+        );
+        String goal = defaultIfBlank(candidate.goal, fallback == null ? "" : fallback.getGoal());
+        String studentTask = defaultIfBlank(candidate.studentTask, fallback == null ? "" : fallback.getStudentTask());
+        String checkQuestion = defaultIfBlank(candidate.checkQuestion, fallback == null ? "" : fallback.getCheckQuestion());
+        String completionSignal = defaultIfBlank(candidate.completionSignal, fallback == null ? "" : fallback.getCompletionSignal());
+        List<String> evidenceRefs = cleanList(candidate.evidenceRefs, fallback == null ? List.of() : fallback.getEvidenceRefs());
+        Integer estimatedMinutes = candidate.estimatedMinutes == null || candidate.estimatedMinutes <= 0
+                ? fallback == null ? 5 : fallback.getEstimatedMinutes()
+                : Math.min(candidate.estimatedMinutes, 20);
+        String answerLeakRisk = resolveAnswerLeakRisk(candidate.answerLeakRisk, fallback == null ? "UNKNOWN" : fallback.getAnswerLeakRisk());
+        if (studentTask.isBlank() && checkQuestion.isBlank() && completionSignal.isBlank()) {
+            return fallback;
+        }
+        return SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                .interventionType(interventionType)
+                .goal(goal)
+                .studentTask(studentTask)
+                .checkQuestion(checkQuestion)
+                .completionSignal(completionSignal)
+                .evidenceRefs(evidenceRefs)
+                .estimatedMinutes(estimatedMinutes == null || estimatedMinutes <= 0 ? 5 : estimatedMinutes)
+                .answerLeakRisk(answerLeakRisk)
+                .build();
+    }
+
+    private String normalizeHintLevel(String candidate, String fallback) {
+        String normalized = cleanupAiText(candidate).toUpperCase();
+        return switch (normalized) {
+            case "L1", "L2", "L3", "L4" -> normalized;
+            default -> fallback == null || fallback.isBlank() ? "L2" : fallback;
+        };
+    }
+
+    private String normalizeTeachingAction(String candidate, String fallback) {
+        String normalized = cleanupAiText(candidate).toUpperCase();
+        return switch (normalized) {
+            case "ASK_MIN_CASE", "TRACE_VARIABLES", "COMPARE_OUTPUT", "COUNT_COMPLEXITY", "DEFINE_STATE",
+                    "CHECK_INVARIANT", "BUILD_COUNTEREXAMPLE", "COMPARE_SUBMISSIONS", "CHECK_RUNTIME_GUARDS",
+                    "COLLECT_EVIDENCE", "FIX_FIRST_COMPILER_ERROR", "COMPARE_INPUT_SPEC", "TRACE_STATE",
+                    "COMPARE_STRUCTURES", "DRAW_RECURSION_TREE", "EXPLAIN_GENERALITY", "CHECK_BRANCH_COVERAGE" -> normalized;
+            default -> fallback == null || fallback.isBlank() ? "TRACE_VARIABLES" : fallback;
+        };
+    }
+
+    private String normalizeInterventionType(String candidate, String fallback) {
+        String normalized = cleanupAiText(candidate).toUpperCase();
+        return switch (normalized) {
+            case "MIN_CASE", "MIN_CASE_TRACE", "VARIABLE_TRACE", "IO_COMPARE", "COMPLEXITY_ESTIMATE",
+                    "STATE_EXPLANATION", "COUNTEREXAMPLE", "RUNTIME_GUARD_CHECK", "COMPARE_SUBMISSIONS",
+                    "FIX_FIRST_COMPILER_ERROR", "EXPLAIN_GENERALITY", "COLLECT_EVIDENCE" -> normalized;
+            default -> fallback == null || fallback.isBlank() ? "COLLECT_EVIDENCE" : fallback;
+        };
     }
 
     private List<String> cleanList(List<String> candidate, List<String> fallback) {
@@ -661,6 +779,8 @@ public class AiReportService {
         public List<String> fixDirections;
         public List<String> evidenceRefs;
         public String studentHint;
+        public AiStudentHintPlanPayload studentHintPlan;
+        public AiLearningInterventionPlanPayload learningInterventionPlan;
         public String teacherNote;
         public String progressSignal;
         public Double confidence;
@@ -670,6 +790,30 @@ public class AiReportService {
         public String correctSolution;
         public List<AiLineIssuePayload> lineIssues;
         public String reportMarkdown;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class AiStudentHintPlanPayload {
+        public String hintLevel;
+        public String problemType;
+        public String evidenceAnchor;
+        public String nextAction;
+        public String coachQuestion;
+        public String teachingAction;
+        public List<String> evidenceRefs;
+        public String answerLeakRisk;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class AiLearningInterventionPlanPayload {
+        public String interventionType;
+        public String goal;
+        public String studentTask;
+        public String checkQuestion;
+        public String completionSignal;
+        public List<String> evidenceRefs;
+        public Integer estimatedMinutes;
+        public String answerLeakRisk;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

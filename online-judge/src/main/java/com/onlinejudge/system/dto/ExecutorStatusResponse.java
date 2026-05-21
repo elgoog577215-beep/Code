@@ -12,4 +12,7 @@ public class ExecutorStatusResponse {
     private boolean pythonAvailable;
     private boolean cppAvailable;
     private String message;
+    private String projectOwner;
+    private String ownershipSignature;
+    private String ownershipClaim;
 }

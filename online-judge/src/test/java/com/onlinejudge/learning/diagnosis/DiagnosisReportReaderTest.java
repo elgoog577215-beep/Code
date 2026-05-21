@@ -20,9 +20,27 @@ class DiagnosisReportReaderTest {
                           "fineGrainedTags": ["OFF_BY_ONE", "UNKNOWN_FINE"],
                           "studentHint": "检查循环边界",
                           "progressSignal": "正在定位边界",
+                          "learningTrajectorySignal": {
+                            "phase": "REPEATED_STUCK",
+                            "label": "同类问题反复卡住",
+                            "evidenceRef": "history:repeated_stuck",
+                            "summary": "连续多次停留在同一类失败上。",
+                            "nextFocus": "只验证一个最小样例。",
+                            "needsTeacherAttention": true
+                          },
                           "confidence": 0.82,
                           "uncertainty": "隐藏测试点只提供脱敏摘要",
-                          "answerLeakRisk": "LOW"
+                          "answerLeakRisk": "LOW",
+                          "studentHintPlan": {
+                            "hintLevel": "L2",
+                            "problemType": "循环边界",
+                            "evidenceAnchor": "核对 code:plus_minus_one",
+                            "nextAction": "手推 n=1",
+                            "coachQuestion": "循环最后一次取什么值？",
+                            "teachingAction": "TRACE_VARIABLES",
+                            "evidenceRefs": ["code:plus_minus_one"],
+                            "answerLeakRisk": "LOW"
+                          }
                         }
                         """)
                 .build();
@@ -31,9 +49,21 @@ class DiagnosisReportReaderTest {
         assertThat(reader.fineGrainedTags(analysis)).containsExactly("OFF_BY_ONE");
         assertThat(reader.studentHint(analysis)).isEqualTo("检查循环边界");
         assertThat(reader.progressSignal(analysis)).isEqualTo("正在定位边界");
+        var trajectorySignal = reader.learningTrajectorySignal(analysis);
+        assertThat(trajectorySignal).isNotNull();
+        assertThat(trajectorySignal.phase()).isEqualTo("REPEATED_STUCK");
+        assertThat(trajectorySignal.evidenceRef()).isEqualTo("history:repeated_stuck");
+        assertThat(trajectorySignal.nextFocus()).isEqualTo("只验证一个最小样例。");
+        assertThat(trajectorySignal.needsTeacherAttention()).isTrue();
         assertThat(reader.confidence(analysis)).isEqualTo(0.82);
         assertThat(reader.uncertainty(analysis)).isEqualTo("隐藏测试点只提供脱敏摘要");
         assertThat(reader.answerLeakRisk(analysis)).isEqualTo("LOW");
+        var hintPlan = reader.studentHintPlan(analysis);
+        assertThat(hintPlan).isNotNull();
+        assertThat(hintPlan.hintLevel()).isEqualTo("L2");
+        assertThat(hintPlan.problemType()).isEqualTo("循环边界");
+        assertThat(hintPlan.teachingAction()).isEqualTo("TRACE_VARIABLES");
+        assertThat(hintPlan.evidenceRefs()).containsExactly("code:plus_minus_one");
     }
 
     @Test
@@ -50,6 +80,7 @@ class DiagnosisReportReaderTest {
         assertThat(reader.issueTags(analysis)).containsExactly("TIME_COMPLEXITY");
         assertThat(reader.fineGrainedTags(analysis)).isEmpty();
         assertThat(reader.studentHint(analysis)).isEmpty();
+        assertThat(reader.studentHintPlan(analysis)).isNull();
         assertThat(reader.confidence(analysis)).isNull();
         assertThat(reader.uncertainty(analysis)).isEmpty();
         assertThat(reader.answerLeakRisk(analysis)).isEqualTo("UNKNOWN");

@@ -21,6 +21,9 @@ public class StudentTrajectoryResponse {
     private String nextStep;
     private String attentionReason;
     private String improvementSignal;
+    private LearningTrajectorySignal latestLearningTrajectorySignal;
+    private LearningInterventionPlan latestLearningInterventionPlan;
+    private LearningInterventionImpact latestLearningInterventionImpact;
     private String primaryAbilityFocus;
     private String crossProblemSummary;
     private CoachInteractionSummaryResponse latestCoachInteraction;
@@ -56,6 +59,9 @@ public class StudentTrajectoryResponse {
         private boolean passed;
         private String latestVerdict;
         private String latestProgressSignal;
+        private LearningTrajectorySignal latestLearningTrajectorySignal;
+        private LearningInterventionPlan latestLearningInterventionPlan;
+        private LearningInterventionImpact latestLearningInterventionImpact;
         private String latestHint;
         private String latestImprovementSignal;
         private CoachInteractionSummaryResponse latestCoachInteraction;
@@ -72,8 +78,55 @@ public class StudentTrajectoryResponse {
         private List<String> issueTags;
         private List<String> fineGrainedTags;
         private String progressSignal;
+        private LearningTrajectorySignal learningTrajectorySignal;
+        private LearningInterventionPlan learningInterventionPlan;
+        private LearningInterventionImpact learningInterventionImpact;
         private String improvementSignal;
         private CoachInteractionSummaryResponse coachInteraction;
         private CoachImpactResponse coachImpact;
+    }
+
+    @Data
+    @Builder
+    public static class LearningTrajectorySignal {
+        private String phase;
+        private String label;
+        private String evidenceRef;
+        private String summary;
+        private String nextFocus;
+        private boolean needsTeacherAttention;
+    }
+
+    @Data
+    @Builder
+    public static class LearningInterventionPlan {
+        private String interventionType;
+        private String goal;
+        private String studentTask;
+        private String checkQuestion;
+        private String completionSignal;
+        private List<String> evidenceRefs;
+        private Integer estimatedMinutes;
+        private String answerLeakRisk;
+    }
+
+    @Data
+    @Builder
+    public static class LearningInterventionImpact {
+        private Long interventionSubmissionId;
+        private Long followupSubmissionId;
+        private Long problemId;
+        private String interventionType;
+        private String status;
+        private String statusLabel;
+        private String summary;
+        private String previousVerdict;
+        private String followupVerdict;
+        private String previousIssueTag;
+        private String previousFineGrainedTag;
+        private String followupIssueTag;
+        private String followupFineGrainedTag;
+        private LocalDateTime plannedAt;
+        private LocalDateTime followupSubmittedAt;
     }
 }

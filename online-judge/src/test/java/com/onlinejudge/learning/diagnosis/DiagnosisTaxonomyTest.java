@@ -31,4 +31,12 @@ class DiagnosisTaxonomyTest {
         assertThat(tag.getParentTag()).isEqualTo("SAMPLE_ONLY");
         assertThat(tag.getStudentExplanation()).contains("样例");
     }
+
+    @Test
+    void tagsExposeTeachingActionsForHintPlanning() {
+        assertThat(taxonomy.teachingAction("OFF_BY_ONE")).isEqualTo("TRACE_VARIABLES");
+        assertThat(taxonomy.teachingAction("BRUTE_FORCE_LIMIT")).isEqualTo("COUNT_COMPLEXITY");
+        assertThat(taxonomy.teachingAction("GREEDY_ASSUMPTION")).isEqualTo("CHECK_INVARIANT");
+        assertThat(taxonomy.teachingAction("UNKNOWN_TAG")).isEqualTo("TRACE_VARIABLES");
+    }
 }

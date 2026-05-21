@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, CheckCircle2, KeyRound, UserRound } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
-import type { Assignment, StudentAbilityProfile, StudentProfile, StudentRecommendation, StudentRecommendationItem, StudentTrajectory } from "../../shared/api/types";
+import type { Assignment, StudentProfile, StudentTrajectory } from "../../shared/api/types";
 import { issueLabel, verdictLabel } from "../../shared/format";
 import { loadStudent, saveStudent } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
@@ -17,8 +17,6 @@ export default function StudentPage() {
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [student, setStudent] = useState<StudentProfile | null>(null);
   const [trajectory, setTrajectory] = useState<StudentTrajectory | null>(null);
-  const [abilityProfile, setAbilityProfile] = useState<StudentAbilityProfile | null>(null);
-  const [recommendations, setRecommendations] = useState<StudentRecommendation | null>(null);
   const [className, setClassName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [studentNo, setStudentNo] = useState("");
@@ -42,7 +40,7 @@ export default function StudentPage() {
       setStudent(restored);
       setDisplayName(restored.displayName || "");
       setStudentNo(restored.studentNo || "");
-      void loadStudentAiContext(assignment.id, restored.id);
+      void loadTrajectory(assignment.id, restored.id);
     }
     if (assignment.className) {
       setClassName(assignment.className);
@@ -102,7 +100,7 @@ export default function StudentPage() {
       });
       saveStudent(assignment.id, result);
       setStudent(result);
-      await loadStudentAiContext(assignment.id, result.id);
+      await loadTrajectory(assignment.id, result.id);
       setAlert(null);
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "身份确认失败。" });
@@ -117,28 +115,6 @@ export default function StudentPage() {
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "提交记录加载失败。" });
     }
-  }
-
-  async function loadStudentAiContext(assignmentId: number, studentProfileId: number) {
-    try {
-      const [trajectoryResult, profileResult, recommendationResult] = await Promise.all([
-        api.studentTrajectory(assignmentId, studentProfileId),
-        api.studentAbilityProfile(studentProfileId).catch(() => null),
-        api.studentRecommendations(studentProfileId).catch(() => null)
-      ]);
-      setTrajectory(trajectoryResult);
-      setAbilityProfile(profileResult);
-      setRecommendations(recommendationResult);
-    } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "提交记录加载失败。" });
-    }
-  }
-
-  async function openRecommendation(item: StudentRecommendationItem) {
-    if (!student || !item.recommendationToken) {
-      return;
-    }
-    await api.recordRecommendationEvent(student.id, item.recommendationToken, "CLICKED").catch(() => undefined);
   }
 
   if (!assignment) {
@@ -330,91 +306,6 @@ export default function StudentPage() {
               )}
             </Panel>
 
-            <Panel
-              className="student-ability-profile"
-              title="长期能力画像"
-              action={<StatusPill tone={abilityProfile ? "info" : "neutral"}>{abilityProfile?.primaryAbilityFocus || "学习画像"}</StatusPill>}
-            >
-              {!abilityProfile ? (
-                <EmptyState title="继续提交后会形成能力画像" />
-              ) : (
-                <div className="stack">
-                  <p>{abilityProfile.summary || "系统会根据跨作业提交、错因和 AI 教练互动持续更新画像。"}</p>
-                  <div className="student-profile-metrics">
-                    <div>
-                      <span>提交</span>
-                      <strong>{abilityProfile.totalSubmissions}</strong>
-                    </div>
-                    <div>
-                      <span>题目</span>
-                      <strong>{abilityProfile.problemCount}</strong>
-                    </div>
-                    <div>
-                      <span>作业</span>
-                      <strong>{abilityProfile.assignmentCount}</strong>
-                    </div>
-                  </div>
-                  {abilityProfile.abilityGaps?.length ? (
-                    <div className="student-profile-tags">
-                      {abilityProfile.abilityGaps.slice(0, 3).map(item => (
-                        <span key={item.abilityPoint}>{item.abilityPoint}</span>
-                      ))}
-                    </div>
-                  ) : null}
-                  {(abilityProfile.recommendationEffectSummary || abilityProfile.coachImpactSummary) && (
-                    <p className="student-record-note">
-                      {abilityProfile.recommendationEffectSummary || abilityProfile.coachImpactSummary}
-                    </p>
-                  )}
-                </div>
-              )}
-            </Panel>
-
-            <Panel
-              className="student-recommendations"
-              title="下一步推荐"
-              action={<StatusPill tone={recommendations?.recommendations?.length ? "success" : "neutral"}>{recommendations?.recommendations?.length || 0} 项</StatusPill>}
-            >
-              {recommendations?.recommendations?.length ? (
-                <div className="student-recommendation-list">
-                  {recommendations.recommendations.slice(0, 3).map(item => {
-                    const query = new URLSearchParams();
-                    if (assignment) {
-                      query.set("assignmentId", String(assignment.id));
-                    }
-                    if (student) {
-                      query.set("studentProfileId", String(student.id));
-                    }
-                    if (item.recommendationToken) {
-                      query.set("recommendationToken", item.recommendationToken);
-                    }
-                    return (
-                      <article className="student-recommendation-item" key={`${item.type}-${item.problemId || item.title}`}>
-                        <div>
-                          <StatusPill tone="info">{item.actionLabel || item.type}</StatusPill>
-                          <h3>{item.title}</h3>
-                          <p>{item.reason || item.focusAbility || "根据你的能力画像生成。"}</p>
-                        </div>
-                        {item.problemId ? (
-                          <ButtonLink
-                            to={`/app/problem/${item.problemId}?${query.toString()}`}
-                            variant="primary"
-                            onClick={() => void openRecommendation(item)}
-                            icon={<ArrowRight size={16} />}
-                          >
-                            去练习
-                          </ButtonLink>
-                        ) : (
-                          <StatusPill tone="neutral">复盘</StatusPill>
-                        )}
-                      </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <EmptyState title="继续提交后会生成推荐" />
-              )}
-            </Panel>
         </aside>
         )}
       </section>

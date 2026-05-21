@@ -12,7 +12,7 @@ export default function RoleEntryPage() {
         </div>
       </section>
 
-      <section className="role-entry-grid" aria-label="使用入口">
+      <section className="role-entry-grid role-entry-grid--primary" aria-label="使用入口">
         <Panel title="学生任务" action={<StatusPill tone="info">课堂作业</StatusPill>}>
           <div className="role-entry-card">
             <GraduationCap size={28} />
@@ -35,15 +35,15 @@ export default function RoleEntryPage() {
             </div>
           </div>
         </Panel>
+      </section>
 
-        <Panel title="班级概览" action={<StatusPill tone="neutral">数据</StatusPill>}>
-          <div className="role-entry-card">
-            <ChartNoAxesColumnIncreasing size={28} />
-            <ButtonLink to="/app/class-overview" variant="secondary">
-              进入
-            </ButtonLink>
-          </div>
-        </Panel>
+      <section className="role-entry-secondary" aria-label="其他入口">
+        <ButtonLink to="/app/class-overview" variant="secondary" icon={<ChartNoAxesColumnIncreasing size={17} />}>
+          班级概览
+        </ButtonLink>
+        <ButtonLink to="/app/teacher-management" variant="ghost" icon={<Settings size={17} />}>
+          教师管理
+        </ButtonLink>
       </section>
     </div>
   );

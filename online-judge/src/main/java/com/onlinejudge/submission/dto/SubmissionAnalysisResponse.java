@@ -28,8 +28,11 @@ public class SubmissionAnalysisResponse {
     private List<String> fixDirections;
     private List<String> evidenceRefs;
     private String studentHint;
+    private StudentHintPlan studentHintPlan;
+    private LearningInterventionPlan learningInterventionPlan;
     private String teacherNote;
     private String progressSignal;
+    private LearningTrajectorySignal learningTrajectorySignal;
     private Double confidence;
     private String uncertainty;
     private String diagnosticTrace;
@@ -62,6 +65,49 @@ public class SubmissionAnalysisResponse {
         private Integer lineNumber;
         private String error;
         private String suggestion;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StudentHintPlan {
+        private String hintLevel;
+        private String problemType;
+        private String evidenceAnchor;
+        private String nextAction;
+        private String coachQuestion;
+        private String teachingAction;
+        private List<String> evidenceRefs;
+        private String answerLeakRisk;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LearningTrajectorySignal {
+        private String phase;
+        private String label;
+        private String evidenceRef;
+        private String summary;
+        private String nextFocus;
+        private boolean needsTeacherAttention;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LearningInterventionPlan {
+        private String interventionType;
+        private String goal;
+        private String studentTask;
+        private String checkQuestion;
+        private String completionSignal;
+        private List<String> evidenceRefs;
+        private Integer estimatedMinutes;
+        private String answerLeakRisk;
     }
 
     @Data

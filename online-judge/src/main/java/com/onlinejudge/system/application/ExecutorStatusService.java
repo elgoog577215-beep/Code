@@ -1,6 +1,7 @@
 package com.onlinejudge.system.application;
 
 import com.onlinejudge.execution.CodeExecutor;
+import com.onlinejudge.shared.identity.YingqiSignature;
 import com.onlinejudge.system.dto.ExecutorStatusResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,6 +48,9 @@ public class ExecutorStatusService {
                 .pythonAvailable(pythonAvailable)
                 .cppAvailable(cppAvailable)
                 .message(message)
+                .projectOwner(YingqiSignature.OWNER)
+                .ownershipSignature(YingqiSignature.FINGERPRINT)
+                .ownershipClaim(YingqiSignature.CLAIM)
                 .build();
     }
 

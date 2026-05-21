@@ -465,58 +465,63 @@ export default function ProblemPage() {
                         </ul>
                       </div>
                     ) : null}
-                    <div className="coach-next-question">
-                      <span>下一问</span>
-                      {coachPrompt ? (
-                        <>
-                          <strong>{coachPrompt.question}</strong>
-                          {coachPrompt.contextSummary && <p>{coachPrompt.contextSummary}</p>}
-                          {coachPrompt.rationale && <p>{coachPrompt.rationale}</p>}
-                          {coachPrompt.turns?.length ? (
-                            <div className="coach-turn-list">
-                              {coachPrompt.turns.map(turn => (
-                                <div className="coach-turn" key={turn.id}>
-                                  <span>第 {turn.turnIndex || 1} 轮</span>
-                                  <strong>{turn.question}</strong>
-                                  {turn.studentAnswer && <p>我的回答：{turn.studentAnswer}</p>}
-                                  {turn.coachFeedback && <p>反馈：{turn.coachFeedback}</p>}
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                          {!coachPrompt.studentAnswer && (
-                            <div className="coach-reply-box">
-                              <TextArea
-                                value={coachAnswer}
-                                onChange={event => setCoachAnswer(event.target.value)}
-                                rows={3}
-                                maxLength={1200}
-                                placeholder="写下你的判断、最小样例、变量变化或复杂度估算。"
-                              />
-                              <Button
-                                type="button"
-                                variant="primary"
-                                onClick={() => void replyCoachPrompt()}
-                                disabled={coachReplyBusy}
-                              >
-                                {coachReplyBusy ? "提交中" : "提交回答"}
-                              </Button>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <strong>生成一个定位问题。</strong>
-                      )}
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void generateCoachPrompt()}
-                        disabled={coachBusy}
-                        icon={<Lightbulb size={16} />}
-                      >
-                        {coachBusy ? "生成中" : coachPrompt ? "再生成一问" : "生成下一问"}
-                      </Button>
-                    </div>
+                    <details className="problem-compact-details">
+                      <summary>
+                        <span>下一问</span>
+                        <StatusPill tone={coachPrompt ? "info" : "neutral"}>{coachPrompt ? "已生成" : "可生成"}</StatusPill>
+                      </summary>
+                      <div className="coach-next-question">
+                        {coachPrompt ? (
+                          <>
+                            <strong>{coachPrompt.question}</strong>
+                            {coachPrompt.contextSummary && <p>{coachPrompt.contextSummary}</p>}
+                            {coachPrompt.rationale && <p>{coachPrompt.rationale}</p>}
+                            {coachPrompt.turns?.length ? (
+                              <div className="coach-turn-list">
+                                {coachPrompt.turns.map(turn => (
+                                  <div className="coach-turn" key={turn.id}>
+                                    <span>第 {turn.turnIndex || 1} 轮</span>
+                                    <strong>{turn.question}</strong>
+                                    {turn.studentAnswer && <p>我的回答：{turn.studentAnswer}</p>}
+                                    {turn.coachFeedback && <p>反馈：{turn.coachFeedback}</p>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                            {!coachPrompt.studentAnswer && (
+                              <div className="coach-reply-box">
+                                <TextArea
+                                  value={coachAnswer}
+                                  onChange={event => setCoachAnswer(event.target.value)}
+                                  rows={3}
+                                  maxLength={1200}
+                                  placeholder="写下你的判断、最小样例、变量变化或复杂度估算。"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="primary"
+                                  onClick={() => void replyCoachPrompt()}
+                                  disabled={coachReplyBusy}
+                                >
+                                  {coachReplyBusy ? "提交中" : "提交回答"}
+                                </Button>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <strong>生成一个定位问题。</strong>
+                        )}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void generateCoachPrompt()}
+                          disabled={coachBusy}
+                          icon={<Lightbulb size={16} />}
+                        >
+                          {coachBusy ? "生成中" : coachPrompt ? "再生成一问" : "生成下一问"}
+                        </Button>
+                      </div>
+                    </details>
                   </div>
                 ) : (
                   <EmptyState title="反馈生成中" />
@@ -525,7 +530,11 @@ export default function ProblemPage() {
             )}
           </Panel>
 
-          <Panel title="作业记录" action={<StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? "已同步" : "未确认"}</StatusPill>}>
+          <details className="problem-compact-details">
+            <summary>
+              <span>作业记录</span>
+              <StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? "已同步" : "未确认"}</StatusPill>
+            </summary>
             {!trajectory ? (
               <EmptyState title="未确认作业身份" />
             ) : (
@@ -539,9 +548,13 @@ export default function ProblemPage() {
                 <div className="alert">{trajectory.nextStep || "暂无新的处理项。"}</div>
               </div>
             )}
-          </Panel>
+          </details>
 
-          <Panel title="尝试记录" action={<History size={18} />}>
+          <details className="problem-compact-details">
+            <summary>
+              <span>尝试记录</span>
+              <StatusPill tone="neutral">{history.length} 次</StatusPill>
+            </summary>
             <div className="stack">
               {history.length ? (
                 history.slice(0, 6).map(item => (
@@ -558,7 +571,7 @@ export default function ProblemPage() {
                 <EmptyState title="暂无历史记录" />
               )}
             </div>
-          </Panel>
+          </details>
         </div>
       </section>
     </div>

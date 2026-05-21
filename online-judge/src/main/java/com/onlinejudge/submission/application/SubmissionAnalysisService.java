@@ -386,6 +386,14 @@ public class SubmissionAnalysisService {
         String progressSignal = buildProgressSignal(scenario);
         double confidence = inferConfidence(scenario, failedCase, initialLineIssues);
         String answerLeakRisk = assessAnswerLeakRisk(studentHint, correctSolution);
+        SubmissionAnalysisResponse.StudentHintPlan studentHintPlan = buildStudentHintPlan(
+                scenario,
+                issueTags,
+                List.of(),
+                List.of("verdict:" + Optional.ofNullable(submission.getVerdict()).map(Enum::name).orElse("UNKNOWN").toLowerCase()),
+                studentHint,
+                answerLeakRisk
+        );
         String reportMarkdown = buildMarkdown(problem, submission, headline, summary, focusPoints, fixDirections,
                 wrongSolution, correctSolution, failedCase);
 
@@ -405,6 +413,7 @@ public class SubmissionAnalysisService {
                 .fixDirections(fixDirections)
                 .evidenceRefs(List.of("verdict:" + Optional.ofNullable(submission.getVerdict()).map(Enum::name).orElse("UNKNOWN").toLowerCase()))
                 .studentHint(studentHint)
+                .studentHintPlan(studentHintPlan)
                 .teacherNote(teacherNote)
                 .progressSignal(progressSignal)
                 .confidence(confidence)
@@ -671,6 +680,7 @@ public class SubmissionAnalysisService {
                 .fixDirections(List.of())
                 .evidenceRefs(List.of())
                 .studentHint(null)
+                .studentHintPlan(null)
                 .teacherNote(null)
                 .progressSignal(buildProgressSignal(analysis.getScenario()))
                 .confidence(0.55)
@@ -816,6 +826,55 @@ public class SubmissionAnalysisService {
             default -> firstDirection;
         };
         return sanitizeStudentHint(hint.isBlank() ? firstDirection : hint);
+    }
+
+    private SubmissionAnalysisResponse.StudentHintPlan buildStudentHintPlan(String scenario,
+                                                                            List<String> issueTags,
+                                                                            List<String> fineGrainedTags,
+                                                                            List<String> evidenceRefs,
+                                                                            String studentHint,
+                                                                            String answerLeakRisk) {
+        String primaryTag = fineGrainedTags != null && !fineGrainedTags.isEmpty()
+                ? fineGrainedTags.get(0)
+                : issueTags != null && !issueTags.isEmpty() ? issueTags.get(0) : "NEEDS_MORE_EVIDENCE";
+        return SubmissionAnalysisResponse.StudentHintPlan.builder()
+                .hintLevel("L2")
+                .problemType(diagnosisTaxonomy.label(primaryTag))
+                .evidenceAnchor(buildHintEvidenceAnchor(scenario, primaryTag, evidenceRefs))
+                .nextAction(studentHint)
+                .coachQuestion(buildHintCoachQuestion(primaryTag))
+                .teachingAction(diagnosisTaxonomy.teachingAction(primaryTag))
+                .evidenceRefs(evidenceRefs == null ? List.of() : evidenceRefs)
+                .answerLeakRisk(answerLeakRisk)
+                .build();
+    }
+
+    private String buildHintEvidenceAnchor(String scenario, String primaryTag, List<String> evidenceRefs) {
+        String label = diagnosisTaxonomy.label(primaryTag);
+        if (evidenceRefs != null && !evidenceRefs.isEmpty()) {
+            return "当前判断锚定在“" + label + "”，可先核对证据：" + evidenceRefs.get(0) + "。";
+        }
+        return switch (scenario) {
+            case "WA" -> "当前判断来自答案错误和代码形态，先围绕“" + label + "”做最小样例验证。";
+            case "TLE" -> "当前判断来自超时结果，先围绕“" + label + "”估算最大规模操作次数。";
+            case "MLE" -> "当前判断来自超内存结果，先围绕“" + label + "”画出保留的数据结构。";
+            case "RE" -> "当前判断来自运行错误，先围绕“" + label + "”检查极端输入下的稳定性。";
+            case "CE" -> "当前判断来自编译错误，先围绕“" + label + "”修复第一条报错。";
+            case "AC" -> "当前判断来自已通过结果，先围绕“" + label + "”补一个边界复盘。";
+            default -> "当前证据不足，先补一个最小样例或日志证据。";
+        };
+    }
+
+    private String buildHintCoachQuestion(String primaryTag) {
+        return switch (primaryTag == null ? "NEEDS_MORE_EVIDENCE" : primaryTag) {
+            case "IO_FORMAT" -> "你的输出和题面要求相比，多了或少了哪个字符？";
+            case "TIME_COMPLEXITY" -> "当输入取最大值时，核心循环大约执行多少次？";
+            case "SPACE_COMPLEXITY" -> "哪些数据必须保留，哪些只是中间副本？";
+            case "SYNTAX_ERROR" -> "第一条编译错误指向的符号，和你原本想表达的结构一致吗？";
+            case "RUNTIME_STABILITY" -> "哪一种极端输入最可能触发越界、空值或除零？";
+            case "GENERALIZATION_CHECK", "CODE_QUALITY" -> "你能补一个和样例不同的边界用例说明代码为什么也能过吗？";
+            default -> "你准备用哪个最小样例验证这个判断？";
+        };
     }
 
     private String buildTeacherNote(String scenario, List<String> issueTags) {
