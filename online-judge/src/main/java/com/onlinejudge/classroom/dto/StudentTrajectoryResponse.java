@@ -24,6 +24,7 @@ public class StudentTrajectoryResponse {
     private LearningTrajectorySignal latestLearningTrajectorySignal;
     private LearningInterventionPlan latestLearningInterventionPlan;
     private LearningInterventionImpact latestLearningInterventionImpact;
+    private LearningActionEvidence latestLearningActionEvidence;
     private String primaryAbilityFocus;
     private String crossProblemSummary;
     private CoachInteractionSummaryResponse latestCoachInteraction;
@@ -62,6 +63,7 @@ public class StudentTrajectoryResponse {
         private LearningTrajectorySignal latestLearningTrajectorySignal;
         private LearningInterventionPlan latestLearningInterventionPlan;
         private LearningInterventionImpact latestLearningInterventionImpact;
+        private LearningActionEvidence latestLearningActionEvidence;
         private String latestHint;
         private String latestImprovementSignal;
         private CoachInteractionSummaryResponse latestCoachInteraction;
@@ -81,6 +83,7 @@ public class StudentTrajectoryResponse {
         private LearningTrajectorySignal learningTrajectorySignal;
         private LearningInterventionPlan learningInterventionPlan;
         private LearningInterventionImpact learningInterventionImpact;
+        private LearningActionEvidence learningActionEvidence;
         private String improvementSignal;
         private CoachInteractionSummaryResponse coachInteraction;
         private CoachImpactResponse coachImpact;
@@ -128,5 +131,17 @@ public class StudentTrajectoryResponse {
         private String followupFineGrainedTag;
         private LocalDateTime plannedAt;
         private LocalDateTime followupSubmittedAt;
+    }
+
+    @Data
+    @Builder
+    public static class LearningActionEvidence {
+        private String expectedActionType;
+        private String executionStatus;
+        private String statusLabel;
+        private String observedEvidence;
+        private Double confidence;
+        private List<String> evidenceRefs;
+        private String nextAdjustment;
     }
 }

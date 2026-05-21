@@ -55,7 +55,10 @@ class ClassroomServiceCorrectionTest {
             new CoachInteractionAnalyzer(coachPromptRepository),
             new StudentIdentityService(),
             new ClassReviewFeedbackService(classReviewFeedbackRepository, assignmentRepository, objectMapper),
-            new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
+            new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+            new LearningInterventionImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+            new LearningActionEvidenceAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy)),
+            new TeacherActionPriorityAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
     );
 
     @Test

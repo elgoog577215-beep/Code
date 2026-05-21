@@ -48,4 +48,38 @@ public class LearningTrajectoryPolicy {
         }
         return signal.getSummary();
     }
+
+    public String nextStep(StudentTrajectoryResponse.LearningActionEvidence evidence, String fallback) {
+        if (evidence == null) {
+            return fallback;
+        }
+        return switch (evidence.getExecutionStatus() == null ? "" : evidence.getExecutionStatus()) {
+            case "CONTRADICTED" -> "先不要继续叠加修改。请补交学习动作要求的可观察产出，再做下一次代码改动。";
+            case "PARTIALLY_OBSERVED" -> "当前方向可能有效。请把这次学习动作再缩小成一个可检查的样例或变量表。";
+            case "OBSERVED" -> "学习动作已有执行迹象，下一步做复盘：说明这次动作为什么能修正问题。";
+            default -> fallback;
+        };
+    }
+
+    public String attentionReason(StudentTrajectoryResponse.LearningActionEvidence evidence, String fallback) {
+        if (evidence == null) {
+            return fallback;
+        }
+        if ("CONTRADICTED".equals(evidence.getExecutionStatus())) {
+            return evidence.getObservedEvidence() == null || evidence.getObservedEvidence().isBlank()
+                    ? "后续证据显示学生可能没有真正执行学习动作，需要老师检查过程产出。"
+                    : evidence.getObservedEvidence();
+        }
+        return fallback;
+    }
+
+    public String improvementSignal(StudentTrajectoryResponse.LearningActionEvidence evidence, String fallback) {
+        if (evidence == null || evidence.getObservedEvidence() == null || evidence.getObservedEvidence().isBlank()) {
+            return fallback;
+        }
+        if ("NOT_OBSERVED".equals(evidence.getExecutionStatus())) {
+            return fallback;
+        }
+        return evidence.getObservedEvidence();
+    }
 }

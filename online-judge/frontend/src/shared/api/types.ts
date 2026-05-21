@@ -64,6 +64,7 @@ export interface StudentTrajectoryPoint {
   learningTrajectorySignal?: LearningTrajectorySignal | null;
   learningInterventionPlan?: LearningInterventionPlan | null;
   learningInterventionImpact?: LearningInterventionImpact | null;
+  learningActionEvidence?: LearningActionEvidence | null;
   improvementSignal?: string | null;
   coachInteraction?: CoachInteractionSummary | null;
   coachImpact?: CoachImpact | null;
@@ -80,6 +81,7 @@ export interface StudentTrajectoryTask {
   latestLearningTrajectorySignal?: LearningTrajectorySignal | null;
   latestLearningInterventionPlan?: LearningInterventionPlan | null;
   latestLearningInterventionImpact?: LearningInterventionImpact | null;
+  latestLearningActionEvidence?: LearningActionEvidence | null;
   latestHint?: string | null;
   latestImprovementSignal?: string | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
@@ -136,6 +138,7 @@ export interface StudentTrajectory {
   latestLearningTrajectorySignal?: LearningTrajectorySignal | null;
   latestLearningInterventionPlan?: LearningInterventionPlan | null;
   latestLearningInterventionImpact?: LearningInterventionImpact | null;
+  latestLearningActionEvidence?: LearningActionEvidence | null;
   primaryAbilityFocus?: string | null;
   crossProblemSummary?: string | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
@@ -282,6 +285,16 @@ export interface LearningInterventionImpact {
   followupSubmittedAt?: string | null;
 }
 
+export interface LearningActionEvidence {
+  expectedActionType?: string | null;
+  executionStatus?: string | null;
+  statusLabel?: string | null;
+  observedEvidence?: string | null;
+  confidence?: number | null;
+  evidenceRefs?: string[];
+  nextAdjustment?: string | null;
+}
+
 export interface SubmissionAnalysis {
   submissionId: number;
   sourceType?: string;
@@ -298,6 +311,7 @@ export interface SubmissionAnalysis {
   teacherNote?: string;
   progressSignal?: string;
   learningTrajectorySignal?: LearningTrajectorySignal | null;
+  learningActionEvidence?: LearningActionEvidence | null;
   confidence?: number;
   fineGrainedTags?: string[];
   evidenceRefs?: string[];
@@ -398,6 +412,13 @@ export interface AssignmentOverview {
     abilityPoint?: string | null;
     recommendedHintPolicy?: string | null;
     interventionSuggestion?: string | null;
+    actionPriorityScore?: number | null;
+    actionPriorityLabel?: string | null;
+    actionPriorityReason?: string | null;
+    affectedStudentCount?: number;
+    repeatedStudentCount?: number;
+    unexecutedActionCount?: number;
+    unresolvedAfterInterventionCount?: number;
   }>;
   classAbilityWeaknesses?: AbilityStat[];
   classReviewSuggestions?: Array<{
@@ -436,6 +457,7 @@ export interface AssignmentOverview {
     latestCorrection?: TeacherDiagnosisCorrection | null;
     latestCoachInteraction?: CoachInteractionSummary | null;
     latestCoachImpact?: CoachImpact | null;
+    latestLearningActionEvidence?: LearningActionEvidence | null;
     primaryAbilityFocus?: string | null;
     crossProblemSummary?: string | null;
     abilitySummary?: AbilityStat[];

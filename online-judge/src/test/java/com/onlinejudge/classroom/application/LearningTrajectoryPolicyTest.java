@@ -49,4 +49,16 @@ class LearningTrajectoryPolicyTest {
         assertThat(policy.nextStep(signal, "fallback")).contains("复盘");
         assertThat(policy.attentionReason(signal, "fallback")).isEqualTo("这次从失败推进到通过，适合复盘。");
     }
+
+    @Test
+    void contradictedActionEvidenceLowersHintGranularity() {
+        StudentTrajectoryResponse.LearningActionEvidence evidence = StudentTrajectoryResponse.LearningActionEvidence.builder()
+                .executionStatus("CONTRADICTED")
+                .observedEvidence("后续仍停留在相同错因，可能没有真正完成学习动作。")
+                .build();
+
+        assertThat(policy.nextStep(evidence, "fallback")).contains("可观察产出");
+        assertThat(policy.attentionReason(evidence, "fallback")).contains("相同错因");
+        assertThat(policy.improvementSignal(evidence, "fallback")).contains("相同错因");
+    }
 }

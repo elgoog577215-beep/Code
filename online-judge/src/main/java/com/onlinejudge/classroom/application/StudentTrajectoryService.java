@@ -42,6 +42,7 @@ public class StudentTrajectoryService {
     private final CoachInteractionAnalyzer coachInteractionAnalyzer;
     private final CoachImpactAnalyzer coachImpactAnalyzer;
     private final LearningInterventionImpactAnalyzer learningInterventionImpactAnalyzer;
+    private final LearningActionEvidenceAnalyzer learningActionEvidenceAnalyzer;
 
     public StudentTrajectoryResponse buildTrajectory(Long assignmentId, Long studentProfileId) {
         AssignmentResponse assignment = classroomService.getAssignment(assignmentId);
@@ -61,6 +62,8 @@ public class StudentTrajectoryService {
                 coachImpactAnalyzer.summarizeByCoachedSubmission(submissions, analyses, coachInteractionAnalyzer.findPrompts(submissionIds));
         Map<Long, StudentTrajectoryResponse.LearningInterventionImpact> interventionImpacts =
                 learningInterventionImpactAnalyzer.summarizeByInterventionSubmission(submissions, analyses);
+        Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence =
+                learningActionEvidenceAnalyzer.summarizeByInterventionSubmission(submissions, analyses, interventionImpacts);
 
         Map<Long, Problem> problems = problemRepository.findAllById(assignment.getTasks().stream()
                         .map(AssignmentResponse.TaskSummary::getProblemId)
@@ -76,7 +79,8 @@ public class StudentTrajectoryService {
                         analyses,
                         coachInteractions,
                         coachImpacts,
-                        interventionImpacts
+                        interventionImpacts,
+                        actionEvidence
                 ))
                 .toList();
 
@@ -115,6 +119,8 @@ public class StudentTrajectoryService {
                 latestLearningInterventionPlan(submissions, analyses);
         StudentTrajectoryResponse.LearningInterventionImpact latestLearningInterventionImpact =
                 learningInterventionImpactAnalyzer.latestForOrderedSubmissions(submissionIds, interventionImpacts);
+        StudentTrajectoryResponse.LearningActionEvidence latestLearningActionEvidence =
+                learningActionEvidenceAnalyzer.latestForOrderedSubmissions(submissionIds, actionEvidence);
         if (latestLearningTrajectorySignal != null) {
             nextStep = learningTrajectoryPolicy.nextStep(latestLearningTrajectorySignal, nextStep);
             attentionReason = learningTrajectoryPolicy.attentionReason(latestLearningTrajectorySignal, attentionReason);
@@ -123,6 +129,11 @@ public class StudentTrajectoryService {
         if (latestLearningInterventionPlan != null && latestLearningInterventionPlan.getStudentTask() != null
                 && !latestLearningInterventionPlan.getStudentTask().isBlank()) {
             nextStep = latestLearningInterventionPlan.getStudentTask();
+        }
+        if (latestLearningActionEvidence != null) {
+            nextStep = learningTrajectoryPolicy.nextStep(latestLearningActionEvidence, nextStep);
+            attentionReason = learningTrajectoryPolicy.attentionReason(latestLearningActionEvidence, attentionReason);
+            improvementSignal = learningTrajectoryPolicy.improvementSignal(latestLearningActionEvidence, improvementSignal);
         }
         List<AbilitySignalAnalyzer.AbilitySignal> abilitySignals = abilitySignalAnalyzer.summarize(submissions, analyses);
         String primaryAbilityFocus = abilitySignals.stream()
@@ -153,6 +164,7 @@ public class StudentTrajectoryService {
                 .latestLearningTrajectorySignal(latestLearningTrajectorySignal)
                 .latestLearningInterventionPlan(latestLearningInterventionPlan)
                 .latestLearningInterventionImpact(latestLearningInterventionImpact)
+                .latestLearningActionEvidence(latestLearningActionEvidence)
                 .primaryAbilityFocus(primaryAbilityFocus)
                 .crossProblemSummary(crossProblemSummary)
                 .latestCoachInteraction(withImpact(
@@ -188,7 +200,7 @@ public class StudentTrajectoryService {
                                                                          Problem problem,
                                                                          List<Submission> allSubmissions,
                                                                          Map<Long, SubmissionAnalysis> analyses) {
-        return buildTaskTrajectory(task, problem, allSubmissions, analyses, Map.of(), Map.of(), Map.of());
+        return buildTaskTrajectory(task, problem, allSubmissions, analyses, Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     private StudentTrajectoryResponse.TaskTrajectory buildTaskTrajectory(AssignmentResponse.TaskSummary task,
@@ -197,7 +209,8 @@ public class StudentTrajectoryService {
                                                                          Map<Long, SubmissionAnalysis> analyses,
                                                                          Map<Long, com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse> coachInteractions,
                                                                          Map<Long, com.onlinejudge.classroom.dto.CoachImpactResponse> coachImpacts,
-                                                                         Map<Long, StudentTrajectoryResponse.LearningInterventionImpact> interventionImpacts) {
+                                                                         Map<Long, StudentTrajectoryResponse.LearningInterventionImpact> interventionImpacts,
+                                                                         Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence) {
         List<Submission> submissions = allSubmissions.stream()
                 .filter(submission -> Objects.equals(submission.getProblemId(), task.getProblemId()))
                 .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
@@ -214,6 +227,11 @@ public class StudentTrajectoryService {
                         submissions.stream().map(Submission::getId).toList(),
                         interventionImpacts
                 );
+        StudentTrajectoryResponse.LearningActionEvidence latestLearningActionEvidence =
+                learningActionEvidenceAnalyzer.latestForOrderedSubmissions(
+                        submissions.stream().map(Submission::getId).toList(),
+                        actionEvidence
+                );
 
         return StudentTrajectoryResponse.TaskTrajectory.builder()
                 .problemId(task.getProblemId())
@@ -226,6 +244,7 @@ public class StudentTrajectoryService {
                 .latestLearningTrajectorySignal(latestLearningTrajectorySignal)
                 .latestLearningInterventionPlan(latestLearningInterventionPlan)
                 .latestLearningInterventionImpact(latestLearningInterventionImpact)
+                .latestLearningActionEvidence(latestLearningActionEvidence)
                 .latestHint(extractStudentHint(latestAnalysis))
                 .latestImprovementSignal(latestImprovementSignal)
                 .latestCoachInteraction(latestCoachInteraction(submissions, coachInteractions, coachImpacts))
@@ -249,6 +268,7 @@ public class StudentTrajectoryService {
                                         diagnosisReportReader.learningInterventionPlan(analyses.get(submission.getId()))
                                 ))
                                 .learningInterventionImpact(interventionImpacts.get(submission.getId()))
+                                .learningActionEvidence(actionEvidence.get(submission.getId()))
                                 .improvementSignal(buildPointImprovementSignal(submission, submissions))
                                 .coachInteraction(withImpact(coachInteractions.get(submission.getId()), coachImpacts))
                                 .coachImpact(coachImpacts.get(submission.getId()))

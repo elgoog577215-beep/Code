@@ -68,6 +68,7 @@ public class DiagnosticAgentService {
         }
         enhanced.setStudentHintPlan(resolveHintPlan(enhanced, effectivePolicy));
         enhanced.setLearningInterventionPlan(resolveInterventionPlan(enhanced, effectivePolicy));
+        enhanced.setLearningActionEvidence(resolveInitialActionEvidence(enhanced));
         enhanced = hintSafetyService.verifyAndRecord(enhanced, effectivePolicy);
         String traceSummary = buildTraceSummary(ruleSignals, enhanced, modelStage.fallbackUsed());
         enhanced.setDiagnosticTrace(traceSummary);
@@ -143,6 +144,32 @@ public class DiagnosticAgentService {
                 && plan.getInterventionType() != null && !plan.getInterventionType().isBlank()
                 && plan.getStudentTask() != null && !plan.getStudentTask().isBlank()
                 && plan.getCheckQuestion() != null && !plan.getCheckQuestion().isBlank();
+    }
+
+    private SubmissionAnalysisResponse.LearningActionEvidence resolveInitialActionEvidence(SubmissionAnalysisResponse analysis) {
+        if (analysis == null) {
+            return null;
+        }
+        SubmissionAnalysisResponse.LearningActionEvidence existing = analysis.getLearningActionEvidence();
+        if (existing != null && existing.getExpectedActionType() != null && !existing.getExpectedActionType().isBlank()) {
+            return existing;
+        }
+        SubmissionAnalysisResponse.LearningInterventionPlan plan = analysis.getLearningInterventionPlan();
+        String expectedActionType = plan == null ? null : plan.getInterventionType();
+        if (expectedActionType == null || expectedActionType.isBlank()) {
+            return null;
+        }
+        return SubmissionAnalysisResponse.LearningActionEvidence.builder()
+                .expectedActionType(expectedActionType)
+                .executionStatus("NOT_OBSERVED")
+                .observedEvidence("已生成学习动作，但还没有后续同题提交或学生回答可以验证是否执行。")
+                .confidence(0.5)
+                .evidenceRefs(DiagnosisListSupport.deduplicate(mergeLists(
+                        plan.getEvidenceRefs(),
+                        analysis.getEvidenceRefs()
+                )))
+                .nextAdjustment("等待学生按学习动作完成一次可观察产出，再判断是否提高、降低或更换提示粒度。")
+                .build();
     }
 
     private SubmissionAnalysisResponse.LearningInterventionPlan normalizeIntervention(

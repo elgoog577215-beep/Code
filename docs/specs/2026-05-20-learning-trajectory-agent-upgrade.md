@@ -113,6 +113,78 @@ Acceptance gates:
 - Student trajectory response and frontend types must expose intervention impact without changing database schema.
 - Existing diagnosis, trajectory, intervention, and safety eval gates must remain passing.
 
+## Follow-Up Upgrade: Learning Action Evidence
+
+The next optimization adds process supervision.
+
+`learningInterventionImpact` can observe what happened after an intervention, but it still cannot tell whether the student actually performed the learning action. That makes teacher analytics and AI evaluation easy to overclaim: a later AC does not always mean the planned action worked, and a later failure does not always mean the action was bad.
+
+New concept: `learningActionEvidence`.
+
+It contains:
+
+- `expectedActionType`: the action the agent asked the student to perform.
+- `executionStatus`: `NOT_OBSERVED`, `PARTIALLY_OBSERVED`, `OBSERVED`, or `CONTRADICTED`.
+- `observedEvidence`: what the system saw after the action was assigned.
+- `confidence`: how strong this process-level inference is.
+- `evidenceRefs`: action, follow-up, and impact evidence anchors.
+- `nextAdjustment`: how the next teaching move should change.
+
+The important distinction:
+
+```text
+learningInterventionImpact = outcome changed after the intervention
+learningActionEvidence = there is evidence the student actually executed the assigned learning action
+```
+
+Implementation notes:
+
+- Diagnosis output initializes `learningActionEvidence` as `NOT_OBSERVED` when it creates a `learningInterventionPlan`.
+- `LearningActionEvidenceAnalyzer` upgrades that status from ordered same-problem follow-up submissions and intervention impact signals.
+- Student trajectory API exposes the latest action evidence at overall, task, and submission-point levels.
+- `LearningTrajectoryPolicy` can lower hint granularity when action evidence is `CONTRADICTED`.
+
+Acceptance gates:
+
+- Reader tests must parse stored `learningActionEvidence`.
+- Analyzer tests must cover observed execution, contradicted execution, and no-follow-up waiting state.
+- Existing diagnosis and trajectory eval gates must still pass.
+
+## Follow-Up Upgrade: Teacher Action Priority Strategy
+
+Teacher-side statistics should not be a raw frequency leaderboard.
+
+The new teacher strategy ranks issues by an evidence-weighted action priority score. The score is not model-generated; it is a deterministic, auditable heuristic that combines:
+
+- issue count
+- affected student count
+- repeated-stuck or regression trajectory evidence
+- unobserved or contradicted learning actions
+- unresolved same-issue evidence after intervention
+- low-confidence diagnosis count
+
+This makes the teacher dashboard answer a better question:
+
+```text
+Which issue should I intervene on first, given both frequency and process evidence?
+```
+
+New fields on teacher overview `topIssues`:
+
+- `actionPriorityScore`
+- `actionPriorityLabel`
+- `actionPriorityReason`
+- `affectedStudentCount`
+- `repeatedStudentCount`
+- `unexecutedActionCount`
+- `unresolvedAfterInterventionCount`
+
+Acceptance gates:
+
+- Teacher priority analyzer tests must verify that unresolved intervention and contradicted action evidence raise priority.
+- Teacher overview should still include the old count, taxonomy explanation, ability point, hint policy, and intervention suggestion.
+- The UI may display the action priority reason, but the source of truth stays in backend DTOs.
+
 ## Supported Phases
 
 - `FIRST_ATTEMPT`: no reliable previous attempt, diagnose from current evidence.

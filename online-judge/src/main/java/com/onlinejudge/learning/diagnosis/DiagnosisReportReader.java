@@ -92,6 +92,21 @@ public class DiagnosisReportReader {
         );
     }
 
+    public LearningActionEvidenceSnapshot learningActionEvidence(SubmissionAnalysis analysis) {
+        Object value = payloadValue(analysis, "learningActionEvidence");
+        if (!(value instanceof Map<?, ?> map)) {
+            return null;
+        }
+        return new LearningActionEvidenceSnapshot(
+                stringValue(map, "expectedActionType"),
+                normalizeExecutionStatus(stringValue(map, "executionStatus")),
+                stringValue(map, "observedEvidence"),
+                doubleValue(map.get("confidence")),
+                stringListValue(map.get("evidenceRefs")),
+                stringValue(map, "nextAdjustment")
+        );
+    }
+
     public String progressSignal(SubmissionAnalysis analysis) {
         Object value = payloadValue(analysis, "progressSignal");
         return value == null ? "" : String.valueOf(value);
@@ -243,6 +258,28 @@ public class DiagnosisReportReader {
         return null;
     }
 
+    private Double doubleValue(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Double.parseDouble(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeExecutionStatus(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase();
+        return switch (normalized) {
+            case "OBSERVED", "PARTIALLY_OBSERVED", "CONTRADICTED", "NOT_OBSERVED" -> normalized;
+            default -> "";
+        };
+    }
+
     private List<String> stringListValue(Object value) {
         if (value instanceof Iterable<?> iterable) {
             List<String> values = new ArrayList<>();
@@ -289,6 +326,14 @@ public class DiagnosisReportReader {
                                                    List<String> evidenceRefs,
                                                    Integer estimatedMinutes,
                                                    String answerLeakRisk) {
+    }
+
+    public record LearningActionEvidenceSnapshot(String expectedActionType,
+                                                 String executionStatus,
+                                                 String observedEvidence,
+                                                 Double confidence,
+                                                 List<String> evidenceRefs,
+                                                 String nextAdjustment) {
     }
 
     public record LearningTrajectorySignalSnapshot(String phase,

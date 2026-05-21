@@ -47,6 +47,9 @@ public class ClassroomService {
     private final StudentIdentityService studentIdentityService;
     private final ClassReviewFeedbackService classReviewFeedbackService;
     private final CoachImpactAnalyzer coachImpactAnalyzer;
+    private final LearningInterventionImpactAnalyzer learningInterventionImpactAnalyzer;
+    private final LearningActionEvidenceAnalyzer learningActionEvidenceAnalyzer;
+    private final TeacherActionPriorityAnalyzer teacherActionPriorityAnalyzer;
 
     public List<ClassGroupResponse> getClassGroups() {
         return classGroupRepository.findAllByOrderByCreatedAtDesc()
@@ -220,6 +223,12 @@ public class ClassroomService {
                 analyses,
                 coachInteractionAnalyzer.findPrompts(submissionIds)
         );
+        Map<Long, StudentTrajectoryResponse.LearningInterventionImpact> interventionImpacts =
+                learningInterventionImpactAnalyzer.summarizeByInterventionSubmission(submissions, analyses);
+        Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence =
+                learningActionEvidenceAnalyzer.summarizeByInterventionSubmission(submissions, analyses, interventionImpacts);
+        Map<String, TeacherActionPriorityAnalyzer.PrioritySignal> actionPrioritySignals =
+                teacherActionPriorityAnalyzer.summarize(submissions, analyses, interventionImpacts, actionEvidence);
         Map<Long, Problem> submittedProblems = problemRepository.findAllById(submissions.stream()
                         .map(Submission::getProblemId)
                         .filter(Objects::nonNull)
@@ -237,7 +246,16 @@ public class ClassroomService {
 
         List<AssignmentOverviewResponse.StudentProgressSummary> studentSummaries = byStudent.entrySet()
                 .stream()
-                .map(entry -> toStudentSummary(entry.getKey(), students.get(entry.getKey()), entry.getValue(), analyses, corrections, coachInteractions, coachImpacts))
+                .map(entry -> toStudentSummary(
+                        entry.getKey(),
+                        students.get(entry.getKey()),
+                        entry.getValue(),
+                        analyses,
+                        corrections,
+                        coachInteractions,
+                        coachImpacts,
+                        actionEvidence
+                ))
                 .sorted(Comparator.comparing(AssignmentOverviewResponse.StudentProgressSummary::isNeedsAttention).reversed()
                         .thenComparing(AssignmentOverviewResponse.StudentProgressSummary::getDisplayName, Comparator.nullsLast(String::compareTo)))
                 .toList();
@@ -253,8 +271,6 @@ public class ClassroomService {
 
         List<AssignmentOverviewResponse.IssueStat> topIssues = mergeIssueCounts(fineIssueCounts, issueCounts).entrySet()
                 .stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .limit(5)
                 .map(entry -> AssignmentOverviewResponse.IssueStat.builder()
                         .label(entry.getKey())
                         .count(entry.getValue())
@@ -263,6 +279,14 @@ public class ClassroomService {
                         .recommendedHintPolicy(resolveRecommendedHintPolicy(entry.getKey()))
                         .interventionSuggestion(resolveInterventionSuggestion(entry.getKey()))
                         .build())
+                .map(issue -> teacherActionPriorityAnalyzer.enrich(issue, actionPrioritySignals.get(issue.getLabel())))
+                .sorted(Comparator
+                        .comparing((AssignmentOverviewResponse.IssueStat issue) -> issue.getActionPriorityScore() == null
+                                ? 0.0
+                        : issue.getActionPriorityScore())
+                        .reversed()
+                        .thenComparing(AssignmentOverviewResponse.IssueStat::getCount, Comparator.reverseOrder()))
+                .limit(5)
                 .toList();
         List<AssignmentOverviewResponse.AbilityStat> classAbilityWeaknesses = abilitySignalAnalyzer.summarize(submissions, analyses)
                 .stream()
@@ -670,7 +694,8 @@ public class ClassroomService {
                                                                                Map<Long, SubmissionAnalysis> analyses,
                                                                                Map<Long, TeacherDiagnosisCorrection> corrections,
                                                                                Map<Long, CoachInteractionSummaryResponse> coachInteractions,
-                                                                               Map<Long, CoachImpactResponse> coachImpacts) {
+                                                                               Map<Long, CoachImpactResponse> coachImpacts,
+                                                                               Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence) {
         List<Submission> sorted = submissions.stream()
                 .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
                 .toList();
@@ -718,6 +743,10 @@ public class ClassroomService {
                 .latestCorrection(TeacherDiagnosisCorrectionResponse.from(latest == null ? null : corrections.get(latest.getId())))
                 .latestCoachInteraction(latestCoachInteraction)
                 .latestCoachImpact(latestCoachImpact)
+                .latestLearningActionEvidence(learningActionEvidenceAnalyzer.latestForOrderedSubmissions(
+                        sorted.stream().map(Submission::getId).toList(),
+                        actionEvidence
+                ))
                 .primaryAbilityFocus(abilitySignals.stream()
                         .findFirst()
                         .map(AbilitySignalAnalyzer.AbilitySignal::getAbilityPoint)

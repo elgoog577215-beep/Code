@@ -560,8 +560,13 @@ export default function TeacherPage() {
                               </small>
                             )}
                             {issue.interventionSuggestion ? <small>{issue.interventionSuggestion}</small> : null}
+                            {issue.actionPriorityReason ? (
+                              <small>
+                                {issue.actionPriorityLabel || "行动优先级"} · {issue.actionPriorityReason}
+                              </small>
+                            ) : null}
                           </span>
-                          <strong>{issue.count}</strong>
+                          <strong>{issue.actionPriorityScore ? issue.actionPriorityScore.toFixed(1) : issue.count}</strong>
                         </div>
                       ))
                     ) : (

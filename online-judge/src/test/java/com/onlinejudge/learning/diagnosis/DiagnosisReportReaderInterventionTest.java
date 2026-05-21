@@ -57,4 +57,33 @@ class DiagnosisReportReaderInterventionTest {
 
         assertThat(reader.learningInterventionPlan(analysis)).isNull();
     }
+
+    @Test
+    void readsLearningActionEvidenceSnapshotWhenPresent() {
+        SubmissionAnalysis analysis = SubmissionAnalysis.builder()
+                .headline("action evidence")
+                .reportJson("""
+                        {
+                          "learningActionEvidence": {
+                            "expectedActionType": "MIN_CASE_TRACE",
+                            "executionStatus": "PARTIALLY_OBSERVED",
+                            "observedEvidence": "后续 verdict 有变化，但还没有通过。",
+                            "confidence": 0.68,
+                            "evidenceRefs": ["followup:submission:12", "impact:VERDICT_CHANGED"],
+                            "nextAdjustment": "把动作缩小到一个最小样例。"
+                          }
+                        }
+                        """)
+                .build();
+
+        var snapshot = reader.learningActionEvidence(analysis);
+
+        assertThat(snapshot).isNotNull();
+        assertThat(snapshot.expectedActionType()).isEqualTo("MIN_CASE_TRACE");
+        assertThat(snapshot.executionStatus()).isEqualTo("PARTIALLY_OBSERVED");
+        assertThat(snapshot.observedEvidence()).contains("verdict");
+        assertThat(snapshot.confidence()).isEqualTo(0.68);
+        assertThat(snapshot.evidenceRefs()).contains("followup:submission:12", "impact:VERDICT_CHANGED");
+        assertThat(snapshot.nextAdjustment()).contains("最小样例");
+    }
 }

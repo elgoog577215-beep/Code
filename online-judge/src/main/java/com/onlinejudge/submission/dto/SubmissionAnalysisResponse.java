@@ -34,6 +34,7 @@ public class SubmissionAnalysisResponse {
     private String progressSignal;
     private LearningTrajectorySignal learningTrajectorySignal;
     private Double confidence;
+    private LearningActionEvidence learningActionEvidence;
     private String uncertainty;
     private String diagnosticTrace;
     private AiInvocation aiInvocation;
@@ -108,6 +109,19 @@ public class SubmissionAnalysisResponse {
         private List<String> evidenceRefs;
         private Integer estimatedMinutes;
         private String answerLeakRisk;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LearningActionEvidence {
+        private String expectedActionType;
+        private String executionStatus;
+        private String observedEvidence;
+        private Double confidence;
+        private List<String> evidenceRefs;
+        private String nextAdjustment;
     }
 
     @Data

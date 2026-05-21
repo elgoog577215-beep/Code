@@ -28,6 +28,13 @@ public class AssignmentOverviewResponse {
         private String abilityPoint;
         private String recommendedHintPolicy;
         private String interventionSuggestion;
+        private Double actionPriorityScore;
+        private String actionPriorityLabel;
+        private String actionPriorityReason;
+        private long affectedStudentCount;
+        private long repeatedStudentCount;
+        private long unexecutedActionCount;
+        private long unresolvedAfterInterventionCount;
     }
 
     @Data
@@ -50,6 +57,7 @@ public class AssignmentOverviewResponse {
         private TeacherDiagnosisCorrectionResponse latestCorrection;
         private CoachInteractionSummaryResponse latestCoachInteraction;
         private CoachImpactResponse latestCoachImpact;
+        private StudentTrajectoryResponse.LearningActionEvidence latestLearningActionEvidence;
         private String primaryAbilityFocus;
         private String crossProblemSummary;
         private List<AbilityStat> abilitySummary;
