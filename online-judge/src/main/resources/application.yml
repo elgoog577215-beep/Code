@@ -30,11 +30,11 @@ executor:
   mode: local
 
 ai:
-  enabled: true
-  base-url: https://api-inference.modelscope.cn/v1
+  enabled: ${AI_ENABLED:true}
+  base-url: ${AI_BASE_URL:https://api-inference.modelscope.cn/v1}
   api-key: ${MODELSCOPE_API_KEY:}
-  model: MiniMax/MiniMax-M2.7
-  timeout-seconds: 25
+  model: ${AI_MODEL:MiniMax/MiniMax-M2.7}
+  timeout-seconds: ${AI_TIMEOUT_SECONDS:25}
 
 logging:
   file:

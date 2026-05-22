@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 
 const frontendDir = resolve(import.meta.dirname, "..");
 const repoDir = resolve(frontendDir, "..");
-const appDir = resolve(repoDir, "src/main/resources/static/app");
+const appDir = resolve(import.meta.dirname, process.env.BROWSER_SMOKE_APP_DIR || "../../src/main/resources/static/app");
 const indexPath = join(appDir, "index.html");
 const artifactDir = resolve(repoDir, "output/playwright");
 const viteBin = join(frontendDir, "node_modules/vite/bin/vite.js");
@@ -560,12 +560,12 @@ async function getFreePort() {
   });
 }
 
-async function waitForServer(url, child) {
+async function waitForServer(url, child, previewOutput) {
   const deadline = Date.now() + 30000;
   let lastError = null;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
-      throw new Error(`preview server exited with code ${child.exitCode}`);
+      throw new Error(`preview server exited with code ${child.exitCode}: ${previewOutput.join("").trim()}`);
     }
     try {
       const response = await fetch(url);
@@ -792,7 +792,20 @@ async function main() {
 
   const port = await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
-  const child = spawn(process.execPath, [viteBin, "preview", "--host", "127.0.0.1", "--port", String(port)], {
+  const child = spawn(process.execPath, [
+    viteBin,
+    "preview",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    String(port),
+    "--config",
+    "vite.config.mjs",
+    "--configLoader",
+    "native",
+    "--outDir",
+    appDir
+  ], {
     cwd: frontendDir,
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -802,7 +815,7 @@ async function main() {
 
   let browser;
   try {
-    await waitForServer(`${baseUrl}/app/`, child);
+    await waitForServer(`${baseUrl}/app/`, child, previewOutput);
     try {
       browser = await chromium.launch({ headless: true });
     } catch (error) {

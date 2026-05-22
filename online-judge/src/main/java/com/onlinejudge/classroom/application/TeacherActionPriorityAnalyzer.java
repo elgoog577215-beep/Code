@@ -1,6 +1,7 @@
 package com.onlinejudge.classroom.application;
 
 import com.onlinejudge.classroom.dto.AssignmentOverviewResponse;
+import com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse;
 import com.onlinejudge.classroom.dto.StudentTrajectoryResponse;
 import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
@@ -26,6 +27,14 @@ public class TeacherActionPriorityAnalyzer {
                                                  Map<Long, SubmissionAnalysis> analyses,
                                                  Map<Long, StudentTrajectoryResponse.LearningInterventionImpact> impacts,
                                                  Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence) {
+        return summarize(submissions, analyses, impacts, actionEvidence, Map.of());
+    }
+
+    public Map<String, PrioritySignal> summarize(List<Submission> submissions,
+                                                 Map<Long, SubmissionAnalysis> analyses,
+                                                 Map<Long, StudentTrajectoryResponse.LearningInterventionImpact> impacts,
+                                                 Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence,
+                                                 Map<Long, CoachInteractionSummaryResponse> coachInteractions) {
         if (submissions == null || submissions.isEmpty() || analyses == null || analyses.isEmpty()) {
             return Map.of();
         }
@@ -44,6 +53,7 @@ public class TeacherActionPriorityAnalyzer {
             }
             StudentTrajectoryResponse.LearningInterventionImpact impact = impacts == null ? null : impacts.get(submission.getId());
             StudentTrajectoryResponse.LearningActionEvidence evidence = actionEvidence == null ? null : actionEvidence.get(submission.getId());
+            CoachInteractionSummaryResponse coachInteraction = coachInteractions == null ? null : coachInteractions.get(submission.getId());
             for (String tag : tags) {
                 if (tag == null || tag.isBlank()) {
                     continue;
@@ -65,6 +75,9 @@ public class TeacherActionPriorityAnalyzer {
                 }
                 if (impact != null && isUnresolvedImpact(impact.getStatus())) {
                     signal.unresolvedAfterInterventionCount++;
+                }
+                if (hasLowQualityCoachAnswer(coachInteraction)) {
+                    signal.lowQualityCoachAnswerCount++;
                 }
             }
         }
@@ -113,6 +126,14 @@ public class TeacherActionPriorityAnalyzer {
         return "SAME_ISSUE".equals(status) || "NO_CLEAR_CHANGE".equals(status) || "AWAITING_FOLLOWUP".equals(status);
     }
 
+    private boolean hasLowQualityCoachAnswer(CoachInteractionSummaryResponse coachInteraction) {
+        if (coachInteraction == null || coachInteraction.getAnswerQualitySignal() == null) {
+            return false;
+        }
+        String level = coachInteraction.getAnswerQualitySignal().getQualityLevel();
+        return "VAGUE_ACK".equals(level) || "DIRECTION_ONLY".equals(level);
+    }
+
     @Data
     @Builder
     public static class PrioritySignal {
@@ -124,6 +145,7 @@ public class TeacherActionPriorityAnalyzer {
         private long unexecutedActionCount;
         private long unresolvedAfterInterventionCount;
         private long lowConfidenceCount;
+        private long lowQualityCoachAnswerCount;
         private double score;
         private String reason;
     }
@@ -135,6 +157,7 @@ public class TeacherActionPriorityAnalyzer {
         private long unexecutedActionCount;
         private long unresolvedAfterInterventionCount;
         private long lowConfidenceCount;
+        private long lowQualityCoachAnswerCount;
 
         private PrioritySignal toSignal(String tag, DiagnosisTaxonomy taxonomy) {
             long affectedStudents = students.size();
@@ -143,31 +166,35 @@ public class TeacherActionPriorityAnalyzer {
                     + repeatedOrEscalatedCount * 1.6
                     + unexecutedActionCount * 1.8
                     + unresolvedAfterInterventionCount * 2.0
+                    + lowQualityCoachAnswerCount * 1.3
                     + lowConfidenceCount * 0.7;
             score = Math.round(score * 10.0) / 10.0;
             return PrioritySignal.builder()
                     .tag(tag)
-                    .label(priorityLabel(score, affectedStudents, unresolvedAfterInterventionCount, unexecutedActionCount))
+                    .label(priorityLabel(score, affectedStudents, unresolvedAfterInterventionCount, unexecutedActionCount, lowQualityCoachAnswerCount))
                     .count(count)
                     .affectedStudentCount(affectedStudents)
                     .repeatedOrEscalatedCount(repeatedOrEscalatedCount)
                     .unexecutedActionCount(unexecutedActionCount)
                     .unresolvedAfterInterventionCount(unresolvedAfterInterventionCount)
                     .lowConfidenceCount(lowConfidenceCount)
+                    .lowQualityCoachAnswerCount(lowQualityCoachAnswerCount)
                     .score(score)
                     .reason(reason(taxonomy.label(tag), affectedStudents, repeatedOrEscalatedCount,
-                            unexecutedActionCount, unresolvedAfterInterventionCount, lowConfidenceCount))
+                            unexecutedActionCount, unresolvedAfterInterventionCount, lowConfidenceCount,
+                            lowQualityCoachAnswerCount))
                     .build();
         }
 
         private static String priorityLabel(double score,
                                             long affectedStudents,
                                             long unresolvedAfterInterventionCount,
-                                            long unexecutedActionCount) {
+                                            long unexecutedActionCount,
+                                            long lowQualityCoachAnswerCount) {
             if (unresolvedAfterInterventionCount > 0 || unexecutedActionCount > 1 || score >= 9) {
                 return "优先课堂干预";
             }
-            if (affectedStudents >= 2 || score >= 5) {
+            if (lowQualityCoachAnswerCount > 0 || affectedStudents >= 2 || score >= 5) {
                 return "适合小组讲评";
             }
             return "继续观察";
@@ -178,7 +205,8 @@ public class TeacherActionPriorityAnalyzer {
                                      long repeatedOrEscalatedCount,
                                      long unexecutedActionCount,
                                      long unresolvedAfterInterventionCount,
-                                     long lowConfidenceCount) {
+                                     long lowConfidenceCount,
+                                     long lowQualityCoachAnswerCount) {
             StringBuilder reason = new StringBuilder();
             reason.append(tagLabel).append("影响 ").append(affectedStudents).append(" 名学生");
             if (repeatedOrEscalatedCount > 0) {
@@ -192,6 +220,9 @@ public class TeacherActionPriorityAnalyzer {
             }
             if (lowConfidenceCount > 0) {
                 reason.append("，").append(lowConfidenceCount).append(" 次诊断置信度偏低");
+            }
+            if (lowQualityCoachAnswerCount > 0) {
+                reason.append("，").append(lowQualityCoachAnswerCount).append(" 次 coach 回答缺少可验证证据");
             }
             reason.append("。");
             return reason.toString();

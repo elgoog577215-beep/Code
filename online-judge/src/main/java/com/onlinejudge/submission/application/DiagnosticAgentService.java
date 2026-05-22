@@ -361,9 +361,15 @@ public class DiagnosticAgentService {
             if (fineTags.contains("DP_STATE_DESIGN")) {
                 return "DP_STATE_DESIGN";
             }
+            if (fineTags.contains("IN_PLACE_STATE_PROGRESS")) {
+                return "IN_PLACE_STATE_PROGRESS";
+            }
             if (fineTags.contains("GREEDY_ASSUMPTION")) {
                 return "GREEDY_ASSUMPTION";
             }
+        }
+        if (safeIssues.contains("STATE_TRANSITION") && fineTags.contains("IN_PLACE_STATE_PROGRESS")) {
+            return "IN_PLACE_STATE_PROGRESS";
         }
         if (fineTags.contains("OFF_BY_ONE") && safeRefs.stream()
                 .anyMatch(ref -> ref != null && (ref.equals("code:plus_minus_one")
@@ -386,6 +392,7 @@ public class DiagnosticAgentService {
         }
         List<String> priority = List.of(
                 "PARTIAL_FIX_REGRESSION",
+                "IN_PLACE_STATE_PROGRESS",
                 "DP_STATE_DESIGN",
                 "GREEDY_ASSUMPTION",
                 "STATE_RESET",
@@ -422,6 +429,7 @@ public class DiagnosticAgentService {
             case "IO_FORMAT", "OUTPUT_FORMAT_DETAIL", "INPUT_PARSING" -> "先逐字核对题面输入输出格式和你的读写顺序。";
             case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION", "MAX_BOUNDARY" -> "先估算最大输入下核心操作会执行多少次。";
             case "STATE_TRANSITION", "DP_STATE_DESIGN" -> "先用一句话写清楚状态含义，再检查它依赖哪些上一状态。";
+            case "IN_PLACE_STATE_PROGRESS" -> "先手推一次原地更新后，当前位置的新状态是否还需要继续处理。";
             case "GREEDY_ASSUMPTION", "ALGORITHM_STRATEGY" -> "先尝试构造一个能挑战当前策略的最小反例。";
             case "RUNTIME_STABILITY" -> "先检查数组下标、空值、除零和递归出口这些稳定性风险。";
             case "PARTIAL_FIX_REGRESSION" -> "先对比最近两次提交，找出是哪一处修改改变了失败现象。";
@@ -437,6 +445,7 @@ public class DiagnosticAgentService {
             case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT" -> "当输入取最大值时，核心循环大约执行多少次？";
             case "OVER_SIMULATION", "MAX_BOUNDARY" -> "如果输入达到题面最大规模，当前循环或模拟会执行多少次？";
             case "DP_STATE_DESIGN", "STATE_TRANSITION" -> "这个状态是否包含了题目判断所需的全部信息？";
+            case "IN_PLACE_STATE_PROGRESS" -> "一次交换后，新换到当前位置的值是否已经满足你期望的不变量？";
             case "GREEDY_ASSUMPTION", "ALGORITHM_STRATEGY" -> "有没有一个很小的输入会让当前局部选择失效？";
             case "RUNTIME_STABILITY" -> "哪一种极端输入最可能触发越界、空值或除零？";
             case "PARTIAL_FIX_REGRESSION" -> "最近一次修改修好了什么，又可能引入了什么新问题？";

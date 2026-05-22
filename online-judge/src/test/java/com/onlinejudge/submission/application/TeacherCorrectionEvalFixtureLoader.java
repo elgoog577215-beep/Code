@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
+import com.onlinejudge.submission.domain.SubmissionCaseResult;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 
 import java.io.IOException;
@@ -36,12 +37,15 @@ class TeacherCorrectionEvalFixtureLoader {
                    Long submissionId,
                    ProblemFixture problem,
                    SubmissionFixture submission,
+                   List<CaseResultFixture> caseResults,
                    AnalysisFixture analysis,
                    TeacherCorrectionFixture teacherCorrection,
                    List<String> expectedIssueTags,
                    List<String> expectedFineTags,
                    List<String> mustMention,
-                   List<String> mustNotMention) {
+                   List<String> mustNotMention,
+                   SourceMaterialFixture sourceMaterial,
+                   QualityFixture quality) {
 
         Problem toProblem() {
             return Problem.builder()
@@ -64,6 +68,25 @@ class TeacherCorrectionEvalFixtureLoader {
                     .build();
         }
 
+        List<SubmissionCaseResult> toCaseResults() {
+            if (caseResults == null) {
+                return List.of();
+            }
+            return caseResults.stream()
+                    .map(result -> SubmissionCaseResult.builder()
+                            .submissionId(submissionId)
+                            .testCaseNumber(result.testCaseNumber())
+                            .passed(Boolean.TRUE.equals(result.passed()))
+                            .hidden(Boolean.TRUE.equals(result.hidden()))
+                            .inputSnapshot(result.inputSnapshot())
+                            .actualOutput(result.actualOutput())
+                            .expectedOutput(result.expectedOutput())
+                            .executionTime(result.executionTime())
+                            .memoryUsed(result.memoryUsed())
+                            .build())
+                    .toList();
+        }
+
         SubmissionAnalysisResponse toBaseline() {
             return SubmissionAnalysisResponse.builder()
                     .submissionId(submissionId)
@@ -74,9 +97,27 @@ class TeacherCorrectionEvalFixtureLoader {
                     .issueTags(analysis.originalIssueTags())
                     .fineGrainedTags(analysis.originalFineGrainedTags())
                     .evidenceRefs(List.of("teacher_correction:" + correctionId))
+                    .firstFailedCase(firstFailedCase())
                     .confidence(0.72)
                     .answerLeakRisk("LOW")
                     .build();
+        }
+
+        private SubmissionAnalysisResponse.FailedCaseSnapshot firstFailedCase() {
+            if (caseResults == null) {
+                return null;
+            }
+            return caseResults.stream()
+                    .filter(result -> !Boolean.TRUE.equals(result.passed()))
+                    .findFirst()
+                    .map(result -> SubmissionAnalysisResponse.FailedCaseSnapshot.builder()
+                            .testCaseNumber(result.testCaseNumber())
+                            .hidden(Boolean.TRUE.equals(result.hidden()))
+                            .input(result.inputSnapshot())
+                            .actualOutput(result.actualOutput())
+                            .expectedOutput(result.expectedOutput())
+                            .build())
+                    .orElse(null);
         }
 
         private Problem.Difficulty parseDifficulty(String value) {
@@ -107,6 +148,16 @@ class TeacherCorrectionEvalFixtureLoader {
                              String sourceCode) {
     }
 
+    record CaseResultFixture(Integer testCaseNumber,
+                             Boolean passed,
+                             Boolean hidden,
+                             String inputSnapshot,
+                             String actualOutput,
+                             String expectedOutput,
+                             Double executionTime,
+                             Integer memoryUsed) {
+    }
+
     record AnalysisFixture(String scenario,
                            List<String> originalIssueTags,
                            List<String> originalFineGrainedTags,
@@ -116,5 +167,16 @@ class TeacherCorrectionEvalFixtureLoader {
     record TeacherCorrectionFixture(String correctedIssueTag,
                                     String correctedFineGrainedTag,
                                     String teacherNote) {
+    }
+
+    record SourceMaterialFixture(String localFolder,
+                                 List<String> artifacts,
+                                 String anonymizationNote) {
+    }
+
+    record QualityFixture(String bugPattern,
+                          String misconception,
+                          String expectedStudentMove,
+                          String evalPurpose) {
     }
 }

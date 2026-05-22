@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CoachInteractionAnalyzerTest {
 
     private final FakeCoachPromptRepository repository = new FakeCoachPromptRepository();
-    private final CoachInteractionAnalyzer analyzer = new CoachInteractionAnalyzer(repository);
+    private final CoachInteractionAnalyzer analyzer = new CoachInteractionAnalyzer(repository, new CoachAnswerQualityAnalyzer());
 
     @Test
     void summarizesPromptedAndAnsweredTurns() {
@@ -32,6 +32,8 @@ class CoachInteractionAnalyzerTest {
         assertThat(summary.isAnswered()).isTrue();
         assertThat(summary.getSummary()).contains("继续追问中");
         assertThat(summary.getLatestFeedback()).contains("证据意识");
+        assertThat(summary.getAnswerQualitySignal().getQualityLevel()).isEqualTo("EVIDENCE_GROUNDED");
+        assertThat(summary.getAnswerQualitySignal().getEvidenceTypes()).contains("MIN_CASE", "COMPLEXITY_ESTIMATE");
     }
 
     @Test

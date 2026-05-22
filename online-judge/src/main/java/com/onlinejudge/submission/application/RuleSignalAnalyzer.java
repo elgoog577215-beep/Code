@@ -33,6 +33,7 @@ public class RuleSignalAnalyzer {
     private static final Pattern PYTHON_MATRIX_ALLOCATION_PATTERN = Pattern.compile("\\[\\s*\\[[^\\]]*]\\s*\\*\\s*n\\s+for\\s+_\\s+in\\s+range\\s*\\(\\s*n\\s*\\)\\s*]");
     private static final Pattern REPEATED_SCAN_IN_LOOP_PATTERN = Pattern.compile("(?s)\\bfor\\b.*:\\s*\\R\\s+.*(?:\\.count\\s*\\(|\\s+not\\s+in\\s+|\\s+in\\s+)");
     private static final Pattern PRE_LOOP_STATE_WITH_TEST_CASES_PATTERN = Pattern.compile("(?s)\\b\\w+\\s*=\\s*0\\s*\\R(?:.*\\R){0,4}\\s*for\\s+_\\s+in\\s+range\\s*\\(\\s*T\\s*\\)");
+    private static final Pattern IN_PLACE_SWAP_ONCE_PATTERN = Pattern.compile("(?s)for\\s+\\w+\\s+in\\s+range\\s*\\([^)]*\\)\\s*:\\s*\\R\\s+if\\s+[^\\n]*:\\s*\\R(?:\\s+[^\\n]*\\R){0,4}\\s+if\\s+[^\\n]*:\\s*\\R\\s+\\w+\\s*\\[[^\\]]+]\\s*,\\s*\\w+\\s*\\[[^\\]]+]\\s*=\\s*\\w+\\s*\\[[^\\]]+]\\s*,\\s*\\w+\\s*\\[[^\\]]+]");
 
     public RuleSignalResult analyze(DiagnosisEvidencePackage evidencePackage) {
         String sourceCode = Optional.ofNullable(evidencePackage)
@@ -151,6 +152,11 @@ public class RuleSignalAnalyzer {
             add(coarseTags, fineTags, evidenceRefs, signals,
                     "problem:dp_state_needs_design", "ALGORITHM_STRATEGY", "DP_STATE_DESIGN", 0.84,
                     "题面需要状态表达约束或来源，代码包含 DP 但状态信息可能不足。");
+        }
+        if (mentionsInPlacePlacement(normalizedProblem) && looksLikeSinglePassInPlaceSwap(sourceCode)) {
+            add(coarseTags, fineTags, evidenceRefs, signals,
+                    "problem:in_place_swap_single_pass", "STATE_TRANSITION", "IN_PLACE_STATE_PROGRESS", 0.88,
+                    "题面依赖把值放到目标位置，代码每个下标只交换一次，交换后的当前位置可能没有继续处理到稳定。");
         }
         if (mentionsGreedyRisk(normalizedProblem) && looksGreedy(normalizedSource)) {
             add(coarseTags, fineTags, evidenceRefs, signals,
@@ -394,15 +400,35 @@ public class RuleSignalAnalyzer {
     }
 
     private boolean mentionsDpStateRisk(String problemText) {
-        return problemText.contains("不相邻") || problemText.contains("方案数") || problemText.contains("爬到");
+        return problemText.contains("不相邻") || problemText.contains("方案数") || problemText.contains("爬到")
+                || problemText.contains("背包") || problemText.contains("正方形") || problemText.contains("四条边");
+    }
+
+    private boolean mentionsInPlacePlacement(String problemText) {
+        return problemText.contains("放到下标") || problemText.contains("下标 x - 1")
+                || problemText.contains("缺失的第一个正整数") || problemText.contains("第一个缺失的正整数");
     }
 
     private boolean mentionsGreedyRisk(String problemText) {
-        return problemText.contains("不保证") || problemText.contains("硬币") || problemText.contains("贪心");
+        return problemText.contains("不保证") || problemText.contains("硬币") || problemText.contains("贪心")
+                || problemText.contains("第一条还能放下") || problemText.contains("排序后");
     }
 
     private boolean looksGreedy(String sourceCode) {
-        return sourceCode.contains("reverse=true") || sourceCode.contains("target %=") || sourceCode.contains("sorted(");
+        return sourceCode.contains("reverse=true") || sourceCode.contains("target %=") || sourceCode.contains("sorted(")
+                || sourceCode.contains("sort(reverse=true)") || sourceCode.contains("break");
+    }
+
+    private boolean looksLikeSinglePassInPlaceSwap(String sourceCode) {
+        if (sourceCode == null || sourceCode.isBlank()) {
+            return false;
+        }
+        String normalized = sourceCode.toLowerCase(Locale.ROOT);
+        return IN_PLACE_SWAP_ONCE_PATTERN.matcher(normalized).find()
+                && normalized.contains("nums[p]")
+                && !normalized.contains("while 1 <=")
+                && !normalized.contains("while 1<=")
+                && !normalized.contains("while nums");
     }
 
     private boolean mentionsEmptyInput(String problemText) {

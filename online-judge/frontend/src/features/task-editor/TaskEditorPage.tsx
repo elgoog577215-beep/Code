@@ -174,8 +174,8 @@ export default function TaskEditorPage() {
           <h1>{form.title || "新建题目"}</h1>
         </div>
         <div className="editor-command__actions">
-          <StatusPill tone={visibleCount ? "success" : "danger"}>{visibleCount} 个公开测试点</StatusPill>
-          <StatusPill tone={readyQualityCount >= 4 ? "success" : "warning"}>{readyQualityCount}/5 检查完成</StatusPill>
+          <span className={`meta-badge ${visibleCount ? "meta-badge--success" : "meta-badge--danger"}`}>{visibleCount} 个公开测试点</span>
+          <span className={`meta-badge ${readyQualityCount >= 4 ? "meta-badge--success" : "meta-badge--warning"}`}>{readyQualityCount}/5 检查完成</span>
           <Button type="button" variant="primary" onClick={() => void save()} disabled={busy} icon={<Save size={18} />}>
             保存题目
           </Button>
@@ -286,7 +286,7 @@ export default function TaskEditorPage() {
         </div>
 
         <aside className="editor-side">
-          <details className="editor-compact-details editor-compact-details--side" open>
+          <details className="editor-compact-details editor-compact-details--side">
             <summary>
               <span>保存检查</span>
               <StatusPill tone={readinessTone}>{readyQualityCount}/5</StatusPill>

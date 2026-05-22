@@ -157,7 +157,7 @@ public class AiReportService {
                     1. Prefer hints about thinking path, boundary categories, complexity, and debugging direction.
                     2. Do not provide complete code, final answers, hidden test data, or a step-by-step solution that removes the student's thinking work.
                     3. issueTags must reuse standard learning-diagnosis labels such as SYNTAX_ERROR, IO_FORMAT, BOUNDARY_CONDITION, CONDITION_BRANCH, LOOP_BOUNDARY, DATA_STRUCTURE_CHOICE, TIME_COMPLEXITY, SPACE_COMPLEXITY, VARIABLE_INITIALIZATION, STATE_TRANSITION, RECURSION_EXIT, CODE_READABILITY, SAMPLE_ONLY, ALGORITHM_STRATEGY, RUNTIME_STABILITY, NEEDS_MORE_EVIDENCE.
-                    4. fineGrainedTags must only reuse candidate or standard fine-grained labels such as OFF_BY_ONE, EMPTY_INPUT, MAX_BOUNDARY, DUPLICATE_CASE, OUTPUT_FORMAT_DETAIL, INPUT_PARSING, INITIAL_STATE, STATE_RESET, OVER_SIMULATION, BRUTE_FORCE_LIMIT, GREEDY_ASSUMPTION, DP_STATE_DESIGN, SAMPLE_OVERFIT, PARTIAL_FIX_REGRESSION.
+                    4. fineGrainedTags must only reuse candidate or standard fine-grained labels such as OFF_BY_ONE, EMPTY_INPUT, MAX_BOUNDARY, DUPLICATE_CASE, OUTPUT_FORMAT_DETAIL, INPUT_PARSING, INITIAL_STATE, STATE_RESET, OVER_SIMULATION, BRUTE_FORCE_LIMIT, GREEDY_ASSUMPTION, DP_STATE_DESIGN, IN_PLACE_STATE_PROGRESS, SAMPLE_OVERFIT, PARTIAL_FIX_REGRESSION.
                     5. evidenceRefs must cite evidencePackage or ruleSignals references, not invented evidence.
                     6. uncertainty must state what is unknown or inferred, especially for hidden tests.
                     7. studentHint should be scaffolded at hint level 1-2: problem type and locating direction, not a full fix.
@@ -379,26 +379,59 @@ public class AiReportService {
         }
 
         JsonNode root = objectMapper.readTree(response.body());
-        JsonNode messageContent = root.path("choices").path(0).path("message").path("content");
-        if (messageContent.isMissingNode() || messageContent.isNull()) {
+        String content = extractChatMessageContent(root);
+        if (content.isBlank()) {
+            log.warn("AI response did not include usable message content. bodyPreview={}",
+                    previewBody(response.body()));
             throw new IOException("AI response did not include message content");
         }
+        return content;
+    }
 
-        if (messageContent.isTextual()) {
-            return messageContent.asText();
+    private String extractChatMessageContent(JsonNode root) {
+        if (root == null || root.isMissingNode() || root.isNull()) {
+            return "";
         }
+        JsonNode firstChoice = root.path("choices").path(0);
+        return firstNonBlank(
+                extractContentNode(firstChoice.path("message").path("content")),
+                extractContentNode(firstChoice.path("delta").path("content")),
+                extractContentNode(firstChoice.path("message").path("reasoning_content")),
+                extractContentNode(firstChoice.path("delta").path("reasoning_content"))
+        );
+    }
 
-        if (messageContent.isArray()) {
+    private String extractContentNode(JsonNode contentNode) {
+        if (contentNode == null || contentNode.isMissingNode() || contentNode.isNull()) {
+            return "";
+        }
+        if (contentNode.isTextual()) {
+            return contentNode.asText();
+        }
+        if (contentNode.isArray()) {
             StringBuilder content = new StringBuilder();
-            for (JsonNode node : messageContent) {
+            for (JsonNode node : contentNode) {
                 if (node.hasNonNull("text")) {
                     content.append(node.get("text").asText());
+                } else if (node.isTextual()) {
+                    content.append(node.asText());
                 }
             }
             return content.toString();
         }
+        return contentNode.toString();
+    }
 
-        return messageContent.toString();
+    private String firstNonBlank(String... candidates) {
+        if (candidates == null) {
+            return "";
+        }
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.isBlank()) {
+                return candidate;
+            }
+        }
+        return "";
     }
 
     private AiAnalysisPayload parseAnalysisPayload(String rawContent) {

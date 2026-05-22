@@ -485,15 +485,15 @@ export default function TeacherPage() {
                     <div>
                       <div className="actions">
                         <StatusPill tone={item.status === "ACTIVE" ? "success" : "neutral"}>{assignmentStatusLabel(item.status)}</StatusPill>
-                        <StatusPill>{hintPolicyLabel(item.hintPolicy)}</StatusPill>
+                        <span className="meta-badge">{hintPolicyLabel(item.hintPolicy)}</span>
                       </div>
                       <h3>{item.title}</h3>
-                      <div className="status-box-row">
-                        <StatusPill tone="info">{item.className || "未绑定班级"}</StatusPill>
-                        <StatusPill tone="neutral">{item.tasks?.length || 0} 个任务</StatusPill>
+                      <div className="teacher-assignment-meta-line">
+                        <span>{item.className || "未绑定班级"}</span>
+                        <span>{item.tasks?.length || 0} 个任务</span>
                       </div>
                     </div>
-                    <StatusPill tone="info">邀请码 {item.inviteCode || "-"}</StatusPill>
+                    <span className="teacher-assignment-code">邀请码 {item.inviteCode || "-"}</span>
                   </button>
                 ))
               ) : (
@@ -506,10 +506,10 @@ export default function TeacherPage() {
             <div className="teacher-stage__head">
               <div>
                 <h2>{cleanAssignmentTitle(diagnosisAssignment?.title, "请选择作业")}</h2>
-                <div className="status-box-row teacher-stage__meta">
-                  <StatusPill tone="info">{diagnosisAssignment ? displayText(diagnosisAssignment.className, "未绑定班级") : "未选择作业"}</StatusPill>
-                  <StatusPill tone="neutral">{activeTaskCount} 个任务</StatusPill>
-                  <StatusPill tone="neutral">{hintPolicyLabel(diagnosisAssignment?.hintPolicy)}</StatusPill>
+                <div className="teacher-stage__meta">
+                  <span>{diagnosisAssignment ? displayText(diagnosisAssignment.className, "未绑定班级") : "未选择作业"}</span>
+                  <span>{activeTaskCount} 个任务</span>
+                  <span>{hintPolicyLabel(diagnosisAssignment?.hintPolicy)}</span>
                 </div>
               </div>
               <StatusPill tone={stageStateTone}>{stageStateLabel}</StatusPill>
@@ -552,19 +552,7 @@ export default function TeacherPage() {
                           <span>
                             {issueLabel(issue.label)}
                             {issue.explanation ? <small>{issue.explanation}</small> : null}
-                            {(issue.abilityPoint || issue.recommendedHintPolicy) && (
-                              <small>
-                                {issue.abilityPoint ? `能力点：${issue.abilityPoint}` : ""}
-                                {issue.abilityPoint && issue.recommendedHintPolicy ? " · " : ""}
-                                {issue.recommendedHintPolicy ? hintPolicyLabel(issue.recommendedHintPolicy) : ""}
-                              </small>
-                            )}
-                            {issue.interventionSuggestion ? <small>{issue.interventionSuggestion}</small> : null}
-                            {issue.actionPriorityReason ? (
-                              <small>
-                                {issue.actionPriorityLabel || "行动优先级"} · {issue.actionPriorityReason}
-                              </small>
-                            ) : null}
+                            {issue.abilityPoint ? <small>能力点：{issue.abilityPoint}</small> : null}
                           </span>
                           <strong>{issue.actionPriorityScore ? issue.actionPriorityScore.toFixed(1) : issue.count}</strong>
                         </div>
@@ -640,8 +628,8 @@ export default function TeacherPage() {
                         <div className="teacher-student-row" key={student.studentProfileId}>
                           <div>
                             <h3>{displayText(student.displayName, `学生 #${student.studentProfileId}`)}</h3>
-                            <div className="status-box-row teacher-student-row__meta">
-                              <StatusPill tone="neutral">{student.attemptCount} 次尝试</StatusPill>
+                            <div className="teacher-student-row__meta">
+                              <span className="teacher-row-meta-text">{student.attemptCount} 次尝试</span>
                               <StatusPill tone={student.latestIssue ? "warning" : "success"}>
                                 {student.latestFineGrainedIssue
                                   ? issueLabel(student.latestFineGrainedIssue)
@@ -651,7 +639,7 @@ export default function TeacherPage() {
                               </StatusPill>
                             </div>
                             <div className="status-box-row teacher-status-row">
-                              {student.primaryAbilityFocus && <StatusPill tone="info">能力 {student.primaryAbilityFocus}</StatusPill>}
+                              {student.primaryAbilityFocus && <span className="teacher-row-meta-text">能力 {student.primaryAbilityFocus}</span>}
                               {student.latestCoachInteraction?.prompted && (
                                 <StatusPill tone={student.latestCoachInteraction.answered ? "success" : "warning"}>
                                   {student.latestCoachImpact?.statusLabel || student.latestCoachInteraction.impact?.statusLabel || student.latestCoachInteraction.statusLabel || "追问"}
@@ -674,7 +662,7 @@ export default function TeacherPage() {
                             )}
                             {student.attentionEvidence?.length ? (
                               <div className="teacher-attention-evidence" aria-label="需关注证据链">
-                                {student.attentionEvidence.slice(0, 3).map(evidence => (
+                                {student.attentionEvidence.slice(0, 1).map(evidence => (
                                   <div key={evidence.submissionId}>
                                     <span>{formatDateTime(evidence.submittedAt)}</span>
                                     <strong>
@@ -704,9 +692,6 @@ export default function TeacherPage() {
                             >
                               校正
                             </Button>
-                            <StatusPill tone={student.needsAttention ? "warning" : "success"}>
-                              {student.needsAttention ? "需关注" : "正常"}
-                            </StatusPill>
                             <VerdictPill verdict={student.latestVerdict} />
                           </div>
                         </div>

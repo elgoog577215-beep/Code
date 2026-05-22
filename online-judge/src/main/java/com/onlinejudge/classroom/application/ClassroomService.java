@@ -228,7 +228,7 @@ public class ClassroomService {
         Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence =
                 learningActionEvidenceAnalyzer.summarizeByInterventionSubmission(submissions, analyses, interventionImpacts);
         Map<String, TeacherActionPriorityAnalyzer.PrioritySignal> actionPrioritySignals =
-                teacherActionPriorityAnalyzer.summarize(submissions, analyses, interventionImpacts, actionEvidence);
+                teacherActionPriorityAnalyzer.summarize(submissions, analyses, interventionImpacts, actionEvidence, coachInteractions);
         Map<Long, Problem> submittedProblems = problemRepository.findAllById(submissions.stream()
                         .map(Submission::getProblemId)
                         .filter(Objects::nonNull)

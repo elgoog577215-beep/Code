@@ -2,7 +2,7 @@ import { access, readFile, readdir } from "node:fs/promises";
 import { constants } from "node:fs";
 import { join, resolve } from "node:path";
 
-const appDir = resolve(import.meta.dirname, "../../src/main/resources/static/app");
+const appDir = resolve(import.meta.dirname, process.env.VISUAL_SMOKE_APP_DIR || "../../src/main/resources/static/app");
 const indexPath = join(appDir, "index.html");
 const assetDir = join(appDir, "assets");
 const checks = [];

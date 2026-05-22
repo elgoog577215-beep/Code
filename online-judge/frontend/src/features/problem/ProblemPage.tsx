@@ -3,14 +3,14 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Clock3, FileText, History, Lightbulb, Play, RotateCcw, Target } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { CoachPrompt, Problem, StudentTrajectory, SubmissionHistorySummary, SubmissionResult } from "../../shared/api/types";
-import { formatDateTime, issueLabel, verdictLabel } from "../../shared/format";
+import { difficultyLabel, formatDateTime, issueLabel, verdictLabel } from "../../shared/format";
 import { loadDraft, loadStudent, saveDraft } from "../../shared/storage";
 import { Button } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea } from "../../shared/ui/Field";
 import { Metric } from "../../shared/ui/Metric";
 import { Panel } from "../../shared/ui/Panel";
-import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
+import { StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
 
 const PYTHON_TEMPLATE = "n = int(input())\nprint(n)\n";
 const CPP_TEMPLATE = "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    int n;\n    cin >> n;\n    cout << n << '\\n';\n    return 0;\n}\n";
@@ -279,7 +279,7 @@ export default function ProblemPage() {
           <div>
             <FileText size={18} />
             <span>题目难度</span>
-            <strong>{problem.difficulty ? <DifficultyPill difficulty={problem.difficulty} /> : "-"}</strong>
+            <strong>{problem.difficulty ? difficultyLabel(problem.difficulty) : "-"}</strong>
           </div>
           <div>
             <Clock3 size={18} />
@@ -315,7 +315,7 @@ export default function ProblemPage() {
         <Panel
           title="题目"
           className="panel--statement"
-          action={problem.difficulty ? <DifficultyPill difficulty={problem.difficulty} /> : undefined}
+          action={problem.difficulty ? <span className="meta-badge meta-badge--success">{difficultyLabel(problem.difficulty)}</span> : undefined}
         >
           <div className="statement">{renderMarkdownLike(problem.description)}</div>
           <div className="stack" style={{ marginTop: "1rem" }}>
@@ -324,11 +324,11 @@ export default function ProblemPage() {
               problem.sampleTestCases.map((sample, index) => (
                 <div className="two-column" key={`${sample.input}-${index}`}>
                   <div>
-                    <StatusPill>输入 {index + 1}</StatusPill>
+                    <span className="code-label">输入 {index + 1}</span>
                     <pre className="code-block">{sample.input || "(空输入)"}</pre>
                   </div>
                   <div>
-                    <StatusPill>输出 {index + 1}</StatusPill>
+                    <span className="code-label">输出 {index + 1}</span>
                     <pre className="code-block">{sample.expectedOutput || "(空输出)"}</pre>
                   </div>
                 </div>
@@ -420,7 +420,9 @@ export default function ProblemPage() {
                             {item.passed ? "已通过" : "未通过"} · {item.executionTime ?? "-"} ms · {item.memoryUsed ?? "-"} KB
                           </small>
                         </div>
-                        <StatusPill tone={item.passed ? "success" : "warning"}>{item.passed ? "通过" : "需修正"}</StatusPill>
+                        <span className={`meta-badge ${item.passed ? "meta-badge--success" : "meta-badge--warning"}`}>
+                          {item.passed ? "通过" : "需修正"}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -468,7 +470,7 @@ export default function ProblemPage() {
                     <details className="problem-compact-details">
                       <summary>
                         <span>下一问</span>
-                        <StatusPill tone={coachPrompt ? "info" : "neutral"}>{coachPrompt ? "已生成" : "可生成"}</StatusPill>
+                        <span className={`meta-badge ${coachPrompt ? "meta-badge--info" : ""}`}>{coachPrompt ? "已生成" : "可生成"}</span>
                       </summary>
                       <div className="coach-next-question">
                         {coachPrompt ? (
@@ -533,7 +535,7 @@ export default function ProblemPage() {
           <details className="problem-compact-details">
             <summary>
               <span>作业记录</span>
-              <StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? "已同步" : "未确认"}</StatusPill>
+              <span className={`meta-badge ${trajectory ? "meta-badge--success" : ""}`}>{trajectory ? "已同步" : "未确认"}</span>
             </summary>
             {!trajectory ? (
               <EmptyState title="未确认作业身份" />
@@ -553,7 +555,7 @@ export default function ProblemPage() {
           <details className="problem-compact-details">
             <summary>
               <span>尝试记录</span>
-              <StatusPill tone="neutral">{history.length} 次</StatusPill>
+              <span className="meta-badge">{history.length} 次</span>
             </summary>
             <div className="stack">
               {history.length ? (
@@ -561,7 +563,7 @@ export default function ProblemPage() {
                   <div className="list-row" key={item.id}>
                     <div className="actions">
                       <VerdictPill verdict={item.verdict} />
-                      <StatusPill>{formatDateTime(item.submittedAt)}</StatusPill>
+                      <span className="meta-badge">{formatDateTime(item.submittedAt)}</span>
                     </div>
                     <h3>{item.analysisHeadline || verdictLabel(item.verdict)}</h3>
                     <p>{item.analysisSummary || `${item.passedTestCases || 0}/${item.totalTestCases || 0} 个测试点通过`}</p>

@@ -52,7 +52,7 @@ class ClassroomServiceCorrectionTest {
             taxonomy,
             new DiagnosisReportReader(objectMapper, taxonomy),
             new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
-            new CoachInteractionAnalyzer(coachPromptRepository),
+            new CoachInteractionAnalyzer(coachPromptRepository, new CoachAnswerQualityAnalyzer()),
             new StudentIdentityService(),
             new ClassReviewFeedbackService(classReviewFeedbackRepository, assignmentRepository, objectMapper),
             new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),

@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -21,4 +22,17 @@ public class CoachInteractionSummaryResponse {
     private String latestFeedback;
     private LocalDateTime latestAt;
     private CoachImpactResponse impact;
+    private CoachAnswerQualitySignal answerQualitySignal;
+
+    @Data
+    @Builder
+    public static class CoachAnswerQualitySignal {
+        private String qualityLevel;
+        private String qualityLabel;
+        private List<String> evidenceTypes;
+        private List<String> missingEvidence;
+        private String summary;
+        private String nextCoachMove;
+        private boolean needsTeacherAttention;
+    }
 }

@@ -44,7 +44,7 @@ class StudentAbilityProfileServiceTest {
             analysisRepository,
             problemRepository,
             new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
-            new CoachInteractionAnalyzer(coachPromptRepository),
+            new CoachInteractionAnalyzer(coachPromptRepository, new CoachAnswerQualityAnalyzer()),
             new StudentIdentityService(),
             recommendationEventRepository,
             new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)

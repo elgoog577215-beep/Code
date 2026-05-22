@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 public class CoachInteractionAnalyzer {
 
     private final CoachPromptRepository coachPromptRepository;
+    private final CoachAnswerQualityAnalyzer coachAnswerQualityAnalyzer;
 
     public Map<Long, CoachInteractionSummaryResponse> summarize(Collection<Long> submissionIds) {
         if (submissionIds == null || submissionIds.isEmpty()) {
@@ -88,6 +89,7 @@ public class CoachInteractionAnalyzer {
                 .latestAnswer(latestAnswered == null ? null : latestAnswered.getStudentAnswer())
                 .latestFeedback(latestAnswered == null ? null : latestAnswered.getCoachFeedback())
                 .latestAt(latestAnswered == null ? (latest == null ? null : latest.getCreatedAt()) : answeredAtOrCreatedAt(latestAnswered))
+                .answerQualitySignal(coachAnswerQualityAnalyzer.analyze(latestAnswered == null ? null : latestAnswered.getStudentAnswer()))
                 .build();
     }
 

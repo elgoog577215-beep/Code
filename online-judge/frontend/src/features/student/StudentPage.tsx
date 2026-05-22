@@ -3,13 +3,13 @@ import { ArrowRight, CheckCircle2, KeyRound, UserRound } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, StudentProfile, StudentTrajectory } from "../../shared/api/types";
-import { issueLabel, verdictLabel } from "../../shared/format";
+import { difficultyLabel, issueLabel, verdictLabel } from "../../shared/format";
 import { loadStudent, saveStudent } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, TextInput } from "../../shared/ui/Field";
 import { Panel } from "../../shared/ui/Panel";
-import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
+import { StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
 
 export default function StudentPage() {
   const [searchParams] = useSearchParams();
@@ -207,9 +207,9 @@ export default function StudentPage() {
                 return (
                   <article className="task-card task-card--learning student-task-card" key={task.problemId}>
                     <div>
-                      <div className="status-box-row">
-                        <StatusPill tone="info">题目 {index + 1}</StatusPill>
-                        <DifficultyPill difficulty={task.difficulty} />
+                      <div className="student-task-meta-line">
+                        <span>题目 {index + 1}</span>
+                        <span>{difficultyLabel(task.difficulty)}</span>
                       </div>
                       <h3>{task.title}</h3>
                     </div>
@@ -292,7 +292,7 @@ export default function StudentPage() {
                     {trajectory.tasks.map(task => (
                       <div className="list-row" key={task.problemId}>
                         <div className="actions">
-                          <DifficultyPill difficulty={task.difficulty} />
+                          <span className="meta-badge">{difficultyLabel(task.difficulty)}</span>
                           <VerdictPill verdict={task.latestVerdict} />
                         </div>
                         <h3>{task.title}</h3>

@@ -132,6 +132,7 @@ public class DiagnosisTaxonomy {
         addFine(map, "BRUTE_FORCE_LIMIT", "暴力规模瓶颈", "暴力枚举在最大规模下可能无法通过。", "适合估算循环次数并比较更优策略。", "算法复杂度", Assignment.HintPolicy.L2);
         addFine(map, "GREEDY_ASSUMPTION", "贪心依据不足", "当前贪心选择可能缺少可证明依据。", "适合让学生找反例检验贪心规则。", "算法设计", Assignment.HintPolicy.L3);
         addFine(map, "DP_STATE_DESIGN", "状态定义不清", "动态规划或递推状态可能没有覆盖题目所需信息。", "适合先用自然语言定义状态含义。", "状态建模", Assignment.HintPolicy.L3);
+        addFine(map, "IN_PLACE_STATE_PROGRESS", "原地状态推进", "原地修改过程中，当前位置的新值或新状态可能还没有继续处理到稳定。", "适合让学生跟踪一次交换或更新后，当前状态是否已经满足循环不变量。", "状态建模", Assignment.HintPolicy.L3);
         addFine(map, "SAMPLE_OVERFIT", "样例过拟合", "代码可能只覆盖样例或常规路径，没有泛化到隐藏场景。", "适合让学生构造不同于样例的最小反例。", "迁移泛化", Assignment.HintPolicy.L2);
         addFine(map, "PARTIAL_FIX_REGRESSION", "局部修复回退", "一次局部修改可能修好旧问题但引入新问题。", "适合对比两次提交差异和首个失败点变化。", "问题定位", Assignment.HintPolicy.L2);
         return map;
@@ -190,6 +191,7 @@ public class DiagnosisTaxonomy {
             case "INITIAL_STATE", "STATE_RESET" -> "VARIABLE_INITIALIZATION";
             case "OVER_SIMULATION", "BRUTE_FORCE_LIMIT" -> "TIME_COMPLEXITY";
             case "GREEDY_ASSUMPTION", "DP_STATE_DESIGN" -> "ALGORITHM_STRATEGY";
+            case "IN_PLACE_STATE_PROGRESS" -> "STATE_TRANSITION";
             case "SAMPLE_OVERFIT" -> "SAMPLE_ONLY";
             case "PARTIAL_FIX_REGRESSION" -> "NEEDS_MORE_EVIDENCE";
             default -> null;
@@ -206,7 +208,7 @@ public class DiagnosisTaxonomy {
             case "DATA_STRUCTURE_CHOICE", "SPACE_COMPLEXITY" -> "COMPARE_STRUCTURES";
             case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION" -> "COUNT_COMPLEXITY";
             case "VARIABLE_INITIALIZATION", "INITIAL_STATE", "STATE_RESET" -> "TRACE_STATE";
-            case "STATE_TRANSITION", "DP_STATE_DESIGN" -> "DEFINE_STATE";
+            case "STATE_TRANSITION", "DP_STATE_DESIGN", "IN_PLACE_STATE_PROGRESS" -> "DEFINE_STATE";
             case "RECURSION_EXIT" -> "DRAW_RECURSION_TREE";
             case "CODE_READABILITY", "CODE_QUALITY", "GENERALIZATION_CHECK" -> "EXPLAIN_GENERALITY";
             case "SAMPLE_ONLY", "SAMPLE_OVERFIT" -> "BUILD_COUNTEREXAMPLE";

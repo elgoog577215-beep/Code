@@ -639,6 +639,15 @@ a {
   gap: 0.7rem;
 }
 
+.student-task-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem 0.55rem;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
 .student-task-card {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -1198,50 +1207,6 @@ a {
   padding: 1.15rem;
 }
 
-.teacher-ai-source-segments {
-  display: grid;
-  gap: 0.5rem;
-  padding-top: 0.7rem;
-  border-top: 1px solid var(--line);
-}
-
-.teacher-ai-source-segments > span {
-  color: var(--ink-soft);
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-
-.teacher-ai-source-segments > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  align-items: center;
-  padding: 0.58rem 0.64rem;
-  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-}
-
-.teacher-ai-source-segments strong,
-.teacher-ai-source-segments small,
-.teacher-ai-source-segments span {
-  display: block;
-  min-width: 0;
-}
-
-.teacher-ai-source-segments small,
-.teacher-ai-source-segments span {
-  color: var(--ink-soft);
-  font-size: 0.76rem;
-}
-
-.teacher-ai-source-segments > div > div:last-child {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.35rem 0.55rem;
-}
-
 .teacher-block {
   min-width: 0;
   display: grid;
@@ -1307,11 +1272,50 @@ a {
 }
 
 .teacher-student-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.38rem;
   margin-top: 0.42rem;
 }
 
 .teacher-status-row {
   margin-top: 0.38rem;
+}
+
+.teacher-row-meta-text,
+.teacher-assignment-meta-line,
+.teacher-stage__meta {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.38;
+}
+
+.teacher-row-meta-text {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+}
+
+.teacher-assignment-meta-line,
+.teacher-stage__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem 0.55rem;
+}
+
+.teacher-assignment-meta-line span,
+.teacher-stage__meta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.teacher-assignment-code {
+  justify-self: end;
+  color: var(--blue);
+  font-size: 0.82rem;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .teacher-note {
@@ -2482,6 +2486,55 @@ a {
   border-color: color-mix(in srgb, var(--blue) 26%, var(--line));
 }
 
+.meta-badge,
+.code-label {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 28px;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.22rem 0.52rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.meta-badge--success {
+  color: color-mix(in srgb, var(--success) 76%, var(--ink));
+  background: color-mix(in srgb, var(--success-soft) 56%, var(--surface));
+  border-color: color-mix(in srgb, var(--success) 22%, var(--line));
+}
+
+.meta-badge--warning {
+  color: color-mix(in srgb, var(--warning) 80%, var(--ink));
+  background: color-mix(in srgb, var(--warning-soft) 58%, var(--surface));
+  border-color: color-mix(in srgb, var(--warning) 24%, var(--line));
+}
+
+.meta-badge--danger {
+  color: color-mix(in srgb, var(--danger) 80%, var(--ink));
+  background: color-mix(in srgb, var(--danger-soft) 58%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 24%, var(--line));
+}
+
+.meta-badge--info {
+  color: color-mix(in srgb, var(--blue) 78%, var(--ink));
+  background: color-mix(in srgb, var(--blue-soft) 58%, var(--surface));
+  border-color: color-mix(in srgb, var(--blue) 22%, var(--line));
+}
+
+.code-label {
+  margin-bottom: 0.42rem;
+  color: var(--ink);
+  background: var(--surface);
+}
+
 .empty-state {
   display: grid;
   gap: 0.36rem;
@@ -3204,19 +3257,20 @@ button.list-row:hover {
 .overview-action-plan {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.72rem;
 }
 
 .overview-action-card {
   display: grid;
-  gap: 0.3rem;
-  min-height: 92px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.42rem 0.75rem;
+  min-height: 64px;
   align-content: center;
-  padding: 0.9rem 1rem;
+  align-items: center;
+  padding: 0.74rem 0.82rem;
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: var(--shadow-soft);
 }
 
 .overview-action-card span {
@@ -3228,6 +3282,7 @@ button.list-row:hover {
 .overview-action-card strong {
   line-height: 1.48;
   overflow-wrap: break-word;
+  text-align: right;
 }
 
 .overview-insight-item strong,
@@ -3275,6 +3330,12 @@ button.list-row:hover {
 .overview-insight-item h3 {
   margin: 0.42rem 0 0.24rem;
   font-size: 1rem;
+}
+
+.overview-insight-meta {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 850;
 }
 
 .overview-insight-item p {
@@ -3371,7 +3432,6 @@ tr:last-child td {
 :root[data-theme="dark"] .teacher-attention-evidence > div,
 :root[data-theme="dark"] .teacher-class-ability > div,
 :root[data-theme="dark"] .teacher-class-review article,
-:root[data-theme="dark"] .teacher-ai-source-segments > div,
 :root[data-theme="dark"] .teacher-next-card,
 :root[data-theme="dark"] .teacher-assignment-item,
 :root[data-theme="dark"] .management-status-item,
@@ -3392,6 +3452,37 @@ tr:last-child td {
   background: var(--surface-strong);
   border-color: var(--line);
   box-shadow: none;
+}
+
+:root[data-theme="dark"] .meta-badge,
+:root[data-theme="dark"] .code-label {
+  color: var(--ink-soft);
+  background: #0f171a;
+  border-color: var(--line);
+}
+
+:root[data-theme="dark"] .meta-badge--success {
+  color: #9fd7b1;
+  background: color-mix(in srgb, var(--success) 16%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--success) 30%, var(--line));
+}
+
+:root[data-theme="dark"] .meta-badge--warning {
+  color: #efc287;
+  background: color-mix(in srgb, var(--warning) 16%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--line));
+}
+
+:root[data-theme="dark"] .meta-badge--danger {
+  color: #ee999d;
+  background: color-mix(in srgb, var(--danger) 16%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+}
+
+:root[data-theme="dark"] .meta-badge--info {
+  color: #9fc5ff;
+  background: color-mix(in srgb, var(--blue) 16%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--blue) 30%, var(--line));
 }
 
 :root[data-theme="dark"] .metric {
@@ -3976,6 +4067,7 @@ tr:last-child td {
   }
 
   .metric-grid,
+  .class-overview-page > .metric-grid,
   .form-grid,
   .knowledge-grid,
   .two-column,
@@ -4002,6 +4094,10 @@ tr:last-child td {
   .overview-insight-grid,
   .editor-workbench {
     grid-template-columns: 1fr;
+  }
+
+  .class-overview-page > .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .role-entry-card > .actions,
@@ -4073,6 +4169,70 @@ tr:last-child td {
 
   .overview-insight-item {
     align-items: start;
+  }
+
+  .overview-compact-details > .table-wrap {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .overview-compact-details table,
+  .overview-compact-details thead,
+  .overview-compact-details tbody,
+  .overview-compact-details tr,
+  .overview-compact-details th,
+  .overview-compact-details td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .overview-compact-details table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .overview-compact-details thead {
+    display: none;
+  }
+
+  .overview-compact-details tbody {
+    display: grid;
+    gap: 0.58rem;
+  }
+
+  .overview-compact-details tr {
+    padding: 0.72rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+  }
+
+  .overview-compact-details td {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.34rem 0;
+    border-bottom: 0;
+  }
+
+  .overview-compact-details td::before {
+    content: attr(data-label);
+    color: var(--ink-soft);
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .overview-compact-details td:first-child {
+    grid-template-columns: 1fr;
+    padding-top: 0;
+    font-weight: 900;
+  }
+
+  .overview-compact-details td:first-child::before {
+    display: none;
   }
 
   .top-nav__link span,
@@ -4823,18 +4983,19 @@ tr:last-child td {
     margin-block: 0.24rem;
   }
 
-  .teacher-assignment-item .status-box-row {
-    gap: 0.26rem;
-  }
-
   .teacher-assignment-item .status-pill {
     min-height: 24px;
     padding: 0.16rem 0.4rem;
     font-size: 0.7rem;
   }
 
-  .teacher-assignment-item .actions .status-pill:nth-child(2) {
-    display: none;
+  .teacher-assignment-item .meta-badge,
+  .teacher-assignment-code {
+    font-size: 0.7rem;
+  }
+
+  .teacher-assignment-code {
+    justify-self: start;
   }
 
   .teacher-stage__head {
@@ -4856,7 +5017,7 @@ tr:last-child td {
     margin-top: 0.42rem;
   }
 
-  .teacher-stage__meta .status-pill:nth-child(3) {
+  .teacher-stage__meta span:nth-child(3) {
     display: none;
   }
 

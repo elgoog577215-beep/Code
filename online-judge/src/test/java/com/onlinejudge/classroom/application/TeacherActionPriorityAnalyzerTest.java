@@ -1,6 +1,7 @@
 package com.onlinejudge.classroom.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse;
 import com.onlinejudge.classroom.dto.StudentTrajectoryResponse;
 import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
@@ -37,6 +38,11 @@ class TeacherActionPriorityAnalyzerTest {
                         .build()),
                 Map.of(11L, StudentTrajectoryResponse.LearningActionEvidence.builder()
                         .executionStatus("CONTRADICTED")
+                        .build()),
+                Map.of(12L, CoachInteractionSummaryResponse.builder()
+                        .answerQualitySignal(CoachInteractionSummaryResponse.CoachAnswerQualitySignal.builder()
+                                .qualityLevel("DIRECTION_ONLY")
+                                .build())
                         .build())
         );
 
@@ -48,8 +54,9 @@ class TeacherActionPriorityAnalyzerTest {
         assertThat(signal.getUnexecutedActionCount()).isEqualTo(1);
         assertThat(signal.getUnresolvedAfterInterventionCount()).isEqualTo(1);
         assertThat(signal.getLowConfidenceCount()).isEqualTo(1);
+        assertThat(signal.getLowQualityCoachAnswerCount()).isEqualTo(1);
         assertThat(signal.getLabel()).isEqualTo("优先课堂干预");
-        assertThat(signal.getReason()).contains("学习动作未被观察到有效执行", "干预后仍未解决");
+        assertThat(signal.getReason()).contains("学习动作未被观察到有效执行", "干预后仍未解决", "coach 回答缺少可验证证据");
     }
 
     private Submission submission(Long id, Long studentProfileId) {

@@ -53,7 +53,13 @@ class ModelDiagnosisEvalTest {
                     .isIn("LOW", "MEDIUM", "UNKNOWN");
             assertThat(result.traceSummary())
                     .as(evalCase.name() + " trace")
-                    .contains("diagnostic-agent:v1");
+                    .contains("diagnostic-agent-v2");
+            assertThat(result.analysis().getAiInvocation().isFallbackUsed())
+                    .as(evalCase.name() + " live model should be used")
+                    .isFalse();
+            assertThat(result.traceSummary())
+                    .as(evalCase.name() + " trace")
+                    .contains("model=completed");
         }
     }
 
@@ -84,8 +90,67 @@ class ModelDiagnosisEvalTest {
                     assertThat(fixture.expectedIssueTags()).contains(fixture.teacherCorrection().correctedIssueTag());
                     assertThat(fixture.expectedFineTags()).contains(fixture.teacherCorrection().correctedFineGrainedTag());
                     assertThat(fixture.toSubmission().getSourceCode()).isNotBlank();
+                    assertThat(fixture.toCaseResults()).as(fixture.name() + " case results").isNotEmpty();
+                    assertThat(fixture.mustMention()).as(fixture.name() + " must mention").isNotEmpty();
+                    assertThat(fixture.mustNotMention()).as(fixture.name() + " must not mention")
+                            .contains("完整代码");
+                    assertThat(fixture.sourceMaterial()).as(fixture.name() + " source material").isNotNull();
+                    assertThat(fixture.sourceMaterial().artifacts()).as(fixture.name() + " source artifacts").isNotEmpty();
+                    assertThat(fixture.sourceMaterial().anonymizationNote()).as(fixture.name() + " anonymization note")
+                            .contains("身份");
+                    assertThat(fixture.quality()).as(fixture.name() + " quality").isNotNull();
+                    assertThat(fixture.quality().bugPattern()).as(fixture.name() + " bug pattern").isNotBlank();
+                    assertThat(fixture.quality().misconception()).as(fixture.name() + " misconception").isNotBlank();
+                    assertThat(fixture.quality().expectedStudentMove()).as(fixture.name() + " expected student move").isNotBlank();
+                    assertThat(fixture.quality().evalPurpose()).as(fixture.name() + " eval purpose").isNotBlank();
                     assertThat(fixture.toBaseline().getEvidenceRefs()).contains("teacher_correction:" + fixture.correctionId());
                 });
+    }
+
+    @Test
+    void teacherCorrectionFixturesConstrainLocalDiagnosticAgent() throws IOException {
+        DiagnosticAgentService service = newOfflineService();
+        List<TeacherCorrectionEvalFixtureLoader.Fixture> fixtures =
+                new TeacherCorrectionEvalFixtureLoader(objectMapper).loadDefault();
+
+        for (TeacherCorrectionEvalFixtureLoader.Fixture fixture : fixtures) {
+            DiagnosticAgentService.AgentResult result = service.diagnose(
+                    fixture.toProblem(),
+                    fixture.toSubmission(),
+                    fixture.toCaseResults(),
+                    fixture.toBaseline(),
+                    Assignment.HintPolicy.L2
+            );
+            SubmissionAnalysisResponse analysis = result.analysis();
+            String combinedText = String.join("\n",
+                    safe(analysis.getSummary()),
+                    safe(analysis.getStudentHint()),
+                    analysis.getStudentHintPlan() == null ? "" : safe(analysis.getStudentHintPlan().getProblemType()),
+                    analysis.getStudentHintPlan() == null ? "" : safe(analysis.getStudentHintPlan().getEvidenceAnchor()),
+                    analysis.getStudentHintPlan() == null ? "" : safe(analysis.getStudentHintPlan().getNextAction()),
+                    analysis.getStudentHintPlan() == null ? "" : safe(analysis.getStudentHintPlan().getCoachQuestion()),
+                    analysis.getLearningInterventionPlan() == null ? "" : safe(analysis.getLearningInterventionPlan().getStudentTask())
+            );
+
+            assertThat(analysis.getIssueTags())
+                    .as(fixture.name() + " issue tags")
+                    .containsAnyElementsOf(fixture.expectedIssueTags());
+            assertThat(analysis.getFineGrainedTags())
+                    .as(fixture.name() + " fine tags")
+                    .containsAnyElementsOf(fixture.expectedFineTags());
+            assertThat(analysis.getEvidenceRefs())
+                    .as(fixture.name() + " evidence refs")
+                    .contains("teacher_correction:" + fixture.correctionId());
+            fixture.mustMention().forEach(phrase -> assertThat(combinedText)
+                    .as(fixture.name() + " mentions " + phrase)
+                    .contains(phrase));
+            fixture.mustNotMention().forEach(phrase -> assertThat(combinedText)
+                    .as(fixture.name() + " avoids " + phrase)
+                    .doesNotContain(phrase));
+            assertThat(analysis.getAnswerLeakRisk())
+                    .as(fixture.name() + " answer leak risk")
+                    .isIn("LOW", "MEDIUM", "UNKNOWN");
+        }
     }
 
     @Test
@@ -112,12 +177,23 @@ class ModelDiagnosisEvalTest {
         ReflectionTestUtils.setField(aiReportService, "apiKey", apiKey);
         ReflectionTestUtils.setField(aiReportService, "baseUrl", valueOrDefault(System.getenv("AI_EVAL_BASE_URL"), "https://api-inference.modelscope.cn/v1"));
         ReflectionTestUtils.setField(aiReportService, "model", valueOrDefault(System.getenv("AI_EVAL_MODEL"), "MiniMax/MiniMax-M2.7"));
-        ReflectionTestUtils.setField(aiReportService, "timeoutSeconds", 35L);
+        ReflectionTestUtils.setField(aiReportService, "timeoutSeconds", longValueOrDefault(System.getenv("AI_EVAL_TIMEOUT_SECONDS"), 35L));
         return new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
                 new RuleSignalAnalyzer(),
                 aiReportService,
                 new HintSafetyService(null, new ObjectMapper(), taxonomy),
+                taxonomy
+        );
+    }
+
+    private DiagnosticAgentService newOfflineService() {
+        DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
+        return new DiagnosticAgentService(
+                new DiagnosisEvidencePackageBuilder(),
+                new RuleSignalAnalyzer(),
+                new PassThroughAiReportService(),
+                new HintSafetyService(null, objectMapper, taxonomy),
                 taxonomy
         );
     }
@@ -247,6 +323,17 @@ class ModelDiagnosisEvalTest {
         return value == null || value.isBlank() ? fallback : value;
     }
 
+    private long longValueOrDefault(String value, long fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
     private List<EvalCase> allEvalCases() {
         List<EvalCase> cases = new ArrayList<>();
         cases.add(offByOneCase());
@@ -264,7 +351,7 @@ class ModelDiagnosisEvalTest {
                             fixture.name(),
                             fixture.toProblem(),
                             fixture.toSubmission(),
-                            List.of(),
+                            fixture.toCaseResults(),
                             fixture.toBaseline(),
                             fixture.expectedIssueTags(),
                             fixture.expectedFineTags()
@@ -282,5 +369,24 @@ class ModelDiagnosisEvalTest {
                             SubmissionAnalysisResponse baseline,
                             List<String> expectedIssueTags,
                             List<String> expectedFineTags) {
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static class PassThroughAiReportService extends AiReportService {
+        PassThroughAiReportService() {
+            super(new ObjectMapper(), new AiCodeAssistSupport());
+        }
+
+        @Override
+        public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
+                                                                    Submission submission,
+                                                                    SubmissionAnalysisResponse fallback,
+                                                                    DiagnosisEvidencePackage evidencePackage,
+                                                                    RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+            return fallback;
+        }
     }
 }

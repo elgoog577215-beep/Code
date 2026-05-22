@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../shared/api/client";
 import type { LeaderboardEntry } from "../../shared/api/types";
-import { percent } from "../../shared/format";
+import { difficultyLabel, percent } from "../../shared/format";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Metric } from "../../shared/ui/Metric";
 import { Panel } from "../../shared/ui/Panel";
-import { DifficultyPill, StatusPill } from "../../shared/ui/StatusPill";
+import { StatusPill } from "../../shared/ui/StatusPill";
 
 export default function ClassOverviewPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -80,13 +80,13 @@ export default function ClassOverviewPage() {
       </section>
 
       <section className="overview-insight-grid" aria-label="班级数据">
-        <Panel title="需讲评" action={<StatusPill tone="warning">{reviewEntries.length} 个</StatusPill>}>
+        <Panel title="需讲评" action={<span className="meta-badge meta-badge--warning">{reviewEntries.length} 个</span>}>
           <InsightList entries={reviewEntries} emptyTitle="暂无需讲评任务" tone="warning" />
         </Panel>
-        <Panel title="正常推进" action={<StatusPill tone="success">{stableEntries.length} 个</StatusPill>}>
+        <Panel title="正常推进" action={<span className="meta-badge meta-badge--success">{stableEntries.length} 个</span>}>
           <InsightList entries={stableEntries} emptyTitle="还没有稳定任务" tone="success" />
         </Panel>
-        <Panel title="提交较多" action={<StatusPill tone="info">{activeEntries.length} 个</StatusPill>}>
+        <Panel title="提交较多" action={<span className="meta-badge meta-badge--info">{activeEntries.length} 个</span>}>
           <InsightList entries={activeEntries} emptyTitle="暂无提交数据" tone="info" />
         </Panel>
       </section>
@@ -114,14 +114,14 @@ export default function ClassOverviewPage() {
               <tbody>
                 {entries.map(item => (
                   <tr key={item.problemId}>
-                    <td>{item.problemTitle}</td>
-                    <td>
-                      <DifficultyPill difficulty={item.difficulty} />
+                    <td data-label="学习任务">{item.problemTitle}</td>
+                    <td data-label="难度">
+                      <span className="meta-badge">{difficultyLabel(item.difficulty)}</span>
                     </td>
-                    <td>{item.totalSubmissions}</td>
-                    <td>{item.acceptedSubmissions}</td>
-                    <td>{percent(item.acceptanceRate || 0)}</td>
-                    <td>
+                    <td data-label="提交">{item.totalSubmissions}</td>
+                    <td data-label="通过">{item.acceptedSubmissions}</td>
+                    <td data-label="通过率">{percent(item.acceptanceRate || 0)}</td>
+                    <td data-label="状态">
                       <StatusPill tone={(item.acceptanceRate || 0) < 40 ? "warning" : "success"}>
                         {(item.acceptanceRate || 0) < 40 ? "需讲评" : "正常"}
                       </StatusPill>
@@ -146,7 +146,7 @@ function InsightList({ entries, emptyTitle, tone }: { entries: LeaderboardEntry[
       {entries.map(item => (
         <div className="overview-insight-item" key={`${tone}-${item.problemId}`}>
           <div>
-            <DifficultyPill difficulty={item.difficulty} />
+            <span className="overview-insight-meta">{difficultyLabel(item.difficulty)}</span>
             <h3>{item.problemTitle}</h3>
             <p>{item.totalSubmissions} 次提交 · {item.acceptedSubmissions} 次通过</p>
           </div>
