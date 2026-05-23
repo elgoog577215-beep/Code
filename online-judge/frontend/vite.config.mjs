@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 
 const yingqiBanner =
   "/*! owner=yingqi; signature=00f40662ae433dacddf0157fca60a279bf71a54fbf04ee7d50d3190752554b5d; claim=yingqi|wenzhong-ai-learning-platform|nboj|2026-05-19 */";
+const backendTarget = process.env.VITE_API_TARGET || process.env.API_TARGET || "http://localhost:8081";
 
 export default defineConfig({
   base: "/app/",
@@ -28,8 +29,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://localhost:8081",
-      "/h2-console": "http://localhost:8081"
+      "/api": backendTarget,
+      "/h2-console": backendTarget
     }
   },
   build: {

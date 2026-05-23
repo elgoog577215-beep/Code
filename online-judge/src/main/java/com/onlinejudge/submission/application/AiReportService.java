@@ -8,6 +8,7 @@ import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -54,6 +55,7 @@ public class AiReportService {
         this(objectMapper, aiCodeAssistSupport, null);
     }
 
+    @Autowired
     public AiReportService(ObjectMapper objectMapper,
                            AiCodeAssistSupport aiCodeAssistSupport,
                            ExternalModelAgentRuntime externalModelAgentRuntime) {
