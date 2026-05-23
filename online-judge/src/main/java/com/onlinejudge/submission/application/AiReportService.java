@@ -337,7 +337,7 @@ public class AiReportService {
                 Thread.currentThread().interrupt();
             }
             if (shouldUseExternalRuntime(evidencePackage, ruleSignals)) {
-                return runtimeFallback(fallback, stageFailureFromException(exception));
+                return runtimeFallback(fallback, stageFailureFromException("SUBMISSION_ANALYSIS", exception));
             }
             return fallback;
         }
@@ -364,9 +364,14 @@ public class AiReportService {
                 fallback
         );
 
-        ExternalModelStagePayloads.DiagnosisJudgeOutput decision = callDiagnosisJudgeStage(runtimePlan);
+        ExternalModelStagePayloads.DiagnosisJudgeOutput decision;
+        try {
+            decision = callDiagnosisJudgeStage(runtimePlan);
+        } catch (Exception exception) {
+            return runtimeFallback(fallback, stageFailureFromException("DIAGNOSIS_JUDGE", exception));
+        }
         ExternalModelStagePayloads.StageValidationResult decisionValidation =
-                externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan);
+                withStage("DIAGNOSIS_JUDGE", externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan));
         if (!decisionValidation.isValid()) {
             log.warn("External model diagnosis stage failed validation. submissionId={}, reason={}, message={}",
                     submission.getId(),
@@ -375,9 +380,14 @@ public class AiReportService {
             return runtimeFallback(fallback, decisionValidation);
         }
 
-        ExternalModelStagePayloads.TeachingHintOutput teachingHint = callTeachingHintStage(runtimePlan, decision);
+        ExternalModelStagePayloads.TeachingHintOutput teachingHint;
+        try {
+            teachingHint = callTeachingHintStage(runtimePlan, decision);
+        } catch (Exception exception) {
+            return runtimeFallback(fallback, stageFailureFromException("TEACHING_HINT", exception));
+        }
         ExternalModelStagePayloads.StageValidationResult teachingValidation =
-                externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan);
+                withStage("TEACHING_HINT", externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan));
         if (!teachingValidation.isValid()) {
             log.warn("External model teaching stage failed validation. submissionId={}, reason={}, message={}",
                     submission.getId(),
@@ -526,17 +536,35 @@ public class AiReportService {
         String reason = validationResult == null || validationResult.getFailureReason() == null
                 ? ModelStageFailureReason.UNKNOWN_ERROR.name()
                 : validationResult.getFailureReason().name();
+        String stage = validationResult == null || validationResult.getStage() == null || validationResult.getStage().isBlank()
+                ? "UNKNOWN_STAGE"
+                : validationResult.getStage();
         String message = validationResult == null ? "" : cleanupAiText(validationResult.getMessage());
         fallback.setAiInvocation(modelInvocation(fallback, "MODEL_RUNTIME_FALLBACK", true, RUNTIME_PROMPT_VERSION));
         fallback.setUncertainty(defaultIfBlank(
-                "外部模型阶段化诊断未通过校验，已使用本地规则兜底。失败原因：" + reason
+                "外部模型阶段化诊断未通过校验，已使用本地规则兜底。失败阶段：" + stage + "；失败原因：" + reason
                         + (message.isBlank() ? "" : "，" + message),
                 fallback.getUncertainty()
         ));
         return fallback;
     }
 
-    private ExternalModelStagePayloads.StageValidationResult stageFailureFromException(Exception exception) {
+    private ExternalModelStagePayloads.StageValidationResult withStage(String stage,
+                                                                       ExternalModelStagePayloads.StageValidationResult result) {
+        if (result == null) {
+            return ExternalModelStagePayloads.StageValidationResult.builder()
+                    .valid(false)
+                    .stage(stage)
+                    .failureReason(ModelStageFailureReason.UNKNOWN_ERROR)
+                    .message("")
+                    .build();
+        }
+        result.setStage(stage);
+        return result;
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult stageFailureFromException(String stage,
+                                                                                      Exception exception) {
         String text = (exception == null ? "" : exception.getClass().getName() + " " + exception.getMessage()).toLowerCase();
         ModelStageFailureReason reason;
         if (text.contains("timeout") || exception instanceof InterruptedException) {
@@ -556,6 +584,7 @@ public class AiReportService {
         }
         return ExternalModelStagePayloads.StageValidationResult.builder()
                 .valid(false)
+                .stage(stage)
                 .failureReason(reason)
                 .message(exception == null ? "" : exception.getMessage())
                 .build();

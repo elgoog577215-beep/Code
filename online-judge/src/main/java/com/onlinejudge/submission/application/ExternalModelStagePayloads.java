@@ -45,6 +45,7 @@ public final class ExternalModelStagePayloads {
     @AllArgsConstructor
     public static class StageValidationResult {
         private boolean valid;
+        private String stage;
         private ModelStageFailureReason failureReason;
         private String message;
     }

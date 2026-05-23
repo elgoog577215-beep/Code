@@ -105,11 +105,13 @@ public class CoachAgentService {
                 log.warn("Coach model draft rejected by safety gate. answerLeakRisk={}, questionPreview={}",
                         draft.getAnswerLeakRisk(),
                         preview(draft.getQuestion()));
+                safeFallback.setFailureReason("SAFETY_REJECTED");
                 return safeFallback;
             }
             return draft;
         } catch (Exception exception) {
             log.warn("Coach model generation failed. fallback=rule question. reason={}", exception.getMessage());
+            safeFallback.setFailureReason(classifyFailure(exception));
             return safeFallback;
         }
     }
@@ -189,7 +191,7 @@ public class CoachAgentService {
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("AI API returned status " + response.statusCode());
+            throw new IOException("AI API returned status " + response.statusCode() + ": " + response.body());
         }
         String content = stream
                 ? extractStreamingChatMessageContent(response.body())
@@ -342,6 +344,26 @@ public class CoachAgentService {
         };
     }
 
+    private String classifyFailure(Exception exception) {
+        String text = (exception == null ? "" : exception.getClass().getName() + " " + exception.getMessage()).toLowerCase(Locale.ROOT);
+        if (text.contains("timeout")) {
+            return "TIMEOUT";
+        }
+        if (text.contains("insufficient_quota") || text.contains("exceeded your current quota")) {
+            return "INSUFFICIENT_QUOTA";
+        }
+        if (text.contains("429") || text.contains("rate")) {
+            return "RATE_LIMITED";
+        }
+        if (text.contains("has no provider supported") || text.contains("model unsupported")) {
+            return "MODEL_UNSUPPORTED";
+        }
+        if (text.contains("json")) {
+            return "JSON_INVALID";
+        }
+        return "API_ERROR";
+    }
+
     private boolean canCallAi() {
         return enabled && apiKey != null && !apiKey.isBlank();
     }
@@ -376,6 +398,7 @@ public class CoachAgentService {
         private Double confidence;
         private String answerLeakRisk;
         private String source;
+        private String failureReason;
 
         public static CoachDraft fallback(String question) {
             return CoachDraft.builder()
@@ -385,6 +408,7 @@ public class CoachAgentService {
                     .confidence(1.0)
                     .answerLeakRisk("LOW")
                     .source("RULE")
+                    .failureReason("")
                     .build();
         }
     }

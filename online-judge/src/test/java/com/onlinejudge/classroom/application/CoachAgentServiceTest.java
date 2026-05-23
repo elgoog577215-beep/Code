@@ -133,6 +133,7 @@ class CoachAgentServiceTest {
 
         assertThat(draft.getSource()).isEqualTo("RULE");
         assertThat(draft.getQuestion()).isEqualTo("规则问题");
+        assertThat(draft.getFailureReason()).isEqualTo("SAFETY_REJECTED");
     }
 
     @Test
@@ -153,6 +154,29 @@ class CoachAgentServiceTest {
 
         assertThat(draft.getSource()).isEqualTo("RULE");
         assertThat(draft.getQuestion()).isEqualTo("规则追问");
+    }
+
+    @Test
+    void fallbackKeepsModelFailureReasonForEvalReports() {
+        StubCoachAgentService service = new StubCoachAgentService(
+                objectMapper,
+                taxonomy,
+                new java.io.IOException("AI API returned status 429: {\"error\":{\"code\":\"insufficient_quota\"}}")
+        );
+        enableAi(service);
+
+        CoachAgentService.CoachDraft draft = service.generateInitialQuestion(
+                submission(),
+                analysis(),
+                "OFF_BY_ONE",
+                Assignment.HintPolicy.L2,
+                "上下文",
+                List.of("submission:11"),
+                CoachAgentService.CoachDraft.fallback("规则追问")
+        );
+
+        assertThat(draft.getSource()).isEqualTo("RULE");
+        assertThat(draft.getFailureReason()).isEqualTo("INSUFFICIENT_QUOTA");
     }
 
     @Test
@@ -270,14 +294,25 @@ class CoachAgentServiceTest {
 
     private static class StubCoachAgentService extends CoachAgentService {
         private final String response;
+        private final IOException exception;
 
         private StubCoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy taxonomy, String response) {
             super(objectMapper, taxonomy);
             this.response = response;
+            this.exception = null;
+        }
+
+        private StubCoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy taxonomy, IOException exception) {
+            super(objectMapper, taxonomy);
+            this.response = "";
+            this.exception = exception;
         }
 
         @Override
         protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
+            if (exception != null) {
+                throw exception;
+            }
             return response;
         }
     }

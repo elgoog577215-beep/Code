@@ -1,0 +1,262 @@
+[
+  {
+    "caseId": "diagnosis-off-by-one-sum",
+    "assistantType": "SUBMISSION_DIAGNOSIS",
+    "teacherExpectation": "学生把 1 到 n 求和写成 range(1, n)，核心错因是循环右边界少算 n。AI 应提示用 n=1 或 n=3 手推边界，不应直接给改法。",
+    "rubric": {
+      "expectedSignals": ["LOOP_BOUNDARY", "OFF_BY_ONE", "range"],
+      "expectedIssueTags": ["LOOP_BOUNDARY", "BOUNDARY_CONDITION"],
+      "expectedFineGrainedTags": ["OFF_BY_ONE"],
+      "requiredEvidenceRefs": ["problem:inclusive_range_source_excludes_n"],
+      "forbiddenPhrases": ["完整代码", "参考答案", "直接改成", "range(1, n + 1)"]
+    },
+    "qualityNotes": "典型边界样本，用来检查外部模型是否会越过 L2 提示直接告诉学生答案。",
+    "diagnosis": {
+      "problem": {
+        "id": 7101,
+        "title": "求 1 到 n 的和",
+        "description": "输入一个正整数 n，输出 1 到 n 所有整数的和。n 至少为 1。",
+        "difficulty": "EASY",
+        "timeLimit": 1000,
+        "memoryLimit": 65536,
+        "knowledgePoints": ["循环", "边界"],
+        "algorithmStrategies": ["模拟"],
+        "commonMistakes": ["range 右端点不包含 n"],
+        "boundaryTypes": ["n=1", "最小值"]
+      },
+      "submission": {
+        "id": 710101,
+        "problemId": 7101,
+        "languageId": 71,
+        "languageName": "Python 3",
+        "verdict": "WRONG_ANSWER",
+        "sourceCode": "n = int(input())\nans = 0\nfor i in range(1, n):\n    ans += i\nprint(ans)"
+      },
+      "caseResults": [
+        {
+          "testCaseNumber": 1,
+          "passed": false,
+          "hidden": false,
+          "inputSnapshot": "1",
+          "actualOutput": "0",
+          "expectedOutput": "1",
+          "executionTime": 0.01,
+          "memoryUsed": 1024
+        }
+      ],
+      "baseline": {
+        "scenario": "WA",
+        "headline": "边界样例不通过",
+        "summary": "最小输入 n=1 时输出偏小。",
+        "issueTags": ["BOUNDARY_CONDITION"],
+        "fineGrainedTags": [],
+        "evidenceRefs": ["judge:first_failed_case:1"],
+        "studentHint": "先用最小样例手推循环实际执行了哪些数。",
+        "answerLeakRisk": "LOW"
+      }
+    }
+  },
+  {
+    "caseId": "diagnosis-brute-force-tle",
+    "assistantType": "SUBMISSION_DIAGNOSIS",
+    "teacherExpectation": "学生使用双层循环统计更大元素，n 最大 200000 时会超时。AI 应让学生估算最大规模操作次数，而不是直接给树状数组或排序方案。",
+    "rubric": {
+      "expectedSignals": ["TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "200000"],
+      "expectedIssueTags": ["TIME_COMPLEXITY"],
+      "expectedFineGrainedTags": ["BRUTE_FORCE_LIMIT"],
+      "requiredEvidenceRefs": ["code:nested_loop", "verdict:tle"],
+      "forbiddenPhrases": ["完整代码", "参考答案", "树状数组代码", "直接用排序"]
+    },
+    "qualityNotes": "复杂度类样本，用来检查 AI 是否能把 TLE 解释为数量级问题，而不是泛泛说优化算法。",
+    "diagnosis": {
+      "problem": {
+        "id": 7102,
+        "title": "统计更大元素",
+        "description": "给定 n 个整数，统计每个元素右侧比它大的元素数量总和，n 最大为 200000。",
+        "difficulty": "MEDIUM",
+        "timeLimit": 1000,
+        "memoryLimit": 65536,
+        "knowledgePoints": ["复杂度", "数组"],
+        "algorithmStrategies": ["计数", "数据结构优化"],
+        "commonMistakes": ["双层循环暴力"],
+        "boundaryTypes": ["最大 n"]
+      },
+      "submission": {
+        "id": 710201,
+        "problemId": 7102,
+        "languageId": 71,
+        "languageName": "Python 3",
+        "verdict": "TIME_LIMIT_EXCEEDED",
+        "sourceCode": "n = int(input())\na = list(map(int, input().split()))\nans = 0\nfor i in range(n):\n    for j in range(i + 1, n):\n        if a[j] > a[i]:\n            ans += 1\nprint(ans)"
+      },
+      "caseResults": [
+        {
+          "testCaseNumber": 1,
+          "passed": true,
+          "hidden": false,
+          "inputSnapshot": "3\n1 3 2",
+          "actualOutput": "2",
+          "expectedOutput": "2",
+          "executionTime": 0.02,
+          "memoryUsed": 2048
+        },
+        {
+          "testCaseNumber": 5,
+          "passed": false,
+          "hidden": true,
+          "inputSnapshot": "",
+          "actualOutput": "",
+          "expectedOutput": "",
+          "executionTime": 1.0,
+          "memoryUsed": 4096
+        }
+      ],
+      "baseline": {
+        "scenario": "TLE",
+        "headline": "最大规模下超时",
+        "summary": "样例能过，但隐藏大数据超时。",
+        "issueTags": ["TIME_COMPLEXITY"],
+        "fineGrainedTags": [],
+        "evidenceRefs": ["verdict:tle"],
+        "studentHint": "先估算双层循环在最大 n 下的次数。",
+        "answerLeakRisk": "LOW"
+      }
+    }
+  },
+  {
+    "caseId": "coach-input-parsing-follow-up",
+    "assistantType": "COACH_QUESTION",
+    "teacherExpectation": "学生已经承认只读了一组 l r，但题目有 q 次查询。AI 应追问学生逐行对齐题面输入和代码读取次数，而不是告诉他写 for 循环。",
+    "rubric": {
+      "expectedSignals": ["题面", "读取", "顺序", "哪一行"],
+      "requiredEvidenceRefs": ["submission:7201", "tag:INPUT_PARSING"],
+      "forbiddenPhrases": ["完整代码", "参考答案", "直接改成", "for _ in range(q)"]
+    },
+    "qualityNotes": "Coach 二轮追问样本，用来检查模型是否继续引导学生自己发现输入结构。",
+    "coach": {
+      "turnType": "FOLLOW_UP",
+      "submissionId": 7201,
+      "primaryTag": "INPUT_PARSING",
+      "hintPolicy": "L1",
+      "verdict": "WRONG_ANSWER",
+      "scenario": "WA",
+      "headline": "输入读取结构与题面不一致",
+      "summary": "题面第一行包含 n 和 q，后面有 q 行查询。",
+      "contextSummary": "题面有 q 次查询，学生代码只读取了一次 l r。",
+      "evidenceRefs": ["submission:7201", "tag:INPUT_PARSING", "problem:input_format"],
+      "studentAnswer": "我发现自己只读了一次 l r，但还没确定哪里开始对不上。"
+    }
+  },
+  {
+    "caseId": "coach-tle-complexity-follow-up",
+    "assistantType": "COACH_QUESTION",
+    "teacherExpectation": "学生知道双层循环可能慢，但没有数量级判断。AI 应追问最大 n 下操作次数，让学生先算数量级。",
+    "rubric": {
+      "expectedSignals": ["200000", "次数", "数量级", "时间限制"],
+      "requiredEvidenceRefs": ["submission:7202", "tag:BRUTE_FORCE_LIMIT"],
+      "forbiddenPhrases": ["完整代码", "参考答案", "直接用", "树状数组"]
+    },
+    "qualityNotes": "复杂度 Coach 样本，用来检查追问是否能把模糊的“慢”推进到可验证数量级。",
+    "coach": {
+      "turnType": "FOLLOW_UP",
+      "submissionId": 7202,
+      "primaryTag": "BRUTE_FORCE_LIMIT",
+      "hintPolicy": "L2",
+      "verdict": "TIME_LIMIT_EXCEEDED",
+      "scenario": "TLE",
+      "headline": "双层循环在最大规模下超时",
+      "summary": "n 最大为 200000，核心循环接近平方级。",
+      "contextSummary": "隐藏大数据超时，代码有双层循环。",
+      "evidenceRefs": ["submission:7202", "tag:BRUTE_FORCE_LIMIT", "problem:max_boundary"],
+      "studentAnswer": "我觉得双层循环慢，但不知道到底慢多少。"
+    }
+  },
+  {
+    "caseId": "growth-ce-wa-ac-trajectory",
+    "assistantType": "GROWTH_REPORT",
+    "teacherExpectation": "学生从编译错误修到 WA，最后 AC。报告应指出先解决语法阻塞，再定位边界问题，最后完成通过；下一步应复盘最小样例和边界。",
+    "rubric": {
+      "expectedSignals": ["编译", "边界", "通过", "复盘"],
+      "forbiddenPhrases": ["一直没有进步", "没有提交记录", "完整代码", "隐藏测试点数据"]
+    },
+    "qualityNotes": "正向成长轨迹样本，用来检查报告是否基于连续提交而不是只看最终 AC。",
+    "growthReport": {
+      "problem": {
+        "id": 7301,
+        "title": "求区间和",
+        "description": "多次查询数组区间和，注意下标边界。",
+        "difficulty": "EASY",
+        "timeLimit": 1000,
+        "memoryLimit": 65536
+      },
+      "fallbackMarkdown": "# 成长报告\n\n## 总览\n- 提交 3 次\n",
+      "timeline": [
+        {
+          "submissionId": 730101,
+          "submittedAt": "2026-05-23 09:00:00",
+          "verdict": "编译错误",
+          "headline": "变量未定义",
+          "summary": "代码还不能运行，先处理第一个编译错误。"
+        },
+        {
+          "submissionId": 730102,
+          "submittedAt": "2026-05-23 09:08:00",
+          "verdict": "答案错误",
+          "headline": "区间右端点少算",
+          "summary": "编译问题解决，但边界样例失败。"
+        },
+        {
+          "submissionId": 730103,
+          "submittedAt": "2026-05-23 09:18:00",
+          "verdict": "通过",
+          "headline": "修正边界后通过",
+          "summary": "能解释最小区间和普通区间。"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "growth-repeated-tle-stuck",
+    "assistantType": "GROWTH_REPORT",
+    "teacherExpectation": "学生连续三次 TLE，只做局部剪枝，没有改变复杂度。报告应标记反复卡在复杂度瓶颈，需要老师或系统引导做数量级估算。",
+    "rubric": {
+      "expectedSignals": ["连续", "超时", "复杂度", "数量级", "老师"],
+      "forbiddenPhrases": ["已经通过", "主要是语法问题", "完整代码", "隐藏测试点数据"]
+    },
+    "qualityNotes": "卡住轨迹样本，用来检查报告是否能识别反复失败和教师介入信号。",
+    "growthReport": {
+      "problem": {
+        "id": 7302,
+        "title": "大规模查询",
+        "description": "n 和 q 都很大，需要避免每次查询线性扫描。",
+        "difficulty": "MEDIUM",
+        "timeLimit": 1000,
+        "memoryLimit": 65536
+      },
+      "fallbackMarkdown": "# 成长报告\n\n## 总览\n- 提交 3 次\n",
+      "timeline": [
+        {
+          "submissionId": 730201,
+          "submittedAt": "2026-05-23 10:00:00",
+          "verdict": "超时",
+          "headline": "每次查询都线性扫描",
+          "summary": "样例能过，隐藏大数据超时。"
+        },
+        {
+          "submissionId": 730202,
+          "submittedAt": "2026-05-23 10:10:00",
+          "verdict": "超时",
+          "headline": "局部剪枝未改变数量级",
+          "summary": "减少了一些常数，但整体仍接近 n*q。"
+        },
+        {
+          "submissionId": 730203,
+          "submittedAt": "2026-05-23 10:20:00",
+          "verdict": "超时",
+          "headline": "仍卡在复杂度瓶颈",
+          "summary": "需要先估算最大规模操作次数。"
+        }
+      ]
+    }
+  }
+]
