@@ -61,6 +61,12 @@ public class CoachAgentService {
     @Value("${ai.stream-fallback-enabled:true}")
     private boolean streamFallbackEnabled;
 
+    @Value("${ai.retry.max-attempts:2}")
+    private int retryMaxAttempts;
+
+    @Value("${ai.retry.backoff-ms:700}")
+    private long retryBackoffMs;
+
     public CoachDraft generateInitialQuestion(Submission submission,
                                               SubmissionAnalysis analysis,
                                               String primaryTag,
@@ -159,14 +165,39 @@ public class CoachAgentService {
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
         try {
-            return doChatCompletion(systemPrompt, userPrompt, streamEnabled);
+            return doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled);
         } catch (IOException exception) {
             if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
                 log.warn("Retrying coach chat completion with stream=true after non-stream response was unusable. model={}", model);
-                return doChatCompletion(systemPrompt, userPrompt, true);
+                return doChatCompletionWithRetry(systemPrompt, userPrompt, true);
             }
             throw exception;
         }
+    }
+
+    private String doChatCompletionWithRetry(String systemPrompt, String userPrompt, boolean stream)
+            throws IOException, InterruptedException {
+        int attempts = Math.max(1, retryMaxAttempts);
+        IOException lastException = null;
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                return doChatCompletion(systemPrompt, userPrompt, stream);
+            } catch (IOException exception) {
+                lastException = exception;
+                if (attempt >= attempts || !isRetryableCallFailure(exception)) {
+                    throw exception;
+                }
+                long backoff = Math.max(0, retryBackoffMs) * attempt;
+                log.warn("Retrying coach chat completion after transient failure. model={}, attempt={}/{}, waitMs={}, reason={}",
+                        model,
+                        attempt + 1,
+                        attempts,
+                        backoff,
+                        preview(exception.getMessage()));
+                sleepBeforeRetry(backoff);
+            }
+        }
+        throw lastException == null ? new IOException("AI API call failed") : lastException;
     }
 
     private String doChatCompletion(String systemPrompt, String userPrompt, boolean stream)
@@ -189,6 +220,10 @@ public class CoachAgentService {
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody), StandardCharsets.UTF_8))
                 .build();
 
+        return sendChatCompletionRequest(request, stream);
+    }
+
+    protected String sendChatCompletionRequest(HttpRequest request, boolean stream) throws IOException, InterruptedException {
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IOException("AI API returned status " + response.statusCode() + ": " + response.body());
@@ -205,6 +240,28 @@ public class CoachAgentService {
     private boolean shouldRetryWithStreaming(IOException exception) {
         String message = exception == null || exception.getMessage() == null ? "" : exception.getMessage();
         return message.contains("did not include message content");
+    }
+
+    private boolean isRetryableCallFailure(IOException exception) {
+        String text = exception == null || exception.getMessage() == null
+                ? ""
+                : exception.getMessage().toLowerCase(Locale.ROOT);
+        if (text.contains("insufficient_quota") || text.contains("exceeded your current quota")) {
+            return false;
+        }
+        return text.contains("429")
+                || text.contains("rate limit")
+                || text.contains("rate_limit")
+                || text.contains("timeout")
+                || text.contains("timed out")
+                || text.contains("did not include message content");
+    }
+
+    private void sleepBeforeRetry(long waitMs) throws InterruptedException {
+        if (waitMs <= 0) {
+            return;
+        }
+        Thread.sleep(waitMs);
     }
 
     private String extractChatMessageContent(JsonNode root) {

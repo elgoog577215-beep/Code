@@ -102,6 +102,36 @@ class ModelOutputValidatorTest {
     }
 
     @Test
+    void rejectsDirectFixTeachingHintEvenWhenRiskIsMarkedLow() {
+        Fixture fixture = fixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateTeachingHintOutput(
+                ExternalModelStagePayloads.TeachingHintOutput.builder()
+                        .studentHint("把循环改成 range(1, n + 1) 就可以。")
+                        .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
+                                .teachingAction("TRACE_VARIABLES")
+                                .nextAction("直接改成 range(1, n + 1)")
+                                .coachQuestion("为什么要改为右端包含 n？")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .answerLeakRisk("LOW")
+                                .build())
+                        .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                                .studentTask("替换为包含 n 的写法")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .answerLeakRisk("LOW")
+                                .build())
+                        .answerLeakRisk("LOW")
+                        .build(),
+                validDecision(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
     void runtimePlanCarriesBriefLibraryAndPromptVersions() {
         Fixture fixture = fixture();
         ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(

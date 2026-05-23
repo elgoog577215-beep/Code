@@ -54,6 +54,7 @@ public class ModelOutputValidator {
                 || isHighRisk(output.getLearningInterventionPlan().getAnswerLeakRisk())
                 || containsUnsafeLeak(output.getStudentHint())
                 || containsUnsafeLeak(output.getStudentHintPlan().getNextAction())
+                || containsUnsafeLeak(output.getStudentHintPlan().getCoachQuestion())
                 || containsUnsafeLeak(output.getLearningInterventionPlan().getStudentTask())) {
             return invalid(ModelStageFailureReason.SAFETY_RISK, "Teaching hint output has high answer leak risk.");
         }
@@ -133,7 +134,14 @@ public class ModelOutputValidator {
         return normalized.contains("完整代码")
                 || normalized.contains("参考代码")
                 || normalized.contains("最终答案")
+                || normalized.contains("参考答案")
+                || normalized.contains("答案如下")
+                || normalized.contains("直接改成")
+                || normalized.contains("改成")
+                || normalized.contains("改为")
+                || normalized.contains("替换为")
                 || normalized.contains("hidden test")
+                || normalized.contains("range(1, n + 1)")
                 || normalized.contains("```")
                 || normalized.contains("def ")
                 || normalized.contains("#include")

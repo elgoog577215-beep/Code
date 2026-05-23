@@ -89,6 +89,12 @@ public class AiReportService {
     @Value("${ai.stream-fallback-enabled:true}")
     private boolean streamFallbackEnabled;
 
+    @Value("${ai.retry.max-attempts:2}")
+    private int retryMaxAttempts;
+
+    @Value("${ai.retry.backoff-ms:700}")
+    private long retryBackoffMs;
+
     public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                 Submission submission,
                                                                 SubmissionAnalysisResponse fallback) {
@@ -384,7 +390,14 @@ public class AiReportService {
         try {
             teachingHint = callTeachingHintStage(runtimePlan, decision);
         } catch (Exception exception) {
-            return runtimeFallback(fallback, stageFailureFromException("TEACHING_HINT", exception));
+            return buildPartialRuntimeAnalysisResponse(
+                    fallback,
+                    runtimePlan,
+                    decision,
+                    stageFailureFromException("TEACHING_HINT", exception),
+                    rawSourceCode,
+                    baselineLineIssues
+            );
         }
         ExternalModelStagePayloads.StageValidationResult teachingValidation =
                 withStage("TEACHING_HINT", externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan));
@@ -393,7 +406,14 @@ public class AiReportService {
                     submission.getId(),
                     teachingValidation.getFailureReason(),
                     teachingValidation.getMessage());
-            return runtimeFallback(fallback, teachingValidation);
+            return buildPartialRuntimeAnalysisResponse(
+                    fallback,
+                    runtimePlan,
+                    decision,
+                    teachingValidation,
+                    rawSourceCode,
+                    baselineLineIssues
+            );
         }
 
         return buildRuntimeAnalysisResponse(
@@ -492,6 +512,81 @@ public class AiReportService {
                 .build();
     }
 
+    private SubmissionAnalysisResponse buildPartialRuntimeAnalysisResponse(
+            SubmissionAnalysisResponse fallback,
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
+            ExternalModelStagePayloads.StageValidationResult teachingFailure,
+            String rawSourceCode,
+            List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues) {
+        ExternalModelStagePayloads.TeachingHintOutput localTeachingHint =
+                buildLocalTeachingHintFromDecision(decision, runtimePlan, teachingFailure, fallback);
+        SubmissionAnalysisResponse response = buildRuntimeAnalysisResponse(
+                fallback,
+                runtimePlan,
+                decision,
+                localTeachingHint,
+                rawSourceCode,
+                baselineLineIssues
+        );
+        response.setAiInvocation(modelInvocation(fallback, "MODEL_PARTIAL_COMPLETED", false, RUNTIME_PROMPT_VERSION));
+        response.setUncertainty(appendFailureNote(
+                response.getUncertainty(),
+                "教学提示阶段由本地安全模板补齐",
+                teachingFailure
+        ));
+        response.setReportMarkdown(response.getReportMarkdown()
+                + "\n\n## 模型调用说明\n\n"
+                + "- 错因裁决来自外部模型。\n"
+                + "- 教学表达阶段未完成，已使用本地安全教学模板补齐。"
+                + failureSummary(teachingFailure));
+        return response;
+    }
+
+    private ExternalModelStagePayloads.TeachingHintOutput buildLocalTeachingHintFromDecision(
+            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            ExternalModelStagePayloads.StageValidationResult teachingFailure,
+            SubmissionAnalysisResponse fallback) {
+        String primaryIssueTag = cleanupAiText(decision.getPrimaryIssueTag()).toUpperCase();
+        String fineGrainedTag = cleanupAiText(decision.getFineGrainedTag()).toUpperCase();
+        String teachingTag = fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
+        String teachingAction = localTeachingAction(teachingTag);
+        List<String> evidenceRefs = cleanList(decision.getEvidenceRefs(), fallback == null ? List.of() : fallback.getEvidenceRefs());
+        String label = localTagLabel(teachingTag);
+        String evidenceAnchor = evidenceRefs.isEmpty() ? "model:diagnosis_decision" : evidenceRefs.get(0);
+        String nextAction = localNextAction(teachingTag, teachingAction);
+        String coachQuestion = localCoachQuestion(teachingTag, teachingAction);
+        String hint = "先不要大改代码。把当前问题当作「" + label + "」来验证：" + nextAction;
+
+        return ExternalModelStagePayloads.TeachingHintOutput.builder()
+                .studentHint(hint)
+                .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
+                        .hintLevel("L2")
+                        .problemType(label)
+                        .evidenceAnchor(evidenceAnchor)
+                        .nextAction(nextAction)
+                        .coachQuestion(coachQuestion)
+                        .teachingAction(teachingAction)
+                        .evidenceRefs(evidenceRefs)
+                        .answerLeakRisk("LOW")
+                        .build())
+                .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                        .interventionType(teachingAction)
+                        .goal("把外部模型判断转化为一个可验证的小动作。")
+                        .studentTask(nextAction)
+                        .checkQuestion(coachQuestion)
+                        .completionSignal(localCompletionSignal(teachingTag, teachingAction))
+                        .evidenceRefs(evidenceRefs)
+                        .estimatedMinutes(6)
+                        .answerLeakRisk("LOW")
+                        .build())
+                .teacherNote("外部模型已完成错因裁决；教学表达阶段失败，系统使用本地安全模板补齐。"
+                        + failureSummary(teachingFailure))
+                .answerLeakRisk("LOW")
+                .build();
+    }
+
     private String buildRuntimeSummary(String primaryIssueTag,
                                        String fineGrainedTag,
                                        ExternalModelStagePayloads.DiagnosisJudgeOutput decision) {
@@ -499,6 +594,108 @@ public class AiReportService {
         return "外部模型裁决的主要错因是 " + primaryIssueTag + finePart
                 + "，置信度 " + (decision.getConfidence() == null ? "未知" : decision.getConfidence())
                 + "。";
+    }
+
+    private String localTagLabel(String tag) {
+        return switch (tag == null ? "" : tag) {
+            case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "循环边界";
+            case "INPUT_PARSING", "IO_FORMAT" -> "输入读取";
+            case "OUTPUT_FORMAT_DETAIL" -> "输出格式";
+            case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION" -> "复杂度";
+            case "MAX_BOUNDARY" -> "最大规模边界";
+            case "EMPTY_INPUT", "BOUNDARY_CONDITION" -> "边界条件";
+            case "STATE_RESET", "INITIAL_STATE", "VARIABLE_INITIALIZATION" -> "状态初始化或重置";
+            case "DP_STATE_DESIGN", "STATE_TRANSITION", "IN_PLACE_STATE_PROGRESS" -> "状态设计";
+            case "GREEDY_ASSUMPTION", "ALGORITHM_STRATEGY" -> "算法策略";
+            case "RUNTIME_STABILITY" -> "运行稳定性";
+            case "SAMPLE_OVERFIT", "SAMPLE_ONLY" -> "样例泛化";
+            case "PARTIAL_FIX_REGRESSION" -> "局部修复回退";
+            default -> "证据不足";
+        };
+    }
+
+    private String localTeachingAction(String tag) {
+        return switch (tag == null ? "" : tag) {
+            case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "TRACE_VARIABLES";
+            case "INPUT_PARSING", "IO_FORMAT" -> "COMPARE_INPUT_SPEC";
+            case "OUTPUT_FORMAT_DETAIL" -> "COMPARE_OUTPUT";
+            case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION", "MAX_BOUNDARY" -> "COUNT_COMPLEXITY";
+            case "EMPTY_INPUT", "BOUNDARY_CONDITION" -> "ASK_MIN_CASE";
+            case "STATE_RESET", "INITIAL_STATE", "VARIABLE_INITIALIZATION" -> "TRACE_STATE";
+            case "DP_STATE_DESIGN", "STATE_TRANSITION", "IN_PLACE_STATE_PROGRESS" -> "DEFINE_STATE";
+            case "GREEDY_ASSUMPTION", "ALGORITHM_STRATEGY" -> "CHECK_INVARIANT";
+            case "RUNTIME_STABILITY" -> "CHECK_RUNTIME_GUARDS";
+            case "SAMPLE_OVERFIT", "SAMPLE_ONLY" -> "BUILD_COUNTEREXAMPLE";
+            case "PARTIAL_FIX_REGRESSION" -> "COMPARE_SUBMISSIONS";
+            default -> "COLLECT_EVIDENCE";
+        };
+    }
+
+    private String localNextAction(String tag, String teachingAction) {
+        return switch (teachingAction == null ? "" : teachingAction) {
+            case "TRACE_VARIABLES" -> "选一个最小样例，列出循环第一次、最后一次以及关键变量的实际取值。";
+            case "COMPARE_INPUT_SPEC" -> "把题面每一行输入和代码每一次读取按顺序对齐，找出第一处对不上的位置。";
+            case "COMPARE_OUTPUT" -> "逐字比较你的输出和期望输出，只圈出第一处多余、缺失或格式不同的字符。";
+            case "COUNT_COMPLEXITY" -> "用题面最大规模估算核心循环或核心操作大约执行多少次。";
+            case "ASK_MIN_CASE" -> "构造一个最小边界样例，写出期望输出和当前实际输出。";
+            case "TRACE_STATE" -> "列出状态变量在进入循环前、一次循环后、下一组数据前的值。";
+            case "DEFINE_STATE" -> "先用一句话说明这个状态表示什么，再用一个小样例验证状态是否包含足够信息。";
+            case "CHECK_INVARIANT" -> "构造一个能挑战当前策略的小反例，说明它破坏了哪条假设。";
+            case "CHECK_RUNTIME_GUARDS" -> "列出最可能触发越界、空值或除零的输入，并检查代码是否有保护条件。";
+            case "BUILD_COUNTEREXAMPLE" -> "构造一个不同于样例的最小输入，验证当前做法是否仍然成立。";
+            case "COMPARE_SUBMISSIONS" -> "对比最近两次提交，只记录一个代码变化和一个行为变化。";
+            default -> "补充一个最小样例、实际输出或错误信息，用来确认当前判断。";
+        };
+    }
+
+    private String localCoachQuestion(String tag, String teachingAction) {
+        return switch (teachingAction == null ? "" : teachingAction) {
+            case "TRACE_VARIABLES" -> "这个最小样例里，第一次偏离预期的变量是哪一个？";
+            case "COMPARE_INPUT_SPEC" -> "从题面第几行开始，你的读取次数或读取顺序和要求不一致？";
+            case "COMPARE_OUTPUT" -> "你的输出和期望输出第一处不同是什么字符？";
+            case "COUNT_COMPLEXITY" -> "当输入取最大值时，最内层操作大约会发生多少次？";
+            case "ASK_MIN_CASE" -> "这个边界样例为什么足以暴露当前问题？";
+            case "TRACE_STATE" -> "状态变量第一次偏离预期发生在进入哪一轮之前或之后？";
+            case "DEFINE_STATE" -> "这个状态是否包含判断答案所需的全部信息？";
+            case "CHECK_INVARIANT" -> "什么输入会挑战你当前的选择依据？";
+            case "CHECK_RUNTIME_GUARDS" -> "哪一种极端输入最可能触发运行错误？";
+            case "BUILD_COUNTEREXAMPLE" -> "这个反例破坏了当前做法的哪条假设？";
+            case "COMPARE_SUBMISSIONS" -> "哪一处改动让原本更好的行为变差了？";
+            default -> "你下一步准备用哪条证据确认这个判断？";
+        };
+    }
+
+    private String localCompletionSignal(String tag, String teachingAction) {
+        return switch (teachingAction == null ? "" : teachingAction) {
+            case "TRACE_VARIABLES", "TRACE_STATE" -> "学生能给出变量或状态表，并指出第一处偏离预期的位置。";
+            case "COMPARE_INPUT_SPEC", "COMPARE_OUTPUT" -> "学生能指出第一处输入读取或输出格式差异。";
+            case "COUNT_COMPLEXITY" -> "学生能给出最大规模下的数量级估算，并判断当前做法是否可能通过。";
+            case "ASK_MIN_CASE", "BUILD_COUNTEREXAMPLE" -> "学生能给出最小样例、期望结果和当前结果的对比。";
+            case "DEFINE_STATE" -> "学生能说明状态含义，并用小样例验证状态是否足够。";
+            case "CHECK_INVARIANT" -> "学生能给出反例，并说明当前策略的假设在哪里失效。";
+            case "CHECK_RUNTIME_GUARDS" -> "学生能指出风险输入和对应保护条件。";
+            case "COMPARE_SUBMISSIONS" -> "学生能指出一个代码变化、一个行为变化和受影响样例。";
+            default -> "学生能补充一条新的可观察证据。";
+        };
+    }
+
+    private String appendFailureNote(String base,
+                                     String prefix,
+                                     ExternalModelStagePayloads.StageValidationResult failure) {
+        String note = prefix + failureSummary(failure);
+        if (base == null || base.isBlank()) {
+            return note;
+        }
+        return base + " " + note;
+    }
+
+    private String failureSummary(ExternalModelStagePayloads.StageValidationResult failure) {
+        if (failure == null) {
+            return "（失败阶段：UNKNOWN_STAGE；失败原因：UNKNOWN_ERROR）";
+        }
+        String stage = failure.getStage() == null || failure.getStage().isBlank() ? "UNKNOWN_STAGE" : failure.getStage();
+        String reason = failure.getFailureReason() == null ? "UNKNOWN_ERROR" : failure.getFailureReason().name();
+        return "（失败阶段：" + stage + "；失败原因：" + reason + "）";
     }
 
     private String buildRuntimeReportMarkdown(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
@@ -626,8 +823,14 @@ public class AiReportService {
             return markdown.isBlank() ? fallbackMarkdown : markdown;
         } catch (Exception exception) {
             log.error("AI growth report generation failed. problemId={}", problem.getId(), exception);
-            return fallbackMarkdown;
+            return appendGrowthReportFailureMarker(fallbackMarkdown, stageFailureFromException("GROWTH_REPORT", exception));
         }
+    }
+
+    private String appendGrowthReportFailureMarker(String fallbackMarkdown,
+                                                   ExternalModelStagePayloads.StageValidationResult failure) {
+        String base = fallbackMarkdown == null ? "" : fallbackMarkdown;
+        return base + "\n\n<!-- AI_FAILURE:" + failureSummary(failure) + " -->";
     }
 
     private boolean canCallAi() {
@@ -636,14 +839,40 @@ public class AiReportService {
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
         try {
-            return doChatCompletion(systemPrompt, userPrompt, streamEnabled);
+            return doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled);
         } catch (IOException exception) {
             if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
                 log.warn("Retrying AI chat completion with stream=true after non-stream response was unusable. model={}", model);
-                return doChatCompletion(systemPrompt, userPrompt, true);
+                return doChatCompletionWithRetry(systemPrompt, userPrompt, true);
             }
             throw exception;
         }
+    }
+
+    private String doChatCompletionWithRetry(String systemPrompt,
+                                             String userPrompt,
+                                             boolean stream) throws IOException, InterruptedException {
+        int attempts = Math.max(1, retryMaxAttempts);
+        IOException lastException = null;
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                return doChatCompletion(systemPrompt, userPrompt, stream);
+            } catch (IOException exception) {
+                lastException = exception;
+                if (attempt >= attempts || !isRetryableCallFailure(exception)) {
+                    throw exception;
+                }
+                long backoff = Math.max(0, retryBackoffMs) * attempt;
+                log.warn("Retrying AI chat completion after transient failure. model={}, attempt={}/{}, waitMs={}, reason={}",
+                        model,
+                        attempt + 1,
+                        attempts,
+                        backoff,
+                        previewBody(exception.getMessage()));
+                sleepBeforeRetry(backoff);
+            }
+        }
+        throw lastException == null ? new IOException("AI API call failed") : lastException;
     }
 
     private String doChatCompletion(String systemPrompt,
@@ -700,6 +929,28 @@ public class AiReportService {
     private boolean shouldRetryWithStreaming(IOException exception) {
         String message = exception == null || exception.getMessage() == null ? "" : exception.getMessage();
         return message.contains("did not include message content");
+    }
+
+    private boolean isRetryableCallFailure(IOException exception) {
+        String text = exception == null || exception.getMessage() == null
+                ? ""
+                : exception.getMessage().toLowerCase();
+        if (text.contains("insufficient_quota") || text.contains("exceeded your current quota")) {
+            return false;
+        }
+        return text.contains("429")
+                || text.contains("rate limit")
+                || text.contains("rate_limit")
+                || text.contains("timeout")
+                || text.contains("timed out")
+                || text.contains("did not include message content");
+    }
+
+    private void sleepBeforeRetry(long waitMs) throws InterruptedException {
+        if (waitMs <= 0) {
+            return;
+        }
+        Thread.sleep(waitMs);
     }
 
     private String extractChatMessageContent(JsonNode root) {

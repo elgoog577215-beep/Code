@@ -10,7 +10,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
+import java.net.http.HttpRequest;
+import java.util.ArrayDeque;
 import java.util.List;
+import java.util.Queue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -180,6 +183,31 @@ class CoachAgentServiceTest {
     }
 
     @Test
+    void chatCompletionRetriesRateLimitAndThenSucceeds() throws Exception {
+        RetryingCoachAgentService service = new RetryingCoachAgentService(
+                objectMapper,
+                taxonomy,
+                new IOException("AI API returned status 429: {\"error\":{\"message\":\"rate limit\"}}"),
+                """
+                {"choices":[{"message":{"content":"{\\"question\\":\\"请先说明你准备验证哪一个边界样例？\\",\\"rationale\\":\\"追问验证动作\\",\\"evidenceRefs\\":[\\"submission:11\\"],\\"confidence\\":0.7,\\"answerLeakRisk\\":\\"LOW\\"}"}}]}
+                """
+        );
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://example.test/v1");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "streamEnabled", false);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", false);
+        ReflectionTestUtils.setField(service, "retryMaxAttempts", 2);
+        ReflectionTestUtils.setField(service, "retryBackoffMs", 0L);
+
+        String content = service.chatCompletion("system", "user");
+
+        assertThat(content).contains("question");
+        assertThat(service.callCount()).isEqualTo(2);
+    }
+
+    @Test
     void liveModelCoachQuestionsStaySafeWhenEnabled() throws IOException {
         String apiKey = System.getenv("AI_EVAL_API_KEY");
         Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "Set AI_EVAL_API_KEY to run live coach eval.");
@@ -314,6 +342,33 @@ class CoachAgentServiceTest {
                 throw exception;
             }
             return response;
+        }
+    }
+
+    private static class RetryingCoachAgentService extends CoachAgentService {
+        private final Queue<Object> responses = new ArrayDeque<>();
+        private int callCount;
+
+        private RetryingCoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy taxonomy, Object... responses) {
+            super(objectMapper, taxonomy);
+            this.responses.addAll(List.of(responses));
+        }
+
+        @Override
+        protected String sendChatCompletionRequest(HttpRequest request, boolean stream) throws IOException {
+            callCount++;
+            Object response = responses.poll();
+            if (response instanceof IOException exception) {
+                throw exception;
+            }
+            if (response == null) {
+                throw new IOException("No stub response configured.");
+            }
+            return response.toString();
+        }
+
+        int callCount() {
+            return callCount;
         }
     }
 }

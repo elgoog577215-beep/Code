@@ -117,7 +117,45 @@ class AiReportServiceExternalRuntimeTest {
     }
 
     @Test
-    void externalRuntimeFallsBackWhenTeachingOutputIsUnsafe() {
+    void externalRuntimeRetainsDiagnosisWhenTeachingCallFails() {
+        StubAiReportService service = newService(
+                """
+                {
+                  "primaryIssueTag": "LOOP_BOUNDARY",
+                  "fineGrainedTag": "OFF_BY_ONE",
+                  "evidenceRefs": ["code:range_excludes_n"],
+                  "confidence": 0.91,
+                  "uncertainty": "ok",
+                  "needsMoreEvidence": false,
+                  "answerLeakRisk": "LOW"
+                }
+                """
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
+        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getFineGrainedTags()).containsExactly("OFF_BY_ONE");
+        assertThat(analysis.getEvidenceRefs()).contains("code:range_excludes_n");
+        assertThat(analysis.getStudentHintPlan()).isNotNull();
+        assertThat(analysis.getStudentHintPlan().getTeachingAction()).isEqualTo("TRACE_VARIABLES");
+        assertThat(analysis.getStudentHintPlan().getAnswerLeakRisk()).isEqualTo("LOW");
+        assertThat(analysis.getLearningInterventionPlan()).isNotNull();
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_PARTIAL_COMPLETED");
+        assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
+        assertThat(analysis.getUncertainty()).contains("TEACHING_HINT").contains("API_ERROR");
+        assertThat(service.callCount()).isEqualTo(2);
+    }
+
+    @Test
+    void externalRuntimeRetainsDiagnosisWhenTeachingOutputIsUnsafe() {
         StubAiReportService service = newService(
                 """
                 {
@@ -167,10 +205,19 @@ class AiReportServiceExternalRuntimeTest {
                 ruleSignals()
         );
 
-        assertThat(analysis.getSourceType()).isEqualTo("RULE_BASED_V1");
-        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
-        assertThat(analysis.getAiInvocation().isFallbackUsed()).isTrue();
-        assertThat(analysis.getUncertainty()).contains("SAFETY_RISK");
+        assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
+        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getFineGrainedTags()).containsExactly("OFF_BY_ONE");
+        assertThat(analysis.getStudentHint()).doesNotContain("def solve").doesNotContain("pass");
+        assertThat(analysis.getStudentHintPlan()).isNotNull();
+        assertThat(analysis.getStudentHintPlan().getHintLevel()).isEqualTo("L2");
+        assertThat(analysis.getStudentHintPlan().getTeachingAction()).isEqualTo("TRACE_VARIABLES");
+        assertThat(analysis.getStudentHintPlan().getAnswerLeakRisk()).isEqualTo("LOW");
+        assertThat(analysis.getLearningInterventionPlan()).isNotNull();
+        assertThat(analysis.getLearningInterventionPlan().getAnswerLeakRisk()).isEqualTo("LOW");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_PARTIAL_COMPLETED");
+        assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
+        assertThat(analysis.getUncertainty()).contains("TEACHING_HINT").contains("SAFETY_RISK");
         assertThat(service.callCount()).isEqualTo(2);
     }
 
@@ -289,6 +336,47 @@ class AiReportServiceExternalRuntimeTest {
 
         assertThat(content).isEqualTo("{\"primaryIssueTag\":\"LOOP_BOUNDARY\"}");
         assertThat(service.streamFlags()).containsExactly(false, true);
+    }
+
+    @Test
+    void chatCompletionRetriesRateLimitAndThenSucceeds() throws Exception {
+        RetryingAiReportService service = new RetryingAiReportService(
+                objectMapper,
+                new IOException("AI API returned status 429: {\"error\":{\"message\":\"rate limit\"}}"),
+                """
+                {"choices":[{"message":{"content":"{\\"primaryIssueTag\\":\\"LOOP_BOUNDARY\\"}"}}]}
+                """
+        );
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://example.test/v1");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "timeoutSeconds", 5L);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 128);
+        ReflectionTestUtils.setField(service, "streamEnabled", false);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", false);
+        ReflectionTestUtils.setField(service, "retryMaxAttempts", 2);
+        ReflectionTestUtils.setField(service, "retryBackoffMs", 0L);
+
+        String content = service.chatCompletion("system", "user");
+
+        assertThat(content).isEqualTo("{\"primaryIssueTag\":\"LOOP_BOUNDARY\"}");
+        assertThat(service.callCount()).isEqualTo(2);
+    }
+
+    @Test
+    void growthReportFallbackKeepsExternalFailureReason() {
+        FailingGrowthReportAiReportService service = new FailingGrowthReportAiReportService(
+                objectMapper,
+                new IOException("AI API returned status 429: {\"error\":{\"code\":\"insufficient_quota\"}}")
+        );
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+
+        String markdown = service.enhanceGrowthReportMarkdown(problem(), List.of(), "# 成长报告");
+
+        assertThat(markdown).contains("# 成长报告");
+        assertThat(markdown).contains("AI_FAILURE").contains("GROWTH_REPORT").contains("INSUFFICIENT_QUOTA");
     }
 
     private StubAiReportService newService(String... responses) {
@@ -466,6 +554,47 @@ class AiReportServiceExternalRuntimeTest {
 
         List<Boolean> streamFlags() {
             return streamFlags;
+        }
+    }
+
+    private static class RetryingAiReportService extends AiReportService {
+        private final Queue<Object> responses = new ArrayDeque<>();
+        private int callCount;
+
+        RetryingAiReportService(ObjectMapper objectMapper, Object... responses) {
+            super(objectMapper, new AiCodeAssistSupport());
+            this.responses.addAll(List.of(responses));
+        }
+
+        @Override
+        protected String sendChatCompletionRequest(String requestBody, boolean stream) throws IOException {
+            callCount++;
+            Object response = responses.poll();
+            if (response instanceof IOException exception) {
+                throw exception;
+            }
+            if (response == null) {
+                throw new IOException("No stub response configured.");
+            }
+            return response.toString();
+        }
+
+        int callCount() {
+            return callCount;
+        }
+    }
+
+    private static class FailingGrowthReportAiReportService extends AiReportService {
+        private final IOException exception;
+
+        FailingGrowthReportAiReportService(ObjectMapper objectMapper, IOException exception) {
+            super(objectMapper, new AiCodeAssistSupport());
+            this.exception = exception;
+        }
+
+        @Override
+        protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException {
+            throw exception;
         }
     }
 }

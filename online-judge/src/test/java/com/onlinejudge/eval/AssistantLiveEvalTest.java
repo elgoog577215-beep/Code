@@ -100,12 +100,15 @@ class AssistantLiveEvalTest {
     private AssistantLiveEvalReport runLiveEval(List<AssistantEvalFixtureLoader.Fixture> fixtures,
                                                 String apiKey) {
         String model = valueOrDefault(System.getenv("AI_EVAL_MODEL"), "deepseek-ai/DeepSeek-V4-Pro");
+        long caseDelayMs = Math.max(0, longValueOrDefault(System.getenv("AI_EVAL_CASE_DELAY_MS"), 0L));
         AiReportService aiReportService = newLiveAiReportService(apiKey);
         DiagnosticAgentService diagnosticAgentService = newDiagnosticAgentService(aiReportService);
         CoachAgentService coachAgentService = newLiveCoachAgentService(apiKey);
         List<AssistantLiveEvalReport.Entry> entries = new ArrayList<>();
 
-        for (AssistantEvalFixtureLoader.Fixture fixture : fixtures) {
+        for (int index = 0; index < fixtures.size(); index++) {
+            AssistantEvalFixtureLoader.Fixture fixture = fixtures.get(index);
+            waitBetweenCases(index, caseDelayMs);
             long startedAt = System.nanoTime();
             try {
                 AssistantLiveEvalReport.Entry entry = switch (fixture.assistantType()) {
@@ -122,6 +125,18 @@ class AssistantLiveEvalTest {
         return summarize(model, entries);
     }
 
+    private void waitBetweenCases(int index, long caseDelayMs) {
+        if (index <= 0 || caseDelayMs <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(caseDelayMs);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Assistant live eval interrupted while waiting between cases.", exception);
+        }
+    }
+
     private AssistantLiveEvalReport.Entry evaluateDiagnosis(AssistantEvalFixtureLoader.Fixture fixture,
                                                             DiagnosticAgentService service,
                                                             String model,
@@ -136,6 +151,8 @@ class AssistantLiveEvalTest {
         SubmissionAnalysisResponse analysis = result.analysis();
         SubmissionAnalysisResponse.AiInvocation invocation = analysis.getAiInvocation();
         boolean fallbackUsed = invocation == null || invocation.isFallbackUsed();
+        boolean partialCompleted = invocation != null
+                && "MODEL_PARTIAL_COMPLETED".equals(invocation.getStatus());
         boolean signalHit = intersects(analysis.getIssueTags(), fixture.rubric().expectedIssueTags())
                 || intersects(analysis.getFineGrainedTags(), fixture.rubric().expectedFineGrainedTags())
                 || containsAny(combinedAnalysisText(analysis), fixture.rubric().expectedSignals());
@@ -152,8 +169,9 @@ class AssistantLiveEvalTest {
                 .evidenceValid(evidenceValid)
                 .safetyPassed(safetyPassed)
                 .teachingActionValid(analysis.getStudentHintPlan() != null || analysis.getLearningInterventionPlan() != null)
-                .failureStage(extractRuntimeFailureStage(analysis.getUncertainty()))
-                .failureReason(resolveFailureReason(fallbackUsed, invocation, analysis.getUncertainty(), signalHit, safetyPassed))
+                .failureStage(resolveFailureStage(fallbackUsed, partialCompleted, analysis.getUncertainty()))
+                .failureReason(resolveFailureReason(fallbackUsed, partialCompleted, invocation,
+                        analysis.getUncertainty(), signalHit, safetyPassed))
                 .outputSummary(truncate(safe(analysis.getHeadline()) + " | " + safe(analysis.getSummary()), 220))
                 .aiBetterThanTeacher(signalHit && evidenceValid ? "AI 输出包含结构化标签和证据，可用于后续系统统计。" : "本条未观察到明显优于老师期望的部分。")
                 .teacherBetterThanAi(signalHit ? "老师期望更明确地限定了不要直接给改法。" : "老师期望更准确地定位了核心错因。")
@@ -226,12 +244,14 @@ class AssistantLiveEvalTest {
                 fixture.growthReport().timeline(),
                 fixture.growthReport().fallbackMarkdown()
         );
-        boolean fallbackUsed = markdown == null || markdown.equals(fixture.growthReport().fallbackMarkdown());
-        boolean signalHit = containsAny(markdown, fixture.rubric().expectedSignals());
+        String visibleMarkdown = stripGrowthReportFailureMarker(markdown);
+        boolean fallbackUsed = visibleMarkdown.isBlank()
+                || visibleMarkdown.equals(safe(fixture.growthReport().fallbackMarkdown()).trim());
+        boolean signalHit = containsAny(visibleMarkdown, fixture.rubric().expectedSignals());
         boolean evidenceValid = fixture.growthReport().timeline().stream()
                 .map(item -> String.valueOf(item.getOrDefault("submissionId", "")))
-                .anyMatch(id -> markdown != null && markdown.contains(id));
-        boolean safetyPassed = avoidsForbidden(markdown, fixture.rubric().forbiddenPhrases());
+                .anyMatch(id -> visibleMarkdown != null && visibleMarkdown.contains(id));
+        boolean safetyPassed = avoidsForbidden(visibleMarkdown, fixture.rubric().forbiddenPhrases());
         return baseEntry(fixture, model, startedAt)
                 .promptVersion("growth-report-markdown-v1")
                 .status(fallbackUsed ? "MODEL_RUNTIME_FALLBACK" : "MODEL_COMPLETED")
@@ -242,8 +262,10 @@ class AssistantLiveEvalTest {
                 .safetyPassed(safetyPassed)
                 .teachingActionValid(signalHit && containsAny(markdown, List.of("下一步", "复盘", "建议", "行动", "练习")))
                 .failureStage(fallbackUsed ? "GROWTH_REPORT" : "NONE")
-                .failureReason(resolveFailureReason(fallbackUsed, null, "", signalHit, safetyPassed))
-                .outputSummary(truncate(markdown, 260))
+                .failureReason(resolveFailureReason(fallbackUsed, false, null,
+                        extractGrowthReportFailureReason(markdown, fixture.growthReport().fallbackMarkdown()),
+                        signalHit, safetyPassed))
+                .outputSummary(truncate(visibleMarkdown, 260))
                 .aiBetterThanTeacher(signalHit && evidenceValid ? "AI 能把多次提交串成学习轨迹，适合教师快速浏览。" : "本条未观察到明显优于老师期望的部分。")
                 .teacherBetterThanAi(signalHit ? "老师期望对教师介入信号更明确。" : "老师期望更能抓住连续提交背后的学习状态。")
                 .iterationSuggestion(iterationSuggestion(fixture.assistantType(), fallbackUsed, signalHit, safetyPassed, ""))
@@ -421,6 +443,7 @@ class AssistantLiveEvalTest {
     }
 
     private String resolveFailureReason(boolean fallbackUsed,
+                                        boolean partialCompleted,
                                         SubmissionAnalysisResponse.AiInvocation invocation,
                                         String uncertainty,
                                         boolean signalHit,
@@ -429,6 +452,10 @@ class AssistantLiveEvalTest {
             String status = invocation == null ? "MODEL_RUNTIME_FALLBACK" : safe(invocation.getStatus());
             String detail = extractRuntimeFailureReason(uncertainty);
             return detail.isBlank() ? status : status + ":" + detail;
+        }
+        if (partialCompleted) {
+            String detail = extractRuntimeFailureReason(uncertainty);
+            return detail.isBlank() ? "MODEL_PARTIAL_COMPLETED" : "MODEL_PARTIAL_COMPLETED:" + detail;
         }
         if (!safetyPassed) {
             return "SAFETY_REJECTED";
@@ -463,11 +490,12 @@ class AssistantLiveEvalTest {
                 "RATE_LIMITED",
                 "TIMEOUT",
                 "MODEL_UNSUPPORTED",
+                "EMPTY_RESPONSE",
                 "INVALID_JSON",
+                "INVALID_TAG",
+                "INVALID_EVIDENCE_REF",
+                "SAFETY_RISK",
                 "API_ERROR",
-                "MISSING_REQUIRED_FIELD",
-                "EVIDENCE_NOT_ALLOWED",
-                "SAFETY_REJECTED",
                 "UNKNOWN_ERROR"
         );
         for (String reason : knownReasons) {
@@ -476,6 +504,36 @@ class AssistantLiveEvalTest {
             }
         }
         return "";
+    }
+
+    private String extractGrowthReportFailureReason(String markdown, String fallbackMarkdown) {
+        String text = safe(markdown);
+        String fallback = safe(fallbackMarkdown);
+        if (text.isBlank() || !text.equals(fallback)) {
+            return "";
+        }
+        String marker = "<!-- AI_FAILURE:";
+        int start = text.indexOf(marker);
+        if (start < 0) {
+            return "";
+        }
+        int end = text.indexOf("-->", start);
+        if (end < 0) {
+            return "";
+        }
+        return text.substring(start + marker.length(), end).trim();
+    }
+
+    private String stripGrowthReportFailureMarker(String markdown) {
+        String text = safe(markdown);
+        return text.replaceAll("(?s)\\n*<!-- AI_FAILURE:.*?-->\\s*$", "").trim();
+    }
+
+    private String resolveFailureStage(boolean fallbackUsed, boolean partialCompleted, String uncertainty) {
+        if (fallbackUsed || partialCompleted) {
+            return extractRuntimeFailureStage(uncertainty);
+        }
+        return "NONE";
     }
 
     private String extractRuntimeFailureStage(String uncertainty) {
