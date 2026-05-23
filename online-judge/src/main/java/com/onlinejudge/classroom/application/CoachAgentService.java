@@ -49,11 +49,17 @@ public class CoachAgentService {
     @Value("${ai.api-key:}")
     private String apiKey;
 
-    @Value("${ai.model:MiniMax/MiniMax-M2.7}")
+    @Value("${ai.model:deepseek-ai/DeepSeek-V4-Pro}")
     private String model;
 
     @Value("${ai.timeout-seconds:25}")
     private long timeoutSeconds;
+
+    @Value("${ai.stream-enabled:true}")
+    private boolean streamEnabled;
+
+    @Value("${ai.stream-fallback-enabled:true}")
+    private boolean streamFallbackEnabled;
 
     public CoachDraft generateInitialQuestion(Submission submission,
                                               SubmissionAnalysis analysis,
@@ -150,6 +156,19 @@ public class CoachAgentService {
     }
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
+        try {
+            return doChatCompletion(systemPrompt, userPrompt, streamEnabled);
+        } catch (IOException exception) {
+            if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
+                log.warn("Retrying coach chat completion with stream=true after non-stream response was unusable. model={}", model);
+                return doChatCompletion(systemPrompt, userPrompt, true);
+            }
+            throw exception;
+        }
+    }
+
+    private String doChatCompletion(String systemPrompt, String userPrompt, boolean stream)
+            throws IOException, InterruptedException {
         Map<String, Object> requestBody = Map.of(
                 "model", model,
                 "messages", List.of(
@@ -157,7 +176,7 @@ public class CoachAgentService {
                         Map.of("role", "user", "content", userPrompt)
                 ),
                 "temperature", 0.2,
-                "stream", false
+                "stream", stream
         );
         String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
         HttpRequest request = HttpRequest.newBuilder()
@@ -172,12 +191,66 @@ public class CoachAgentService {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IOException("AI API returned status " + response.statusCode());
         }
-        JsonNode root = objectMapper.readTree(response.body());
-        JsonNode messageContent = root.path("choices").path(0).path("message").path("content");
-        if (messageContent.isMissingNode() || messageContent.isNull()) {
+        String content = stream
+                ? extractStreamingChatMessageContent(response.body())
+                : extractChatMessageContent(objectMapper.readTree(response.body()));
+        if (content.isBlank()) {
             throw new IOException("AI response did not include message content");
         }
-        return messageContent.isTextual() ? messageContent.asText() : messageContent.toString();
+        return content;
+    }
+
+    private boolean shouldRetryWithStreaming(IOException exception) {
+        String message = exception == null || exception.getMessage() == null ? "" : exception.getMessage();
+        return message.contains("did not include message content");
+    }
+
+    private String extractChatMessageContent(JsonNode root) {
+        if (root == null || root.isMissingNode() || root.isNull()) {
+            return "";
+        }
+        JsonNode firstChoice = root.path("choices").path(0);
+        String messageContent = extractContentNode(firstChoice.path("message").path("content"));
+        if (!messageContent.isBlank()) {
+            return messageContent;
+        }
+        return extractContentNode(firstChoice.path("delta").path("content"));
+    }
+
+    private String extractStreamingChatMessageContent(String responseBody) throws IOException {
+        if (responseBody == null || responseBody.isBlank()) {
+            return "";
+        }
+        StringBuilder content = new StringBuilder();
+        String[] lines = responseBody.replace("\r\n", "\n").replace('\r', '\n').split("\n");
+        for (String line : lines) {
+            String trimmed = line == null ? "" : line.trim();
+            if (trimmed.isBlank()) {
+                continue;
+            }
+            String payload = trimmed.startsWith("data:") ? trimmed.substring(5).trim() : trimmed;
+            if (payload.isBlank() || "[DONE]".equals(payload) || !payload.startsWith("{")) {
+                continue;
+            }
+            JsonNode root;
+            try {
+                root = objectMapper.readTree(payload);
+            } catch (JsonProcessingException exception) {
+                continue;
+            }
+            String chunk = extractChatMessageContent(root);
+            if (!chunk.isBlank()) {
+                content.append(chunk);
+            }
+        }
+        return content.toString();
+    }
+
+    private String extractContentNode(JsonNode contentNode) {
+        if (contentNode == null || contentNode.isMissingNode() || contentNode.isNull()) {
+            return "";
+        }
+        return contentNode.isTextual() ? contentNode.asText() : contentNode.toString();
     }
 
     private CoachPayload parsePayload(String raw) {

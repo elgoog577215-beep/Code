@@ -401,7 +401,7 @@ const aiQualityTrend = {
   correctedTags: [{ tag: "BOUNDARY", label: "Boundary", count: 5, evalCandidateCount: 4 }],
   evalNeededTags: [{ tag: "OFF_BY_ONE", label: "Off by one", count: 6, evalCandidateCount: 5 }],
   sourceSegments: [
-    { sourceType: "MODEL_SCOPE_MINIMAX_M2_7", versionLabel: "diagnosis-v1 / agent-v1", analyzedSubmissionCount: 51, correctionCount: 6, lowConfidenceCount: 7, highLeakRiskCount: 1, correctionRate: 11.8, lowConfidenceRate: 13.7, highLeakRiskRate: 2 },
+    { sourceType: "MODEL_SCOPE_EXTERNAL_MODEL", versionLabel: "diagnosis-v1 / agent-v1", analyzedSubmissionCount: 51, correctionCount: 6, lowConfidenceCount: 7, highLeakRiskCount: 1, correctionRate: 11.8, lowConfidenceRate: 13.7, highLeakRiskRate: 2 },
     { sourceType: "RULE_BASED_V1", versionLabel: "diagnosis-v1", analyzedSubmissionCount: 21, correctionCount: 2, lowConfidenceCount: 2, highLeakRiskCount: 0, correctionRate: 9.5, lowConfidenceRate: 9.5, highLeakRiskRate: 0 }
   ]
 };

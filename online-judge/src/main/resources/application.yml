@@ -33,8 +33,12 @@ ai:
   enabled: ${AI_ENABLED:true}
   base-url: ${AI_BASE_URL:https://api-inference.modelscope.cn/v1}
   api-key: ${MODELSCOPE_API_KEY:}
-  model: ${AI_MODEL:MiniMax/MiniMax-M2.7}
+  model: ${AI_MODEL:deepseek-ai/DeepSeek-V4-Pro}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:25}
+  external-runtime-enabled: ${AI_EXTERNAL_RUNTIME_ENABLED:true}
+  max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:900}
+  stream-enabled: ${AI_STREAM_ENABLED:true}
+  stream-fallback-enabled: ${AI_STREAM_FALLBACK_ENABLED:true}
 
 logging:
   file:

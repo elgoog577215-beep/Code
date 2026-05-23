@@ -102,7 +102,8 @@ ai:
   enabled: true
   base-url: https://api-inference.modelscope.cn/v1
   api-key: ${MODELSCOPE_API_KEY:}
-  model: MiniMax/MiniMax-M2.7
+  model: deepseek-ai/DeepSeek-V4-Pro
+  stream-enabled: true
 ```
 
 Set your token before startup:

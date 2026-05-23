@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -30,14 +29,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class AiReportService {
 
     private static final int MAX_SOURCE_CODE_LENGTH = 12000;
-    private static final String AI_SOURCE = "MODEL_SCOPE_MINIMAX_M2_7";
+    private static final String AI_SOURCE = "MODEL_SCOPE_EXTERNAL_MODEL";
     private static final String PROVIDER = "ModelScope";
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
+    private static final String RUNTIME_PROMPT_VERSION = "diagnosis-judge-v1+teaching-hint-v1";
     private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^(\\d+):\\s?(.*)$", Pattern.MULTILINE);
     private static final Pattern REPORT_LINE_ISSUE_PATTERN = Pattern.compile(
             "行号[：:]\\s*(\\d+)\\s*错误[：:]\\s*(.+?)\\s*建议[：:]\\s*(.+?)(?=(?:\\n\\s*行号[：:])|\\Z)",
@@ -46,9 +45,22 @@ public class AiReportService {
 
     private final ObjectMapper objectMapper;
     private final AiCodeAssistSupport aiCodeAssistSupport;
+    private final ExternalModelAgentRuntime externalModelAgentRuntime;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+
+    public AiReportService(ObjectMapper objectMapper, AiCodeAssistSupport aiCodeAssistSupport) {
+        this(objectMapper, aiCodeAssistSupport, null);
+    }
+
+    public AiReportService(ObjectMapper objectMapper,
+                           AiCodeAssistSupport aiCodeAssistSupport,
+                           ExternalModelAgentRuntime externalModelAgentRuntime) {
+        this.objectMapper = objectMapper;
+        this.aiCodeAssistSupport = aiCodeAssistSupport;
+        this.externalModelAgentRuntime = externalModelAgentRuntime;
+    }
 
     @Value("${ai.enabled:true}")
     private boolean enabled;
@@ -59,11 +71,23 @@ public class AiReportService {
     @Value("${ai.api-key:}")
     private String apiKey;
 
-    @Value("${ai.model:MiniMax/MiniMax-M2.7}")
+    @Value("${ai.model:deepseek-ai/DeepSeek-V4-Pro}")
     private String model;
 
     @Value("${ai.timeout-seconds:25}")
     private long timeoutSeconds;
+
+    @Value("${ai.external-runtime-enabled:true}")
+    private boolean externalRuntimeEnabled;
+
+    @Value("${ai.max-output-tokens:900}")
+    private int maxOutputTokens;
+
+    @Value("${ai.stream-enabled:true}")
+    private boolean streamEnabled;
+
+    @Value("${ai.stream-fallback-enabled:true}")
+    private boolean streamFallbackEnabled;
 
     public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                 Submission submission,
@@ -90,6 +114,17 @@ public class AiReportService {
             List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues = fallback == null || fallback.getLineIssues() == null
                     ? List.of()
                     : fallback.getLineIssues();
+            if (shouldUseExternalRuntime(evidencePackage, ruleSignals)) {
+                return enhanceWithExternalRuntime(
+                        submission,
+                        fallback,
+                        evidencePackage,
+                        ruleSignals,
+                        rawSourceCode,
+                        baselineLineIssues
+                );
+            }
+
             Map<String, Object> context = new LinkedHashMap<>();
             context.put("problemTitle", problem.getTitle());
             context.put("problemDescription", problem.getDescription());
@@ -298,8 +333,232 @@ public class AiReportService {
                     .build();
         } catch (Exception exception) {
             log.error("AI submission analysis enhancement failed. submissionId={}", submission.getId(), exception);
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            if (shouldUseExternalRuntime(evidencePackage, ruleSignals)) {
+                return runtimeFallback(fallback, stageFailureFromException(exception));
+            }
             return fallback;
         }
+    }
+
+    private boolean shouldUseExternalRuntime(DiagnosisEvidencePackage evidencePackage,
+                                             RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        return externalRuntimeEnabled
+                && externalModelAgentRuntime != null
+                && evidencePackage != null
+                && ruleSignals != null;
+    }
+
+    private SubmissionAnalysisResponse enhanceWithExternalRuntime(Submission submission,
+                                                                  SubmissionAnalysisResponse fallback,
+                                                                  DiagnosisEvidencePackage evidencePackage,
+                                                                  RuleSignalAnalyzer.RuleSignalResult ruleSignals,
+                                                                  String rawSourceCode,
+                                                                  List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues)
+            throws JsonProcessingException, IOException, InterruptedException {
+        ExternalModelAgentRuntime.RuntimePlan runtimePlan = externalModelAgentRuntime.prepare(
+                evidencePackage,
+                ruleSignals,
+                fallback
+        );
+
+        ExternalModelStagePayloads.DiagnosisJudgeOutput decision = callDiagnosisJudgeStage(runtimePlan);
+        ExternalModelStagePayloads.StageValidationResult decisionValidation =
+                externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan);
+        if (!decisionValidation.isValid()) {
+            log.warn("External model diagnosis stage failed validation. submissionId={}, reason={}, message={}",
+                    submission.getId(),
+                    decisionValidation.getFailureReason(),
+                    decisionValidation.getMessage());
+            return runtimeFallback(fallback, decisionValidation);
+        }
+
+        ExternalModelStagePayloads.TeachingHintOutput teachingHint = callTeachingHintStage(runtimePlan, decision);
+        ExternalModelStagePayloads.StageValidationResult teachingValidation =
+                externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan);
+        if (!teachingValidation.isValid()) {
+            log.warn("External model teaching stage failed validation. submissionId={}, reason={}, message={}",
+                    submission.getId(),
+                    teachingValidation.getFailureReason(),
+                    teachingValidation.getMessage());
+            return runtimeFallback(fallback, teachingValidation);
+        }
+
+        return buildRuntimeAnalysisResponse(
+                fallback,
+                runtimePlan,
+                decision,
+                teachingHint,
+                rawSourceCode,
+                baselineLineIssues
+        );
+    }
+
+    private ExternalModelStagePayloads.DiagnosisJudgeOutput callDiagnosisJudgeStage(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("brief", runtimePlan.getBrief());
+        request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        String content = chatCompletion(
+                runtimePlan.getDiagnosisPrompt().getSystemPrompt(),
+                objectMapper.writeValueAsString(request)
+        );
+        ExternalModelStagePayloads.DiagnosisJudgeOutput output =
+                parseModelStagePayload(content, ExternalModelStagePayloads.DiagnosisJudgeOutput.class);
+        return output;
+    }
+
+    private ExternalModelStagePayloads.TeachingHintOutput callTeachingHintStage(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            ExternalModelStagePayloads.DiagnosisJudgeOutput decision)
+            throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("brief", runtimePlan.getBrief());
+        request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        request.put("diagnosisDecision", decision);
+        String content = chatCompletion(
+                runtimePlan.getTeachingPrompt().getSystemPrompt(),
+                objectMapper.writeValueAsString(request)
+        );
+        return parseModelStagePayload(content, ExternalModelStagePayloads.TeachingHintOutput.class);
+    }
+
+    private SubmissionAnalysisResponse buildRuntimeAnalysisResponse(
+            SubmissionAnalysisResponse fallback,
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
+            ExternalModelStagePayloads.TeachingHintOutput teachingHint,
+            String rawSourceCode,
+            List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues) {
+        String primaryIssueTag = cleanupAiText(decision.getPrimaryIssueTag()).toUpperCase();
+        String fineGrainedTag = cleanupAiText(decision.getFineGrainedTag()).toUpperCase();
+        String studentHint = defaultIfBlank(teachingHint.getStudentHint(), fallback.getStudentHint());
+        String teacherNote = defaultIfBlank(teachingHint.getTeacherNote(), fallback.getTeacherNote());
+        List<String> evidenceRefs = cleanList(decision.getEvidenceRefs(), fallback.getEvidenceRefs());
+
+        return SubmissionAnalysisResponse.builder()
+                .submissionId(fallback.getSubmissionId())
+                .analysisSchemaVersion(fallback.getAnalysisSchemaVersion())
+                .evidenceSchemaVersion(fallback.getEvidenceSchemaVersion())
+                .taxonomyVersion(fallback.getTaxonomyVersion())
+                .sourceType(AI_SOURCE)
+                .scenario(fallback.getScenario())
+                .headline(defaultIfBlank(fallback.getHeadline(), "AI 阶段化诊断已完成"))
+                .summary(defaultIfBlank(fallback.getSummary(), buildRuntimeSummary(primaryIssueTag, fineGrainedTag, decision)))
+                .issueTags(cleanList(List.of(primaryIssueTag), fallback.getIssueTags()))
+                .fineGrainedTags(fineGrainedTag.isBlank()
+                        ? cleanList(List.of(), fallback.getFineGrainedTags())
+                        : cleanList(List.of(fineGrainedTag), fallback.getFineGrainedTags()))
+                .abilityPoints(cleanList(fallback.getAbilityPoints(), List.of()))
+                .focusPoints(cleanList(fallback.getFocusPoints(), List.of(primaryIssueTag)))
+                .fixDirections(cleanList(fallback.getFixDirections(), List.of()))
+                .evidenceRefs(evidenceRefs)
+                .studentHint(studentHint)
+                .studentHintPlan(teachingHint.getStudentHintPlan() == null
+                        ? fallback.getStudentHintPlan()
+                        : teachingHint.getStudentHintPlan())
+                .learningInterventionPlan(teachingHint.getLearningInterventionPlan() == null
+                        ? fallback.getLearningInterventionPlan()
+                        : teachingHint.getLearningInterventionPlan())
+                .learningActionEvidence(fallback.getLearningActionEvidence())
+                .teacherNote(teacherNote)
+                .progressSignal(fallback.getProgressSignal())
+                .confidence(resolveConfidence(decision.getConfidence(), fallback.getConfidence()))
+                .uncertainty(defaultIfBlank(decision.getUncertainty(), fallback.getUncertainty()))
+                .diagnosticTrace(fallback.getDiagnosticTrace())
+                .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false, RUNTIME_PROMPT_VERSION))
+                .answerLeakRisk(resolveAnswerLeakRisk(
+                        higherRisk(decision.getAnswerLeakRisk(), teachingHint.getAnswerLeakRisk()),
+                        fallback.getAnswerLeakRisk()
+                ))
+                .wrongSolution(fallback.getWrongSolution())
+                .correctSolution(fallback.getCorrectSolution())
+                .lineIssues(baselineLineIssues == null ? List.of() : baselineLineIssues)
+                .firstFailedCase(fallback.getFirstFailedCase())
+                .reportMarkdown(buildRuntimeReportMarkdown(runtimePlan, decision, teachingHint, rawSourceCode))
+                .generatedAt(fallback.getGeneratedAt())
+                .build();
+    }
+
+    private String buildRuntimeSummary(String primaryIssueTag,
+                                       String fineGrainedTag,
+                                       ExternalModelStagePayloads.DiagnosisJudgeOutput decision) {
+        String finePart = fineGrainedTag == null || fineGrainedTag.isBlank() ? "" : " / " + fineGrainedTag;
+        return "外部模型裁决的主要错因是 " + primaryIssueTag + finePart
+                + "，置信度 " + (decision.getConfidence() == null ? "未知" : decision.getConfidence())
+                + "。";
+    }
+
+    private String buildRuntimeReportMarkdown(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+                                              ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
+                                              ExternalModelStagePayloads.TeachingHintOutput teachingHint,
+                                              String rawSourceCode) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("## AI 阶段化诊断\n\n");
+        builder.append("- 错因阶段：")
+                .append(decision.getPrimaryIssueTag());
+        if (decision.getFineGrainedTag() != null && !decision.getFineGrainedTag().isBlank()) {
+            builder.append(" / ").append(decision.getFineGrainedTag());
+        }
+        builder.append('\n');
+        builder.append("- 证据引用：")
+                .append(String.join(", ", decision.getEvidenceRefs() == null ? List.of() : decision.getEvidenceRefs()))
+                .append('\n');
+        builder.append("- 不确定性：")
+                .append(defaultIfBlank(decision.getUncertainty(), runtimePlan.getBrief().getUncertainty()))
+                .append("\n\n");
+        builder.append("## 给学生的下一步\n\n");
+        builder.append(defaultIfBlank(teachingHint.getStudentHint(), "先选一个最小样例，验证当前判断是否成立。"));
+        String keyCodeExcerpt = runtimePlan.getBrief() == null ? "" : cleanupAiText(runtimePlan.getBrief().getKeyCodeExcerpt());
+        if (!keyCodeExcerpt.isBlank()) {
+            builder.append("\n\n## 代码定位\n\n").append(keyCodeExcerpt);
+        }
+        return builder.toString().trim();
+    }
+
+    private SubmissionAnalysisResponse runtimeFallback(SubmissionAnalysisResponse fallback,
+                                                       ExternalModelStagePayloads.StageValidationResult validationResult) {
+        if (fallback == null) {
+            return null;
+        }
+        String reason = validationResult == null || validationResult.getFailureReason() == null
+                ? ModelStageFailureReason.UNKNOWN_ERROR.name()
+                : validationResult.getFailureReason().name();
+        String message = validationResult == null ? "" : cleanupAiText(validationResult.getMessage());
+        fallback.setAiInvocation(modelInvocation(fallback, "MODEL_RUNTIME_FALLBACK", true, RUNTIME_PROMPT_VERSION));
+        fallback.setUncertainty(defaultIfBlank(
+                "外部模型阶段化诊断未通过校验，已使用本地规则兜底。失败原因：" + reason
+                        + (message.isBlank() ? "" : "，" + message),
+                fallback.getUncertainty()
+        ));
+        return fallback;
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult stageFailureFromException(Exception exception) {
+        String text = (exception == null ? "" : exception.getClass().getName() + " " + exception.getMessage()).toLowerCase();
+        ModelStageFailureReason reason;
+        if (text.contains("timeout") || exception instanceof InterruptedException) {
+            reason = ModelStageFailureReason.TIMEOUT;
+        } else if (text.contains("insufficient_quota") || text.contains("exceeded your current quota")) {
+            reason = ModelStageFailureReason.INSUFFICIENT_QUOTA;
+        } else if (text.contains("429") || text.contains("rate")) {
+            reason = ModelStageFailureReason.RATE_LIMITED;
+        } else if (text.contains("has no provider supported") || text.contains("model unsupported")) {
+            reason = ModelStageFailureReason.MODEL_UNSUPPORTED;
+        } else if (exception instanceof JsonProcessingException) {
+            reason = ModelStageFailureReason.INVALID_JSON;
+        } else if (exception instanceof IOException) {
+            reason = ModelStageFailureReason.API_ERROR;
+        } else {
+            reason = ModelStageFailureReason.UNKNOWN_ERROR;
+        }
+        return ExternalModelStagePayloads.StageValidationResult.builder()
+                .valid(false)
+                .failureReason(reason)
+                .message(exception == null ? "" : exception.getMessage())
+                .build();
     }
 
     public String enhanceGrowthReportMarkdown(Problem problem,
@@ -346,28 +605,57 @@ public class AiReportService {
         return enabled && apiKey != null && !apiKey.isBlank();
     }
 
-    private String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
-        Map<String, Object> requestBody = Map.of(
-                "model", model,
-                "messages", List.of(
-                        Map.of("role", "system", "content", systemPrompt),
-                        Map.of("role", "user", "content", userPrompt)
-                ),
-                "temperature", 0.2,
-                "stream", false
-        );
+    protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
+        try {
+            return doChatCompletion(systemPrompt, userPrompt, streamEnabled);
+        } catch (IOException exception) {
+            if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
+                log.warn("Retrying AI chat completion with stream=true after non-stream response was unusable. model={}", model);
+                return doChatCompletion(systemPrompt, userPrompt, true);
+            }
+            throw exception;
+        }
+    }
+
+    private String doChatCompletion(String systemPrompt,
+                                    String userPrompt,
+                                    boolean stream) throws IOException, InterruptedException {
+        Map<String, Object> requestBody = new LinkedHashMap<>();
+        requestBody.put("model", model);
+        requestBody.put("messages", List.of(
+                Map.of("role", "system", "content", systemPrompt),
+                Map.of("role", "user", "content", userPrompt)
+        ));
+        requestBody.put("temperature", 0.2);
+        requestBody.put("stream", stream);
+        requestBody.put("max_tokens", Math.max(128, maxOutputTokens));
         String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
-        log.info("Calling AI chat completion. model={}, timeoutSeconds={}, endpoint={}",
+        log.info("Calling AI chat completion. model={}, timeoutSeconds={}, stream={}, endpoint={}",
                 model,
                 Math.max(timeoutSeconds, 5),
+                stream,
                 endpoint);
 
+        String responseBody = sendChatCompletionRequest(objectMapper.writeValueAsString(requestBody), stream);
+        String content = stream
+                ? extractStreamingChatMessageContent(responseBody)
+                : extractChatMessageContent(objectMapper.readTree(responseBody));
+        if (content.isBlank()) {
+            log.warn("AI response did not include usable message content. bodyPreview={}",
+                    previewBody(responseBody));
+            throw new IOException("AI response did not include message content");
+        }
+        return content;
+    }
+
+    protected String sendChatCompletionRequest(String requestBody, boolean stream) throws IOException, InterruptedException {
+        String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .timeout(Duration.ofSeconds(Math.max(timeoutSeconds, 5)))
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody), StandardCharsets.UTF_8))
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                 .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -377,15 +665,12 @@ public class AiReportService {
                     previewBody(response.body()));
             throw new IOException("AI API returned status " + response.statusCode() + ": " + response.body());
         }
+        return response.body();
+    }
 
-        JsonNode root = objectMapper.readTree(response.body());
-        String content = extractChatMessageContent(root);
-        if (content.isBlank()) {
-            log.warn("AI response did not include usable message content. bodyPreview={}",
-                    previewBody(response.body()));
-            throw new IOException("AI response did not include message content");
-        }
-        return content;
+    private boolean shouldRetryWithStreaming(IOException exception) {
+        String message = exception == null || exception.getMessage() == null ? "" : exception.getMessage();
+        return message.contains("did not include message content");
     }
 
     private String extractChatMessageContent(JsonNode root) {
@@ -399,6 +684,51 @@ public class AiReportService {
                 extractContentNode(firstChoice.path("message").path("reasoning_content")),
                 extractContentNode(firstChoice.path("delta").path("reasoning_content"))
         );
+    }
+
+    private String extractStreamingChatMessageContent(String responseBody) throws IOException {
+        if (responseBody == null || responseBody.isBlank()) {
+            return "";
+        }
+        StringBuilder content = new StringBuilder();
+        String[] lines = responseBody.replace("\r\n", "\n").replace('\r', '\n').split("\n");
+        for (String line : lines) {
+            String trimmed = line == null ? "" : line.trim();
+            if (trimmed.isBlank()) {
+                continue;
+            }
+            String payload = trimmed.startsWith("data:") ? trimmed.substring(5).trim() : trimmed;
+            if (payload.isBlank() || "[DONE]".equals(payload)) {
+                continue;
+            }
+            if (!payload.startsWith("{")) {
+                continue;
+            }
+            JsonNode root;
+            try {
+                root = objectMapper.readTree(payload);
+            } catch (JsonProcessingException exception) {
+                log.debug("Skipping unparsable AI stream chunk. chunkPreview={}", previewBody(payload));
+                continue;
+            }
+            String chunk = extractStreamingChoiceContent(root.path("choices").path(0));
+            if (!chunk.isEmpty()) {
+                content.append(chunk);
+            }
+        }
+        return content.toString();
+    }
+
+    private String extractStreamingChoiceContent(JsonNode firstChoice) {
+        String deltaContent = extractContentNode(firstChoice.path("delta").path("content"));
+        if (!deltaContent.isEmpty()) {
+            return deltaContent;
+        }
+        String messageContent = extractContentNode(firstChoice.path("message").path("content"));
+        if (!messageContent.isEmpty()) {
+            return messageContent;
+        }
+        return extractContentNode(firstChoice.path("text"));
     }
 
     private String extractContentNode(JsonNode contentNode) {
@@ -435,17 +765,22 @@ public class AiReportService {
     }
 
     private AiAnalysisPayload parseAnalysisPayload(String rawContent) {
+        return parseModelStagePayload(rawContent, AiAnalysisPayload.class);
+    }
+
+    private <T> T parseModelStagePayload(String rawContent, Class<T> payloadType) {
         String normalized = cleanupAiText(rawContent);
         try {
-            return objectMapper.readValue(normalized, AiAnalysisPayload.class);
+            return objectMapper.readValue(normalized, payloadType);
         } catch (JsonProcessingException firstError) {
             int start = normalized.indexOf('{');
             int end = normalized.lastIndexOf('}');
             if (start >= 0 && end > start) {
                 try {
-                    return objectMapper.readValue(normalized.substring(start, end + 1), AiAnalysisPayload.class);
+                    return objectMapper.readValue(normalized.substring(start, end + 1), payloadType);
                 } catch (JsonProcessingException ignored) {
-                    log.warn("AI analysis payload parsing failed. error={}, contentPreview={}",
+                    log.warn("AI payload parsing failed. type={}, error={}, contentPreview={}",
+                            payloadType.getSimpleName(),
                             ignored.getMessage(),
                             previewBody(normalized));
                 }
@@ -781,14 +1116,42 @@ public class AiReportService {
         return fallback == null || fallback.isBlank() ? "UNKNOWN" : fallback;
     }
 
+    private String higherRisk(String left, String right) {
+        int leftScore = riskScore(left);
+        int rightScore = riskScore(right);
+        int score = Math.max(leftScore, rightScore);
+        return switch (score) {
+            case 3 -> "HIGH";
+            case 2 -> "MEDIUM";
+            case 1 -> "LOW";
+            default -> "";
+        };
+    }
+
+    private int riskScore(String risk) {
+        return switch (cleanupAiText(risk).toUpperCase()) {
+            case "HIGH" -> 3;
+            case "MEDIUM" -> 2;
+            case "LOW" -> 1;
+            default -> 0;
+        };
+    }
+
     private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
                                                                     String status,
                                                                     boolean fallbackUsed) {
+        return modelInvocation(fallback, status, fallbackUsed, PROMPT_VERSION);
+    }
+
+    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
+                                                                    String status,
+                                                                    boolean fallbackUsed,
+                                                                    String promptVersion) {
         return SubmissionAnalysisResponse.AiInvocation.builder()
                 .provider(PROVIDER)
                 .model(model)
                 .modelVersion(model)
-                .promptVersion(PROMPT_VERSION)
+                .promptVersion(promptVersion)
                 .agentVersion(fallback == null || fallback.getAiInvocation() == null
                         ? null
                         : fallback.getAiInvocation().getAgentVersion())

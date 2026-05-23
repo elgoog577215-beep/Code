@@ -727,7 +727,10 @@ public class DiagnosticAgentService {
                                                                       boolean modelFallbackUsed) {
         SubmissionAnalysisResponse.AiInvocation existing = analysis == null ? null : analysis.getAiInvocation();
         boolean fallbackUsed = modelFallbackUsed || (existing != null && existing.isFallbackUsed());
-        String status = fallbackUsed ? "RULE_FALLBACK" : defaultIfBlank(existing == null ? null : existing.getStatus(), "MODEL_COMPLETED");
+        String status = defaultIfBlank(
+                existing == null ? null : existing.getStatus(),
+                fallbackUsed ? "RULE_FALLBACK" : "MODEL_COMPLETED"
+        );
         return SubmissionAnalysisResponse.AiInvocation.builder()
                 .provider(defaultIfBlank(existing == null ? null : existing.getProvider(), modelFallbackUsed ? "LOCAL_RULES" : "AI_PROVIDER"))
                 .model(defaultIfBlank(existing == null ? null : existing.getModel(), modelFallbackUsed ? "rule-signals" : "unknown-model"))

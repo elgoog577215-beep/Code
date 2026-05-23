@@ -180,8 +180,12 @@ class CoachAgentServiceTest {
         ReflectionTestUtils.setField(service, "enabled", true);
         ReflectionTestUtils.setField(service, "apiKey", apiKey);
         ReflectionTestUtils.setField(service, "baseUrl", valueOrDefault(System.getenv("AI_EVAL_BASE_URL"), "https://api-inference.modelscope.cn/v1"));
-        ReflectionTestUtils.setField(service, "model", valueOrDefault(System.getenv("AI_EVAL_MODEL"), "MiniMax/MiniMax-M2.7"));
+        ReflectionTestUtils.setField(service, "model", valueOrDefault(System.getenv("AI_EVAL_MODEL"), "deepseek-ai/DeepSeek-V4-Pro"));
         ReflectionTestUtils.setField(service, "timeoutSeconds", 35L);
+        ReflectionTestUtils.setField(service, "streamEnabled",
+                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_ENABLED"), "true")));
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled",
+                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_FALLBACK_ENABLED"), "true")));
         return service;
     }
 

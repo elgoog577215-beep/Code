@@ -35,7 +35,8 @@ mvn -q -Dtest=ModelDiagnosisEvalTest test
 
 ```powershell
 $env:AI_EVAL_API_KEY="..."
-$env:AI_EVAL_MODEL="MiniMax/MiniMax-M2.7"
+$env:AI_EVAL_MODEL="deepseek-ai/DeepSeek-V4-Pro"
+$env:AI_STREAM_ENABLED="true"
 mvn -q -Dtest=ModelDiagnosisEvalTest test
 ```
 

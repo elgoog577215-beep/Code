@@ -13,6 +13,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,6 +30,8 @@ class ModelDiagnosisEvalTest {
     void liveModelKeepsDiagnosisWithinExpectedTagsWhenEnabled() {
         String apiKey = System.getenv("AI_EVAL_API_KEY");
         Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "Set AI_EVAL_API_KEY to run live model diagnosis eval.");
+        Assumptions.assumeTrue(Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_FULL"), "false")),
+                "Set AI_EVAL_FULL=true to run the full live model diagnosis eval.");
 
         DiagnosticAgentService service = newLiveService(apiKey);
         List<EvalCase> cases = allEvalCases();
@@ -61,6 +67,32 @@ class ModelDiagnosisEvalTest {
                     .as(evalCase.name() + " trace")
                     .contains("model=completed");
         }
+    }
+
+    @Test
+    void liveModelSmokeProducesPerCaseReportWhenEnabled() throws IOException {
+        String apiKey = System.getenv("AI_EVAL_API_KEY");
+        Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "Set AI_EVAL_API_KEY to run live model smoke eval.");
+
+        DiagnosticAgentService service = newLiveService(apiKey);
+        List<EvalCase> cases = allEvalCases().stream()
+                .limit(Math.max(1, (int) longValueOrDefault(System.getenv("AI_EVAL_SMOKE_LIMIT"), 2L)))
+                .toList();
+
+        LiveModelEvalReport report = runLiveEvalReport(service, cases);
+        Path reportPath = writeLiveEvalReport(report);
+
+        System.out.println("Live model eval report saved to: " + reportPath);
+        System.out.println("Live model eval summary: total=" + report.getTotalCount()
+                + ", completed=" + report.getCompletedCount()
+                + ", fallback=" + report.getFallbackCount()
+                + ", timeout=" + report.getTimeoutCount()
+                + ", issueHits=" + report.getIssueTagHitCount()
+                + ", fineHits=" + report.getFineTagHitCount()
+                + ", safetyPassed=" + report.getSafetyPassedCount());
+
+        assertThat(report.getEntries()).hasSize(cases.size());
+        assertThat(reportPath).exists();
     }
 
     @Test
@@ -172,12 +204,25 @@ class ModelDiagnosisEvalTest {
 
     private DiagnosticAgentService newLiveService(String apiKey) {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
-        AiReportService aiReportService = new AiReportService(objectMapper, new AiCodeAssistSupport());
+        ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
+                new ModelDiagnosisBriefBuilder(),
+                new StandardLibraryPackBuilder(taxonomy),
+                new PromptTemplateRegistry(),
+                new ModelOutputValidator()
+        );
+        AiReportService aiReportService = new AiReportService(objectMapper, new AiCodeAssistSupport(), runtime);
         ReflectionTestUtils.setField(aiReportService, "enabled", true);
         ReflectionTestUtils.setField(aiReportService, "apiKey", apiKey);
         ReflectionTestUtils.setField(aiReportService, "baseUrl", valueOrDefault(System.getenv("AI_EVAL_BASE_URL"), "https://api-inference.modelscope.cn/v1"));
-        ReflectionTestUtils.setField(aiReportService, "model", valueOrDefault(System.getenv("AI_EVAL_MODEL"), "MiniMax/MiniMax-M2.7"));
+        ReflectionTestUtils.setField(aiReportService, "model", valueOrDefault(System.getenv("AI_EVAL_MODEL"), "deepseek-ai/DeepSeek-V4-Pro"));
         ReflectionTestUtils.setField(aiReportService, "timeoutSeconds", longValueOrDefault(System.getenv("AI_EVAL_TIMEOUT_SECONDS"), 35L));
+        ReflectionTestUtils.setField(aiReportService, "externalRuntimeEnabled",
+                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_ENABLED"), "true")));
+        ReflectionTestUtils.setField(aiReportService, "maxOutputTokens", (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
+        ReflectionTestUtils.setField(aiReportService, "streamEnabled",
+                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_ENABLED"), "true")));
+        ReflectionTestUtils.setField(aiReportService, "streamFallbackEnabled",
+                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_FALLBACK_ENABLED"), "true")));
         return new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
                 new RuleSignalAnalyzer(),
@@ -360,6 +405,152 @@ class ModelDiagnosisEvalTest {
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to load teacher correction eval fixtures", exception);
         }
+    }
+
+    private LiveModelEvalReport runLiveEvalReport(DiagnosticAgentService service, List<EvalCase> cases) {
+        String model = valueOrDefault(System.getenv("AI_EVAL_MODEL"), "deepseek-ai/DeepSeek-V4-Pro");
+        List<LiveModelEvalReport.Entry> entries = new ArrayList<>();
+        for (EvalCase evalCase : cases) {
+            long startedAt = System.nanoTime();
+            try {
+                DiagnosticAgentService.AgentResult result = service.diagnose(
+                        evalCase.problem(),
+                        evalCase.submission(),
+                        evalCase.caseResults(),
+                        evalCase.baseline(),
+                        Assignment.HintPolicy.L2
+                );
+                long latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
+                SubmissionAnalysisResponse analysis = result.analysis();
+                SubmissionAnalysisResponse.AiInvocation invocation = analysis.getAiInvocation();
+                boolean fallbackUsed = invocation == null || invocation.isFallbackUsed();
+                boolean issueHit = intersects(analysis.getIssueTags(), evalCase.expectedIssueTags());
+                boolean fineHit = intersects(analysis.getFineGrainedTags(), evalCase.expectedFineTags());
+                boolean evidenceValid = analysis.getEvidenceRefs() != null && !analysis.getEvidenceRefs().isEmpty();
+                boolean safetyPassed = !"HIGH".equalsIgnoreCase(analysis.getAnswerLeakRisk());
+                entries.add(LiveModelEvalReport.Entry.builder()
+                        .caseId(evalCase.name())
+                        .model(model)
+                        .promptVersion(invocation == null ? "unknown" : invocation.getPromptVersion())
+                        .stage("DIAGNOSIS_AGENT")
+                        .latencyMs(latencyMs)
+                        .status(invocation == null ? "UNKNOWN" : invocation.getStatus())
+                        .fallbackUsed(fallbackUsed)
+                        .jsonValid(!fallbackUsed)
+                        .expectedIssueTagHit(issueHit)
+                        .expectedFineTagHit(fineHit)
+                        .evidenceValid(evidenceValid)
+                        .safetyPassed(safetyPassed)
+                        .failureReason(fallbackUsed
+                                ? failureReasonFromInvocation(invocation, result.traceSummary(), analysis.getUncertainty())
+                                : "NONE")
+                        .outputSummary(safe(analysis.getHeadline()) + " | " + safe(analysis.getSummary()))
+                        .build());
+            } catch (Exception exception) {
+                long latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
+                entries.add(LiveModelEvalReport.Entry.builder()
+                        .caseId(evalCase.name())
+                        .model(model)
+                        .promptVersion("unknown")
+                        .stage("DIAGNOSIS_AGENT")
+                        .latencyMs(latencyMs)
+                        .status("EXCEPTION")
+                        .fallbackUsed(true)
+                        .jsonValid(false)
+                        .expectedIssueTagHit(false)
+                        .expectedFineTagHit(false)
+                        .evidenceValid(false)
+                        .safetyPassed(false)
+                        .failureReason(classifyException(exception))
+                        .outputSummary(exception.getClass().getSimpleName() + ": " + exception.getMessage())
+                        .build());
+            }
+        }
+        return summarizeReport(model, entries);
+    }
+
+    private LiveModelEvalReport summarizeReport(String model, List<LiveModelEvalReport.Entry> entries) {
+        return LiveModelEvalReport.builder()
+                .model(model)
+                .promptVersion("mixed")
+                .totalCount(entries.size())
+                .completedCount((int) entries.stream().filter(entry -> !Boolean.TRUE.equals(entry.getFallbackUsed())).count())
+                .fallbackCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getFallbackUsed())).count())
+                .timeoutCount((int) entries.stream()
+                        .filter(entry -> entry.getFailureReason() != null && entry.getFailureReason().contains("TIMEOUT"))
+                        .count())
+                .issueTagHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getExpectedIssueTagHit())).count())
+                .fineTagHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getExpectedFineTagHit())).count())
+                .safetyPassedCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getSafetyPassed())).count())
+                .entries(entries)
+                .build();
+    }
+
+    private Path writeLiveEvalReport(LiveModelEvalReport report) throws IOException {
+        Path reportDir = Path.of("target", "ai-eval-reports");
+        Files.createDirectories(reportDir);
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path reportPath = reportDir.resolve("live-model-eval-" + timestamp + ".json");
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(reportPath.toFile(), report);
+        return reportPath;
+    }
+
+    private boolean intersects(List<String> actual, List<String> expected) {
+        if (actual == null || expected == null) {
+            return false;
+        }
+        return actual.stream().anyMatch(expected::contains);
+    }
+
+    private String failureReasonFromTrace(String traceSummary) {
+        String trace = traceSummary == null ? "" : traceSummary;
+        if (trace.contains("rule-fallback")) {
+            return "RULE_FALLBACK";
+        }
+        return "UNKNOWN";
+    }
+
+    private String failureReasonFromInvocation(SubmissionAnalysisResponse.AiInvocation invocation,
+                                               String traceSummary,
+                                               String uncertainty) {
+        String status = invocation == null ? "" : safe(invocation.getStatus());
+        String detail = extractRuntimeFailureReason(uncertainty);
+        if (!status.isBlank()) {
+            return detail.isBlank() ? status : status + ":" + detail;
+        }
+        return failureReasonFromTrace(traceSummary);
+    }
+
+    private String extractRuntimeFailureReason(String uncertainty) {
+        String text = safe(uncertainty);
+        String marker = "失败原因：";
+        int start = text.indexOf(marker);
+        if (start < 0) {
+            return "";
+        }
+        String tail = text.substring(start + marker.length()).trim();
+        int end = tail.indexOf('，');
+        if (end < 0) {
+            end = tail.indexOf('。');
+        }
+        return end < 0 ? tail : tail.substring(0, end);
+    }
+
+    private String classifyException(Exception exception) {
+        String text = (exception.getClass().getName() + " " + exception.getMessage()).toLowerCase();
+        if (text.contains("timeout")) {
+            return "TIMEOUT";
+        }
+        if (text.contains("insufficient_quota") || text.contains("exceeded your current quota")) {
+            return "INSUFFICIENT_QUOTA";
+        }
+        if (text.contains("429") || text.contains("rate")) {
+            return "RATE_LIMITED";
+        }
+        if (text.contains("has no provider supported") || text.contains("model unsupported")) {
+            return "MODEL_UNSUPPORTED";
+        }
+        return "EXCEPTION";
     }
 
     private record EvalCase(String name,
