@@ -200,7 +200,29 @@ public class ModelDiagnosisBriefBuilder {
         return String.join(" | ",
                 "previousVerdict=" + defaultIfBlank(history.getPreviousVerdict(), "UNKNOWN"),
                 "repeatedIssueTag=" + defaultIfBlank(history.getRepeatedIssueTag(), ""),
-                "transition=" + defaultIfBlank(history.getTransitionSignal(), ""));
+                "transition=" + defaultIfBlank(history.getTransitionSignal(), ""),
+                learningActionFeedbackSummary(history));
+    }
+
+    private String learningActionFeedbackSummary(DiagnosisEvidencePackage.HistoryEvidence history) {
+        if (history == null || isBlank(history.getPreviousInterventionType())) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        parts.add("previousIntervention=" + defaultIfBlank(history.getPreviousInterventionType(), ""));
+        if (!isBlank(history.getPreviousLearningActionStatus())) {
+            parts.add("actionStatus=" + history.getPreviousLearningActionStatus());
+        }
+        if (history.getPreviousLearningActionConfidence() != null) {
+            parts.add("actionConfidence=" + String.format("%.2f", history.getPreviousLearningActionConfidence()));
+        }
+        if (!isBlank(history.getPreviousLearningActionSummary())) {
+            parts.add("actionEvidence=" + truncate(history.getPreviousLearningActionSummary(), 220));
+        }
+        if (!isBlank(history.getPreviousLearningActionNextAdjustment())) {
+            parts.add("nextAdjustment=" + truncate(history.getPreviousLearningActionNextAdjustment(), 180));
+        }
+        return String.join(" | ", parts);
     }
 
     private ModelDiagnosisBrief.HiddenDataBoundary hiddenDataBoundary(DiagnosisEvidencePackage.JudgeFacts judgeFacts) {
@@ -233,6 +255,10 @@ public class ModelDiagnosisBriefBuilder {
 
     private String defaultIfBlank(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private String truncate(String value, int maxLength) {

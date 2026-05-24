@@ -89,6 +89,7 @@ public class PromptTemplateRegistry {
                 11. Keep uncertainty concise and evidence-grounded.
                 12. answerLeakRisk MUST be HIGH only if the response exposes a full solution, complete code, hidden data, replacement loop header, transition formula, or executable control structure; otherwise use LOW or MEDIUM.
                 13. Do not include replacement loop headers, transition formulas, or executable control structures.
+                14. If brief.learningTrajectorySummary includes previousIntervention/actionStatus, use it only as learning-process evidence: OBSERVED means review or transfer can be appropriate; PARTIALLY_OBSERVED means keep direction but shrink the next observable task; CONTRADICTED means lower hint granularity or suggest teacher attention; NOT_OBSERVED means do not assume the student executed the action.
                 """;
     }
 
@@ -166,6 +167,7 @@ public class PromptTemplateRegistry {
                 19. For hidden failures after public samples pass, do not guess hidden data; ask the student to construct a small counterexample that differs from the sample structure.
                 20. For in-place state progress, ask the student to trace the current position after one mutation and check the invariant; do not provide a replacement while loop.
                 21. For empty or minimum input evidence, ask the student to trace values through the existing functions on the minimum case; do not provide the guard condition.
+                22. If brief.learningTrajectorySummary includes previousIntervention/actionStatus, adapt teachingHint to that status: OBSERVED -> review/generalize; PARTIALLY_OBSERVED -> preserve direction and make the task more checkable; CONTRADICTED -> ask for a smaller observable artifact and consider teacher attention; NOT_OBSERVED -> ask for observable evidence rather than judging execution.
                 """;
     }
 
@@ -226,6 +228,7 @@ public class PromptTemplateRegistry {
                 12. For hidden failures, state that hidden data is unavailable and ask for a self-made counterexample instead of guessing the hidden case.
                 13. For in-place state progress, ask whether the value newly moved to the current position has been processed to a stable invariant.
                 14. For empty/minimum input, ask what each existing function receives and returns on that minimum input.
+                15. Use previousIntervention/actionStatus from brief.learningTrajectorySummary as learning-process evidence only. Never claim the student completed an action unless actionStatus is OBSERVED or PARTIALLY_OBSERVED.
                 """;
     }
 

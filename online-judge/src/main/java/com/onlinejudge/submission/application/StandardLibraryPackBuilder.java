@@ -100,7 +100,8 @@ public class StandardLibraryPackBuilder {
                         "CandidateSignals with confidence >= 0.80 and concrete problem/source evidence outrank generic verdict labels.",
                         "Large-bound problem evidence plus TLE or step-by-step simulation should be treated as a scale diagnosis before a strategy diagnosis.",
                         "Empty or minimum-input runtime evidence should be treated as a boundary diagnosis before a generic runtime diagnosis.",
-                        "Learning trajectory can explain repeated or regressed behavior but must not invent the current bug."
+                        "Learning trajectory can explain repeated or regressed behavior but must not invent the current bug.",
+                        "Previous learning action feedback is process evidence: OBSERVED supports review or transfer, PARTIALLY_OBSERVED supports a smaller checkable task, CONTRADICTED supports lower hint granularity or teacher attention, and NOT_OBSERVED must not be treated as completed work."
                 ))
                 .tagSelectionRules(List.of(
                         "Select primaryIssueTag from issueTags only.",
@@ -119,7 +120,9 @@ public class StandardLibraryPackBuilder {
                         "Bind teachingAction to the selected diagnosis tag when possible.",
                         "Use COLLECT_EVIDENCE when primaryIssueTag is NEEDS_MORE_EVIDENCE.",
                         "The teaching action should create one small observable student task, not a full fix.",
-                        "The student task must cite one evidence anchor and ask the student to inspect a line, state, counterexample, or input-output mismatch."
+                        "The student task must cite one evidence anchor and ask the student to inspect a line, state, counterexample, or input-output mismatch.",
+                        "When previous learning action feedback is CONTRADICTED, shrink the next action into a minimal case, variable trace, or teacher-checkable artifact instead of repeating the same broad hint.",
+                        "When previous learning action feedback is OBSERVED, shift toward review, transfer, or explaining why the fix generalizes."
                 ))
                 .build();
     }

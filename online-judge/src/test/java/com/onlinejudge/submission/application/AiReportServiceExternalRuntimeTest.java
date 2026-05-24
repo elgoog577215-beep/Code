@@ -130,9 +130,9 @@ class AiReportServiceExternalRuntimeTest {
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
                 submission(),
-                scaleFallback(),
+                fallback(),
                 evidencePackage(),
-                scaleRuleSignals()
+                ruleSignals()
         );
 
         assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
@@ -191,9 +191,9 @@ class AiReportServiceExternalRuntimeTest {
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
                 submission(),
-                scaleFallback(),
+                fallback(),
                 evidencePackage(),
-                scaleRuleSignals()
+                ruleSignals()
         );
 
         assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");

@@ -476,6 +476,10 @@ public class SubmissionAnalysisService {
                 .collect(Collectors.toMap(SubmissionAnalysis::getSubmissionId, analysis -> analysis));
         Submission previous = recentSubmissions.get(0);
         SubmissionAnalysis previousAnalysis = analyses.get(previous.getId());
+        DiagnosisReportReader.LearningInterventionPlanSnapshot previousPlan =
+                diagnosisReportReader.learningInterventionPlan(previousAnalysis);
+        DiagnosisReportReader.LearningActionEvidenceSnapshot previousActionEvidence =
+                resolvePreviousLearningActionEvidence(previous, previousAnalysis, submission);
         List<String> recentIssueTags = recentSubmissions.stream()
                 .map(item -> analyses.get(item.getId()))
                 .filter(Objects::nonNull)
@@ -500,7 +504,143 @@ public class SubmissionAnalysisService {
                 .repeatedIssueCount(repeatedIssue == null ? 0 : repeatedIssue.getValue())
                 .repeatedFineGrainedIssueCount(repeatedFine == null ? 0 : repeatedFine.getValue())
                 .transitionSignal(buildTransitionSignal(previous, submission, repeatedIssue, repeatedFine))
+                .previousInterventionType(previousPlan == null ? null : previousPlan.interventionType())
+                .previousInterventionTask(previousPlan == null ? null : previousPlan.studentTask())
+                .previousInterventionCompletionSignal(previousPlan == null ? null : previousPlan.completionSignal())
+                .previousLearningActionStatus(previousActionEvidence == null ? null : previousActionEvidence.executionStatus())
+                .previousLearningActionConfidence(previousActionEvidence == null ? null : previousActionEvidence.confidence())
+                .previousLearningActionEvidenceRefs(previousActionEvidence == null
+                        ? List.of()
+                        : previousActionEvidence.evidenceRefs())
+                .previousLearningActionSummary(previousActionEvidence == null ? null : previousActionEvidence.observedEvidence())
+                .previousLearningActionNextAdjustment(previousActionEvidence == null ? null : previousActionEvidence.nextAdjustment())
                 .build();
+    }
+
+    DiagnosisEvidencePackage.HistoryEvidence buildHistoryEvidenceForTest(Submission submission) {
+        return buildHistoryEvidence(submission);
+    }
+
+    private DiagnosisReportReader.LearningActionEvidenceSnapshot resolvePreviousLearningActionEvidence(
+            Submission previous,
+            SubmissionAnalysis previousAnalysis,
+            Submission current) {
+        if (previousAnalysis == null) {
+            return null;
+        }
+        DiagnosisReportReader.LearningInterventionPlanSnapshot previousPlan =
+                diagnosisReportReader.learningInterventionPlan(previousAnalysis);
+        if (previousPlan == null || previousPlan.interventionType() == null || previousPlan.interventionType().isBlank()) {
+            return null;
+        }
+        DiagnosisReportReader.LearningActionEvidenceSnapshot persisted =
+                diagnosisReportReader.learningActionEvidence(previousAnalysis);
+        String status = inferLearningActionStatus(previous, previousAnalysis, current);
+        List<String> evidenceRefs = mergeLearningActionEvidenceRefs(
+                previousPlan.evidenceRefs(),
+                persisted == null ? List.of() : persisted.evidenceRefs(),
+                current == null || current.getId() == null ? null : "followup:submission:" + current.getId(),
+                status == null || status.isBlank() ? null : "action:" + status
+        );
+        return new DiagnosisReportReader.LearningActionEvidenceSnapshot(
+                previousPlan.interventionType(),
+                status,
+                buildLearningActionObservedEvidence(status, previousPlan, previous, current),
+                learningActionConfidence(status, persisted),
+                evidenceRefs,
+                buildLearningActionNextAdjustment(status, persisted)
+        );
+    }
+
+    private String inferLearningActionStatus(Submission previous,
+                                             SubmissionAnalysis previousAnalysis,
+                                             Submission current) {
+        if (current == null) {
+            return "NOT_OBSERVED";
+        }
+        if (current.getVerdict() == Submission.Verdict.ACCEPTED) {
+            return "OBSERVED";
+        }
+        if (previous == null) {
+            return "NOT_OBSERVED";
+        }
+        if (!Objects.equals(previous.getVerdict(), current.getVerdict())) {
+            return "PARTIALLY_OBSERVED";
+        }
+        List<String> previousFineTags = diagnosisReportReader.fineGrainedTags(previousAnalysis);
+        List<String> previousIssueTags = diagnosisReportReader.issueTags(previousAnalysis);
+        if (!previousFineTags.isEmpty() || !previousIssueTags.isEmpty()) {
+            return "CONTRADICTED";
+        }
+        return "PARTIALLY_OBSERVED";
+    }
+
+    private List<String> mergeLearningActionEvidenceRefs(List<String> planRefs,
+                                                         List<String> actionRefs,
+                                                         String followupRef,
+                                                         String statusRef) {
+        LinkedHashSet<String> refs = new LinkedHashSet<>();
+        if (planRefs != null) {
+            planRefs.stream().filter(this::hasText).forEach(refs::add);
+        }
+        if (actionRefs != null) {
+            actionRefs.stream().filter(this::hasText).forEach(refs::add);
+        }
+        if (hasText(followupRef)) {
+            refs.add(followupRef);
+        }
+        if (hasText(statusRef)) {
+            refs.add(statusRef);
+        }
+        return List.copyOf(refs);
+    }
+
+    private String buildLearningActionObservedEvidence(String status,
+                                                       DiagnosisReportReader.LearningInterventionPlanSnapshot previousPlan,
+                                                       Submission previous,
+                                                       Submission current) {
+        String action = previousPlan == null ? "学习动作" : firstNonBlank(previousPlan.interventionType(), "学习动作");
+        String previousVerdict = previous == null || previous.getVerdict() == null ? "UNKNOWN" : previous.getVerdict().name();
+        String currentVerdict = current == null || current.getVerdict() == null ? "UNKNOWN" : current.getVerdict().name();
+        return switch (status == null ? "" : status) {
+            case "OBSERVED" -> "上一轮要求执行 " + action + " 后，当前同题提交已经通过，可转入复盘或迁移。";
+            case "PARTIALLY_OBSERVED" -> "上一轮要求执行 " + action + " 后，评测阶段从 "
+                    + previousVerdict + " 变化为 " + currentVerdict + "，说明可能有行动痕迹但仍需验证。";
+            case "CONTRADICTED" -> "上一轮要求执行 " + action + " 后，当前同题提交仍停留在 "
+                    + currentVerdict + "，需要把动作缩小成更可观察的产出。";
+            default -> "上一轮要求执行 " + action + "，但当前还没有足够证据证明学生已经完成该动作。";
+        };
+    }
+
+    private Double learningActionConfidence(String status,
+                                            DiagnosisReportReader.LearningActionEvidenceSnapshot persisted) {
+        if (persisted != null
+                && Objects.equals(status, persisted.executionStatus())
+                && persisted.confidence() != null
+                && persisted.confidence() > 0) {
+            return persisted.confidence();
+        }
+        return switch (status == null ? "" : status) {
+            case "OBSERVED" -> 0.82;
+            case "PARTIALLY_OBSERVED" -> 0.66;
+            case "CONTRADICTED" -> 0.74;
+            default -> 0.5;
+        };
+    }
+
+    private String buildLearningActionNextAdjustment(String status,
+                                                     DiagnosisReportReader.LearningActionEvidenceSnapshot persisted) {
+        if (persisted != null
+                && Objects.equals(status, persisted.executionStatus())
+                && hasText(persisted.nextAdjustment())) {
+            return persisted.nextAdjustment();
+        }
+        return switch (status == null ? "" : status) {
+            case "OBSERVED" -> "保持当前提示粒度，转向复盘、迁移或更高层解释。";
+            case "PARTIALLY_OBSERVED" -> "保持方向，但把下一步动作缩小成一个更明确的可检查产出。";
+            case "CONTRADICTED" -> "降低提示粒度，要求最小样例、变量跟踪，必要时建议教师介入。";
+            default -> "不要假设学生已执行动作，等待同题后续提交或要求可观察产出。";
+        };
     }
 
     private Map.Entry<String, Long> mostCommon(List<String> tags) {
@@ -1063,5 +1203,9 @@ public class SubmissionAnalysisService {
             return primary;
         }
         return fallback == null ? "" : fallback;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

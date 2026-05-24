@@ -97,6 +97,14 @@ public class DiagnosisEvidencePackage {
         private Long repeatedIssueCount;
         private Long repeatedFineGrainedIssueCount;
         private String transitionSignal;
+        private String previousInterventionType;
+        private String previousInterventionTask;
+        private String previousInterventionCompletionSignal;
+        private String previousLearningActionStatus;
+        private Double previousLearningActionConfidence;
+        private List<String> previousLearningActionEvidenceRefs;
+        private String previousLearningActionSummary;
+        private String previousLearningActionNextAdjustment;
     }
 
     @Data

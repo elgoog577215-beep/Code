@@ -67,8 +67,9 @@ public class DiagnosticAgentService {
             enhanced.setProgressSignal(defaultIfBlank(enhanced.getProgressSignal(), trajectorySignal.getSummary()));
         }
         enhanced.setStudentHintPlan(resolveHintPlan(enhanced, effectivePolicy));
-        enhanced.setLearningInterventionPlan(resolveInterventionPlan(enhanced, effectivePolicy));
         enhanced.setLearningActionEvidence(resolveInitialActionEvidence(enhanced));
+        enhanced = applyPreviousActionEvidence(enhanced, evidencePackage);
+        enhanced.setLearningInterventionPlan(resolveInterventionPlan(enhanced, effectivePolicy));
         enhanced = hintSafetyService.verifyAndRecord(enhanced, effectivePolicy);
         String traceSummary = buildTraceSummary(ruleSignals, enhanced, modelStage.fallbackUsed());
         enhanced.setDiagnosticTrace(traceSummary);
@@ -115,11 +116,14 @@ public class DiagnosticAgentService {
         String teachingAction = analysis.getStudentHintPlan() == null
                 ? diagnosisTaxonomy.teachingAction(primaryTag)
                 : defaultIfBlank(analysis.getStudentHintPlan().getTeachingAction(), diagnosisTaxonomy.teachingAction(primaryTag));
-        if (hasUsableIntervention(existing) && interventionMatchesTeachingAction(existing, teachingAction)) {
+        boolean actionContradicted = analysis.getLearningActionEvidence() != null
+                && "CONTRADICTED".equals(analysis.getLearningActionEvidence().getExecutionStatus());
+        if (!actionContradicted && hasUsableIntervention(existing) && interventionMatchesTeachingAction(existing, teachingAction)) {
             return normalizeIntervention(existing, analysis);
         }
         SubmissionAnalysisResponse.LearningTrajectorySignal trajectory = analysis.getLearningTrajectorySignal();
         String phase = trajectory == null ? "" : defaultIfBlank(trajectory.getPhase(), "");
+        phase = actionEvidencePhase(analysis, phase);
         List<String> evidenceRefs = DiagnosisListSupport.deduplicate(mergeLists(
                 analysis.getEvidenceRefs(),
                 trajectory == null ? List.of() : singletonIfPresent(trajectory.getEvidenceRef())
@@ -141,6 +145,22 @@ public class DiagnosticAgentService {
                 .estimatedMinutes(template.estimatedMinutes())
                 .answerLeakRisk(defaultIfBlank(analysis.getAnswerLeakRisk(), "LOW"))
                 .build();
+    }
+
+    private String actionEvidencePhase(SubmissionAnalysisResponse analysis, String currentPhase) {
+        SubmissionAnalysisResponse.LearningActionEvidence evidence =
+                analysis == null ? null : analysis.getLearningActionEvidence();
+        if (evidence == null || evidence.getExecutionStatus() == null) {
+            return currentPhase;
+        }
+        if ("CONTRADICTED".equals(evidence.getExecutionStatus())) {
+            return "PREVIOUS_ACTION_CONTRADICTED";
+        }
+        if ("OBSERVED".equals(evidence.getExecutionStatus())
+                && ("ACCEPTED_AFTER_FIX".equals(currentPhase) || "ACCEPTED_REVIEW".equals(currentPhase))) {
+            return "PREVIOUS_ACTION_OBSERVED";
+        }
+        return currentPhase;
     }
 
     private boolean hasUsableIntervention(SubmissionAnalysisResponse.LearningInterventionPlan plan) {
@@ -185,6 +205,43 @@ public class DiagnosticAgentService {
                 .build();
     }
 
+    private SubmissionAnalysisResponse applyPreviousActionEvidence(SubmissionAnalysisResponse analysis,
+                                                                   DiagnosisEvidencePackage evidencePackage) {
+        if (analysis == null || evidencePackage == null || evidencePackage.getHistory() == null) {
+            return analysis;
+        }
+        DiagnosisEvidencePackage.HistoryEvidence history = evidencePackage.getHistory();
+        if (history.getPreviousLearningActionStatus() == null || history.getPreviousLearningActionStatus().isBlank()) {
+            return analysis;
+        }
+        List<String> actionRefs = DiagnosisListSupport.deduplicate(mergeLists(
+                analysis.getEvidenceRefs(),
+                history.getPreviousLearningActionEvidenceRefs()
+        ));
+        analysis.setEvidenceRefs(actionRefs);
+        SubmissionAnalysisResponse.LearningActionEvidence current = analysis.getLearningActionEvidence();
+        analysis.setLearningActionEvidence(SubmissionAnalysisResponse.LearningActionEvidence.builder()
+                .expectedActionType(defaultIfBlank(history.getPreviousInterventionType(),
+                        current == null ? null : current.getExpectedActionType()))
+                .executionStatus(history.getPreviousLearningActionStatus())
+                .observedEvidence(defaultIfBlank(history.getPreviousLearningActionSummary(),
+                        current == null ? null : current.getObservedEvidence()))
+                .confidence(history.getPreviousLearningActionConfidence() == null
+                        ? (current == null ? 0.5 : current.getConfidence())
+                        : history.getPreviousLearningActionConfidence())
+                .evidenceRefs(actionRefs)
+                .nextAdjustment(defaultIfBlank(history.getPreviousLearningActionNextAdjustment(),
+                        current == null ? null : current.getNextAdjustment()))
+                .build());
+        if ("CONTRADICTED".equals(history.getPreviousLearningActionStatus())) {
+            analysis.setProgressSignal(defaultIfBlank(
+                    analysis.getProgressSignal(),
+                    "Previous learning action was not observed; shrink the next action and consider teacher attention."
+            ));
+        }
+        return analysis;
+    }
+
     private SubmissionAnalysisResponse.LearningInterventionPlan normalizeIntervention(
             SubmissionAnalysisResponse.LearningInterventionPlan plan,
             SubmissionAnalysisResponse analysis) {
@@ -201,6 +258,26 @@ public class DiagnosticAgentService {
     }
 
     private InterventionTemplate interventionTemplate(String primaryTag, String teachingAction, String phase) {
+        if ("PREVIOUS_ACTION_CONTRADICTED".equals(phase)) {
+            return new InterventionTemplate(
+                    "MIN_CASE_TRACE",
+                    "Previous learning action was not observed in the follow-up; shrink the task to one observable artifact.",
+                    "Keep one minimal failing input and write the expected and actual key-variable changes before editing again.",
+                    "Which variable, output, or state first diverges from the expectation in this minimal case?",
+                    "The student can provide one minimal case and identify the first divergence between expected and actual state.",
+                    8
+            );
+        }
+        if ("PREVIOUS_ACTION_OBSERVED".equals(phase)) {
+            return new InterventionTemplate(
+                    "EXPLAIN_GENERALITY",
+                    "Previous learning action has observable evidence, so move into review and transfer.",
+                    "Review the action, the evidence that changed, and one boundary where the same idea should transfer.",
+                    "If the boundary input changes, does your reason still hold?",
+                    "The student can explain the action, evidence change, and one transferable boundary case.",
+                    6
+            );
+        }
         if ("REPEATED_STUCK".equals(phase)) {
             return new InterventionTemplate(
                     "MIN_CASE_TRACE",

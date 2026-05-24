@@ -428,6 +428,65 @@ class DiagnosticAgentServiceTest {
         assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isEqualTo("COLLECT_EVIDENCE");
     }
 
+    @Test
+    void diagnoseShrinksInterventionWhenPreviousLearningActionWasContradicted() {
+        DiagnosticAgentService service = newService();
+        Submission submission = Submission.builder()
+                .id(17L)
+                .languageName("Python 3")
+                .verdict(Submission.Verdict.WRONG_ANSWER)
+                .sourceCode("""
+                        n = int(input())
+                        total = 0
+                        for i in range(n - 1):
+                            total += i
+                        print(total)
+                        """)
+                .build();
+        Problem problem = Problem.builder()
+                .id(7L)
+                .title("action feedback")
+                .description("Input n and output the expected value.")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build();
+        SubmissionAnalysisResponse baseline = SubmissionAnalysisResponse.builder()
+                .submissionId(17L)
+                .sourceType("RULE_BASED_V1")
+                .scenario("WA")
+                .issueTags(List.of("BOUNDARY_CONDITION"))
+                .fineGrainedTags(List.of())
+                .evidenceRefs(List.of("code:plus_minus_one"))
+                .build();
+        DiagnosisEvidencePackage.HistoryEvidence history = DiagnosisEvidencePackage.HistoryEvidence.builder()
+                .previousVerdict("WRONG_ANSWER")
+                .previousInterventionType("MIN_CASE_TRACE")
+                .previousLearningActionStatus("CONTRADICTED")
+                .previousLearningActionConfidence(0.74)
+                .previousLearningActionEvidenceRefs(List.of("eval:intervention", "followup:submission:17", "action:CONTRADICTED"))
+                .previousLearningActionSummary("The same issue remained after the previous action.")
+                .previousLearningActionNextAdjustment("Shrink the next task.")
+                .build();
+
+        DiagnosticAgentService.AgentResult result = service.diagnose(
+                problem,
+                submission,
+                List.of(),
+                baseline,
+                Assignment.HintPolicy.L2,
+                history
+        );
+
+        assertThat(result.analysis().getLearningActionEvidence()).isNotNull();
+        assertThat(result.analysis().getLearningActionEvidence().getExecutionStatus()).isEqualTo("CONTRADICTED");
+        assertThat(result.analysis().getLearningActionEvidence().getEvidenceRefs()).contains("action:CONTRADICTED");
+        assertThat(result.analysis().getEvidenceRefs()).contains("eval:intervention", "followup:submission:17");
+        assertThat(result.analysis().getLearningInterventionPlan()).isNotNull();
+        assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isEqualTo("MIN_CASE_TRACE");
+        assertThat(result.analysis().getLearningInterventionPlan().getEvidenceRefs()).contains("action:CONTRADICTED");
+    }
+
     private DiagnosticAgentService newService() {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         return new DiagnosticAgentService(

@@ -105,6 +105,14 @@ class DiagnosisEvidencePackageBuilderTest {
                 .repeatedIssueTag("BOUNDARY_CONDITION")
                 .repeatedIssueCount(2L)
                 .transitionSignal("最近仍反复出现同类问题：边界条件")
+                .previousInterventionType("MIN_CASE_TRACE")
+                .previousInterventionTask("Trace one minimal failing input.")
+                .previousInterventionCompletionSignal("Student identifies the first divergent variable.")
+                .previousLearningActionStatus("CONTRADICTED")
+                .previousLearningActionConfidence(0.74)
+                .previousLearningActionEvidenceRefs(List.of("eval:intervention", "followup:submission:2"))
+                .previousLearningActionSummary("The same issue remained after the previous action.")
+                .previousLearningActionNextAdjustment("Shrink the next task.")
                 .build();
         DiagnosisEvidencePackage evidence = builder.build(
                 Problem.builder().id(1L).title("题目").description("描述").build(),
@@ -119,5 +127,9 @@ class DiagnosisEvidencePackageBuilderTest {
         assertThat(evidence.getHistory().getPreviousVerdict()).isEqualTo("WRONG_ANSWER");
         assertThat(evidence.getHistory().getRepeatedIssueTag()).isEqualTo("BOUNDARY_CONDITION");
         assertThat(evidence.getHistory().getTransitionSignal()).contains("边界条件");
+        assertThat(evidence.getHistory().getPreviousInterventionType()).isEqualTo("MIN_CASE_TRACE");
+        assertThat(evidence.getHistory().getPreviousLearningActionStatus()).isEqualTo("CONTRADICTED");
+        assertThat(evidence.getHistory().getPreviousLearningActionEvidenceRefs())
+                .contains("eval:intervention", "followup:submission:2");
     }
 }

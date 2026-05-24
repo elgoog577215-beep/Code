@@ -109,6 +109,33 @@ class ModelDiagnosisBriefBuilderTest {
         assertThat(pack.getUncertaintyOptions()).contains("NEEDS_MORE_EVIDENCE");
     }
 
+    @Test
+    void briefCarriesPreviousLearningActionFeedback() {
+        ModelDiagnosisBrief brief = briefBuilder.build(
+                DiagnosisEvidencePackage.builder()
+                        .problem(problem())
+                        .submission(submission())
+                        .history(DiagnosisEvidencePackage.HistoryEvidence.builder()
+                                .previousVerdict("WRONG_ANSWER")
+                                .transitionSignal("same verdict remains")
+                                .previousInterventionType("MIN_CASE_TRACE")
+                                .previousLearningActionStatus("CONTRADICTED")
+                                .previousLearningActionConfidence(0.74)
+                                .previousLearningActionSummary("The same issue remained after the previous action.")
+                                .previousLearningActionNextAdjustment("Shrink the next task.")
+                                .build())
+                        .build(),
+                ruleSignals(),
+                null
+        );
+
+        assertThat(brief.getLearningTrajectorySummary())
+                .contains("previousIntervention=MIN_CASE_TRACE")
+                .contains("actionStatus=CONTRADICTED")
+                .contains("actionConfidence=0.74")
+                .contains("Shrink the next task");
+    }
+
     private DiagnosisEvidencePackage.ProblemEvidence problem() {
         return DiagnosisEvidencePackage.ProblemEvidence.builder()
                 .id(1L)
