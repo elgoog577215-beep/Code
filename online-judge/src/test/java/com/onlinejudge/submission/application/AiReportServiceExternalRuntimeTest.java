@@ -85,6 +85,127 @@ class AiReportServiceExternalRuntimeTest {
     }
 
     @Test
+    void singleCallRuntimeCompletesDiagnosisAndTeachingWithOneModelCall() {
+        StubAiReportService service = newService(
+                """
+                {
+                  "diagnosisDecision": {
+                    "primaryIssueTag": "LOOP_BOUNDARY",
+                    "fineGrainedTag": "OFF_BY_ONE",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.9,
+                    "uncertainty": "range 右边界证据明确。",
+                    "needsMoreEvidence": false,
+                    "answerLeakRisk": "LOW"
+                  },
+                  "teachingHint": {
+                    "studentHint": "先用 n=1 手推循环会不会执行。",
+                    "studentHintPlan": {
+                      "hintLevel": "L2",
+                      "problemType": "循环边界",
+                      "evidenceAnchor": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "coachQuestion": "当 n=1 时循环执行几次？",
+                      "teachingAction": "TRACE_VARIABLES",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    },
+                    "learningInterventionPlan": {
+                      "interventionType": "VARIABLE_TRACE",
+                      "goal": "确认循环是否覆盖 n。",
+                      "studentTask": "手推 n=1 和 n=2。",
+                      "checkQuestion": "最后一次循环是否处理到 n？",
+                      "completionSignal": "能写出 i 的取值表。",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "estimatedMinutes": 6,
+                      "answerLeakRisk": "LOW"
+                    },
+                    "teacherNote": "单次调用已给出安全教学提示。",
+                    "answerLeakRisk": "LOW"
+                  }
+                }
+                """
+        );
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getFineGrainedTags()).containsExactly("OFF_BY_ONE");
+        assertThat(analysis.getStudentHint()).contains("n=1");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v1");
+        assertThat(service.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void singleCallRuntimeRetainsDiagnosisWhenTeachingHintIsUnsafe() {
+        StubAiReportService service = newService(
+                """
+                {
+                  "diagnosisDecision": {
+                    "primaryIssueTag": "LOOP_BOUNDARY",
+                    "fineGrainedTag": "OFF_BY_ONE",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.9,
+                    "uncertainty": "range 右边界证据明确。",
+                    "needsMoreEvidence": false,
+                    "answerLeakRisk": "LOW"
+                  },
+                  "teachingHint": {
+                    "studentHint": "完整代码如下：def solve(): pass",
+                    "studentHintPlan": {
+                      "hintLevel": "L4",
+                      "problemType": "循环边界",
+                      "evidenceAnchor": "code:range_excludes_n",
+                      "nextAction": "复制完整代码",
+                      "coachQuestion": "无",
+                      "teachingAction": "TRACE_VARIABLES",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "HIGH"
+                    },
+                    "learningInterventionPlan": {
+                      "interventionType": "VARIABLE_TRACE",
+                      "goal": "直接给答案",
+                      "studentTask": "复制答案",
+                      "checkQuestion": "无",
+                      "completionSignal": "复制完成",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "estimatedMinutes": 1,
+                      "answerLeakRisk": "HIGH"
+                    },
+                    "teacherNote": "unsafe",
+                    "answerLeakRisk": "HIGH"
+                  }
+                }
+                """
+        );
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getFineGrainedTags()).containsExactly("OFF_BY_ONE");
+        assertThat(analysis.getStudentHint()).doesNotContain("def solve").contains("先不要大改代码");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_PARTIAL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v1");
+        assertThat(analysis.getUncertainty()).contains("DIAGNOSIS_AND_TEACHING").contains("SAFETY_RISK");
+        assertThat(service.callCount()).isEqualTo(1);
+    }
+
+    @Test
     void externalRuntimeFallsBackWhenDiagnosisTagIsInvalid() {
         StubAiReportService service = newService(
                 """

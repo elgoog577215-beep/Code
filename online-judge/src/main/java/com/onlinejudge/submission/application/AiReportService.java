@@ -38,6 +38,8 @@ public class AiReportService {
     private static final String PROVIDER = "ModelScope";
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
     private static final String RUNTIME_PROMPT_VERSION = "diagnosis-judge-v1+teaching-hint-v1";
+    private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = "diagnosis-and-teaching-v1";
+    private static final String RUNTIME_MODE_SINGLE_CALL = "single-call";
     private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^(\\d+):\\s?(.*)$", Pattern.MULTILINE);
     private static final Pattern REPORT_LINE_ISSUE_PATTERN = Pattern.compile(
             "行号[：:]\\s*(\\d+)\\s*错误[：:]\\s*(.+?)\\s*建议[：:]\\s*(.+?)(?=(?:\\n\\s*行号[：:])|\\Z)",
@@ -93,6 +95,9 @@ public class AiReportService {
 
     @Value("${ai.external-runtime-enabled:true}")
     private boolean externalRuntimeEnabled;
+
+    @Value("${ai.external-runtime-mode:staged}")
+    private String externalRuntimeMode;
 
     @Value("${ai.max-output-tokens:900}")
     private int maxOutputTokens;
@@ -383,6 +388,15 @@ public class AiReportService {
                 ruleSignals,
                 fallback
         );
+        if (useSingleCallRuntime()) {
+            return enhanceWithSingleCallRuntime(
+                    submission,
+                    fallback,
+                    runtimePlan,
+                    rawSourceCode,
+                    baselineLineIssues
+            );
+        }
 
         ExternalModelStagePayloads.DiagnosisJudgeOutput decision;
         try {
@@ -452,6 +466,75 @@ public class AiReportService {
         ExternalModelStagePayloads.DiagnosisJudgeOutput output =
                 parseModelStagePayload(content, ExternalModelStagePayloads.DiagnosisJudgeOutput.class);
         return output;
+    }
+
+    private SubmissionAnalysisResponse enhanceWithSingleCallRuntime(
+            Submission submission,
+            SubmissionAnalysisResponse fallback,
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            String rawSourceCode,
+            List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues)
+            throws JsonProcessingException, IOException, InterruptedException {
+        ExternalModelStagePayloads.CombinedOutput combinedOutput;
+        try {
+            combinedOutput = callSingleCallRuntimeStage(runtimePlan);
+        } catch (Exception exception) {
+            return runtimeFallback(fallback, stageFailureFromException("DIAGNOSIS_AND_TEACHING", exception));
+        }
+
+        ExternalModelStagePayloads.DiagnosisJudgeOutput decision =
+                combinedOutput == null ? null : combinedOutput.getDiagnosisDecision();
+        ExternalModelStagePayloads.StageValidationResult decisionValidation =
+                withStage("DIAGNOSIS_AND_TEACHING", externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan));
+        if (!decisionValidation.isValid()) {
+            log.warn("External model single-call diagnosis failed validation. submissionId={}, reason={}, message={}",
+                    submission.getId(),
+                    decisionValidation.getFailureReason(),
+                    decisionValidation.getMessage());
+            return runtimeFallback(fallback, decisionValidation);
+        }
+
+        ExternalModelStagePayloads.TeachingHintOutput teachingHint =
+                combinedOutput == null ? null : combinedOutput.getTeachingHint();
+        ExternalModelStagePayloads.StageValidationResult teachingValidation =
+                withStage("DIAGNOSIS_AND_TEACHING", externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan));
+        if (!teachingValidation.isValid()) {
+            log.warn("External model single-call teaching failed validation. submissionId={}, reason={}, message={}",
+                    submission.getId(),
+                    teachingValidation.getFailureReason(),
+                    teachingValidation.getMessage());
+            return buildPartialRuntimeAnalysisResponse(
+                    fallback,
+                    runtimePlan,
+                    decision,
+                    teachingValidation,
+                    rawSourceCode,
+                    baselineLineIssues
+            );
+        }
+
+        SubmissionAnalysisResponse response = buildRuntimeAnalysisResponse(
+                fallback,
+                runtimePlan,
+                decision,
+                teachingHint,
+                rawSourceCode,
+                baselineLineIssues
+        );
+        response.setAiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false, SINGLE_CALL_RUNTIME_PROMPT_VERSION));
+        return response;
+    }
+
+    private ExternalModelStagePayloads.CombinedOutput callSingleCallRuntimeStage(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("brief", runtimePlan.getBrief());
+        request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        String content = chatCompletion(
+                runtimePlan.getSingleCallPrompt().getSystemPrompt(),
+                objectMapper.writeValueAsString(request)
+        );
+        return parseModelStagePayload(content, ExternalModelStagePayloads.CombinedOutput.class);
     }
 
     private ExternalModelStagePayloads.TeachingHintOutput callTeachingHintStage(
@@ -543,7 +626,7 @@ public class AiReportService {
                 rawSourceCode,
                 baselineLineIssues
         );
-        response.setAiInvocation(modelInvocation(fallback, "MODEL_PARTIAL_COMPLETED", false, RUNTIME_PROMPT_VERSION));
+        response.setAiInvocation(modelInvocation(fallback, "MODEL_PARTIAL_COMPLETED", false, activeRuntimePromptVersion()));
         response.setUncertainty(appendFailureNote(
                 response.getUncertainty(),
                 "教学提示阶段由本地安全模板补齐",
@@ -555,6 +638,14 @@ public class AiReportService {
                 + "- 教学表达阶段未完成，已使用本地安全教学模板补齐。"
                 + failureSummary(teachingFailure));
         return response;
+    }
+
+    private boolean useSingleCallRuntime() {
+        return RUNTIME_MODE_SINGLE_CALL.equalsIgnoreCase(cleanupAiText(externalRuntimeMode));
+    }
+
+    private String activeRuntimePromptVersion() {
+        return useSingleCallRuntime() ? SINGLE_CALL_RUNTIME_PROMPT_VERSION : RUNTIME_PROMPT_VERSION;
     }
 
     private ExternalModelStagePayloads.TeachingHintOutput buildLocalTeachingHintFromDecision(

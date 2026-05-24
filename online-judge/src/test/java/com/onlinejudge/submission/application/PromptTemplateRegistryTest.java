@@ -44,6 +44,22 @@ class PromptTemplateRegistryTest {
     }
 
     @Test
+    void singleCallPromptReturnsDiagnosisAndTeachingInOneContract() {
+        PromptTemplateRegistry.PromptTemplate template = registry.get(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V1);
+
+        assertThat(template.getVersion()).isEqualTo("diagnosis-and-teaching-v1");
+        assertThat(template.getStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+        assertThat(template.getSystemPrompt())
+                .contains("low-budget single-call runtime")
+                .contains("diagnosisDecision")
+                .contains("teachingHint")
+                .contains("studentHintPlan")
+                .contains("learningInterventionPlan")
+                .contains("teachingHint.studentHintPlan.teachingAction MUST come from standardLibrary.teachingActions")
+                .contains("Do not provide complete code");
+    }
+
+    @Test
     void unknownPromptVersionFailsFast() {
         assertThatThrownBy(() -> registry.get("unknown"))
                 .isInstanceOf(IllegalArgumentException.class)

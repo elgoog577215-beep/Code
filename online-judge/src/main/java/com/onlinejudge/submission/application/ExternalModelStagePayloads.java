@@ -43,6 +43,15 @@ public final class ExternalModelStagePayloads {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class CombinedOutput {
+        private DiagnosisJudgeOutput diagnosisDecision;
+        private TeachingHintOutput teachingHint;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class StageValidationResult {
         private boolean valid;
         private String stage;

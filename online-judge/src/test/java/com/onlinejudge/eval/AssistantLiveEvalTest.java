@@ -348,6 +348,8 @@ class AssistantLiveEvalTest {
         ReflectionTestUtils.setField(service, "timeoutSeconds", longValueOrDefault(System.getenv("AI_EVAL_TIMEOUT_SECONDS"), 35L));
         ReflectionTestUtils.setField(service, "externalRuntimeEnabled",
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_ENABLED"), "true")));
+        ReflectionTestUtils.setField(service, "externalRuntimeMode",
+                valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_MODE"), "staged"));
         ReflectionTestUtils.setField(service, "maxOutputTokens", (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
         ReflectionTestUtils.setField(service, "streamEnabled",
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_ENABLED"), "true")));
