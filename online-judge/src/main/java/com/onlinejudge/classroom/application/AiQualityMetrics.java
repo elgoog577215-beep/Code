@@ -15,17 +15,29 @@ class AiQualityMetrics {
     private final long evalCandidateCount;
     private final long lowConfidenceCount;
     private final long highLeakRiskCount;
+    private final long modelFallbackCount;
+    private final long modelPartialCount;
+    private final long modelRuntimeFailureCount;
+    private final long modelCompletedCount;
 
     private AiQualityMetrics(long analyzedSubmissionCount,
                              long correctionCount,
                              long evalCandidateCount,
                              long lowConfidenceCount,
-                             long highLeakRiskCount) {
+                             long highLeakRiskCount,
+                             long modelFallbackCount,
+                             long modelPartialCount,
+                             long modelRuntimeFailureCount,
+                             long modelCompletedCount) {
         this.analyzedSubmissionCount = analyzedSubmissionCount;
         this.correctionCount = correctionCount;
         this.evalCandidateCount = evalCandidateCount;
         this.lowConfidenceCount = lowConfidenceCount;
         this.highLeakRiskCount = highLeakRiskCount;
+        this.modelFallbackCount = modelFallbackCount;
+        this.modelPartialCount = modelPartialCount;
+        this.modelRuntimeFailureCount = modelRuntimeFailureCount;
+        this.modelCompletedCount = modelCompletedCount;
     }
 
     static AiQualityMetrics from(List<SubmissionAnalysis> analyses,
@@ -42,12 +54,40 @@ class AiQualityMetrics {
         long highLeakRiskCount = safeAnalyses.stream()
                 .filter(analysis -> "HIGH".equalsIgnoreCase(diagnosisReportReader.answerLeakRisk(analysis)))
                 .count();
+        long modelFallbackCount = safeAnalyses.stream()
+                .filter(analysis -> {
+                    DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+                    return invocation != null && invocation.fallbackUsed();
+                })
+                .count();
+        long modelPartialCount = safeAnalyses.stream()
+                .filter(analysis -> {
+                    DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+                    return invocation != null && "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(invocation.status());
+                })
+                .count();
+        long modelRuntimeFailureCount = safeAnalyses.stream()
+                .filter(analysis -> {
+                    DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+                    return invocation != null && ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status()) || invocation.fallbackUsed());
+                })
+                .count();
+        long modelCompletedCount = safeAnalyses.stream()
+                .filter(analysis -> {
+                    DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+                    return invocation != null && "MODEL_COMPLETED".equalsIgnoreCase(invocation.status());
+                })
+                .count();
         return new AiQualityMetrics(
                 safeAnalyses.size(),
                 safeCorrections.size(),
                 safeCorrections.stream().filter(TeacherDiagnosisCorrection::isEvalCandidate).count(),
                 lowConfidenceCount,
-                highLeakRiskCount
+                highLeakRiskCount,
+                modelFallbackCount,
+                modelPartialCount,
+                modelRuntimeFailureCount,
+                modelCompletedCount
         );
     }
 
@@ -71,6 +111,22 @@ class AiQualityMetrics {
         return highLeakRiskCount;
     }
 
+    long modelFallbackCount() {
+        return modelFallbackCount;
+    }
+
+    long modelPartialCount() {
+        return modelPartialCount;
+    }
+
+    long modelRuntimeFailureCount() {
+        return modelRuntimeFailureCount;
+    }
+
+    long modelCompletedCount() {
+        return modelCompletedCount;
+    }
+
     double correctionRate() {
         return rate(correctionCount, analyzedSubmissionCount);
     }
@@ -81,6 +137,14 @@ class AiQualityMetrics {
 
     double highLeakRiskRate() {
         return rate(highLeakRiskCount, analyzedSubmissionCount);
+    }
+
+    double modelFallbackRate() {
+        return rate(modelFallbackCount, analyzedSubmissionCount);
+    }
+
+    double modelRuntimeFailureRate() {
+        return rate(modelRuntimeFailureCount, analyzedSubmissionCount);
     }
 
     static double rate(long numerator, long denominator) {

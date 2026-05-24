@@ -46,9 +46,16 @@ public class StandardLibraryPackBuilder {
                 .filter(tag -> tag != null && tag.isFineGrained())
                 .map(this::toTagOption)
                 .toList();
-        List<StandardLibraryPack.TeachingActionOption> teachingActions = new LinkedHashSet<>(
-                issueTags.stream().map(StandardLibraryPack.TagOption::getTeachingAction).filter(this::present).toList()
-        ).stream()
+        LinkedHashSet<String> teachingActionIds = new LinkedHashSet<>();
+        issueTags.stream()
+                .map(StandardLibraryPack.TagOption::getTeachingAction)
+                .filter(this::present)
+                .forEach(teachingActionIds::add);
+        fineTags.stream()
+                .map(StandardLibraryPack.TagOption::getTeachingAction)
+                .filter(this::present)
+                .forEach(teachingActionIds::add);
+        List<StandardLibraryPack.TeachingActionOption> teachingActions = teachingActionIds.stream()
                 .map(this::toTeachingActionOption)
                 .toList();
 
@@ -95,12 +102,20 @@ public class StandardLibraryPackBuilder {
 
     private String resolveWhenToUse(String action) {
         return switch (action) {
+            case "FIX_FIRST_COMPILER_ERROR" -> "Use when compilation or syntax evidence blocks deeper reasoning.";
             case "ASK_MIN_CASE" -> "Use when boundary or special cases are likely.";
             case "TRACE_VARIABLES" -> "Use when loop variables, indexes, or counters may be wrong.";
             case "COMPARE_OUTPUT" -> "Use when visible output differs from expected output.";
+            case "COMPARE_INPUT_SPEC" -> "Use when the input structure may not match the problem statement.";
+            case "CHECK_BRANCH_COVERAGE" -> "Use when conditions or branch order may miss a case.";
+            case "COMPARE_STRUCTURES" -> "Use when a data structure choice affects correctness or scale.";
             case "COUNT_COMPLEXITY" -> "Use when time or scale is the key evidence.";
+            case "TRACE_STATE" -> "Use when initial values or resets may be wrong.";
             case "DEFINE_STATE" -> "Use when state meaning or transition is unclear.";
+            case "DRAW_RECURSION_TREE" -> "Use when recursion exit or backtracking behavior needs inspection.";
             case "BUILD_COUNTEREXAMPLE" -> "Use when generality or greedy assumptions need testing.";
+            case "CHECK_INVARIANT" -> "Use when an algorithmic assumption or greedy rule needs proof.";
+            case "EXPLAIN_GENERALITY" -> "Use when the submission passed but the student should explain transferability.";
             case "COMPARE_SUBMISSIONS" -> "Use when a recent fix may have introduced regression.";
             case "CHECK_RUNTIME_GUARDS" -> "Use when runtime stability is the current failure.";
             case "COLLECT_EVIDENCE" -> "Use when available evidence is insufficient.";
@@ -110,12 +125,20 @@ public class StandardLibraryPackBuilder {
 
     private String resolveStudentTaskTemplate(String action) {
         return switch (action) {
+            case "FIX_FIRST_COMPILER_ERROR" -> "Read the first compiler or runtime message and explain what it points to.";
             case "ASK_MIN_CASE" -> "Construct one minimal input and manually check the expected behavior.";
             case "TRACE_VARIABLES" -> "Trace the key variables for the first and last loop iteration.";
             case "COMPARE_OUTPUT" -> "Compare actual and expected output character by character.";
+            case "COMPARE_INPUT_SPEC" -> "Circle the input format in the statement and match each token to one read operation.";
+            case "CHECK_BRANCH_COVERAGE" -> "List the condition categories and mark which branch handles each one.";
+            case "COMPARE_STRUCTURES" -> "Compare two candidate structures by operation cost and required information.";
             case "COUNT_COMPLEXITY" -> "Estimate the number of core operations at maximum input size.";
+            case "TRACE_STATE" -> "Write the state before the loop, after one iteration, and after a reset point.";
             case "DEFINE_STATE" -> "Write what each state means before and after one transition.";
+            case "DRAW_RECURSION_TREE" -> "Draw the first two recursion levels and mark where recursion stops.";
             case "BUILD_COUNTEREXAMPLE" -> "Try to build a small case where the current assumption fails.";
+            case "CHECK_INVARIANT" -> "State the assumption that should stay true after each step, then test a small counterexample.";
+            case "EXPLAIN_GENERALITY" -> "Explain why the current solution works beyond the sample cases.";
             case "COMPARE_SUBMISSIONS" -> "Compare the last two submissions and identify the changed behavior.";
             case "CHECK_RUNTIME_GUARDS" -> "Find the smallest input that can trigger the runtime risk.";
             case "COLLECT_EVIDENCE" -> "Run or describe one more targeted example before changing code.";

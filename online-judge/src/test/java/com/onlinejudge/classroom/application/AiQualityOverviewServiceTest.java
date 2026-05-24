@@ -45,8 +45,8 @@ class AiQualityOverviewServiceTest {
         assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
         submissionRepository.items.add(submission(11L, 7L));
         submissionRepository.items.add(submission(12L, 7L));
-        analysisRepository.save(analysis(11L, 0.55, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
-        analysisRepository.save(analysis(12L, 0.82, "HIGH", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]"));
+        analysisRepository.save(analysis(11L, 0.55, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_RUNTIME_FALLBACK", true));
+        analysisRepository.save(analysis(12L, 0.82, "HIGH", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]", "MODEL_PARTIAL_COMPLETED", false));
         correctionRepository.saved.add(correction(1L, 7L, 11L, "BOUNDARY_CONDITION", "OFF_BY_ONE", "IO_FORMAT", "INPUT_PARSING", true));
 
         var overview = service.buildOverview(7L);
@@ -56,8 +56,15 @@ class AiQualityOverviewServiceTest {
         assertThat(overview.getEvalCandidateCount()).isEqualTo(1);
         assertThat(overview.getLowConfidenceCount()).isEqualTo(1);
         assertThat(overview.getHighLeakRiskCount()).isEqualTo(1);
+        assertThat(overview.getModelFallbackCount()).isEqualTo(1);
+        assertThat(overview.getModelPartialCount()).isEqualTo(1);
+        assertThat(overview.getModelRuntimeFailureCount()).isEqualTo(1);
+        assertThat(overview.getModelCompletedCount()).isZero();
         assertThat(overview.getCorrectionRate()).isEqualTo(50.0);
-        assertThat(overview.getSummary()).contains("高泄题风险");
+        assertThat(overview.getModelFallbackRate()).isEqualTo(50.0);
+        assertThat(overview.getModelRuntimeFailureRate()).isEqualTo(50.0);
+        assertThat(overview.getSummary()).contains("外部模型兜底");
+        assertThat(overview.getQualityRiskSummary()).contains("在线效果可能没有真正使用外部大模型");
         assertThat(overview.getCorrectedTags()).first()
                 .satisfies(tag -> {
                     assertThat(tag.getOriginalTag()).isEqualTo("OFF_BY_ONE");
@@ -79,7 +86,13 @@ class AiQualityOverviewServiceTest {
                 .build();
     }
 
-    private SubmissionAnalysis analysis(Long submissionId, double confidence, String leakRisk, String issueTags, String fineTags) {
+    private SubmissionAnalysis analysis(Long submissionId,
+                                        double confidence,
+                                        String leakRisk,
+                                        String issueTags,
+                                        String fineTags,
+                                        String invocationStatus,
+                                        boolean fallbackUsed) {
         return SubmissionAnalysis.builder()
                 .submissionId(submissionId)
                 .analysisSource("TEST")
@@ -92,9 +105,20 @@ class AiQualityOverviewServiceTest {
                           "issueTags": %s,
                           "fineGrainedTags": %s,
                           "confidence": %s,
-                          "answerLeakRisk": "%s"
+                          "answerLeakRisk": "%s",
+                          "aiInvocation": {
+                            "provider": "modelscope",
+                            "model": "deepseek-ai/DeepSeek-V4-Pro",
+                            "promptVersion": "external-model-runtime-v2",
+                            "agentVersion": "diagnostic-agent-v2",
+                            "analysisSchemaVersion": "diagnosis-v2",
+                            "evidenceSchemaVersion": "diagnosis-evidence-package-v1",
+                            "taxonomyVersion": "taxonomy-v1",
+                            "status": "%s",
+                            "fallbackUsed": %s
+                          }
                         }
-                        """.formatted(issueTags, fineTags, confidence, leakRisk))
+                        """.formatted(issueTags, fineTags, confidence, leakRisk, invocationStatus, fallbackUsed))
                 .build();
     }
 

@@ -14,10 +14,17 @@ public class AiQualityOverviewResponse {
     private long evalCandidateCount;
     private long lowConfidenceCount;
     private long highLeakRiskCount;
+    private long modelFallbackCount;
+    private long modelPartialCount;
+    private long modelRuntimeFailureCount;
+    private long modelCompletedCount;
     private double correctionRate;
     private double lowConfidenceRate;
     private double highLeakRiskRate;
+    private double modelFallbackRate;
+    private double modelRuntimeFailureRate;
     private String summary;
+    private String qualityRiskSummary;
     private List<TagCorrectionStat> correctedTags;
 
     @Data

@@ -51,10 +51,17 @@ public class AiQualityOverviewService {
                 .evalCandidateCount(metrics.evalCandidateCount())
                 .lowConfidenceCount(metrics.lowConfidenceCount())
                 .highLeakRiskCount(metrics.highLeakRiskCount())
+                .modelFallbackCount(metrics.modelFallbackCount())
+                .modelPartialCount(metrics.modelPartialCount())
+                .modelRuntimeFailureCount(metrics.modelRuntimeFailureCount())
+                .modelCompletedCount(metrics.modelCompletedCount())
                 .correctionRate(metrics.correctionRate())
                 .lowConfidenceRate(metrics.lowConfidenceRate())
                 .highLeakRiskRate(metrics.highLeakRiskRate())
-                .summary(buildSummary(metrics.analyzedSubmissionCount(), metrics.correctionCount(), metrics.lowConfidenceCount(), metrics.highLeakRiskCount()))
+                .modelFallbackRate(metrics.modelFallbackRate())
+                .modelRuntimeFailureRate(metrics.modelRuntimeFailureRate())
+                .summary(buildSummary(metrics))
+                .qualityRiskSummary(buildQualityRiskSummary(metrics))
                 .correctedTags(buildCorrectedTags(corrections))
                 .build();
     }
@@ -88,20 +95,48 @@ public class AiQualityOverviewService {
                 .toList();
     }
 
-    private String buildSummary(long analyzedCount, long correctionCount, long lowConfidenceCount, long highLeakRiskCount) {
-        if (analyzedCount == 0) {
+    private String buildSummary(AiQualityMetrics metrics) {
+        if (metrics.analyzedSubmissionCount() == 0) {
             return "当前作业还没有 AI 诊断样本。";
         }
-        if (highLeakRiskCount > 0) {
+        if (metrics.modelRuntimeFailureCount() > 0) {
+            return "存在外部模型兜底或运行失败，建议先检查模型调用与 prompt 输出稳定性。";
+        }
+        if (metrics.modelPartialCount() > 0) {
+            return "存在外部模型部分完成样本，建议复核第二阶段教学提示是否稳定。";
+        }
+        if (metrics.highLeakRiskCount() > 0) {
             return "存在高泄题风险诊断，建议先复核这些提交再开放给学生。";
         }
-        if (correctionCount > 0) {
+        if (metrics.correctionCount() > 0) {
             return "已有教师校正样例，建议优先沉淀进模型 eval。";
         }
-        if (lowConfidenceCount > 0) {
+        if (metrics.lowConfidenceCount() > 0) {
             return "存在低置信度诊断，适合人工抽查补证据。";
         }
         return "当前 AI 诊断暂无明显质量告警，继续观察教师校正和低置信度样本。";
+    }
+
+    private String buildQualityRiskSummary(AiQualityMetrics metrics) {
+        if (metrics.analyzedSubmissionCount() == 0) {
+            return "暂无可分析的模型质量风险。";
+        }
+        if (metrics.modelRuntimeFailureCount() > 0) {
+            return "模型调用质量风险最高：存在兜底或运行失败，在线效果可能没有真正使用外部大模型。";
+        }
+        if (metrics.modelPartialCount() > 0) {
+            return "模型阶段质量风险较高：诊断可能完成，但教学提示阶段存在部分失败。";
+        }
+        if (metrics.highLeakRiskCount() > 0) {
+            return "教学安全风险较高：存在高泄题风险输出，需要优先人工复核。";
+        }
+        if (metrics.correctionCount() > 0) {
+            return "教学准确性风险可沉淀：教师校正样例应进入评测集和标准库迭代。";
+        }
+        if (metrics.lowConfidenceCount() > 0) {
+            return "证据充分性风险存在：低置信度样本适合作为人工抽检队列。";
+        }
+        return "模型调用和教学输出暂未出现明显质量风险。";
     }
 
     private String firstNonBlank(String... values) {

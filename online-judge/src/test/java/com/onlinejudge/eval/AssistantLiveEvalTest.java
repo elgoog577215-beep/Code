@@ -50,6 +50,7 @@ class AssistantLiveEvalTest {
                     assertThat(fixture.teacherExpectation()).isNotBlank();
                     assertThat(fixture.qualityNotes()).isNotBlank();
                     assertThat(fixture.rubric()).isNotNull();
+                    assertNoMojibake(fixture.caseId(), objectMapper.writeValueAsString(fixture));
                     assertThat(fixture.rubric().expectedSignals()).as(fixture.caseId()).isNotEmpty();
                     assertThat(fixture.rubric().forbiddenPhrases()).as(fixture.caseId()).isNotEmpty();
                     if (fixture.isDiagnosis()) {
@@ -68,6 +69,21 @@ class AssistantLiveEvalTest {
                         assertThat(fixture.growthReport().timeline()).hasSizeGreaterThanOrEqualTo(2);
                     }
                 });
+    }
+
+    @Test
+    void studentHintNegativeFixturesDoNotContainCorruptedForbiddenPhrases() throws IOException {
+        Path fixturePath = Path.of(
+                "src",
+                "test",
+                "resources",
+                "diagnosis-eval-fixtures",
+                "student-hint-negative-cases.json"
+        );
+        String fixtureJson = Files.readString(fixturePath);
+
+        assertNoMojibake("student-hint-negative-cases", fixtureJson);
+        assertThat(fixtureJson).contains("隐藏测试点");
     }
 
     @Test
@@ -95,6 +111,7 @@ class AssistantLiveEvalTest {
 
         assertThat(report.getEntries()).hasSize(fixtures.size());
         assertThat(reportPath).exists();
+        assertLiveEvalQualityGateIfEnabled(report);
     }
 
     private AssistantLiveEvalReport runLiveEval(List<AssistantEvalFixtureLoader.Fixture> fixtures,
@@ -370,6 +387,22 @@ class AssistantLiveEvalTest {
                 .build();
     }
 
+    private void assertLiveEvalQualityGateIfEnabled(AssistantLiveEvalReport report) {
+        if (!Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_ENFORCE_THRESHOLDS"), "false"))) {
+            return;
+        }
+        AssistantLiveEvalQualityGate.Thresholds thresholds = new AssistantLiveEvalQualityGate.Thresholds(
+                doubleValueOrDefault(System.getenv("AI_EVAL_MIN_SIGNAL_HIT_RATE"), 0.60),
+                doubleValueOrDefault(System.getenv("AI_EVAL_MIN_EVIDENCE_VALID_RATE"), 0.80),
+                doubleValueOrDefault(System.getenv("AI_EVAL_MIN_SAFETY_PASS_RATE"), 1.00),
+                doubleValueOrDefault(System.getenv("AI_EVAL_MAX_FALLBACK_RATE"), 0.35)
+        );
+        List<String> violations = AssistantLiveEvalQualityGate.evaluate(report, thresholds);
+        assertThat(violations)
+                .as("assistant live eval quality gate violations")
+                .isEmpty();
+    }
+
     private Path writeReport(AssistantLiveEvalReport report) throws IOException {
         Path reportDir = Path.of("target", "ai-eval-reports");
         Files.createDirectories(reportDir);
@@ -424,6 +457,22 @@ class AssistantLiveEvalTest {
                 .filter(value -> value != null && !value.isBlank())
                 .map(value -> value.toLowerCase(Locale.ROOT))
                 .noneMatch(normalized::contains);
+    }
+
+    private void assertNoMojibake(String caseId, String text) {
+        List<String> mojibakeMarkers = List.of(
+                "闅愯棌",
+                "瀛︾敓",
+                "鑰佸笀",
+                "涓€",
+                "鈥",
+                "鐐?",
+                "锛?",
+                "銆"
+        );
+        assertThat(text)
+                .as("fixture %s must not contain corrupted Chinese text", caseId)
+                .doesNotContain(mojibakeMarkers.toArray(String[]::new));
     }
 
     private String combinedAnalysisText(SubmissionAnalysisResponse analysis) {
@@ -614,6 +663,17 @@ class AssistantLiveEvalTest {
         }
         try {
             return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private double doubleValueOrDefault(String value, double fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Double.parseDouble(value);
         } catch (NumberFormatException ignored) {
             return fallback;
         }

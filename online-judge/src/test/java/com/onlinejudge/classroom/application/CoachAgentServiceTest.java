@@ -112,6 +112,42 @@ class CoachAgentServiceTest {
     }
 
     @Test
+    void coachPromptCarriesStandardLibraryTeachingActionAndAllowedEvidenceRefs() {
+        StubCoachAgentService service = new StubCoachAgentService(objectMapper, taxonomy, """
+                {
+                  "question": "请先用自己的话写出这个状态表示什么，再手推一次转移。",
+                  "rationale": "沿用标准库中的状态定义教学动作。",
+                  "evidenceRefs": ["submission:11", "tag:DP_STATE_DESIGN"],
+                  "confidence": 0.82,
+                  "answerLeakRisk": "LOW"
+                }
+                """);
+        enableAi(service);
+
+        CoachAgentService.CoachDraft draft = service.generateInitialQuestion(
+                submission(),
+                analysis(),
+                "DP_STATE_DESIGN",
+                Assignment.HintPolicy.L2,
+                "学生把 dp 状态直接写成数组，但没有说明含义。",
+                List.of("submission:11", "tag:DP_STATE_DESIGN"),
+                CoachAgentService.CoachDraft.fallback("规则问题")
+        );
+
+        assertThat(draft.getSource()).isEqualTo("MODEL");
+        assertThat(service.lastSystemPrompt()).contains("standardLibrary", "allowedEvidenceRefs");
+        assertThat(service.lastUserPrompt()).contains(
+                "standardLibrary",
+                "teachingAction",
+                "DEFINE_STATE",
+                "DP_STATE_DESIGN",
+                "ALGORITHM_STRATEGY",
+                "allowedEvidenceRefs",
+                "tag:DP_STATE_DESIGN"
+        );
+    }
+
+    @Test
     void rejectsLeakyModelDraftAndFallsBack() {
         StubCoachAgentService service = new StubCoachAgentService(objectMapper, taxonomy, """
                 {
@@ -323,6 +359,8 @@ class CoachAgentServiceTest {
     private static class StubCoachAgentService extends CoachAgentService {
         private final String response;
         private final IOException exception;
+        private String lastSystemPrompt;
+        private String lastUserPrompt;
 
         private StubCoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy taxonomy, String response) {
             super(objectMapper, taxonomy);
@@ -338,10 +376,20 @@ class CoachAgentServiceTest {
 
         @Override
         protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
+            this.lastSystemPrompt = systemPrompt;
+            this.lastUserPrompt = userPrompt;
             if (exception != null) {
                 throw exception;
             }
             return response;
+        }
+
+        private String lastSystemPrompt() {
+            return lastSystemPrompt;
+        }
+
+        private String lastUserPrompt() {
+            return lastUserPrompt;
         }
     }
 

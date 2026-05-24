@@ -6,6 +6,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
+import com.onlinejudge.submission.application.ModelDiagnosisBrief;
+import com.onlinejudge.submission.application.StandardLibraryPack;
+import com.onlinejudge.submission.application.StandardLibraryPackBuilder;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import lombok.Builder;
@@ -129,15 +132,20 @@ public class CoachAgentService {
                                             String contextSummary,
                                             List<String> evidenceRefs) {
         Map<String, Object> context = new LinkedHashMap<>();
+        String normalizedPrimaryTag = normalizePrimaryTag(primaryTag);
+        List<String> safeEvidenceRefs = evidenceRefs == null ? List.of() : evidenceRefs;
         context.put("submissionId", submission == null ? null : submission.getId());
         context.put("verdict", submission == null || submission.getVerdict() == null ? "UNKNOWN" : submission.getVerdict().name());
         context.put("scenario", analysis == null ? "" : analysis.getScenario());
         context.put("headline", analysis == null ? "" : analysis.getHeadline());
-        context.put("primaryTag", primaryTag == null ? "NEEDS_MORE_EVIDENCE" : primaryTag);
-        context.put("primaryTagLabel", diagnosisTaxonomy.label(primaryTag));
+        context.put("primaryTag", normalizedPrimaryTag);
+        context.put("primaryTagLabel", diagnosisTaxonomy.label(normalizedPrimaryTag));
+        context.put("teachingAction", diagnosisTaxonomy.teachingAction(normalizedPrimaryTag));
+        context.put("standardLibrary", buildCoachStandardLibrary(normalizedPrimaryTag));
+        context.put("allowedEvidenceRefs", safeEvidenceRefs);
         context.put("hintPolicy", hintPolicy == null ? Assignment.HintPolicy.L2.name() : hintPolicy.name());
         context.put("contextSummary", contextSummary == null ? "" : contextSummary);
-        context.put("evidenceRefs", evidenceRefs == null ? List.of() : evidenceRefs);
+        context.put("evidenceRefs", safeEvidenceRefs);
         return context;
     }
 
@@ -154,13 +162,41 @@ public class CoachAgentService {
                 answerLeakRisk("LOW"|"MEDIUM"|"HIGH")
 
                 安全规则：
-                1. 只能追问学生下一步如何验证，不给完整答案、完整代码、最终算法步骤或隐藏测试数据。
-                2. 不要直接说“把 X 改成 Y”，不要提供可照抄的修复。
-                3. 必须引用输入 evidenceRefs 中已有的证据 ID，不要编造证据。
-                4. 如果证据不足，就追问最小样例、变量变化、边界类别或复杂度数量级。
-                5. 所有面向学生的文本必须简体中文，语气短、具体、可执行。
-                6. 如果你不确定是否安全，将 answerLeakRisk 设为 HIGH。
+                1. 只能基于输入 standardLibrary、teachingAction、allowedEvidenceRefs 和 contextSummary 追问学生下一步如何验证。
+                2. 不给完整答案、完整代码、最终算法步骤或隐藏测试数据。
+                3. 不要直接说“把 X 改成 Y”，不要提供可照抄的修复。
+                4. 必须引用 allowedEvidenceRefs 中已有的证据 ID，不要编造证据。
+                5. 优先沿用 standardLibrary.teachingActions 中与 primaryTag 对应的教学动作；证据不足时使用 COLLECT_EVIDENCE 风格追问。
+                6. 所有面向学生的文本必须简体中文，语气短、具体、可执行。
+                7. 如果你不确定是否安全，将 answerLeakRisk 设为 HIGH。
                 """;
+    }
+
+    private String normalizePrimaryTag(String primaryTag) {
+        DiagnosisTaxonomy.DiagnosisTag tag = diagnosisTaxonomy.get(primaryTag);
+        return tag == null ? "NEEDS_MORE_EVIDENCE" : tag.getId();
+    }
+
+    private StandardLibraryPack buildCoachStandardLibrary(String primaryTag) {
+        DiagnosisTaxonomy.DiagnosisTag tag = diagnosisTaxonomy.get(primaryTag);
+        LinkedHashSet<String> issueTags = new LinkedHashSet<>();
+        LinkedHashSet<String> fineTags = new LinkedHashSet<>();
+        if (tag == null) {
+            issueTags.add("NEEDS_MORE_EVIDENCE");
+        } else if (tag.isFineGrained()) {
+            fineTags.add(tag.getId());
+            if (tag.getParentTag() != null && !tag.getParentTag().isBlank()) {
+                issueTags.add(tag.getParentTag());
+            }
+        } else {
+            issueTags.add(tag.getId());
+        }
+        issueTags.add("NEEDS_MORE_EVIDENCE");
+        ModelDiagnosisBrief brief = ModelDiagnosisBrief.builder()
+                .allowedIssueTags(List.copyOf(issueTags))
+                .allowedFineGrainedTags(List.copyOf(fineTags))
+                .build();
+        return new StandardLibraryPackBuilder(diagnosisTaxonomy).build(brief, null);
     }
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
