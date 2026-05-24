@@ -11,9 +11,9 @@ class PromptTemplateRegistryTest {
 
     @Test
     void diagnosisJudgePromptDefinesTightJsonContract() {
-        PromptTemplateRegistry.PromptTemplate template = registry.get(PromptTemplateRegistry.DIAGNOSIS_JUDGE_V1);
+        PromptTemplateRegistry.PromptTemplate template = registry.get(PromptTemplateRegistry.DIAGNOSIS_JUDGE_V2);
 
-        assertThat(template.getVersion()).isEqualTo("diagnosis-judge-v1");
+        assertThat(template.getVersion()).isEqualTo("diagnosis-judge-v2");
         assertThat(template.getStage()).isEqualTo("DIAGNOSIS_JUDGE");
         assertThat(template.getSystemPrompt())
                 .contains("Return strict JSON only")
@@ -48,9 +48,9 @@ class PromptTemplateRegistryTest {
 
     @Test
     void singleCallPromptReturnsDiagnosisAndTeachingInOneContract() {
-        PromptTemplateRegistry.PromptTemplate template = registry.get(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V1);
+        PromptTemplateRegistry.PromptTemplate template = registry.get(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V2);
 
-        assertThat(template.getVersion()).isEqualTo("diagnosis-and-teaching-v1");
+        assertThat(template.getVersion()).isEqualTo("diagnosis-and-teaching-v2");
         assertThat(template.getStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
         assertThat(template.getSystemPrompt())
                 .contains("low-budget single-call runtime")
@@ -70,5 +70,13 @@ class PromptTemplateRegistryTest {
         assertThatThrownBy(() -> registry.get("unknown"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unknown prompt template version");
+    }
+
+    @Test
+    void keepsLegacyPromptVersionsResolvableForHistoricalCompatibility() {
+        assertThat(registry.get(PromptTemplateRegistry.DIAGNOSIS_JUDGE_V1).getVersion())
+                .isEqualTo("diagnosis-judge-v1");
+        assertThat(registry.get(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V1).getVersion())
+                .isEqualTo("diagnosis-and-teaching-v1");
     }
 }

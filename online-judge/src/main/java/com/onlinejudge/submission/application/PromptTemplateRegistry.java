@@ -10,12 +10,19 @@ import java.util.Map;
 public class PromptTemplateRegistry {
 
     public static final String DIAGNOSIS_JUDGE_V1 = "diagnosis-judge-v1";
+    public static final String DIAGNOSIS_JUDGE_V2 = "diagnosis-judge-v2";
     public static final String TEACHING_HINT_V1 = "teaching-hint-v1";
     public static final String DIAGNOSIS_AND_TEACHING_V1 = "diagnosis-and-teaching-v1";
+    public static final String DIAGNOSIS_AND_TEACHING_V2 = "diagnosis-and-teaching-v2";
 
     private final Map<String, PromptTemplate> templates = Map.of(
             DIAGNOSIS_JUDGE_V1, PromptTemplate.builder()
                     .version(DIAGNOSIS_JUDGE_V1)
+                    .stage("DIAGNOSIS_JUDGE")
+                    .systemPrompt(diagnosisJudgeSystemPrompt())
+                    .build(),
+            DIAGNOSIS_JUDGE_V2, PromptTemplate.builder()
+                    .version(DIAGNOSIS_JUDGE_V2)
                     .stage("DIAGNOSIS_JUDGE")
                     .systemPrompt(diagnosisJudgeSystemPrompt())
                     .build(),
@@ -26,6 +33,11 @@ public class PromptTemplateRegistry {
                     .build(),
             DIAGNOSIS_AND_TEACHING_V1, PromptTemplate.builder()
                     .version(DIAGNOSIS_AND_TEACHING_V1)
+                    .stage("DIAGNOSIS_AND_TEACHING")
+                    .systemPrompt(diagnosisAndTeachingSystemPrompt())
+                    .build(),
+            DIAGNOSIS_AND_TEACHING_V2, PromptTemplate.builder()
+                    .version(DIAGNOSIS_AND_TEACHING_V2)
                     .stage("DIAGNOSIS_AND_TEACHING")
                     .systemPrompt(diagnosisAndTeachingSystemPrompt())
                     .build()

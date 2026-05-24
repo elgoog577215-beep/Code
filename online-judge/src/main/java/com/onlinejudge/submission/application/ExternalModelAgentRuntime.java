@@ -42,9 +42,9 @@ public class ExternalModelAgentRuntime {
         return RuntimePlan.builder()
                 .brief(brief)
                 .standardLibraryPack(standardLibraryPack)
-                .diagnosisPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_JUDGE_V1))
+                .diagnosisPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_JUDGE_V2))
                 .teachingPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.TEACHING_HINT_V1))
-                .singleCallPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V1))
+                .singleCallPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V2))
                 .build();
     }
 

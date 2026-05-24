@@ -80,7 +80,7 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getLineIssues()).hasSize(1);
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-judge-v1+teaching-hint-v1");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-judge-v2+teaching-hint-v1");
         assertThat(service.callCount()).isEqualTo(2);
     }
 
@@ -200,7 +200,7 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getFineGrainedTags()).containsExactly("OFF_BY_ONE");
         assertThat(analysis.getStudentHint()).contains("n=1");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v1");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v2");
         assertThat(service.callCount()).isEqualTo(1);
     }
 
@@ -260,7 +260,7 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getFineGrainedTags()).containsExactly("OFF_BY_ONE");
         assertThat(analysis.getStudentHint()).doesNotContain("def solve").contains("先不要大改代码");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_PARTIAL_COMPLETED");
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v1");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v2");
         assertThat(analysis.getUncertainty()).contains("DIAGNOSIS_AND_TEACHING").contains("SAFETY_RISK");
         assertThat(service.callCount()).isEqualTo(1);
     }
@@ -293,7 +293,68 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getSourceType()).isEqualTo("RULE_BASED_V1");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isTrue();
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-judge-v2+teaching-hint-v1");
         assertThat(analysis.getUncertainty()).contains("INVALID_TAG");
+        assertThat(service.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void singleCallRuntimeFallbackRecordsSingleCallPromptVersionWhenDiagnosisIsInvalid() {
+        StubAiReportService service = newService(
+                """
+                {
+                  "diagnosisDecision": {
+                    "primaryIssueTag": "MADE_UP_TAG",
+                    "fineGrainedTag": "OFF_BY_ONE",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.5,
+                    "uncertainty": "bad tag",
+                    "needsMoreEvidence": false,
+                    "answerLeakRisk": "LOW"
+                  },
+                  "teachingHint": {
+                    "studentHint": "先看 range 边界。",
+                    "studentHintPlan": {
+                      "hintLevel": "L2",
+                      "problemType": "循环边界",
+                      "evidenceAnchor": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "coachQuestion": "右边界包含 n 吗？",
+                      "teachingAction": "TRACE_VARIABLES",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    },
+                    "learningInterventionPlan": {
+                      "interventionType": "VARIABLE_TRACE",
+                      "goal": "确认循环边界。",
+                      "studentTask": "手推最小样例。",
+                      "checkQuestion": "是否处理到 n？",
+                      "completionSignal": "能指出缺失位置。",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "estimatedMinutes": 5,
+                      "answerLeakRisk": "LOW"
+                    },
+                    "teacherNote": "invalid diagnosis should fall back",
+                    "answerLeakRisk": "LOW"
+                  }
+                }
+                """
+        );
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getSourceType()).isEqualTo("RULE_BASED_V1");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
+        assertThat(analysis.getAiInvocation().isFallbackUsed()).isTrue();
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v2");
+        assertThat(analysis.getUncertainty()).contains("DIAGNOSIS_AND_TEACHING").contains("INVALID_TAG");
         assertThat(service.callCount()).isEqualTo(1);
     }
 

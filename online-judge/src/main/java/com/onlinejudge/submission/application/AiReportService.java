@@ -37,8 +37,8 @@ public class AiReportService {
     private static final String AI_SOURCE = "MODEL_SCOPE_EXTERNAL_MODEL";
     private static final String PROVIDER = "ModelScope";
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
-    private static final String RUNTIME_PROMPT_VERSION = "diagnosis-judge-v1+teaching-hint-v1";
-    private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = "diagnosis-and-teaching-v1";
+    private static final String RUNTIME_PROMPT_VERSION = "diagnosis-judge-v2+teaching-hint-v1";
+    private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = "diagnosis-and-teaching-v2";
     private static final String RUNTIME_MODE_SINGLE_CALL = "single-call";
     private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^(\\d+):\\s?(.*)$", Pattern.MULTILINE);
     private static final Pattern REPORT_LINE_ISSUE_PATTERN = Pattern.compile(
@@ -845,7 +845,7 @@ public class AiReportService {
                 ? "UNKNOWN_STAGE"
                 : validationResult.getStage();
         String message = validationResult == null ? "" : cleanupAiText(validationResult.getMessage());
-        fallback.setAiInvocation(modelInvocation(fallback, "MODEL_RUNTIME_FALLBACK", true, RUNTIME_PROMPT_VERSION));
+        fallback.setAiInvocation(modelInvocation(fallback, "MODEL_RUNTIME_FALLBACK", true, activeRuntimePromptVersion()));
         fallback.setUncertainty(defaultIfBlank(
                 "外部模型阶段化诊断未通过校验，已使用本地规则兜底。失败阶段：" + stage + "；失败原因：" + reason
                         + (message.isBlank() ? "" : "，" + message),
