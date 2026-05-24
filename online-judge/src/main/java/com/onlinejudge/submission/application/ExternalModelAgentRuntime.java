@@ -12,15 +12,26 @@ public class ExternalModelAgentRuntime {
     private final StandardLibraryPackBuilder standardLibraryPackBuilder;
     private final PromptTemplateRegistry promptTemplateRegistry;
     private final ModelOutputValidator modelOutputValidator;
+    private final ExternalModelOutputNormalizer outputNormalizer;
 
     public ExternalModelAgentRuntime(ModelDiagnosisBriefBuilder briefBuilder,
                                      StandardLibraryPackBuilder standardLibraryPackBuilder,
                                      PromptTemplateRegistry promptTemplateRegistry,
                                      ModelOutputValidator modelOutputValidator) {
+        this(briefBuilder, standardLibraryPackBuilder, promptTemplateRegistry, modelOutputValidator,
+                new ExternalModelOutputNormalizer());
+    }
+
+    public ExternalModelAgentRuntime(ModelDiagnosisBriefBuilder briefBuilder,
+                                     StandardLibraryPackBuilder standardLibraryPackBuilder,
+                                     PromptTemplateRegistry promptTemplateRegistry,
+                                     ModelOutputValidator modelOutputValidator,
+                                     ExternalModelOutputNormalizer outputNormalizer) {
         this.briefBuilder = briefBuilder;
         this.standardLibraryPackBuilder = standardLibraryPackBuilder;
         this.promptTemplateRegistry = promptTemplateRegistry;
         this.modelOutputValidator = modelOutputValidator;
+        this.outputNormalizer = outputNormalizer == null ? new ExternalModelOutputNormalizer() : outputNormalizer;
     }
 
     public RuntimePlan prepare(DiagnosisEvidencePackage evidencePackage,
@@ -45,6 +56,24 @@ public class ExternalModelAgentRuntime {
                 runtimePlan == null ? null : runtimePlan.getBrief(),
                 runtimePlan == null ? null : runtimePlan.getStandardLibraryPack()
         );
+    }
+
+    public ExternalModelStagePayloads.DiagnosisJudgeOutput normalizeDiagnosisDecision(
+            ExternalModelStagePayloads.DiagnosisJudgeOutput output,
+            RuntimePlan runtimePlan) {
+        return outputNormalizer.normalizeDiagnosisDecision(output, runtimePlan);
+    }
+
+    public ExternalModelStagePayloads.TeachingHintOutput normalizeTeachingHint(
+            ExternalModelStagePayloads.TeachingHintOutput output,
+            RuntimePlan runtimePlan) {
+        return outputNormalizer.normalizeTeachingHint(output, runtimePlan);
+    }
+
+    public ExternalModelStagePayloads.CombinedOutput normalizeCombinedOutput(
+            ExternalModelStagePayloads.CombinedOutput output,
+            RuntimePlan runtimePlan) {
+        return outputNormalizer.normalizeCombinedOutput(output, runtimePlan);
     }
 
     public ExternalModelStagePayloads.StageValidationResult validateTeachingHint(

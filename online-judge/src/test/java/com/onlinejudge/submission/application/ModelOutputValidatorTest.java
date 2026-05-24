@@ -151,6 +151,7 @@ class ModelOutputValidatorTest {
         assertThat(plan.getStandardLibraryPack().getSchemaVersion()).isEqualTo(StandardLibraryPack.SCHEMA_VERSION);
         assertThat(plan.getDiagnosisPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_JUDGE_V1);
         assertThat(plan.getTeachingPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.TEACHING_HINT_V1);
+        assertThat(plan.getSingleCallPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V1);
     }
 
     private ExternalModelStagePayloads.DiagnosisJudgeOutput validDecision() {

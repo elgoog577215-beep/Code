@@ -401,6 +401,7 @@ public class AiReportService {
         ExternalModelStagePayloads.DiagnosisJudgeOutput decision;
         try {
             decision = callDiagnosisJudgeStage(runtimePlan);
+            decision = externalModelAgentRuntime.normalizeDiagnosisDecision(decision, runtimePlan);
         } catch (Exception exception) {
             return runtimeFallback(fallback, stageFailureFromException("DIAGNOSIS_JUDGE", exception));
         }
@@ -417,6 +418,7 @@ public class AiReportService {
         ExternalModelStagePayloads.TeachingHintOutput teachingHint;
         try {
             teachingHint = callTeachingHintStage(runtimePlan, decision);
+            teachingHint = externalModelAgentRuntime.normalizeTeachingHint(teachingHint, runtimePlan);
         } catch (Exception exception) {
             return buildPartialRuntimeAnalysisResponse(
                     fallback,
@@ -478,6 +480,7 @@ public class AiReportService {
         ExternalModelStagePayloads.CombinedOutput combinedOutput;
         try {
             combinedOutput = callSingleCallRuntimeStage(runtimePlan);
+            combinedOutput = externalModelAgentRuntime.normalizeCombinedOutput(combinedOutput, runtimePlan);
         } catch (Exception exception) {
             return runtimeFallback(fallback, stageFailureFromException("DIAGNOSIS_AND_TEACHING", exception));
         }

@@ -85,6 +85,66 @@ class AiReportServiceExternalRuntimeTest {
     }
 
     @Test
+    void externalRuntimeNormalizesModelLabelsAndEvidenceRefsBeforeValidation() {
+        StubAiReportService service = newService(
+                """
+                {
+                  "primaryIssueTag": "循环边界",
+                  "fineGrainedTag": "差 一 位 错误",
+                  "evidenceRefs": [" CODE:RANGE_EXCLUDES_N "],
+                  "confidence": 0.88,
+                  "uncertainty": "模型使用了中文标签，但证据仍然指向循环边界。",
+                  "needsMoreEvidence": false,
+                  "answerLeakRisk": "low"
+                }
+                """,
+                """
+                {
+                  "studentHint": "先用 n=1 手推循环是否执行。",
+                  "studentHintPlan": {
+                    "hintLevel": "L2",
+                    "problemType": "循环边界",
+                    "evidenceAnchor": "code:range_excludes_n",
+                    "nextAction": "列出 range 产生的 i。",
+                    "coachQuestion": "当 n=1 时循环执行几次？",
+                    "teachingAction": "trace_variables",
+                    "evidenceRefs": [" CODE:RANGE_EXCLUDES_N "],
+                    "answerLeakRisk": "low"
+                  },
+                  "learningInterventionPlan": {
+                    "interventionType": "VARIABLE_TRACE",
+                    "goal": "确认循环是否覆盖 n。",
+                    "studentTask": "手推 n=1 和 n=2。",
+                    "checkQuestion": "最后一次循环是否处理到 n？",
+                    "completionSignal": "能写出 i 的取值表。",
+                    "evidenceRefs": [" CODE:RANGE_EXCLUDES_N "],
+                    "estimatedMinutes": 6,
+                    "answerLeakRisk": "low"
+                  },
+                  "teacherNote": "模型输出已被标准化后使用。",
+                  "answerLeakRisk": "low"
+                }
+                """
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getFineGrainedTags()).containsExactly("OFF_BY_ONE");
+        assertThat(analysis.getEvidenceRefs()).containsExactly("code:range_excludes_n");
+        assertThat(analysis.getStudentHintPlan().getTeachingAction()).isEqualTo("TRACE_VARIABLES");
+        assertThat(analysis.getStudentHintPlan().getEvidenceRefs()).containsExactly("code:range_excludes_n");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(service.callCount()).isEqualTo(2);
+    }
+
+    @Test
     void singleCallRuntimeCompletesDiagnosisAndTeachingWithOneModelCall() {
         StubAiReportService service = newService(
                 """
