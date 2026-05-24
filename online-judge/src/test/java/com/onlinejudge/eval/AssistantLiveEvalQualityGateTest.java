@@ -48,4 +48,22 @@ class AssistantLiveEvalQualityGateTest {
                 "fallbackRate 0.75 > 0.30"
         );
     }
+
+    @Test
+    void budgetLimitedRuntimeFailuresAreNotQualityMisses() {
+        AssistantLiveEvalReport.Entry entry = AssistantLiveEvalReport.Entry.builder()
+                .caseId("coach-budget-limited")
+                .assistantType("COACH_QUESTION")
+                .status("MODEL_RUNTIME_FALLBACK")
+                .fallbackUsed(true)
+                .completedOutput(false)
+                .expectedSignalHit(false)
+                .evidenceValid(false)
+                .safetyPassed(true)
+                .failureReason("MODEL_RUNTIME_FALLBACK:BUDGET_GUARD_OPEN:RATE_LIMITED")
+                .build();
+
+        assertThat(entry.getCompletedOutput()).isFalse();
+        assertThat(entry.getFailureReason()).contains("BUDGET_GUARD_OPEN");
+    }
 }

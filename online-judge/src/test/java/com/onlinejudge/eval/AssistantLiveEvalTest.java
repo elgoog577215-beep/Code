@@ -537,6 +537,7 @@ class AssistantLiveEvalTest {
         List<String> knownReasons = List.of(
                 "INSUFFICIENT_QUOTA",
                 "RATE_LIMITED",
+                "BUDGET_GUARD_OPEN",
                 "TIMEOUT",
                 "MODEL_UNSUPPORTED",
                 "EMPTY_RESPONSE",
@@ -626,6 +627,9 @@ class AssistantLiveEvalTest {
                                        boolean signalHit,
                                        boolean safetyPassed,
                                        String failureReason) {
+        if (isBudgetLimitedFailure(failureReason)) {
+            return "优先处理外部模型预算、限流、调用间隔或模型路由；本条不应优先归因到 prompt 或教学策略。";
+        }
         if (failureReason != null && failureReason.contains("SAFETY_REJECTED")) {
             return "优先收紧 " + assistantType + " 的 prompt，降低直接引用代码片段、直接改法或过度提示的概率。";
         }
@@ -644,6 +648,13 @@ class AssistantLiveEvalTest {
             };
         }
         return "该样本可作为正向基线，后续扩展同类变体。";
+    }
+
+    private boolean isBudgetLimitedFailure(String failureReason) {
+        String text = safe(failureReason);
+        return text.contains("INSUFFICIENT_QUOTA")
+                || text.contains("RATE_LIMITED")
+                || text.contains("BUDGET_GUARD_OPEN");
     }
 
     private Assignment.HintPolicy parseHintPolicy(String value) {

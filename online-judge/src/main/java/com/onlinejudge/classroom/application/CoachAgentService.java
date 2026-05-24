@@ -6,15 +6,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
+import com.onlinejudge.submission.application.ExternalModelBudgetGuard;
+import com.onlinejudge.submission.application.ExternalModelFailureClassifier;
 import com.onlinejudge.submission.application.ModelDiagnosisBrief;
+import com.onlinejudge.submission.application.ModelStageFailureReason;
 import com.onlinejudge.submission.application.StandardLibraryPack;
 import com.onlinejudge.submission.application.StandardLibraryPackBuilder;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -33,15 +36,31 @@ import java.util.Map;
 import java.util.Objects;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class CoachAgentService {
 
     private final ObjectMapper objectMapper;
     private final DiagnosisTaxonomy diagnosisTaxonomy;
+    private final ExternalModelFailureClassifier failureClassifier;
+    private final ExternalModelBudgetGuard budgetGuard;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+
+    public CoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy diagnosisTaxonomy) {
+        this(objectMapper, diagnosisTaxonomy, new ExternalModelFailureClassifier(), new ExternalModelBudgetGuard());
+    }
+
+    @Autowired
+    public CoachAgentService(ObjectMapper objectMapper,
+                             DiagnosisTaxonomy diagnosisTaxonomy,
+                             ExternalModelFailureClassifier failureClassifier,
+                             ExternalModelBudgetGuard budgetGuard) {
+        this.objectMapper = objectMapper;
+        this.diagnosisTaxonomy = diagnosisTaxonomy;
+        this.failureClassifier = failureClassifier == null ? new ExternalModelFailureClassifier() : failureClassifier;
+        this.budgetGuard = budgetGuard == null ? new ExternalModelBudgetGuard() : budgetGuard;
+    }
 
     @Value("${ai.enabled:true}")
     private boolean enabled;
@@ -104,6 +123,11 @@ public class CoachAgentService {
                                 CoachDraft fallback) {
         CoachDraft safeFallback = fallback == null ? CoachDraft.fallback("请先补一个最小样例，说明你准备验证什么。") : fallback;
         if (!canCallAi()) {
+            return safeFallback;
+        }
+        ExternalModelBudgetGuard.Decision decision = budgetGuard.check("ModelScope", model);
+        if (!decision.allowed()) {
+            safeFallback.setFailureReason(ModelStageFailureReason.BUDGET_GUARD_OPEN.name());
             return safeFallback;
         }
         try {
@@ -201,12 +225,17 @@ public class CoachAgentService {
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
         try {
-            return doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled);
+            String content = doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled);
+            budgetGuard.recordSuccess("ModelScope", model);
+            return content;
         } catch (IOException exception) {
             if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
                 log.warn("Retrying coach chat completion with stream=true after non-stream response was unusable. model={}", model);
-                return doChatCompletionWithRetry(systemPrompt, userPrompt, true);
+                String content = doChatCompletionWithRetry(systemPrompt, userPrompt, true);
+                budgetGuard.recordSuccess("ModelScope", model);
+                return content;
             }
+            recordBudgetFailure(exception);
             throw exception;
         }
     }
@@ -279,18 +308,15 @@ public class CoachAgentService {
     }
 
     private boolean isRetryableCallFailure(IOException exception) {
-        String text = exception == null || exception.getMessage() == null
-                ? ""
-                : exception.getMessage().toLowerCase(Locale.ROOT);
-        if (text.contains("insufficient_quota") || text.contains("exceeded your current quota")) {
-            return false;
+        String text = exception == null ? "" : exception.getMessage();
+        return failureClassifier.isRetryable(failureClassifier.classify(exception), text);
+    }
+
+    private void recordBudgetFailure(Exception exception) {
+        ModelStageFailureReason reason = failureClassifier.classify(exception);
+        if (failureClassifier.shouldOpenBudgetGuard(reason)) {
+            budgetGuard.recordFailure("ModelScope", model, reason);
         }
-        return text.contains("429")
-                || text.contains("rate limit")
-                || text.contains("rate_limit")
-                || text.contains("timeout")
-                || text.contains("timed out")
-                || text.contains("did not include message content");
     }
 
     private void sleepBeforeRetry(long waitMs) throws InterruptedException {
@@ -438,23 +464,7 @@ public class CoachAgentService {
     }
 
     private String classifyFailure(Exception exception) {
-        String text = (exception == null ? "" : exception.getClass().getName() + " " + exception.getMessage()).toLowerCase(Locale.ROOT);
-        if (text.contains("timeout")) {
-            return "TIMEOUT";
-        }
-        if (text.contains("insufficient_quota") || text.contains("exceeded your current quota")) {
-            return "INSUFFICIENT_QUOTA";
-        }
-        if (text.contains("429") || text.contains("rate")) {
-            return "RATE_LIMITED";
-        }
-        if (text.contains("has no provider supported") || text.contains("model unsupported")) {
-            return "MODEL_UNSUPPORTED";
-        }
-        if (text.contains("json")) {
-            return "JSON_INVALID";
-        }
-        return "API_ERROR";
+        return failureClassifier.classify(exception).name();
     }
 
     private boolean canCallAi() {

@@ -379,21 +379,57 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(markdown).contains("AI_FAILURE").contains("GROWTH_REPORT").contains("INSUFFICIENT_QUOTA");
     }
 
-    private StubAiReportService newService(String... responses) {
-        DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
-        ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
-                new ModelDiagnosisBriefBuilder(),
-                new StandardLibraryPackBuilder(taxonomy),
-                new PromptTemplateRegistry(),
-                new ModelOutputValidator()
+    @Test
+    void budgetGuardShortCircuitsAfterQuotaFailureAcrossSubmissionAndGrowthReport() {
+        ExternalModelBudgetGuard budgetGuard = new ExternalModelBudgetGuard();
+        StubAiReportService service = new StubAiReportService(
+                objectMapper,
+                runtime(),
+                budgetGuard,
+                new IOException("AI API returned status 429: {\"error\":{\"code\":\"insufficient_quota\"}}")
         );
-        StubAiReportService service = new StubAiReportService(objectMapper, runtime, responses);
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 900);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
+        assertThat(analysis.getUncertainty()).contains("INSUFFICIENT_QUOTA");
+        assertThat(service.callCount()).isEqualTo(1);
+
+        String markdown = service.enhanceGrowthReportMarkdown(problem(), List.of(), "# 成长报告");
+
+        assertThat(markdown).contains("BUDGET_GUARD_OPEN");
+        assertThat(service.callCount()).isEqualTo(1);
+    }
+
+    private StubAiReportService newService(String... responses) {
+        StubAiReportService service = new StubAiReportService(objectMapper, runtime(), responses);
         ReflectionTestUtils.setField(service, "enabled", true);
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
         ReflectionTestUtils.setField(service, "model", "test-model");
         ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
         ReflectionTestUtils.setField(service, "maxOutputTokens", 900);
         return service;
+    }
+
+    private ExternalModelAgentRuntime runtime() {
+        DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
+        return new ExternalModelAgentRuntime(
+                new ModelDiagnosisBriefBuilder(),
+                new StandardLibraryPackBuilder(taxonomy),
+                new PromptTemplateRegistry(),
+                new ModelOutputValidator()
+        );
     }
 
     private Problem problem() {
@@ -503,24 +539,35 @@ class AiReportServiceExternalRuntimeTest {
     }
 
     private static class StubAiReportService extends AiReportService {
-        private final Queue<String> responses = new ArrayDeque<>();
+        private final Queue<Object> responses = new ArrayDeque<>();
         private int callCount;
 
         StubAiReportService(ObjectMapper objectMapper,
                             ExternalModelAgentRuntime runtime,
-                            String... responses) {
-            super(objectMapper, new AiCodeAssistSupport(), runtime);
+                            Object... responses) {
+            this(objectMapper, runtime, new ExternalModelBudgetGuard(), responses);
+        }
+
+        StubAiReportService(ObjectMapper objectMapper,
+                            ExternalModelAgentRuntime runtime,
+                            ExternalModelBudgetGuard budgetGuard,
+                            Object... responses) {
+            super(objectMapper, new AiCodeAssistSupport(), runtime, new ExternalModelFailureClassifier(), budgetGuard);
             this.responses.addAll(List.of(responses));
         }
 
         @Override
         protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException {
             callCount++;
-            String response = responses.poll();
+            Object response = responses.poll();
+            if (response instanceof IOException exception) {
+                recordBudgetFailureForTest(exception);
+                throw exception;
+            }
             if (response == null) {
                 throw new IOException("No stub response configured.");
             }
-            return response;
+            return response.toString();
         }
 
         int callCount() {

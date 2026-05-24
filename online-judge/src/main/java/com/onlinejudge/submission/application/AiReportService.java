@@ -47,21 +47,33 @@ public class AiReportService {
     private final ObjectMapper objectMapper;
     private final AiCodeAssistSupport aiCodeAssistSupport;
     private final ExternalModelAgentRuntime externalModelAgentRuntime;
+    private final ExternalModelFailureClassifier failureClassifier;
+    private final ExternalModelBudgetGuard budgetGuard;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
     public AiReportService(ObjectMapper objectMapper, AiCodeAssistSupport aiCodeAssistSupport) {
-        this(objectMapper, aiCodeAssistSupport, null);
+        this(objectMapper, aiCodeAssistSupport, null, new ExternalModelFailureClassifier(), new ExternalModelBudgetGuard());
+    }
+
+    public AiReportService(ObjectMapper objectMapper,
+                           AiCodeAssistSupport aiCodeAssistSupport,
+                           ExternalModelAgentRuntime externalModelAgentRuntime) {
+        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, new ExternalModelFailureClassifier(), new ExternalModelBudgetGuard());
     }
 
     @Autowired
     public AiReportService(ObjectMapper objectMapper,
                            AiCodeAssistSupport aiCodeAssistSupport,
-                           ExternalModelAgentRuntime externalModelAgentRuntime) {
+                           ExternalModelAgentRuntime externalModelAgentRuntime,
+                           ExternalModelFailureClassifier failureClassifier,
+                           ExternalModelBudgetGuard budgetGuard) {
         this.objectMapper = objectMapper;
         this.aiCodeAssistSupport = aiCodeAssistSupport;
         this.externalModelAgentRuntime = externalModelAgentRuntime;
+        this.failureClassifier = failureClassifier == null ? new ExternalModelFailureClassifier() : failureClassifier;
+        this.budgetGuard = budgetGuard == null ? new ExternalModelBudgetGuard() : budgetGuard;
     }
 
     @Value("${ai.enabled:true}")
@@ -764,23 +776,7 @@ public class AiReportService {
 
     private ExternalModelStagePayloads.StageValidationResult stageFailureFromException(String stage,
                                                                                       Exception exception) {
-        String text = (exception == null ? "" : exception.getClass().getName() + " " + exception.getMessage()).toLowerCase();
-        ModelStageFailureReason reason;
-        if (text.contains("timeout") || exception instanceof InterruptedException) {
-            reason = ModelStageFailureReason.TIMEOUT;
-        } else if (text.contains("insufficient_quota") || text.contains("exceeded your current quota")) {
-            reason = ModelStageFailureReason.INSUFFICIENT_QUOTA;
-        } else if (text.contains("429") || text.contains("rate")) {
-            reason = ModelStageFailureReason.RATE_LIMITED;
-        } else if (text.contains("has no provider supported") || text.contains("model unsupported")) {
-            reason = ModelStageFailureReason.MODEL_UNSUPPORTED;
-        } else if (exception instanceof JsonProcessingException) {
-            reason = ModelStageFailureReason.INVALID_JSON;
-        } else if (exception instanceof IOException) {
-            reason = ModelStageFailureReason.API_ERROR;
-        } else {
-            reason = ModelStageFailureReason.UNKNOWN_ERROR;
-        }
+        ModelStageFailureReason reason = failureClassifier.classify(exception);
         return ExternalModelStagePayloads.StageValidationResult.builder()
                 .valid(false)
                 .stage(stage)
@@ -795,6 +791,15 @@ public class AiReportService {
         if (!canCallAi()) {
             log.info("AI growth report skipped because AI access is unavailable. problemId={}", problem.getId());
             return fallbackMarkdown;
+        }
+        ExternalModelBudgetGuard.Decision decision = budgetGuard.check(PROVIDER, model);
+        if (!decision.allowed()) {
+            return appendGrowthReportFailureMarker(fallbackMarkdown, ExternalModelStagePayloads.StageValidationResult.builder()
+                    .valid(false)
+                    .stage("GROWTH_REPORT")
+                    .failureReason(ModelStageFailureReason.BUDGET_GUARD_OPEN)
+                    .message(decision.message())
+                    .build());
         }
 
         try {
@@ -840,13 +845,22 @@ public class AiReportService {
     }
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
+        ExternalModelBudgetGuard.Decision decision = budgetGuard.check(PROVIDER, model);
+        if (!decision.allowed()) {
+            throw new IOException(decision.message());
+        }
         try {
-            return doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled);
+            String content = doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled);
+            budgetGuard.recordSuccess(PROVIDER, model);
+            return content;
         } catch (IOException exception) {
             if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
                 log.warn("Retrying AI chat completion with stream=true after non-stream response was unusable. model={}", model);
-                return doChatCompletionWithRetry(systemPrompt, userPrompt, true);
+                String content = doChatCompletionWithRetry(systemPrompt, userPrompt, true);
+                budgetGuard.recordSuccess(PROVIDER, model);
+                return content;
             }
+            recordBudgetFailure(exception);
             throw exception;
         }
     }
@@ -934,18 +948,19 @@ public class AiReportService {
     }
 
     private boolean isRetryableCallFailure(IOException exception) {
-        String text = exception == null || exception.getMessage() == null
-                ? ""
-                : exception.getMessage().toLowerCase();
-        if (text.contains("insufficient_quota") || text.contains("exceeded your current quota")) {
-            return false;
+        String text = exception == null ? "" : exception.getMessage();
+        return failureClassifier.isRetryable(failureClassifier.classify(exception), text);
+    }
+
+    protected void recordBudgetFailureForTest(Exception exception) {
+        recordBudgetFailure(exception);
+    }
+
+    private void recordBudgetFailure(Exception exception) {
+        ModelStageFailureReason reason = failureClassifier.classify(exception);
+        if (failureClassifier.shouldOpenBudgetGuard(reason)) {
+            budgetGuard.recordFailure(PROVIDER, model, reason);
         }
-        return text.contains("429")
-                || text.contains("rate limit")
-                || text.contains("rate_limit")
-                || text.contains("timeout")
-                || text.contains("timed out")
-                || text.contains("did not include message content");
     }
 
     private void sleepBeforeRetry(long waitMs) throws InterruptedException {

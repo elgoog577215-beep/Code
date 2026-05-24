@@ -3,6 +3,9 @@ package com.onlinejudge.classroom.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
+import com.onlinejudge.submission.application.ExternalModelBudgetGuard;
+import com.onlinejudge.submission.application.ExternalModelFailureClassifier;
+import com.onlinejudge.submission.application.ModelStageFailureReason;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import org.junit.jupiter.api.Assumptions;
@@ -219,6 +222,42 @@ class CoachAgentServiceTest {
     }
 
     @Test
+    void budgetGuardShortCircuitsCoachAfterProviderLimitFailure() {
+        ExternalModelBudgetGuard budgetGuard = new ExternalModelBudgetGuard();
+        budgetGuard.recordFailure("ModelScope", "test-model", ModelStageFailureReason.RATE_LIMITED);
+        StubCoachAgentService service = new StubCoachAgentService(
+                objectMapper,
+                taxonomy,
+                budgetGuard,
+                """
+                {
+                  "question": "这条响应不应该被调用。",
+                  "rationale": "guard open",
+                  "evidenceRefs": ["submission:11"],
+                  "confidence": 0.7,
+                  "answerLeakRisk": "LOW"
+                }
+                """
+        );
+        enableAi(service);
+        ReflectionTestUtils.setField(service, "model", "test-model");
+
+        CoachAgentService.CoachDraft draft = service.generateInitialQuestion(
+                submission(),
+                analysis(),
+                "OFF_BY_ONE",
+                Assignment.HintPolicy.L2,
+                "上下文",
+                List.of("submission:11"),
+                CoachAgentService.CoachDraft.fallback("规则追问")
+        );
+
+        assertThat(draft.getSource()).isEqualTo("RULE");
+        assertThat(draft.getFailureReason()).isEqualTo("BUDGET_GUARD_OPEN");
+        assertThat(service.callCount()).isZero();
+    }
+
+    @Test
     void chatCompletionRetriesRateLimitAndThenSucceeds() throws Exception {
         RetryingCoachAgentService service = new RetryingCoachAgentService(
                 objectMapper,
@@ -361,9 +400,19 @@ class CoachAgentServiceTest {
         private final IOException exception;
         private String lastSystemPrompt;
         private String lastUserPrompt;
+        private int callCount;
 
         private StubCoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy taxonomy, String response) {
             super(objectMapper, taxonomy);
+            this.response = response;
+            this.exception = null;
+        }
+
+        private StubCoachAgentService(ObjectMapper objectMapper,
+                                      DiagnosisTaxonomy taxonomy,
+                                      ExternalModelBudgetGuard budgetGuard,
+                                      String response) {
+            super(objectMapper, taxonomy, new ExternalModelFailureClassifier(), budgetGuard);
             this.response = response;
             this.exception = null;
         }
@@ -376,6 +425,7 @@ class CoachAgentServiceTest {
 
         @Override
         protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
+            callCount++;
             this.lastSystemPrompt = systemPrompt;
             this.lastUserPrompt = userPrompt;
             if (exception != null) {
@@ -390,6 +440,10 @@ class CoachAgentServiceTest {
 
         private String lastUserPrompt() {
             return lastUserPrompt;
+        }
+
+        private int callCount() {
+            return callCount;
         }
     }
 

@@ -5,6 +5,7 @@ public enum ModelStageFailureReason {
     TIMEOUT,
     INSUFFICIENT_QUOTA,
     RATE_LIMITED,
+    BUDGET_GUARD_OPEN,
     MODEL_UNSUPPORTED,
     EMPTY_RESPONSE,
     INVALID_JSON,
