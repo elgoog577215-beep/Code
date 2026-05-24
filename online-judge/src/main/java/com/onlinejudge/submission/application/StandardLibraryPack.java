@@ -20,6 +20,7 @@ public class StandardLibraryPack {
     private List<TagOption> issueTags;
     private List<TagOption> fineGrainedTags;
     private List<TeachingActionOption> teachingActions;
+    private DecisionProtocol decisionProtocol;
     private List<String> safetyRules;
     private List<String> uncertaintyOptions;
 
@@ -46,5 +47,17 @@ public class StandardLibraryPack {
         private String label;
         private String whenToUse;
         private String studentTaskTemplate;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DecisionProtocol {
+        private List<String> globalRules;
+        private List<String> evidencePriorityRules;
+        private List<String> tagSelectionRules;
+        private List<String> conflictRules;
+        private List<String> teachingActionRules;
     }
 }

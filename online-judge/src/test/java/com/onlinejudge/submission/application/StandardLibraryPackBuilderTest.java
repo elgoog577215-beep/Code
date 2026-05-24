@@ -30,6 +30,17 @@ class StandardLibraryPackBuilderTest {
         assertThat(pack.getTeachingActions())
                 .extracting(StandardLibraryPack.TeachingActionOption::getId)
                 .contains("CHECK_INVARIANT", "DEFINE_STATE", "COLLECT_EVIDENCE");
+        assertThat(pack.getDecisionProtocol()).isNotNull();
+        assertThat(pack.getDecisionProtocol().getGlobalRules())
+                .anySatisfy(rule -> assertThat(rule).contains("most evidence-supported diagnosis"));
+        assertThat(pack.getDecisionProtocol().getEvidencePriorityRules())
+                .anySatisfy(rule -> assertThat(rule).contains("Visible failed case"));
+        assertThat(pack.getDecisionProtocol().getTagSelectionRules())
+                .anySatisfy(rule -> assertThat(rule).contains("NEEDS_MORE_EVIDENCE"));
+        assertThat(pack.getDecisionProtocol().getConflictRules())
+                .anySatisfy(rule -> assertThat(rule).contains("candidate signals conflict"));
+        assertThat(pack.getDecisionProtocol().getTeachingActionRules())
+                .anySatisfy(rule -> assertThat(rule).contains("COLLECT_EVIDENCE"));
     }
 
     @Test

@@ -23,6 +23,9 @@ class PromptTemplateRegistryTest {
                 .contains("fineGrainedTag")
                 .contains("evidenceRefs")
                 .contains("NEEDS_MORE_EVIDENCE")
+                .contains("standardLibrary.decisionProtocol")
+                .contains("most evidence-supported tag")
+                .contains("direct evidence distinguishes")
                 .contains("Do not provide complete code")
                 .contains("hidden test data");
     }
@@ -55,6 +58,9 @@ class PromptTemplateRegistryTest {
                 .contains("teachingHint")
                 .contains("studentHintPlan")
                 .contains("learningInterventionPlan")
+                .contains("standardLibrary.decisionProtocol")
+                .contains("most evidence-supported tag")
+                .contains("direct evidence distinguishes")
                 .contains("teachingHint.studentHintPlan.teachingAction MUST come from standardLibrary.teachingActions")
                 .contains("Do not provide complete code");
     }

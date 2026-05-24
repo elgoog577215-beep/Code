@@ -65,6 +65,7 @@ public class StandardLibraryPackBuilder {
                 .issueTags(issueTags)
                 .fineGrainedTags(fineTags)
                 .teachingActions(teachingActions)
+                .decisionProtocol(buildDecisionProtocol())
                 .safetyRules(List.of(
                         "Do not provide complete code.",
                         "Do not provide direct final answers.",
@@ -75,6 +76,39 @@ public class StandardLibraryPackBuilder {
                         "NEEDS_MORE_EVIDENCE",
                         "LOW_CONFIDENCE",
                         "HIDDEN_TEST_DATA_UNAVAILABLE"
+                ))
+                .build();
+    }
+
+    private StandardLibraryPack.DecisionProtocol buildDecisionProtocol() {
+        return StandardLibraryPack.DecisionProtocol.builder()
+                .globalRules(List.of(
+                        "Choose the most evidence-supported diagnosis, not the most common or most severe label.",
+                        "Use only issueTags, fineGrainedTags, teachingActions, and evidenceRefs provided in this pack and brief.",
+                        "Do not infer hidden test inputs or outputs; hidden failures only justify uncertainty.",
+                        "Prefer a narrow, verifiable diagnosis when direct code or judge evidence supports it."
+                ))
+                .evidencePriorityRules(List.of(
+                        "Compiler and runtime error messages outrank heuristic code-shape signals.",
+                        "Visible failed case actual-vs-expected output outranks generic problem-topic signals.",
+                        "CandidateSignals with concrete evidenceRef outrank broad baseline summaries.",
+                        "Learning trajectory can explain repeated or regressed behavior but must not invent the current bug."
+                ))
+                .tagSelectionRules(List.of(
+                        "Select primaryIssueTag from issueTags only.",
+                        "Select fineGrainedTag only when evidence directly distinguishes it from its parent issue.",
+                        "If a fineGrainedTag is selected, its evidenceRefs must support that fine-grained diagnosis.",
+                        "If no candidate is sufficiently supported, select NEEDS_MORE_EVIDENCE when available."
+                ))
+                .conflictRules(List.of(
+                        "When candidate signals conflict, cite the conflict in uncertainty and choose NEEDS_MORE_EVIDENCE unless one signal has stronger concrete evidence.",
+                        "When hidden failures are observed without visible hidden data, describe the missing evidence instead of guessing a hidden case.",
+                        "When code evidence and judge output point to different issues, prefer the issue explaining the first failed observable behavior."
+                ))
+                .teachingActionRules(List.of(
+                        "Bind teachingAction to the selected diagnosis tag when possible.",
+                        "Use COLLECT_EVIDENCE when primaryIssueTag is NEEDS_MORE_EVIDENCE.",
+                        "The teaching action should create one small observable student task, not a full fix."
                 ))
                 .build();
     }

@@ -67,9 +67,12 @@ public class PromptTemplateRegistry {
                 1. primaryIssueTag MUST come from standardLibrary.issueTags.
                 2. fineGrainedTag MUST be null or come from standardLibrary.fineGrainedTags.
                 3. evidenceRefs MUST cite brief.evidenceRefs or brief.candidateSignals evidenceRef values.
-                4. If evidence is insufficient or candidate signals conflict, choose NEEDS_MORE_EVIDENCE.
-                5. Keep uncertainty concise and evidence-grounded.
-                6. answerLeakRisk MUST be HIGH if the response exposes a full solution, complete code, or hidden data.
+                4. Follow standardLibrary.decisionProtocol before choosing tags.
+                5. Select the most evidence-supported tag, not the most common or most severe tag.
+                6. Use fineGrainedTag only when direct evidence distinguishes it from the parent issue.
+                7. If evidence is insufficient or candidate signals conflict, choose NEEDS_MORE_EVIDENCE.
+                8. Keep uncertainty concise and evidence-grounded.
+                9. answerLeakRisk MUST be HIGH if the response exposes a full solution, complete code, or hidden data.
                 """;
     }
 
@@ -129,10 +132,13 @@ public class PromptTemplateRegistry {
                 1. diagnosisDecision.primaryIssueTag MUST come from standardLibrary.issueTags.
                 2. diagnosisDecision.fineGrainedTag MUST be null or come from standardLibrary.fineGrainedTags.
                 3. All evidenceRefs MUST cite brief.evidenceRefs or brief.candidateSignals evidenceRef values.
-                4. teachingHint.studentHintPlan.teachingAction MUST come from standardLibrary.teachingActions.
-                5. Keep studentHint at scaffold level: one small, verifiable next action, not the final fix.
-                6. If evidence is insufficient or candidate signals conflict, choose NEEDS_MORE_EVIDENCE and ask for evidence.
-                7. answerLeakRisk MUST be HIGH if any part exposes a full solution, complete code, or hidden data.
+                4. Follow standardLibrary.decisionProtocol before choosing diagnosisDecision tags.
+                5. Select the most evidence-supported tag, not the most common or most severe tag.
+                6. Use diagnosisDecision.fineGrainedTag only when direct evidence distinguishes it from the parent issue.
+                7. teachingHint.studentHintPlan.teachingAction MUST come from standardLibrary.teachingActions.
+                8. Keep studentHint at scaffold level: one small, verifiable next action, not the final fix.
+                9. If evidence is insufficient or candidate signals conflict, choose NEEDS_MORE_EVIDENCE and ask for evidence.
+                10. answerLeakRisk MUST be HIGH if any part exposes a full solution, complete code, or hidden data.
                 """;
     }
 
