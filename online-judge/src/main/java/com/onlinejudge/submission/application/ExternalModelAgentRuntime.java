@@ -3,6 +3,7 @@ package com.onlinejudge.submission.application;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import lombok.Builder;
 import lombok.Data;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -22,6 +23,7 @@ public class ExternalModelAgentRuntime {
                 new ExternalModelOutputNormalizer());
     }
 
+    @Autowired
     public ExternalModelAgentRuntime(ModelDiagnosisBriefBuilder briefBuilder,
                                      StandardLibraryPackBuilder standardLibraryPackBuilder,
                                      PromptTemplateRegistry promptTemplateRegistry,

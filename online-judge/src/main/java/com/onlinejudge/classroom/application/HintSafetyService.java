@@ -82,10 +82,11 @@ public class HintSafetyService {
                                 String reportMarkdown,
                                 Assignment.HintPolicy hintPolicy) {
         String originalHint = Optional.ofNullable(studentHint).orElse("");
+        String visibleReportMarkdown = stripStudentCodeLocationSections(Optional.ofNullable(reportMarkdown).orElse(""));
         String combined = (originalHint + "\n"
                 + hintPlanText(hintPlan) + "\n"
                 + interventionPlanText(interventionPlan) + "\n"
-                + Optional.ofNullable(reportMarkdown).orElse("")).toLowerCase(Locale.ROOT);
+                + visibleReportMarkdown).toLowerCase(Locale.ROOT);
         List<String> reasons = new ArrayList<>();
         if (combined.contains("```") || combined.contains("#include") || combined.contains("int main")
                 || combined.contains("def ") || combined.contains("class solution")) {
@@ -114,6 +115,29 @@ public class HintSafetyService {
         };
         String riskLevel = reasons.size() >= 2 ? "HIGH" : "MEDIUM";
         return new SafetyResult(riskLevel, originalHint, safeHint, reasons);
+    }
+
+    private String stripStudentCodeLocationSections(String markdown) {
+        if (markdown == null || markdown.isBlank()) {
+            return "";
+        }
+        String normalized = markdown.replace("\r\n", "\n").replace('\r', '\n');
+        StringBuilder result = new StringBuilder();
+        int cursor = 0;
+        while (cursor < normalized.length()) {
+            int sectionStart = normalized.indexOf("## 代码定位", cursor);
+            if (sectionStart < 0) {
+                result.append(normalized.substring(cursor));
+                break;
+            }
+            result.append(normalized, cursor, sectionStart);
+            int nextSection = normalized.indexOf("\n## ", sectionStart + "## 代码定位".length());
+            if (nextSection < 0) {
+                break;
+            }
+            cursor = nextSection + 1;
+        }
+        return result.toString();
     }
 
     private SubmissionAnalysisResponse.StudentHintPlan resolveSafeHintPlan(SubmissionAnalysisResponse.StudentHintPlan original,

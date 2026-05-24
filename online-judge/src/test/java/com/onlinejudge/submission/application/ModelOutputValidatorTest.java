@@ -132,6 +132,36 @@ class ModelOutputValidatorTest {
     }
 
     @Test
+    void rejectsFormulaOrControlStructureLeaksForScaleAndInPlaceCases() {
+        Fixture fixture = fixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateTeachingHintOutput(
+                ExternalModelStagePayloads.TeachingHintOutput.builder()
+                        .studentHint("先估算最大规模，不要直接写代码。")
+                        .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
+                                .teachingAction("COUNT_COMPLEXITY")
+                                .nextAction("可以考虑 sqrt 范围内枚举。")
+                                .coachQuestion("为什么最大规模下不能继续线性枚举？")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .answerLeakRisk("LOW")
+                                .build())
+                        .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                                .studentTask("把原地交换改成 while nums 条件处理。")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .answerLeakRisk("LOW")
+                                .build())
+                        .answerLeakRisk("LOW")
+                        .build(),
+                validDecision(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
     void runtimePlanCarriesBriefLibraryAndPromptVersions() {
         Fixture fixture = fixture();
         ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(

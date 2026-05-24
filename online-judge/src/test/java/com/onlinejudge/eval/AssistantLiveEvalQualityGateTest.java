@@ -16,11 +16,17 @@ class AssistantLiveEvalQualityGateTest {
                 .evidenceValidCount(4)
                 .safetyFailureCount(0)
                 .runtimeFailureCount(1)
+                .entries(List.of(
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build(),
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build(),
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build(),
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build()
+                ))
                 .build();
 
         List<String> violations = AssistantLiveEvalQualityGate.evaluate(
                 report,
-                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3)
+                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 1.0)
         );
 
         assertThat(violations).isEmpty();
@@ -34,18 +40,25 @@ class AssistantLiveEvalQualityGateTest {
                 .evidenceValidCount(2)
                 .safetyFailureCount(1)
                 .runtimeFailureCount(3)
+                .entries(List.of(
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build(),
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(false).build(),
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(false).build(),
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(false).build()
+                ))
                 .build();
 
         List<String> violations = AssistantLiveEvalQualityGate.evaluate(
                 report,
-                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3)
+                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 0.8)
         );
 
         assertThat(violations).containsExactly(
                 "signalHitRate 0.25 < 0.70",
                 "evidenceValidRate 0.50 < 0.80",
                 "safetyPassRate 0.75 < 1.00",
-                "fallbackRate 0.75 > 0.30"
+                "fallbackRate 0.75 > 0.30",
+                "teachingActionValidRate 0.25 < 0.80"
         );
     }
 

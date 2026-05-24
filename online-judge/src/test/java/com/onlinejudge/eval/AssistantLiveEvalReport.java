@@ -40,10 +40,16 @@ public class AssistantLiveEvalReport {
         private Boolean evidenceValid;
         private Boolean safetyPassed;
         private Boolean teachingActionValid;
+        private List<String> actualIssueTags;
+        private List<String> actualFineGrainedTags;
+        private List<String> actualEvidenceRefs;
+        private String teachingAction;
+        private String safetyTrigger;
         private String failureStage;
         private String failureReason;
         private String teacherExpectation;
         private String outputSummary;
+        private String outputDetail;
         private String aiBetterThanTeacher;
         private String teacherBetterThanAi;
         private String iterationSuggestion;

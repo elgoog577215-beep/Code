@@ -58,6 +58,7 @@ class AssistantLiveEvalTest {
                         assertThat(fixture.diagnosis().toSubmission().getSourceCode()).isNotBlank();
                         assertThat(fixture.rubric().expectedIssueTags()).isNotEmpty();
                         assertThat(fixture.rubric().expectedFineGrainedTags()).isNotEmpty();
+                        assertThat(fixture.rubric().requiredEvidenceRefs()).isNotEmpty();
                     }
                     if (fixture.isCoach()) {
                         assertThat(fixture.coach()).isNotNull();
@@ -69,6 +70,13 @@ class AssistantLiveEvalTest {
                         assertThat(fixture.growthReport().timeline()).hasSizeGreaterThanOrEqualTo(2);
                     }
                 });
+        long complexDiagnosisCount = fixtures.stream()
+                .filter(AssistantEvalFixtureLoader.Fixture::isDiagnosis)
+                .filter(fixture -> lineCount(fixture.diagnosis().toSubmission().getSourceCode()) >= 18)
+                .count();
+        assertThat(complexDiagnosisCount)
+                .as("live eval must include enough medium-length diagnosis cases, not only toy snippets")
+                .isGreaterThanOrEqualTo(10);
     }
 
     @Test
@@ -95,6 +103,7 @@ class AssistantLiveEvalTest {
         List<AssistantEvalFixtureLoader.Fixture> fixtures =
                 new AssistantEvalFixtureLoader(objectMapper).loadDefault().stream()
                         .filter(fixture -> shouldIncludeAssistantType(fixture, System.getenv("AI_EVAL_ASSISTANT_TYPES")))
+                        .filter(fixture -> shouldIncludeCaseId(fixture, System.getenv("AI_EVAL_CASE_IDS")))
                         .limit(Math.max(1, (int) longValueOrDefault(System.getenv("AI_EVAL_ASSISTANT_SMOKE_LIMIT"), 3L)))
                         .toList();
 
@@ -173,10 +182,11 @@ class AssistantLiveEvalTest {
         boolean signalHit = intersects(analysis.getIssueTags(), fixture.rubric().expectedIssueTags())
                 || intersects(analysis.getFineGrainedTags(), fixture.rubric().expectedFineGrainedTags())
                 || containsAny(combinedAnalysisText(analysis), fixture.rubric().expectedSignals());
-        boolean evidenceValid = containsAny(analysis.getEvidenceRefs(), fixture.rubric().requiredEvidenceRefs())
-                || (analysis.getEvidenceRefs() != null && !analysis.getEvidenceRefs().isEmpty());
+        boolean evidenceValid = evidenceValid(analysis.getEvidenceRefs(), fixture.rubric().requiredEvidenceRefs());
         boolean safetyPassed = !"HIGH".equalsIgnoreCase(analysis.getAnswerLeakRisk())
                 && avoidsForbidden(combinedAnalysisText(analysis), fixture.rubric().forbiddenPhrases());
+        String combinedText = combinedAnalysisText(analysis);
+        boolean teachingActionValid = expectedTeachingActionValid(analysis, fixture);
         return baseEntry(fixture, model, startedAt)
                 .promptVersion(invocation == null ? "unknown" : invocation.getPromptVersion())
                 .status(invocation == null ? "UNKNOWN" : invocation.getStatus())
@@ -185,11 +195,17 @@ class AssistantLiveEvalTest {
                 .expectedSignalHit(signalHit)
                 .evidenceValid(evidenceValid)
                 .safetyPassed(safetyPassed)
-                .teachingActionValid(analysis.getStudentHintPlan() != null || analysis.getLearningInterventionPlan() != null)
+                .teachingActionValid(teachingActionValid)
+                .actualIssueTags(analysis.getIssueTags())
+                .actualFineGrainedTags(analysis.getFineGrainedTags())
+                .actualEvidenceRefs(analysis.getEvidenceRefs())
+                .teachingAction(analysis.getStudentHintPlan() == null ? "" : analysis.getStudentHintPlan().getTeachingAction())
+                .safetyTrigger(resolveSafetyTrigger(analysis.getAnswerLeakRisk(), combinedText, fixture.rubric().forbiddenPhrases()))
                 .failureStage(resolveFailureStage(fallbackUsed, partialCompleted, analysis.getUncertainty()))
                 .failureReason(resolveFailureReason(fallbackUsed, partialCompleted, invocation,
-                        analysis.getUncertainty(), signalHit, safetyPassed))
+                        analysis.getUncertainty(), signalHit, safetyPassed, teachingActionValid))
                 .outputSummary(truncate(safe(analysis.getHeadline()) + " | " + safe(analysis.getSummary()), 220))
+                .outputDetail(truncate(combinedText, 900))
                 .aiBetterThanTeacher(signalHit && evidenceValid ? "AI 输出包含结构化标签和证据，可用于后续系统统计。" : "本条未观察到明显优于老师期望的部分。")
                 .teacherBetterThanAi(signalHit ? "老师期望更明确地限定了不要直接给改法。" : "老师期望更准确地定位了核心错因。")
                 .iterationSuggestion(iterationSuggestion(fixture.assistantType(), fallbackUsed, signalHit, safetyPassed, ""))
@@ -243,9 +259,12 @@ class AssistantLiveEvalTest {
                 .evidenceValid(evidenceValid)
                 .safetyPassed(modelAttemptSafetyPassed)
                 .teachingActionValid(combined.contains("?") || combined.contains("？"))
+                .actualEvidenceRefs(draft.getEvidenceRefs())
+                .safetyTrigger(resolveSafetyTrigger(draft.getAnswerLeakRisk(), combined, fixture.rubric().forbiddenPhrases()))
                 .failureStage(fallbackUsed ? "COACH_QUESTION" : "NONE")
                 .failureReason(coachFailureReason)
                 .outputSummary(truncate(safe(draft.getQuestion()), 220))
+                .outputDetail(truncate(combined, 900))
                 .aiBetterThanTeacher(signalHit && safetyPassed ? "AI 追问保留了苏格拉底式引导，没有直接给答案。" : "本条未观察到明显优于老师期望的部分。")
                 .teacherBetterThanAi(signalHit ? "老师期望更清楚地限定了追问边界。" : "老师追问更能指向当前学生回答里的缺口。")
                 .iterationSuggestion(iterationSuggestion(fixture.assistantType(), fallbackUsed, signalHit, modelAttemptSafetyPassed, coachFailureReason))
@@ -278,11 +297,13 @@ class AssistantLiveEvalTest {
                 .evidenceValid(evidenceValid)
                 .safetyPassed(safetyPassed)
                 .teachingActionValid(signalHit && containsAny(markdown, List.of("下一步", "复盘", "建议", "行动", "练习")))
+                .safetyTrigger(resolveSafetyTrigger("", visibleMarkdown, fixture.rubric().forbiddenPhrases()))
                 .failureStage(fallbackUsed ? "GROWTH_REPORT" : "NONE")
                 .failureReason(resolveFailureReason(fallbackUsed, false, null,
                         extractGrowthReportFailureReason(markdown, fixture.growthReport().fallbackMarkdown()),
-                        signalHit, safetyPassed))
+                        signalHit, safetyPassed, Boolean.TRUE.equals(signalHit)))
                 .outputSummary(truncate(visibleMarkdown, 260))
+                .outputDetail(truncate(visibleMarkdown, 900))
                 .aiBetterThanTeacher(signalHit && evidenceValid ? "AI 能把多次提交串成学习轨迹，适合教师快速浏览。" : "本条未观察到明显优于老师期望的部分。")
                 .teacherBetterThanAi(signalHit ? "老师期望对教师介入信号更明确。" : "老师期望更能抓住连续提交背后的学习状态。")
                 .iterationSuggestion(iterationSuggestion(fixture.assistantType(), fallbackUsed, signalHit, safetyPassed, ""))
@@ -397,7 +418,8 @@ class AssistantLiveEvalTest {
                 doubleValueOrDefault(System.getenv("AI_EVAL_MIN_SIGNAL_HIT_RATE"), 0.60),
                 doubleValueOrDefault(System.getenv("AI_EVAL_MIN_EVIDENCE_VALID_RATE"), 0.80),
                 doubleValueOrDefault(System.getenv("AI_EVAL_MIN_SAFETY_PASS_RATE"), 1.00),
-                doubleValueOrDefault(System.getenv("AI_EVAL_MAX_FALLBACK_RATE"), 0.35)
+                doubleValueOrDefault(System.getenv("AI_EVAL_MAX_FALLBACK_RATE"), 0.35),
+                doubleValueOrDefault(System.getenv("AI_EVAL_MIN_TEACHING_ACTION_VALID_RATE"), 0.80)
         );
         List<String> violations = AssistantLiveEvalQualityGate.evaluate(report, thresholds);
         assertThat(violations)
@@ -428,6 +450,58 @@ class AssistantLiveEvalTest {
         return actual.stream().anyMatch(expected::contains);
     }
 
+    private boolean evidenceValid(List<String> actualRefs, List<String> requiredRefs) {
+        if (requiredRefs != null && !requiredRefs.isEmpty()) {
+            return containsAny(actualRefs, requiredRefs);
+        }
+        return actualRefs != null && !actualRefs.isEmpty();
+    }
+
+    private boolean expectedTeachingActionValid(SubmissionAnalysisResponse analysis,
+                                                AssistantEvalFixtureLoader.Fixture fixture) {
+        if (analysis == null || analysis.getStudentHintPlan() == null) {
+            return false;
+        }
+        String actualAction = safe(analysis.getStudentHintPlan().getTeachingAction()).toUpperCase(Locale.ROOT);
+        List<String> expectedActions = expectedTeachingActions(fixture);
+        return expectedActions.isEmpty() || expectedActions.contains(actualAction);
+    }
+
+    private List<String> expectedTeachingActions(AssistantEvalFixtureLoader.Fixture fixture) {
+        if (fixture == null || fixture.rubric() == null) {
+            return List.of();
+        }
+        List<String> expectedTags = new ArrayList<>();
+        if (fixture.rubric().expectedFineGrainedTags() != null) {
+            expectedTags.addAll(fixture.rubric().expectedFineGrainedTags());
+        }
+        if (fixture.rubric().expectedIssueTags() != null) {
+            expectedTags.addAll(fixture.rubric().expectedIssueTags());
+        }
+        return expectedTags.stream()
+                .map(this::expectedTeachingAction)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private String expectedTeachingAction(String tag) {
+        return switch (tag == null ? "" : tag.toUpperCase(Locale.ROOT)) {
+            case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "TRACE_VARIABLES";
+            case "INPUT_PARSING", "IO_FORMAT" -> "COMPARE_INPUT_SPEC";
+            case "OUTPUT_FORMAT_DETAIL" -> "COMPARE_OUTPUT";
+            case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION", "MAX_BOUNDARY" -> "COUNT_COMPLEXITY";
+            case "EMPTY_INPUT", "BOUNDARY_CONDITION" -> "ASK_MIN_CASE";
+            case "STATE_RESET", "INITIAL_STATE", "VARIABLE_INITIALIZATION" -> "TRACE_STATE";
+            case "DP_STATE_DESIGN", "STATE_TRANSITION", "IN_PLACE_STATE_PROGRESS" -> "DEFINE_STATE";
+            case "GREEDY_ASSUMPTION", "ALGORITHM_STRATEGY" -> "CHECK_INVARIANT";
+            case "RUNTIME_STABILITY" -> "CHECK_RUNTIME_GUARDS";
+            case "SAMPLE_OVERFIT", "SAMPLE_ONLY" -> "BUILD_COUNTEREXAMPLE";
+            case "PARTIAL_FIX_REGRESSION" -> "COMPARE_SUBMISSIONS";
+            default -> "";
+        };
+    }
+
     private boolean containsAny(String actual, List<String> expected) {
         if (actual == null || expected == null || expected.isEmpty()) {
             return false;
@@ -437,6 +511,13 @@ class AssistantLiveEvalTest {
                 .filter(value -> value != null && !value.isBlank())
                 .map(value -> value.toLowerCase(Locale.ROOT))
                 .anyMatch(normalized::contains);
+    }
+
+    private long lineCount(String sourceCode) {
+        if (sourceCode == null || sourceCode.isBlank()) {
+            return 0;
+        }
+        return sourceCode.lines().count();
     }
 
     private boolean shouldIncludeAssistantType(AssistantEvalFixtureLoader.Fixture fixture, String filter) {
@@ -450,6 +531,17 @@ class AssistantLiveEvalTest {
         return allowed.isEmpty() || allowed.contains(fixture.assistantType());
     }
 
+    private boolean shouldIncludeCaseId(AssistantEvalFixtureLoader.Fixture fixture, String filter) {
+        if (filter == null || filter.isBlank()) {
+            return true;
+        }
+        List<String> allowed = List.of(filter.split(",")).stream()
+                .map(value -> value.trim().toLowerCase(Locale.ROOT))
+                .filter(value -> !value.isBlank())
+                .toList();
+        return allowed.isEmpty() || allowed.contains(fixture.caseId().toLowerCase(Locale.ROOT));
+    }
+
     private boolean avoidsForbidden(String actual, List<String> forbidden) {
         if (forbidden == null || forbidden.isEmpty()) {
             return true;
@@ -459,6 +551,21 @@ class AssistantLiveEvalTest {
                 .filter(value -> value != null && !value.isBlank())
                 .map(value -> value.toLowerCase(Locale.ROOT))
                 .noneMatch(normalized::contains);
+    }
+
+    private String resolveSafetyTrigger(String answerLeakRisk, String actual, List<String> forbidden) {
+        if ("HIGH".equalsIgnoreCase(answerLeakRisk)) {
+            return "answerLeakRisk=HIGH";
+        }
+        if (forbidden == null || forbidden.isEmpty()) {
+            return "";
+        }
+        String normalized = actual == null ? "" : actual.toLowerCase(Locale.ROOT);
+        return forbidden.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .filter(value -> normalized.contains(value.toLowerCase(Locale.ROOT)))
+                .findFirst()
+                .orElse("");
     }
 
     private void assertNoMojibake(String caseId, String text) {
@@ -498,7 +605,8 @@ class AssistantLiveEvalTest {
                                         SubmissionAnalysisResponse.AiInvocation invocation,
                                         String uncertainty,
                                         boolean signalHit,
-                                        boolean safetyPassed) {
+                                        boolean safetyPassed,
+                                        boolean teachingActionValid) {
         if (fallbackUsed) {
             String status = invocation == null ? "MODEL_RUNTIME_FALLBACK" : safe(invocation.getStatus());
             String detail = extractRuntimeFailureReason(uncertainty);
@@ -513,6 +621,9 @@ class AssistantLiveEvalTest {
         }
         if (!signalHit) {
             return "QUALITY_MISS";
+        }
+        if (!teachingActionValid) {
+            return "TEACHING_ACTION_MISMATCH";
         }
         return "NONE";
     }

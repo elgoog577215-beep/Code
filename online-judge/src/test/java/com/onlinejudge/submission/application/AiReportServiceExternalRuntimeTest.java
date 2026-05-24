@@ -130,9 +130,9 @@ class AiReportServiceExternalRuntimeTest {
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
                 submission(),
-                fallback(),
+                scaleFallback(),
                 evidencePackage(),
-                ruleSignals()
+                scaleRuleSignals()
         );
 
         assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
@@ -191,9 +191,9 @@ class AiReportServiceExternalRuntimeTest {
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
                 submission(),
-                fallback(),
+                scaleFallback(),
                 evidencePackage(),
-                ruleSignals()
+                scaleRuleSignals()
         );
 
         assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
@@ -202,6 +202,66 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v2");
         assertThat(service.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void runtimeAlignsGenericCollectEvidenceActionToConcreteDiagnosisAction() {
+        StubAiReportService service = newService(
+                """
+                {
+                  "diagnosisDecision": {
+                    "primaryIssueTag": "TIME_COMPLEXITY",
+                    "fineGrainedTag": "OVER_SIMULATION",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.9,
+                    "uncertainty": "大规模逐步模拟证据明确。",
+                    "needsMoreEvidence": false,
+                    "answerLeakRisk": "LOW"
+                  },
+                  "teachingHint": {
+                    "studentHint": "请先根据证据做一次验证。",
+                    "studentHintPlan": {
+                      "hintLevel": "L2",
+                      "problemType": "复杂度",
+                      "evidenceAnchor": "code:range_excludes_n",
+                      "nextAction": "构造一个最小样例。",
+                      "coachQuestion": "你准备验证什么？",
+                      "teachingAction": "COLLECT_EVIDENCE",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    },
+                    "learningInterventionPlan": {
+                      "interventionType": "COLLECT_EVIDENCE",
+                      "goal": "确认问题。",
+                      "studentTask": "补充证据。",
+                      "checkQuestion": "证据是什么？",
+                      "completionSignal": "能说出证据。",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "estimatedMinutes": 5,
+                      "answerLeakRisk": "LOW"
+                    },
+                    "teacherNote": "模型给了泛化教学动作，但诊断已经足够明确。",
+                    "answerLeakRisk": "LOW"
+                  }
+                }
+                """
+        );
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                scaleFallback(),
+                evidencePackage(),
+                scaleRuleSignals()
+        );
+
+        assertThat(analysis.getIssueTags()).containsExactly("TIME_COMPLEXITY");
+        assertThat(analysis.getFineGrainedTags()).containsExactly("OVER_SIMULATION");
+        assertThat(analysis.getStudentHintPlan().getTeachingAction()).isEqualTo("COUNT_COMPLEXITY");
+        assertThat(analysis.getStudentHintPlan().getNextAction()).contains("最大规模");
+        assertThat(analysis.getLearningInterventionPlan().getInterventionType()).isEqualTo("COMPLEXITY_ESTIMATE");
+        assertThat(analysis.getLearningInterventionPlan().getStudentTask()).contains("最大规模");
     }
 
     @Test
@@ -742,6 +802,21 @@ class AiReportServiceExternalRuntimeTest {
                 .build();
     }
 
+    private RuleSignalAnalyzer.RuleSignalResult scaleRuleSignals() {
+        return RuleSignalAnalyzer.RuleSignalResult.builder()
+                .candidateIssueTags(List.of("TIME_COMPLEXITY"))
+                .candidateFineGrainedTags(List.of("OVER_SIMULATION"))
+                .evidenceRefs(List.of("code:range_excludes_n"))
+                .signals(List.of(RuleSignalAnalyzer.Signal.builder()
+                        .evidenceRef("code:range_excludes_n")
+                        .coarseTag("TIME_COMPLEXITY")
+                        .fineTag("OVER_SIMULATION")
+                        .confidence(0.9)
+                        .message("large bound with step-by-step simulation")
+                        .build()))
+                .build();
+    }
+
     private SubmissionAnalysisResponse fallback() {
         return SubmissionAnalysisResponse.builder()
                 .submissionId(11L)
@@ -777,6 +852,39 @@ class AiReportServiceExternalRuntimeTest {
                         .error("循环未覆盖 n")
                         .suggestion("核对 range 的右边界")
                         .build()))
+                .build();
+    }
+
+    private SubmissionAnalysisResponse scaleFallback() {
+        return SubmissionAnalysisResponse.builder()
+                .submissionId(11L)
+                .analysisSchemaVersion("diagnosis-v1")
+                .evidenceSchemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
+                .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
+                .sourceType("RULE_BASED_V1")
+                .scenario("TLE")
+                .headline("规则层初步诊断")
+                .summary("规则层认为最大规模下存在逐步模拟问题。")
+                .issueTags(List.of("TIME_COMPLEXITY"))
+                .fineGrainedTags(List.of("OVER_SIMULATION"))
+                .abilityPoints(List.of("复杂度"))
+                .focusPoints(List.of("最大规模操作次数"))
+                .fixDirections(List.of("估算最大输入下的循环次数"))
+                .evidenceRefs(List.of("code:range_excludes_n"))
+                .studentHint("先估算最大规模下循环执行次数。")
+                .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
+                        .hintLevel("L2")
+                        .problemType("复杂度")
+                        .evidenceAnchor("code:range_excludes_n")
+                        .nextAction("估算最大规模。")
+                        .coachQuestion("最大规模下循环多少次？")
+                        .teachingAction("COUNT_COMPLEXITY")
+                        .evidenceRefs(List.of("code:range_excludes_n"))
+                        .answerLeakRisk("LOW")
+                        .build())
+                .confidence(0.72)
+                .uncertainty("规则层初步判断。")
+                .answerLeakRisk("LOW")
                 .build();
     }
 

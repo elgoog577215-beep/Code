@@ -89,13 +89,17 @@ public class DiagnosticAgentService {
                 ? analysis.getEvidenceRefs()
                 : existing.getEvidenceRefs());
         String safeHint = defaultIfBlank(analysis.getStudentHint(), defaultHintForTag(primaryTag));
+        boolean actionMismatch = existing != null
+                && !defaultIfBlank(existing.getTeachingAction(), teachingAction).equals(teachingAction);
         return SubmissionAnalysisResponse.StudentHintPlan.builder()
                 .hintLevel(defaultIfBlank(existing == null ? null : existing.getHintLevel(), effectiveHintPolicy(hintPolicy).name()))
                 .problemType(defaultIfBlank(existing == null ? null : existing.getProblemType(), problemType))
                 .evidenceAnchor(defaultIfBlank(existing == null ? null : existing.getEvidenceAnchor(), buildEvidenceAnchor(primaryTag, evidenceRefs)))
-                .nextAction(defaultIfBlank(existing == null ? null : existing.getNextAction(), safeHint))
-                .coachQuestion(defaultIfBlank(existing == null ? null : existing.getCoachQuestion(), defaultCoachQuestion(primaryTag)))
-                .teachingAction(defaultIfBlank(existing == null ? null : existing.getTeachingAction(), teachingAction))
+                .nextAction(actionMismatch ? defaultHintForTag(primaryTag)
+                        : defaultIfBlank(existing == null ? null : existing.getNextAction(), safeHint))
+                .coachQuestion(actionMismatch ? defaultCoachQuestion(primaryTag)
+                        : defaultIfBlank(existing == null ? null : existing.getCoachQuestion(), defaultCoachQuestion(primaryTag)))
+                .teachingAction(teachingAction)
                 .evidenceRefs(evidenceRefs)
                 .answerLeakRisk(defaultIfBlank(existing == null ? null : existing.getAnswerLeakRisk(), analysis.getAnswerLeakRisk()))
                 .build();
@@ -107,13 +111,13 @@ public class DiagnosticAgentService {
             return null;
         }
         SubmissionAnalysisResponse.LearningInterventionPlan existing = analysis.getLearningInterventionPlan();
-        if (hasUsableIntervention(existing)) {
-            return normalizeIntervention(existing, analysis);
-        }
         String primaryTag = primaryTag(analysis);
         String teachingAction = analysis.getStudentHintPlan() == null
                 ? diagnosisTaxonomy.teachingAction(primaryTag)
                 : defaultIfBlank(analysis.getStudentHintPlan().getTeachingAction(), diagnosisTaxonomy.teachingAction(primaryTag));
+        if (hasUsableIntervention(existing) && interventionMatchesTeachingAction(existing, teachingAction)) {
+            return normalizeIntervention(existing, analysis);
+        }
         SubmissionAnalysisResponse.LearningTrajectorySignal trajectory = analysis.getLearningTrajectorySignal();
         String phase = trajectory == null ? "" : defaultIfBlank(trajectory.getPhase(), "");
         List<String> evidenceRefs = DiagnosisListSupport.deduplicate(mergeLists(
@@ -144,6 +148,15 @@ public class DiagnosticAgentService {
                 && plan.getInterventionType() != null && !plan.getInterventionType().isBlank()
                 && plan.getStudentTask() != null && !plan.getStudentTask().isBlank()
                 && plan.getCheckQuestion() != null && !plan.getCheckQuestion().isBlank();
+    }
+
+    private boolean interventionMatchesTeachingAction(SubmissionAnalysisResponse.LearningInterventionPlan plan,
+                                                      String teachingAction) {
+        if (plan == null) {
+            return false;
+        }
+        return interventionTemplate("", teachingAction, "").interventionType()
+                .equals(defaultIfBlank(plan.getInterventionType(), ""));
     }
 
     private SubmissionAnalysisResponse.LearningActionEvidence resolveInitialActionEvidence(SubmissionAnalysisResponse analysis) {

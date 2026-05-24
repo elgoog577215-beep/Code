@@ -567,6 +567,10 @@ public class AiReportService {
         String studentHint = defaultIfBlank(teachingHint.getStudentHint(), fallback.getStudentHint());
         String teacherNote = defaultIfBlank(teachingHint.getTeacherNote(), fallback.getTeacherNote());
         List<String> evidenceRefs = cleanList(decision.getEvidenceRefs(), fallback.getEvidenceRefs());
+        List<String> runtimeFocusPoints = buildRuntimeFocusPoints(primaryIssueTag, fineGrainedTag, teachingHint);
+        List<String> runtimeFixDirections = buildRuntimeFixDirections(teachingHint, primaryIssueTag, fineGrainedTag);
+        ExternalModelStagePayloads.TeachingHintOutput alignedTeachingHint =
+                alignTeachingHintWithDiagnosis(teachingHint, primaryIssueTag, fineGrainedTag, evidenceRefs);
 
         return SubmissionAnalysisResponse.builder()
                 .submissionId(fallback.getSubmissionId())
@@ -582,16 +586,16 @@ public class AiReportService {
                         ? cleanList(List.of(), fallback.getFineGrainedTags())
                         : cleanList(List.of(fineGrainedTag), fallback.getFineGrainedTags()))
                 .abilityPoints(cleanList(fallback.getAbilityPoints(), List.of()))
-                .focusPoints(cleanList(fallback.getFocusPoints(), List.of(primaryIssueTag)))
-                .fixDirections(cleanList(fallback.getFixDirections(), List.of()))
+                .focusPoints(cleanList(runtimeFocusPoints, fallback.getFocusPoints()))
+                .fixDirections(cleanList(runtimeFixDirections, fallback.getFixDirections()))
                 .evidenceRefs(evidenceRefs)
                 .studentHint(studentHint)
-                .studentHintPlan(teachingHint.getStudentHintPlan() == null
+                .studentHintPlan(alignedTeachingHint.getStudentHintPlan() == null
                         ? fallback.getStudentHintPlan()
-                        : teachingHint.getStudentHintPlan())
-                .learningInterventionPlan(teachingHint.getLearningInterventionPlan() == null
+                        : alignedTeachingHint.getStudentHintPlan())
+                .learningInterventionPlan(alignedTeachingHint.getLearningInterventionPlan() == null
                         ? fallback.getLearningInterventionPlan()
-                        : teachingHint.getLearningInterventionPlan())
+                        : alignedTeachingHint.getLearningInterventionPlan())
                 .learningActionEvidence(fallback.getLearningActionEvidence())
                 .teacherNote(teacherNote)
                 .progressSignal(fallback.getProgressSignal())
@@ -599,17 +603,188 @@ public class AiReportService {
                 .uncertainty(defaultIfBlank(decision.getUncertainty(), fallback.getUncertainty()))
                 .diagnosticTrace(fallback.getDiagnosticTrace())
                 .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false, RUNTIME_PROMPT_VERSION))
-                .answerLeakRisk(resolveAnswerLeakRisk(
-                        higherRisk(decision.getAnswerLeakRisk(), teachingHint.getAnswerLeakRisk()),
-                        fallback.getAnswerLeakRisk()
-                ))
+                .answerLeakRisk(resolveRuntimeAnswerLeakRisk(alignedTeachingHint, fallback.getAnswerLeakRisk()))
                 .wrongSolution(fallback.getWrongSolution())
                 .correctSolution(fallback.getCorrectSolution())
                 .lineIssues(baselineLineIssues == null ? List.of() : baselineLineIssues)
                 .firstFailedCase(fallback.getFirstFailedCase())
-                .reportMarkdown(buildRuntimeReportMarkdown(runtimePlan, decision, teachingHint, rawSourceCode))
+                .reportMarkdown(buildRuntimeReportMarkdown(runtimePlan, decision, alignedTeachingHint, rawSourceCode))
                 .generatedAt(fallback.getGeneratedAt())
                 .build();
+    }
+
+    private ExternalModelStagePayloads.TeachingHintOutput alignTeachingHintWithDiagnosis(
+            ExternalModelStagePayloads.TeachingHintOutput teachingHint,
+            String primaryIssueTag,
+            String fineGrainedTag,
+            List<String> evidenceRefs) {
+        if (teachingHint == null) {
+            return ExternalModelStagePayloads.TeachingHintOutput.builder().build();
+        }
+        String teachingTag = fineGrainedTag == null || fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
+        String expectedAction = localTeachingAction(teachingTag);
+        SubmissionAnalysisResponse.StudentHintPlan alignedHintPlan =
+                alignStudentHintPlan(teachingHint.getStudentHintPlan(), teachingTag, expectedAction, evidenceRefs);
+        SubmissionAnalysisResponse.LearningInterventionPlan alignedInterventionPlan =
+                alignInterventionPlan(teachingHint.getLearningInterventionPlan(), teachingTag, expectedAction, evidenceRefs);
+        return ExternalModelStagePayloads.TeachingHintOutput.builder()
+                .studentHint(teachingHint.getStudentHint())
+                .studentHintPlan(alignedHintPlan)
+                .learningInterventionPlan(alignedInterventionPlan)
+                .teacherNote(teachingHint.getTeacherNote())
+                .answerLeakRisk(teachingHint.getAnswerLeakRisk())
+                .build();
+    }
+
+    private SubmissionAnalysisResponse.StudentHintPlan alignStudentHintPlan(
+            SubmissionAnalysisResponse.StudentHintPlan plan,
+            String teachingTag,
+            String expectedAction,
+            List<String> evidenceRefs) {
+        if (plan == null) {
+            return null;
+        }
+        String currentAction = cleanupAiText(plan.getTeachingAction()).toUpperCase();
+        boolean needsAlignment = currentAction.isBlank()
+                || "COLLECT_EVIDENCE".equals(currentAction) && !"NEEDS_MORE_EVIDENCE".equals(teachingTag)
+                || !expectedAction.equals(currentAction) && directTeachingActionRequired(teachingTag);
+        if (!needsAlignment) {
+            return plan;
+        }
+        String nextAction = localNextAction(teachingTag, expectedAction);
+        String coachQuestion = localCoachQuestion(teachingTag, expectedAction);
+        List<String> alignedRefs = evidenceRefs == null || evidenceRefs.isEmpty()
+                ? cleanList(plan.getEvidenceRefs(), List.of())
+                : evidenceRefs;
+        return SubmissionAnalysisResponse.StudentHintPlan.builder()
+                .hintLevel(defaultIfBlank(plan.getHintLevel(), "L2"))
+                .problemType(defaultIfBlank(plan.getProblemType(), localTagLabel(teachingTag)))
+                .evidenceAnchor(defaultIfBlank(plan.getEvidenceAnchor(),
+                        alignedRefs.isEmpty() ? "" : alignedRefs.get(0)))
+                .nextAction(nextAction)
+                .coachQuestion(coachQuestion)
+                .teachingAction(expectedAction)
+                .evidenceRefs(alignedRefs)
+                .answerLeakRisk(resolveAnswerLeakRisk(plan.getAnswerLeakRisk(), "LOW"))
+                .build();
+    }
+
+    private SubmissionAnalysisResponse.LearningInterventionPlan alignInterventionPlan(
+            SubmissionAnalysisResponse.LearningInterventionPlan plan,
+            String teachingTag,
+            String expectedAction,
+            List<String> evidenceRefs) {
+        if (plan == null || "COLLECT_EVIDENCE".equals(expectedAction)) {
+            return plan;
+        }
+        String currentType = cleanupAiText(plan.getInterventionType()).toUpperCase();
+        String expectedType = localInterventionType(expectedAction);
+        if (currentType.equals(expectedType)) {
+            return plan;
+        }
+        List<String> alignedRefs = evidenceRefs == null || evidenceRefs.isEmpty()
+                ? cleanList(plan.getEvidenceRefs(), List.of())
+                : evidenceRefs;
+        return SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                .interventionType(expectedType)
+                .goal(defaultIfBlank(plan.getGoal(), "把诊断结论转化为一个可观察的小动作。"))
+                .studentTask(localNextAction(teachingTag, expectedAction))
+                .checkQuestion(localCoachQuestion(teachingTag, expectedAction))
+                .completionSignal(defaultIfBlank(plan.getCompletionSignal(),
+                        "学生能用证据说明自己验证了当前判断。"))
+                .evidenceRefs(alignedRefs)
+                .estimatedMinutes(plan.getEstimatedMinutes() == null ? 6 : plan.getEstimatedMinutes())
+                .answerLeakRisk(resolveAnswerLeakRisk(plan.getAnswerLeakRisk(), "LOW"))
+                .build();
+    }
+
+    private boolean directTeachingActionRequired(String teachingTag) {
+        String normalized = cleanupAiText(teachingTag).toUpperCase();
+        return switch (normalized) {
+            case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION", "MAX_BOUNDARY",
+                    "OUTPUT_FORMAT_DETAIL", "INPUT_PARSING", "IO_FORMAT",
+                    "EMPTY_INPUT", "IN_PLACE_STATE_PROGRESS", "SAMPLE_OVERFIT", "SAMPLE_ONLY" -> true;
+            default -> false;
+        };
+    }
+
+    private String localInterventionType(String teachingAction) {
+        return switch (teachingAction == null ? "" : teachingAction) {
+            case "TRACE_VARIABLES" -> "VARIABLE_TRACE";
+            case "COMPARE_INPUT_SPEC", "COMPARE_OUTPUT" -> "IO_COMPARE";
+            case "COUNT_COMPLEXITY" -> "COMPLEXITY_ESTIMATE";
+            case "ASK_MIN_CASE" -> "MIN_CASE";
+            case "TRACE_STATE" -> "MIN_CASE_TRACE";
+            case "DEFINE_STATE" -> "STATE_EXPLANATION";
+            case "CHECK_INVARIANT", "BUILD_COUNTEREXAMPLE" -> "COUNTEREXAMPLE";
+            case "CHECK_RUNTIME_GUARDS" -> "RUNTIME_GUARD_CHECK";
+            case "COMPARE_SUBMISSIONS" -> "COMPARE_SUBMISSIONS";
+            default -> "COLLECT_EVIDENCE";
+        };
+    }
+
+    private String resolveRuntimeAnswerLeakRisk(ExternalModelStagePayloads.TeachingHintOutput teachingHint,
+                                                String fallbackRisk) {
+        String visibleRisk = higherRisk(
+                teachingHint == null ? "" : teachingHint.getAnswerLeakRisk(),
+                higherRisk(
+                        teachingHint == null || teachingHint.getStudentHintPlan() == null
+                                ? ""
+                                : teachingHint.getStudentHintPlan().getAnswerLeakRisk(),
+                        teachingHint == null || teachingHint.getLearningInterventionPlan() == null
+                                ? ""
+                                : teachingHint.getLearningInterventionPlan().getAnswerLeakRisk()
+                )
+        );
+        return resolveAnswerLeakRisk(visibleRisk, fallbackRisk);
+    }
+
+    private List<String> buildRuntimeFocusPoints(String primaryIssueTag,
+                                                 String fineGrainedTag,
+                                                 ExternalModelStagePayloads.TeachingHintOutput teachingHint) {
+        List<String> focusPoints = new ArrayList<>();
+        String selectedTag = fineGrainedTag == null || fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
+        if (selectedTag != null && !selectedTag.isBlank()) {
+            focusPoints.add(localTagLabel(selectedTag));
+        }
+        SubmissionAnalysisResponse.StudentHintPlan plan =
+                teachingHint == null ? null : teachingHint.getStudentHintPlan();
+        if (plan != null) {
+            addIfUseful(focusPoints, plan.getProblemType());
+            addIfUseful(focusPoints, plan.getEvidenceAnchor());
+        }
+        return focusPoints;
+    }
+
+    private List<String> buildRuntimeFixDirections(ExternalModelStagePayloads.TeachingHintOutput teachingHint,
+                                                   String primaryIssueTag,
+                                                   String fineGrainedTag) {
+        List<String> directions = new ArrayList<>();
+        SubmissionAnalysisResponse.StudentHintPlan hintPlan =
+                teachingHint == null ? null : teachingHint.getStudentHintPlan();
+        SubmissionAnalysisResponse.LearningInterventionPlan interventionPlan =
+                teachingHint == null ? null : teachingHint.getLearningInterventionPlan();
+        if (hintPlan != null) {
+            addIfUseful(directions, hintPlan.getNextAction());
+            addIfUseful(directions, hintPlan.getCoachQuestion());
+        }
+        if (interventionPlan != null) {
+            addIfUseful(directions, interventionPlan.getStudentTask());
+            addIfUseful(directions, interventionPlan.getCheckQuestion());
+        }
+        if (directions.isEmpty()) {
+            String selectedTag = fineGrainedTag == null || fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
+            String teachingAction = localTeachingAction(selectedTag);
+            directions.add(localNextAction(selectedTag, teachingAction));
+        }
+        return directions;
+    }
+
+    private void addIfUseful(List<String> values, String candidate) {
+        String cleaned = cleanupAiText(candidate);
+        if (!cleaned.isBlank()) {
+            values.add(cleaned);
+        }
     }
 
     private SubmissionAnalysisResponse buildPartialRuntimeAnalysisResponse(

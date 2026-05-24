@@ -18,7 +18,8 @@ public class ModelOutputValidator {
             return invalid(ModelStageFailureReason.EMPTY_RESPONSE, "Diagnosis judge output is empty.");
         }
         if (isHighRisk(output.getAnswerLeakRisk())) {
-            return invalid(ModelStageFailureReason.SAFETY_RISK, "Diagnosis judge output has high answer leak risk.");
+            return invalid(ModelStageFailureReason.SAFETY_RISK,
+                    "Diagnosis judge output has high answer leak risk: answerLeakRisk=HIGH.");
         }
         Set<String> allowedIssueTags = tagIds(standardLibraryPack == null ? null : standardLibraryPack.getIssueTags());
         if (!allowedIssueTags.contains(normalize(output.getPrimaryIssueTag()))) {
@@ -49,14 +50,10 @@ public class ModelOutputValidator {
                 || output.getLearningInterventionPlan() == null) {
             return invalid(ModelStageFailureReason.INVALID_JSON, "Teaching hint output is missing required fields.");
         }
-        if (isHighRisk(output.getAnswerLeakRisk())
-                || isHighRisk(output.getStudentHintPlan().getAnswerLeakRisk())
-                || isHighRisk(output.getLearningInterventionPlan().getAnswerLeakRisk())
-                || containsUnsafeLeak(output.getStudentHint())
-                || containsUnsafeLeak(output.getStudentHintPlan().getNextAction())
-                || containsUnsafeLeak(output.getStudentHintPlan().getCoachQuestion())
-                || containsUnsafeLeak(output.getLearningInterventionPlan().getStudentTask())) {
-            return invalid(ModelStageFailureReason.SAFETY_RISK, "Teaching hint output has high answer leak risk.");
+        String safetyTrigger = firstSafetyTrigger(output);
+        if (!safetyTrigger.isBlank()) {
+            return invalid(ModelStageFailureReason.SAFETY_RISK,
+                    "Teaching hint output has high answer leak risk: " + safetyTrigger);
         }
         Set<String> allowedActions = teachingActionIds(standardLibraryPack == null ? null : standardLibraryPack.getTeachingActions());
         String action = normalize(output.getStudentHintPlan().getTeachingAction());
@@ -130,22 +127,71 @@ public class ModelOutputValidator {
     }
 
     private boolean containsUnsafeLeak(String text) {
+        return !unsafeLeakTrigger(text).isBlank();
+    }
+
+    private String firstSafetyTrigger(ExternalModelStagePayloads.TeachingHintOutput output) {
+        if (isHighRisk(output.getAnswerLeakRisk())) {
+            return "answerLeakRisk=HIGH";
+        }
+        if (isHighRisk(output.getStudentHintPlan().getAnswerLeakRisk())) {
+            return "studentHintPlan.answerLeakRisk=HIGH";
+        }
+        if (isHighRisk(output.getLearningInterventionPlan().getAnswerLeakRisk())) {
+            return "learningInterventionPlan.answerLeakRisk=HIGH";
+        }
+        String trigger = unsafeLeakTrigger(output.getStudentHint());
+        if (!trigger.isBlank()) {
+            return "studentHint contains " + trigger;
+        }
+        trigger = unsafeLeakTrigger(output.getStudentHintPlan().getNextAction());
+        if (!trigger.isBlank()) {
+            return "studentHintPlan.nextAction contains " + trigger;
+        }
+        trigger = unsafeLeakTrigger(output.getStudentHintPlan().getCoachQuestion());
+        if (!trigger.isBlank()) {
+            return "studentHintPlan.coachQuestion contains " + trigger;
+        }
+        trigger = unsafeLeakTrigger(output.getLearningInterventionPlan().getStudentTask());
+        if (!trigger.isBlank()) {
+            return "learningInterventionPlan.studentTask contains " + trigger;
+        }
+        return "";
+    }
+
+    private String unsafeLeakTrigger(String text) {
         String normalized = text == null ? "" : text.toLowerCase(Locale.ROOT);
-        return normalized.contains("完整代码")
-                || normalized.contains("参考代码")
-                || normalized.contains("最终答案")
-                || normalized.contains("参考答案")
-                || normalized.contains("答案如下")
-                || normalized.contains("直接改成")
-                || normalized.contains("改成")
-                || normalized.contains("改为")
-                || normalized.contains("替换为")
-                || normalized.contains("hidden test")
-                || normalized.contains("range(1, n + 1)")
-                || normalized.contains("```")
-                || normalized.contains("def ")
-                || normalized.contains("#include")
-                || normalized.contains("int main");
+        for (String marker : List.of(
+                "完整代码",
+                "参考代码",
+                "最终答案",
+                "参考答案",
+                "答案如下",
+                "直接改成",
+                "改成",
+                "改为",
+                "替换为",
+                "hidden test",
+                "for _ in range",
+                "while q",
+                "while used < steps",
+                "while used<steps",
+                "while nums",
+                "range(1, n + 1)",
+                "range(1,n+1)",
+                "sqrt",
+                "dp[i - 2] +",
+                "dp[i-2]+",
+                "```",
+                "def ",
+                "#include",
+                "int main"
+        )) {
+            if (normalized.contains(marker)) {
+                return marker;
+            }
+        }
+        return "";
     }
 
     private String normalize(String value) {

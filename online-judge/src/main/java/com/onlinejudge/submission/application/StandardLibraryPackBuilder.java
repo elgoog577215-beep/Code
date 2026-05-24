@@ -70,6 +70,8 @@ public class StandardLibraryPackBuilder {
                         "Do not provide complete code.",
                         "Do not provide direct final answers.",
                         "Do not guess or reveal hidden test data.",
+                        "Do not provide replacement loop headers, transition formulas, or executable control structures.",
+                        "For input-format issues, ask the student to compare required input lines with actual read operations instead of naming the exact loop to add.",
                         "Prefer evidence-grounded hints and one verifiable next action."
                 ))
                 .uncertaintyOptions(List.of(
@@ -86,18 +88,26 @@ public class StandardLibraryPackBuilder {
                         "Choose the most evidence-supported diagnosis, not the most common or most severe label.",
                         "Use only issueTags, fineGrainedTags, teachingActions, and evidenceRefs provided in this pack and brief.",
                         "Do not infer hidden test inputs or outputs; hidden failures only justify uncertainty.",
-                        "Prefer a narrow, verifiable diagnosis when direct code or judge evidence supports it."
+                        "Prefer a narrow, verifiable diagnosis when direct code or judge evidence supports it.",
+                        "For medium-length code, ignore helper-method distractions and identify the behavior that changes the verdict.",
+                        "Keep the student task diagnostic: ask for a trace, comparison, estimate, invariant check, or counterexample before naming a fix."
                 ))
                 .evidencePriorityRules(List.of(
                         "Compiler and runtime error messages outrank heuristic code-shape signals.",
                         "Visible failed case actual-vs-expected output outranks generic problem-topic signals.",
+                        "Whitespace-only visible output differences outrank algorithm-topic guesses.",
                         "CandidateSignals with concrete evidenceRef outrank broad baseline summaries.",
+                        "CandidateSignals with confidence >= 0.80 and concrete problem/source evidence outrank generic verdict labels.",
+                        "Large-bound problem evidence plus TLE or step-by-step simulation should be treated as a scale diagnosis before a strategy diagnosis.",
+                        "Empty or minimum-input runtime evidence should be treated as a boundary diagnosis before a generic runtime diagnosis.",
                         "Learning trajectory can explain repeated or regressed behavior but must not invent the current bug."
                 ))
                 .tagSelectionRules(List.of(
                         "Select primaryIssueTag from issueTags only.",
                         "Select fineGrainedTag only when evidence directly distinguishes it from its parent issue.",
                         "If a fineGrainedTag is selected, its evidenceRefs must support that fine-grained diagnosis.",
+                        "Do not select NEEDS_MORE_EVIDENCE when a high-confidence candidateSignal directly explains the visible failed case.",
+                        "Prefer SAMPLE_OVERFIT only when public samples pass and hidden failures are observed; describe it as a need for self-made counterexamples, not as hidden-case knowledge.",
                         "If no candidate is sufficiently supported, select NEEDS_MORE_EVIDENCE when available."
                 ))
                 .conflictRules(List.of(
@@ -108,7 +118,8 @@ public class StandardLibraryPackBuilder {
                 .teachingActionRules(List.of(
                         "Bind teachingAction to the selected diagnosis tag when possible.",
                         "Use COLLECT_EVIDENCE when primaryIssueTag is NEEDS_MORE_EVIDENCE.",
-                        "The teaching action should create one small observable student task, not a full fix."
+                        "The teaching action should create one small observable student task, not a full fix.",
+                        "The student task must cite one evidence anchor and ask the student to inspect a line, state, counterexample, or input-output mismatch."
                 ))
                 .build();
     }

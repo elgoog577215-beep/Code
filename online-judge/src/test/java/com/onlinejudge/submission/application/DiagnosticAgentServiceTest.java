@@ -77,6 +77,60 @@ class DiagnosticAgentServiceTest {
     }
 
     @Test
+    void diagnoseAlignsGenericModelTeachingActionToConcreteFineGrainedTag() {
+        DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
+        DiagnosticAgentService service = new DiagnosticAgentService(
+                new DiagnosisEvidencePackageBuilder(),
+                new RuleSignalAnalyzer(),
+                new GenericComplexityAiReportService(),
+                new PassThroughHintSafetyService(taxonomy),
+                taxonomy
+        );
+        Submission submission = Submission.builder()
+                .id(12L)
+                .languageName("Python 3")
+                .verdict(Submission.Verdict.TIME_LIMIT_EXCEEDED)
+                .sourceCode("""
+                        start, steps = map(int, input().split())
+                        used = 0
+                        while used < steps:
+                            start += 1
+                            used += 1
+                        print(start)
+                        """)
+                .build();
+        Problem problem = Problem.builder()
+                .id(2L)
+                .title("机器人向右走")
+                .description("输入起点 start 和步数 k，k 最大可达到 10^9，不能按每一步逐次模拟。")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build();
+        SubmissionAnalysisResponse baseline = SubmissionAnalysisResponse.builder()
+                .submissionId(12L)
+                .sourceType("RULE_BASED_V1")
+                .scenario("TLE")
+                .issueTags(List.of("TIME_COMPLEXITY"))
+                .fineGrainedTags(List.of("OVER_SIMULATION"))
+                .evidenceRefs(List.of("problem:large_bound_step_simulation"))
+                .build();
+
+        DiagnosticAgentService.AgentResult result = service.diagnose(
+                problem,
+                submission,
+                List.of(),
+                baseline,
+                Assignment.HintPolicy.L2
+        );
+
+        assertThat(result.analysis().getFineGrainedTags()).contains("OVER_SIMULATION");
+        assertThat(result.analysis().getStudentHintPlan().getTeachingAction()).isEqualTo("COUNT_COMPLEXITY");
+        assertThat(result.analysis().getStudentHintPlan().getNextAction()).contains("最大输入");
+        assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isEqualTo("COMPLEXITY_ESTIMATE");
+    }
+
+    @Test
     void diagnoseAddsPartialFixRegressionFromHistoryTransition() {
         DiagnosticAgentService service = newService();
 
@@ -420,6 +474,40 @@ class DiagnosticAgentServiceTest {
                                                                     DiagnosisEvidencePackage evidencePackage,
                                                                     RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
             throw new IllegalStateException("model stage unavailable");
+        }
+    }
+
+    private static class GenericComplexityAiReportService extends PassThroughAiReportService {
+        @Override
+        public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
+                                                                    Submission submission,
+                                                                    SubmissionAnalysisResponse fallback,
+                                                                    DiagnosisEvidencePackage evidencePackage,
+                                                                    RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+            fallback.setIssueTags(List.of("TIME_COMPLEXITY"));
+            fallback.setFineGrainedTags(List.of("OVER_SIMULATION"));
+            fallback.setStudentHint("请根据诊断标签补充一个最小验证。");
+            fallback.setStudentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
+                    .hintLevel("L2")
+                    .problemType("复杂度")
+                    .evidenceAnchor("problem:large_bound_step_simulation")
+                    .nextAction("构造一个最小样例。")
+                    .coachQuestion("你准备验证什么？")
+                    .teachingAction("COLLECT_EVIDENCE")
+                    .evidenceRefs(List.of("problem:large_bound_step_simulation"))
+                    .answerLeakRisk("LOW")
+                    .build());
+            fallback.setLearningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                    .interventionType("COLLECT_EVIDENCE")
+                    .goal("确认问题。")
+                    .studentTask("补充证据。")
+                    .checkQuestion("证据是什么？")
+                    .completionSignal("能说出证据。")
+                    .evidenceRefs(List.of("problem:large_bound_step_simulation"))
+                    .estimatedMinutes(5)
+                    .answerLeakRisk("LOW")
+                    .build());
+            return fallback;
         }
     }
 }

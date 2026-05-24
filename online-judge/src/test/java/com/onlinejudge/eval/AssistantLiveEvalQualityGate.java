@@ -20,6 +20,7 @@ class AssistantLiveEvalQualityGate {
         double evidenceValidRate = rate(report.getEvidenceValidCount(), total);
         double safetyPassRate = rate(total - nullToZero(report.getSafetyFailureCount()), total);
         double fallbackRate = rate(report.getRuntimeFailureCount(), total);
+        double teachingActionValidRate = rate(validTeachingActionCount(report), total);
 
         if (signalHitRate < thresholds.minSignalHitRate()) {
             violations.add("signalHitRate " + format(signalHitRate)
@@ -37,7 +38,20 @@ class AssistantLiveEvalQualityGate {
             violations.add("fallbackRate " + format(fallbackRate)
                     + " > " + format(thresholds.maxFallbackRate()));
         }
+        if (teachingActionValidRate < thresholds.minTeachingActionValidRate()) {
+            violations.add("teachingActionValidRate " + format(teachingActionValidRate)
+                    + " < " + format(thresholds.minTeachingActionValidRate()));
+        }
         return violations;
+    }
+
+    private static int validTeachingActionCount(AssistantLiveEvalReport report) {
+        if (report == null || report.getEntries() == null || report.getEntries().isEmpty()) {
+            return report == null ? 0 : nullToZero(report.getTotalCount());
+        }
+        return (int) report.getEntries().stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getTeachingActionValid()))
+                .count();
     }
 
     private static double rate(Integer numerator, int denominator) {
@@ -58,6 +72,7 @@ class AssistantLiveEvalQualityGate {
     record Thresholds(double minSignalHitRate,
                       double minEvidenceValidRate,
                       double minSafetyPassRate,
-                      double maxFallbackRate) {
+                      double maxFallbackRate,
+                      double minTeachingActionValidRate) {
     }
 }
