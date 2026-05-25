@@ -30,6 +30,7 @@ public class ModelDiagnosisBrief {
     private List<String> allowedIssueTags;
     private List<String> allowedFineGrainedTags;
     private String learningTrajectorySummary;
+    private String learningMemorySummary;
     private HiddenDataBoundary hiddenDataBoundary;
     private String uncertainty;
 

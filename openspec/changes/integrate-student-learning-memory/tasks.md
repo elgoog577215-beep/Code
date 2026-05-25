@@ -1,0 +1,14 @@
+- [x] 1. 排查与设计收束
+  - [x] 1.1 梳理现有 AI 诊断、学生画像、轨迹、教师修正和评测相关模块，识别旁路风险。
+  - [x] 1.2 明确第一期只做主链路记忆快照，不新增数据库表、不重写教师端统计。
+- [x] 2. 证据结构与 brief 接入
+  - [x] 2.1 在 `DiagnosisEvidencePackage` 中新增学生学习记忆快照结构。
+  - [x] 2.2 在 `SubmissionAnalysisService` 中基于历史提交和诊断结果构建快照。
+  - [x] 2.3 在 `ModelDiagnosisBriefBuilder` 中输出学习记忆摘要和 evidenceRefs。
+- [x] 3. 标准库与 prompt 边界
+  - [x] 3.1 在 `StandardLibraryPackBuilder` 中补充长期记忆使用规则。
+  - [x] 3.2 在 `PromptTemplateRegistry` 中声明当前提交证据优先、长期记忆只能辅助。
+- [x] 4. 测试与验证
+  - [x] 4.1 新增或更新测试，覆盖学习记忆进入 evidence package 和 brief。
+  - [x] 4.2 新增或更新测试，覆盖记忆不覆盖当前提交直接证据。
+  - [x] 4.3 运行 OpenSpec strict validate 和相关后端测试。

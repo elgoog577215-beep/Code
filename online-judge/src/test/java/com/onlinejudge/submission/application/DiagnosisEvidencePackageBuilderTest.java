@@ -132,4 +132,45 @@ class DiagnosisEvidencePackageBuilderTest {
         assertThat(evidence.getHistory().getPreviousLearningActionEvidenceRefs())
                 .contains("eval:intervention", "followup:submission:2");
     }
+
+    @Test
+    void keepsLearningMemorySnapshotWhenProvided() {
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
+                DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                        .studentProfileId(9L)
+                        .observedSubmissionCount(6)
+                        .recurringIssueTags(List.of(DiagnosisEvidencePackage.MemoryTagStat.builder()
+                                .tag("IO_FORMAT")
+                                .count(3L)
+                                .evidenceSubmissionIds(List.of(1L, 2L, 3L))
+                                .build()))
+                        .abilityFocus(List.of(DiagnosisEvidencePackage.AbilityFocus.builder()
+                                .abilityPoint("题意读取")
+                                .submissionCount(3L)
+                                .problemCount(2L)
+                                .evidenceTags(List.of("IO_FORMAT"))
+                                .build()))
+                        .recentTrend("最近 3 次历史提交仍未通过")
+                        .evidenceRefs(List.of("memory:student:9", "memory:recurring_issue:IO_FORMAT"))
+                        .build();
+
+        DiagnosisEvidencePackage evidence = builder.build(
+                Problem.builder().id(1L).title("题目").description("描述").build(),
+                Submission.builder().id(1L).languageName("Python 3").sourceCode("print(1)").build(),
+                List.of(),
+                SubmissionAnalysisResponse.builder().build(),
+                null,
+                null,
+                memory
+        );
+
+        assertThat(evidence.getLearningMemory()).isNotNull();
+        assertThat(evidence.getLearningMemory().getStudentProfileId()).isEqualTo(9L);
+        assertThat(evidence.getLearningMemory().getRecurringIssueTags()).singleElement()
+                .satisfies(stat -> {
+                    assertThat(stat.getTag()).isEqualTo("IO_FORMAT");
+                    assertThat(stat.getCount()).isEqualTo(3L);
+                });
+        assertThat(evidence.getLearningMemory().getEvidenceRefs()).contains("memory:student:9");
+    }
 }

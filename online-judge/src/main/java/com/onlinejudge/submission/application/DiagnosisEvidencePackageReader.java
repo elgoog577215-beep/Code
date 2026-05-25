@@ -131,6 +131,30 @@ public class DiagnosisEvidencePackageReader {
             }
         }
 
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory = evidencePackage.getLearningMemory();
+        if (memory != null) {
+            if (memory.getEvidenceRefs() != null) {
+                refs.addAll(memory.getEvidenceRefs());
+            }
+            if (memory.getRecurringFineGrainedTags() != null && !memory.getRecurringFineGrainedTags().isEmpty()) {
+                DiagnosisEvidencePackage.MemoryTagStat stat = memory.getRecurringFineGrainedTags().get(0);
+                refs.add("memory:recurring_fine:" + stat.getTag());
+                details.add("学生长期记忆显示重复细分卡点 " + stat.getTag() + " 出现 " + stat.getCount() + " 次");
+            } else if (memory.getRecurringIssueTags() != null && !memory.getRecurringIssueTags().isEmpty()) {
+                DiagnosisEvidencePackage.MemoryTagStat stat = memory.getRecurringIssueTags().get(0);
+                refs.add("memory:recurring_issue:" + stat.getTag());
+                details.add("学生长期记忆显示重复错因 " + stat.getTag() + " 出现 " + stat.getCount() + " 次");
+            }
+            if (hasText(memory.getRecentTrend())) {
+                refs.add("memory:recent_trend");
+                details.add(memory.getRecentTrend());
+            }
+            if (hasText(memory.getTeacherCorrectionSummary())) {
+                refs.add("memory:teacher_correction");
+                details.add(memory.getTeacherCorrectionSummary());
+            }
+        }
+
         DiagnosisEvidencePackage.PolicyEvidence policy = evidencePackage.getPolicy();
         if (policy != null && hasText(policy.getHintPolicy())) {
             refs.add("policy:" + policy.getHintPolicy());

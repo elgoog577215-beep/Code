@@ -184,7 +184,7 @@ export default function TaskEditorPage() {
 
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
-      <section className="editor-workbench">
+      <section className="editor-workbench editor-workbench--single">
         <div className="editor-primary-stack">
           <Panel title="题目信息" action={<StatusPill tone={readinessTone}>{publishState}</StatusPill>}>
             <div className="stack">
@@ -285,45 +285,46 @@ export default function TaskEditorPage() {
           </Panel>
         </div>
 
-        <aside className="editor-side">
-          <details className="editor-compact-details editor-compact-details--side">
-            <summary>
-              <span>保存检查</span>
-              <StatusPill tone={readinessTone}>{readyQualityCount}/5</StatusPill>
-            </summary>
-            <div className="editor-quality-list">
-              {qualityItems.map(item => (
-                <div className={item.ready ? "is-ready" : ""} key={item.label}>
-                  <span>{item.ready ? "✓" : "!"}</span>
-                  <div>
-                    <strong>{item.label}</strong>
-                    <small>{item.note}</small>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </details>
+      </section>
 
-          <details className="editor-compact-details editor-compact-details--side">
-            <summary>
-              <span>题目列表</span>
-              <StatusPill tone="info">{catalog.length} 个</StatusPill>
-            </summary>
-            <div className="stack editor-problem-list">
-              {catalog.length ? (
-                catalog.map(item => (
-                  <button type="button" className="list-row" key={item.id} onClick={() => void loadProblem(item.id)} style={{ textAlign: "left" }}>
-                    <DifficultyPill difficulty={item.difficulty} />
-                    <h3>{item.title}</h3>
-                    <p>{item.summary || `${difficultyLabel(item.difficulty)} · ${item.timeLimit} ms · ${Math.round(item.memoryLimit / 1024)} MB`}</p>
-                  </button>
-                ))
-              ) : (
-                <EmptyState title="暂无题目" />
-              )}
-            </div>
-          </details>
-        </aside>
+      <section className="editor-secondary-drawer">
+        <details className="editor-compact-details editor-compact-details--side">
+          <summary>
+            <span>保存检查</span>
+            <StatusPill tone={readinessTone}>{readyQualityCount}/5</StatusPill>
+          </summary>
+          <div className="editor-quality-list">
+            {qualityItems.map(item => (
+              <div className={item.ready ? "is-ready" : ""} key={item.label}>
+                <span>{item.ready ? "✓" : "!"}</span>
+                <div>
+                  <strong>{item.label}</strong>
+                  <small>{item.note}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+
+        <details className="editor-compact-details editor-compact-details--side">
+          <summary>
+            <span>题目列表</span>
+            <StatusPill tone="info">{catalog.length} 个</StatusPill>
+          </summary>
+          <div className="stack editor-problem-list">
+            {catalog.length ? (
+              catalog.map(item => (
+                <button type="button" className="list-row" key={item.id} onClick={() => void loadProblem(item.id)} style={{ textAlign: "left" }}>
+                  <DifficultyPill difficulty={item.difficulty} />
+                  <h3>{item.title}</h3>
+                  <p>{item.summary || `${difficultyLabel(item.difficulty)} · ${item.timeLimit} ms · ${Math.round(item.memoryLimit / 1024)} MB`}</p>
+                </button>
+              ))
+            ) : (
+              <EmptyState title="暂无题目" />
+            )}
+          </div>
+        </details>
       </section>
 
     </div>

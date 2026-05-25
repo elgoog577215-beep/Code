@@ -136,6 +136,66 @@ class ModelDiagnosisBriefBuilderTest {
                 .contains("Shrink the next task");
     }
 
+    @Test
+    void briefCarriesLearningMemoryAsAuxiliaryEvidenceWithoutDroppingCurrentSignals() {
+        DiagnosisEvidencePackage evidencePackage = DiagnosisEvidencePackage.builder()
+                .problem(problem())
+                .submission(submission())
+                .judgeFacts(DiagnosisEvidencePackage.JudgeFacts.builder()
+                        .firstFailedCase(SubmissionAnalysisResponse.FailedCaseSnapshot.builder()
+                                .testCaseNumber(1)
+                                .hidden(false)
+                                .input("3")
+                                .expectedOutput("6")
+                                .actualOutput("3")
+                                .build())
+                        .build())
+                .learningMemory(DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                        .studentProfileId(9L)
+                        .observedSubmissionCount(5)
+                        .recurringIssueTags(List.of(DiagnosisEvidencePackage.MemoryTagStat.builder()
+                                .tag("IO_FORMAT")
+                                .count(3L)
+                                .evidenceSubmissionIds(List.of(101L, 102L, 103L))
+                                .build()))
+                        .recurringFineGrainedTags(List.of(DiagnosisEvidencePackage.MemoryTagStat.builder()
+                                .tag("INPUT_PARSING")
+                                .count(3L)
+                                .evidenceSubmissionIds(List.of(101L, 102L, 103L))
+                                .build()))
+                        .abilityFocus(List.of(DiagnosisEvidencePackage.AbilityFocus.builder()
+                                .abilityPoint("题意读取")
+                                .submissionCount(3L)
+                                .problemCount(2L)
+                                .evidenceTags(List.of("IO_FORMAT", "INPUT_PARSING"))
+                                .build()))
+                        .recentTrend("历史中多次出现输入读取问题")
+                        .evidenceRefs(List.of("memory:student:9", "memory:recurring_issue:IO_FORMAT"))
+                        .build())
+                .build();
+
+        ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, ruleSignals(), null);
+
+        assertThat(brief.getLearningMemorySummary())
+                .contains("observedSubmissions=5")
+                .contains("recurringIssueTags")
+                .contains("abilityFocus");
+        assertThat(brief.getEvidenceRefs())
+                .contains("judge:first_failed_case", "code:range_excludes_n", "memory:student:9");
+        assertThat(brief.getAllowedIssueTags()).contains("LOOP_BOUNDARY", "IO_FORMAT", "NEEDS_MORE_EVIDENCE");
+        assertThat(brief.getAllowedFineGrainedTags()).contains("OFF_BY_ONE", "INPUT_PARSING");
+        assertThat(brief.getCandidateSignals())
+                .anySatisfy(signal -> {
+                    assertThat(signal.getEvidenceRef()).isEqualTo("code:range_excludes_n");
+                    assertThat(signal.getConfidence()).isGreaterThan(0.8);
+                })
+                .anySatisfy(signal -> {
+                    assertThat(signal.getEvidenceRef()).isEqualTo("memory:recurring_issue:IO_FORMAT");
+                    assertThat(signal.getConfidence()).isLessThan(0.6);
+                    assertThat(signal.getReason()).contains("auxiliary");
+                });
+    }
+
     private DiagnosisEvidencePackage.ProblemEvidence problem() {
         return DiagnosisEvidencePackage.ProblemEvidence.builder()
                 .id(1L)

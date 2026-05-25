@@ -36,6 +36,8 @@ class SubmissionAnalysisServiceHistoryEvidenceTest {
                 null,
                 reportReader,
                 null,
+                null,
+                null,
                 null
         );
         Submission current = submission(22L, Submission.Verdict.WRONG_ANSWER, 10);

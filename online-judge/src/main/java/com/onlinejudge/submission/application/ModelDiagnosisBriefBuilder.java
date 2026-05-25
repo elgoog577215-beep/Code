@@ -22,8 +22,9 @@ public class ModelDiagnosisBriefBuilder {
         DiagnosisEvidencePackage.SubmissionEvidence submission = evidencePackage == null ? null : evidencePackage.getSubmission();
         DiagnosisEvidencePackage.JudgeFacts judgeFacts = evidencePackage == null ? null : evidencePackage.getJudgeFacts();
 
-        List<ModelDiagnosisBrief.CandidateSignal> candidateSignals = toCandidateSignals(ruleSignals);
-        List<String> evidenceRefs = collectEvidenceRefs(ruleSignals, candidateSignals, judgeFacts, baseline);
+        List<ModelDiagnosisBrief.CandidateSignal> candidateSignals = new ArrayList<>(toCandidateSignals(ruleSignals));
+        candidateSignals.addAll(toMemoryCandidateSignals(evidencePackage));
+        List<String> evidenceRefs = collectEvidenceRefs(ruleSignals, candidateSignals, judgeFacts, evidencePackage, baseline);
 
         return ModelDiagnosisBrief.builder()
                 .schemaVersion(ModelDiagnosisBrief.SCHEMA_VERSION)
@@ -37,9 +38,10 @@ public class ModelDiagnosisBriefBuilder {
                 .visibleCaseFacts(visibleCaseFacts(judgeFacts))
                 .candidateSignals(candidateSignals)
                 .evidenceRefs(evidenceRefs)
-                .allowedIssueTags(allowedIssueTags(ruleSignals, baseline))
-                .allowedFineGrainedTags(allowedFineTags(ruleSignals, baseline))
+                .allowedIssueTags(allowedIssueTags(ruleSignals, evidencePackage, baseline))
+                .allowedFineGrainedTags(allowedFineTags(ruleSignals, evidencePackage, baseline))
                 .learningTrajectorySummary(learningTrajectorySummary(evidencePackage, baseline))
+                .learningMemorySummary(learningMemorySummary(evidencePackage))
                 .hiddenDataBoundary(hiddenDataBoundary(judgeFacts))
                 .uncertainty(uncertainty(judgeFacts, ruleSignals))
                 .build();
@@ -135,9 +137,53 @@ public class ModelDiagnosisBriefBuilder {
                 .toList();
     }
 
+    private List<ModelDiagnosisBrief.CandidateSignal> toMemoryCandidateSignals(DiagnosisEvidencePackage evidencePackage) {
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
+                evidencePackage == null ? null : evidencePackage.getLearningMemory();
+        if (memory == null) {
+            return List.of();
+        }
+        List<ModelDiagnosisBrief.CandidateSignal> signals = new ArrayList<>();
+        if (memory.getRecurringFineGrainedTags() != null) {
+            memory.getRecurringFineGrainedTags().stream()
+                    .limit(3)
+                    .forEach(stat -> signals.add(ModelDiagnosisBrief.CandidateSignal.builder()
+                            .evidenceRef("memory:recurring_fine:" + stat.getTag())
+                            .issueTag(null)
+                            .fineGrainedTag(stat.getTag())
+                            .confidence(memoryConfidence(stat.getCount()))
+                            .reason("Student memory shows repeated fine-grained issue. Use only as auxiliary evidence after current submission facts.")
+                            .build()));
+        }
+        if (memory.getRecurringIssueTags() != null) {
+            memory.getRecurringIssueTags().stream()
+                    .limit(3)
+                    .forEach(stat -> signals.add(ModelDiagnosisBrief.CandidateSignal.builder()
+                            .evidenceRef("memory:recurring_issue:" + stat.getTag())
+                            .issueTag(stat.getTag())
+                            .fineGrainedTag(null)
+                            .confidence(memoryConfidence(stat.getCount()))
+                            .reason("Student memory shows repeated issue tag. Use only as auxiliary evidence; current submission evidence has higher priority.")
+                            .build()));
+        }
+        return signals;
+    }
+
+    private double memoryConfidence(Long count) {
+        long safeCount = count == null ? 0L : count;
+        if (safeCount >= 4) {
+            return 0.58;
+        }
+        if (safeCount >= 3) {
+            return 0.52;
+        }
+        return 0.46;
+    }
+
     private List<String> collectEvidenceRefs(RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                              List<ModelDiagnosisBrief.CandidateSignal> candidateSignals,
                                              DiagnosisEvidencePackage.JudgeFacts judgeFacts,
+                                             DiagnosisEvidencePackage evidencePackage,
                                              SubmissionAnalysisResponse baseline) {
         Set<String> refs = new LinkedHashSet<>();
         if (ruleSignals != null && ruleSignals.getEvidenceRefs() != null) {
@@ -156,10 +202,16 @@ public class ModelDiagnosisBriefBuilder {
         if (baseline != null && baseline.getEvidenceRefs() != null) {
             refs.addAll(baseline.getEvidenceRefs());
         }
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
+                evidencePackage == null ? null : evidencePackage.getLearningMemory();
+        if (memory != null && memory.getEvidenceRefs() != null) {
+            refs.addAll(memory.getEvidenceRefs());
+        }
         return List.copyOf(refs);
     }
 
     private List<String> allowedIssueTags(RuleSignalAnalyzer.RuleSignalResult ruleSignals,
+                                          DiagnosisEvidencePackage evidencePackage,
                                           SubmissionAnalysisResponse baseline) {
         Set<String> tags = new LinkedHashSet<>();
         if (ruleSignals != null && ruleSignals.getCandidateIssueTags() != null) {
@@ -168,11 +220,20 @@ public class ModelDiagnosisBriefBuilder {
         if (baseline != null && baseline.getIssueTags() != null) {
             tags.addAll(baseline.getIssueTags());
         }
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
+                evidencePackage == null ? null : evidencePackage.getLearningMemory();
+        if (memory != null && memory.getRecurringIssueTags() != null) {
+            memory.getRecurringIssueTags().stream()
+                    .map(DiagnosisEvidencePackage.MemoryTagStat::getTag)
+                    .filter(tag -> tag != null && !tag.isBlank())
+                    .forEach(tags::add);
+        }
         tags.add("NEEDS_MORE_EVIDENCE");
         return List.copyOf(tags);
     }
 
     private List<String> allowedFineTags(RuleSignalAnalyzer.RuleSignalResult ruleSignals,
+                                         DiagnosisEvidencePackage evidencePackage,
                                          SubmissionAnalysisResponse baseline) {
         Set<String> tags = new LinkedHashSet<>();
         if (ruleSignals != null && ruleSignals.getCandidateFineGrainedTags() != null) {
@@ -180,6 +241,14 @@ public class ModelDiagnosisBriefBuilder {
         }
         if (baseline != null && baseline.getFineGrainedTags() != null) {
             tags.addAll(baseline.getFineGrainedTags());
+        }
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
+                evidencePackage == null ? null : evidencePackage.getLearningMemory();
+        if (memory != null && memory.getRecurringFineGrainedTags() != null) {
+            memory.getRecurringFineGrainedTags().stream()
+                    .map(DiagnosisEvidencePackage.MemoryTagStat::getTag)
+                    .filter(tag -> tag != null && !tag.isBlank())
+                    .forEach(tags::add);
         }
         return List.copyOf(tags);
     }
@@ -223,6 +292,61 @@ public class ModelDiagnosisBriefBuilder {
             parts.add("nextAdjustment=" + truncate(history.getPreviousLearningActionNextAdjustment(), 180));
         }
         return String.join(" | ", parts);
+    }
+
+    private String learningMemorySummary(DiagnosisEvidencePackage evidencePackage) {
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
+                evidencePackage == null ? null : evidencePackage.getLearningMemory();
+        if (memory == null) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        if (memory.getObservedSubmissionCount() != null) {
+            parts.add("observedSubmissions=" + memory.getObservedSubmissionCount());
+        }
+        if (memory.getObservedProblemCount() != null) {
+            parts.add("observedProblems=" + memory.getObservedProblemCount());
+        }
+        addMemoryStats(parts, "recurringIssueTags", memory.getRecurringIssueTags());
+        addMemoryStats(parts, "recurringFineTags", memory.getRecurringFineGrainedTags());
+        addAbilityFocus(parts, memory.getAbilityFocus());
+        if (memory.getRecentTrend() != null && !memory.getRecentTrend().isBlank()) {
+            parts.add("recentTrend=" + memory.getRecentTrend());
+        }
+        if (memory.getInterventionEffect() != null && !memory.getInterventionEffect().isBlank()) {
+            parts.add("interventionEffect=" + memory.getInterventionEffect());
+        }
+        if (memory.getTeacherCorrectionSummary() != null && !memory.getTeacherCorrectionSummary().isBlank()) {
+            parts.add("teacherCorrection=" + memory.getTeacherCorrectionSummary());
+        }
+        if (memory.getEvidenceRefs() != null && !memory.getEvidenceRefs().isEmpty()) {
+            parts.add("memoryEvidenceRefs=" + String.join(",", memory.getEvidenceRefs()));
+        }
+        return truncate(String.join(" | ", parts), 900);
+    }
+
+    private void addMemoryStats(List<String> parts,
+                                String name,
+                                List<DiagnosisEvidencePackage.MemoryTagStat> stats) {
+        if (stats == null || stats.isEmpty()) {
+            return;
+        }
+        parts.add(name + "=" + stats.stream()
+                .limit(3)
+                .map(stat -> defaultIfBlank(stat.getTag(), "") + ":" + (stat.getCount() == null ? 0L : stat.getCount()))
+                .toList());
+    }
+
+    private void addAbilityFocus(List<String> parts, List<DiagnosisEvidencePackage.AbilityFocus> abilityFocus) {
+        if (abilityFocus == null || abilityFocus.isEmpty()) {
+            return;
+        }
+        parts.add("abilityFocus=" + abilityFocus.stream()
+                .limit(3)
+                .map(focus -> defaultIfBlank(focus.getAbilityPoint(), "")
+                        + ":submissions=" + (focus.getSubmissionCount() == null ? 0L : focus.getSubmissionCount())
+                        + ",problems=" + (focus.getProblemCount() == null ? 0L : focus.getProblemCount()))
+                .toList());
     }
 
     private ModelDiagnosisBrief.HiddenDataBoundary hiddenDataBoundary(DiagnosisEvidencePackage.JudgeFacts judgeFacts) {

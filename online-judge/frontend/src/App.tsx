@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { BookOpenCheck, GraduationCap, Menu, Moon, Settings, Sun, UsersRound, X } from "lucide-react";
+import { BookOpenCheck, GraduationCap, Menu, Moon, Sun, UsersRound, X } from "lucide-react";
 import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherManagementPage from "./features/teacher/TeacherManagementPage";
 import { EmptyState } from "./shared/ui/EmptyState";
@@ -59,9 +59,16 @@ function Header() {
   const location = useLocation();
   const navItems = useMemo(
     () => [
-      { to: "/app/student", label: "学生", icon: GraduationCap },
-      { to: "/app/teacher", label: "教师", icon: UsersRound },
-      { to: "/app/teacher-management", label: "管理", icon: Settings }
+      { to: "/app/student", label: "学生", icon: GraduationCap, activeWhen: (pathname: string) => pathname.startsWith("/app/problem") },
+      {
+        to: "/app/teacher",
+        label: "教师",
+        icon: UsersRound,
+        activeWhen: (pathname: string) =>
+          pathname.startsWith("/app/teacher-management") ||
+          pathname.startsWith("/app/task-editor") ||
+          pathname.startsWith("/app/class-overview")
+      }
     ],
     []
   );
@@ -85,7 +92,13 @@ function Header() {
       </button>
       <nav className="top-nav" aria-label="主导航">
         {navItems.map(item => (
-          <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "top-nav__link is-active" : "top-nav__link")}>
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              isActive || item.activeWhen?.(location.pathname) ? "top-nav__link is-active" : "top-nav__link"
+            }
+          >
             <item.icon size={17} />
             <span>{item.label}</span>
           </NavLink>
