@@ -3,8 +3,8 @@ import { ArrowRight, CheckCircle2, KeyRound, UserRound } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, StudentProfile, StudentTrajectory } from "../../shared/api/types";
-import { difficultyLabel, issueLabel, verdictLabel } from "../../shared/format";
-import { loadStudent, saveStudent } from "../../shared/storage";
+import { difficultyLabel, issueLabel, learningStageLabel, verdictLabel } from "../../shared/format";
+import { loadInviteCode, loadStudent, saveInviteCode, saveStudent } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, TextInput } from "../../shared/ui/Field";
@@ -13,7 +13,7 @@ import { StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
 
 export default function StudentPage() {
   const [searchParams] = useSearchParams();
-  const [inviteCode, setInviteCode] = useState(searchParams.get("code") || "");
+  const [inviteCode, setInviteCode] = useState(() => searchParams.get("code") || loadInviteCode() || "WZAI01");
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [student, setStudent] = useState<StudentProfile | null>(null);
   const [trajectory, setTrajectory] = useState<StudentTrajectory | null>(null);
@@ -27,7 +27,9 @@ export default function StudentPage() {
     const code = searchParams.get("code");
     if (code) {
       void resolveInvite(code);
+      return;
     }
+    void resolveInvite(inviteCode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -72,6 +74,7 @@ export default function StudentPage() {
       const result = await api.resolveInvite(code);
       setAssignment(result);
       setInviteCode(code.toUpperCase());
+      saveInviteCode(code);
       setAlert(null);
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "邀请码无效。" });
@@ -252,7 +255,7 @@ export default function StudentPage() {
 
           <Panel
             title="提交结果"
-              action={<StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory?.stageTransition || "等待提交"}</StatusPill>}
+              action={<StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? learningStageLabel(trajectory.stageTransition) : "等待提交"}</StatusPill>}
             >
               {!trajectory ? (
                 <EmptyState title="还没有提交记录" />
@@ -276,14 +279,20 @@ export default function StudentPage() {
                     <strong>
                       {trajectory.repeatedFineGrainedTag
                         ? issueLabel(trajectory.repeatedFineGrainedTag)
-                        : trajectory.repeatedIssueTag
-                          ? issueLabel(trajectory.repeatedIssueTag)
-                          : trajectory.nextStep || "待提交"}
+                          : trajectory.repeatedIssueTag
+                            ? issueLabel(trajectory.repeatedIssueTag)
+                          : trajectory.nextStep
+                            ? learningStageLabel(trajectory.nextStep)
+                            : "待提交"}
                     </strong>
                   </div>
                   {trajectory.latestCoachInteraction?.prompted && (
                     <div className="student-coach-summary">
-                      <span>{trajectory.latestCoachInteraction.statusLabel || "追问"}</span>
+                      <span>
+                        {trajectory.latestCoachInteraction.statusLabel
+                          ? learningStageLabel(trajectory.latestCoachInteraction.statusLabel)
+                          : "追问"}
+                      </span>
                       <strong>{trajectory.latestCoachInteraction.answered ? "已回答" : "待回答"}</strong>
                     </div>
                   )}
@@ -297,7 +306,7 @@ export default function StudentPage() {
                         </div>
                         <h3>{task.title}</h3>
                         <p>
-                          {task.attemptCount} 次尝试 · {task.latestHint || verdictLabel(task.latestVerdict)}
+                          {task.attemptCount} 次尝试 · {task.latestHint ? learningStageLabel(task.latestHint) : verdictLabel(task.latestVerdict)}
                         </p>
                       </div>
                     ))}

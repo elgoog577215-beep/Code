@@ -26,28 +26,7 @@ export default function ClassOverviewPage() {
   }, [entries]);
   const reviewEntries = useMemo(() => entries.filter(item => (item.acceptanceRate || 0) < 40).slice(0, 3), [entries]);
   const stableEntries = useMemo(() => entries.filter(item => (item.acceptanceRate || 0) >= 70).slice(0, 2), [entries]);
-  const activeEntries = useMemo(() => [...entries].sort((a, b) => (b.totalSubmissions || 0) - (a.totalSubmissions || 0)).slice(0, 2), [entries]);
   const idleCount = useMemo(() => entries.filter(item => (item.totalSubmissions || 0) === 0).length, [entries]);
-  const actionPlan = useMemo(
-    () => [
-      {
-        title: reviewEntries.length ? "需讲评" : "正常",
-        note: reviewEntries.length ? reviewEntries[0].problemTitle : "无低通过率任务",
-        tone: reviewEntries.length ? "warning" : "success"
-      },
-      {
-        title: idleCount ? "未提交任务" : "均有提交",
-        note: idleCount ? `${idleCount} 个` : "已覆盖",
-        tone: idleCount ? "info" : "success"
-      },
-      {
-        title: totals.avg < 50 ? "通过率偏低" : "通过率正常",
-        note: percent(totals.avg),
-        tone: totals.avg < 50 ? "warning" : "info"
-      }
-    ],
-    [idleCount, reviewEntries, totals.avg]
-  );
 
   return (
     <div className="stack class-overview-page">
@@ -70,15 +49,6 @@ export default function ClassOverviewPage() {
         <Metric label="整体通过率" value={percent(totals.avg)} />
       </div>
 
-      <section className="overview-action-plan" aria-label="课堂状态">
-        {actionPlan.map(item => (
-          <div className={`overview-action-card overview-action-card--${item.tone}`} key={item.title}>
-            <span>{item.title}</span>
-            <strong>{item.note}</strong>
-          </div>
-        ))}
-      </section>
-
       <section className="overview-insight-grid" aria-label="班级数据">
         <Panel title="需讲评" action={<span className="meta-badge meta-badge--warning">{reviewEntries.length} 个</span>}>
           <InsightList entries={reviewEntries} emptyTitle="暂无需讲评任务" tone="warning" />
@@ -86,8 +56,13 @@ export default function ClassOverviewPage() {
         <Panel title="正常推进" action={<span className="meta-badge meta-badge--success">{stableEntries.length} 个</span>}>
           <InsightList entries={stableEntries} emptyTitle="还没有稳定任务" tone="success" />
         </Panel>
-        <Panel title="提交较多" action={<span className="meta-badge meta-badge--info">{activeEntries.length} 个</span>}>
-          <InsightList entries={activeEntries} emptyTitle="暂无提交数据" tone="info" />
+        <Panel title="提交情况" action={<span className="meta-badge meta-badge--info">{idleCount ? `${idleCount} 个未提交` : "已覆盖"}</span>}>
+          <div className="overview-coverage-row">
+            <span>任务数</span>
+            <strong>{entries.length}</strong>
+            <span>总提交</span>
+            <strong>{totals.submissions}</strong>
+          </div>
         </Panel>
       </section>
 

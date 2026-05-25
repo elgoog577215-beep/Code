@@ -14,24 +14,24 @@ const viteBin = join(frontendDir, "node_modules/vite/bin/vite.js");
 
 const assignment = {
   id: 7,
-  title: "AI Diagnosis Practice",
-  description: "Boundary checks and debugging habits",
+  title: "课堂编程作业",
+  description: "循环边界与调试练习",
   classGroupId: 3,
-  className: "Grade 10 Class 1",
+  className: "高一1班",
   hintPolicy: "L2",
   status: "ACTIVE",
   inviteCode: "WZAI01",
   tasks: [
-    { problemId: 101, title: "Sum Guard", difficulty: "EASY", orderIndex: 1, required: true },
-    { problemId: 102, title: "Loop Boundary", difficulty: "MEDIUM", orderIndex: 2, required: true }
+    { problemId: 101, title: "求和边界", difficulty: "EASY", orderIndex: 1, required: true },
+    { problemId: 102, title: "循环边界", difficulty: "MEDIUM", orderIndex: 2, required: true }
   ]
 };
 
 const student = {
   id: 41,
   classGroupId: 3,
-  className: "Grade 10 Class 1",
-  displayName: "Student Demo",
+  className: "高一1班",
+  displayName: "学生甲",
   studentNo: "12"
 };
 
@@ -58,15 +58,15 @@ const trajectory = {
   totalTasks: 2,
   completedTasks: 1,
   totalAttempts: 4,
-  stageTransition: "Needs one more correction",
+  stageTransition: "还需修正",
   repeatedIssueTag: "BOUNDARY",
   repeatedFineGrainedTag: "OFF_BY_ONE",
   repeatedIssueCount: 2,
-  nextStep: "Re-check loop boundary with the smallest input.",
-  attentionReason: "Two recent submissions failed on edge cases.",
-  improvementSignal: "The latest answer already narrows the bug to one loop.",
-  primaryAbilityFocus: "Boundary reasoning",
-  crossProblemSummary: "Errors cluster around inclusive and exclusive ranges.",
+  nextStep: "用最小输入复查循环边界。",
+  attentionReason: "最近两次提交都卡在边界样例。",
+  improvementSignal: "最新回答已经把问题缩小到循环边界。",
+  primaryAbilityFocus: "循环与边界",
+  crossProblemSummary: "错误集中在循环端点。",
   latestCoachInteraction: {
     submissionId: 9001,
     turnCount: 1,
@@ -74,28 +74,28 @@ const trajectory = {
     prompted: true,
     answered: true,
     status: "ANSWERED",
-    statusLabel: "Coach answered",
-    summary: "Student explained the boundary guess.",
-    latestQuestion: "What happens when n is 1?",
-    latestAnswer: "The loop should still run once.",
-    latestFeedback: "Good. Now test the zero-length branch.",
+    statusLabel: "已回答追问",
+    summary: "学生说明了边界判断。",
+    latestQuestion: "当 n 为 1 时会发生什么？",
+    latestAnswer: "循环仍然应该执行一次。",
+    latestFeedback: "可以。接着检查最小输入分支。",
     impact: coachImpact
   },
   latestCoachImpact: coachImpact,
   recentIssueDistribution: [{ label: "BOUNDARY", count: 2 }],
   recentFineGrainedIssueDistribution: [{ label: "OFF_BY_ONE", count: 2 }],
-  abilitySummary: [{ abilityPoint: "Boundary reasoning", taskCount: 2, submissionCount: 4, evidenceTags: ["OFF_BY_ONE"] }],
+  abilitySummary: [{ abilityPoint: "循环与边界", taskCount: 2, submissionCount: 4, evidenceTags: ["OFF_BY_ONE"] }],
   tasks: [
     {
       problemId: 101,
-      title: "Sum Guard",
+      title: "求和边界",
       difficulty: "EASY",
       attemptCount: 3,
       passed: false,
       latestVerdict: "WRONG_ANSWER",
-      latestProgressSignal: "Narrowed to boundary case",
-      latestHint: "Check whether the loop includes the last item.",
-      latestImprovementSignal: "The second submission fixed input parsing.",
+      latestProgressSignal: "已定位边界问题",
+      latestHint: "检查循环是否包含最后一个数。",
+      latestImprovementSignal: "第二次提交已修正输入读取。",
       latestCoachInteraction: {
         submissionId: 9001,
         turnCount: 1,
@@ -103,8 +103,8 @@ const trajectory = {
         prompted: true,
         answered: true,
         status: "ANSWERED",
-        statusLabel: "Coach answered",
-        summary: "Student answered the boundary question.",
+        statusLabel: "已回答追问",
+        summary: "学生回答了边界问题。",
         impact: coachImpact
       },
       latestCoachImpact: coachImpact,
@@ -115,8 +115,8 @@ const trajectory = {
           submittedAt: "2026-05-19T09:00:00",
           issueTags: ["BOUNDARY"],
           fineGrainedTags: ["OFF_BY_ONE"],
-          progressSignal: "Narrowed to boundary case",
-          improvementSignal: "Input parsing improved",
+          progressSignal: "已定位边界问题",
+          improvementSignal: "输入读取已修正",
           coachInteraction: {
             submissionId: 9001,
             turnCount: 1,
@@ -124,8 +124,8 @@ const trajectory = {
             prompted: true,
             answered: true,
             status: "ANSWERED",
-            statusLabel: "Coach answered",
-            summary: "Student answered the boundary question.",
+            statusLabel: "已回答追问",
+            summary: "学生回答了边界问题。",
             impact: coachImpact
           },
           coachImpact
@@ -134,13 +134,13 @@ const trajectory = {
     },
     {
       problemId: 102,
-      title: "Loop Boundary",
+      title: "循环边界",
       difficulty: "MEDIUM",
       attemptCount: 1,
       passed: true,
       latestVerdict: "ACCEPTED",
-      latestProgressSignal: "Accepted",
-      latestHint: "Keep the accepted test as a template.",
+      latestProgressSignal: "已通过",
+      latestHint: "保留这次通过的测试作为模板。",
       submissions: []
     }
   ]
@@ -153,31 +153,31 @@ const abilityProfile = {
   problemCount: 3,
   assignmentCount: 2,
   failedSubmissionCount: 4,
-  primaryAbilityFocus: "Boundary reasoning",
-  summary: "Recent evidence points to off-by-one mistakes, not syntax problems.",
-  trendSignal: "Accuracy improves after explicit boundary checks.",
-  recommendationEffectSummary: "Follow-up practice led to one accepted solution.",
+  primaryAbilityFocus: "循环与边界",
+  summary: "近期证据指向差一位错误，不是语法问题。",
+  trendSignal: "明确检查边界后正确率提升。",
+  recommendationEffectSummary: "后续练习已有一次通过。",
   coachImpactSummary: "AI 追问后已有 1 次同题后续提交通过，建议复盘学生回答中有效的证据意识。",
   latestCoachInteraction: trajectory.latestCoachInteraction,
   latestCoachImpact: coachImpact,
-  abilityGaps: [{ abilityPoint: "Boundary reasoning", taskCount: 2, submissionCount: 4, evidenceTags: ["OFF_BY_ONE"] }],
-  knowledgeFocus: [{ label: "for loop", count: 3, evidenceProblemIds: [101] }],
-  commonMistakeFocus: [{ label: "off by one", count: 2, evidenceProblemIds: [101] }],
-  boundaryFocus: [{ label: "n equals 1", count: 2, evidenceProblemIds: [101] }]
+  abilityGaps: [{ abilityPoint: "循环与边界", taskCount: 2, submissionCount: 4, evidenceTags: ["OFF_BY_ONE"] }],
+  knowledgeFocus: [{ label: "for 循环", count: 3, evidenceProblemIds: [101] }],
+  commonMistakeFocus: [{ label: "差一位错误", count: 2, evidenceProblemIds: [101] }],
+  boundaryFocus: [{ label: "n 等于 1", count: 2, evidenceProblemIds: [101] }]
 };
 
 const recommendation = {
   student,
-  summary: "Practice one adjacent task and explain the boundary before coding.",
+  summary: "做一道同类题，并在写代码前说明边界。",
   recommendations: [
     {
       type: "NEXT_PROBLEM",
-      title: "Try a nearby boundary task",
-      reason: "It targets the same off-by-one pattern with lower noise.",
-      actionLabel: "Practice now",
+      title: "做一道同类边界题",
+      reason: "它针对同一类差一位问题。",
+      actionLabel: "开始练习",
       problemId: 101,
-      problemTitle: "Sum Guard",
-      focusAbility: "Boundary reasoning",
+      problemTitle: "求和边界",
+      focusAbility: "循环与边界",
       focusTags: ["OFF_BY_ONE", "EDGE_CASE"],
       evidenceProblemIds: [101],
       recommendationToken: "rec-next-101",
@@ -188,16 +188,16 @@ const recommendation = {
 
 const problem = {
   id: 101,
-  title: "Sum Guard",
-  description: "# Sum Guard\nRead n numbers and print their sum. Pay attention to the smallest valid input.",
+  title: "求和边界",
+  description: "# 求和边界\n读入 n 个整数，输出它们的和。注意最小有效输入。",
   difficulty: "EASY",
   timeLimit: 1000,
   memoryLimit: 65536,
-  aiPromptDirection: "Focus on boundary reasoning before revealing a fix.",
-  knowledgePoints: ["loop", "input"],
-  algorithmStrategies: ["simulation"],
-  commonMistakes: ["off by one"],
-  boundaryTypes: ["n equals 1"],
+  aiPromptDirection: "先引导学生手推边界，再给出修改方向。",
+  knowledgePoints: ["循环", "输入读取"],
+  algorithmStrategies: ["手推模拟"],
+  commonMistakes: ["差一位错误"],
+  boundaryTypes: ["n 等于 1"],
   sampleTestCases: [{ input: "3\n1 2 3\n", expectedOutput: "6\n" }]
 };
 
@@ -206,7 +206,7 @@ const submissionResult = {
   problemId: 101,
   assignmentId: 7,
   studentProfileId: 41,
-  problemTitle: "Sum Guard",
+  problemTitle: "求和边界",
   languageId: 71,
   languageName: "Python 3",
   sourceCode: "n = int(input())\nprint(n)\n",
@@ -222,19 +222,19 @@ const submissionResult = {
     submissionId: 9001,
     sourceType: "AI",
     scenario: "WRONG_ANSWER",
-    headline: "Boundary case is not covered yet",
-    summary: "The code reads the count but does not consume or sum the following values.",
+    headline: "边界情况还未覆盖",
+    summary: "代码读到了数量，但没有继续读取并求和后面的数。",
     issueTags: ["BOUNDARY"],
-    abilityPoints: ["Boundary reasoning"],
-    focusPoints: ["n equals 1", "loop body"],
-    fixDirections: ["Trace the sample input by hand.", "Write a loop that visits every value exactly once."],
-    studentHint: "Start with n = 1 and ask which input line your code reads next.",
-    teacherNote: "Good candidate for a coach prompt about input contract.",
-    progressSignal: "The bug is localized to input handling.",
+    abilityPoints: ["循环与边界"],
+    focusPoints: ["n 等于 1", "循环体"],
+    fixDirections: ["手推公开样例。", "写一个正好处理每个数一次的循环。"],
+    studentHint: "从 n = 1 开始，检查代码下一步读取了哪一行。",
+    teacherNote: "适合用输入格式追问。",
+    progressSignal: "问题集中在输入处理。",
     confidence: 0.68,
     fineGrainedTags: ["OFF_BY_ONE"],
     evidenceRefs: ["public-case-1"],
-    uncertainty: "Could also be an input format misunderstanding.",
+    uncertainty: "也可能是输入格式理解偏差。",
     answerLeakRisk: "LOW",
     firstFailedCase: {
       testCaseNumber: 1,
@@ -259,9 +259,9 @@ const coachPrompt = {
   turnIndex: 1,
   hintPolicy: "L2",
   promptType: "NEXT_QUESTION",
-  question: "If n is 3, which three values should your loop consume?",
-  rationale: "This asks the student to reconstruct the input contract.",
-  contextSummary: "The failed public case shows the program prints the count instead of the sum.",
+  question: "如果 n 是 3，循环应该读取哪三个数？",
+  rationale: "让学生重新确认输入格式。",
+  contextSummary: "公开失败点显示程序输出了数量而不是和。",
   evidenceRefs: ["public-case-1"],
   turns: []
 };
@@ -270,7 +270,7 @@ const history = [
   {
     id: 9001,
     problemId: 101,
-    problemTitle: "Sum Guard",
+    problemTitle: "求和边界",
     languageId: 71,
     languageName: "Python 3",
     verdict: "WRONG_ANSWER",
@@ -281,16 +281,16 @@ const history = [
     totalTestCases: 2,
     analysisStatus: "READY",
     analysisSourceType: "AI",
-    analysisHeadline: "Boundary case is not covered yet",
-    analysisSummary: "The code reads the count but not the values."
+    analysisHeadline: "边界情况还未覆盖",
+    analysisSummary: "代码只读取了数量，没有读取数值。"
   }
 ];
 
-const classes = [{ id: 3, name: "Grade 10 Class 1", grade: "10", teacherName: "Teacher Demo" }];
+const classes = [{ id: 3, name: "高一1班", grade: "10", teacherName: "信息技术老师" }];
 
 const problemCatalog = [
-  { id: 101, title: "Sum Guard", summary: "Practice input loops.", difficulty: "EASY", timeLimit: 1000, memoryLimit: 65536 },
-  { id: 102, title: "Loop Boundary", summary: "Practice interval endpoints.", difficulty: "MEDIUM", timeLimit: 1000, memoryLimit: 65536 }
+  { id: 101, title: "求和边界", summary: "练习输入循环。", difficulty: "EASY", timeLimit: 1000, memoryLimit: 65536 },
+  { id: 102, title: "循环边界", summary: "练习循环端点。", difficulty: "MEDIUM", timeLimit: 1000, memoryLimit: 65536 }
 ];
 
 const assignmentOverview = {
@@ -303,32 +303,32 @@ const assignmentOverview = {
     {
       label: "BOUNDARY",
       count: 8,
-      explanation: "Students confuse inclusive and exclusive endpoints.",
-      abilityPoint: "Boundary reasoning",
+      explanation: "学生容易混淆是否包含端点。",
+      abilityPoint: "循环与边界",
       recommendedHintPolicy: "L2",
-      interventionSuggestion: "Ask for the smallest input trace before code changes."
+      interventionSuggestion: "先让学生手推最小输入，再修改代码。"
     }
   ],
-  classAbilityWeaknesses: [{ abilityPoint: "Boundary reasoning", taskCount: 2, submissionCount: 12, evidenceTags: ["OFF_BY_ONE"] }],
+  classAbilityWeaknesses: [{ abilityPoint: "循环与边界", taskCount: 2, submissionCount: 12, evidenceTags: ["OFF_BY_ONE"] }],
   classReviewSuggestions: [
     {
-      title: "Review the smallest input before the next exercise",
+      title: "下次练习前复盘最小输入",
       suggestionKey: "review:7:ability:boundary-reasoning:101:off-by-one",
-      targetAbility: "Boundary reasoning",
+      targetAbility: "循环与边界",
       exampleProblemId: 101,
-      exampleProblemTitle: "Sum Guard",
+      exampleProblemTitle: "求和边界",
       evidenceTags: ["OFF_BY_ONE"],
       evidenceSubmissionIds: [9001],
-      guidingQuestion: "What exact values should the loop visit when n is 1?",
-      action: "Use one public case and one teacher-written edge case.",
-      evidenceSummary: "Four students repeated the same endpoint mistake.",
-      latestFeedback: { actionType: "MODIFIED", teacherNote: "Use a smaller boundary case first.", createdBy: "teacher", createdAt: "2026-05-19T10:00:00" }
+      guidingQuestion: "当 n 为 1 时，循环应该处理哪些值？",
+      action: "使用一个公开样例和一个教师补充边界样例。",
+      evidenceSummary: "4 名学生重复出现端点错误。",
+      latestFeedback: { actionType: "MODIFIED", teacherNote: "先使用更小的边界样例。", createdBy: "teacher", createdAt: "2026-05-19T10:00:00" }
     }
   ],
   students: [
     {
       studentProfileId: 41,
-      displayName: "Student Demo",
+      displayName: "学生甲",
       studentNo: "12",
       attemptCount: 3,
       passedCount: 1,
@@ -337,20 +337,20 @@ const assignmentOverview = {
       latestIssue: "BOUNDARY",
       latestIssueTag: "BOUNDARY",
       latestFineGrainedIssue: "OFF_BY_ONE",
-      latestProgressSignal: "Narrowed to boundary case",
+      latestProgressSignal: "已定位边界问题",
       latestConfidence: 0.68,
-      latestUncertainty: "Could be input contract confusion.",
+      latestUncertainty: "可能是输入格式理解偏差。",
       latestAnswerLeakRisk: "LOW",
       latestCorrection: null,
       latestCoachInteraction: trajectory.latestCoachInteraction,
       latestCoachImpact: coachImpact,
-      primaryAbilityFocus: "Boundary reasoning",
-      crossProblemSummary: "Repeated endpoint mistakes across two problems.",
-      abilitySummary: [{ abilityPoint: "Boundary reasoning", taskCount: 2, submissionCount: 4, evidenceTags: ["OFF_BY_ONE"] }],
+      primaryAbilityFocus: "循环与边界",
+      crossProblemSummary: "两道题都出现端点错误。",
+      abilitySummary: [{ abilityPoint: "循环与边界", taskCount: 2, submissionCount: 4, evidenceTags: ["OFF_BY_ONE"] }],
       repeatedIssueTag: "BOUNDARY",
       repeatedFineGrainedTag: "OFF_BY_ONE",
       repeatedIssueCount: 2,
-      attentionReason: "Repeated wrong answer on public and hidden edge cases.",
+      attentionReason: "公开和隐藏边界样例都出现错误。",
       attentionEvidence: [
         {
           submissionId: 9001,
@@ -359,9 +359,9 @@ const assignmentOverview = {
           submittedAt: "2026-05-19T09:03:00",
           issueTag: "BOUNDARY",
           fineGrainedTag: "OFF_BY_ONE",
-          abilityPoint: "Boundary reasoning",
-          headline: "Boundary case is not covered yet",
-          reason: "Public sample failed."
+          abilityPoint: "循环与边界",
+          headline: "边界情况还未覆盖",
+          reason: "公开样例未通过。"
         }
       ],
       needsAttention: true
@@ -379,8 +379,8 @@ const aiQualityOverview = {
   correctionRate: 12.5,
   lowConfidenceRate: 16.7,
   highLeakRiskRate: 0,
-  summary: "Most AI feedback is stable, but boundary tags need eval samples.",
-  correctedTags: [{ originalTag: "LOGIC", originalLabel: "Logic", correctedTag: "BOUNDARY", correctedLabel: "Boundary", count: 2 }]
+  summary: "多数反馈稳定，边界标签还需要补充评测样例。",
+  correctedTags: [{ originalTag: "LOGIC", originalLabel: "逻辑问题", correctedTag: "BOUNDARY", correctedLabel: "边界条件", count: 2 }]
 };
 
 const aiQualityTrend = {
@@ -393,13 +393,13 @@ const aiQualityTrend = {
   correctionRate: 11.1,
   lowConfidenceRate: 12.5,
   highLeakRiskRate: 1.4,
-  summary: "Cross-assignment trend: boundary diagnosis still needs more eval coverage.",
+  summary: "跨作业趋势：边界诊断仍需补充评测覆盖。",
   assignments: [
-    { assignmentId: 7, assignmentTitle: "AI Diagnosis Practice", analyzedSubmissionCount: 24, correctionCount: 3, evalCandidateCount: 5, lowConfidenceCount: 4, highLeakRiskCount: 0, correctionRate: 12.5, lowConfidenceRate: 16.7, highLeakRiskRate: 0, summary: "Boundary-heavy class" },
-    { assignmentId: 6, assignmentTitle: "Loop Review", analyzedSubmissionCount: 18, correctionCount: 2, evalCandidateCount: 3, lowConfidenceCount: 2, highLeakRiskCount: 1, correctionRate: 11.1, lowConfidenceRate: 11.1, highLeakRiskRate: 5.6, summary: "One leak-risk sample" }
+    { assignmentId: 7, assignmentTitle: "课堂编程作业", analyzedSubmissionCount: 24, correctionCount: 3, evalCandidateCount: 5, lowConfidenceCount: 4, highLeakRiskCount: 0, correctionRate: 12.5, lowConfidenceRate: 16.7, highLeakRiskRate: 0, summary: "边界问题较集中" },
+    { assignmentId: 6, assignmentTitle: "循环复习", analyzedSubmissionCount: 18, correctionCount: 2, evalCandidateCount: 3, lowConfidenceCount: 2, highLeakRiskCount: 1, correctionRate: 11.1, lowConfidenceRate: 11.1, highLeakRiskRate: 5.6, summary: "存在一个泄题风险样例" }
   ],
-  correctedTags: [{ tag: "BOUNDARY", label: "Boundary", count: 5, evalCandidateCount: 4 }],
-  evalNeededTags: [{ tag: "OFF_BY_ONE", label: "Off by one", count: 6, evalCandidateCount: 5 }],
+  correctedTags: [{ tag: "BOUNDARY", label: "边界条件", count: 5, evalCandidateCount: 4 }],
+  evalNeededTags: [{ tag: "OFF_BY_ONE", label: "差一位错误", count: 6, evalCandidateCount: 5 }],
   sourceSegments: [
     { sourceType: "MODEL_SCOPE_EXTERNAL_MODEL", versionLabel: "diagnosis-v1 / agent-v1", analyzedSubmissionCount: 51, correctionCount: 6, lowConfidenceCount: 7, highLeakRiskCount: 1, correctionRate: 11.8, lowConfidenceRate: 13.7, highLeakRiskRate: 2 },
     { sourceType: "RULE_BASED_V1", versionLabel: "diagnosis-v1", analyzedSubmissionCount: 21, correctionCount: 2, lowConfidenceCount: 2, highLeakRiskCount: 0, correctionRate: 9.5, lowConfidenceRate: 9.5, highLeakRiskRate: 0 }
@@ -420,21 +420,21 @@ const recommendationEffectiveness = {
   followupSubmissionRate: 66.7,
   acceptedFollowupRate: 50,
   sameFocusIssueRate: 50,
-  summary: "Recommendation follow-ups are visible; one accepted submission and one repeated focus issue need review.",
+  summary: "推荐后的提交已有记录，其中一次通过，一次仍需关注。",
   byType: [
-    { key: "REDO", label: "Redo", exposureCount: 1, clickCount: 1, enteredProblemCount: 1, followupSubmissionCount: 1, acceptedFollowupCount: 0, sameFocusIssueCount: 1, clickThroughRate: 100, followupSubmissionRate: 100, acceptedFollowupRate: 0, sameFocusIssueRate: 100 },
-    { key: "NEXT_PROBLEM", label: "Next problem", exposureCount: 1, clickCount: 1, enteredProblemCount: 0, followupSubmissionCount: 1, acceptedFollowupCount: 1, sameFocusIssueCount: 0, clickThroughRate: 100, followupSubmissionRate: 100, acceptedFollowupRate: 100, sameFocusIssueRate: 0 },
-    { key: "REVIEW", label: "Review", exposureCount: 1, clickCount: 1, enteredProblemCount: 0, followupSubmissionCount: 0, acceptedFollowupCount: 0, sameFocusIssueCount: 0, clickThroughRate: 100, followupSubmissionRate: 0, acceptedFollowupRate: 0, sameFocusIssueRate: 0 }
+    { key: "REDO", label: "重做", exposureCount: 1, clickCount: 1, enteredProblemCount: 1, followupSubmissionCount: 1, acceptedFollowupCount: 0, sameFocusIssueCount: 1, clickThroughRate: 100, followupSubmissionRate: 100, acceptedFollowupRate: 0, sameFocusIssueRate: 100 },
+    { key: "NEXT_PROBLEM", label: "下一题", exposureCount: 1, clickCount: 1, enteredProblemCount: 0, followupSubmissionCount: 1, acceptedFollowupCount: 1, sameFocusIssueCount: 0, clickThroughRate: 100, followupSubmissionRate: 100, acceptedFollowupRate: 100, sameFocusIssueRate: 0 },
+    { key: "REVIEW", label: "复盘", exposureCount: 1, clickCount: 1, enteredProblemCount: 0, followupSubmissionCount: 0, acceptedFollowupCount: 0, sameFocusIssueCount: 0, clickThroughRate: 100, followupSubmissionRate: 0, acceptedFollowupRate: 0, sameFocusIssueRate: 0 }
   ],
   focusTags: [
-    { key: "OFF_BY_ONE", label: "Off by one", exposureCount: 1, clickCount: 1, enteredProblemCount: 1, followupSubmissionCount: 1, acceptedFollowupCount: 0, sameFocusIssueCount: 1, clickThroughRate: 100, followupSubmissionRate: 100, acceptedFollowupRate: 0, sameFocusIssueRate: 100 },
-    { key: "INPUT_PARSING", label: "Input parsing", exposureCount: 1, clickCount: 1, enteredProblemCount: 0, followupSubmissionCount: 1, acceptedFollowupCount: 1, sameFocusIssueCount: 0, clickThroughRate: 100, followupSubmissionRate: 100, acceptedFollowupRate: 100, sameFocusIssueRate: 0 }
+    { key: "OFF_BY_ONE", label: "差一位错误", exposureCount: 1, clickCount: 1, enteredProblemCount: 1, followupSubmissionCount: 1, acceptedFollowupCount: 0, sameFocusIssueCount: 1, clickThroughRate: 100, followupSubmissionRate: 100, acceptedFollowupRate: 0, sameFocusIssueRate: 100 },
+    { key: "INPUT_PARSING", label: "输入读取", exposureCount: 1, clickCount: 1, enteredProblemCount: 0, followupSubmissionCount: 1, acceptedFollowupCount: 1, sameFocusIssueCount: 0, clickThroughRate: 100, followupSubmissionRate: 100, acceptedFollowupRate: 100, sameFocusIssueRate: 0 }
   ]
 };
 
 const identityAudit = {
   classGroupId: 3,
-  className: "Grade 10 Class 1",
+  className: "高一1班",
   totalProfiles: 4,
   stableIdentityCount: 3,
   manualIdentityCount: 1,
@@ -444,9 +444,9 @@ const identityAudit = {
   duplicateGroups: [
     {
       stableIdentityKey: "class:3:no:12",
-      reason: "Same student number and similar display name",
+      reason: "相同学号且姓名相近",
       studentProfileIds: [41, 42],
-      displayNames: ["Student Demo", "Student Demo A"],
+      displayNames: ["学生甲", "学生甲A"],
       studentNos: ["12"],
       identityKeys: ["stable:3:12", "legacy:42"]
     }
@@ -454,8 +454,8 @@ const identityAudit = {
 };
 
 const diagnosisTags = [
-  { id: "BOUNDARY", label: "Boundary", teacherExplanation: "Endpoint or edge-case mistake.", abilityPoint: "Boundary reasoning", fineGrained: false },
-  { id: "OFF_BY_ONE", label: "Off by one", teacherExplanation: "Loop visits one too many or one too few items.", abilityPoint: "Boundary reasoning", fineGrained: true, parentTag: "BOUNDARY" }
+  { id: "BOUNDARY", label: "边界条件", teacherExplanation: "端点或边界样例处理错误。", abilityPoint: "循环与边界", fineGrained: false },
+  { id: "OFF_BY_ONE", label: "差一位错误", teacherExplanation: "循环多处理或少处理了一个位置。", abilityPoint: "循环与边界", fineGrained: true, parentTag: "BOUNDARY" }
 ];
 
 const executorStatus = {
@@ -464,13 +464,35 @@ const executorStatus = {
   dockerAvailable: false,
   pythonAvailable: true,
   cppAvailable: true,
-  message: "Smoke executor is available."
+  message: "验证执行环境可用。"
 };
 
 const scenarios = [
   {
+    name: "entry",
+    path: "/app/",
+    selectors: [
+      [".role-entry-grid--primary", "role entry grid"],
+      [".app-header", "application header"]
+    ],
+    afterChecks: async page => {
+      const navLabels = await page.locator(".top-nav__link span").allTextContents();
+      record("entry top nav has student and teacher only", navLabels.join("|") === "学生|教师", navLabels.join("|"));
+      const entryText = ((await page.locator(".role-entry-grid--primary").textContent()) || "").replace(/\s+/g, "");
+      record("entry grid has student column", entryText.includes("学生"), entryText);
+      record("entry grid has teacher column", entryText.includes("教师"), entryText);
+      record("entry grid omits separate management column", !entryText.includes("教师管理"), entryText);
+    }
+  },
+  {
     name: "student",
-    path: "/app/student?code=WZAI01",
+    path: "/app/student",
+    afterChecks: async page => {
+      const inviteCode = await page.evaluate(() => window.localStorage.getItem("wzai:lastInviteCode"));
+      const inviteFormCount = await page.locator("text=输入邀请码").count();
+      record("student default invite is remembered", inviteCode === "WZAI01", inviteCode || "");
+      record("student default invite enters assignment", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
+    },
     selectors: [
       [".student-assignment-grid.is-ready", "student assignment shell"],
       [".student-task-panel", "student task panel"],
@@ -492,7 +514,7 @@ const scenarios = [
     },
     selectors: [
       [".practice-command", "problem command area"],
-      [".practice-focus-strip", "problem focus strip"],
+      [".problem-layout", "problem main layout"],
       [".panel--ai", "problem AI result panel"],
       [".coach-next-question", "coach next question"],
       [".testcase-compact-list", "testcase result list"]
@@ -501,7 +523,16 @@ const scenarios = [
   {
     name: "teacher",
     path: "/app/teacher",
+    afterChecks: async page => {
+      const navLabels = await page.locator(".top-nav__link span").allTextContents();
+      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
+      const tabs = ((await page.locator(".teacher-mode-tabs").first().textContent()) || "").replace(/\s+/g, "");
+      record("teacher global nav remains two-role", navLabels.join("|") === "学生|教师", navLabels.join("|"));
+      record("teacher nav is active", activeNav.includes("教师"), activeNav.join("|"));
+      record("teacher page has internal management tab", tabs.includes("课堂过程") && tabs.includes("管理"), tabs);
+    },
     selectors: [
+      [".teacher-mode-tabs", "teacher mode tabs"],
       [".teacher-rail", "teacher assignment rail"],
       [".teacher-stage", "teacher classroom stage"],
       [".teacher-main-grid", "teacher classroom grid"],
@@ -519,11 +550,39 @@ const scenarios = [
         element.open = true;
       });
     },
+    afterChecks: async page => {
+      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
+      const tabs = ((await page.locator(".teacher-mode-tabs").first().textContent()) || "").replace(/\s+/g, "");
+      record("teacher management belongs to teacher nav", activeNav.includes("教师"), activeNav.join("|"));
+      record("teacher management has internal process tab", tabs.includes("课堂过程") && tabs.includes("管理"), tabs);
+    },
     selectors: [
+      [".teacher-mode-tabs", "teacher management mode tabs"],
       [".management-console", "management console"],
       [".management-identity-audit", "identity audit panel"],
       [".management-identity-audit__metrics", "identity audit metrics"],
       [".management-identity-groups", "identity duplicate groups"]
+    ]
+  },
+  {
+    name: "task-editor",
+    path: "/app/task-editor?id=101",
+    selectors: [
+      [".editor-command", "editor command"],
+      [".editor-workbench--single", "single editor workbench"],
+      [".editor-secondary-drawer", "editor secondary drawer"],
+      [".editor-test-row", "editor testcase row"]
+    ]
+  },
+  {
+    name: "class-overview",
+    path: "/app/class-overview",
+    selectors: [
+      [".overview-command", "overview command"],
+      [".metric-grid", "overview metrics"],
+      [".overview-insight-grid", "overview insight grid"],
+      [".overview-coverage-row", "overview coverage row"],
+      [".overview-compact-details", "overview details"]
     ]
   }
 ];
@@ -607,8 +666,25 @@ async function routeApi(route) {
   if (path === "/api/student/profile/41/recommendation-clicks" && method === "POST") return empty(route);
 
   if (path === "/api/problems/101") return json(route, problem);
+  if (path === "/api/problems/101/manage") {
+    return json(route, {
+      ...problem,
+      aiPromptDirection: problem.aiPromptDirection,
+      knowledgePoints: problem.knowledgePoints,
+      algorithmStrategies: problem.algorithmStrategies,
+      commonMistakes: problem.commonMistakes,
+      boundaryTypes: problem.boundaryTypes,
+      testCases: problem.sampleTestCases.map(item => ({ ...item, hidden: false }))
+    });
+  }
   if (path === "/api/problems") return json(route, [problem]);
   if (path === "/api/problems/catalog") return json(route, problemCatalog);
+  if (path === "/api/leaderboard/problems") {
+    return json(route, [
+      { problemId: 101, problemTitle: "求和边界", difficulty: "EASY", totalSubmissions: 24, acceptedSubmissions: 8, acceptanceRate: 33.3 },
+      { problemId: 102, problemTitle: "循环边界", difficulty: "MEDIUM", totalSubmissions: 18, acceptedSubmissions: 15, acceptanceRate: 83.3 }
+    ]);
+  }
 
   if (path === "/api/submissions" && method === "POST") return json(route, submissionResult);
   if (path === "/api/submissions/9001") return json(route, submissionResult);
@@ -617,16 +693,16 @@ async function routeApi(route) {
   if (path === "/api/submissions/9001/coach-turns" && method === "POST") {
     return json(route, {
       ...coachPrompt,
-      studentAnswer: "The loop should consume each value after n.",
-      coachFeedback: "Good. Now verify the first and last iteration.",
+      studentAnswer: "循环应该读取 n 后面的每个数。",
+      coachFeedback: "可以。继续检查第一次和最后一次循环。",
       turns: [
         {
           ...coachPrompt,
           id: 7002,
           turnIndex: 2,
-          question: "Which variable changes on each iteration?",
-          studentAnswer: "The running sum changes.",
-          coachFeedback: "That is the right trace target."
+          question: "每一轮变化的是哪个变量？",
+          studentAnswer: "累计和会变化。",
+          coachFeedback: "这个跟踪方向是对的。"
         }
       ]
     });
@@ -759,6 +835,9 @@ async function runScenario(baseUrl, browser, viewport, scenario) {
 
   for (const [selector, selectorLabel] of scenario.selectors) {
     await checkVisible(page, selector, `${label} ${selectorLabel}`);
+  }
+  if (scenario.afterChecks) {
+    await scenario.afterChecks(page);
   }
   await checkNoHorizontalOverflow(page, label);
   await checkImportantControlsVisible(page, label);

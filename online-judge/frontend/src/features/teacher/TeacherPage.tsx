@@ -10,10 +10,12 @@ import type {
 } from "../../shared/api/types";
 import {
   assignmentStatusLabel,
+  abilityLabel,
   displayText,
   formatDateTime,
   hintPolicyLabel,
   issueLabel,
+  learningStageLabel,
   looksCorruptText,
   verdictLabel
 } from "../../shared/format";
@@ -195,29 +197,6 @@ export default function TeacherPage() {
   const attentionStudents = overview?.students?.filter(student => student.needsAttention) || [];
   const visibleStudents = attentionStudents.length ? attentionStudents.slice(0, 6) : overview?.students?.slice(0, 6) || [];
   const reviewSuggestions = overview?.classReviewSuggestions?.slice(0, 3) || [];
-  const hasSelectedAssignment = Boolean(selectedAssignment);
-  const nextAction = overviewLoading
-    ? "读取提交记录"
-    : overview?.strugglingStudentCount
-    ? "先看需关注学生"
-    : overview && passRate < 50
-      ? "检查高频问题"
-      : overview
-        ? "观察提交"
-        : hasSelectedAssignment
-          ? "等待学生提交"
-          : "选择作业";
-  const nextActionState = overviewLoading
-    ? "读取中"
-    : overview?.strugglingStudentCount
-    ? `${overview.strugglingStudentCount} 人需关注`
-    : overview && passRate < 50
-      ? "通过率偏低"
-      : overview
-        ? "班级正常"
-        : hasSelectedAssignment
-          ? "暂无过程数据"
-          : "未选择作业";
   const stageStateTone: PillTone = overviewLoading
     ? "info"
     : !overview
@@ -440,13 +419,16 @@ export default function TeacherPage() {
 
       <section className="teacher-studio-shell">
         <header className="teacher-studio-topbar">
-          <div>
-            <h1>课堂过程</h1>
+          <div className="teacher-mode-heading">
+            <h1>教师</h1>
+            <nav className="teacher-mode-tabs" aria-label="教师功能">
+              <span className="teacher-mode-tab is-active">课堂过程</span>
+              <ButtonLink to="/app/teacher-management" variant="ghost" icon={<Settings size={16} />}>
+                管理
+              </ButtonLink>
+            </nav>
           </div>
           <div className="actions">
-            <ButtonLink to="/app/teacher-management" variant="secondary" icon={<Settings size={17} />}>
-              管理
-            </ButtonLink>
             <Button
               type="button"
               variant="ghost"
@@ -512,7 +494,28 @@ export default function TeacherPage() {
                   <span>{hintPolicyLabel(diagnosisAssignment?.hintPolicy)}</span>
                 </div>
               </div>
-              <StatusPill tone={stageStateTone}>{stageStateLabel}</StatusPill>
+              <div className="teacher-stage-toolbar">
+                <StatusPill tone={stageStateTone}>{stageStateLabel}</StatusPill>
+                <Button type="button" variant="secondary" onClick={() => void rotateInvite()} disabled={!selectedAssignment} icon={<RotateCw size={16} />}>
+                  重置邀请码
+                </Button>
+                {selectedAssignment?.inviteCode && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={<Copy size={16} />}
+                    onClick={() => void copyInviteCode()}
+                  >
+                    复制邀请码
+                  </Button>
+                )}
+                <ButtonLink to="/app/task-editor" variant="secondary" icon={<PenLine size={16} />}>
+                  编辑题目
+                </ButtonLink>
+                <ButtonLink to="/app/class-overview" variant="secondary" icon={<ChartNoAxesColumnIncreasing size={16} />}>
+                  班级概览
+                </ButtonLink>
+              </div>
             </div>
 
             {overviewLoading ? (
@@ -552,7 +555,7 @@ export default function TeacherPage() {
                           <span>
                             {issueLabel(issue.label)}
                             {issue.explanation ? <small>{issue.explanation}</small> : null}
-                            {issue.abilityPoint ? <small>能力点：{issue.abilityPoint}</small> : null}
+                            {issue.abilityPoint ? <small>能力点：{abilityLabel(issue.abilityPoint)}</small> : null}
                           </span>
                           <strong>{issue.actionPriorityScore ? issue.actionPriorityScore.toFixed(1) : issue.count}</strong>
                         </div>
@@ -573,7 +576,7 @@ export default function TeacherPage() {
                             <div className="teacher-class-ability">
                               {overview.classAbilityWeaknesses.slice(0, 4).map(item => (
                                 <div key={item.abilityPoint}>
-                                  <strong>{item.abilityPoint}</strong>
+                                  <strong>{abilityLabel(item.abilityPoint)}</strong>
                                   <small>{item.taskCount} 题 · {item.submissionCount} 次提交</small>
                                 </div>
                               ))}
@@ -586,7 +589,7 @@ export default function TeacherPage() {
                                   <div>
                                     <strong>{suggestion.title}</strong>
                                     <small>
-                                      {suggestion.targetAbility || "课堂复盘"}
+                                      {abilityLabel(suggestion.targetAbility) || "课堂复盘"}
                                       {suggestion.exampleProblemTitle ? ` · ${suggestion.exampleProblemTitle}` : ""}
                                     </small>
                                     {suggestion.guidingQuestion && <p>{suggestion.guidingQuestion}</p>}
@@ -639,10 +642,14 @@ export default function TeacherPage() {
                               </StatusPill>
                             </div>
                             <div className="status-box-row teacher-status-row">
-                              {student.primaryAbilityFocus && <span className="teacher-row-meta-text">能力 {student.primaryAbilityFocus}</span>}
+                              {student.primaryAbilityFocus && <span className="teacher-row-meta-text">能力 {abilityLabel(student.primaryAbilityFocus)}</span>}
                               {student.latestCoachInteraction?.prompted && (
                                 <StatusPill tone={student.latestCoachInteraction.answered ? "success" : "warning"}>
-                                  {student.latestCoachImpact?.statusLabel || student.latestCoachInteraction.impact?.statusLabel || student.latestCoachInteraction.statusLabel || "追问"}
+                                  {learningStageLabel(
+                                    student.latestCoachImpact?.statusLabel ||
+                                    student.latestCoachInteraction.impact?.statusLabel ||
+                                    student.latestCoachInteraction.statusLabel
+                                  ) || "追问"}
                                 </StatusPill>
                               )}
                               {student.latestCorrection && (
@@ -674,7 +681,7 @@ export default function TeacherPage() {
                                     </strong>
                                     <small>
                                       {evidence.reason || evidence.headline || "最近提交证据"}
-                                      {evidence.abilityPoint ? ` · ${evidence.abilityPoint}` : ""}
+                                      {evidence.abilityPoint ? ` · ${abilityLabel(evidence.abilityPoint)}` : ""}
                                     </small>
                                   </div>
                                 ))}
@@ -705,39 +712,6 @@ export default function TeacherPage() {
             )}
           </main>
 
-          <aside className="teacher-action-panel">
-            <section>
-              <StatusPill tone="neutral">处理项</StatusPill>
-              <h2>{nextAction}</h2>
-              <div className="status-box-row teacher-action-state">
-                <StatusPill tone={overview?.strugglingStudentCount || (overview && passRate < 50) ? "warning" : overview ? "success" : "neutral"}>
-                  {nextActionState}
-                </StatusPill>
-              </div>
-            </section>
-
-            <section className="teacher-quick-actions">
-              <Button type="button" variant="secondary" onClick={() => void rotateInvite()} disabled={!selectedAssignment} icon={<RotateCw size={17} />}>
-                重置邀请码
-              </Button>
-              {selectedAssignment?.inviteCode && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon={<Copy size={17} />}
-                  onClick={() => void copyInviteCode()}
-                >
-                  复制邀请码
-                </Button>
-              )}
-              <ButtonLink to="/app/task-editor" variant="secondary" icon={<PenLine size={17} />}>
-                编辑题目
-              </ButtonLink>
-              <ButtonLink to="/app/class-overview" variant="secondary" icon={<ChartNoAxesColumnIncreasing size={17} />}>
-                班级概览
-              </ButtonLink>
-            </section>
-          </aside>
         </div>
       </section>
 

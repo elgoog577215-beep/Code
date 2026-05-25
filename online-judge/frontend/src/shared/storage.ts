@@ -1,6 +1,7 @@
 import type { StudentProfile } from "./api/types";
 
 const GLOBAL_STUDENT_KEY = "wzai:student";
+const LAST_INVITE_CODE_KEY = "wzai:lastInviteCode";
 
 export function saveStudent(assignmentId: number, student: StudentProfile): void {
   sessionStorage.setItem(GLOBAL_STUDENT_KEY, JSON.stringify(student));
@@ -20,6 +21,18 @@ export function loadStudent(assignmentId?: number | null): StudentProfile | null
   } catch {
     return null;
   }
+}
+
+export function saveInviteCode(inviteCode: string): void {
+  const normalized = inviteCode.trim().toUpperCase();
+  if (normalized) {
+    localStorage.setItem(LAST_INVITE_CODE_KEY, normalized);
+  }
+}
+
+export function loadInviteCode(): string | null {
+  const saved = localStorage.getItem(LAST_INVITE_CODE_KEY);
+  return saved?.trim().toUpperCase() || null;
 }
 
 export function saveDraft(problemId: number, languageId: number, sourceCode: string): void {

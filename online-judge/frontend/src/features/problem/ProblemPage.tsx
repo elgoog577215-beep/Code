@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Clock3, FileText, History, Lightbulb, Play, RotateCcw, Target } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { CoachPrompt, Problem, StudentTrajectory, SubmissionHistorySummary, SubmissionResult } from "../../shared/api/types";
-import { difficultyLabel, formatDateTime, issueLabel, verdictLabel } from "../../shared/format";
+import { difficultyLabel, formatDateTime, issueLabel, learningStageLabel, verdictLabel } from "../../shared/format";
 import { loadDraft, loadStudent, saveDraft } from "../../shared/storage";
 import { Button } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -251,7 +251,7 @@ export default function ProblemPage() {
   const focusText =
     latest?.analysis?.studentHint ||
     latest?.analysis?.fixDirections?.[0] ||
-    trajectory?.nextStep ||
+    (trajectory?.nextStep ? learningStageLabel(trajectory.nextStep) : "") ||
     (latest ? "先根据本次结果修改一处问题。" : "先完成一次提交。");
   const currentStage = latest ? verdictLabel(latest.verdict) : "尚未提交";
 
@@ -278,38 +278,20 @@ export default function ProblemPage() {
         <div className="practice-command__status" aria-label="练习状态">
           <div>
             <FileText size={18} />
-            <span>题目难度</span>
             <strong>{problem.difficulty ? difficultyLabel(problem.difficulty) : "-"}</strong>
           </div>
           <div>
             <Clock3 size={18} />
-            <span>限制</span>
             <strong>{problem.timeLimit} ms / {Math.round(problem.memoryLimit / 1024)} MB</strong>
           </div>
           <div>
             <Target size={18} />
-            <span>当前阶段</span>
             <strong>{currentStage}</strong>
           </div>
         </div>
       </section>
 
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
-
-      <section className="practice-focus-strip" aria-label="本次练习焦点">
-        <div>
-          <span>状态</span>
-          <strong>{focusText}</strong>
-        </div>
-        <div>
-          <span>代码</span>
-          <strong>{languageId === 54 ? "C++17" : "Python 3"} · {codeLineCount} 行</strong>
-        </div>
-        <div>
-          <span>测试点</span>
-          <strong>{total ? `${passed}/${total} 通过` : "未提交"}</strong>
-        </div>
-      </section>
 
       <section className="problem-layout">
         <Panel
@@ -545,9 +527,9 @@ export default function ProblemPage() {
                   <Metric label="完成" value={`${trajectory.completedTasks}/${trajectory.totalTasks}`} />
                   <Metric label="尝试" value={trajectory.totalAttempts} />
                   <Metric label="卡点" value={trajectory.repeatedIssueTag ? issueLabel(trajectory.repeatedIssueTag) : "暂无"} />
-                  <Metric label="阶段" value={trajectory.stageTransition || "观察中"} />
+                  <Metric label="阶段" value={learningStageLabel(trajectory.stageTransition)} />
                 </div>
-                <div className="alert">{trajectory.nextStep || "暂无新的处理项。"}</div>
+                <div className="alert">{trajectory.nextStep ? learningStageLabel(trajectory.nextStep) : "暂无新的处理项。"}</div>
               </div>
             )}
           </details>

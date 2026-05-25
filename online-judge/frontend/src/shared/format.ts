@@ -39,6 +39,7 @@ export function issueLabel(value?: string | null): string {
     SYNTAX_ERROR: "语法错误",
     IO_FORMAT: "输入输出格式",
     IO_FORMAT_ERROR: "输入输出格式",
+    BOUNDARY: "边界条件",
     BOUNDARY_CONDITION: "边界条件",
     BOUNDARY_CONDITION_MISSING: "边界条件",
     CONDITION_BRANCH: "条件分支",
@@ -64,6 +65,8 @@ export function issueLabel(value?: string | null): string {
     CODE_QUALITY: "代码质量",
     GENERALIZATION_CHECK: "泛化能力",
     ALGORITHM_STRATEGY: "算法策略",
+    LOGIC: "逻辑问题",
+    EDGE_CASE: "边界样例",
     PASSED_WITH_REVIEW: "通过后复盘",
     ALGORITHM_DESIGN: "算法设计",
     DEBUGGING_PROCESS: "调试过程",
@@ -157,6 +160,38 @@ export function answerLeakRiskLabel(value?: string | null): string {
     default:
       return "泄题风险待查";
   }
+}
+
+export function learningStageLabel(value?: string | null): string {
+  const text = (value || "").trim();
+  if (!text) {
+    return "观察中";
+  }
+  const normalized = text.toUpperCase();
+  const map: Record<string, string> = {
+    "NEEDS ONE MORE CORRECTION": "还需修正",
+    "RE-CHECK LOOP BOUNDARY WITH THE SMALLEST INPUT.": "用最小输入复查循环边界",
+    "FOLLOWUP ACCEPTED": "追问后通过",
+    "COACH ANSWERED": "已回答追问",
+    "NARROWED TO BOUNDARY CASE": "已定位边界问题",
+    "ACCEPTED": "已通过"
+  };
+  return map[normalized] || text;
+}
+
+export function abilityLabel(value?: string | null): string {
+  const text = (value || "").trim();
+  if (!text) {
+    return "";
+  }
+  const normalized = text.toUpperCase();
+  const map: Record<string, string> = {
+    "BOUNDARY REASONING": "循环与边界",
+    "INPUT PARSING": "输入读取",
+    "FOR LOOP": "循环",
+    "OFF BY ONE": "差一位错误"
+  };
+  return map[normalized] || text;
 }
 
 export function looksCorruptText(value?: string | null): boolean {

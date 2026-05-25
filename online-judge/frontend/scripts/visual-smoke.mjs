@@ -37,8 +37,8 @@ const cssText = (await Promise.all(cssFiles.map(file => readFile(join(assetDir, 
 const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, file), "utf8")))).join("\n");
 
 [
-  ".role-entry-secondary",
   ".student-assignment-grid",
+  ".teacher-mode-tabs",
   ".teacher-compact-details",
   ".problem-compact-details",
   ".editor-workbench",
@@ -48,8 +48,9 @@ const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, fi
 ].forEach(selector => ok(`css contains ${selector}`, cssText.includes(selector)));
 
 [
-  "学生任务",
-  "教师工作台",
+  "wzai:lastInviteCode",
+  "WZAI01",
+  "教师",
   "讲评参考",
   "作业记录",
   "保存检查",

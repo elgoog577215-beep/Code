@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, CheckCircle2, Database, RefreshCw, ServerCog, UploadCloud, UsersRound } from "lucide-react";
+import { ButtonLink } from "../../shared/ui/Button";
 import { api } from "../../shared/api/client";
 import type { ClassGroup, ExecutorStatus, ImportCommit, ImportPreview, ProblemCatalogItem, StudentIdentityAudit } from "../../shared/api/types";
 import { displayText } from "../../shared/format";
@@ -235,7 +236,15 @@ export default function TeacherManagementPage() {
       <section className="management-console">
         <aside className="management-console__nav">
           <div className="management-console__brand">
-            <h1>管理中心</h1>
+            <div>
+              <h1>教师</h1>
+              <nav className="teacher-mode-tabs" aria-label="教师功能">
+                <ButtonLink to="/app/teacher" variant="ghost">
+                  课堂过程
+                </ButtonLink>
+                <span className="teacher-mode-tab is-active">管理</span>
+              </nav>
+            </div>
             <Button type="button" variant="ghost" onClick={() => void loadData()} disabled={busy} icon={<RefreshCw size={17} />}>
               刷新
             </Button>
