@@ -39,6 +39,16 @@ public class DiagnosticAgentService {
                                 SubmissionAnalysisResponse baseline,
                                 Assignment.HintPolicy hintPolicy,
                                 DiagnosisEvidencePackage.HistoryEvidence historyEvidence) {
+        return diagnose(problem, submission, caseResults, baseline, hintPolicy, historyEvidence, null);
+    }
+
+    public AgentResult diagnose(Problem problem,
+                                Submission submission,
+                                List<SubmissionCaseResult> caseResults,
+                                SubmissionAnalysisResponse baseline,
+                                Assignment.HintPolicy hintPolicy,
+                                DiagnosisEvidencePackage.HistoryEvidence historyEvidence,
+                                DiagnosisEvidencePackage.StudentLearningMemorySnapshot learningMemory) {
         Assignment.HintPolicy effectivePolicy = hintPolicy == null ? Assignment.HintPolicy.L2 : hintPolicy;
         DiagnosisEvidencePackage evidencePackage = evidencePackageBuilder.build(
                 problem,
@@ -46,7 +56,8 @@ public class DiagnosticAgentService {
                 caseResults,
                 baseline,
                 effectivePolicy,
-                historyEvidence
+                historyEvidence,
+                learningMemory
         );
         RuleSignalAnalyzer.RuleSignalResult ruleSignals = ruleSignalAnalyzer.analyze(evidencePackage);
         ruleSignals = applyHistorySignals(ruleSignals, evidencePackage);
@@ -67,7 +78,7 @@ public class DiagnosticAgentService {
             enhanced.setProgressSignal(defaultIfBlank(enhanced.getProgressSignal(), trajectorySignal.getSummary()));
         }
         enhanced.setStudentHintPlan(resolveHintPlan(enhanced, effectivePolicy));
-        enhanced.setLearningInterventionPlan(resolveInterventionPlan(enhanced, effectivePolicy));
+        enhanced.setLearningInterventionPlan(resolveInterventionPlan(enhanced, effectivePolicy, evidencePackage));
         enhanced.setLearningActionEvidence(resolveInitialActionEvidence(enhanced));
         enhanced = hintSafetyService.verifyAndRecord(enhanced, effectivePolicy);
         String traceSummary = buildTraceSummary(ruleSignals, enhanced, modelStage.fallbackUsed());
@@ -106,7 +117,8 @@ public class DiagnosticAgentService {
     }
 
     private SubmissionAnalysisResponse.LearningInterventionPlan resolveInterventionPlan(SubmissionAnalysisResponse analysis,
-                                                                                        Assignment.HintPolicy hintPolicy) {
+                                                                                        Assignment.HintPolicy hintPolicy,
+                                                                                        DiagnosisEvidencePackage evidencePackage) {
         if (analysis == null) {
             return null;
         }
@@ -120,6 +132,9 @@ public class DiagnosticAgentService {
         }
         SubmissionAnalysisResponse.LearningTrajectorySignal trajectory = analysis.getLearningTrajectorySignal();
         String phase = trajectory == null ? "" : defaultIfBlank(trajectory.getPhase(), "");
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory = evidencePackage == null
+                ? null
+                : evidencePackage.getLearningMemory();
         List<String> evidenceRefs = DiagnosisListSupport.deduplicate(mergeLists(
                 analysis.getEvidenceRefs(),
                 trajectory == null ? List.of() : singletonIfPresent(trajectory.getEvidenceRef())
@@ -131,6 +146,14 @@ public class DiagnosticAgentService {
             goal = trajectory.getSummary();
         }
         String studentTask = defaultIfBlank(trajectory == null ? null : trajectory.getNextFocus(), template.studentTask());
+        if (memorySuggestsSmallerTask(memory) && !"REPEATED_STUCK".equals(phase) && !"REGRESSION".equals(phase)) {
+            goal = "学生历史中存在重复卡点，本轮先缩小任务粒度，验证当前提交的一个最小证据。";
+            studentTask = "先选一个最小失败样例或最短变量轨迹，只验证当前诊断证据，不要整体重写。";
+            evidenceRefs = DiagnosisListSupport.deduplicate(mergeLists(
+                    evidenceRefs,
+                    memory == null ? List.of() : memory.getEvidenceRefs()
+            ));
+        }
         return SubmissionAnalysisResponse.LearningInterventionPlan.builder()
                 .interventionType(template.interventionType())
                 .goal(goal)
@@ -141,6 +164,19 @@ public class DiagnosticAgentService {
                 .estimatedMinutes(template.estimatedMinutes())
                 .answerLeakRisk(defaultIfBlank(analysis.getAnswerLeakRisk(), "LOW"))
                 .build();
+    }
+
+    private boolean memorySuggestsSmallerTask(DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory) {
+        if (memory == null) {
+            return false;
+        }
+        boolean repeatedIssue = memory.getRecurringIssueTags() != null && memory.getRecurringIssueTags().stream()
+                .anyMatch(stat -> stat.getCount() != null && stat.getCount() >= 3);
+        boolean repeatedFine = memory.getRecurringFineGrainedTags() != null && memory.getRecurringFineGrainedTags().stream()
+                .anyMatch(stat -> stat.getCount() != null && stat.getCount() >= 3);
+        String trend = memory.getRecentTrend() == null ? "" : memory.getRecentTrend();
+        String effect = memory.getInterventionEffect() == null ? "" : memory.getInterventionEffect();
+        return repeatedIssue || repeatedFine || trend.contains("最近 3 次") || effect.contains("CONTRADICTED");
     }
 
     private boolean hasUsableIntervention(SubmissionAnalysisResponse.LearningInterventionPlan plan) {

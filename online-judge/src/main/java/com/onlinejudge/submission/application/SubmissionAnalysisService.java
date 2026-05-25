@@ -2,10 +2,13 @@ package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onlinejudge.classroom.application.AbilitySignalAnalyzer;
 import com.onlinejudge.classroom.application.HintSafetyService;
 import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.classroom.domain.Assignment;
+import com.onlinejudge.classroom.domain.TeacherDiagnosisCorrection;
 import com.onlinejudge.classroom.persistence.AssignmentRepository;
+import com.onlinejudge.classroom.persistence.TeacherDiagnosisCorrectionRepository;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.submission.dto.SubmissionAnalysisLookupResponse;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
@@ -49,6 +52,7 @@ public class SubmissionAnalysisService {
     private static final Pattern LOOP_PATTERN = Pattern.compile("\\b(for|while)\\b");
     private static final Pattern RECURSION_PATTERN = Pattern.compile("\\b(recursion|dfs|bfs)\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern MEMORY_PATTERN = Pattern.compile("\\b(new\\s+\\w+\\s*\\[|vector<|ArrayList|HashMap|HashSet|Map<|Set<|StringBuilder|malloc|calloc)\\b");
+    private static final int LEARNING_MEMORY_WINDOW = 30;
 
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
@@ -62,6 +66,8 @@ public class SubmissionAnalysisService {
     private final DiagnosisReportReader diagnosisReportReader;
     private final DiagnosisEvidencePackageReader diagnosisEvidencePackageReader;
     private final StudentRecommendationEventService recommendationEventService;
+    private final AbilitySignalAnalyzer abilitySignalAnalyzer;
+    private final TeacherDiagnosisCorrectionRepository teacherDiagnosisCorrectionRepository;
 
     @Transactional
     public SubmissionResponse finalizeSubmission(Problem problem, Submission submission, List<SubmissionCaseResult> caseResults) {
@@ -174,13 +180,15 @@ public class SubmissionAnalysisService {
         Assignment.HintPolicy hintPolicy = resolveHintPolicy(submission);
         SubmissionAnalysisResponse analysis = buildAnalysis(problem, submission, caseResults);
         DiagnosisEvidencePackage.HistoryEvidence historyEvidence = buildHistoryEvidence(submission);
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot learningMemory = buildLearningMemorySnapshot(submission);
         DiagnosticAgentService.AgentResult agentResult = diagnosticAgentService.diagnose(
                 problem,
                 submission,
                 caseResults,
                 analysis,
                 hintPolicy,
-                historyEvidence
+                historyEvidence,
+                learningMemory
         );
         analysis = agentResult.analysis();
 
@@ -537,6 +545,232 @@ public class SubmissionAnalysisService {
             return "最近仍反复出现同类问题：" + diagnosisTaxonomy.label(repeatedIssue.getKey());
         }
         return "评测阶段暂未变化，需要继续观察修改效果";
+    }
+
+    private DiagnosisEvidencePackage.StudentLearningMemorySnapshot buildLearningMemorySnapshot(Submission submission) {
+        if (submission == null || submission.getStudentProfileId() == null) {
+            return null;
+        }
+        List<Submission> history = submissionRepository
+                .findByStudentProfileIdInOrderBySubmittedAtDesc(List.of(submission.getStudentProfileId()))
+                .stream()
+                .filter(item -> item != null && !Objects.equals(item.getId(), submission.getId()))
+                .limit(LEARNING_MEMORY_WINDOW)
+                .toList();
+        if (history.isEmpty()) {
+            return null;
+        }
+        List<Long> historyIds = history.stream()
+                .map(Submission::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        Map<Long, SubmissionAnalysis> analyses = historyIds.isEmpty()
+                ? Map.of()
+                : submissionAnalysisRepository.findBySubmissionIdIn(historyIds)
+                .stream()
+                .collect(Collectors.toMap(SubmissionAnalysis::getSubmissionId, analysis -> analysis, (left, right) -> left));
+        if (analyses.isEmpty()) {
+            return null;
+        }
+
+        List<String> issueTags = history.stream()
+                .map(item -> analyses.get(item.getId()))
+                .filter(Objects::nonNull)
+                .flatMap(analysis -> diagnosisReportReader.issueTags(analysis).stream())
+                .toList();
+        List<String> fineTags = history.stream()
+                .map(item -> analyses.get(item.getId()))
+                .filter(Objects::nonNull)
+                .flatMap(analysis -> diagnosisReportReader.fineGrainedTags(analysis).stream())
+                .toList();
+        List<AbilitySignalAnalyzer.AbilitySignal> abilitySignals =
+                abilitySignalAnalyzer.summarize(history, analyses);
+        List<TeacherDiagnosisCorrection> corrections = teacherCorrections(historyIds);
+        List<String> evidenceRefs = buildLearningMemoryEvidenceRefs(
+                submission,
+                history,
+                issueTags,
+                fineTags,
+                abilitySignals,
+                corrections
+        );
+
+        return DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                .studentProfileId(submission.getStudentProfileId())
+                .assignmentId(submission.getAssignmentId())
+                .currentProblemId(submission.getProblemId())
+                .observedSubmissionCount(history.size())
+                .observedProblemCount((int) history.stream().map(Submission::getProblemId).filter(Objects::nonNull).distinct().count())
+                .recurringIssueTags(toMemoryTagStats(issueTags, history, analyses, false))
+                .recurringFineGrainedTags(toMemoryTagStats(fineTags, history, analyses, true))
+                .abilityFocus(toAbilityFocus(abilitySignals))
+                .recentTrend(buildLearningMemoryTrend(history, analyses))
+                .interventionEffect(latestInterventionEffect(history, analyses))
+                .teacherCorrectionSummary(teacherCorrectionSummary(corrections))
+                .evidenceRefs(evidenceRefs)
+                .build();
+    }
+
+    private List<TeacherDiagnosisCorrection> teacherCorrections(List<Long> submissionIds) {
+        if (submissionIds == null || submissionIds.isEmpty()) {
+            return List.of();
+        }
+        return teacherDiagnosisCorrectionRepository.findBySubmissionIdIn(submissionIds)
+                .stream()
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private List<String> buildLearningMemoryEvidenceRefs(Submission current,
+                                                         List<Submission> history,
+                                                         List<String> issueTags,
+                                                         List<String> fineTags,
+                                                         List<AbilitySignalAnalyzer.AbilitySignal> abilitySignals,
+                                                         List<TeacherDiagnosisCorrection> corrections) {
+        List<String> refs = new ArrayList<>();
+        if (current != null && current.getStudentProfileId() != null) {
+            refs.add("memory:student:" + current.getStudentProfileId());
+        }
+        if (history != null && !history.isEmpty()) {
+            refs.add("memory:recent_submissions:" + history.size());
+        }
+        Map.Entry<String, Long> repeatedIssue = mostCommon(issueTags);
+        if (repeatedIssue != null && repeatedIssue.getValue() >= 2) {
+            refs.add("memory:recurring_issue:" + repeatedIssue.getKey());
+        }
+        Map.Entry<String, Long> repeatedFine = mostCommon(fineTags);
+        if (repeatedFine != null && repeatedFine.getValue() >= 2) {
+            refs.add("memory:recurring_fine:" + repeatedFine.getKey());
+        }
+        if (abilitySignals != null && !abilitySignals.isEmpty()) {
+            refs.add("memory:ability_focus:" + normalizeMemoryRef(abilitySignals.get(0).getAbilityPoint()));
+        }
+        if (corrections != null && !corrections.isEmpty()) {
+            refs.add("memory:teacher_corrections:" + corrections.size());
+        }
+        return deduplicate(refs);
+    }
+
+    private List<DiagnosisEvidencePackage.MemoryTagStat> toMemoryTagStats(List<String> tags,
+                                                                           List<Submission> history,
+                                                                           Map<Long, SubmissionAnalysis> analyses,
+                                                                           boolean fineGrained) {
+        if (tags == null || tags.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Long> counts = new LinkedHashMap<>();
+        tags.stream()
+                .filter(Objects::nonNull)
+                .filter(tag -> !tag.isBlank())
+                .forEach(tag -> counts.put(tag, counts.getOrDefault(tag, 0L) + 1));
+        return counts.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue() >= 2)
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(entry -> DiagnosisEvidencePackage.MemoryTagStat.builder()
+                        .tag(entry.getKey())
+                        .count(entry.getValue())
+                        .evidenceSubmissionIds(evidenceSubmissionIds(entry.getKey(), history, analyses, fineGrained))
+                        .build())
+                .toList();
+    }
+
+    private List<Long> evidenceSubmissionIds(String tag,
+                                             List<Submission> history,
+                                             Map<Long, SubmissionAnalysis> analyses,
+                                             boolean fineGrained) {
+        if (tag == null || history == null || analyses == null) {
+            return List.of();
+        }
+        return history.stream()
+                .filter(Objects::nonNull)
+                .filter(submission -> {
+                    SubmissionAnalysis analysis = analyses.get(submission.getId());
+                    List<String> tags = fineGrained
+                            ? diagnosisReportReader.fineGrainedTags(analysis)
+                            : diagnosisReportReader.issueTags(analysis);
+                    return tags.contains(tag);
+                })
+                .map(Submission::getId)
+                .filter(Objects::nonNull)
+                .limit(5)
+                .toList();
+    }
+
+    private List<DiagnosisEvidencePackage.AbilityFocus> toAbilityFocus(List<AbilitySignalAnalyzer.AbilitySignal> signals) {
+        if (signals == null || signals.isEmpty()) {
+            return List.of();
+        }
+        return signals.stream()
+                .limit(5)
+                .map(signal -> DiagnosisEvidencePackage.AbilityFocus.builder()
+                        .abilityPoint(signal.getAbilityPoint())
+                        .submissionCount(signal.getSubmissionCount())
+                        .problemCount(signal.getTaskCount())
+                        .evidenceTags(signal.getEvidenceTags())
+                        .build())
+                .toList();
+    }
+
+    private String buildLearningMemoryTrend(List<Submission> history, Map<Long, SubmissionAnalysis> analyses) {
+        if (history == null || history.isEmpty()) {
+            return "";
+        }
+        long accepted = history.stream()
+                .filter(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED)
+                .count();
+        long failed = history.size() - accepted;
+        if (history.size() >= 3 && history.stream().limit(3).noneMatch(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED)) {
+            return "最近 3 次历史提交仍未通过，诊断应收窄到最小证据，不要重复泛泛提示。";
+        }
+        if (accepted > 0 && failed > 0) {
+            return "历史中既有通过也有失败记录，适合关注是否存在回退或迁移不稳。";
+        }
+        if (accepted > 0) {
+            return "历史提交中已有通过记录，当前失败需要优先看最近改动或题目迁移差异。";
+        }
+        if (!analyses.isEmpty()) {
+            return "历史诊断已形成但尚未观察到通过，下一步应验证重复错因是否仍存在。";
+        }
+        return "";
+    }
+
+    private String latestInterventionEffect(List<Submission> history, Map<Long, SubmissionAnalysis> analyses) {
+        if (history == null || analyses == null || history.isEmpty()) {
+            return "";
+        }
+        for (Submission item : history) {
+            SubmissionAnalysis analysis = analyses.get(item.getId());
+            DiagnosisReportReader.LearningActionEvidenceSnapshot evidence =
+                    diagnosisReportReader.learningActionEvidence(analysis);
+            if (evidence != null && evidence.executionStatus() != null && !evidence.executionStatus().isBlank()) {
+                return "最近学习动作反馈：" + evidence.executionStatus()
+                        + suffixIfPresent("，", evidence.observedEvidence());
+            }
+        }
+        return "";
+    }
+
+    private String teacherCorrectionSummary(List<TeacherDiagnosisCorrection> corrections) {
+        if (corrections == null || corrections.isEmpty()) {
+            return "";
+        }
+        TeacherDiagnosisCorrection latest = corrections.get(0);
+        String tag = firstNonBlank(latest.getCorrectedFineGrainedTag(), latest.getCorrectedIssueTag());
+        return "教师曾修正 " + corrections.size() + " 次，最近修正标签：" + tag
+                + suffixIfPresent("，备注：", truncateInline(latest.getTeacherNote()));
+    }
+
+    private String suffixIfPresent(String prefix, String value) {
+        return value == null || value.isBlank() ? "" : prefix + value;
+    }
+
+    private String normalizeMemoryRef(String value) {
+        return value == null ? "unknown" : value.trim()
+                .replaceAll("\\s+", "_")
+                .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}_:-]", "_")
+                .toLowerCase();
     }
 
     private List<SubmissionAnalysisResponse.LineIssue> buildInitialLineIssues(Submission submission) {

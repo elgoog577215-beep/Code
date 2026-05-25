@@ -21,6 +21,7 @@ public class DiagnosisEvidencePackage {
     private ProblemEvidence problem;
     private JudgeFacts judgeFacts;
     private HistoryEvidence history;
+    private StudentLearningMemorySnapshot learningMemory;
     private PolicyEvidence policy;
 
     @Data
@@ -97,6 +98,46 @@ public class DiagnosisEvidencePackage {
         private Long repeatedIssueCount;
         private Long repeatedFineGrainedIssueCount;
         private String transitionSignal;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StudentLearningMemorySnapshot {
+        private Long studentProfileId;
+        private Long assignmentId;
+        private Long currentProblemId;
+        private Integer observedSubmissionCount;
+        private Integer observedProblemCount;
+        private List<MemoryTagStat> recurringIssueTags;
+        private List<MemoryTagStat> recurringFineGrainedTags;
+        private List<AbilityFocus> abilityFocus;
+        private String recentTrend;
+        private String interventionEffect;
+        private String teacherCorrectionSummary;
+        private List<String> evidenceRefs;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MemoryTagStat {
+        private String tag;
+        private Long count;
+        private List<Long> evidenceSubmissionIds;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AbilityFocus {
+        private String abilityPoint;
+        private Long submissionCount;
+        private Long problemCount;
+        private List<String> evidenceTags;
     }
 
     @Data

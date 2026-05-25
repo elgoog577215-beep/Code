@@ -98,6 +98,8 @@ public class StandardLibraryPackBuilder {
                         "Whitespace-only visible output differences outrank algorithm-topic guesses.",
                         "CandidateSignals with concrete evidenceRef outrank broad baseline summaries.",
                         "CandidateSignals with confidence >= 0.80 and concrete problem/source evidence outrank generic verdict labels.",
+                        "Student learning memory is auxiliary evidence only; current submission compile/runtime/judge facts and source-code signals outrank memory signals.",
+                        "Use learning memory to recognize repeated patterns, adapt teaching action, or raise teacher attention, not to override the current observable failure.",
                         "Large-bound problem evidence plus TLE or step-by-step simulation should be treated as a scale diagnosis before a strategy diagnosis.",
                         "Empty or minimum-input runtime evidence should be treated as a boundary diagnosis before a generic runtime diagnosis.",
                         "Learning trajectory can explain repeated or regressed behavior but must not invent the current bug."
@@ -107,6 +109,7 @@ public class StandardLibraryPackBuilder {
                         "Select fineGrainedTag only when evidence directly distinguishes it from its parent issue.",
                         "If a fineGrainedTag is selected, its evidenceRefs must support that fine-grained diagnosis.",
                         "Do not select NEEDS_MORE_EVIDENCE when a high-confidence candidateSignal directly explains the visible failed case.",
+                        "Do not select a tag solely because it appears in learningMemorySummary; it must also fit current submission evidence or be described as follow-up attention.",
                         "Prefer SAMPLE_OVERFIT only when public samples pass and hidden failures are observed; describe it as a need for self-made counterexamples, not as hidden-case knowledge.",
                         "If no candidate is sufficiently supported, select NEEDS_MORE_EVIDENCE when available."
                 ))
@@ -119,6 +122,7 @@ public class StandardLibraryPackBuilder {
                         "Bind teachingAction to the selected diagnosis tag when possible.",
                         "Use COLLECT_EVIDENCE when primaryIssueTag is NEEDS_MORE_EVIDENCE.",
                         "The teaching action should create one small observable student task, not a full fix.",
+                        "When learning memory shows repeated stuck behavior or ineffective previous intervention, reduce the task size or change the teaching action instead of repeating the same hint.",
                         "The student task must cite one evidence anchor and ask the student to inspect a line, state, counterexample, or input-output mismatch."
                 ))
                 .build();

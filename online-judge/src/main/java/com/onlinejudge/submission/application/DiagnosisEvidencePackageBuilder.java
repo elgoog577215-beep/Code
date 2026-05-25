@@ -30,6 +30,16 @@ public class DiagnosisEvidencePackageBuilder {
                                           SubmissionAnalysisResponse fallback,
                                           Assignment.HintPolicy hintPolicy,
                                           DiagnosisEvidencePackage.HistoryEvidence historyEvidence) {
+        return build(problem, submission, caseResults, fallback, hintPolicy, historyEvidence, null);
+    }
+
+    public DiagnosisEvidencePackage build(Problem problem,
+                                          Submission submission,
+                                          List<SubmissionCaseResult> caseResults,
+                                          SubmissionAnalysisResponse fallback,
+                                          Assignment.HintPolicy hintPolicy,
+                                          DiagnosisEvidencePackage.HistoryEvidence historyEvidence,
+                                          DiagnosisEvidencePackage.StudentLearningMemorySnapshot learningMemory) {
         String sourceCode = Optional.ofNullable(submission.getSourceCode()).orElse("");
         return DiagnosisEvidencePackage.builder()
                 .schemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
@@ -37,6 +47,7 @@ public class DiagnosisEvidencePackageBuilder {
                 .problem(buildProblemEvidence(problem))
                 .judgeFacts(buildJudgeFacts(submission, caseResults, fallback))
                 .history(historyEvidence == null ? emptyHistoryEvidence() : historyEvidence)
+                .learningMemory(learningMemory)
                 .policy(buildPolicyEvidence(hintPolicy))
                 .build();
     }
