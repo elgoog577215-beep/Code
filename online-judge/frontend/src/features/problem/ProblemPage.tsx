@@ -387,7 +387,7 @@ export default function ProblemPage() {
                   <Metric label="测试点" value={total ? `${passed}/${total}` : "-"} />
                   <Metric label="耗时" value={latest.executionTime ? `${latest.executionTime} ms` : "-"} />
                   <Metric label="内存" value={latest.memoryUsed ? `${latest.memoryUsed} KB` : "-"} />
-                  <Metric label="分析" value={latest.analysisStatus || "观察中"} />
+                  <Metric label="分析" value={analysisSourceLabel(latest.analysis)} />
                 </div>
                 {latest.errorMessage && <div className="alert alert--error">{latest.errorMessage}</div>}
                 {latest.compileOutput && <pre className="code-block">{latest.compileOutput}</pre>}
@@ -560,4 +560,24 @@ export default function ProblemPage() {
       </section>
     </div>
   );
+}
+
+function analysisSourceLabel(analysis?: SubmissionResult["analysis"] | null) {
+  if (!analysis) {
+    return "观察中";
+  }
+  const invocation = analysis.aiInvocation;
+  if (!invocation) {
+    return analysis.sourceType?.includes("RULE") ? "本地规则" : "已生成";
+  }
+  if (invocation.fallbackUsed || invocation.status === "MODEL_RUNTIME_FALLBACK" || invocation.provider === "LOCAL_RULES") {
+    return "本地兜底";
+  }
+  if (invocation.status === "MODEL_PARTIAL_COMPLETED") {
+    return "外部模型部分完成";
+  }
+  if (invocation.status === "MODEL_COMPLETED") {
+    return "外部模型完成";
+  }
+  return invocation.status ? "分析已生成" : "已生成";
 }

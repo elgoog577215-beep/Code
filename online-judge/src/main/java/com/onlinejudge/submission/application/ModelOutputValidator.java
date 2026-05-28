@@ -34,6 +34,18 @@ public class ModelOutputValidator {
         if (!evidenceRefsValid(output.getEvidenceRefs(), brief)) {
             return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, "Evidence refs are missing or not present in brief evidence.");
         }
+        if (diagnosisReliesOnlyOnMemory(output, brief)) {
+            return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
+                    "Diagnosis relies only on student memory evidence; current submission evidence is required.");
+        }
+        if (memoryConflictSelected(output, brief)) {
+            return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
+                    "Diagnosis selects a memory-conflicting tag without current evidence support.");
+        }
+        if (teachingOnlyMemoryTagSelected(output, brief)) {
+            return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
+                    "Diagnosis selects a teaching-only memory tag without current evidence support.");
+        }
         return valid();
     }
 
@@ -76,6 +88,88 @@ public class ModelOutputValidator {
         return refs != null && !refs.isEmpty() && refsSubset(refs, validRefs);
     }
 
+    private boolean diagnosisReliesOnlyOnMemory(ExternalModelStagePayloads.DiagnosisJudgeOutput output,
+                                                ModelDiagnosisBrief brief) {
+        if (output == null || output.getEvidenceRefs() == null || output.getEvidenceRefs().isEmpty()) {
+            return false;
+        }
+        if (isNeedsMoreEvidence(output.getPrimaryIssueTag())) {
+            return false;
+        }
+        boolean citesMemory = output.getEvidenceRefs().stream().anyMatch(this::isMemoryRef);
+        boolean citesCurrent = output.getEvidenceRefs().stream().anyMatch(this::isCurrentEvidenceRef);
+        if (!citesMemory || citesCurrent) {
+            return false;
+        }
+        return !hasCurrentSignalSupport(output, brief);
+    }
+
+    private boolean memoryConflictSelected(ExternalModelStagePayloads.DiagnosisJudgeOutput output,
+                                           ModelDiagnosisBrief brief) {
+        if (output == null || brief == null || brief.getMemoryCalibration() == null) {
+            return false;
+        }
+        ModelDiagnosisBrief.MemoryCalibration calibration = brief.getMemoryCalibration();
+        if (!"CONFLICTING".equalsIgnoreCase(calibration.getMemoryRelevance())) {
+            return false;
+        }
+        Set<String> conflicting = new LinkedHashSet<>();
+        if (calibration.getConflictingMemoryTags() != null) {
+            calibration.getConflictingMemoryTags().stream()
+                    .map(this::normalize)
+                    .forEach(conflicting::add);
+        }
+        if (conflicting.isEmpty()) {
+            return false;
+        }
+        boolean selectedConflict = conflicting.contains(normalize(output.getPrimaryIssueTag()))
+                || (output.getFineGrainedTag() != null && conflicting.contains(normalize(output.getFineGrainedTag())));
+        return selectedConflict && !hasCurrentSignalSupport(output, brief);
+    }
+
+    private boolean teachingOnlyMemoryTagSelected(ExternalModelStagePayloads.DiagnosisJudgeOutput output,
+                                                  ModelDiagnosisBrief brief) {
+        if (output == null || brief == null || brief.getMemoryCalibration() == null) {
+            return false;
+        }
+        ModelDiagnosisBrief.MemoryCalibration calibration = brief.getMemoryCalibration();
+        if (!Boolean.TRUE.equals(calibration.getTeachingUseOnly())) {
+            return false;
+        }
+        Set<String> memoryOnlyTags = new LinkedHashSet<>();
+        if (calibration.getMemoryOnlyTags() != null) {
+            calibration.getMemoryOnlyTags().stream()
+                    .map(this::normalize)
+                    .forEach(memoryOnlyTags::add);
+        }
+        if (memoryOnlyTags.isEmpty()) {
+            return false;
+        }
+        boolean selectedMemoryOnly = memoryOnlyTags.contains(normalize(output.getPrimaryIssueTag()))
+                || (output.getFineGrainedTag() != null && memoryOnlyTags.contains(normalize(output.getFineGrainedTag())));
+        return selectedMemoryOnly && !hasCurrentSignalSupport(output, brief);
+    }
+
+    private boolean hasCurrentSignalSupport(ExternalModelStagePayloads.DiagnosisJudgeOutput output,
+                                            ModelDiagnosisBrief brief) {
+        if (brief == null || brief.getCandidateSignals() == null) {
+            return false;
+        }
+        Set<String> citedRefs = new LinkedHashSet<>(output.getEvidenceRefs() == null ? List.of() : output.getEvidenceRefs());
+        return brief.getCandidateSignals().stream()
+                .filter(signal -> signal != null && !isMemoryRef(signal.getEvidenceRef()))
+                .filter(signal -> signal.getEvidenceRef() != null && citedRefs.contains(signal.getEvidenceRef()))
+                .anyMatch(signal -> tagMatches(output, signal));
+    }
+
+    private boolean tagMatches(ExternalModelStagePayloads.DiagnosisJudgeOutput output,
+                               ModelDiagnosisBrief.CandidateSignal signal) {
+        String primary = normalize(output.getPrimaryIssueTag());
+        String fine = normalize(output.getFineGrainedTag());
+        return primary.equals(normalize(signal.getIssueTag()))
+                || (!fine.isBlank() && fine.equals(normalize(signal.getFineGrainedTag())));
+    }
+
     private Set<String> validEvidenceRefs(ModelDiagnosisBrief brief) {
         Set<String> refs = new LinkedHashSet<>();
         if (brief == null) {
@@ -98,6 +192,18 @@ public class ModelOutputValidator {
             return false;
         }
         return refs.stream().allMatch(validRefs::contains);
+    }
+
+    private boolean isMemoryRef(String ref) {
+        return ref != null && ref.startsWith("memory:");
+    }
+
+    private boolean isCurrentEvidenceRef(String ref) {
+        return ref != null && !isMemoryRef(ref);
+    }
+
+    private boolean isNeedsMoreEvidence(String tag) {
+        return "NEEDS_MORE_EVIDENCE".equals(normalize(tag));
     }
 
     private Set<String> tagIds(List<StandardLibraryPack.TagOption> tags) {
@@ -131,9 +237,6 @@ public class ModelOutputValidator {
     }
 
     private String firstSafetyTrigger(ExternalModelStagePayloads.TeachingHintOutput output) {
-        if (isHighRisk(output.getAnswerLeakRisk())) {
-            return "answerLeakRisk=HIGH";
-        }
         if (isHighRisk(output.getStudentHintPlan().getAnswerLeakRisk())) {
             return "studentHintPlan.answerLeakRisk=HIGH";
         }

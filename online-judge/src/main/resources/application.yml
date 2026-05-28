@@ -31,11 +31,19 @@ executor:
 
 ai:
   enabled: ${AI_ENABLED:true}
+  provider: ${AI_PROVIDER:ModelScope}
   base-url: ${AI_BASE_URL:https://api-inference.modelscope.cn/v1}
   api-key: ${MODELSCOPE_API_KEY:}
   model: ${AI_MODEL:deepseek-ai/DeepSeek-V4-Pro}
+  fallback:
+    provider: ${AI_FALLBACK_PROVIDER:OpenAI-Compatible-Fallback}
+    base-url: ${AI_FALLBACK_BASE_URL:}
+    api-key: ${AI_FALLBACK_API_KEY:}
+    model: ${AI_FALLBACK_MODEL:}
+  routes: ${AI_ROUTES:}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:25}
   external-runtime-enabled: ${AI_EXTERNAL_RUNTIME_ENABLED:true}
+  external-runtime-mode: ${AI_EXTERNAL_RUNTIME_MODE:single-call}
   max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:900}
   stream-enabled: ${AI_STREAM_ENABLED:true}
   stream-fallback-enabled: ${AI_STREAM_FALLBACK_ENABLED:true}

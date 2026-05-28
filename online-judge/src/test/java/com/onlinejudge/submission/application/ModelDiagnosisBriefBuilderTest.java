@@ -194,6 +194,75 @@ class ModelDiagnosisBriefBuilderTest {
                     assertThat(signal.getConfidence()).isLessThan(0.6);
                     assertThat(signal.getReason()).contains("auxiliary");
                 });
+        assertThat(brief.getMemoryCalibration()).isNotNull();
+        assertThat(brief.getMemoryCalibration().getMemoryAvailable()).isTrue();
+        assertThat(brief.getMemoryCalibration().getMemoryRelevance()).isEqualTo("CONFLICTING");
+        assertThat(brief.getMemoryCalibration().getConflictingMemoryTags()).contains("IO_FORMAT", "INPUT_PARSING");
+        assertThat(brief.getMemoryCalibration().getTeachingUseOnly()).isTrue();
+        assertThat(brief.getMemoryCalibration().getPolicy()).contains("Current");
+    }
+
+    @Test
+    void memoryCalibrationMarksAlignedMemoryWhenCurrentEvidenceSupportsIt() {
+        DiagnosisEvidencePackage evidencePackage = DiagnosisEvidencePackage.builder()
+                .problem(problem())
+                .submission(submission())
+                .learningMemory(DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                        .studentProfileId(9L)
+                        .recurringIssueTags(List.of(DiagnosisEvidencePackage.MemoryTagStat.builder()
+                                .tag("LOOP_BOUNDARY")
+                                .count(4L)
+                                .evidenceSubmissionIds(List.of(101L, 102L, 103L, 104L))
+                                .build()))
+                        .recurringFineGrainedTags(List.of(DiagnosisEvidencePackage.MemoryTagStat.builder()
+                                .tag("OFF_BY_ONE")
+                                .count(4L)
+                                .evidenceSubmissionIds(List.of(101L, 102L, 103L, 104L))
+                                .build()))
+                        .evidenceRefs(List.of("memory:student:9", "memory:recurring_issue:LOOP_BOUNDARY"))
+                        .build())
+                .build();
+
+        ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, ruleSignals(), null);
+
+        assertThat(brief.getMemoryCalibration().getMemoryRelevance()).isEqualTo("ALIGNED");
+        assertThat(brief.getMemoryCalibration().getMatchedCurrentEvidenceTags()).contains("LOOP_BOUNDARY", "OFF_BY_ONE");
+        assertThat(brief.getMemoryCalibration().getTeachingUseOnly()).isFalse();
+        assertThat(brief.getMemoryCalibration().getTeacherReviewRecommended()).isTrue();
+    }
+
+    @Test
+    void memoryCalibrationMarksTeachingOnlyWhenNoStrongCurrentSignalExists() {
+        DiagnosisEvidencePackage evidencePackage = DiagnosisEvidencePackage.builder()
+                .problem(problem())
+                .submission(submission())
+                .learningMemory(DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                        .studentProfileId(9L)
+                        .recurringIssueTags(List.of(DiagnosisEvidencePackage.MemoryTagStat.builder()
+                                .tag("IO_FORMAT")
+                                .count(2L)
+                                .build()))
+                        .evidenceRefs(List.of("memory:student:9", "memory:recurring_issue:IO_FORMAT"))
+                        .build())
+                .build();
+        RuleSignalAnalyzer.RuleSignalResult weakSignals = RuleSignalAnalyzer.RuleSignalResult.builder()
+                .candidateIssueTags(List.of("LOOP_BOUNDARY"))
+                .candidateFineGrainedTags(List.of("OFF_BY_ONE"))
+                .evidenceRefs(List.of("code:weak_loop_hint"))
+                .signals(List.of(RuleSignalAnalyzer.Signal.builder()
+                        .evidenceRef("code:weak_loop_hint")
+                        .coarseTag("LOOP_BOUNDARY")
+                        .fineTag("OFF_BY_ONE")
+                        .confidence(0.5)
+                        .message("weak loop hint")
+                        .build()))
+                .build();
+
+        ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, weakSignals, null);
+
+        assertThat(brief.getMemoryCalibration().getMemoryRelevance()).isEqualTo("TEACHING_ONLY");
+        assertThat(brief.getMemoryCalibration().getMemoryOnlyTags()).contains("IO_FORMAT");
+        assertThat(brief.getMemoryCalibration().getTeachingUseOnly()).isTrue();
     }
 
     private DiagnosisEvidencePackage.ProblemEvidence problem() {

@@ -99,6 +99,7 @@ public class StandardLibraryPackBuilder {
                         "CandidateSignals with concrete evidenceRef outrank broad baseline summaries.",
                         "CandidateSignals with confidence >= 0.80 and concrete problem/source evidence outrank generic verdict labels.",
                         "Student learning memory is auxiliary evidence only; current submission compile/runtime/judge facts and source-code signals outrank memory signals.",
+                        "Use brief.memoryCalibration before using memory: ALIGNED can personalize teaching, CONFLICTING means current evidence wins, and TEACHING_ONLY cannot support the primary diagnosis.",
                         "Use learning memory to recognize repeated patterns, adapt teaching action, or raise teacher attention, not to override the current observable failure.",
                         "Large-bound problem evidence plus TLE or step-by-step simulation should be treated as a scale diagnosis before a strategy diagnosis.",
                         "Empty or minimum-input runtime evidence should be treated as a boundary diagnosis before a generic runtime diagnosis.",
@@ -111,11 +112,14 @@ public class StandardLibraryPackBuilder {
                         "If a fineGrainedTag is selected, its evidenceRefs must support that fine-grained diagnosis.",
                         "Do not select NEEDS_MORE_EVIDENCE when a high-confidence candidateSignal directly explains the visible failed case.",
                         "Do not select a tag solely because it appears in learningMemorySummary; it must also fit current submission evidence or be described as follow-up attention.",
+                        "Do not select a primaryIssueTag or fineGrainedTag when its only supporting evidenceRefs are memory:* refs.",
+                        "If brief.memoryCalibration.teachingUseOnly is true, memory-supported tags are teacher attention or scaffolding signals, not the main diagnosis.",
                         "Prefer SAMPLE_OVERFIT only when public samples pass and hidden failures are observed; describe it as a need for self-made counterexamples, not as hidden-case knowledge.",
                         "If no candidate is sufficiently supported, select NEEDS_MORE_EVIDENCE when available."
                 ))
                 .conflictRules(List.of(
                         "When candidate signals conflict, cite the conflict in uncertainty and choose NEEDS_MORE_EVIDENCE unless one signal has stronger concrete evidence.",
+                        "When brief.memoryCalibration.memoryRelevance is CONFLICTING, do not choose the conflicting memory tag unless current candidateSignals independently support it.",
                         "When hidden failures are observed without visible hidden data, describe the missing evidence instead of guessing a hidden case.",
                         "When code evidence and judge output point to different issues, prefer the issue explaining the first failed observable behavior."
                 ))

@@ -40,6 +40,10 @@ public class AiReportService {
     private static final String RUNTIME_PROMPT_VERSION = "diagnosis-judge-v2+teaching-hint-v1";
     private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = "diagnosis-and-teaching-v2";
     private static final String RUNTIME_MODE_SINGLE_CALL = "single-call";
+    private static final int MAX_PROMPT_PROBLEM_BRIEF_LENGTH = 420;
+    private static final int MAX_PROMPT_CODE_EXCERPT_LENGTH = 2600;
+    private static final int MAX_PROMPT_CANDIDATE_SIGNALS = 6;
+    private static final int MAX_PROMPT_VISIBLE_CASE_FACTS = 3;
     private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^(\\d+):\\s?(.*)$", Pattern.MULTILINE);
     private static final Pattern REPORT_LINE_ISSUE_PATTERN = Pattern.compile(
             "行号[：:]\\s*(\\d+)\\s*错误[：:]\\s*(.+?)\\s*建议[：:]\\s*(.+?)(?=(?:\\n\\s*行号[：:])|\\Z)",
@@ -51,6 +55,9 @@ public class AiReportService {
     private final ExternalModelAgentRuntime externalModelAgentRuntime;
     private final ExternalModelFailureClassifier failureClassifier;
     private final ExternalModelBudgetGuard budgetGuard;
+    private final ThreadLocal<ExternalModelRoute> activeRequestRoute = new ThreadLocal<>();
+    private final ThreadLocal<ExternalModelRoute> lastAttemptedRoute = new ThreadLocal<>();
+    private final ThreadLocal<ExternalModelRoute> lastSuccessfulRoute = new ThreadLocal<>();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -79,40 +86,58 @@ public class AiReportService {
     }
 
     @Value("${ai.enabled:true}")
-    private boolean enabled;
+    private boolean enabled = true;
 
     @Value("${ai.base-url:https://api-inference.modelscope.cn/v1}")
-    private String baseUrl;
+    private String baseUrl = "https://api-inference.modelscope.cn/v1";
+
+    @Value("${ai.provider:ModelScope}")
+    private String provider = "ModelScope";
 
     @Value("${ai.api-key:}")
-    private String apiKey;
+    private String apiKey = "";
 
     @Value("${ai.model:deepseek-ai/DeepSeek-V4-Pro}")
-    private String model;
+    private String model = "deepseek-ai/DeepSeek-V4-Pro";
+
+    @Value("${ai.fallback.provider:OpenAI-Compatible-Fallback}")
+    private String fallbackProvider = "OpenAI-Compatible-Fallback";
+
+    @Value("${ai.fallback.base-url:}")
+    private String fallbackBaseUrl = "";
+
+    @Value("${ai.fallback.api-key:}")
+    private String fallbackApiKey = "";
+
+    @Value("${ai.fallback.model:}")
+    private String fallbackModel = "";
+
+    @Value("${ai.routes:}")
+    private String additionalRoutes = "";
 
     @Value("${ai.timeout-seconds:25}")
-    private long timeoutSeconds;
+    private long timeoutSeconds = 25;
 
     @Value("${ai.external-runtime-enabled:true}")
-    private boolean externalRuntimeEnabled;
+    private boolean externalRuntimeEnabled = true;
 
-    @Value("${ai.external-runtime-mode:staged}")
-    private String externalRuntimeMode;
+    @Value("${ai.external-runtime-mode:single-call}")
+    private String externalRuntimeMode = RUNTIME_MODE_SINGLE_CALL;
 
     @Value("${ai.max-output-tokens:900}")
-    private int maxOutputTokens;
+    private int maxOutputTokens = 900;
 
     @Value("${ai.stream-enabled:true}")
-    private boolean streamEnabled;
+    private boolean streamEnabled = true;
 
     @Value("${ai.stream-fallback-enabled:true}")
-    private boolean streamFallbackEnabled;
+    private boolean streamFallbackEnabled = true;
 
     @Value("${ai.retry.max-attempts:2}")
-    private int retryMaxAttempts;
+    private int retryMaxAttempts = 2;
 
     @Value("${ai.retry.backoff-ms:700}")
-    private long retryBackoffMs;
+    private long retryBackoffMs = 700;
 
     public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                 Submission submission,
@@ -125,6 +150,8 @@ public class AiReportService {
                                                                 SubmissionAnalysisResponse fallback,
                                                                 DiagnosisEvidencePackage evidencePackage,
                                                                 RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        lastSuccessfulRoute.remove();
+        lastAttemptedRoute.remove();
         if (!canCallAi()) {
             log.info("AI submission analysis skipped because AI access is unavailable. submissionId={}", submission.getId());
             return fallback;
@@ -459,8 +486,8 @@ public class AiReportService {
     private ExternalModelStagePayloads.DiagnosisJudgeOutput callDiagnosisJudgeStage(
             ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
         Map<String, Object> request = new LinkedHashMap<>();
-        request.put("brief", runtimePlan.getBrief());
-        request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        request.put("brief", compactBriefForPrompt(runtimePlan.getBrief()));
+        request.put("standardLibrary", compactStandardLibraryForPrompt(runtimePlan.getStandardLibraryPack()));
         String content = chatCompletion(
                 runtimePlan.getDiagnosisPrompt().getSystemPrompt(),
                 objectMapper.writeValueAsString(request)
@@ -531,8 +558,8 @@ public class AiReportService {
     private ExternalModelStagePayloads.CombinedOutput callSingleCallRuntimeStage(
             ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
         Map<String, Object> request = new LinkedHashMap<>();
-        request.put("brief", runtimePlan.getBrief());
-        request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        request.put("brief", compactBriefForPrompt(runtimePlan.getBrief()));
+        request.put("standardLibrary", compactStandardLibraryForPrompt(runtimePlan.getStandardLibraryPack()));
         String content = chatCompletion(
                 runtimePlan.getSingleCallPrompt().getSystemPrompt(),
                 objectMapper.writeValueAsString(request)
@@ -545,14 +572,127 @@ public class AiReportService {
             ExternalModelStagePayloads.DiagnosisJudgeOutput decision)
             throws JsonProcessingException, IOException, InterruptedException {
         Map<String, Object> request = new LinkedHashMap<>();
-        request.put("brief", runtimePlan.getBrief());
-        request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        request.put("brief", compactBriefForPrompt(runtimePlan.getBrief()));
+        request.put("standardLibrary", compactStandardLibraryForPrompt(runtimePlan.getStandardLibraryPack()));
         request.put("diagnosisDecision", decision);
         String content = chatCompletion(
                 runtimePlan.getTeachingPrompt().getSystemPrompt(),
                 objectMapper.writeValueAsString(request)
         );
         return parseModelStagePayload(content, ExternalModelStagePayloads.TeachingHintOutput.class);
+    }
+
+    private Map<String, Object> compactBriefForPrompt(ModelDiagnosisBrief brief) {
+        if (brief == null) {
+            return Map.of();
+        }
+        Map<String, Object> compact = new LinkedHashMap<>();
+        putIfPresent(compact, "schemaVersion", brief.getSchemaVersion());
+        putIfPresent(compact, "problemBrief", truncateForPrompt(brief.getProblemBrief(), MAX_PROMPT_PROBLEM_BRIEF_LENGTH));
+        putIfPresent(compact, "problemConstraints", brief.getProblemConstraints());
+        putIfPresent(compact, "verdict", brief.getVerdict());
+        putIfPresent(compact, "language", brief.getLanguage());
+        putIfPresent(compact, "keyCodeExcerpt", truncateForPrompt(brief.getKeyCodeExcerpt(), MAX_PROMPT_CODE_EXCERPT_LENGTH));
+        putIfPresent(compact, "sourceCodeLineCount", brief.getSourceCodeLineCount());
+        putIfPresent(compact, "firstFailedCase", brief.getFirstFailedCase());
+        putIfPresent(compact, "visibleCaseFacts", limitList(brief.getVisibleCaseFacts(), MAX_PROMPT_VISIBLE_CASE_FACTS));
+        putIfPresent(compact, "candidateSignals", limitList(brief.getCandidateSignals(), MAX_PROMPT_CANDIDATE_SIGNALS));
+        putIfPresent(compact, "evidenceRefs", brief.getEvidenceRefs());
+        putIfPresent(compact, "allowedIssueTags", brief.getAllowedIssueTags());
+        putIfPresent(compact, "allowedFineGrainedTags", brief.getAllowedFineGrainedTags());
+        putIfPresent(compact, "learningTrajectorySummary", brief.getLearningTrajectorySummary());
+        putIfPresent(compact, "learningMemorySummary", brief.getLearningMemorySummary());
+        putIfPresent(compact, "memoryCalibration", brief.getMemoryCalibration());
+        putIfPresent(compact, "hiddenDataBoundary", brief.getHiddenDataBoundary());
+        putIfPresent(compact, "uncertainty", brief.getUncertainty());
+        return compact;
+    }
+
+    private Map<String, Object> compactStandardLibraryForPrompt(StandardLibraryPack standardLibraryPack) {
+        if (standardLibraryPack == null) {
+            return Map.of();
+        }
+        Map<String, Object> compact = new LinkedHashMap<>();
+        putIfPresent(compact, "schemaVersion", standardLibraryPack.getSchemaVersion());
+        putIfPresent(compact, "taxonomyVersion", standardLibraryPack.getTaxonomyVersion());
+        putIfPresent(compact, "issueTags", standardLibraryPack.getIssueTags() == null
+                ? null
+                : standardLibraryPack.getIssueTags().stream().map(this::compactTagOption).toList());
+        putIfPresent(compact, "fineGrainedTags", standardLibraryPack.getFineGrainedTags() == null
+                ? null
+                : standardLibraryPack.getFineGrainedTags().stream().map(this::compactTagOption).toList());
+        putIfPresent(compact, "teachingActions", standardLibraryPack.getTeachingActions() == null
+                ? null
+                : standardLibraryPack.getTeachingActions().stream().map(this::compactTeachingAction).toList());
+        putIfPresent(compact, "decisionProtocol", compactDecisionProtocol(standardLibraryPack.getDecisionProtocol()));
+        putIfPresent(compact, "safetyRules", standardLibraryPack.getSafetyRules());
+        putIfPresent(compact, "uncertaintyOptions", standardLibraryPack.getUncertaintyOptions());
+        return compact;
+    }
+
+    private Map<String, Object> compactTagOption(StandardLibraryPack.TagOption option) {
+        if (option == null) {
+            return Map.of();
+        }
+        Map<String, Object> compact = new LinkedHashMap<>();
+        putIfPresent(compact, "id", option.getId());
+        putIfPresent(compact, "label", option.getLabel());
+        putIfPresent(compact, "parentTag", option.getParentTag());
+        putIfPresent(compact, "teachingAction", option.getTeachingAction());
+        return compact;
+    }
+
+    private Map<String, Object> compactTeachingAction(StandardLibraryPack.TeachingActionOption option) {
+        if (option == null) {
+            return Map.of();
+        }
+        Map<String, Object> compact = new LinkedHashMap<>();
+        putIfPresent(compact, "id", option.getId());
+        putIfPresent(compact, "studentTaskTemplate", option.getStudentTaskTemplate());
+        return compact;
+    }
+
+    private Map<String, Object> compactDecisionProtocol(StandardLibraryPack.DecisionProtocol protocol) {
+        if (protocol == null) {
+            return Map.of();
+        }
+        Map<String, Object> compact = new LinkedHashMap<>();
+        putIfPresent(compact, "globalRules", protocol.getGlobalRules());
+        putIfPresent(compact, "evidencePriorityRules", protocol.getEvidencePriorityRules());
+        putIfPresent(compact, "tagSelectionRules", protocol.getTagSelectionRules());
+        putIfPresent(compact, "teachingActionRules", protocol.getTeachingActionRules());
+        return compact;
+    }
+
+    private void putIfPresent(Map<String, Object> target, String key, Object value) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof String text && text.isBlank()) {
+            return;
+        }
+        if (value instanceof List<?> list && list.isEmpty()) {
+            return;
+        }
+        if (value instanceof Map<?, ?> map && map.isEmpty()) {
+            return;
+        }
+        target.put(key, value);
+    }
+
+    private <T> List<T> limitList(List<T> values, int maxSize) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream().limit(Math.max(0, maxSize)).toList();
+    }
+
+    private String truncateForPrompt(String text, int maxLength) {
+        String normalized = cleanupAiText(text);
+        if (maxLength <= 0 || normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, maxLength) + "\n... truncated for prompt budget ...";
     }
 
     private SubmissionAnalysisResponse buildRuntimeAnalysisResponse(
@@ -602,7 +742,7 @@ public class AiReportService {
                 .confidence(resolveConfidence(decision.getConfidence(), fallback.getConfidence()))
                 .uncertainty(defaultIfBlank(decision.getUncertainty(), fallback.getUncertainty()))
                 .diagnosticTrace(fallback.getDiagnosticTrace())
-                .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false, RUNTIME_PROMPT_VERSION))
+                .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false, RUNTIME_PROMPT_VERSION, lastSuccessfulRoute.get()))
                 .answerLeakRisk(resolveRuntimeAnswerLeakRisk(alignedTeachingHint, fallback.getAnswerLeakRisk()))
                 .wrongSolution(fallback.getWrongSolution())
                 .correctSolution(fallback.getCorrectSolution())
@@ -726,15 +866,12 @@ public class AiReportService {
     private String resolveRuntimeAnswerLeakRisk(ExternalModelStagePayloads.TeachingHintOutput teachingHint,
                                                 String fallbackRisk) {
         String visibleRisk = higherRisk(
-                teachingHint == null ? "" : teachingHint.getAnswerLeakRisk(),
-                higherRisk(
-                        teachingHint == null || teachingHint.getStudentHintPlan() == null
-                                ? ""
-                                : teachingHint.getStudentHintPlan().getAnswerLeakRisk(),
-                        teachingHint == null || teachingHint.getLearningInterventionPlan() == null
-                                ? ""
-                                : teachingHint.getLearningInterventionPlan().getAnswerLeakRisk()
-                )
+                teachingHint == null || teachingHint.getStudentHintPlan() == null
+                        ? ""
+                        : teachingHint.getStudentHintPlan().getAnswerLeakRisk(),
+                teachingHint == null || teachingHint.getLearningInterventionPlan() == null
+                        ? ""
+                        : teachingHint.getLearningInterventionPlan().getAnswerLeakRisk()
         );
         return resolveAnswerLeakRisk(visibleRisk, fallbackRisk);
     }
@@ -1057,11 +1194,13 @@ public class AiReportService {
     public String enhanceGrowthReportMarkdown(Problem problem,
                                               List<Map<String, Object>> submissionTimeline,
                                               String fallbackMarkdown) {
+        lastSuccessfulRoute.remove();
+        lastAttemptedRoute.remove();
         if (!canCallAi()) {
             log.info("AI growth report skipped because AI access is unavailable. problemId={}", problem.getId());
             return fallbackMarkdown;
         }
-        ExternalModelBudgetGuard.Decision decision = budgetGuard.check(PROVIDER, model);
+        ExternalModelBudgetGuard.Decision decision = firstAllowedRouteDecision();
         if (!decision.allowed()) {
             return appendGrowthReportFailureMarker(fallbackMarkdown, ExternalModelStagePayloads.StageValidationResult.builder()
                     .valid(false)
@@ -1110,46 +1249,114 @@ public class AiReportService {
     }
 
     private boolean canCallAi() {
-        return enabled && apiKey != null && !apiKey.isBlank();
+        return enabled && configuredRoutes().stream().anyMatch(ExternalModelRoute::configured);
     }
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
-        ExternalModelBudgetGuard.Decision decision = budgetGuard.check(PROVIDER, model);
-        if (!decision.allowed()) {
-            throw new IOException(decision.message());
-        }
-        try {
-            String content = doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled);
-            budgetGuard.recordSuccess(PROVIDER, model);
-            return content;
-        } catch (IOException exception) {
-            if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
-                log.warn("Retrying AI chat completion with stream=true after non-stream response was unusable. model={}", model);
-                String content = doChatCompletionWithRetry(systemPrompt, userPrompt, true);
-                budgetGuard.recordSuccess(PROVIDER, model);
-                return content;
+        IOException lastException = null;
+        for (ExternalModelRoute route : configuredRoutes()) {
+            lastAttemptedRoute.set(route);
+            ExternalModelBudgetGuard.Decision decision = budgetGuard.check(route.safeProvider(PROVIDER), route.model());
+            if (!decision.allowed()) {
+                lastException = new IOException(decision.message());
+                continue;
             }
-            recordBudgetFailure(exception);
-            throw exception;
+            try {
+                activeRequestRoute.set(route);
+                String content = doChatCompletionWithRouteRetry(systemPrompt, userPrompt, streamEnabled, route);
+                budgetGuard.recordSuccess(route.safeProvider(PROVIDER), route.model());
+                lastSuccessfulRoute.set(route);
+                return content;
+            } catch (IOException exception) {
+                lastException = exception;
+                if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
+                    try {
+                        log.warn("Retrying AI chat completion with stream=true after non-stream response was unusable. provider={}, model={}",
+                                route.safeProvider(PROVIDER),
+                                route.model());
+                        activeRequestRoute.set(route);
+                        String content = doChatCompletionWithRouteRetry(systemPrompt, userPrompt, true, route);
+                        budgetGuard.recordSuccess(route.safeProvider(PROVIDER), route.model());
+                        lastSuccessfulRoute.set(route);
+                        return content;
+                    } catch (IOException streamException) {
+                        lastException = streamException;
+                        recordBudgetFailure(streamException, route);
+                    }
+                } else {
+                    recordBudgetFailure(exception, route);
+                }
+                log.warn("AI route failed; trying next route if available. provider={}, model={}, reason={}",
+                        route.safeProvider(PROVIDER),
+                        route.model(),
+                        previewBody(exception.getMessage()));
+            } finally {
+                activeRequestRoute.remove();
+            }
         }
+        throw lastException == null ? new IOException("AI API route is not configured") : lastException;
+    }
+
+    private ExternalModelBudgetGuard.Decision firstAllowedRouteDecision() {
+        ExternalModelBudgetGuard.Decision lastDecision = null;
+        for (ExternalModelRoute route : configuredRoutes()) {
+            ExternalModelBudgetGuard.Decision decision = budgetGuard.check(route.safeProvider(PROVIDER), route.model());
+            if (decision.allowed()) {
+                return decision;
+            }
+            lastDecision = decision;
+        }
+        return lastDecision == null
+                ? new ExternalModelBudgetGuard.Decision(false, ModelStageFailureReason.BUDGET_GUARD_OPEN, "AI API route is not configured")
+                : lastDecision;
+    }
+
+    private List<ExternalModelRoute> configuredRoutes() {
+        List<ExternalModelRoute> routes = new ArrayList<>();
+        ExternalModelRoute primary = primaryRoute();
+        if (primary.configured()) {
+            routes.add(primary);
+        }
+        ExternalModelRoute fallback = fallbackRoute();
+        if (fallback.configured()) {
+            routes.add(fallback);
+        }
+        routes.addAll(ExternalModelRoute.parseRoutes(additionalRoutes));
+        return routes;
+    }
+
+    private ExternalModelRoute primaryRoute() {
+        return new ExternalModelRoute(provider, baseUrl, apiKey, model);
+    }
+
+    private ExternalModelRoute fallbackRoute() {
+        return new ExternalModelRoute(fallbackProvider, fallbackBaseUrl, fallbackApiKey, fallbackModel);
     }
 
     private String doChatCompletionWithRetry(String systemPrompt,
                                              String userPrompt,
                                              boolean stream) throws IOException, InterruptedException {
+        return doChatCompletionWithRouteRetry(systemPrompt, userPrompt, stream, primaryRoute());
+    }
+
+    private String doChatCompletionWithRouteRetry(String systemPrompt,
+                                                  String userPrompt,
+                                                  boolean stream,
+                                                  ExternalModelRoute route) throws IOException, InterruptedException {
         int attempts = Math.max(1, retryMaxAttempts);
         IOException lastException = null;
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
-                return doChatCompletion(systemPrompt, userPrompt, stream);
+                return doChatCompletion(systemPrompt, userPrompt, stream, route);
             } catch (IOException exception) {
                 lastException = exception;
                 if (attempt >= attempts || !isRetryableCallFailure(exception)) {
                     throw exception;
                 }
                 long backoff = Math.max(0, retryBackoffMs) * attempt;
-                log.warn("Retrying AI chat completion after transient failure. model={}, attempt={}/{}, waitMs={}, reason={}",
-                        model,
+                log.warn("Retrying AI chat completion after transient failure. provider={}, model={}, attempt={}/{}, waitMs={}, reason={}",
+                        route.safeProvider(PROVIDER),
+                        route.model(),
                         attempt + 1,
                         attempts,
                         backoff,
@@ -1163,8 +1370,15 @@ public class AiReportService {
     private String doChatCompletion(String systemPrompt,
                                     String userPrompt,
                                     boolean stream) throws IOException, InterruptedException {
+        return doChatCompletion(systemPrompt, userPrompt, stream, primaryRoute());
+    }
+
+    private String doChatCompletion(String systemPrompt,
+                                    String userPrompt,
+                                    boolean stream,
+                                    ExternalModelRoute route) throws IOException, InterruptedException {
         Map<String, Object> requestBody = new LinkedHashMap<>();
-        requestBody.put("model", model);
+        requestBody.put("model", route.model());
         requestBody.put("messages", List.of(
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userPrompt)
@@ -1172,12 +1386,12 @@ public class AiReportService {
         requestBody.put("temperature", 0.2);
         requestBody.put("stream", stream);
         requestBody.put("max_tokens", Math.max(128, maxOutputTokens));
-        String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
-        log.info("Calling AI chat completion. model={}, timeoutSeconds={}, stream={}, endpoint={}",
-                model,
+        log.info("Calling AI chat completion. provider={}, model={}, timeoutSeconds={}, stream={}, endpoint={}",
+                route.safeProvider(PROVIDER),
+                route.model(),
                 Math.max(timeoutSeconds, 5),
                 stream,
-                endpoint);
+                route.endpoint());
 
         String responseBody = sendChatCompletionRequest(objectMapper.writeValueAsString(requestBody), stream);
         String content = stream
@@ -1192,12 +1406,16 @@ public class AiReportService {
     }
 
     protected String sendChatCompletionRequest(String requestBody, boolean stream) throws IOException, InterruptedException {
-        String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
+        ExternalModelRoute route = activeRequestRoute.get();
+        if (route == null) {
+            route = primaryRoute();
+        }
+        String endpoint = route.endpoint();
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .timeout(Duration.ofSeconds(Math.max(timeoutSeconds, 5)))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + route.apiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                 .build();
 
@@ -1222,13 +1440,13 @@ public class AiReportService {
     }
 
     protected void recordBudgetFailureForTest(Exception exception) {
-        recordBudgetFailure(exception);
+        recordBudgetFailure(exception, primaryRoute());
     }
 
-    private void recordBudgetFailure(Exception exception) {
+    private void recordBudgetFailure(Exception exception, ExternalModelRoute route) {
         ModelStageFailureReason reason = failureClassifier.classify(exception);
         if (failureClassifier.shouldOpenBudgetGuard(reason)) {
-            budgetGuard.recordFailure(PROVIDER, model, reason);
+            budgetGuard.recordFailure(route.safeProvider(PROVIDER), route.model(), reason);
         }
     }
 
@@ -1713,10 +1931,22 @@ public class AiReportService {
                                                                     String status,
                                                                     boolean fallbackUsed,
                                                                     String promptVersion) {
+        ExternalModelRoute route = fallbackUsed
+                ? defaultRoute(lastAttemptedRoute.get(), lastSuccessfulRoute.get())
+                : lastSuccessfulRoute.get();
+        return modelInvocation(fallback, status, fallbackUsed, promptVersion, route);
+    }
+
+    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
+                                                                    String status,
+                                                                    boolean fallbackUsed,
+                                                                    String promptVersion,
+                                                                    ExternalModelRoute route) {
+        ExternalModelRoute effectiveRoute = route == null ? primaryRoute() : route;
         return SubmissionAnalysisResponse.AiInvocation.builder()
-                .provider(PROVIDER)
-                .model(model)
-                .modelVersion(model)
+                .provider(effectiveRoute.safeProvider(PROVIDER))
+                .model(effectiveRoute.model())
+                .modelVersion(effectiveRoute.model())
                 .promptVersion(promptVersion)
                 .agentVersion(fallback == null || fallback.getAiInvocation() == null
                         ? null
@@ -1727,6 +1957,10 @@ public class AiReportService {
                 .status(status)
                 .fallbackUsed(fallbackUsed)
                 .build();
+    }
+
+    private ExternalModelRoute defaultRoute(ExternalModelRoute primary, ExternalModelRoute fallback) {
+        return primary == null ? fallback : primary;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

@@ -31,6 +31,7 @@ public class ModelDiagnosisBrief {
     private List<String> allowedFineGrainedTags;
     private String learningTrajectorySummary;
     private String learningMemorySummary;
+    private MemoryCalibration memoryCalibration;
     private HiddenDataBoundary hiddenDataBoundary;
     private String uncertainty;
 
@@ -58,6 +59,22 @@ public class ModelDiagnosisBrief {
         private String fineGrainedTag;
         private Double confidence;
         private String reason;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MemoryCalibration {
+        private Boolean memoryAvailable;
+        private String memoryRelevance;
+        private List<String> matchedCurrentEvidenceTags;
+        private List<String> memoryOnlyTags;
+        private List<String> conflictingMemoryTags;
+        private Boolean teachingUseOnly;
+        private Boolean teacherReviewRecommended;
+        private String policy;
+        private List<String> evidenceRefs;
     }
 
     @Data

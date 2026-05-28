@@ -1993,6 +1993,11 @@ a {
   gap: 0.75rem;
 }
 
+.management-system-stack {
+  display: grid;
+  gap: 0.85rem;
+}
+
 .management-status-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -2021,6 +2026,63 @@ a {
 
 .management-status-item strong {
   grid-area: value;
+}
+
+.management-ai-route {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.management-ai-route__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.management-ai-route__head h2 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.management-ai-route__head p {
+  margin: 0.25rem 0 0;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+.management-ai-route__suggestions {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.management-ai-route__routes {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.management-ai-route__routes > div {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, auto) minmax(0, 1fr) minmax(0, 1.3fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.78rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.management-ai-route__routes span,
+.management-ai-route__routes small {
+  color: var(--ink-soft);
+}
+
+.management-ai-route__routes strong,
+.management-ai-route__routes small {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .management-system-message,
@@ -3510,6 +3572,7 @@ tr:last-child td {
 :root[data-theme="dark"] .teacher-next-card,
 :root[data-theme="dark"] .teacher-assignment-item,
 :root[data-theme="dark"] .management-status-item,
+:root[data-theme="dark"] .management-ai-route__routes > div,
 :root[data-theme="dark"] .overview-insight-item,
 :root[data-theme="dark"] .testcase-row,
 :root[data-theme="dark"] .issue-row,
@@ -4849,6 +4912,15 @@ tr:last-child td {
   .management-form-row,
   .management-status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .management-ai-route__head,
+  .management-ai-route__routes > div {
+    grid-template-columns: 1fr;
+  }
+
+  .management-ai-route__head {
+    display: grid;
   }
 
   .management-form-row .field:only-child {

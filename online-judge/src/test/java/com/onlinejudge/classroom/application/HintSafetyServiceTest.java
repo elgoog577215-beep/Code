@@ -108,4 +108,51 @@ class HintSafetyServiceTest {
         assertThat(result.getStudentHintPlan().getTeachingAction()).isEqualTo("COMPARE_INPUT_SPEC");
         assertThat(result.getReportMarkdown()).doesNotContain("提示已安全降级");
     }
+
+    @Test
+    void doesNotDowngradeSafeStudentHintBecauseTeacherNoteMentionsForbiddenExactFix() {
+        SubmissionAnalysisResponse analysis = SubmissionAnalysisResponse.builder()
+                .submissionId(101L)
+                .issueTags(List.of("IO_FORMAT"))
+                .studentHint("请把题面输入行和代码读取次数逐行对齐。")
+                .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
+                        .hintLevel("L2")
+                        .problemType("输入读取")
+                        .evidenceAnchor("problem:repeated_input_source_single_read")
+                        .nextAction("对比题面中的 q 次查询和代码里的读取次数。")
+                        .coachQuestion("从哪一行开始，题面要求的输入和代码读取次数不一致？")
+                        .teachingAction("COMPARE_INPUT_SPEC")
+                        .evidenceRefs(List.of("problem:repeated_input_source_single_read"))
+                        .answerLeakRisk("LOW")
+                        .build())
+                .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                        .interventionType("IO_COMPARE")
+                        .goal("核对输入结构。")
+                        .studentTask("把每次读取和题面每一行输入对应起来。")
+                        .checkQuestion("是否存在没有被读取的查询行？")
+                        .completionSignal("学生能指出读取次数不一致。")
+                        .evidenceRefs(List.of("problem:repeated_input_source_single_read"))
+                        .estimatedMinutes(5)
+                        .answerLeakRisk("LOW")
+                        .build())
+                .teacherNote("老师提醒：不要直接告诉学生加 for _ in range(q)，只让学生对齐输入读取次数。")
+                .reportMarkdown("""
+                        ## AI 阶段化诊断
+
+                        - 错因阶段：IO_FORMAT / INPUT_PARSING
+
+                        ## 给学生的下一步
+
+                        请把题面输入行和代码读取次数逐行对齐。
+                        """)
+                .answerLeakRisk("LOW")
+                .build();
+
+        SubmissionAnalysisResponse result = service.verifyAndRecord(analysis, Assignment.HintPolicy.L2);
+
+        assertThat(result.getAnswerLeakRisk()).isEqualTo("LOW");
+        assertThat(result.getStudentHintPlan().getTeachingAction()).isEqualTo("COMPARE_INPUT_SPEC");
+        assertThat(result.getLearningInterventionPlan().getInterventionType()).isEqualTo("IO_COMPARE");
+        assertThat(result.getReportMarkdown()).doesNotContain("提示已安全降级");
+    }
 }

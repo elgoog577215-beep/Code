@@ -1,6 +1,7 @@
 package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
@@ -61,6 +62,7 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
+        useStagedRuntime(service);
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -126,6 +128,7 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
+        useStagedRuntime(service);
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -186,7 +189,6 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
-        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -202,6 +204,93 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v2");
         assertThat(service.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void singleCallRuntimeUsesFallbackRouteWhenPrimaryRouteHitsQuota() {
+        RetryingAiReportService service = new RetryingAiReportService(
+                objectMapper,
+                runtime(),
+                new ExternalModelBudgetGuard(),
+                new IOException("AI API returned status 429: {\"error\":{\"code\":\"insufficient_quota\"}}"),
+                """
+                {"choices":[{"message":{"content":"{\\"diagnosisDecision\\":{\\"primaryIssueTag\\":\\"LOOP_BOUNDARY\\",\\"fineGrainedTag\\":\\"OFF_BY_ONE\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"confidence\\":0.9,\\"uncertainty\\":\\"fallback route succeeded\\",\\"needsMoreEvidence\\":false,\\"answerLeakRisk\\":\\"LOW\\"},\\"teachingHint\\":{\\"studentHint\\":\\"鍏堢敤 n=1 鎵嬫帹寰幆銆\\",\\"studentHintPlan\\":{\\"hintLevel\\":\\"L2\\",\\"problemType\\":\\"寰幆杈圭晫\\",\\"evidenceAnchor\\":\\"code:range_excludes_n\\",\\"nextAction\\":\\"鍒楀嚭 range 浜х敓鐨 i\\",\\"coachQuestion\\":\\"n=1 鏃朵細鎵ц鍑犳锛\\",\\"teachingAction\\":\\"TRACE_VARIABLES\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"answerLeakRisk\\":\\"LOW\\"},\\"learningInterventionPlan\\":{\\"interventionType\\":\\"VARIABLE_TRACE\\",\\"goal\\":\\"纭杈圭晫\\",\\"studentTask\\":\\"鎵嬫帹 n=1\\",\\"checkQuestion\\":\\"鏈€鍚庝竴娆℃槸浠€涔堬紵\\",\\"completionSignal\\":\\"鍐欏嚭 i 鍊艰〃\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"estimatedMinutes\\":5,\\"answerLeakRisk\\":\\"LOW\\"},\\"teacherNote\\":\\"fallback route ok\\",\\"answerLeakRisk\\":\\"LOW\\"}}"}}]}
+                """
+        );
+        enableSingleCallRouteFallback(service);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getProvider()).isEqualTo("FallbackProvider");
+        assertThat(analysis.getAiInvocation().getModel()).isEqualTo("fallback-model");
+        assertThat(service.callCount()).isEqualTo(2);
+        assertThat(service.models()).containsExactly("primary-model", "fallback-model");
+    }
+
+    @Test
+    void singleCallRuntimeSkipsGuardedPrimaryRouteAndUsesFallbackRoute() {
+        ExternalModelBudgetGuard budgetGuard = new ExternalModelBudgetGuard();
+        budgetGuard.recordFailure("PrimaryProvider", "primary-model", ModelStageFailureReason.INSUFFICIENT_QUOTA);
+        RetryingAiReportService service = new RetryingAiReportService(
+                objectMapper,
+                runtime(),
+                budgetGuard,
+                """
+                {"choices":[{"message":{"content":"{\\"diagnosisDecision\\":{\\"primaryIssueTag\\":\\"LOOP_BOUNDARY\\",\\"fineGrainedTag\\":\\"OFF_BY_ONE\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"confidence\\":0.9,\\"uncertainty\\":\\"guard skipped primary\\",\\"needsMoreEvidence\\":false,\\"answerLeakRisk\\":\\"LOW\\"},\\"teachingHint\\":{\\"studentHint\\":\\"鍏堢敤 n=1 鎵嬫帹寰幆銆\\",\\"studentHintPlan\\":{\\"hintLevel\\":\\"L2\\",\\"problemType\\":\\"寰幆杈圭晫\\",\\"evidenceAnchor\\":\\"code:range_excludes_n\\",\\"nextAction\\":\\"鍒楀嚭 range 浜х敓鐨 i\\",\\"coachQuestion\\":\\"n=1 鏃朵細鎵ц鍑犳锛\\",\\"teachingAction\\":\\"TRACE_VARIABLES\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"answerLeakRisk\\":\\"LOW\\"},\\"learningInterventionPlan\\":{\\"interventionType\\":\\"VARIABLE_TRACE\\",\\"goal\\":\\"纭杈圭晫\\",\\"studentTask\\":\\"鎵嬫帹 n=1\\",\\"checkQuestion\\":\\"鏈€鍚庝竴娆℃槸浠€涔堬紵\\",\\"completionSignal\\":\\"鍐欏嚭 i 鍊艰〃\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"estimatedMinutes\\":5,\\"answerLeakRisk\\":\\"LOW\\"},\\"teacherNote\\":\\"fallback route ok\\",\\"answerLeakRisk\\":\\"LOW\\"}}"}}]}
+                """
+        );
+        enableSingleCallRouteFallback(service);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getProvider()).isEqualTo("FallbackProvider");
+        assertThat(service.callCount()).isEqualTo(1);
+        assertThat(service.models()).containsExactly("fallback-model");
+    }
+
+    @Test
+    void singleCallRuntimeUsesRoutePoolAfterPrimaryAndFallbackFail() {
+        RetryingAiReportService service = new RetryingAiReportService(
+                objectMapper,
+                runtime(),
+                new ExternalModelBudgetGuard(),
+                new IOException("AI API returned status 429: {\"error\":{\"code\":\"insufficient_quota\"}}"),
+                new IOException("AI API returned status 429: {\"error\":{\"message\":\"rate limit\"}}"),
+                successfulSingleCallResponse("route pool succeeded")
+        );
+        enableSingleCallRouteFallback(service);
+        ReflectionTestUtils.setField(service, "additionalRoutes", """
+                BrokenRoute;
+                ExtraProvider|https://extra.example/v1|extra-key|extra-model
+                """);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getProvider()).isEqualTo("ExtraProvider");
+        assertThat(analysis.getAiInvocation().getModel()).isEqualTo("extra-model");
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(service.models()).containsExactly("primary-model", "fallback-model", "extra-model");
     }
 
     @Test
@@ -246,7 +335,6 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
-        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -262,6 +350,137 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getStudentHintPlan().getNextAction()).contains("最大规模");
         assertThat(analysis.getLearningInterventionPlan().getInterventionType()).isEqualTo("COMPLEXITY_ESTIMATE");
         assertThat(analysis.getLearningInterventionPlan().getStudentTask()).contains("最大规模");
+    }
+
+    @Test
+    void singleCallRuntimeDoesNotDowngradeSafeInputParsingHintBecauseTeacherNoteMentionsForbiddenFix() {
+        StubAiReportService service = newService(
+                """
+                {
+                  "diagnosisDecision": {
+                    "primaryIssueTag": "IO_FORMAT",
+                    "fineGrainedTag": "INPUT_PARSING",
+                    "evidenceRefs": ["problem:repeated_input_source_single_read"],
+                    "confidence": 0.92,
+                    "uncertainty": "输入读取次数与题面不一致。",
+                    "needsMoreEvidence": false,
+                    "answerLeakRisk": "LOW"
+                  },
+                  "teachingHint": {
+                    "studentHint": "请把题面输入行和代码读取次数逐行对齐，先找第一处不一致。",
+                    "studentHintPlan": {
+                      "hintLevel": "L2",
+                      "problemType": "输入读取",
+                      "evidenceAnchor": "problem:repeated_input_source_single_read",
+                      "nextAction": "对比题面中的 q 次查询和代码里的读取次数。",
+                      "coachQuestion": "从哪一行开始，题面要求的输入和代码读取次数不一致？",
+                      "teachingAction": "COMPARE_INPUT_SPEC",
+                      "evidenceRefs": ["problem:repeated_input_source_single_read"],
+                      "answerLeakRisk": "LOW"
+                    },
+                    "learningInterventionPlan": {
+                      "interventionType": "IO_COMPARE",
+                      "goal": "核对输入结构。",
+                      "studentTask": "把每次读取和题面每一行输入对应起来。",
+                      "checkQuestion": "是否存在没有被读取的查询行？",
+                      "completionSignal": "学生能指出读取次数不一致。",
+                      "evidenceRefs": ["problem:repeated_input_source_single_read"],
+                      "estimatedMinutes": 5,
+                      "answerLeakRisk": "LOW"
+                    },
+                    "teacherNote": "提醒老师：不要直接告诉学生加 for _ in range(q)。",
+                    "answerLeakRisk": "HIGH"
+                  }
+                }
+                """
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                inputParsingProblem(),
+                inputParsingSubmission(),
+                inputParsingFallback(),
+                inputParsingEvidencePackage(),
+                inputParsingRuleSignals()
+        );
+
+        assertThat(analysis.getIssueTags()).containsExactly("IO_FORMAT");
+        assertThat(analysis.getFineGrainedTags()).containsExactly("INPUT_PARSING");
+        assertThat(analysis.getAnswerLeakRisk()).isEqualTo("LOW");
+        assertThat(analysis.getStudentHintPlan()).isNotNull();
+        assertThat(analysis.getStudentHintPlan().getTeachingAction()).isEqualTo("COMPARE_INPUT_SPEC");
+        assertThat(analysis.getStudentHintPlan().getNextAction()).contains("题面");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+    }
+
+    @Test
+    void singleCallRuntimeSendsCompactPromptContextWithoutDroppingCoreSignals() throws Exception {
+        CapturingAiReportService service = new CapturingAiReportService(
+                objectMapper,
+                runtime(),
+                """
+                {
+                  "diagnosisDecision": {
+                    "primaryIssueTag": "IO_FORMAT",
+                    "fineGrainedTag": "INPUT_PARSING",
+                    "evidenceRefs": ["problem:repeated_input_source_single_read"],
+                    "confidence": 0.92,
+                    "uncertainty": "输入读取次数与题面不一致。",
+                    "needsMoreEvidence": false,
+                    "answerLeakRisk": "LOW"
+                  },
+                  "teachingHint": {
+                    "studentHint": "请把题面输入行和代码读取次数逐行对齐。",
+                    "studentHintPlan": {
+                      "hintLevel": "L2",
+                      "problemType": "输入读取",
+                      "evidenceAnchor": "problem:repeated_input_source_single_read",
+                      "nextAction": "对比题面中的 q 次查询和代码里的读取次数。",
+                      "coachQuestion": "题目要求读几组查询？代码读了几组？",
+                      "teachingAction": "COMPARE_INPUT_SPEC",
+                      "evidenceRefs": ["problem:repeated_input_source_single_read"],
+                      "answerLeakRisk": "LOW"
+                    },
+                    "learningInterventionPlan": {
+                      "interventionType": "IO_COMPARE",
+                      "goal": "核对输入结构。",
+                      "studentTask": "列出题面每一行输入和代码每一次读取。",
+                      "checkQuestion": "是否存在没有被读取的查询行？",
+                      "completionSignal": "学生能指出读取次数不一致。",
+                      "evidenceRefs": ["problem:repeated_input_source_single_read"],
+                      "estimatedMinutes": 5,
+                      "answerLeakRisk": "LOW"
+                    },
+                    "teacherNote": "compact prompt ok",
+                    "answerLeakRisk": "LOW"
+                  }
+                }
+                """
+        );
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 900);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                inputParsingProblem(),
+                inputParsingSubmission(),
+                inputParsingFallback(),
+                inputParsingEvidencePackage(),
+                inputParsingRuleSignals()
+        );
+
+        JsonNode prompt = objectMapper.readTree(service.userPrompts().get(0));
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(service.userPrompts()).hasSize(1);
+        assertThat(prompt.at("/brief/keyCodeExcerpt").asText().length()).isLessThanOrEqualTo(2600);
+        assertThat(prompt.at("/brief/candidateSignals/0/evidenceRef").asText())
+                .isEqualTo("problem:repeated_input_source_single_read");
+        assertThat(prompt.at("/standardLibrary/issueTags/0/id").asText()).isEqualTo("IO_FORMAT");
+        assertThat(prompt.at("/standardLibrary/fineGrainedTags/0/id").asText()).isEqualTo("INPUT_PARSING");
+        assertThat(prompt.at("/standardLibrary/teachingActions").toString()).contains("COMPARE_INPUT_SPEC");
+        assertThat(service.userPrompts().get(0)).doesNotContain("studentExplanation", "teacherExplanation", "abilityPoint", "whenToUse");
     }
 
     @Test
@@ -306,7 +525,6 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
-        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -341,6 +559,7 @@ class AiReportServiceExternalRuntimeTest {
                 """,
                 "{}"
         );
+        useStagedRuntime(service);
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -400,7 +619,6 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
-        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -433,6 +651,7 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
+        useStagedRuntime(service);
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -498,6 +717,7 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
+        useStagedRuntime(service);
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -633,6 +853,8 @@ class AiReportServiceExternalRuntimeTest {
         ReflectionTestUtils.setField(service, "maxOutputTokens", 128);
         ReflectionTestUtils.setField(service, "streamEnabled", false);
         ReflectionTestUtils.setField(service, "streamFallbackEnabled", true);
+        ReflectionTestUtils.setField(service, "retryMaxAttempts", 1);
+        ReflectionTestUtils.setField(service, "retryBackoffMs", 0L);
 
         String content = service.chatCompletion("system", "user");
 
@@ -706,6 +928,8 @@ class AiReportServiceExternalRuntimeTest {
 
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
         assertThat(analysis.getUncertainty()).contains("INSUFFICIENT_QUOTA");
+        assertThat(analysis.getAiInvocation().getProvider()).isEqualTo("ModelScope");
+        assertThat(analysis.getAiInvocation().getModel()).isEqualTo("test-model");
         assertThat(service.callCount()).isEqualTo(1);
 
         String markdown = service.enhanceGrowthReportMarkdown(problem(), List.of(), "# 成长报告");
@@ -715,13 +939,43 @@ class AiReportServiceExternalRuntimeTest {
     }
 
     private StubAiReportService newService(String... responses) {
-        StubAiReportService service = new StubAiReportService(objectMapper, runtime(), responses);
+        StubAiReportService service = new StubAiReportService(objectMapper, runtime(), (Object[]) responses);
         ReflectionTestUtils.setField(service, "enabled", true);
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
         ReflectionTestUtils.setField(service, "model", "test-model");
         ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
         ReflectionTestUtils.setField(service, "maxOutputTokens", 900);
         return service;
+    }
+
+    private void useStagedRuntime(AiReportService service) {
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "staged");
+    }
+
+    private void enableSingleCallRouteFallback(AiReportService service) {
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "provider", "PrimaryProvider");
+        ReflectionTestUtils.setField(service, "apiKey", "primary-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://primary.example/v1");
+        ReflectionTestUtils.setField(service, "model", "primary-model");
+        ReflectionTestUtils.setField(service, "fallbackProvider", "FallbackProvider");
+        ReflectionTestUtils.setField(service, "fallbackApiKey", "fallback-key");
+        ReflectionTestUtils.setField(service, "fallbackBaseUrl", "https://fallback.example/v1");
+        ReflectionTestUtils.setField(service, "fallbackModel", "fallback-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+        ReflectionTestUtils.setField(service, "timeoutSeconds", 5L);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 900);
+        ReflectionTestUtils.setField(service, "streamEnabled", false);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", false);
+        ReflectionTestUtils.setField(service, "retryMaxAttempts", 1);
+        ReflectionTestUtils.setField(service, "retryBackoffMs", 0L);
+    }
+
+    private String successfulSingleCallResponse(String uncertainty) {
+        return """
+                {"choices":[{"message":{"content":"{\\"diagnosisDecision\\":{\\"primaryIssueTag\\":\\"LOOP_BOUNDARY\\",\\"fineGrainedTag\\":\\"OFF_BY_ONE\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"confidence\\":0.9,\\"uncertainty\\":\\"%s\\",\\"needsMoreEvidence\\":false,\\"answerLeakRisk\\":\\"LOW\\"},\\"teachingHint\\":{\\"studentHint\\":\\"先用 n=1 手推循环。\\",\\"studentHintPlan\\":{\\"hintLevel\\":\\"L2\\",\\"problemType\\":\\"循环边界\\",\\"evidenceAnchor\\":\\"code:range_excludes_n\\",\\"nextAction\\":\\"列出 range 产生的 i。\\",\\"coachQuestion\\":\\"n=1 时会执行几次？\\",\\"teachingAction\\":\\"TRACE_VARIABLES\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"answerLeakRisk\\":\\"LOW\\"},\\"learningInterventionPlan\\":{\\"interventionType\\":\\"VARIABLE_TRACE\\",\\"goal\\":\\"确认边界\\",\\"studentTask\\":\\"手推 n=1\\",\\"checkQuestion\\":\\"最后一次循环是什么？\\",\\"completionSignal\\":\\"写出 i 值表\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"estimatedMinutes\\":5,\\"answerLeakRisk\\":\\"LOW\\"},\\"teacherNote\\":\\"route ok\\",\\"answerLeakRisk\\":\\"LOW\\"}}"}}]}
+                """.formatted(uncertainty);
     }
 
     private ExternalModelAgentRuntime runtime() {
@@ -760,6 +1014,56 @@ class AiReportServiceExternalRuntimeTest {
                 .build();
     }
 
+    private Problem inputParsingProblem() {
+        return Problem.builder()
+                .id(2L)
+                .title("区间和查询")
+                .description("""
+                        第一行输入两个整数 n 和 q。
+                        第二行输入 n 个整数。
+                        接下来 q 行，每行输入 l 和 r，输出区间 [l, r] 的元素和。
+                        """)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build();
+    }
+
+    private Submission inputParsingSubmission() {
+        return Submission.builder()
+                .id(12L)
+                .problemId(2L)
+                .languageName("Python 3")
+                .verdict(Submission.Verdict.WRONG_ANSWER)
+                .sourceCode("""
+                        import sys
+
+                        def read_ints():
+                            return list(map(int, sys.stdin.readline().split()))
+
+                        def build_prefix(values):
+                            prefix = [0]
+                            total = 0
+                            for value in values:
+                                total += value
+                                prefix.append(total)
+                            return prefix
+
+                        def query_sum(prefix, left, right):
+                            left = max(left, 1)
+                            right = min(right, len(prefix) - 1)
+                            if left > right:
+                                return 0
+                            return prefix[right] - prefix[left - 1]
+
+                        n, q = read_ints()
+                        numbers = read_ints()
+                        prefix = build_prefix(numbers)
+                        l, r = read_ints()
+                        print(query_sum(prefix, l, r))
+                        """)
+                .build();
+    }
+
     private DiagnosisEvidencePackage evidencePackage() {
         return DiagnosisEvidencePackage.builder()
                 .schemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
@@ -787,6 +1091,59 @@ class AiReportServiceExternalRuntimeTest {
                 .build();
     }
 
+    private DiagnosisEvidencePackage inputParsingEvidencePackage() {
+        return DiagnosisEvidencePackage.builder()
+                .schemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
+                .problem(DiagnosisEvidencePackage.ProblemEvidence.builder()
+                        .title("区间和查询")
+                        .description("""
+                                第一行输入两个整数 n 和 q。
+                                第二行输入 n 个整数。
+                                接下来 q 行，每行输入 l 和 r，输出区间 [l, r] 的元素和。
+                                """)
+                        .build())
+                .submission(DiagnosisEvidencePackage.SubmissionEvidence.builder()
+                        .id(12L)
+                        .language("Python 3")
+                        .verdict("WRONG_ANSWER")
+                        .sourceCode(inputParsingSubmission().getSourceCode())
+                        .sourceCodeWithLineNumbers("""
+                                1: import sys
+                                2:
+                                3: def read_ints():
+                                4:     return list(map(int, sys.stdin.readline().split()))
+                                5:
+                                6: def build_prefix(values):
+                                7:     prefix = [0]
+                                8:     total = 0
+                                9:     for value in values:
+                                10:         total += value
+                                11:         prefix.append(total)
+                                12:     return prefix
+                                13:
+                                14: def query_sum(prefix, left, right):
+                                15:     left = max(left, 1)
+                                16:     right = min(right, len(prefix) - 1)
+                                17:     if left > right:
+                                18:         return 0
+                                19:     return prefix[right] - prefix[left - 1]
+                                20:
+                                21: n, q = read_ints()
+                                22: numbers = read_ints()
+                                23: prefix = build_prefix(numbers)
+                                24: l, r = read_ints()
+                                25: print(query_sum(prefix, l, r))
+                                """)
+                        .sourceCodeLineCount(25)
+                        .build())
+                .judgeFacts(DiagnosisEvidencePackage.JudgeFacts.builder()
+                        .hiddenFailureObserved(true)
+                        .totalCount(8)
+                        .passedCount(2)
+                        .build())
+                .build();
+    }
+
     private RuleSignalAnalyzer.RuleSignalResult ruleSignals() {
         return RuleSignalAnalyzer.RuleSignalResult.builder()
                 .candidateIssueTags(List.of("LOOP_BOUNDARY"))
@@ -798,6 +1155,21 @@ class AiReportServiceExternalRuntimeTest {
                         .fineTag("OFF_BY_ONE")
                         .confidence(0.9)
                         .message("range(1, n) excludes n")
+                        .build()))
+                .build();
+    }
+
+    private RuleSignalAnalyzer.RuleSignalResult inputParsingRuleSignals() {
+        return RuleSignalAnalyzer.RuleSignalResult.builder()
+                .candidateIssueTags(List.of("IO_FORMAT"))
+                .candidateFineGrainedTags(List.of("INPUT_PARSING"))
+                .evidenceRefs(List.of("problem:repeated_input_source_single_read"))
+                .signals(List.of(RuleSignalAnalyzer.Signal.builder()
+                        .evidenceRef("problem:repeated_input_source_single_read")
+                        .coarseTag("IO_FORMAT")
+                        .fineTag("INPUT_PARSING")
+                        .confidence(0.92)
+                        .message("problem requires q repeated query inputs but code reads only one query pair")
                         .build()))
                 .build();
     }
@@ -852,6 +1224,49 @@ class AiReportServiceExternalRuntimeTest {
                         .error("循环未覆盖 n")
                         .suggestion("核对 range 的右边界")
                         .build()))
+                .build();
+    }
+
+    private SubmissionAnalysisResponse inputParsingFallback() {
+        return SubmissionAnalysisResponse.builder()
+                .submissionId(12L)
+                .analysisSchemaVersion("diagnosis-v1")
+                .evidenceSchemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
+                .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
+                .sourceType("RULE_BASED_V1")
+                .scenario("WA")
+                .headline("规则层初步诊断")
+                .summary("规则层认为题面要求 q 次查询，但代码只读取了一组查询。")
+                .issueTags(List.of("IO_FORMAT"))
+                .fineGrainedTags(List.of("INPUT_PARSING"))
+                .abilityPoints(List.of("输入读取"))
+                .focusPoints(List.of("题面输入结构", "读取次数"))
+                .fixDirections(List.of("逐行对齐题面输入和代码读取"))
+                .evidenceRefs(List.of("problem:repeated_input_source_single_read"))
+                .studentHint("先把题面输入行和代码读取次数逐行对齐。")
+                .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
+                        .hintLevel("L2")
+                        .problemType("输入读取")
+                        .evidenceAnchor("problem:repeated_input_source_single_read")
+                        .nextAction("对比 q 次查询和代码实际读取的查询次数。")
+                        .coachQuestion("题面说接下来有几行查询？代码读了几行？")
+                        .teachingAction("COMPARE_INPUT_SPEC")
+                        .evidenceRefs(List.of("problem:repeated_input_source_single_read"))
+                        .answerLeakRisk("LOW")
+                        .build())
+                .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                        .interventionType("IO_COMPARE")
+                        .goal("核对输入结构。")
+                        .studentTask("列出题面每一行输入和代码每一次读取。")
+                        .checkQuestion("是否存在没有被读取的查询行？")
+                        .completionSignal("学生能指出读取次数不一致。")
+                        .evidenceRefs(List.of("problem:repeated_input_source_single_read"))
+                        .estimatedMinutes(5)
+                        .answerLeakRisk("LOW")
+                        .build())
+                .confidence(0.74)
+                .uncertainty("规则层初步判断。")
+                .answerLeakRisk("LOW")
                 .build();
     }
 
@@ -925,6 +1340,26 @@ class AiReportServiceExternalRuntimeTest {
         }
     }
 
+    private static class CapturingAiReportService extends StubAiReportService {
+        private final List<String> userPrompts = new java.util.ArrayList<>();
+
+        CapturingAiReportService(ObjectMapper objectMapper,
+                                 ExternalModelAgentRuntime runtime,
+                                 Object... responses) {
+            super(objectMapper, runtime, responses);
+        }
+
+        @Override
+        protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException {
+            userPrompts.add(userPrompt);
+            return super.chatCompletion(systemPrompt, userPrompt);
+        }
+
+        List<String> userPrompts() {
+            return userPrompts;
+        }
+    }
+
     private static class StreamingFallbackAiReportService extends AiReportService {
         private final List<Boolean> streamFlags = new java.util.ArrayList<>();
 
@@ -956,16 +1391,29 @@ class AiReportServiceExternalRuntimeTest {
 
     private static class RetryingAiReportService extends AiReportService {
         private final Queue<Object> responses = new ArrayDeque<>();
+        private final ObjectMapper objectMapper;
+        private final List<String> models = new java.util.ArrayList<>();
         private int callCount;
 
         RetryingAiReportService(ObjectMapper objectMapper, Object... responses) {
             super(objectMapper, new AiCodeAssistSupport());
+            this.objectMapper = objectMapper;
+            this.responses.addAll(List.of(responses));
+        }
+
+        RetryingAiReportService(ObjectMapper objectMapper,
+                                ExternalModelAgentRuntime runtime,
+                                ExternalModelBudgetGuard budgetGuard,
+                                Object... responses) {
+            super(objectMapper, new AiCodeAssistSupport(), runtime, new ExternalModelFailureClassifier(), budgetGuard);
+            this.objectMapper = objectMapper;
             this.responses.addAll(List.of(responses));
         }
 
         @Override
         protected String sendChatCompletionRequest(String requestBody, boolean stream) throws IOException {
             callCount++;
+            models.add(objectMapper.readTree(requestBody).path("model").asText());
             Object response = responses.poll();
             if (response instanceof IOException exception) {
                 throw exception;
@@ -978,6 +1426,10 @@ class AiReportServiceExternalRuntimeTest {
 
         int callCount() {
             return callCount;
+        }
+
+        List<String> models() {
+            return models;
         }
     }
 

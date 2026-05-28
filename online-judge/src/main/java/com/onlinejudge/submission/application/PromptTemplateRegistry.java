@@ -85,13 +85,15 @@ public class PromptTemplateRegistry {
                 7. Prefer the highest-confidence candidateSignals that directly explain firstFailedCase or concrete problem/source evidence.
                 8. Do not choose NEEDS_MORE_EVIDENCE merely because hidden data is unavailable when visible evidence supports a narrower tag.
                 9. learningMemorySummary and memory:* candidateSignals are auxiliary only. They can adapt teaching focus or teacher attention, but they must not override current compile/runtime/judge/source evidence.
-                10. Do not choose a tag solely because it appears in long-term memory; cite current evidence when using a memory-supported tag.
-                11. For medium-length code, ignore helper-method distractions and diagnose the behavior that changes output or verdict.
-                12. If evidence is insufficient or candidate signals conflict without a stronger concrete signal, choose NEEDS_MORE_EVIDENCE.
-                13. Keep uncertainty concise and evidence-grounded.
-                14. answerLeakRisk MUST be HIGH only if the response exposes a full solution, complete code, hidden data, replacement loop header, transition formula, or executable control structure; otherwise use LOW or MEDIUM.
-                15. Do not include replacement loop headers, transition formulas, or executable control structures.
-                16. If brief.learningTrajectorySummary includes previousIntervention/actionStatus, use it only as learning-process evidence: OBSERVED means review or transfer can be appropriate; PARTIALLY_OBSERVED means keep direction but shrink the next observable task; CONTRADICTED means lower hint granularity or suggest teacher attention; NOT_OBSERVED means do not assume the student executed the action.
+                10. Read brief.memoryCalibration before using memory: ALIGNED can personalize teaching, CONFLICTING means current evidence wins, and TEACHING_ONLY cannot support the primary diagnosis.
+                11. Do not choose a tag solely because it appears in long-term memory or memoryCalibration.memoryOnlyTags; cite current evidence when using a memory-supported tag.
+                12. If memoryCalibration.conflictingMemoryTags contains the memory tag, choose the current-evidence tag or NEEDS_MORE_EVIDENCE unless current candidateSignals independently support the memory tag.
+                13. For medium-length code, ignore helper-method distractions and diagnose the behavior that changes output or verdict.
+                14. If evidence is insufficient or candidate signals conflict without a stronger concrete signal, choose NEEDS_MORE_EVIDENCE.
+                15. Keep uncertainty concise and evidence-grounded.
+                16. answerLeakRisk MUST be HIGH only if the response exposes a full solution, complete code, hidden data, replacement loop header, transition formula, or executable control structure; otherwise use LOW or MEDIUM.
+                17. Do not include replacement loop headers, transition formulas, or executable control structures.
+                18. If brief.learningTrajectorySummary includes previousIntervention/actionStatus, use it only as learning-process evidence: OBSERVED means review or transfer can be appropriate; PARTIALLY_OBSERVED means keep direction but shrink the next observable task; CONTRADICTED means lower hint granularity or suggest teacher attention; NOT_OBSERVED means do not assume the student executed the action.
                 """;
     }
 
@@ -157,22 +159,24 @@ public class PromptTemplateRegistry {
                 7. Prefer the highest-confidence candidateSignals that directly explain firstFailedCase or concrete problem/source evidence.
                 8. Do not choose NEEDS_MORE_EVIDENCE merely because hidden data is unavailable when visible evidence supports a narrower tag.
                 9. learningMemorySummary and memory:* candidateSignals are auxiliary only. They can adapt teaching focus or teacher attention, but they must not override current compile/runtime/judge/source evidence.
-                10. Do not choose a tag solely because it appears in long-term memory; cite current evidence when using a memory-supported tag.
-                11. For medium-length code, ignore helper-method distractions and diagnose the behavior that changes output or verdict.
-                12. teachingHint.studentHintPlan.teachingAction MUST come from standardLibrary.teachingActions.
-                13. Keep studentHint at scaffold level: one small, verifiable next action, not the final fix.
-                14. studentHintPlan.evidenceAnchor MUST name the concrete evidence used for the diagnosis.
-                15. If learningMemorySummary shows repeated stuck behavior or ineffective previous intervention, make the student task smaller or change the teaching action rather than repeating a generic hint.
-                16. If brief.learningTrajectorySummary includes previousIntervention/actionStatus, adapt teachingHint to that status: OBSERVED -> review/generalize; PARTIALLY_OBSERVED -> preserve direction and make the task more checkable; CONTRADICTED -> ask for a smaller observable artifact and consider teacher attention; NOT_OBSERVED -> ask for observable evidence rather than judging execution.
-                17. If evidence is insufficient or candidate signals conflict without a stronger concrete signal, choose NEEDS_MORE_EVIDENCE and ask for evidence.
-                18. answerLeakRisk MUST be HIGH only if any part exposes a full solution, complete code, hidden data, replacement loop header, transition formula, or executable control structure; otherwise use LOW or MEDIUM.
-                19. Do not include replacement loop headers, transition formulas, or executable control structures.
-                20. For input-format issues, ask the student to compare required input lines with actual read operations instead of naming the exact loop to add.
-                21. If actual and expected output differ only by whitespace or casing, prioritize OUTPUT_FORMAT_DETAIL and ask for character-level comparison before algorithm changes.
-                22. For large-bound TLE or over-simulation evidence, ask the student to estimate operation count at the maximum input; do not name the replacement algorithm, data structure, formula, sqrt bound, or math trick.
-                23. For hidden failures after public samples pass, do not guess hidden data; ask the student to construct a small counterexample that differs from the sample structure.
-                24. For in-place state progress, ask the student to trace the current position after one mutation and check the invariant; do not provide a replacement while loop.
-                25. For empty or minimum input evidence, ask the student to trace values through the existing functions on the minimum case; do not provide the guard condition.
+                10. Read brief.memoryCalibration before using memory: ALIGNED can personalize teaching, CONFLICTING means current evidence wins, and TEACHING_ONLY cannot support the primary diagnosis.
+                11. Do not choose a tag solely because it appears in long-term memory or memoryCalibration.memoryOnlyTags; cite current evidence when using a memory-supported tag.
+                12. If memoryCalibration.conflictingMemoryTags contains the memory tag, choose the current-evidence tag or NEEDS_MORE_EVIDENCE unless current candidateSignals independently support the memory tag.
+                13. For medium-length code, ignore helper-method distractions and diagnose the behavior that changes output or verdict.
+                14. teachingHint.studentHintPlan.teachingAction MUST come from standardLibrary.teachingActions.
+                15. Keep studentHint at scaffold level: one small, verifiable next action, not the final fix.
+                16. studentHintPlan.evidenceAnchor MUST name the concrete evidence used for the diagnosis.
+                17. If learningMemorySummary or memoryCalibration shows repeated stuck behavior or ineffective previous intervention, make the student task smaller or change the teaching action rather than repeating a generic hint.
+                18. If brief.learningTrajectorySummary includes previousIntervention/actionStatus, adapt teachingHint to that status: OBSERVED -> review/generalize; PARTIALLY_OBSERVED -> preserve direction and make the task more checkable; CONTRADICTED -> ask for a smaller observable artifact and consider teacher attention; NOT_OBSERVED -> ask for observable evidence rather than judging execution.
+                19. If evidence is insufficient or candidate signals conflict without a stronger concrete signal, choose NEEDS_MORE_EVIDENCE and ask for evidence.
+                20. answerLeakRisk MUST be HIGH only if any part exposes a full solution, complete code, hidden data, replacement loop header, transition formula, or executable control structure; otherwise use LOW or MEDIUM.
+                21. Do not include replacement loop headers, transition formulas, or executable control structures.
+                22. For input-format issues, ask the student to compare required input lines with actual read operations instead of naming the exact loop to add.
+                23. If actual and expected output differ only by whitespace or casing, prioritize OUTPUT_FORMAT_DETAIL and ask for character-level comparison before algorithm changes.
+                24. For large-bound TLE or over-simulation evidence, ask the student to estimate operation count at the maximum input; do not name the replacement algorithm, data structure, formula, sqrt bound, or math trick.
+                25. For hidden failures after public samples pass, do not guess hidden data; ask the student to construct a small counterexample that differs from the sample structure.
+                26. For in-place state progress, ask the student to trace the current position after one mutation and check the invariant; do not provide a replacement while loop.
+                27. For empty or minimum input evidence, ask the student to trace values through the existing functions on the minimum case; do not provide the guard condition.
                 """;
     }
 
@@ -225,7 +229,7 @@ public class PromptTemplateRegistry {
                 4. Keep studentHint at scaffold level: point to the thinking path, not the final fix.
                 5. studentHintPlan.evidenceAnchor MUST name one concrete source, state, input-output, or counterexample anchor.
                 6. teacherNote should state what a teacher can act on or watch next.
-                7. Use learningMemorySummary only to adapt scaffolding: repeated stuck means smaller task; ineffective prior action means change the teaching move; it must not change the validated diagnosis.
+                7. Use learningMemorySummary and brief.memoryCalibration only to adapt scaffolding: repeated stuck means smaller task; ineffective prior action means change the teaching move; CONFLICTING means teacher attention, not a changed diagnosis.
                 8. Use previousIntervention/actionStatus from brief.learningTrajectorySummary as learning-process evidence only. Never claim the student completed an action unless actionStatus is OBSERVED or PARTIALLY_OBSERVED.
                 9. answerLeakRisk MUST be HIGH only if the response exposes a full solution, complete code, hidden data, replacement loop header, transition formula, or executable control structure; otherwise use LOW or MEDIUM.
                 10. Do not include replacement loop headers, transition formulas, or executable control structures.

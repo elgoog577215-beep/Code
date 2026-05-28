@@ -90,6 +90,9 @@ class DiagnosticAgentServiceLearningMemoryTest {
                 .doesNotContain("输入格式");
         assertThat(result.analysis().getLearningInterventionPlan().getEvidenceRefs())
                 .contains("memory:student:9", "judge:compile_output");
+        assertThat(result.traceSummary())
+                .contains("memoryCalibration=CONFLICTING")
+                .contains("teacherReview=true");
     }
 
     private static class PassThroughAiReportService extends AiReportService {

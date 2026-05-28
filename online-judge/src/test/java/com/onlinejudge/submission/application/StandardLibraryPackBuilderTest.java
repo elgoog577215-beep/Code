@@ -35,8 +35,12 @@ class StandardLibraryPackBuilderTest {
                 .anySatisfy(rule -> assertThat(rule).contains("most evidence-supported diagnosis"));
         assertThat(pack.getDecisionProtocol().getEvidencePriorityRules())
                 .anySatisfy(rule -> assertThat(rule).contains("Visible failed case"));
+        assertThat(pack.getDecisionProtocol().getEvidencePriorityRules())
+                .anySatisfy(rule -> assertThat(rule).contains("memoryCalibration"));
         assertThat(pack.getDecisionProtocol().getTagSelectionRules())
                 .anySatisfy(rule -> assertThat(rule).contains("NEEDS_MORE_EVIDENCE"));
+        assertThat(pack.getDecisionProtocol().getTagSelectionRules())
+                .anySatisfy(rule -> assertThat(rule).contains("memory:*"));
         assertThat(pack.getDecisionProtocol().getConflictRules())
                 .anySatisfy(rule -> assertThat(rule).contains("candidate signals conflict"));
         assertThat(pack.getDecisionProtocol().getTeachingActionRules())

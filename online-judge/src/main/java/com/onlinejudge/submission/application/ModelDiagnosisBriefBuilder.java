@@ -15,6 +15,16 @@ public class ModelDiagnosisBriefBuilder {
     private static final int MAX_CODE_EXCERPT_LENGTH = 4000;
     private static final int MAX_CASE_FACTS = 5;
 
+    private final MemoryEvidencePolicy memoryEvidencePolicy;
+
+    public ModelDiagnosisBriefBuilder() {
+        this(new MemoryEvidencePolicy());
+    }
+
+    public ModelDiagnosisBriefBuilder(MemoryEvidencePolicy memoryEvidencePolicy) {
+        this.memoryEvidencePolicy = memoryEvidencePolicy == null ? new MemoryEvidencePolicy() : memoryEvidencePolicy;
+    }
+
     public ModelDiagnosisBrief build(DiagnosisEvidencePackage evidencePackage,
                                      RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                      SubmissionAnalysisResponse baseline) {
@@ -25,6 +35,10 @@ public class ModelDiagnosisBriefBuilder {
         List<ModelDiagnosisBrief.CandidateSignal> candidateSignals = new ArrayList<>(toCandidateSignals(ruleSignals));
         candidateSignals.addAll(toMemoryCandidateSignals(evidencePackage));
         List<String> evidenceRefs = collectEvidenceRefs(ruleSignals, candidateSignals, judgeFacts, evidencePackage, baseline);
+        ModelDiagnosisBrief.MemoryCalibration memoryCalibration = memoryEvidencePolicy.calibrate(
+                evidencePackage == null ? null : evidencePackage.getLearningMemory(),
+                candidateSignals
+        );
 
         return ModelDiagnosisBrief.builder()
                 .schemaVersion(ModelDiagnosisBrief.SCHEMA_VERSION)
@@ -42,6 +56,7 @@ public class ModelDiagnosisBriefBuilder {
                 .allowedFineGrainedTags(allowedFineTags(ruleSignals, evidencePackage, baseline))
                 .learningTrajectorySummary(learningTrajectorySummary(evidencePackage, baseline))
                 .learningMemorySummary(learningMemorySummary(evidencePackage))
+                .memoryCalibration(memoryCalibration)
                 .hiddenDataBoundary(hiddenDataBoundary(judgeFacts))
                 .uncertainty(uncertainty(judgeFacts, ruleSignals))
                 .build();

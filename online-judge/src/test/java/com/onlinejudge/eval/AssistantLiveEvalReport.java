@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -14,6 +15,11 @@ import java.util.List;
 public class AssistantLiveEvalReport {
 
     private String model;
+    private String runtimeMode;
+    private SampleProfile sampleProfile;
+    private RouteProfile routeProfile;
+    private List<RouteOutcome> routeOutcomes;
+    private Map<String, Integer> failureReasonCounts;
     private Integer totalCount;
     private Integer completedCount;
     private Integer runtimeFailureCount;
@@ -21,7 +27,83 @@ public class AssistantLiveEvalReport {
     private Integer safetyFailureCount;
     private Integer expectedSignalHitCount;
     private Integer evidenceValidCount;
+    private GoalSnapshot goalSnapshot;
     private List<Entry> entries;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GoalSnapshot {
+        private String phase;
+        private Double externalCompletionRate;
+        private Double runtimeFailureRate;
+        private Double signalHitRate;
+        private Double evidenceValidRate;
+        private Double safetyPassRate;
+        private Double teachingActionValidRate;
+        private Double targetExternalCompletionRate;
+        private Double targetSignalHitRate;
+        private Double targetEvidenceValidRate;
+        private Double targetSafetyPassRate;
+        private Double targetTeachingActionValidRate;
+        private Double maxRuntimeFailureRate;
+        private Integer evaluatedCaseCount;
+        private Integer longCodeDiagnosisCaseCount;
+        private Integer targetLongCodeDiagnosisCaseCount;
+        private List<String> goalGaps;
+        private List<String> coverageGaps;
+        private String nextOptimizationFocus;
+        private String nextAction;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SampleProfile {
+        private Integer totalCount;
+        private Integer diagnosisCount;
+        private Integer longCodeDiagnosisCount;
+        private Integer coachCount;
+        private Integer growthReportCount;
+        private List<String> assistantTypes;
+        private List<String> caseIds;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RouteProfile {
+        private String primaryProvider;
+        private String primaryBaseUrl;
+        private String primaryModel;
+        private Boolean fallbackConfigured;
+        private String fallbackProvider;
+        private String fallbackBaseUrl;
+        private String fallbackModel;
+        private Boolean routePoolConfigured;
+        private Integer routePoolCount;
+        private List<String> routePoolProviders;
+        private List<String> routePoolModels;
+        private Integer configuredRouteCount;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RouteOutcome {
+        private String routeKey;
+        private String routeRole;
+        private String provider;
+        private String model;
+        private Integer totalCount;
+        private Integer completedCount;
+        private Integer runtimeFailureCount;
+        private Map<String, Integer> failureReasonCounts;
+    }
 
     @Data
     @Builder
@@ -31,6 +113,9 @@ public class AssistantLiveEvalReport {
         private String caseId;
         private String assistantType;
         private String model;
+        private String actualProvider;
+        private String actualModel;
+        private String routeRole;
         private String promptVersion;
         private Long latencyMs;
         private String status;

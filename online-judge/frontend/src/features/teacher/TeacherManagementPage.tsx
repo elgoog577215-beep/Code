@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, CheckCircle2, Database, RefreshCw, ServerCog, UploadCloud, UsersRound } from "lucide-react";
+import { BookOpen, CheckCircle2, Database, RefreshCw, Route, ServerCog, UploadCloud, UsersRound } from "lucide-react";
 import { ButtonLink } from "../../shared/ui/Button";
 import { api } from "../../shared/api/client";
-import type { ClassGroup, ExecutorStatus, ImportCommit, ImportPreview, ProblemCatalogItem, StudentIdentityAudit } from "../../shared/api/types";
+import type {
+  AiRouteHealth,
+  AiRouteHealthLevel,
+  ClassGroup,
+  ExecutorStatus,
+  ImportCommit,
+  ImportPreview,
+  ProblemCatalogItem,
+  StudentIdentityAudit
+} from "../../shared/api/types";
 import { displayText } from "../../shared/format";
 import { Button } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -18,6 +27,7 @@ export default function TeacherManagementPage() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
   const [executor, setExecutor] = useState<ExecutorStatus | null>(null);
+  const [aiRouteHealth, setAiRouteHealth] = useState<AiRouteHealth | null>(null);
   const [classForm, setClassForm] = useState({ name: "", grade: "", teacherName: "" });
   const [targetClassGroupId, setTargetClassGroupId] = useState("");
   const [classImport, setClassImport] = useState({ format: "csv", content: "" });
@@ -31,6 +41,7 @@ export default function TeacherManagementPage() {
   const [busy, setBusy] = useState(true);
   const [dataReady, setDataReady] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [aiRouteHealthFailed, setAiRouteHealthFailed] = useState(false);
 
   useEffect(() => {
     void loadData();
@@ -49,7 +60,21 @@ export default function TeacherManagementPage() {
 
   const classCountText = loadFailed ? "读取失败" : dataReady ? `${cleanClasses.length} 个班级` : "读取中";
   const problemCountText = loadFailed ? "读取失败" : dataReady ? `${problems.length} 个题目` : "读取中";
-  const systemStateText = loadFailed ? "读取失败" : !dataReady ? "读取中" : executor?.cppAvailable ? "评测可用" : "需要检查";
+  const aiRouteHealthTone = statusToneForAiRoute(aiRouteHealth?.healthLevel);
+  const aiRouteStateText = loadFailed
+    ? "读取失败"
+    : !dataReady
+      ? "读取中"
+      : aiRouteHealth
+        ? aiRouteHealthLabel(aiRouteHealth.healthLevel)
+        : "未检测";
+  const systemStateText = loadFailed
+    ? "读取失败"
+    : !dataReady
+      ? "读取中"
+      : aiRouteHealthTone === "success" && executor?.cppAvailable
+        ? "系统就绪"
+        : "需要检查";
 
   const sections = [
     {
@@ -75,15 +100,19 @@ export default function TeacherManagementPage() {
   async function loadData() {
     setBusy(true);
     setLoadFailed(false);
+    setAiRouteHealthFailed(false);
     try {
-      const [classResult, problemResult, executorResult] = await Promise.all([
+      const [classResult, problemResult, executorResult, aiRouteHealthResult] = await Promise.all([
         api.classes(),
         api.problemCatalog(),
-        api.executorStatus()
+        api.executorStatus(),
+        api.aiRouteHealth().catch(() => null)
       ]);
       setClasses(classResult);
       setProblems(problemResult);
       setExecutor(executorResult);
+      setAiRouteHealth(aiRouteHealthResult);
+      setAiRouteHealthFailed(!aiRouteHealthResult);
       if (!targetClassGroupId && classResult[0]) {
         setTargetClassGroupId(String(classResult[0].id));
       }
@@ -445,18 +474,63 @@ export default function TeacherManagementPage() {
           )}
 
           {activeSection === "system" && (
-            <section className="management-task-card management-task-card--large">
+            <section className="management-system-stack">
               {!executor ? (
-                <EmptyState title="正在检测执行环境" />
+                <div className="management-task-card management-task-card--large">
+                  <EmptyState title="正在检测执行环境" />
+                </div>
               ) : (
-                <div className="management-status-grid">
-                  <StatusItem label="模式" value={executor.mode} />
-                  <StatusItem label="Docker" value={executor.dockerAvailable ? "可用" : "未配置"} ready={executor.dockerAvailable} />
-                  <StatusItem label="Python" value={executor.pythonAvailable ? "可用" : "未就绪"} ready={executor.pythonAvailable} />
-                  <StatusItem label="C++" value={executor.cppAvailable ? "可用" : "未就绪"} ready={executor.cppAvailable} />
-                  <StatusPill tone={executor.cppAvailable ? "success" : "warning"}>{executor.message}</StatusPill>
+                <div className="management-task-card management-task-card--large">
+                  <div className="management-status-grid">
+                    <StatusItem label="模式" value={executor.mode} />
+                    <StatusItem label="Docker" value={executor.dockerAvailable ? "可用" : "未配置"} ready={executor.dockerAvailable} />
+                    <StatusItem label="Python" value={executor.pythonAvailable ? "可用" : "未就绪"} ready={executor.pythonAvailable} />
+                    <StatusItem label="C++" value={executor.cppAvailable ? "可用" : "未就绪"} ready={executor.cppAvailable} />
+                    <StatusPill tone={executor.cppAvailable ? "success" : "warning"}>{executor.message}</StatusPill>
+                  </div>
                 </div>
               )}
+              <div className="management-task-card management-task-card--large">
+                {!aiRouteHealth ? (
+                  <EmptyState
+                    title={aiRouteHealthFailed ? "AI 路由未检测" : "正在检测 AI 路由"}
+                    description={aiRouteHealthFailed ? "路由健康接口暂时不可用；班级、题目和评测环境数据不受影响。" : undefined}
+                  />
+                ) : (
+                  <div className="management-ai-route">
+                    <div className="management-ai-route__head">
+                      <div>
+                        <h2>外部 AI 路由</h2>
+                        <p>{aiRouteHealth.summary || "当前没有路由摘要。"}</p>
+                      </div>
+                      <StatusPill tone={aiRouteHealthTone}>{aiRouteStateText}</StatusPill>
+                    </div>
+                    <div className="management-status-grid">
+                      <StatusItem label="可用路由" value={String(aiRouteHealth.usableRouteCount)} ready={aiRouteHealth.usableRouteCount > 1} icon="route" />
+                      <StatusItem label="备用路由" value={aiRouteHealth.fallbackConfigured ? "已配置" : "未配置"} ready={aiRouteHealth.fallbackConfigured} />
+                      <StatusItem label="路由池" value={aiRouteHealth.routePoolConfigured ? "已配置" : "未配置"} ready={aiRouteHealth.routePoolConfigured} />
+                      <StatusItem label="AI 开关" value={aiRouteHealth.enabled ? "已启用" : "未启用"} ready={aiRouteHealth.enabled} />
+                    </div>
+                    {!!aiRouteHealth.suggestions?.length && (
+                      <ul className="management-ai-route__suggestions">
+                        {aiRouteHealth.suggestions.slice(0, 3).map(item => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="management-ai-route__routes">
+                      {aiRouteHealth.routes.map((route, index) => (
+                        <div key={`${route.role}-${route.provider || index}`}>
+                          <span>{routeRoleLabel(route.role)}</span>
+                          <strong>{displayText(route.provider, "未命名路由")}</strong>
+                          <small>{displayText(route.model, route.configured ? "模型未标注" : missingFieldsText(route.missingFields))}</small>
+                          <StatusPill tone={route.configured ? "success" : "warning"}>{route.configured ? "可用" : "缺配置"}</StatusPill>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </section>
           )}
         </main>
@@ -493,14 +567,59 @@ function FilePicker({
   );
 }
 
-function StatusItem({ label, value, ready = true }: { label: string; value: string; ready?: boolean }) {
+function StatusItem({ label, value, ready = true, icon = "status" }: { label: string; value: string; ready?: boolean; icon?: "status" | "route" }) {
   return (
     <div className="management-status-item">
-      {ready ? <CheckCircle2 size={18} /> : <Database size={18} />}
+      {icon === "route" ? <Route size={18} /> : ready ? <CheckCircle2 size={18} /> : <Database size={18} />}
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
   );
+}
+
+function statusToneForAiRoute(level?: AiRouteHealthLevel | null) {
+  if (level === "MULTI_ROUTE_READY") {
+    return "success";
+  }
+  if (level === "SINGLE_ROUTE_RISK") {
+    return "warning";
+  }
+  if (level === "NO_ROUTE" || level === "DISABLED") {
+    return "danger";
+  }
+  return "neutral";
+}
+
+function aiRouteHealthLabel(level?: AiRouteHealthLevel | null) {
+  switch (level) {
+    case "MULTI_ROUTE_READY":
+      return "多路由就绪";
+    case "SINGLE_ROUTE_RISK":
+      return "单路由风险";
+    case "NO_ROUTE":
+      return "无可用路由";
+    case "DISABLED":
+      return "AI 未启用";
+    default:
+      return "未检测";
+  }
+}
+
+function routeRoleLabel(role?: string | null) {
+  switch (role) {
+    case "PRIMARY":
+      return "主路由";
+    case "FALLBACK":
+      return "备用";
+    case "ROUTE_POOL":
+      return "路由池";
+    default:
+      return displayText(role, "路由");
+  }
+}
+
+function missingFieldsText(fields?: string[]) {
+  return fields?.length ? `缺少 ${fields.join(", ")}` : "缺少配置";
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {

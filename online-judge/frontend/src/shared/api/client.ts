@@ -1,6 +1,7 @@
 import type {
   Assignment,
   AssignmentOverview,
+  AiRouteHealth,
   AiQualityOverview,
   AiQualityTrend,
   ClassGroup,
@@ -210,5 +211,6 @@ export const api = {
     request<ImportCommit>("/api/teacher/problems/import-commit", { method: "POST", body: jsonBody(payload) }),
 
   executorStatus: () => request<ExecutorStatus>("/api/system/executor-status"),
+  aiRouteHealth: () => request<AiRouteHealth>("/api/system/ai-route-health"),
   classOverview: () => request<LeaderboardEntry[]>("/api/leaderboard/problems")
 };

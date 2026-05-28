@@ -73,6 +73,74 @@ class ModelOutputValidatorTest {
     }
 
     @Test
+    void rejectsPrimaryDiagnosisSupportedOnlyByMemoryEvidence() {
+        Fixture fixture = memoryConflictFixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateDiagnosisJudgeOutput(
+                ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
+                        .primaryIssueTag("IO_FORMAT")
+                        .fineGrainedTag("INPUT_PARSING")
+                        .evidenceRefs(List.of("memory:recurring_issue:IO_FORMAT"))
+                        .confidence(0.82)
+                        .uncertainty("Student often has input parsing issues.")
+                        .needsMoreEvidence(false)
+                        .answerLeakRisk("LOW")
+                        .build(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_EVIDENCE_REF);
+        assertThat(result.getMessage()).contains("student memory evidence");
+    }
+
+    @Test
+    void acceptsMemoryEvidenceWhenCurrentEvidenceAlsoSupportsDiagnosis() {
+        Fixture fixture = memoryAlignedFixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateDiagnosisJudgeOutput(
+                ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
+                        .primaryIssueTag("LOOP_BOUNDARY")
+                        .fineGrainedTag("OFF_BY_ONE")
+                        .evidenceRefs(List.of("code:range_excludes_n", "memory:recurring_issue:LOOP_BOUNDARY"))
+                        .confidence(0.88)
+                        .uncertainty("Current loop evidence and memory are aligned.")
+                        .needsMoreEvidence(false)
+                        .answerLeakRisk("LOW")
+                        .build(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.NONE);
+    }
+
+    @Test
+    void rejectsTeachingOnlyMemoryTagEvenWhenGenericCurrentRefIsCited() {
+        Fixture fixture = memoryConflictFixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateDiagnosisJudgeOutput(
+                ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
+                        .primaryIssueTag("IO_FORMAT")
+                        .fineGrainedTag("INPUT_PARSING")
+                        .evidenceRefs(List.of("code:range_excludes_n", "memory:recurring_issue:IO_FORMAT"))
+                        .confidence(0.82)
+                        .uncertainty("Student often has input parsing issues.")
+                        .needsMoreEvidence(false)
+                        .answerLeakRisk("LOW")
+                        .build(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_EVIDENCE_REF);
+        assertThat(result.getMessage()).contains("without current evidence support");
+    }
+
+    @Test
     void rejectsUnsafeTeachingHintOutput() {
         Fixture fixture = fixture();
 
@@ -99,6 +167,36 @@ class ModelOutputValidatorTest {
 
         assertThat(result.isValid()).isFalse();
         assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
+    void acceptsSafeVisibleTeachingHintEvenWhenTopLevelRiskIsHigh() {
+        Fixture fixture = fixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateTeachingHintOutput(
+                ExternalModelStagePayloads.TeachingHintOutput.builder()
+                        .studentHint("先用 n=1 手推循环执行次数。")
+                        .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
+                                .teachingAction("TRACE_VARIABLES")
+                                .nextAction("列出 range 产生的 i 值。")
+                                .coachQuestion("最后一次循环有没有包含 n？")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .answerLeakRisk("LOW")
+                                .build())
+                        .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                                .studentTask("手推 n=1 和 n=2 两个最小样例。")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .answerLeakRisk("LOW")
+                                .build())
+                        .answerLeakRisk("HIGH")
+                        .build(),
+                validDecision(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.NONE);
     }
 
     @Test
@@ -194,7 +292,53 @@ class ModelOutputValidatorTest {
     }
 
     private Fixture fixture() {
-        DiagnosisEvidencePackage evidencePackage = DiagnosisEvidencePackage.builder()
+        DiagnosisEvidencePackage evidencePackage = baseEvidencePackage(null);
+        RuleSignalAnalyzer.RuleSignalResult ruleSignals = ruleSignals();
+        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, ruleSignals, null);
+        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals);
+        return new Fixture(evidencePackage, ruleSignals, brief, pack);
+    }
+
+    private Fixture memoryConflictFixture() {
+        DiagnosisEvidencePackage evidencePackage = baseEvidencePackage(
+                DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                        .studentProfileId(9L)
+                        .recurringIssueTags(List.of(DiagnosisEvidencePackage.MemoryTagStat.builder()
+                                .tag("IO_FORMAT")
+                                .count(4L)
+                                .build()))
+                        .recurringFineGrainedTags(List.of(DiagnosisEvidencePackage.MemoryTagStat.builder()
+                                .tag("INPUT_PARSING")
+                                .count(4L)
+                                .build()))
+                        .evidenceRefs(List.of("memory:student:9", "memory:recurring_issue:IO_FORMAT"))
+                        .build()
+        );
+        RuleSignalAnalyzer.RuleSignalResult ruleSignals = ruleSignals();
+        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, ruleSignals, null);
+        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals);
+        return new Fixture(evidencePackage, ruleSignals, brief, pack);
+    }
+
+    private Fixture memoryAlignedFixture() {
+        DiagnosisEvidencePackage evidencePackage = baseEvidencePackage(
+                DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                        .studentProfileId(9L)
+                        .recurringIssueTags(List.of(DiagnosisEvidencePackage.MemoryTagStat.builder()
+                                .tag("LOOP_BOUNDARY")
+                                .count(4L)
+                                .build()))
+                        .evidenceRefs(List.of("memory:student:9", "memory:recurring_issue:LOOP_BOUNDARY"))
+                        .build()
+        );
+        RuleSignalAnalyzer.RuleSignalResult ruleSignals = ruleSignals();
+        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, ruleSignals, null);
+        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals);
+        return new Fixture(evidencePackage, ruleSignals, brief, pack);
+    }
+
+    private DiagnosisEvidencePackage baseEvidencePackage(DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory) {
+        return DiagnosisEvidencePackage.builder()
                 .problem(DiagnosisEvidencePackage.ProblemEvidence.builder()
                         .title("Sum 1 to n")
                         .description("Input n and output the sum from 1 to n.")
@@ -205,8 +349,12 @@ class ModelOutputValidatorTest {
                         .sourceCodeWithLineNumbers("1: for i in range(1, n):")
                         .sourceCodeLineCount(1)
                         .build())
+                .learningMemory(memory)
                 .build();
-        RuleSignalAnalyzer.RuleSignalResult ruleSignals = RuleSignalAnalyzer.RuleSignalResult.builder()
+    }
+
+    private RuleSignalAnalyzer.RuleSignalResult ruleSignals() {
+        return RuleSignalAnalyzer.RuleSignalResult.builder()
                 .candidateIssueTags(List.of("LOOP_BOUNDARY"))
                 .candidateFineGrainedTags(List.of("OFF_BY_ONE"))
                 .evidenceRefs(List.of("code:range_excludes_n"))
@@ -218,9 +366,6 @@ class ModelOutputValidatorTest {
                         .message("range excludes n")
                         .build()))
                 .build();
-        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, ruleSignals, null);
-        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals);
-        return new Fixture(evidencePackage, ruleSignals, brief, pack);
     }
 
     private record Fixture(DiagnosisEvidencePackage evidencePackage,

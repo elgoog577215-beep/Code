@@ -83,7 +83,7 @@ public class DiagnosticAgentService {
         enhanced = applyPreviousActionEvidence(enhanced, evidencePackage);
         enhanced.setLearningInterventionPlan(resolveInterventionPlan(enhanced, effectivePolicy, evidencePackage));
         enhanced = hintSafetyService.verifyAndRecord(enhanced, effectivePolicy);
-        String traceSummary = buildTraceSummary(ruleSignals, enhanced, modelStage.fallbackUsed());
+        String traceSummary = buildTraceSummary(ruleSignals, enhanced, modelStage.fallbackUsed(), evidencePackage);
         enhanced.setDiagnosticTrace(traceSummary);
         enhanced.setAiInvocation(resolveInvocation(enhanced, modelStage.fallbackUsed()));
         return new AgentResult(enhanced, evidencePackage, ruleSignals, traceSummary);
@@ -835,7 +835,8 @@ public class DiagnosticAgentService {
 
     private String buildTraceSummary(RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                      SubmissionAnalysisResponse analysis,
-                                     boolean modelFallbackUsed) {
+                                     boolean modelFallbackUsed,
+                                     DiagnosisEvidencePackage evidencePackage) {
         int signalCount = ruleSignals == null || ruleSignals.getSignals() == null ? 0 : ruleSignals.getSignals().size();
         int evidenceRefCount = analysis == null || analysis.getEvidenceRefs() == null ? 0 : analysis.getEvidenceRefs().size();
         String source = analysis == null ? "UNKNOWN" : analysis.getSourceType();
@@ -843,11 +844,43 @@ public class DiagnosticAgentService {
         String trajectory = analysis == null || analysis.getLearningTrajectorySignal() == null
                 ? ""
                 : " trajectory=" + analysis.getLearningTrajectorySignal().getPhase();
+        String memoryCalibration = memoryCalibrationTrace(evidencePackage, ruleSignals);
         return AGENT_VERSION + " signals=" + signalCount
                 + " evidenceRefs=" + evidenceRefCount
                 + " source=" + source
                 + " " + modelStage
-                + trajectory;
+                + trajectory
+                + memoryCalibration;
+    }
+
+    private String memoryCalibrationTrace(DiagnosisEvidencePackage evidencePackage,
+                                          RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
+                evidencePackage == null ? null : evidencePackage.getLearningMemory();
+        ModelDiagnosisBrief.MemoryCalibration calibration = new MemoryEvidencePolicy().calibrate(
+                memory,
+                toTraceCandidateSignals(ruleSignals)
+        );
+        if (!Boolean.TRUE.equals(calibration.getMemoryAvailable())) {
+            return " memoryCalibration=NONE teacherReview=false";
+        }
+        return " memoryCalibration=" + calibration.getMemoryRelevance()
+                + " teacherReview=" + Boolean.TRUE.equals(calibration.getTeacherReviewRecommended());
+    }
+
+    private List<ModelDiagnosisBrief.CandidateSignal> toTraceCandidateSignals(RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        if (ruleSignals == null || ruleSignals.getSignals() == null) {
+            return List.of();
+        }
+        return ruleSignals.getSignals().stream()
+                .map(signal -> ModelDiagnosisBrief.CandidateSignal.builder()
+                        .evidenceRef(signal.getEvidenceRef())
+                        .issueTag(signal.getCoarseTag())
+                        .fineGrainedTag(signal.getFineTag())
+                        .confidence(signal.getConfidence())
+                        .reason(signal.getMessage())
+                        .build())
+                .toList();
     }
 
     private SubmissionAnalysisResponse.AiInvocation resolveInvocation(SubmissionAnalysisResponse analysis,

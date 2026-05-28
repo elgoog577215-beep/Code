@@ -8,6 +8,7 @@ import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.submission.application.ExternalModelBudgetGuard;
 import com.onlinejudge.submission.application.ExternalModelFailureClassifier;
+import com.onlinejudge.submission.application.ExternalModelRoute;
 import com.onlinejudge.submission.application.ModelDiagnosisBrief;
 import com.onlinejudge.submission.application.ModelStageFailureReason;
 import com.onlinejudge.submission.application.StandardLibraryPack;
@@ -43,6 +44,7 @@ public class CoachAgentService {
     private final DiagnosisTaxonomy diagnosisTaxonomy;
     private final ExternalModelFailureClassifier failureClassifier;
     private final ExternalModelBudgetGuard budgetGuard;
+    private final ThreadLocal<ExternalModelRoute> activeRequestRoute = new ThreadLocal<>();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -63,31 +65,49 @@ public class CoachAgentService {
     }
 
     @Value("${ai.enabled:true}")
-    private boolean enabled;
+    private boolean enabled = true;
 
     @Value("${ai.base-url:https://api-inference.modelscope.cn/v1}")
-    private String baseUrl;
+    private String baseUrl = "https://api-inference.modelscope.cn/v1";
+
+    @Value("${ai.provider:ModelScope}")
+    private String provider = "ModelScope";
 
     @Value("${ai.api-key:}")
-    private String apiKey;
+    private String apiKey = "";
 
     @Value("${ai.model:deepseek-ai/DeepSeek-V4-Pro}")
-    private String model;
+    private String model = "deepseek-ai/DeepSeek-V4-Pro";
+
+    @Value("${ai.fallback.provider:OpenAI-Compatible-Fallback}")
+    private String fallbackProvider = "OpenAI-Compatible-Fallback";
+
+    @Value("${ai.fallback.base-url:}")
+    private String fallbackBaseUrl = "";
+
+    @Value("${ai.fallback.api-key:}")
+    private String fallbackApiKey = "";
+
+    @Value("${ai.fallback.model:}")
+    private String fallbackModel = "";
+
+    @Value("${ai.routes:}")
+    private String additionalRoutes = "";
 
     @Value("${ai.timeout-seconds:25}")
-    private long timeoutSeconds;
+    private long timeoutSeconds = 25;
 
     @Value("${ai.stream-enabled:true}")
-    private boolean streamEnabled;
+    private boolean streamEnabled = true;
 
     @Value("${ai.stream-fallback-enabled:true}")
-    private boolean streamFallbackEnabled;
+    private boolean streamFallbackEnabled = true;
 
     @Value("${ai.retry.max-attempts:2}")
-    private int retryMaxAttempts;
+    private int retryMaxAttempts = 2;
 
     @Value("${ai.retry.backoff-ms:700}")
-    private long retryBackoffMs;
+    private long retryBackoffMs = 700;
 
     public CoachDraft generateInitialQuestion(Submission submission,
                                               SubmissionAnalysis analysis,
@@ -125,7 +145,7 @@ public class CoachAgentService {
         if (!canCallAi()) {
             return safeFallback;
         }
-        ExternalModelBudgetGuard.Decision decision = budgetGuard.check("ModelScope", model);
+        ExternalModelBudgetGuard.Decision decision = firstAllowedRouteDecision();
         if (!decision.allowed()) {
             safeFallback.setFailureReason(ModelStageFailureReason.BUDGET_GUARD_OPEN.name());
             return safeFallback;
@@ -224,37 +244,85 @@ public class CoachAgentService {
     }
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
-        try {
-            String content = doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled);
-            budgetGuard.recordSuccess("ModelScope", model);
-            return content;
-        } catch (IOException exception) {
-            if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
-                log.warn("Retrying coach chat completion with stream=true after non-stream response was unusable. model={}", model);
-                String content = doChatCompletionWithRetry(systemPrompt, userPrompt, true);
-                budgetGuard.recordSuccess("ModelScope", model);
-                return content;
+        IOException lastException = null;
+        for (ExternalModelRoute route : configuredRoutes()) {
+            ExternalModelBudgetGuard.Decision decision = budgetGuard.check(route.safeProvider("ModelScope"), route.model());
+            if (!decision.allowed()) {
+                lastException = new IOException(decision.message());
+                continue;
             }
-            recordBudgetFailure(exception);
-            throw exception;
+            try {
+                activeRequestRoute.set(route);
+                String content = doChatCompletionWithRouteRetry(systemPrompt, userPrompt, streamEnabled, route);
+                budgetGuard.recordSuccess(route.safeProvider("ModelScope"), route.model());
+                return content;
+            } catch (IOException exception) {
+                lastException = exception;
+                if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
+                    try {
+                        log.warn("Retrying coach chat completion with stream=true after non-stream response was unusable. provider={}, model={}",
+                                route.safeProvider("ModelScope"),
+                                route.model());
+                        activeRequestRoute.set(route);
+                        String content = doChatCompletionWithRouteRetry(systemPrompt, userPrompt, true, route);
+                        budgetGuard.recordSuccess(route.safeProvider("ModelScope"), route.model());
+                        return content;
+                    } catch (IOException streamException) {
+                        lastException = streamException;
+                        recordBudgetFailure(streamException, route);
+                    }
+                } else {
+                    recordBudgetFailure(exception, route);
+                }
+                log.warn("Coach AI route failed; trying next route if available. provider={}, model={}, reason={}",
+                        route.safeProvider("ModelScope"),
+                        route.model(),
+                        preview(exception.getMessage()));
+            } finally {
+                activeRequestRoute.remove();
+            }
         }
+        throw lastException == null ? new IOException("AI API route is not configured") : lastException;
+    }
+
+    private ExternalModelBudgetGuard.Decision firstAllowedRouteDecision() {
+        ExternalModelBudgetGuard.Decision lastDecision = null;
+        for (ExternalModelRoute route : configuredRoutes()) {
+            ExternalModelBudgetGuard.Decision decision = budgetGuard.check(route.safeProvider("ModelScope"), route.model());
+            if (decision.allowed()) {
+                return decision;
+            }
+            lastDecision = decision;
+        }
+        return lastDecision == null
+                ? new ExternalModelBudgetGuard.Decision(false, ModelStageFailureReason.BUDGET_GUARD_OPEN, "AI API route is not configured")
+                : lastDecision;
     }
 
     private String doChatCompletionWithRetry(String systemPrompt, String userPrompt, boolean stream)
+            throws IOException, InterruptedException {
+        return doChatCompletionWithRouteRetry(systemPrompt, userPrompt, stream, primaryRoute());
+    }
+
+    private String doChatCompletionWithRouteRetry(String systemPrompt,
+                                                  String userPrompt,
+                                                  boolean stream,
+                                                  ExternalModelRoute route)
             throws IOException, InterruptedException {
         int attempts = Math.max(1, retryMaxAttempts);
         IOException lastException = null;
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
-                return doChatCompletion(systemPrompt, userPrompt, stream);
+                return doChatCompletion(systemPrompt, userPrompt, stream, route);
             } catch (IOException exception) {
                 lastException = exception;
                 if (attempt >= attempts || !isRetryableCallFailure(exception)) {
                     throw exception;
                 }
                 long backoff = Math.max(0, retryBackoffMs) * attempt;
-                log.warn("Retrying coach chat completion after transient failure. model={}, attempt={}/{}, waitMs={}, reason={}",
-                        model,
+                log.warn("Retrying coach chat completion after transient failure. provider={}, model={}, attempt={}/{}, waitMs={}, reason={}",
+                        route.safeProvider("ModelScope"),
+                        route.model(),
                         attempt + 1,
                         attempts,
                         backoff,
@@ -267,8 +335,16 @@ public class CoachAgentService {
 
     private String doChatCompletion(String systemPrompt, String userPrompt, boolean stream)
             throws IOException, InterruptedException {
+        return doChatCompletion(systemPrompt, userPrompt, stream, primaryRoute());
+    }
+
+    private String doChatCompletion(String systemPrompt,
+                                    String userPrompt,
+                                    boolean stream,
+                                    ExternalModelRoute route)
+            throws IOException, InterruptedException {
         Map<String, Object> requestBody = Map.of(
-                "model", model,
+                "model", route.model(),
                 "messages", List.of(
                         Map.of("role", "system", "content", systemPrompt),
                         Map.of("role", "user", "content", userPrompt)
@@ -276,12 +352,11 @@ public class CoachAgentService {
                 "temperature", 0.2,
                 "stream", stream
         );
-        String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
+                .uri(URI.create(route.endpoint()))
                 .timeout(Duration.ofSeconds(Math.max(timeoutSeconds, 5)))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + route.apiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody), StandardCharsets.UTF_8))
                 .build();
 
@@ -313,9 +388,13 @@ public class CoachAgentService {
     }
 
     private void recordBudgetFailure(Exception exception) {
+        recordBudgetFailure(exception, primaryRoute());
+    }
+
+    private void recordBudgetFailure(Exception exception, ExternalModelRoute route) {
         ModelStageFailureReason reason = failureClassifier.classify(exception);
         if (failureClassifier.shouldOpenBudgetGuard(reason)) {
-            budgetGuard.recordFailure("ModelScope", model, reason);
+            budgetGuard.recordFailure(route.safeProvider("ModelScope"), route.model(), reason);
         }
     }
 
@@ -324,6 +403,28 @@ public class CoachAgentService {
             return;
         }
         Thread.sleep(waitMs);
+    }
+
+    private List<ExternalModelRoute> configuredRoutes() {
+        List<ExternalModelRoute> routes = new java.util.ArrayList<>();
+        ExternalModelRoute primary = primaryRoute();
+        if (primary.configured()) {
+            routes.add(primary);
+        }
+        ExternalModelRoute fallback = fallbackRoute();
+        if (fallback.configured()) {
+            routes.add(fallback);
+        }
+        routes.addAll(ExternalModelRoute.parseRoutes(additionalRoutes));
+        return routes;
+    }
+
+    private ExternalModelRoute primaryRoute() {
+        return new ExternalModelRoute(provider, baseUrl, apiKey, model);
+    }
+
+    private ExternalModelRoute fallbackRoute() {
+        return new ExternalModelRoute(fallbackProvider, fallbackBaseUrl, fallbackApiKey, fallbackModel);
     }
 
     private String extractChatMessageContent(JsonNode root) {
@@ -468,7 +569,7 @@ public class CoachAgentService {
     }
 
     private boolean canCallAi() {
-        return enabled && apiKey != null && !apiKey.isBlank();
+        return enabled && configuredRoutes().stream().anyMatch(ExternalModelRoute::configured);
     }
 
     private String cleanup(String text) {

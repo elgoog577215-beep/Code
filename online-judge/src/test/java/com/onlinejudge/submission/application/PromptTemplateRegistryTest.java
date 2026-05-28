@@ -26,6 +26,8 @@ class PromptTemplateRegistryTest {
                 .contains("standardLibrary.decisionProtocol")
                 .contains("most evidence-supported tag")
                 .contains("direct evidence distinguishes")
+                .contains("brief.memoryCalibration")
+                .contains("TEACHING_ONLY cannot support the primary diagnosis")
                 .contains("Do not provide complete code")
                 .contains("hidden test data");
     }
@@ -61,6 +63,8 @@ class PromptTemplateRegistryTest {
                 .contains("standardLibrary.decisionProtocol")
                 .contains("most evidence-supported tag")
                 .contains("direct evidence distinguishes")
+                .contains("brief.memoryCalibration")
+                .contains("TEACHING_ONLY cannot support the primary diagnosis")
                 .contains("teachingHint.studentHintPlan.teachingAction MUST come from standardLibrary.teachingActions")
                 .contains("Do not provide complete code");
     }

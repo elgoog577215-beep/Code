@@ -283,6 +283,80 @@ class CoachAgentServiceTest {
     }
 
     @Test
+    void chatCompletionUsesFallbackRouteWhenPrimaryRouteHitsQuota() throws Exception {
+        RetryingCoachAgentService service = new RetryingCoachAgentService(
+                objectMapper,
+                taxonomy,
+                new IOException("AI API returned status 429: {\"error\":{\"code\":\"insufficient_quota\"}}"),
+                """
+                {"choices":[{"message":{"content":"{\\"question\\":\\"璇峰厛璇存槑浣犲噯澶囬獙璇佸摢涓€涓竟鐣屾牱渚嬶紵\\",\\"rationale\\":\\"fallback route\\",\\"evidenceRefs\\":[\\"submission:11\\"],\\"confidence\\":0.7,\\"answerLeakRisk\\":\\"LOW\\"}"}}]}
+                """
+        );
+        enableRouteFallback(service);
+
+        String content = service.chatCompletion("system", "user");
+
+        assertThat(content).contains("question");
+        assertThat(service.callCount()).isEqualTo(2);
+        assertThat(service.endpoints())
+                .extracting(Object::toString)
+                .containsExactly("https://primary.example/v1/chat/completions", "https://fallback.example/v1/chat/completions");
+    }
+
+    @Test
+    void chatCompletionSkipsGuardedPrimaryRouteAndUsesFallbackRoute() throws Exception {
+        ExternalModelBudgetGuard budgetGuard = new ExternalModelBudgetGuard();
+        budgetGuard.recordFailure("PrimaryProvider", "primary-model", ModelStageFailureReason.INSUFFICIENT_QUOTA);
+        RetryingCoachAgentService service = new RetryingCoachAgentService(
+                objectMapper,
+                taxonomy,
+                budgetGuard,
+                """
+                {"choices":[{"message":{"content":"{\\"question\\":\\"璇峰厛璇存槑浣犲噯澶囬獙璇佸摢涓€涓竟鐣屾牱渚嬶紵\\",\\"rationale\\":\\"fallback route\\",\\"evidenceRefs\\":[\\"submission:11\\"],\\"confidence\\":0.7,\\"answerLeakRisk\\":\\"LOW\\"}"}}]}
+                """
+        );
+        enableRouteFallback(service);
+
+        String content = service.chatCompletion("system", "user");
+
+        assertThat(content).contains("question");
+        assertThat(service.callCount()).isEqualTo(1);
+        assertThat(service.endpoints())
+                .extracting(Object::toString)
+                .containsExactly("https://fallback.example/v1/chat/completions");
+    }
+
+    @Test
+    void chatCompletionUsesRoutePoolAfterPrimaryAndFallbackFail() throws Exception {
+        RetryingCoachAgentService service = new RetryingCoachAgentService(
+                objectMapper,
+                taxonomy,
+                new IOException("AI API returned status 429: {\"error\":{\"code\":\"insufficient_quota\"}}"),
+                new IOException("AI API returned status 429: {\"error\":{\"message\":\"rate limit\"}}"),
+                """
+                {"choices":[{"message":{"content":"{\\"question\\":\\"请先说明你准备验证哪一个边界样例？\\",\\"rationale\\":\\"route pool\\",\\"evidenceRefs\\":[\\"submission:11\\"],\\"confidence\\":0.7,\\"answerLeakRisk\\":\\"LOW\\"}"}}]}
+                """
+        );
+        enableRouteFallback(service);
+        ReflectionTestUtils.setField(service, "additionalRoutes", """
+                BadRoute;
+                ExtraProvider|https://extra.example/v1|extra-key|extra-model
+                """);
+
+        String content = service.chatCompletion("system", "user");
+
+        assertThat(content).contains("question");
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(service.endpoints())
+                .extracting(Object::toString)
+                .containsExactly(
+                        "https://primary.example/v1/chat/completions",
+                        "https://fallback.example/v1/chat/completions",
+                        "https://extra.example/v1/chat/completions"
+                );
+    }
+
+    @Test
     void liveModelCoachQuestionsStaySafeWhenEnabled() throws IOException {
         String apiKey = System.getenv("AI_EVAL_API_KEY");
         Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "Set AI_EVAL_API_KEY to run live coach eval.");
@@ -300,6 +374,22 @@ class CoachAgentServiceTest {
     private void enableAi(CoachAgentService service) {
         ReflectionTestUtils.setField(service, "enabled", true);
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
+    }
+
+    private void enableRouteFallback(CoachAgentService service) {
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "provider", "PrimaryProvider");
+        ReflectionTestUtils.setField(service, "apiKey", "primary-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://primary.example/v1");
+        ReflectionTestUtils.setField(service, "model", "primary-model");
+        ReflectionTestUtils.setField(service, "fallbackProvider", "FallbackProvider");
+        ReflectionTestUtils.setField(service, "fallbackApiKey", "fallback-key");
+        ReflectionTestUtils.setField(service, "fallbackBaseUrl", "https://fallback.example/v1");
+        ReflectionTestUtils.setField(service, "fallbackModel", "fallback-model");
+        ReflectionTestUtils.setField(service, "streamEnabled", false);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", false);
+        ReflectionTestUtils.setField(service, "retryMaxAttempts", 1);
+        ReflectionTestUtils.setField(service, "retryBackoffMs", 0L);
     }
 
     private CoachAgentService newLiveService(String apiKey) {
@@ -449,6 +539,7 @@ class CoachAgentServiceTest {
 
     private static class RetryingCoachAgentService extends CoachAgentService {
         private final Queue<Object> responses = new ArrayDeque<>();
+        private final List<java.net.URI> endpoints = new java.util.ArrayList<>();
         private int callCount;
 
         private RetryingCoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy taxonomy, Object... responses) {
@@ -456,9 +547,18 @@ class CoachAgentServiceTest {
             this.responses.addAll(List.of(responses));
         }
 
+        private RetryingCoachAgentService(ObjectMapper objectMapper,
+                                          DiagnosisTaxonomy taxonomy,
+                                          ExternalModelBudgetGuard budgetGuard,
+                                          Object... responses) {
+            super(objectMapper, taxonomy, new ExternalModelFailureClassifier(), budgetGuard);
+            this.responses.addAll(List.of(responses));
+        }
+
         @Override
         protected String sendChatCompletionRequest(HttpRequest request, boolean stream) throws IOException {
             callCount++;
+            endpoints.add(request.uri());
             Object response = responses.poll();
             if (response instanceof IOException exception) {
                 throw exception;
@@ -471,6 +571,10 @@ class CoachAgentServiceTest {
 
         int callCount() {
             return callCount;
+        }
+
+        List<java.net.URI> endpoints() {
+            return endpoints;
         }
     }
 }

@@ -295,6 +295,19 @@ export interface LearningActionEvidence {
   nextAdjustment?: string | null;
 }
 
+export interface AiInvocation {
+  provider?: string | null;
+  model?: string | null;
+  modelVersion?: string | null;
+  promptVersion?: string | null;
+  agentVersion?: string | null;
+  analysisSchemaVersion?: string | null;
+  evidenceSchemaVersion?: string | null;
+  taxonomyVersion?: string | null;
+  status?: string | null;
+  fallbackUsed?: boolean;
+}
+
 export interface SubmissionAnalysis {
   submissionId: number;
   sourceType?: string;
@@ -317,6 +330,7 @@ export interface SubmissionAnalysis {
   evidenceRefs?: string[];
   uncertainty?: string;
   diagnosticTrace?: string;
+  aiInvocation?: AiInvocation | null;
   answerLeakRisk?: string;
   wrongSolution?: string;
   correctSolution?: string;
@@ -652,6 +666,29 @@ export interface ExecutorStatus {
   projectOwner?: string;
   ownershipSignature?: string;
   ownershipClaim?: string;
+}
+
+export type AiRouteHealthLevel = "DISABLED" | "NO_ROUTE" | "SINGLE_ROUTE_RISK" | "MULTI_ROUTE_READY" | string;
+
+export interface AiRouteHealthRoute {
+  role: string;
+  provider?: string | null;
+  baseUrl?: string | null;
+  model?: string | null;
+  configured: boolean;
+  missingFields?: string[];
+}
+
+export interface AiRouteHealth {
+  enabled: boolean;
+  configuredRouteCount: number;
+  usableRouteCount: number;
+  fallbackConfigured: boolean;
+  routePoolConfigured: boolean;
+  healthLevel: AiRouteHealthLevel;
+  summary?: string | null;
+  suggestions?: string[];
+  routes: AiRouteHealthRoute[];
 }
 
 export interface ImportPreview {
