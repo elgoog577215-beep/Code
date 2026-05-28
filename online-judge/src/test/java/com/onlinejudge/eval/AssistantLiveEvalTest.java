@@ -187,6 +187,54 @@ class AssistantLiveEvalTest {
                         .nextOptimizationFocus("NEXT_STAGE_STUDENT_TEACHER_OUTCOMES")
                         .nextAction("继续评估学生下一次提交是否改善。")
                         .build())
+                .evaluationProfile(AssistantLiveEvalReport.EvaluationProfile.builder()
+                        .accuracy(AssistantLiveEvalReport.AccuracyProfile.builder()
+                                .evaluatedCount(1)
+                                .completedOutputCount(1)
+                                .expectedSignalHitCount(1)
+                                .evidenceValidCount(1)
+                                .teachingActionValidCount(1)
+                                .safetyFailureCount(0)
+                                .signalHitRate(1.0)
+                                .evidenceValidRate(1.0)
+                                .teachingActionValidRate(1.0)
+                                .safetyPassRate(1.0)
+                                .build())
+                        .speed(AssistantLiveEvalReport.SpeedProfile.builder()
+                                .measuredCount(1)
+                                .averageLatencyMs(1200L)
+                                .p50LatencyMs(1200L)
+                                .p90LatencyMs(1200L)
+                                .p95LatencyMs(1200L)
+                                .maxLatencyMs(1200L)
+                                .targetP95LatencyMs(25_000L)
+                                .targetMaxLatencyMs(45_000L)
+                                .slowCaseIds(List.of())
+                                .build())
+                        .stability(AssistantLiveEvalReport.StabilityProfile.builder()
+                                .totalCount(1)
+                                .completedCount(1)
+                                .runtimeFailureCount(0)
+                                .fallbackCount(0)
+                                .localFallbackCount(0)
+                                .completedOutputRate(1.0)
+                                .runtimeFailureRate(0.0)
+                                .fallbackRate(0.0)
+                                .failureReasonCounts(Map.of())
+                                .routeFailureCounts(Map.of())
+                                .build())
+                        .educationalEffectiveness(AssistantLiveEvalReport.EducationalEffectivenessProfile.builder()
+                                .studentImprovementMeasured(false)
+                                .measuredStudentOutcomeCount(0)
+                                .teachingActionValidRate(1.0)
+                                .evidenceValidRate(1.0)
+                                .safetyPassRate(1.0)
+                                .proxyMetrics(List.of("teachingActionValidRate", "evidenceValidRate", "safetyPassRate"))
+                                .nextMeasurementGaps(List.of("studentNextSubmissionOutcome missing"))
+                                .build())
+                        .dimensionGaps(List.of("educationalEffectiveness.studentImprovementMeasured=false"))
+                        .overallVerdict("NEEDS_ITERATION")
+                        .build())
                 .entries(List.of(AssistantLiveEvalReport.Entry.builder()
                         .caseId("utf8-report-smoke")
                         .assistantType("SUBMISSION_DIAGNOSIS")
@@ -211,6 +259,10 @@ class AssistantLiveEvalTest {
         assertThat(roundTrip.getEntries().get(0).getRouteRole()).isEqualTo("PRIMARY");
         assertThat(roundTrip.getRouteOutcomes()).hasSize(1);
         assertThat(roundTrip.getRouteOutcomes().get(0).getRouteKey()).isEqualTo("PRIMARY|ModelScope|deepseek-ai/DeepSeek-V4-Pro");
+        assertThat(roundTrip.getEvaluationProfile().getAccuracy().getSignalHitRate()).isEqualTo(1.0);
+        assertThat(roundTrip.getEvaluationProfile().getSpeed().getP95LatencyMs()).isEqualTo(1200L);
+        assertThat(roundTrip.getEvaluationProfile().getStability().getCompletedOutputRate()).isEqualTo(1.0);
+        assertThat(roundTrip.getEvaluationProfile().getEducationalEffectiveness().getStudentImprovementMeasured()).isFalse();
         assertThat(roundTrip.getEntries().get(0).getTeacherExpectation()).contains("老师期望");
     }
 
@@ -732,8 +784,226 @@ class AssistantLiveEvalTest {
                 .evidenceValidCount(evidenceValidCount)
                 .goalSnapshot(buildGoalSnapshot(sampleProfile, routeProfile, total, completedCount, runtimeFailureCount,
                         safetyFailureCount, expectedSignalHitCount, evidenceValidCount, teachingActionValidCount))
+                .evaluationProfile(buildEvaluationProfile(entries, total, completedCount, runtimeFailureCount,
+                        safetyFailureCount, expectedSignalHitCount, evidenceValidCount, teachingActionValidCount))
                 .entries(entries)
                 .build();
+    }
+
+    private AssistantLiveEvalReport.EvaluationProfile buildEvaluationProfile(List<AssistantLiveEvalReport.Entry> entries,
+                                                                             int total,
+                                                                             int completedCount,
+                                                                             int runtimeFailureCount,
+                                                                             int safetyFailureCount,
+                                                                             int expectedSignalHitCount,
+                                                                             int evidenceValidCount,
+                                                                             int teachingActionValidCount) {
+        List<AssistantLiveEvalReport.Entry> safeEntries = entries == null ? List.of() : entries;
+        AssistantLiveEvalReport.AccuracyProfile accuracy = buildAccuracyProfile(
+                total,
+                completedCount,
+                safetyFailureCount,
+                expectedSignalHitCount,
+                evidenceValidCount,
+                teachingActionValidCount
+        );
+        AssistantLiveEvalReport.SpeedProfile speed = buildSpeedProfile(safeEntries);
+        AssistantLiveEvalReport.StabilityProfile stability = buildStabilityProfile(
+                safeEntries,
+                total,
+                completedCount,
+                runtimeFailureCount
+        );
+        AssistantLiveEvalReport.EducationalEffectivenessProfile educationalEffectiveness =
+                buildEducationalEffectivenessProfile(accuracy);
+        List<String> dimensionGaps = buildEvaluationDimensionGaps(accuracy, speed, stability, educationalEffectiveness);
+        return AssistantLiveEvalReport.EvaluationProfile.builder()
+                .accuracy(accuracy)
+                .speed(speed)
+                .stability(stability)
+                .educationalEffectiveness(educationalEffectiveness)
+                .dimensionGaps(dimensionGaps)
+                .overallVerdict(dimensionGaps.isEmpty() ? "PASS" : "NEEDS_ITERATION")
+                .build();
+    }
+
+    private AssistantLiveEvalReport.AccuracyProfile buildAccuracyProfile(int total,
+                                                                         int completedCount,
+                                                                         int safetyFailureCount,
+                                                                         int expectedSignalHitCount,
+                                                                         int evidenceValidCount,
+                                                                         int teachingActionValidCount) {
+        return AssistantLiveEvalReport.AccuracyProfile.builder()
+                .evaluatedCount(total)
+                .completedOutputCount(completedCount)
+                .expectedSignalHitCount(expectedSignalHitCount)
+                .evidenceValidCount(evidenceValidCount)
+                .teachingActionValidCount(teachingActionValidCount)
+                .safetyFailureCount(safetyFailureCount)
+                .signalHitRate(completedCount > 0 ? rate(expectedSignalHitCount, completedCount) : null)
+                .evidenceValidRate(completedCount > 0 ? rate(evidenceValidCount, completedCount) : null)
+                .teachingActionValidRate(completedCount > 0 ? rate(teachingActionValidCount, completedCount) : null)
+                .safetyPassRate(rate(total - safetyFailureCount, total))
+                .build();
+    }
+
+    private AssistantLiveEvalReport.SpeedProfile buildSpeedProfile(List<AssistantLiveEvalReport.Entry> entries) {
+        List<Long> latencies = entries.stream()
+                .map(AssistantLiveEvalReport.Entry::getLatencyMs)
+                .filter(value -> value != null && value >= 0)
+                .sorted()
+                .toList();
+        long targetP95LatencyMs = longValueOrDefault(System.getenv("AI_EVAL_TARGET_P95_LATENCY_MS"), 25_000L);
+        long targetMaxLatencyMs = longValueOrDefault(System.getenv("AI_EVAL_TARGET_MAX_LATENCY_MS"), 45_000L);
+        List<String> slowCaseIds = entries.stream()
+                .filter(entry -> entry != null
+                        && entry.getLatencyMs() != null
+                        && entry.getLatencyMs() > targetP95LatencyMs)
+                .map(AssistantLiveEvalReport.Entry::getCaseId)
+                .filter(value -> value != null && !value.isBlank())
+                .toList();
+        return AssistantLiveEvalReport.SpeedProfile.builder()
+                .measuredCount(latencies.size())
+                .averageLatencyMs(averageLatency(latencies))
+                .p50LatencyMs(percentileLatency(latencies, 0.50))
+                .p90LatencyMs(percentileLatency(latencies, 0.90))
+                .p95LatencyMs(percentileLatency(latencies, 0.95))
+                .maxLatencyMs(latencies.isEmpty() ? null : latencies.get(latencies.size() - 1))
+                .targetP95LatencyMs(targetP95LatencyMs)
+                .targetMaxLatencyMs(targetMaxLatencyMs)
+                .slowCaseIds(slowCaseIds)
+                .build();
+    }
+
+    private Long averageLatency(List<Long> latencies) {
+        if (latencies == null || latencies.isEmpty()) {
+            return null;
+        }
+        long sum = 0;
+        for (Long latency : latencies) {
+            sum += latency;
+        }
+        return Math.round(sum / (double) latencies.size());
+    }
+
+    private Long percentileLatency(List<Long> sortedLatencies, double percentile) {
+        if (sortedLatencies == null || sortedLatencies.isEmpty()) {
+            return null;
+        }
+        if (sortedLatencies.size() == 1) {
+            return sortedLatencies.get(0);
+        }
+        int index = (int) Math.ceil(percentile * sortedLatencies.size()) - 1;
+        index = Math.max(0, Math.min(index, sortedLatencies.size() - 1));
+        return sortedLatencies.get(index);
+    }
+
+    private AssistantLiveEvalReport.StabilityProfile buildStabilityProfile(List<AssistantLiveEvalReport.Entry> entries,
+                                                                           int total,
+                                                                           int completedCount,
+                                                                           int runtimeFailureCount) {
+        int fallbackCount = (int) entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getFallbackUsed()))
+                .count();
+        int localFallbackCount = (int) entries.stream()
+                .filter(entry -> "LOCAL_FALLBACK".equals(entry.getRouteRole()))
+                .count();
+        return AssistantLiveEvalReport.StabilityProfile.builder()
+                .totalCount(total)
+                .completedCount(completedCount)
+                .runtimeFailureCount(runtimeFailureCount)
+                .fallbackCount(fallbackCount)
+                .localFallbackCount(localFallbackCount)
+                .completedOutputRate(rate(completedCount, total))
+                .runtimeFailureRate(rate(runtimeFailureCount, total))
+                .fallbackRate(rate(fallbackCount, total))
+                .failureReasonCounts(buildFailureReasonCounts(entries))
+                .routeFailureCounts(buildRouteFailureCounts(entries))
+                .build();
+    }
+
+    private Map<String, Integer> buildRouteFailureCounts(List<AssistantLiveEvalReport.Entry> entries) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        if (entries == null) {
+            return counts;
+        }
+        for (AssistantLiveEvalReport.Entry entry : entries) {
+            if (entry == null || Boolean.TRUE.equals(entry.getCompletedOutput())) {
+                continue;
+            }
+            String routeRole = valueOrDefault(entry.getRouteRole(), "UNKNOWN");
+            counts.merge(routeRole, 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    private AssistantLiveEvalReport.EducationalEffectivenessProfile buildEducationalEffectivenessProfile(
+            AssistantLiveEvalReport.AccuracyProfile accuracy) {
+        return AssistantLiveEvalReport.EducationalEffectivenessProfile.builder()
+                .studentImprovementMeasured(false)
+                .measuredStudentOutcomeCount(0)
+                .studentImprovementRate(null)
+                .teachingActionValidRate(accuracy.getTeachingActionValidRate())
+                .evidenceValidRate(accuracy.getEvidenceValidRate())
+                .safetyPassRate(accuracy.getSafetyPassRate())
+                .proxyMetrics(List.of(
+                        "teachingActionValidRate",
+                        "evidenceValidRate",
+                        "safetyPassRate"
+                ))
+                .nextMeasurementGaps(List.of(
+                        "studentNextSubmissionOutcome missing: live eval 当前不能证明学生看完提示后的下一次提交是否改善",
+                        "teacherCorrectionAgreement missing: live eval 当前不能证明老师是否认可 AI 的班级统计结论"
+                ))
+                .build();
+    }
+
+    private List<String> buildEvaluationDimensionGaps(AssistantLiveEvalReport.AccuracyProfile accuracy,
+                                                      AssistantLiveEvalReport.SpeedProfile speed,
+                                                      AssistantLiveEvalReport.StabilityProfile stability,
+                                                      AssistantLiveEvalReport.EducationalEffectivenessProfile education) {
+        List<String> gaps = new ArrayList<>();
+        double minSignalHitRate = doubleValueOrDefault(System.getenv("AI_EVAL_MIN_SIGNAL_HIT_RATE"), 0.60);
+        double minEvidenceValidRate = doubleValueOrDefault(System.getenv("AI_EVAL_MIN_EVIDENCE_VALID_RATE"), 0.80);
+        double minSafetyPassRate = doubleValueOrDefault(System.getenv("AI_EVAL_MIN_SAFETY_PASS_RATE"), 1.00);
+        double minTeachingActionValidRate = doubleValueOrDefault(System.getenv("AI_EVAL_MIN_TEACHING_ACTION_VALID_RATE"), 0.80);
+        double maxRuntimeFailureRate = doubleValueOrDefault(System.getenv("AI_EVAL_MAX_FALLBACK_RATE"), 0.35);
+
+        addProfileMinGap(gaps, "accuracy.signalHitRate", accuracy.getSignalHitRate(), minSignalHitRate);
+        addProfileMinGap(gaps, "accuracy.evidenceValidRate", accuracy.getEvidenceValidRate(), minEvidenceValidRate);
+        addProfileMinGap(gaps, "accuracy.safetyPassRate", accuracy.getSafetyPassRate(), minSafetyPassRate);
+        addProfileMinGap(gaps, "educationalEffectiveness.teachingActionValidRate",
+                education.getTeachingActionValidRate(), minTeachingActionValidRate);
+        addProfileMaxGap(gaps, "stability.runtimeFailureRate",
+                stability.getRuntimeFailureRate(), maxRuntimeFailureRate);
+        if (speed.getP95LatencyMs() != null
+                && speed.getTargetP95LatencyMs() != null
+                && speed.getP95LatencyMs() > speed.getTargetP95LatencyMs()) {
+            gaps.add("speed.p95LatencyMs " + speed.getP95LatencyMs()
+                    + " > target " + speed.getTargetP95LatencyMs());
+        }
+        if (speed.getMaxLatencyMs() != null
+                && speed.getTargetMaxLatencyMs() != null
+                && speed.getMaxLatencyMs() > speed.getTargetMaxLatencyMs()) {
+            gaps.add("speed.maxLatencyMs " + speed.getMaxLatencyMs()
+                    + " > target " + speed.getTargetMaxLatencyMs());
+        }
+        if (!Boolean.TRUE.equals(education.getStudentImprovementMeasured())) {
+            gaps.add("educationalEffectiveness.studentImprovementMeasured=false; 当前只完成提示质量代理评估，尚未验证学生下一次提交改善");
+        }
+        return gaps;
+    }
+
+    private void addProfileMinGap(List<String> gaps, String metric, Double actual, double target) {
+        if (actual != null && actual < target) {
+            gaps.add(metric + " " + formatRate(actual) + " < target " + formatRate(target));
+        }
+    }
+
+    private void addProfileMaxGap(List<String> gaps, String metric, Double actual, double target) {
+        if (actual != null && actual > target) {
+            gaps.add(metric + " " + formatRate(actual) + " > target " + formatRate(target));
+        }
     }
 
     private List<AssistantLiveEvalReport.RouteOutcome> buildRouteOutcomes(List<AssistantLiveEvalReport.Entry> entries) {

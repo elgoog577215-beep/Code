@@ -15,6 +15,10 @@ class AssistantLiveEvalQualityGate {
             return violations;
         }
 
+        if (report.getEvaluationProfile() != null) {
+            return evaluateProfile(report.getEvaluationProfile(), thresholds);
+        }
+
         int total = report.getTotalCount();
         int completedCount = completedCount(report, total);
         AssistantLiveEvalReport.GoalSnapshot snapshot = report.getGoalSnapshot();
@@ -52,6 +56,54 @@ class AssistantLiveEvalQualityGate {
         return violations;
     }
 
+    private static List<String> evaluateProfile(AssistantLiveEvalReport.EvaluationProfile profile,
+                                                Thresholds thresholds) {
+        List<String> violations = new ArrayList<>();
+        AssistantLiveEvalReport.AccuracyProfile accuracy = profile.getAccuracy();
+        AssistantLiveEvalReport.SpeedProfile speed = profile.getSpeed();
+        AssistantLiveEvalReport.StabilityProfile stability = profile.getStability();
+        AssistantLiveEvalReport.EducationalEffectivenessProfile education = profile.getEducationalEffectiveness();
+
+        if (accuracy != null) {
+            addMinViolation(violations, "accuracy.signalHitRate", accuracy.getSignalHitRate(), thresholds.minSignalHitRate());
+            addMinViolation(violations, "accuracy.evidenceValidRate", accuracy.getEvidenceValidRate(), thresholds.minEvidenceValidRate());
+            addMinViolation(violations, "accuracy.safetyPassRate", accuracy.getSafetyPassRate(), thresholds.minSafetyPassRate());
+        }
+        if (speed != null) {
+            long maxP95LatencyMs = positiveOrDefault(thresholds.maxP95LatencyMs(), nullToLong(speed.getTargetP95LatencyMs()));
+            long maxLatencyMs = positiveOrDefault(thresholds.maxLatencyMs(), nullToLong(speed.getTargetMaxLatencyMs()));
+            addMaxViolation(violations, "speed.p95LatencyMs", speed.getP95LatencyMs(), maxP95LatencyMs);
+            addMaxViolation(violations, "speed.maxLatencyMs", speed.getMaxLatencyMs(), maxLatencyMs);
+        }
+        if (stability != null) {
+            addMaxViolation(violations, "stability.runtimeFailureRate", stability.getRuntimeFailureRate(), thresholds.maxFallbackRate());
+            addMaxViolation(violations, "stability.fallbackRate", stability.getFallbackRate(), thresholds.maxFallbackRate());
+        }
+        if (education != null) {
+            addMinViolation(violations, "educationalEffectiveness.teachingActionValidRate",
+                    education.getTeachingActionValidRate(), thresholds.minTeachingActionValidRate());
+        }
+        return violations;
+    }
+
+    private static void addMinViolation(List<String> violations, String metric, Double actual, double threshold) {
+        if (actual != null && actual < threshold) {
+            violations.add(metric + " " + format(actual) + " < " + format(threshold));
+        }
+    }
+
+    private static void addMaxViolation(List<String> violations, String metric, Double actual, double threshold) {
+        if (actual != null && actual > threshold) {
+            violations.add(metric + " " + format(actual) + " > " + format(threshold));
+        }
+    }
+
+    private static void addMaxViolation(List<String> violations, String metric, Long actual, long threshold) {
+        if (actual != null && threshold > 0 && actual > threshold) {
+            violations.add(metric + " " + actual + " > " + threshold);
+        }
+    }
+
     private static int completedCount(AssistantLiveEvalReport report, int total) {
         if (report.getCompletedCount() != null) {
             return Math.max(0, report.getCompletedCount());
@@ -80,6 +132,14 @@ class AssistantLiveEvalQualityGate {
         return value == null ? 0 : value;
     }
 
+    private static long nullToLong(Long value) {
+        return value == null ? 0L : value;
+    }
+
+    private static long positiveOrDefault(long value, long fallback) {
+        return value > 0 ? value : fallback;
+    }
+
     private static double snapshotRate(Double value, double fallback) {
         return value == null ? fallback : value;
     }
@@ -92,6 +152,17 @@ class AssistantLiveEvalQualityGate {
                       double minEvidenceValidRate,
                       double minSafetyPassRate,
                       double maxFallbackRate,
-                      double minTeachingActionValidRate) {
+                      double minTeachingActionValidRate,
+                      long maxP95LatencyMs,
+                      long maxLatencyMs) {
+
+        Thresholds(double minSignalHitRate,
+                   double minEvidenceValidRate,
+                   double minSafetyPassRate,
+                   double maxFallbackRate,
+                   double minTeachingActionValidRate) {
+            this(minSignalHitRate, minEvidenceValidRate, minSafetyPassRate,
+                    maxFallbackRate, minTeachingActionValidRate, 25_000L, 45_000L);
+        }
     }
 }

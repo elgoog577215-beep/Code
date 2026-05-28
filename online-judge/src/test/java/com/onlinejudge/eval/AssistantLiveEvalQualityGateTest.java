@@ -64,6 +64,50 @@ class AssistantLiveEvalQualityGateTest {
     }
 
     @Test
+    void qualityGateReportsFourDimensionProfileViolations() {
+        AssistantLiveEvalReport report = AssistantLiveEvalReport.builder()
+                .totalCount(4)
+                .evaluationProfile(AssistantLiveEvalReport.EvaluationProfile.builder()
+                        .accuracy(AssistantLiveEvalReport.AccuracyProfile.builder()
+                                .signalHitRate(0.50)
+                                .evidenceValidRate(0.75)
+                                .safetyPassRate(0.95)
+                                .build())
+                        .speed(AssistantLiveEvalReport.SpeedProfile.builder()
+                                .p95LatencyMs(31_000L)
+                                .maxLatencyMs(52_000L)
+                                .targetP95LatencyMs(25_000L)
+                                .targetMaxLatencyMs(45_000L)
+                                .build())
+                        .stability(AssistantLiveEvalReport.StabilityProfile.builder()
+                                .runtimeFailureRate(0.40)
+                                .fallbackRate(0.45)
+                                .build())
+                        .educationalEffectiveness(AssistantLiveEvalReport.EducationalEffectivenessProfile.builder()
+                                .teachingActionValidRate(0.60)
+                                .studentImprovementMeasured(false)
+                                .build())
+                        .build())
+                .build();
+
+        List<String> violations = AssistantLiveEvalQualityGate.evaluate(
+                report,
+                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 0.8, 25_000L, 45_000L)
+        );
+
+        assertThat(violations).containsExactly(
+                "accuracy.signalHitRate 0.50 < 0.70",
+                "accuracy.evidenceValidRate 0.75 < 0.80",
+                "accuracy.safetyPassRate 0.95 < 1.00",
+                "speed.p95LatencyMs 31000 > 25000",
+                "speed.maxLatencyMs 52000 > 45000",
+                "stability.runtimeFailureRate 0.40 > 0.30",
+                "stability.fallbackRate 0.45 > 0.30",
+                "educationalEffectiveness.teachingActionValidRate 0.60 < 0.80"
+        );
+    }
+
+    @Test
     void runtimeFailuresDoNotLowerCompletedOutputQualityRates() {
         AssistantLiveEvalReport report = AssistantLiveEvalReport.builder()
                 .totalCount(4)

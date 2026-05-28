@@ -28,6 +28,7 @@ public class AssistantLiveEvalReport {
     private Integer expectedSignalHitCount;
     private Integer evidenceValidCount;
     private GoalSnapshot goalSnapshot;
+    private EvaluationProfile evaluationProfile;
     private List<Entry> entries;
 
     @Data
@@ -103,6 +104,84 @@ public class AssistantLiveEvalReport {
         private Integer completedCount;
         private Integer runtimeFailureCount;
         private Map<String, Integer> failureReasonCounts;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class EvaluationProfile {
+        private AccuracyProfile accuracy;
+        private SpeedProfile speed;
+        private StabilityProfile stability;
+        private EducationalEffectivenessProfile educationalEffectiveness;
+        private List<String> dimensionGaps;
+        private String overallVerdict;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AccuracyProfile {
+        private Integer evaluatedCount;
+        private Integer completedOutputCount;
+        private Integer expectedSignalHitCount;
+        private Integer evidenceValidCount;
+        private Integer teachingActionValidCount;
+        private Integer safetyFailureCount;
+        private Double signalHitRate;
+        private Double evidenceValidRate;
+        private Double teachingActionValidRate;
+        private Double safetyPassRate;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SpeedProfile {
+        private Integer measuredCount;
+        private Long averageLatencyMs;
+        private Long p50LatencyMs;
+        private Long p90LatencyMs;
+        private Long p95LatencyMs;
+        private Long maxLatencyMs;
+        private Long targetP95LatencyMs;
+        private Long targetMaxLatencyMs;
+        private List<String> slowCaseIds;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StabilityProfile {
+        private Integer totalCount;
+        private Integer completedCount;
+        private Integer runtimeFailureCount;
+        private Integer fallbackCount;
+        private Integer localFallbackCount;
+        private Double completedOutputRate;
+        private Double runtimeFailureRate;
+        private Double fallbackRate;
+        private Map<String, Integer> failureReasonCounts;
+        private Map<String, Integer> routeFailureCounts;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class EducationalEffectivenessProfile {
+        private Boolean studentImprovementMeasured;
+        private Integer measuredStudentOutcomeCount;
+        private Double studentImprovementRate;
+        private Double teachingActionValidRate;
+        private Double evidenceValidRate;
+        private Double safetyPassRate;
+        private List<String> proxyMetrics;
+        private List<String> nextMeasurementGaps;
     }
 
     @Data
