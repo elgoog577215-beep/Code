@@ -141,9 +141,11 @@ public class StudentTrajectoryService {
                 .map(AbilitySignalAnalyzer.AbilitySignal::getAbilityPoint)
                 .orElse(null);
         String crossProblemSummary = abilitySignalAnalyzer.buildCrossProblemSummary(submissions, analyses);
-        String largeChangeSameIssue = trajectorySignalAnalyzer.detectLargeChangeSameIssue(submissions, analyses);
+        StudentTrajectoryResponse.TrajectoryPatternSignal latestTrajectoryPatternSignal =
+                toTrajectoryPatternSignal(trajectorySignalAnalyzer.detectLargeChangeSameIssueSignal(submissions, analyses));
+        String largeChangeSameIssue = latestTrajectoryPatternSignal == null ? "" : latestTrajectoryPatternSignal.getSummary();
         if (!largeChangeSameIssue.isBlank()) {
-            nextStep = "先暂停整体重写。请用一个最小样例验证单个假设。";
+            nextStep = latestTrajectoryPatternSignal.getNextFocus();
             attentionReason = largeChangeSameIssue;
             improvementSignal = largeChangeSameIssue;
         }
@@ -165,6 +167,7 @@ public class StudentTrajectoryService {
                 .latestLearningInterventionPlan(latestLearningInterventionPlan)
                 .latestLearningInterventionImpact(latestLearningInterventionImpact)
                 .latestLearningActionEvidence(latestLearningActionEvidence)
+                .latestTrajectoryPatternSignal(latestTrajectoryPatternSignal)
                 .primaryAbilityFocus(primaryAbilityFocus)
                 .crossProblemSummary(crossProblemSummary)
                 .latestCoachInteraction(withImpact(
@@ -413,6 +416,26 @@ public class StudentTrajectoryService {
                 .evidenceRefs(snapshot.evidenceRefs())
                 .estimatedMinutes(snapshot.estimatedMinutes())
                 .answerLeakRisk(snapshot.answerLeakRisk())
+                .build();
+    }
+
+    private StudentTrajectoryResponse.TrajectoryPatternSignal toTrajectoryPatternSignal(
+            TrajectorySignalAnalyzer.TrajectoryPatternSignal signal) {
+        if (signal == null || signal.getSignalType() == null || signal.getSignalType().isBlank()) {
+            return null;
+        }
+        return StudentTrajectoryResponse.TrajectoryPatternSignal.builder()
+                .signalType(signal.getSignalType())
+                .evidenceRef(signal.getEvidenceRef())
+                .issue(signal.getIssue())
+                .summary(signal.getSummary())
+                .nextFocus(signal.getNextFocus())
+                .needsTeacherAttention(signal.isNeedsTeacherAttention())
+                .latestSubmissionId(signal.getLatestSubmissionId())
+                .previousSubmissionId(signal.getPreviousSubmissionId())
+                .beforePreviousSubmissionId(signal.getBeforePreviousSubmissionId())
+                .latestChangeRatio(signal.getLatestChangeRatio())
+                .previousChangeRatio(signal.getPreviousChangeRatio())
                 .build();
     }
 

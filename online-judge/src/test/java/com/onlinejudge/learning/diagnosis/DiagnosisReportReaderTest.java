@@ -95,8 +95,8 @@ class DiagnosisReportReaderTest {
                           "issueTags": ["TIME_COMPLEXITY"],
                           "aiInvocation": {
                             "provider": "ModelScope",
-                            "model": "MiniMax/MiniMax-M2.7",
-                            "modelVersion": "MiniMax/MiniMax-M2.7",
+                            "model": "deepseek-ai/DeepSeek-V4-Pro",
+                            "modelVersion": "deepseek-ai/DeepSeek-V4-Pro",
                             "promptVersion": "submission-diagnosis-prompt-v2",
                             "agentVersion": "diagnostic-agent-v2",
                             "analysisSchemaVersion": "diagnosis-v1",
@@ -113,7 +113,7 @@ class DiagnosisReportReaderTest {
 
         assertThat(snapshot).isNotNull();
         assertThat(snapshot.provider()).isEqualTo("ModelScope");
-        assertThat(snapshot.modelVersion()).isEqualTo("MiniMax/MiniMax-M2.7");
+        assertThat(snapshot.modelVersion()).isEqualTo("deepseek-ai/DeepSeek-V4-Pro");
         assertThat(snapshot.promptVersion()).isEqualTo("submission-diagnosis-prompt-v2");
         assertThat(snapshot.agentVersion()).isEqualTo("diagnostic-agent-v2");
         assertThat(snapshot.status()).isEqualTo("MODEL_COMPLETED");

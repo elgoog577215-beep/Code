@@ -25,6 +25,7 @@ public class StudentTrajectoryResponse {
     private LearningInterventionPlan latestLearningInterventionPlan;
     private LearningInterventionImpact latestLearningInterventionImpact;
     private LearningActionEvidence latestLearningActionEvidence;
+    private TrajectoryPatternSignal latestTrajectoryPatternSignal;
     private String primaryAbilityFocus;
     private String crossProblemSummary;
     private CoachInteractionSummaryResponse latestCoachInteraction;
@@ -143,5 +144,21 @@ public class StudentTrajectoryResponse {
         private Double confidence;
         private List<String> evidenceRefs;
         private String nextAdjustment;
+    }
+
+    @Data
+    @Builder
+    public static class TrajectoryPatternSignal {
+        private String signalType;
+        private String evidenceRef;
+        private String issue;
+        private String summary;
+        private String nextFocus;
+        private boolean needsTeacherAttention;
+        private Long latestSubmissionId;
+        private Long previousSubmissionId;
+        private Long beforePreviousSubmissionId;
+        private Double latestChangeRatio;
+        private Double previousChangeRatio;
     }
 }

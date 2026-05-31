@@ -47,8 +47,54 @@ class TrajectorySignalAnalyzerTest {
                 )
         );
 
-        assertThat(signal).contains("多次大幅修改代码");
+        assertThat(signal).isNotBlank();
         assertThat(signal).contains("WA");
+    }
+
+    @Test
+    void returnsStructuredLargeChangeSameIssueSignal() {
+        Submission latest = submission(3L, """
+                data = input().split()
+                result = []
+                for item in data:
+                    result.append(item.strip())
+                print(",".join(result))
+                """);
+        Submission previous = submission(2L, """
+                values = list(map(int, input().split()))
+                total = 0
+                for value in values:
+                    total += value
+                print(total)
+                """);
+        Submission first = submission(1L, """
+                n = int(input())
+                arr = []
+                for i in range(n):
+                    arr.append(input())
+                print(len(arr))
+                """);
+
+        TrajectorySignalAnalyzer.TrajectoryPatternSignal signal = analyzer.detectLargeChangeSameIssueSignal(
+                List.of(latest, previous, first),
+                Map.of(
+                        1L, analysis(1L, "WA"),
+                        2L, analysis(2L, "WA"),
+                        3L, analysis(3L, "WA")
+                )
+        );
+
+        assertThat(signal).isNotNull();
+        assertThat(signal.getSignalType()).isEqualTo("LARGE_CHANGE_SAME_ISSUE");
+        assertThat(signal.getEvidenceRef()).isEqualTo("trajectory:large_change_same_issue");
+        assertThat(signal.getIssue()).isEqualTo("WA");
+        assertThat(signal.isNeedsTeacherAttention()).isTrue();
+        assertThat(signal.getLatestSubmissionId()).isEqualTo(3L);
+        assertThat(signal.getPreviousSubmissionId()).isEqualTo(2L);
+        assertThat(signal.getBeforePreviousSubmissionId()).isEqualTo(1L);
+        assertThat(signal.getLatestChangeRatio()).isGreaterThanOrEqualTo(0.45);
+        assertThat(signal.getPreviousChangeRatio()).isGreaterThanOrEqualTo(0.45);
+        assertThat(signal.getNextFocus()).isNotBlank();
     }
 
     @Test

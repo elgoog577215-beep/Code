@@ -1,15 +1,21 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { BookOpenCheck, GraduationCap, Menu, Moon, Sun, UsersRound, X } from "lucide-react";
-import TeacherPage from "./features/teacher/TeacherPage";
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BookOpenCheck, GraduationCap, KeyRound, Menu, Moon, Sun, UsersRound, X } from "lucide-react";
 import TeacherManagementPage from "./features/teacher/TeacherManagementPage";
 import { EmptyState } from "./shared/ui/EmptyState";
+import { getStoredRole } from "./features/home/WelcomePage";
 
-const RoleEntryPage = lazy(() => import("./features/home/RoleEntryPage"));
+const WelcomePage = lazy(() => import("./features/home/WelcomePage"));
+const HomePage = lazy(() => import("./features/home/HomePage"));
+const StudentHome = lazy(() => import("./features/student/StudentHome"));
 const StudentPage = lazy(() => import("./features/student/StudentPage"));
+const TeacherPage = lazy(() => import("./features/teacher/TeacherPage"));
+const TeacherDashboard = lazy(() => import("./features/teacher/TeacherDashboard"));
+const AssignmentDetail = lazy(() => import("./features/teacher/AssignmentDetail"));
 const ProblemPage = lazy(() => import("./features/problem/ProblemPage"));
 const TaskEditorPage = lazy(() => import("./features/task-editor/TaskEditorPage"));
 const ClassOverviewPage = lazy(() => import("./features/insights/ClassOverviewPage"));
+const InviteCodeModal = lazy(() => import("./shared/ui/InviteCodeModal"));
 
 type Theme = "light" | "dark";
 
@@ -36,50 +42,63 @@ function LegacyRedirect() {
   const suffix = search.toString() ? `?${search.toString()}` : "";
 
   if (location.pathname.endsWith("problem.html") && id) {
-    return <Navigate to={`/app/problem/${id}${suffix}`} replace />;
+    return <Navigate to={`/problem/${id}${suffix}`} replace />;
   }
   if (location.pathname.endsWith("student.html")) {
-    return <Navigate to={`/app/student${location.search}`} replace />;
+    return <Navigate to="/student" replace />;
   }
   if (location.pathname.endsWith("teacher.html")) {
-    return <Navigate to="/app/teacher" replace />;
+    return <Navigate to="/teacher" replace />;
   }
   if (location.pathname.endsWith("problem-create.html")) {
-    return <Navigate to={`/app/task-editor${location.search}`} replace />;
+    return <Navigate to={`/task-editor${location.search}`} replace />;
   }
   if (location.pathname.endsWith("leaderboard.html")) {
-    return <Navigate to="/app/class-overview" replace />;
+    return <Navigate to="/class-overview" replace />;
   }
-  return <Navigate to="/app/student" replace />;
+  return <Navigate to="/" replace />;
 }
 
-function Header() {
+function Header({ onOpenInvite, role }: { onOpenInvite: () => void; role: string | null }) {
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const location = useLocation();
-  const navItems = useMemo(
-    () => [
-      { to: "/app/student", label: "学生", icon: GraduationCap, activeWhen: (pathname: string) => pathname.startsWith("/app/problem") },
-      {
-        to: "/app/teacher",
+  const navigate = useNavigate();
+
+  const isWelcome = location.pathname === "/";
+  const isStudent = role === "student" || location.pathname.startsWith("/problem") || location.pathname === "/problems";
+  const isTeacher = role === "teacher" || location.pathname.startsWith("/teacher");
+
+  const navItems = useMemo(() => {
+    if (isWelcome) return [];
+    const items: Array<{ to: string; label: string; icon: typeof BookOpenCheck; activeWhen?: (p: string) => boolean }> = [];
+    items.push({ to: "/problems", label: "题库", icon: BookOpenCheck, activeWhen: (p: string) => p === "/problems" });
+    if (!role || role === "student") {
+      items.push({ to: "/student", label: "学生", icon: GraduationCap, activeWhen: (p: string) => p === "/student" || p.startsWith("/problem") });
+    }
+    if (!role || role === "teacher") {
+      items.push({
+        to: "/teacher",
         label: "教师",
         icon: UsersRound,
-        activeWhen: (pathname: string) =>
-          pathname.startsWith("/app/teacher-management") ||
-          pathname.startsWith("/app/task-editor") ||
-          pathname.startsWith("/app/class-overview")
-      }
-    ],
-    []
-  );
+        activeWhen: (p: string) => p.startsWith("/teacher") || p.startsWith("/teacher-management") || p.startsWith("/task-editor")
+      });
+    }
+    return items;
+  }, [isWelcome, role]);
 
   useEffect(() => {
     setOpen(false);
   }, [location.pathname]);
 
+  function switchRole() {
+    localStorage.removeItem("wzai:role");
+    navigate("/");
+  }
+
   return (
     <header className={`app-header ${open ? "is-open" : ""}`}>
-      <NavLink to="/app" className="brand" aria-label="温中编程学习平台">
+      <NavLink to={role ? (role === "student" ? "/student" : "/teacher") : "/"} className="brand" aria-label="温中编程学习平台">
         <span className="brand__mark">
           <BookOpenCheck size={24} />
         </span>
@@ -87,23 +106,40 @@ function Header() {
           <strong>温中编程学习平台</strong>
         </span>
       </NavLink>
-      <button type="button" className="nav-toggle" aria-label={open ? "收起导航" : "展开导航"} onClick={() => setOpen(value => !value)}>
-        {open ? <X size={19} /> : <Menu size={19} />}
-      </button>
-      <nav className="top-nav" aria-label="主导航">
-        {navItems.map(item => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              isActive || item.activeWhen?.(location.pathname) ? "top-nav__link is-active" : "top-nav__link"
-            }
-          >
-            <item.icon size={17} />
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      {!isWelcome && (
+        <>
+          <button type="button" className="nav-toggle" aria-label={open ? "收起导航" : "展开导航"} onClick={() => setOpen(v => !v)}>
+            {open ? <X size={19} /> : <Menu size={19} />}
+          </button>
+          <nav className="top-nav" aria-label="主导航">
+            {navItems.map(item => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === "/problems"}
+                className={({ isActive }) =>
+                  isActive || item.activeWhen?.(location.pathname) ? "top-nav__link is-active" : "top-nav__link"
+                }
+              >
+                <item.icon size={17} />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+            {role !== "teacher" && (
+              <button type="button" className="top-nav__link" onClick={onOpenInvite} title="输入教师邀请码">
+                <KeyRound size={17} />
+                <span>邀请码</span>
+              </button>
+            )}
+            {role && (
+              <button type="button" className="top-nav__link" onClick={switchRole} title="切换身份">
+                <span>🔄</span>
+                <span>切换</span>
+              </button>
+            )}
+          </nav>
+        </>
+      )}
       <button
         type="button"
         className="theme-toggle"
@@ -117,36 +153,64 @@ function Header() {
   );
 }
 
-export default function App() {
+function AppContent() {
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const location = useLocation();
+  const role = getStoredRole();
+
+  // Redirect from "/" if role already selected
+  if (location.pathname === "/" && role) {
+    return <Navigate to={role === "student" ? "/student" : "/teacher"} replace />;
+  }
+
   return (
     <div className="app-shell">
-      <Header />
+      <Header onOpenInvite={() => setInviteOpen(true)} role={role} />
       <main className="main-shell">
         <Suspense fallback={<EmptyState title="正在加载页面" />}>
           <Routes>
-            <Route path="/" element={<RoleEntryPage />} />
-            <Route path="/app" element={<RoleEntryPage />} />
+            {/* Welcome & Public */}
+            <Route path="/" element={<WelcomePage />} />
+            <Route path="/problems" element={<HomePage />} />
+            <Route path="/problem/:problemId" element={<ProblemPage />} />
+
+            {/* Student */}
+            <Route path="/student" element={<StudentHome />} />
+
+            {/* Teacher */}
+            <Route path="/teacher" element={<TeacherDashboard />} />
+            <Route path="/teacher/assignment/:id" element={<AssignmentDetail />} />
+            <Route path="/teacher/classes" element={<TeacherManagementPage />} />
+            <Route path="/teacher/problems" element={<TeacherManagementPage />} />
+            <Route path="/teacher/system" element={<TeacherManagementPage />} />
+            <Route path="/teacher-management" element={<TeacherManagementPage />} />
+            <Route path="/task-editor" element={<TaskEditorPage />} />
+            <Route path="/class-overview" element={<ClassOverviewPage />} />
+
+            {/* Legacy */}
+            <Route path="/app" element={<Navigate to="/" replace />} />
             <Route path="/app/student" element={<StudentPage />} />
             <Route path="/app/teacher" element={<TeacherPage />} />
             <Route path="/app/teacher-management" element={<TeacherManagementPage />} />
             <Route path="/app/task-editor" element={<TaskEditorPage />} />
             <Route path="/app/class-overview" element={<ClassOverviewPage />} />
             <Route path="/app/problem/:problemId" element={<ProblemPage />} />
-            <Route path="/student" element={<StudentPage />} />
-            <Route path="/problem/:problemId" element={<ProblemPage />} />
-            <Route path="/teacher" element={<TeacherPage />} />
-            <Route path="/teacher-management" element={<TeacherManagementPage />} />
-            <Route path="/task-editor" element={<TaskEditorPage />} />
-            <Route path="/class-overview" element={<ClassOverviewPage />} />
             <Route path="/student.html" element={<LegacyRedirect />} />
             <Route path="/teacher.html" element={<LegacyRedirect />} />
             <Route path="/problem.html" element={<LegacyRedirect />} />
             <Route path="/problem-create.html" element={<LegacyRedirect />} />
             <Route path="/leaderboard.html" element={<LegacyRedirect />} />
-            <Route path="*" element={<Navigate to="/app/student" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </main>
+      <Suspense>
+        {inviteOpen && <InviteCodeModal onClose={() => setInviteOpen(false)} />}
+      </Suspense>
     </div>
   );
+}
+
+export default function App() {
+  return <AppContent />;
 }

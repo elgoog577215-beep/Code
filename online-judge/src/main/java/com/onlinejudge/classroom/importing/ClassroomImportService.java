@@ -28,10 +28,12 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -229,6 +231,36 @@ public class ClassroomImportService {
             }
             format = "csv";
         }
+        if ("zip".equals(format) || nullToBlank(request.getFileName()).toLowerCase(Locale.ROOT).endsWith(".zip")) {
+            return parseProblemZip(request, issues);
+        }
+
+        List<CreateProblemRequest.TestCaseRequest> importedCases = parseAttachedTestcases(request, issues);
+        if (!importedCases.isEmpty()) {
+            List<ImportPreviewResponse.RowIssue> statementIssues = new ArrayList<>();
+            List<ImportPreviewResponse.ProblemImportRow> rows =
+                    ("json".equals(format) || content.trim().startsWith("{") || content.trim().startsWith("["))
+                            ? parseProblemJson(content, statementIssues)
+                            : ("markdown".equals(format) || content.contains("##") || content.contains("# "))
+                                    ? parseProblemMarkdown(content, statementIssues)
+                                    : parseProblemCsv(content, statementIssues);
+            if (rows.isEmpty()) {
+                issues.addAll(statementIssues);
+                return rows;
+            }
+            List<ImportPreviewResponse.ProblemImportRow> merged = new ArrayList<>();
+            for (ImportPreviewResponse.ProblemImportRow row : rows) {
+                try {
+                    CreateProblemRequest createRequest = objectMapper.readValue(row.getPayloadJson(), CreateProblemRequest.class);
+                    createRequest.setTestCases(mergeImportedTestCases(createRequest.getTestCases(), importedCases));
+                    merged.add(toProblemRow(row.getRowNumber(), createRequest, issues));
+                } catch (Exception exception) {
+                    issues.add(issue(row.getRowNumber(), "error", "棰橀潰涓庢祴璇曟暟鎹悎骞跺け璐ワ細" + exception.getMessage()));
+                }
+            }
+            return markProblemDuplicates(merged);
+        }
+
         if ("json".equals(format) || content.trim().startsWith("{") || content.trim().startsWith("[")) {
             return parseProblemJson(content, issues);
         }
@@ -236,6 +268,92 @@ public class ClassroomImportService {
             return parseProblemMarkdown(content, issues);
         }
         return parseProblemCsv(content, issues);
+    }
+
+    private List<ImportPreviewResponse.ProblemImportRow> parseProblemZip(ImportRequest request,
+                                                                          List<ImportPreviewResponse.RowIssue> issues) {
+        Map<String, String> textEntries = new LinkedHashMap<>();
+        Map<String, String> inputMap = new LinkedHashMap<>();
+        Map<String, String> answerMap = new LinkedHashMap<>();
+
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(normalizeBinaryContent(request)))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (entry.isDirectory()) {
+                    continue;
+                }
+
+                String name = entry.getName().replace('\\', '/');
+                if (name.startsWith("__MACOSX/")) {
+                    continue;
+                }
+
+                String content = stripBom(new String(zip.readAllBytes(), StandardCharsets.UTF_8));
+                String lower = name.toLowerCase(Locale.ROOT);
+                String stem = stripExtension(name);
+                if (lower.endsWith(".in")) {
+                    inputMap.put(stem, content);
+                    continue;
+                }
+                if (lower.endsWith(".ans") || lower.endsWith(".out")) {
+                    answerMap.put(stem, content);
+                    continue;
+                }
+                if (lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".json")
+                        || lower.endsWith(".csv") || lower.endsWith(".txt")) {
+                    textEntries.put(name, content);
+                }
+            }
+        } catch (Exception exception) {
+            issues.add(issue(1, "error", "ZIP 瑙ｆ瀽澶辫触锛?" + exception.getMessage()));
+            return List.of();
+        }
+
+        List<CreateProblemRequest.TestCaseRequest> importedCases = pairZipTestCases(inputMap, answerMap, issues);
+        if (textEntries.isEmpty()) {
+            if (importedCases.isEmpty()) {
+                issues.add(issue(1, "error", "ZIP 涓湭鎵惧埌棰橀潰鏂囦欢鎴栧彲閰嶅鐨?.in/.ans 娴嬭瘯鏁版嵁"));
+                return List.of();
+            }
+            CreateProblemRequest generated = new CreateProblemRequest();
+            generated.setTitle(deriveZipTitle(request));
+            generated.setDescription("# " + generated.getTitle() + "\n\n璇蜂粠 ZIP 棰樺寘琛ュ厖棰橀潰璇存槑銆?");
+            generated.setDifficulty(Problem.Difficulty.EASY);
+            generated.setTimeLimit(1000);
+            generated.setMemoryLimit(128000);
+            generated.setTestCases(importedCases);
+            return markProblemDuplicates(List.of(toProblemRow(1, generated, issues)));
+        }
+
+        String problemEntryName = selectProblemStatementEntry(textEntries);
+        String problemContent = textEntries.get(problemEntryName);
+        String format = formatFromFileName(problemEntryName);
+        List<ImportPreviewResponse.RowIssue> statementIssues = new ArrayList<>();
+        List<ImportPreviewResponse.ProblemImportRow> rows =
+                "json".equals(format) ? parseProblemJson(problemContent, statementIssues)
+                        : "csv".equals(format) ? parseProblemCsv(problemContent, statementIssues)
+                        : parseProblemMarkdown(problemContent, statementIssues);
+
+        if (importedCases.isEmpty()) {
+            issues.addAll(statementIssues);
+            return rows;
+        }
+        if (rows.isEmpty()) {
+            issues.addAll(statementIssues);
+            return rows;
+        }
+
+        List<ImportPreviewResponse.ProblemImportRow> merged = new ArrayList<>();
+        for (ImportPreviewResponse.ProblemImportRow row : rows) {
+            try {
+                CreateProblemRequest createRequest = objectMapper.readValue(row.getPayloadJson(), CreateProblemRequest.class);
+                createRequest.setTestCases(mergeImportedTestCases(createRequest.getTestCases(), importedCases));
+                merged.add(toProblemRow(row.getRowNumber(), createRequest, issues));
+            } catch (Exception exception) {
+                issues.add(issue(row.getRowNumber(), "error", "棰橀潰涓庢祴璇曟暟鎹悎骞跺け璐ワ細" + exception.getMessage()));
+            }
+        }
+        return markProblemDuplicates(merged);
     }
 
     private List<ImportPreviewResponse.ProblemImportRow> parseProblemJson(String content,
@@ -265,6 +383,79 @@ public class ClassroomImportService {
         request.setMemoryLimit(128000);
         request.setTestCases(extractMarkdownSamples(content));
         return markProblemDuplicates(List.of(toProblemRow(1, request, issues)));
+    }
+
+    private List<CreateProblemRequest.TestCaseRequest> parseAttachedTestcases(ImportRequest request,
+                                                                               List<ImportPreviewResponse.RowIssue> issues) {
+        if (request == null || request.getTestcaseImport() == null) {
+            return List.of();
+        }
+
+        ImportRequest.TestcaseImport testcaseImport = request.getTestcaseImport();
+        List<CreateProblemRequest.TestCaseRequest> cases;
+        if (testcaseImport.getZipFile() != null && !nullToBlank(testcaseImport.getZipFile().getContent()).isBlank()) {
+            cases = parseTestcaseZip(testcaseImport.getZipFile(), issues);
+        } else {
+            cases = pairAttachedTestcaseFiles(testcaseImport.getInputFiles(), testcaseImport.getAnswerFiles(), issues);
+        }
+
+        boolean forceVisible = "visible".equalsIgnoreCase(nullToBlank(testcaseImport.getVisibility()));
+        if (forceVisible) {
+            cases.forEach(testCase -> testCase.setHidden(false));
+        }
+        return cases;
+    }
+
+    private List<CreateProblemRequest.TestCaseRequest> parseTestcaseZip(ImportRequest.TestcaseFile zipFile,
+                                                                         List<ImportPreviewResponse.RowIssue> issues) {
+        Map<String, String> inputMap = new LinkedHashMap<>();
+        Map<String, String> answerMap = new LinkedHashMap<>();
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(normalizeBinaryContent(nullToBlank(zipFile.getContent()))))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                String name = entry.getName().replace('\\', '/');
+                if (name.startsWith("__MACOSX/")) {
+                    continue;
+                }
+                String content = stripBom(new String(zip.readAllBytes(), StandardCharsets.UTF_8));
+                String lower = name.toLowerCase(Locale.ROOT);
+                String stem = stripExtension(name);
+                if (lower.endsWith(".in")) {
+                    inputMap.put(stem, content);
+                } else if (lower.endsWith(".ans") || lower.endsWith(".out")) {
+                    answerMap.put(stem, content);
+                }
+            }
+        } catch (Exception exception) {
+            issues.add(issue(1, "error", "ZIP 娴嬭瘯鏁版嵁瑙ｆ瀽澶辫触锛?" + exception.getMessage()));
+            return List.of();
+        }
+        return pairZipTestCases(inputMap, answerMap, issues);
+    }
+
+    private List<CreateProblemRequest.TestCaseRequest> pairAttachedTestcaseFiles(List<ImportRequest.TestcaseFile> inputFiles,
+                                                                                  List<ImportRequest.TestcaseFile> answerFiles,
+                                                                                  List<ImportPreviewResponse.RowIssue> issues) {
+        Map<String, String> inputMap = toTestcaseFileMap(inputFiles);
+        Map<String, String> answerMap = toTestcaseFileMap(answerFiles);
+        return pairZipTestCases(inputMap, answerMap, issues);
+    }
+
+    private Map<String, String> toTestcaseFileMap(List<ImportRequest.TestcaseFile> files) {
+        Map<String, String> map = new LinkedHashMap<>();
+        if (files == null) {
+            return map;
+        }
+        for (ImportRequest.TestcaseFile file : files) {
+            if (file == null || nullToBlank(file.getName()).isBlank()) {
+                continue;
+            }
+            map.put(stripExtension(file.getName().replace('\\', '/')), stripBom(nullToBlank(file.getContent())));
+        }
+        return map;
     }
 
     private List<ImportPreviewResponse.ProblemImportRow> parseProblemCsv(String content,
@@ -413,6 +604,97 @@ public class ClassroomImportService {
         return blocks;
     }
 
+    private List<CreateProblemRequest.TestCaseRequest> pairZipTestCases(Map<String, String> inputMap,
+                                                                         Map<String, String> answerMap,
+                                                                         List<ImportPreviewResponse.RowIssue> issues) {
+        List<String> matchedNames = inputMap.keySet().stream()
+                .filter(answerMap::containsKey)
+                .sorted((left, right) -> left.compareToIgnoreCase(right))
+                .toList();
+        if (matchedNames.isEmpty()) {
+            if (!inputMap.isEmpty() || !answerMap.isEmpty()) {
+                issues.add(issue(1, "warning", "ZIP 涓湁娴嬭瘯鏁版嵁锛屼絾娌℃湁鎵惧埌鍚屽悕鐨?.in 涓?.ans/.out 閰嶅"));
+            }
+            return List.of();
+        }
+
+        List<CreateProblemRequest.TestCaseRequest> cases = new ArrayList<>();
+        for (int index = 0; index < matchedNames.size(); index++) {
+            String name = matchedNames.get(index);
+            CreateProblemRequest.TestCaseRequest testCase = new CreateProblemRequest.TestCaseRequest();
+            testCase.setInput(inputMap.get(name));
+            testCase.setExpectedOutput(answerMap.get(name));
+            testCase.setHidden(index > 0);
+            cases.add(testCase);
+        }
+        return cases;
+    }
+
+    private List<CreateProblemRequest.TestCaseRequest> mergeImportedTestCases(List<CreateProblemRequest.TestCaseRequest> existing,
+                                                                               List<CreateProblemRequest.TestCaseRequest> imported) {
+        List<CreateProblemRequest.TestCaseRequest> result = new ArrayList<>();
+        if (existing != null) {
+            result.addAll(existing);
+        }
+        boolean hasVisible = result.stream().anyMatch(testCase -> !Boolean.TRUE.equals(testCase.getHidden()));
+        for (int index = 0; index < imported.size(); index++) {
+            CreateProblemRequest.TestCaseRequest source = imported.get(index);
+            CreateProblemRequest.TestCaseRequest testCase = new CreateProblemRequest.TestCaseRequest();
+            testCase.setInput(source.getInput());
+            testCase.setExpectedOutput(source.getExpectedOutput());
+            testCase.setHidden(hasVisible || index > 0);
+            result.add(testCase);
+        }
+        return result;
+    }
+
+    private String selectProblemStatementEntry(Map<String, String> textEntries) {
+        return textEntries.keySet().stream()
+                .filter(name -> name.toLowerCase(Locale.ROOT).matches(".*(problem|statement|readme|题面|棰橀潰).*\\.(md|markdown|json|csv|txt)$"))
+                .findFirst()
+                .orElseGet(() -> textEntries.keySet().stream()
+                        .filter(name -> {
+                            String lower = name.toLowerCase(Locale.ROOT);
+                            return lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".json") || lower.endsWith(".csv");
+                        })
+                        .findFirst()
+                        .orElse(textEntries.keySet().iterator().next()));
+    }
+
+    private String formatFromFileName(String fileName) {
+        String lower = nullToBlank(fileName).toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".json")) {
+            return "json";
+        }
+        if (lower.endsWith(".csv")) {
+            return "csv";
+        }
+        return "markdown";
+    }
+
+    private String stripExtension(String name) {
+        String normalized = nullToBlank(name).replace('\\', '/');
+        int dot = normalized.lastIndexOf('.');
+        return dot < 0 ? normalized : normalized.substring(0, dot);
+    }
+
+    private String deriveZipTitle(ImportRequest request) {
+        String fileName = nullToBlank(request.getFileName()).replace('\\', '/');
+        int slash = fileName.lastIndexOf('/');
+        if (slash >= 0) {
+            fileName = fileName.substring(slash + 1);
+        }
+        int dot = fileName.lastIndexOf('.');
+        if (dot > 0) {
+            fileName = fileName.substring(0, dot);
+        }
+        return fileName.isBlank() ? "ZIP 瀵煎叆棰樼洰" : fileName;
+    }
+
+    private String stripBom(String text) {
+        return nullToBlank(text).replaceFirst("^\\uFEFF", "");
+    }
+
     private String extractFirstCodeBlock(String text) {
         int start = text.indexOf("```");
         if (start < 0) {
@@ -515,6 +797,11 @@ public class ClassroomImportService {
 
     private byte[] normalizeBinaryContent(ImportRequest request) {
         String content = request == null ? "" : nullToBlank(request.getContent());
+        return normalizeBinaryContent(content);
+    }
+
+    private byte[] normalizeBinaryContent(String content) {
+        content = nullToBlank(content);
         if (content.startsWith("data:")) {
             int comma = content.indexOf(',');
             content = comma >= 0 ? content.substring(comma + 1) : content;

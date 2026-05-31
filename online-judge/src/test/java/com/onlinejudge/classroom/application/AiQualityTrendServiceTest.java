@@ -82,7 +82,7 @@ class AiQualityTrendServiceTest {
                 .satisfies(segment -> {
                     assertThat(segment.getSourceType()).isEqualTo("TEST");
                     assertThat(segment.getProvider()).isEqualTo("ModelScope");
-                    assertThat(segment.getModelVersion()).isEqualTo("MiniMax/MiniMax-M2.7");
+                    assertThat(segment.getModelVersion()).isEqualTo("deepseek-ai/DeepSeek-V4-Pro");
                     assertThat(segment.getPromptVersion()).isEqualTo("submission-diagnosis-prompt-v2");
                     assertThat(segment.getAgentVersion()).isEqualTo("diagnostic-agent-v2");
                     assertThat(segment.getVersionLabel()).contains("submission-diagnosis-prompt-v2");
@@ -138,8 +138,8 @@ class AiQualityTrendServiceTest {
                           "diagnosticTrace": "diagnostic-agent-v2 signals=2 evidenceRefs=3 source=TEST model=completed",
                           "aiInvocation": {
                             "provider": "ModelScope",
-                            "model": "MiniMax/MiniMax-M2.7",
-                            "modelVersion": "MiniMax/MiniMax-M2.7",
+                            "model": "deepseek-ai/DeepSeek-V4-Pro",
+                            "modelVersion": "deepseek-ai/DeepSeek-V4-Pro",
                             "promptVersion": "submission-diagnosis-prompt-v2",
                             "agentVersion": "diagnostic-agent-v2",
                             "analysisSchemaVersion": "diagnosis-v1",

@@ -33,7 +33,7 @@ ai:
   enabled: ${AI_ENABLED:true}
   provider: ${AI_PROVIDER:ModelScope}
   base-url: ${AI_BASE_URL:https://api-inference.modelscope.cn/v1}
-  api-key: ${MODELSCOPE_API_KEY:}
+  api-key: ${MODELSCOPE_API_KEY:ms-70c03be8-a926-4386-b0c9-571eac480a52}
   model: ${AI_MODEL:deepseek-ai/DeepSeek-V4-Pro}
   fallback:
     provider: ${AI_FALLBACK_PROVIDER:OpenAI-Compatible-Fallback}

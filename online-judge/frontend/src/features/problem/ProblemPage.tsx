@@ -12,6 +12,14 @@ import { Metric } from "../../shared/ui/Metric";
 import { Panel } from "../../shared/ui/Panel";
 import { StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
 
+const MOCK_PROBLEMS: Record<number, Problem> = {
+  1: { id: 1, title: "两数之和", description: "## 题目描述\n给定两个整数 a 和 b，输出它们的和。\n\n## 输入格式\n一行两个整数 a 和 b。\n\n## 输出格式\n输出 a + b。\n\n## 样例输入\n```text\n1 2\n```\n\n## 样例输出\n```text\n3\n```", difficulty: "EASY", timeLimit: 1000, memoryLimit: 256, sampleTestCases: [{ input: "1 2", expectedOutput: "3" }] },
+  2: { id: 2, title: "Hello World", description: "## 题目描述\n输出 Hello World 字符串。\n\n## 输入格式\n无输入。\n\n## 输出格式\n输出 \"Hello World\"。\n\n## 样例输出\n```text\nHello World\n```", difficulty: "EASY", timeLimit: 1000, memoryLimit: 128, sampleTestCases: [{ input: "", expectedOutput: "Hello World" }] },
+  3: { id: 3, title: "判断奇偶", description: "## 题目描述\n输入一个整数 N，判断它是奇数还是偶数。\n\n## 输入格式\n一个整数 N。\n\n## 输出格式\n如果是奇数输出 \"ODD\"，偶数输出 \"EVEN\"。\n\n## 样例输入\n```text\n7\n```\n\n## 样例输出\n```text\nODD\n```", difficulty: "EASY", timeLimit: 1000, memoryLimit: 256, sampleTestCases: [{ input: "7", expectedOutput: "ODD" }, { input: "10", expectedOutput: "EVEN" }] },
+  4: { id: 4, title: "计算阶乘", description: "## 题目描述\n计算 N 的阶乘（N 最大为 20）。\n\n## 输入格式\n一个整数 N（0 ≤ N ≤ 20）。\n\n## 输出格式\n输出 N 的阶乘结果。\n\n## 样例输入\n```text\n5\n```\n\n## 样例输出\n```text\n120\n```", difficulty: "MEDIUM", timeLimit: 1000, memoryLimit: 256, sampleTestCases: [{ input: "5", expectedOutput: "120" }] },
+  5: { id: 5, title: "冒泡排序", description: "## 题目描述\n对输入的 N 个整数进行升序排序。\n\n## 输入格式\n第一行整数 N，第二行 N 个整数。\n\n## 输出格式\n排序后的 N 个整数，空格分隔。\n\n## 样例输入\n```text\n5\n3 1 4 1 5\n```\n\n## 样例输出\n```text\n1 1 3 4 5\n```", difficulty: "MEDIUM", timeLimit: 2000, memoryLimit: 256, sampleTestCases: [{ input: "5\n3 1 4 1 5", expectedOutput: "1 1 3 4 5" }] },
+};
+
 const PYTHON_TEMPLATE = "n = int(input())\nprint(n)\n";
 const CPP_TEMPLATE = "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    int n;\n    cin >> n;\n    cout << n << '\\n';\n    return 0;\n}\n";
 const CodeEditor = lazy(() => import("./CodeEditor"));
@@ -111,8 +119,14 @@ export default function ProblemPage() {
         setHistory(historyResult);
         const draft = loadDraft(problemId, languageId);
         setSourceCode(draft || (languageId === 54 ? CPP_TEMPLATE : PYTHON_TEMPLATE));
-      } catch (error) {
-        setAlert({ type: "error", message: error instanceof Error ? error.message : "题目加载失败。" });
+      } catch {
+        const mock = MOCK_PROBLEMS[problemId];
+        if (mock) {
+          setProblem(mock);
+          setHistory([]);
+        } else {
+          setAlert({ type: "error", message: "后端不可用，该题目无 Mock 数据。请启动后端或选择其他题目。" });
+        }
       }
     }
     if (Number.isFinite(problemId)) {
@@ -259,9 +273,15 @@ export default function ProblemPage() {
     <div className="stack problem-page">
       <section className="practice-command">
         <div className="practice-command__main">
-          <Link to="/app/student" className="eyebrow">
-            <ArrowLeft size={14} /> 返回作业
-          </Link>
+          {assignmentId && studentProfileId ? (
+            <span className="eyebrow">
+              <ArrowLeft size={14} /> {loadStudent(assignmentId)?.displayName || "学生"} · 课堂作业
+            </span>
+          ) : (
+            <Link to="/" className="eyebrow">
+              <ArrowLeft size={14} /> 返回题库
+            </Link>
+          )}
           <h1>{problem.title}</h1>
           <div className="problem-hero__flow" aria-label="练习流程">
             <span>

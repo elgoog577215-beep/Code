@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, CheckCircle2, Database, RefreshCw, Route, ServerCog, UploadCloud, UsersRound } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import {
+  BookOpen,
+  CheckCircle2,
+  Database,
+  FileArchive,
+  FileText,
+  ListChecks,
+  RefreshCw,
+  Route,
+  ServerCog,
+  UploadCloud,
+  UsersRound
+} from "lucide-react";
 import { ButtonLink } from "../../shared/ui/Button";
 import { api } from "../../shared/api/client";
 import type {
@@ -21,17 +34,33 @@ import { StatusPill } from "../../shared/ui/StatusPill";
 type Alert = { type: "success" | "error"; message: string };
 type ManagementSection = "classes" | "problems" | "system";
 type ImportKind = "class" | "problem";
+type TestcaseVisibility = "hidden" | "visible";
+type TestcaseImportFile = { name: string; content: string };
 
 export default function TeacherManagementPage() {
+  const location = useLocation();
   const [activeSection, setActiveSection] = useState<ManagementSection>("classes");
+
+  // Auto-select tab based on URL
+  useEffect(() => {
+    if (location.pathname === "/teacher/problems") setActiveSection("problems");
+    else if (location.pathname === "/teacher/system") setActiveSection("system");
+    else setActiveSection("classes");
+  }, [location.pathname]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
   const [executor, setExecutor] = useState<ExecutorStatus | null>(null);
   const [aiRouteHealth, setAiRouteHealth] = useState<AiRouteHealth | null>(null);
   const [classForm, setClassForm] = useState({ name: "", grade: "", teacherName: "" });
   const [targetClassGroupId, setTargetClassGroupId] = useState("");
-  const [classImport, setClassImport] = useState({ format: "csv", content: "" });
-  const [problemImport, setProblemImport] = useState({ format: "markdown", content: "" });
+  const [classImport, setClassImport] = useState({ format: "csv", content: "", fileName: "" });
+  const [problemImport, setProblemImport] = useState({ format: "markdown", content: "", fileName: "" });
+  const [testcaseImport, setTestcaseImport] = useState<{
+    visibility: TestcaseVisibility;
+    inputFiles: TestcaseImportFile[];
+    answerFiles: TestcaseImportFile[];
+    zipFile: TestcaseImportFile | null;
+  }>({ visibility: "hidden", inputFiles: [], answerFiles: [], zipFile: null });
   const [classImportResult, setClassImportResult] = useState<ImportPreview | ImportCommit | null>(null);
   const [problemImportResult, setProblemImportResult] = useState<ImportPreview | ImportCommit | null>(null);
   const [identityAudit, setIdentityAudit] = useState<StudentIdentityAudit | null>(null);
@@ -204,6 +233,8 @@ export default function TeacherManagementPage() {
     return {
       format: data.format,
       content: data.content,
+      fileName: data.fileName,
+      testcaseImport: kind === "problem" ? testcaseImport : undefined,
       classGroupId: targetClassGroupId ? Number(targetClassGroupId) : null,
       className: classForm.name || undefined
     };
@@ -247,16 +278,55 @@ export default function TeacherManagementPage() {
       return;
     }
     const extension = file.name.split(".").pop()?.toLowerCase() || "";
-    const format = extension === "xlsx" ? "xlsx" : extension === "json" ? "json" : extension === "md" || extension === "markdown" ? "markdown" : "csv";
+    const format =
+      extension === "xlsx"
+        ? "xlsx"
+        : extension === "json"
+            ? "json"
+            : extension === "md" || extension === "markdown"
+              ? "markdown"
+              : "csv";
     const content = extension === "xlsx" ? await readFileAsDataUrl(file) : await file.text();
     if (kind === "class") {
       setClassFileName(file.name);
-      setClassImport({ format: format === "xlsx" ? "xlsx" : "csv", content });
+      setClassImport({ format: format === "xlsx" ? "xlsx" : "csv", content, fileName: file.name });
     } else {
       setProblemFileName(file.name);
-      setProblemImport({ format, content });
+      setProblemImport({ format, content, fileName: file.name });
     }
   }
+
+  async function readTestcaseFiles(kind: "input" | "answer", files: FileList | null) {
+    if (!files?.length) {
+      return;
+    }
+    const entries = await Promise.all(
+      Array.from(files).map(async file => ({
+        name: file.name,
+        content: stripBom(await file.text())
+      }))
+    );
+    setTestcaseImport(current => ({
+      ...current,
+      zipFile: null,
+      [kind === "input" ? "inputFiles" : "answerFiles"]: entries
+    }));
+  }
+
+  async function readTestcaseZip(file: File | null) {
+    if (!file) {
+      return;
+    }
+    const content = await readFileAsDataUrl(file);
+    setTestcaseImport(current => ({
+      ...current,
+      inputFiles: [],
+      answerFiles: [],
+      zipFile: { name: file.name, content }
+    }));
+  }
+
+  const testcasePairCount = useMemo(() => countMatchedTestcasePairs(testcaseImport), [testcaseImport]);
 
   return (
     <div className="stack teacher-management-page management-console-page">
@@ -330,7 +400,7 @@ export default function TeacherManagementPage() {
                 <Field label="粘贴名单">
                   <TextArea
                     value={classImport.content}
-                    onChange={event => setClassImport({ ...classImport, content: event.target.value })}
+                    onChange={event => setClassImport({ ...classImport, content: event.target.value, fileName: "" })}
                     placeholder={"班级,姓名,学号\n高一1班,张三,01"}
                   />
                 </Field>
@@ -444,7 +514,15 @@ export default function TeacherManagementPage() {
 
           {activeSection === "problems" && (
             <section className="management-task-card management-task-card--large">
-              <div className="management-form-row">
+              <ProblemImportGuide />
+              <div className="problem-import-section">
+                <div className="problem-import-section__head">
+                  <div>
+                    <h3>题面导入</h3>
+                    <p>上传 Markdown、JSON、CSV 或 XLSX；也可以直接在下方粘贴 Markdown 题面。</p>
+                  </div>
+                  <StatusPill tone={problemImport.fileName ? "success" : "neutral"}>{problemImport.fileName || "未选择题面文件"}</StatusPill>
+                </div>
                 <FilePicker
                   accept=".md,.markdown,.json,.csv,.txt,.xlsx"
                   fileName={problemFileName}
@@ -457,10 +535,19 @@ export default function TeacherManagementPage() {
               <Field label="粘贴题目">
                 <TextArea
                   value={problemImport.content}
-                  onChange={event => setProblemImport({ ...problemImport, content: event.target.value })}
-                  placeholder={"# 两数求和\n\n## 题目描述\n...\n\n## 样例输入\n1 2\n\n## 样例输出\n3"}
+                  onChange={event => setProblemImport({ ...problemImport, content: event.target.value, fileName: "" })}
+                  placeholder={"# 两数求和\n\n## 题目描述\n给定两个整数，输出它们的和。\n\n## 输入格式\n一行两个整数 a b。\n\n## 输出格式\n输出 a + b。\n\n## 样例输入\n```text\n1 2\n```\n\n## 样例输出\n```text\n3\n```"}
                 />
               </Field>
+              <TestcaseImportPanel
+                state={testcaseImport}
+                pairCount={testcasePairCount}
+                onVisibilityChange={visibility => setTestcaseImport(current => ({ ...current, visibility }))}
+                onInputFiles={readTestcaseFiles}
+                onAnswerFiles={readTestcaseFiles}
+                onZipFile={readTestcaseZip}
+                onClear={() => setTestcaseImport({ visibility: "hidden", inputFiles: [], answerFiles: [], zipFile: null })}
+              />
               <div className="actions">
                 <Button type="button" variant="secondary" onClick={() => void runImport("problem", "preview")} disabled={busy} icon={<UploadCloud size={17} />}>
                   预览题目
@@ -536,6 +623,167 @@ export default function TeacherManagementPage() {
         </main>
       </section>
     </div>
+  );
+}
+
+function ProblemImportGuide() {
+  return (
+    <div className="problem-import-guide">
+      <div className="problem-import-guide__head">
+        <div>
+          <span className="eyebrow">Problem Import</span>
+          <h2>题目与测试数据导入说明</h2>
+        </div>
+        <StatusPill tone="info">先预览，再导入</StatusPill>
+      </div>
+
+      <div className="problem-import-modes" aria-label="题目导入格式说明">
+        <article>
+          <FileArchive size={18} />
+          <div>
+            <strong>ZIP 题包</strong>
+            <p>推荐用于完整导入。压缩包内放题面文件和同名测试数据，系统会自动配对。</p>
+          </div>
+        </article>
+        <article>
+          <FileText size={18} />
+          <div>
+            <strong>Markdown 题面</strong>
+            <p>适合单题快速导入。题面中的第一组样例输入/输出会作为公开测试点。</p>
+          </div>
+        </article>
+        <article>
+          <ListChecks size={18} />
+          <div>
+            <strong>JSON / CSV / XLSX</strong>
+            <p>适合批量导入题面。字段包含标题、描述、难度、限制和样例输入输出。</p>
+          </div>
+        </article>
+      </div>
+
+      <div className="problem-import-spec-grid">
+        <section>
+          <h3>ZIP 数据点结构</h3>
+          <p>输入文件使用 <code>.in</code>，答案文件使用 <code>.ans</code> 或 <code>.out</code>，两者去掉后缀后的路径必须一致。</p>
+          <pre>{`problem.md
+tests/1.in
+tests/1.ans
+tests/2.in
+tests/2.out`}</pre>
+          <p>导入时第一组配对数据会作为公开样例，其余配对数据默认作为隐藏测试点。</p>
+        </section>
+
+        <section>
+          <h3>Markdown 样例规则</h3>
+          <p>题面建议包含标题、题目描述、输入格式、输出格式、样例输入和样例输出。样例内容请放在代码块中。</p>
+          <pre>{`# 两数求和
+
+## 样例输入
+\`\`\`text
+1 2
+\`\`\`
+
+## 样例输出
+\`\`\`text
+3
+\`\`\``}</pre>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function TestcaseImportPanel({
+  state,
+  pairCount,
+  onVisibilityChange,
+  onInputFiles,
+  onAnswerFiles,
+  onZipFile,
+  onClear
+}: {
+  state: {
+    visibility: TestcaseVisibility;
+    inputFiles: TestcaseImportFile[];
+    answerFiles: TestcaseImportFile[];
+    zipFile: TestcaseImportFile | null;
+  };
+  pairCount: number;
+  onVisibilityChange: (visibility: TestcaseVisibility) => void;
+  onInputFiles: (kind: "input", files: FileList | null) => void | Promise<void>;
+  onAnswerFiles: (kind: "answer", files: FileList | null) => void | Promise<void>;
+  onZipFile: (file: File | null) => void | Promise<void>;
+  onClear: () => void;
+}) {
+  const usingZip = Boolean(state.zipFile);
+  const hasFiles = usingZip || state.inputFiles.length > 0 || state.answerFiles.length > 0;
+  return (
+    <section className="testcase-import-panel" aria-label="测试点配置">
+      <div className="testcase-import-panel__head">
+        <div>
+          <h3>测试点配置</h3>
+          <p>与旧版创建题目页一致：输入文件和答案文件按同名配对，也可以直接上传 ZIP 数据包。</p>
+        </div>
+        <StatusPill tone={pairCount > 0 || usingZip ? "success" : "neutral"}>
+          {usingZip ? "ZIP 待解析" : `${pairCount} 组已配对`}
+        </StatusPill>
+      </div>
+
+      <div className="testcase-import-controls">
+        <label className="field management-file-picker">
+          <span>输入文件</span>
+          <span className="management-file-picker__box">
+            <UploadCloud size={18} />
+            <strong>{state.inputFiles.length ? `${state.inputFiles.length} 个输入文件` : "选择 .in / .txt"}</strong>
+            <small>可多选，文件名需与答案文件对应</small>
+          </span>
+          <input type="file" accept=".in,.txt,text/plain" multiple onChange={event => void onInputFiles("input", event.target.files)} />
+        </label>
+
+        <label className="field management-file-picker">
+          <span>答案文件</span>
+          <span className="management-file-picker__box">
+            <UploadCloud size={18} />
+            <strong>{state.answerFiles.length ? `${state.answerFiles.length} 个答案文件` : "选择 .ans / .out / .txt"}</strong>
+            <small>去掉后缀后与输入文件同名即可配对</small>
+          </span>
+          <input type="file" accept=".ans,.out,.txt,text/plain" multiple onChange={event => void onAnswerFiles("answer", event.target.files)} />
+        </label>
+
+        <Field label="导入后类型">
+          <Select value={state.visibility} onChange={event => onVisibilityChange(event.target.value as TestcaseVisibility)}>
+            <option value="hidden">作为隐藏测试</option>
+            <option value="visible">作为公开样例</option>
+          </Select>
+        </Field>
+      </div>
+
+      <div className="testcase-import-zip-row">
+        <label className="field management-file-picker">
+          <span>ZIP 数据包</span>
+          <span className="management-file-picker__box">
+            <FileArchive size={18} />
+            <strong>{state.zipFile?.name || "选择 ZIP 压缩包"}</strong>
+            <small>ZIP 中包含 .in 与 .ans/.out，系统会自动配对</small>
+          </span>
+          <input type="file" accept=".zip,application/zip,application/x-zip-compressed" onChange={event => void onZipFile(event.target.files?.[0] || null)} />
+        </label>
+        <Button type="button" variant="ghost" onClick={onClear} disabled={!hasFiles}>
+          清空数据点
+        </Button>
+      </div>
+
+      <div className="testcase-import-summary">
+        <StatusPill tone={state.inputFiles.length ? "info" : "neutral"}>输入 {state.inputFiles.length}</StatusPill>
+        <StatusPill tone={state.answerFiles.length ? "info" : "neutral"}>答案 {state.answerFiles.length}</StatusPill>
+        <StatusPill tone={pairCount ? "success" : "neutral"}>配对 {pairCount}</StatusPill>
+        <StatusPill tone={state.visibility === "visible" ? "warning" : "neutral"}>
+          {state.visibility === "visible" ? "导入为公开样例" : "导入为隐藏测试"}
+        </StatusPill>
+      </div>
+
+      <p className="testcase-import-note">文件示例：<code>1.in</code> 对应 <code>1.ans</code>，<code>tests/case2.in</code> 对应 <code>tests/case2.out</code>。</p>
+    </section>
   );
 }
 
@@ -629,6 +877,26 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.addEventListener("error", () => reject(reader.error || new Error("文件读取失败")));
     reader.readAsDataURL(file);
   });
+}
+
+function countMatchedTestcasePairs(state: {
+  inputFiles: TestcaseImportFile[];
+  answerFiles: TestcaseImportFile[];
+  zipFile: TestcaseImportFile | null;
+}) {
+  if (state.zipFile) {
+    return 0;
+  }
+  const answerStems = new Set(state.answerFiles.map(file => stripExtension(file.name)));
+  return state.inputFiles.filter(file => answerStems.has(stripExtension(file.name))).length;
+}
+
+function stripExtension(fileName: string) {
+  return fileName.replace(/\\/g, "/").replace(/\.[^.]+$/, "");
+}
+
+function stripBom(text: string) {
+  return String(text || "").replace(/^\uFEFF/, "");
 }
 
 function ImportResult({ result }: { result: ImportPreview | ImportCommit | null }) {
