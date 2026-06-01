@@ -87,6 +87,28 @@ export default function StudentPage() {
     return assignment?.tasks.find(task => task.problemId === trajectory.postAcTransferSignal?.problemId) || nextTask;
   }, [assignment, nextTask, trajectory]);
 
+  const primaryActionText = useMemo(() => {
+    if (!nextTask) {
+      return "";
+    }
+    if (!student) {
+      return "先确认身份后开始作业。";
+    }
+    if (!trajectory) {
+      return "从第一题开始，完成一次提交。";
+    }
+    if (trajectory.repeatedFineGrainedTag) {
+      return `先处理 ${issueLabel(trajectory.repeatedFineGrainedTag)}。`;
+    }
+    if (trajectory.repeatedIssueTag) {
+      return `先处理 ${issueLabel(trajectory.repeatedIssueTag)}。`;
+    }
+    if (trajectory.nextStep) {
+      return learningStageLabel(trajectory.nextStep);
+    }
+    return trajectory.completedTasks >= trajectory.totalTasks ? "作业已完成，可以复盘通过题。" : "继续下一题。";
+  }, [nextTask, student, trajectory]);
+
   async function resolveInvite(rawCode = inviteCode) {
     const code = rawCode.trim();
     if (!code) {
@@ -231,36 +253,81 @@ export default function StudentPage() {
             <span>邀请码 {assignment.inviteCode}</span>
           </div>
 
+          {student && nextTask && (
+            <section className="student-current-action" aria-label="当前要做">
+              <div>
+                <span>当前要做</span>
+                <strong>{nextTask.title}</strong>
+                <p>{primaryActionText}</p>
+              </div>
+              <ButtonLink
+                to={`/app/problem/${nextTask.problemId}?assignmentId=${assignment.id}&studentProfileId=${student.id}`}
+                variant="primary"
+                icon={<ArrowRight size={18} />}
+              >
+                {trajectory?.tasks.find(task => task.problemId === nextTask.problemId)?.attemptCount ? "继续处理" : "开始"}
+              </ButtonLink>
+            </section>
+          )}
+
           {assignment.tasks.length === 0 ? (
             <EmptyState title="当前作业还没有题目" />
           ) : (
             <div className="student-task-list">
               {assignment.tasks.map((task, index) => {
                 const taskState = trajectoryTaskByProblemId.get(task.problemId);
+                const isNextTask = nextTask?.problemId === task.problemId;
+                const isPassed = Boolean(taskState?.passed || taskState?.latestVerdict === "ACCEPTED");
                 const query = new URLSearchParams();
                 query.set("assignmentId", String(assignment.id));
                 if (student) {
                   query.set("studentProfileId", String(student.id));
                 }
-                const actionLabel = !student ? "先确认身份" : taskState?.attemptCount ? "继续" : "开始";
+                const actionLabel = !student
+                  ? "先确认身份"
+                  : isPassed
+                    ? "复盘"
+                    : isNextTask && taskState?.attemptCount
+                      ? "继续处理"
+                      : taskState?.attemptCount
+                        ? "继续"
+                        : "开始";
+                const actionNote = isNextTask && !isPassed
+                  ? trajectory?.nextStep
+                    ? learningStageLabel(trajectory.nextStep)
+                    : taskState?.latestHint
+                      ? learningStageLabel(taskState.latestHint)
+                      : "先完成这题的下一次提交。"
+                  : isPassed
+                    ? taskState?.latestProgressSignal || "已通过，可复盘保留思路。"
+                    : taskState?.latestHint
+                      ? learningStageLabel(taskState.latestHint)
+                      : "还未开始。";
                 return (
-                  <article className="task-card task-card--learning student-task-card" key={task.problemId}>
-                    <div>
+                  <article
+                    className={`task-card task-card--learning student-task-card ${isNextTask && !isPassed ? "is-next" : ""} ${isPassed ? "is-passed" : ""}`}
+                    key={task.problemId}
+                  >
+                    <span className="student-task-index">{index + 1}</span>
+                    <div className="student-task-main">
                       <div className="student-task-meta-line">
-                        <span>题目 {index + 1}</span>
                         <span>{difficultyLabel(task.difficulty)}</span>
+                        {isNextTask && !isPassed && <StatusPill tone="info">下一步</StatusPill>}
                         {taskState?.latestVerdict && <VerdictPill verdict={taskState.latestVerdict} />}
                       </div>
                       <h3>{task.title}</h3>
+                      <p className="student-task-action-note">{actionNote}</p>
                     </div>
-                    <ButtonLink
-                      to={`/app/problem/${task.problemId}?${query.toString()}`}
-                      variant="primary"
-                      disabled={!student}
-                      icon={<ArrowRight size={18} />}
-                    >
-                      {actionLabel}
-                    </ButtonLink>
+                    <div className="student-task-status">
+                      <ButtonLink
+                        to={`/app/problem/${task.problemId}?${query.toString()}`}
+                        variant={isNextTask && !isPassed ? "primary" : "secondary"}
+                        disabled={!student}
+                        icon={<ArrowRight size={18} />}
+                      >
+                        {actionLabel}
+                      </ButtonLink>
+                    </div>
                   </article>
                 );
               })}
@@ -310,7 +377,7 @@ export default function StudentPage() {
                         variant="primary"
                         icon={<ArrowRight size={16} />}
                       >
-                        {trajectory.tasks.find(task => task.problemId === nextTask.problemId)?.attemptCount ? "继续" : "开始"}
+                        {trajectory.tasks.find(task => task.problemId === nextTask.problemId)?.attemptCount ? "继续处理" : "开始"}
                       </ButtonLink>
                     </div>
                   )}

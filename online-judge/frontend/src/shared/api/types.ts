@@ -459,6 +459,28 @@ export interface SubmissionAnalysis {
   evidenceRefs?: string[];
   uncertainty?: string;
   diagnosticTrace?: string;
+  aiInvocation?: {
+    provider?: string | null;
+    model?: string | null;
+    modelVersion?: string | null;
+    promptVersion?: string | null;
+    agentVersion?: string | null;
+    analysisSchemaVersion?: string | null;
+    evidenceSchemaVersion?: string | null;
+    taxonomyVersion?: string | null;
+    status?: string | null;
+    fallbackUsed?: boolean;
+    runtimeMode?: string | null;
+    failureStage?: string | null;
+    failureReason?: string | null;
+    transportMode?: string | null;
+    streamChunkCount?: number | null;
+    streamContentChunkCount?: number | null;
+    streamReasoningChunkCount?: number | null;
+    streamInvalidChunkCount?: number | null;
+    streamFinishReason?: string | null;
+    streamFallbackRetryUsed?: boolean | null;
+  } | null;
   answerLeakRisk?: string;
   wrongSolution?: string;
   correctSolution?: string;
@@ -569,6 +591,7 @@ export interface AssignmentOverview {
     transferReadyCount?: number;
     evidenceInsufficientCount?: number;
     safetyRiskCount?: number;
+    coachSafetyRejectionCount?: number;
     teacherAttentionCount?: number;
     dominantGap?: string | null;
     summary?: string | null;
@@ -753,6 +776,7 @@ export interface AiQualityOverview {
   summary?: string | null;
   qualityRiskSummary?: string | null;
   promptSafetyIncidentSignal?: PromptSafetyIncidentSignal | null;
+  runtimeAttributionSignal?: RuntimeAttributionSignal | null;
   qualityDimensions: AiQualityDimension[];
   improvementPriorities: AiQualityImprovementPriority[];
   evalReadiness?: AiQualityEvalReadiness | null;
@@ -792,6 +816,26 @@ export interface PromptSafetyIncidentSignal {
   safetyDowngradeCount: number;
   highRiskSafetyDowngradeCount: number;
   coachSafetyRiskCount: number;
+  summary?: string | null;
+  recommendedAction?: string | null;
+  evidenceRefs: string[];
+}
+
+export interface RuntimeAttributionSignal {
+  status: "HEALTHY" | "WATCH" | "ACTION_NEEDED" | string;
+  primaryFailureType?: string | null;
+  primaryFailureReason?: string | null;
+  primaryFailureStage?: string | null;
+  primaryTransportMode?: string | null;
+  modelCompletedCount: number;
+  modelPartialCount: number;
+  modelRuntimeFailureCount: number;
+  modelFallbackCount: number;
+  primaryFailureCount: number;
+  runtimeFailureRate: number;
+  streamNoContentCount?: number;
+  streamInvalidChunkCount?: number;
+  streamFallbackRetryCount?: number;
   summary?: string | null;
   recommendedAction?: string | null;
   evidenceRefs: string[];
@@ -855,10 +899,12 @@ export interface DiagnosisEvalFixtureDraft {
   fixtureCount: number;
   interventionFixtureCount?: number;
   safetyFixtureCount?: number;
+  runtimeFixtureCount?: number;
   summary?: string | null;
   fixtures: DiagnosisEvalFixtureDraftItem[];
   interventionFixtures?: DiagnosisEvalInterventionFixtureDraftItem[];
   safetyFixtures?: DiagnosisEvalSafetyFixtureDraftItem[];
+  runtimeFixtures?: DiagnosisEvalRuntimeFixtureDraftItem[];
 }
 
 export interface DiagnosisEvalFixtureDraftItem {
@@ -992,6 +1038,59 @@ export interface DiagnosisEvalSafetyFixtureDraftItem {
   };
 }
 
+export interface DiagnosisEvalRuntimeFixtureDraftItem {
+  name: string;
+  source: string;
+  submissionId: number;
+  problem: {
+    id?: number | null;
+    title?: string | null;
+    description?: string | null;
+    difficulty?: string | null;
+    timeLimit?: number | null;
+    memoryLimit?: number | null;
+  };
+  submission: {
+    languageName?: string | null;
+    verdict?: string | null;
+    sourceCode?: string | null;
+  };
+  analysis: {
+    scenario?: string | null;
+    originalIssueTags: string[];
+    originalFineGrainedTags: string[];
+    analysisHeadline?: string | null;
+  };
+  runtimeMode?: string | null;
+  status?: string | null;
+  fallbackUsed?: boolean | null;
+  transportMode?: string | null;
+  streamChunkCount?: number | null;
+  streamContentChunkCount?: number | null;
+  streamReasoningChunkCount?: number | null;
+  streamInvalidChunkCount?: number | null;
+  streamFinishReason?: string | null;
+  streamFallbackRetryUsed?: boolean | null;
+  failureType?: string | null;
+  failureStage?: string | null;
+  failureReason?: string | null;
+  expectedRuntimeAction?: string | null;
+  evidenceRefs: string[];
+  mustMention: string[];
+  mustNotMention: string[];
+  sourceMaterial: {
+    localFolder?: string | null;
+    artifacts: string[];
+    anonymizationNote?: string | null;
+  };
+  quality: {
+    bugPattern?: string | null;
+    misconception?: string | null;
+    expectedStudentMove?: string | null;
+    evalPurpose?: string | null;
+  };
+}
+
 export interface AiQualityTrend {
   assignmentCount: number;
   analyzedSubmissionCount: number;
@@ -1007,10 +1106,15 @@ export interface AiQualityTrend {
   promptSafetyIncidentCount?: number;
   promptSafetyDowngradeCount?: number;
   promptSafetyHighRiskDowngradeCount?: number;
+  coachSafetyRejectionCount?: number;
+  modelCompletedCount?: number;
+  modelPartialCount?: number;
+  modelRuntimeFailureCount?: number;
   correctionRate: number;
   lowConfidenceRate: number;
   highLeakRiskRate: number;
   promptSafetyIncidentRate?: number;
+  modelRuntimeFailureRate?: number;
   summary?: string | null;
   assignments: AiQualityTrendPoint[];
   correctedTags: AiQualityTrendTag[];
@@ -1034,10 +1138,15 @@ export interface AiQualityTrendPoint {
   promptSafetyIncidentCount?: number;
   promptSafetyDowngradeCount?: number;
   promptSafetyHighRiskDowngradeCount?: number;
+  coachSafetyRejectionCount?: number;
+  modelCompletedCount?: number;
+  modelPartialCount?: number;
+  modelRuntimeFailureCount?: number;
   correctionRate: number;
   lowConfidenceRate: number;
   highLeakRiskRate: number;
   promptSafetyIncidentRate?: number;
+  modelRuntimeFailureRate?: number;
   summary?: string | null;
 }
 
@@ -1057,7 +1166,17 @@ export interface AiQualitySourceSegment {
   promptVersion?: string | null;
   agentVersion?: string | null;
   status?: string | null;
+  runtimeMode?: string | null;
+  failureStage?: string | null;
+  failureReason?: string | null;
+  transportMode?: string | null;
   fallbackCount?: number;
+  modelCompletedCount?: number;
+  modelPartialCount?: number;
+  modelRuntimeFailureCount?: number;
+  streamNoContentCount?: number;
+  streamInvalidChunkCount?: number;
+  streamFallbackRetryCount?: number;
   analyzedSubmissionCount: number;
   correctionCount: number;
   lowConfidenceCount: number;
@@ -1065,10 +1184,12 @@ export interface AiQualitySourceSegment {
   promptSafetyIncidentCount?: number;
   promptSafetyDowngradeCount?: number;
   promptSafetyHighRiskDowngradeCount?: number;
+  coachSafetyRejectionCount?: number;
   correctionRate: number;
   lowConfidenceRate: number;
   highLeakRiskRate: number;
   promptSafetyIncidentRate?: number;
+  modelRuntimeFailureRate?: number;
 }
 
 export interface RecommendationEffectiveness {

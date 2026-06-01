@@ -531,19 +531,24 @@ const scenarios = [
     path: "/app/problem/101?assignmentId=7&studentProfileId=41&recommendationToken=rec-next-101",
     beforeChecks: async page => {
       await page.locator(".panel--editor button.ui-button--primary").first().click();
-      const details = page.locator("details.problem-compact-details", { hasText: "下一问" }).first();
-      await details.waitFor({ state: "attached", timeout: 10000 });
-      await details.evaluate(element => {
-        element.open = true;
-      });
-      await page.locator(".coach-next-question").first().waitFor({ state: "visible", timeout: 10000 });
+      await page.locator(".problem-primary-action").first().waitFor({ state: "visible", timeout: 10000 });
+    },
+    afterChecks: async page => {
+      const drawer = page.locator(".problem-submission-drawer").first();
+      const isOpen = await drawer.evaluate(element => element.open);
+      record("problem submission details default collapsed", !isOpen, `open=${isOpen}`);
+      await drawer.locator("summary").click();
+      await checkVisible(page, ".testcase-compact-list", "problem expanded testcase result list");
+      await drawer.locator("summary").click();
     },
     selectors: [
       [".practice-command", "problem command area"],
       [".problem-layout", "problem main layout"],
       [".panel--ai", "problem AI result panel"],
-      [".coach-next-question", "coach next question"],
-      [".testcase-compact-list", "testcase result list"]
+      [".problem-primary-action", "problem primary action"],
+      [".problem-result-compact", "problem result summary"],
+      [".problem-submission-drawer", "problem submission drawer"],
+      [".coach-next-question", "coach next question"]
     ]
   },
   {

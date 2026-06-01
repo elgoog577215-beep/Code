@@ -57,6 +57,7 @@ function Header() {
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const isProblemPage = location.pathname.startsWith("/app/problem") || location.pathname.startsWith("/problem/");
   const navItems = useMemo(
     () => [
       { to: "/app/student", label: "学生", icon: GraduationCap, activeWhen: (pathname: string) => pathname.startsWith("/app/problem") },
@@ -78,7 +79,7 @@ function Header() {
   }, [location.pathname]);
 
   return (
-    <header className={`app-header ${open ? "is-open" : ""}`}>
+    <header className={`app-header ${open ? "is-open" : ""} ${isProblemPage ? "app-header--practice" : ""}`}>
       <NavLink to="/app" className="brand" aria-label="温中编程学习平台">
         <span className="brand__mark">
           <BookOpenCheck size={24} />

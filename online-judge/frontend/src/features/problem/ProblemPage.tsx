@@ -282,6 +282,17 @@ export default function ProblemPage() {
     latest?.analysis?.fixDirections?.[0] ||
     (trajectory?.nextStep ? learningStageLabel(trajectory.nextStep) : "") ||
     (latest ? "先根据本次结果修改一处问题。" : "先完成一次提交。");
+  const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
+  const feedbackSummary = latest
+    ? latest.verdict === "ACCEPTED"
+      ? "本题已通过，可以复盘思路或继续下一题。"
+      : firstFailedCase && !firstFailedCase.hidden
+        ? "先看第一个公开失败点，再改一处最可能的原因。"
+        : firstFailedCase?.hidden
+          ? "隐藏测试点未通过，先检查边界条件和泛化能力。"
+          : "先根据本次结果修改一处问题。"
+    : "提交后这里会显示本次结果。";
+  const analysisStateLabel = latest?.analysis ? "已生成" : latest ? latest.analysisStatus || "生成中" : "未提交";
   const currentStage = latest ? verdictLabel(latest.verdict) : "尚未提交";
   const recurringSignal = abilityProfile?.recurringMisconceptionSignal;
   const hasRecurringSignal =
@@ -484,7 +495,7 @@ export default function ProblemPage() {
 
         <div className="stack problem-sidebar">
           <Panel
-            title="提交结果"
+            title="提交反馈"
             className="panel--ai"
             action={latest ? <VerdictPill verdict={latest.verdict} /> : <Lightbulb size={18} />}
           >
@@ -492,57 +503,108 @@ export default function ProblemPage() {
               <EmptyState title="还没有提交" />
             ) : (
               <div className="stack">
-                <div className="coach-focus-card">
-                  <span>处理项</span>
-                  <strong>{focusText}</strong>
-                </div>
-                <div className="metric-grid">
-                  <Metric label="测试点" value={total ? `${passed}/${total}` : "-"} />
-                  <Metric label="耗时" value={latest.executionTime ? `${latest.executionTime} ms` : "-"} />
-                  <Metric label="内存" value={latest.memoryUsed ? `${latest.memoryUsed} KB` : "-"} />
-                  <Metric label="分析" value={latest.analysisStatus || "观察中"} />
-                </div>
-                {latest.errorMessage && <div className="alert alert--error">{latest.errorMessage}</div>}
-                {latest.compileOutput && <pre className="code-block">{latest.compileOutput}</pre>}
-                {latest.testCaseResults?.length ? (
-                  <div className="testcase-compact-list">
-                    {latest.testCaseResults.slice(0, 6).map(item => (
-                      <div className={item.passed ? "is-passed" : ""} key={item.testCaseNumber}>
-                        <span>#{item.testCaseNumber}</span>
-                        <div>
-                          <strong>{item.hidden ? "隐藏测试点" : "公开测试点"}</strong>
-                          <small>
-                            {item.passed ? "已通过" : "未通过"} · {item.executionTime ?? "-"} ms · {item.memoryUsed ?? "-"} KB
-                          </small>
-                        </div>
-                        <span className={`meta-badge ${item.passed ? "meta-badge--success" : "meta-badge--warning"}`}>
-                          {item.passed ? "通过" : "需修正"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                {firstFailedCase && !firstFailedCase.hidden ? (
-                  <div className="failed-case-card">
-                    <span>第一个公开失败点</span>
-                    <div className="two-column">
-                      <div>
-                        <strong>期望输出</strong>
-                        <pre className="code-block">{firstFailedCase.expectedOutput || "(空输出)"}</pre>
-                      </div>
-                      <div>
-                        <strong>你的输出</strong>
-                        <pre className="code-block">{firstFailedCase.actualOutput || "(空输出)"}</pre>
-                      </div>
+                <section className="problem-primary-action" aria-label="本次先做">
+                  <div className="problem-primary-action__head">
+                    <div>
+                      <span>本次先做</span>
+                      <strong>{focusText}</strong>
                     </div>
+                    <StatusPill tone={latest.verdict === "ACCEPTED" ? "success" : "warning"}>{verdictLabel(latest.verdict)}</StatusPill>
                   </div>
-                ) : firstFailedCase?.hidden ? (
-                  <div className="alert">有隐藏测试点未通过。这里不会展示隐藏数据，请优先检查边界条件和泛化能力。</div>
-                ) : null}
+                  {latest.analysis?.studentHint && latest.analysis.studentHint !== focusText && <p>{latest.analysis.studentHint}</p>}
+                  {firstFailedCase && !firstFailedCase.hidden ? (
+                    <div className="problem-primary-action__evidence">
+                      <span>公开失败点</span>
+                      <strong>
+                        期望 {firstFailedCase.expectedOutput || "(空输出)"}，你的输出 {firstFailedCase.actualOutput || "(空输出)"}
+                      </strong>
+                    </div>
+                  ) : firstFailedCase?.hidden ? (
+                    <div className="problem-primary-action__evidence">
+                      <span>隐藏失败点</span>
+                      <strong>先检查边界条件和泛化能力。</strong>
+                    </div>
+                  ) : null}
+                  <section className="problem-feedback-coach" aria-label="下一问">
+                    <div className="problem-feedback-coach__head">
+                      <h3>下一问</h3>
+                      <StatusPill tone={coachPrompt ? "info" : "neutral"}>{coachPrompt ? "已生成" : "可生成"}</StatusPill>
+                    </div>
+                    {coachQuestionBlock}
+                  </section>
+                </section>
+                <div className="problem-result-compact" aria-label="本次结果摘要">
+                  <div>
+                    <span>评测</span>
+                    <strong>{testCaseSummary}</strong>
+                  </div>
+                  <div>
+                    <span>反馈</span>
+                    <strong>{feedbackSummary}</strong>
+                  </div>
+                  <div>
+                    <span>AI</span>
+                    <strong>{analysisStateLabel}</strong>
+                  </div>
+                </div>
+                <details className="problem-compact-details problem-submission-drawer">
+                  <summary>
+                    <span>本次提交明细</span>
+                    <span className="meta-badge">{testCaseSummary}</span>
+                  </summary>
+                  <div className="problem-submission-drawer__body">
+                    <div className="metric-grid">
+                      <Metric label="测试点" value={total ? `${passed}/${total}` : "-"} />
+                      <Metric label="耗时" value={latest.executionTime ? `${latest.executionTime} ms` : "-"} />
+                      <Metric label="内存" value={latest.memoryUsed ? `${latest.memoryUsed} KB` : "-"} />
+                      <Metric label="分析" value={analysisStateLabel} />
+                    </div>
+                    {latest.errorMessage && <div className="alert alert--error">{latest.errorMessage}</div>}
+                    {latest.compileOutput && <pre className="code-block">{latest.compileOutput}</pre>}
+                    {latest.testCaseResults?.length ? (
+                      <div className="testcase-compact-list">
+                        {latest.testCaseResults.slice(0, 6).map(item => (
+                          <div className={item.passed ? "is-passed" : ""} key={item.testCaseNumber}>
+                            <span>#{item.testCaseNumber}</span>
+                            <div>
+                              <strong>{item.hidden ? "隐藏测试点" : "公开测试点"}</strong>
+                              <small>
+                                {item.passed ? "已通过" : "未通过"} · {item.executionTime ?? "-"} ms · {item.memoryUsed ?? "-"} KB
+                              </small>
+                            </div>
+                            <span className={`meta-badge ${item.passed ? "meta-badge--success" : "meta-badge--warning"}`}>
+                              {item.passed ? "通过" : "需修正"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {firstFailedCase && !firstFailedCase.hidden ? (
+                      <div className="failed-case-card">
+                        <span>第一个公开失败点</span>
+                        <div className="two-column">
+                          <div>
+                            <strong>期望输出</strong>
+                            <pre className="code-block">{firstFailedCase.expectedOutput || "(空输出)"}</pre>
+                          </div>
+                          <div>
+                            <strong>你的输出</strong>
+                            <pre className="code-block">{firstFailedCase.actualOutput || "(空输出)"}</pre>
+                          </div>
+                        </div>
+                      </div>
+                    ) : firstFailedCase?.hidden ? (
+                      <div className="alert">有隐藏测试点未通过。这里不会展示隐藏数据，请优先检查边界条件和泛化能力。</div>
+                    ) : null}
+                  </div>
+                </details>
                 {latest.analysis ? (
-                  <div className="stack">
-                    <h3>{latest.analysis.headline || "系统反馈"}</h3>
-                    {latest.analysis.studentHint && <div className="alert">{latest.analysis.studentHint}</div>}
+                  <details className="problem-compact-details problem-diagnosis-drawer">
+                    <summary>
+                      <span>{latest.analysis.headline || "系统反馈"}</span>
+                      <span className="meta-badge">详情</span>
+                    </summary>
+                    <div className="problem-diagnosis-drawer__body">
                     {latest.analysis.summary && <p>{latest.analysis.summary}</p>}
                     <div className="issue-list">
                       {(latest.analysis.issueTags || []).slice(0, 5).map(tag => (
@@ -562,14 +624,8 @@ export default function ProblemPage() {
                         </ul>
                       </div>
                     ) : null}
-                    <section className="problem-feedback-coach" aria-label="下一问">
-                      <div className="problem-feedback-coach__head">
-                        <h3>下一问</h3>
-                        <StatusPill tone={coachPrompt ? "info" : "neutral"}>{coachPrompt ? "已生成" : "可生成"}</StatusPill>
-                      </div>
-                      {coachQuestionBlock}
-                    </section>
-                  </div>
+                    </div>
+                  </details>
                 ) : (
                   <EmptyState title="反馈生成中" />
                 )}

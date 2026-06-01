@@ -4,6 +4,7 @@ import { ApiError, api } from "../../shared/api/client";
 import type {
   AiQualityDimension,
   AiQualityOverview,
+  AiQualitySourceSegment,
   AiQualityTrend,
   Assignment,
   AssignmentOverview,
@@ -347,6 +348,81 @@ function aiQualityScore(value?: number | null) {
   return `${Math.round(value)}`;
 }
 
+function runtimeAttributionLabel(value?: string | null) {
+  switch ((value || "").toUpperCase()) {
+    case "QUOTA_LIMIT":
+      return "额度不足";
+    case "BUDGET_GUARD":
+      return "预算保护";
+    case "SAFETY_REJECTED":
+      return "安全拒绝";
+    case "VALIDATION_FAILED":
+      return "结构校验";
+    case "TIMEOUT":
+      return "调用超时";
+    case "PROVIDER_ERROR":
+      return "服务异常";
+    case "PARTIAL_COMPLETION":
+      return "部分完成";
+    case "UNKNOWN_RUNTIME_FAILURE":
+      return "未知失败";
+    case "NONE":
+      return "运行稳定";
+    default:
+      return displayText(value, "待归因");
+  }
+}
+
+function transportModeLabel(value?: string | null) {
+  switch ((value || "").toLowerCase()) {
+    case "stream":
+      return "stream";
+    case "single-call":
+      return "single-call";
+    default:
+      return displayText(value, "");
+  }
+}
+
+type TransportTelemetry = {
+  primaryTransportMode?: string | null;
+  transportMode?: string | null;
+  streamContentChunkCount?: number | null;
+  streamNoContentCount?: number | null;
+  streamInvalidChunkCount?: number | null;
+  streamFallbackRetryCount?: number | null;
+  streamFallbackRetryUsed?: boolean | null;
+};
+
+function transportTelemetryChips(value?: TransportTelemetry | null) {
+  if (!value) {
+    return [];
+  }
+  const chips: string[] = [];
+  const mode = transportModeLabel(value.primaryTransportMode || value.transportMode);
+  if (mode) {
+    chips.push(`通道 ${mode}`);
+  }
+  const noContentCount =
+    (value.streamNoContentCount || 0) > 0
+      ? value.streamNoContentCount || 0
+      : mode === "stream" && value.streamContentChunkCount === 0
+        ? 1
+        : 0;
+  if (noContentCount > 0) {
+    chips.push(`无内容 ${noContentCount}`);
+  }
+  if ((value.streamInvalidChunkCount || 0) > 0) {
+    chips.push(`解析异常 ${value.streamInvalidChunkCount}`);
+  }
+  if ((value.streamFallbackRetryCount || 0) > 0) {
+    chips.push(`重试 ${value.streamFallbackRetryCount}`);
+  } else if (value.streamFallbackRetryUsed) {
+    chips.push("重试 1");
+  }
+  return chips;
+}
+
 function sourceCodePreview(value?: string | null) {
   const text = displayText(value, "");
   if (!text) {
@@ -524,6 +600,9 @@ export default function TeacherPage() {
   const visibleEvalCandidates = evalCandidates?.candidates?.slice(0, 3) || [];
   const visibleTrendAssignments = aiQualityTrend?.assignments?.slice(0, 4) || [];
   const visibleSourceSegments = aiQualityTrend?.sourceSegments?.slice(0, 3) || [];
+  const runtimeTransportChips = transportTelemetryChips(aiQuality?.runtimeAttributionSignal);
+  const sourceSegmentTransportChips = (segment: AiQualitySourceSegment) => transportTelemetryChips(segment);
+  const hasModelRuntimeTrendSignal = (aiQualityTrend?.modelRuntimeFailureCount || 0) > 0 || (aiQualityTrend?.modelPartialCount || 0) > 0;
   const visibleRecommendationSignals = recommendationEffectiveness?.feedbackSignals?.slice(0, 3) || [];
   const visibleRecommendationSegments =
     (recommendationEffectiveness?.byStrategy?.length
@@ -531,11 +610,15 @@ export default function TeacherPage() {
       : recommendationEffectiveness?.focusTags || []
     ).slice(0, 3);
   const safetyFixtures = fixtureDraft?.safetyFixtures || [];
+  const runtimeFixtures = fixtureDraft?.runtimeFixtures || [];
   const fixtureDraftDiagnosisCount = fixtureDraft?.fixtureCount || 0;
   const fixtureDraftInterventionCount = fixtureDraft?.interventionFixtureCount || 0;
   const fixtureDraftSafetyCount = fixtureDraft?.safetyFixtureCount ?? safetyFixtures.length;
-  const fixtureDraftTotalCount = fixtureDraftDiagnosisCount + fixtureDraftInterventionCount + fixtureDraftSafetyCount;
+  const fixtureDraftRuntimeCount = fixtureDraft?.runtimeFixtureCount ?? runtimeFixtures.length;
+  const fixtureDraftTotalCount =
+    fixtureDraftDiagnosisCount + fixtureDraftInterventionCount + fixtureDraftSafetyCount + fixtureDraftRuntimeCount;
   const visibleSafetyFixtures = safetyFixtures.slice(0, 2);
+  const visibleRuntimeFixtures = runtimeFixtures.slice(0, 2);
   const highestSafetyRisk = safetyFixtures.reduce<string | null>(
     (current, item) => (riskWeight(item.riskLevel) > riskWeight(current) ? item.riskLevel || current : current),
     null
@@ -576,6 +659,24 @@ export default function TeacherPage() {
         : aiQuality
           ? "稳定"
           : "待读取";
+  const firstTopIssue = overview?.topIssues?.[0] || null;
+  const classroomRiskLabel = attentionStudents.length
+    ? `${attentionStudents.length} 名学生需关注`
+    : overview?.topIssues?.length
+      ? `${overview.topIssues.length} 个共性问题`
+      : "课堂过程稳定";
+  const classroomFocusLabel = firstTopIssue
+    ? `${issueLabel(firstTopIssue.label)}${firstTopIssue.abilityPoint ? ` · ${abilityLabel(firstTopIssue.abilityPoint)}` : ""}`
+    : attentionStudents[0]?.attentionReason || "暂无高频问题";
+  const nextInspectionLabel = attentionStudents[0]
+    ? `${displayText(attentionStudents[0].displayName, `学生 #${attentionStudents[0].studentProfileId}`)} · ${
+        attentionStudents[0].latestFineGrainedIssue
+          ? issueLabel(attentionStudents[0].latestFineGrainedIssue)
+          : attentionStudents[0].latestIssue
+            ? issueLabel(attentionStudents[0].latestIssue)
+            : verdictLabel(attentionStudents[0].latestVerdict)
+      }`
+    : reviewSuggestions[0]?.title || "继续观察提交变化";
   const stageStateTone: PillTone = overviewLoading
     ? "info"
     : !overview
@@ -975,6 +1076,25 @@ export default function TeacherPage() {
                       "当前没有需要立即处理的 AI 质量短板。"}
                   </p>
                 </div>
+                {aiQuality.runtimeAttributionSignal &&
+                  (aiQuality.runtimeAttributionSignal.modelRuntimeFailureCount > 0 ||
+                    aiQuality.runtimeAttributionSignal.modelPartialCount > 0) && (
+                    <div>
+                      <span>模型归因</span>
+                      <strong>{runtimeAttributionLabel(aiQuality.runtimeAttributionSignal.primaryFailureType)}</strong>
+                      <p>{aiQuality.runtimeAttributionSignal.summary || "继续观察外部模型运行状态。"}</p>
+                      {runtimeTransportChips.length > 0 && (
+                        <div className="teacher-ai-transport-chips" aria-label="模型传输归因">
+                          {runtimeTransportChips.map(chip => (
+                            <span key={chip}>{chip}</span>
+                          ))}
+                        </div>
+                      )}
+                      {aiQuality.runtimeAttributionSignal.recommendedAction && (
+                        <small>{aiQuality.runtimeAttributionSignal.recommendedAction}</small>
+                      )}
+                    </div>
+                  )}
                 <div>
                   <span>评测沉淀</span>
                   <strong>{evalReadinessLabel(aiQuality.evalReadiness?.status)}</strong>
@@ -1000,31 +1120,35 @@ export default function TeacherPage() {
                   </p>
                 </div>
                 <StatusPill
-                  tone={
-                    aiQualityTrendError
-                      ? "danger"
-                      : aiQualityTrendLoading
-                        ? "info"
-                        : hasPromptSafetyTrendSignal
-                          ? "danger"
-                          : hasInterventionTrendSignal
-                          ? "warning"
-                          : aiQualityTrend
-                            ? "success"
-                            : "neutral"
-                  }
-                >
-                  {aiQualityTrendError
-                    ? "暂不可用"
-                    : aiQualityTrendLoading
-                      ? "读取中"
-                      : hasPromptSafetyTrendSignal
-                        ? "需复核"
-                        : hasInterventionTrendSignal
-                          ? "需复盘"
-                          : aiQualityTrend
-                            ? "已同步"
-                            : "待同步"}
+	                  tone={
+	                    aiQualityTrendError
+	                      ? "danger"
+	                      : aiQualityTrendLoading
+	                        ? "info"
+	                        : hasPromptSafetyTrendSignal
+	                          ? "danger"
+	                          : hasModelRuntimeTrendSignal
+	                            ? "warning"
+	                          : hasInterventionTrendSignal
+	                            ? "warning"
+	                            : aiQualityTrend
+	                              ? "success"
+	                              : "neutral"
+	                  }
+	                >
+	                  {aiQualityTrendError
+	                    ? "暂不可用"
+	                    : aiQualityTrendLoading
+	                      ? "读取中"
+	                      : hasPromptSafetyTrendSignal
+	                        ? "需复核"
+	                        : hasModelRuntimeTrendSignal
+	                          ? "需归因"
+	                          : hasInterventionTrendSignal
+	                            ? "需复盘"
+	                            : aiQualityTrend
+	                              ? "已同步"
+	                              : "待同步"}
                 </StatusPill>
               </div>
 
@@ -1061,9 +1185,21 @@ export default function TeacherPage() {
                       <span>安全降级</span>
                       <strong>{aiQualityTrend.promptSafetyDowngradeCount || 0}</strong>
                     </div>
-                    <div>
-                      <span>仍卡同类</span>
-                      <strong>{aiQualityTrend.interventionStillStuckCount || 0}</strong>
+	                    <div>
+	                      <span>Coach 回退</span>
+	                      <strong>{aiQualityTrend.coachSafetyRejectionCount || 0}</strong>
+	                    </div>
+	                    <div>
+	                      <span>模型失败</span>
+	                      <strong>{aiQualityTrend.modelRuntimeFailureCount || 0}</strong>
+	                    </div>
+	                    <div>
+	                      <span>部分完成</span>
+	                      <strong>{aiQualityTrend.modelPartialCount || 0}</strong>
+	                    </div>
+	                    <div>
+	                      <span>仍卡同类</span>
+	                      <strong>{aiQualityTrend.interventionStillStuckCount || 0}</strong>
                     </div>
                     <div>
                       <span>等待后续</span>
@@ -1097,8 +1233,17 @@ export default function TeacherPage() {
                                 {(point.promptSafetyDowngradeCount || 0) > 0 && (
                                   <StatusPill tone="warning">降级 {point.promptSafetyDowngradeCount}</StatusPill>
                                 )}
-                                {(point.interventionStillStuckCount || 0) > 0 && (
-                                  <StatusPill tone="danger">仍卡 {point.interventionStillStuckCount}</StatusPill>
+	                                {(point.coachSafetyRejectionCount || 0) > 0 && (
+	                                  <StatusPill tone="danger">Coach {point.coachSafetyRejectionCount}</StatusPill>
+	                                )}
+	                                {(point.modelRuntimeFailureCount || 0) > 0 && (
+	                                  <StatusPill tone="danger">模型 {point.modelRuntimeFailureCount}</StatusPill>
+	                                )}
+	                                {(point.modelPartialCount || 0) > 0 && (
+	                                  <StatusPill tone="warning">部分 {point.modelPartialCount}</StatusPill>
+	                                )}
+	                                {(point.interventionStillStuckCount || 0) > 0 && (
+	                                  <StatusPill tone="danger">仍卡 {point.interventionStillStuckCount}</StatusPill>
                                 )}
                                 {(point.interventionWaitingFollowupCount || 0) > 0 && (
                                   <StatusPill tone="warning">等待 {point.interventionWaitingFollowupCount}</StatusPill>
@@ -1122,21 +1267,39 @@ export default function TeacherPage() {
                       </div>
                       {visibleSourceSegments.length ? (
                         <div className="teacher-ai-trend__source-list">
-                          {visibleSourceSegments.map(segment => (
-                            <article className="teacher-ai-source" key={`${segment.sourceType}-${segment.versionLabel}-${segment.status}`}>
-                              <div>
-                                <strong>{displayText(segment.versionLabel || segment.status, segment.sourceType || "AI 来源")}</strong>
-                                <span>
-                                  {displayText(segment.provider, segment.sourceType || "UNKNOWN")}
-                                  {segment.status ? ` · ${segment.status}` : ""}
-                                </span>
-                              </div>
-                              <small>
-                                样本 {segment.analyzedSubmissionCount} · 校正 {segment.correctionCount} · 低置信 {segment.lowConfidenceCount} · 泄题{" "}
-                                {segment.highLeakRiskCount} · 安全 {segment.promptSafetyIncidentCount || 0}
-                              </small>
+	                          {visibleSourceSegments.map(segment => {
+                              const transportChips = sourceSegmentTransportChips(segment);
+                              return (
+	                            <article
+	                              className="teacher-ai-source"
+	                              key={`${segment.sourceType}-${segment.versionLabel}-${segment.status}-${segment.failureStage || "none"}-${segment.failureReason || "none"}`}
+	                            >
+	                              <div>
+	                                <strong>{displayText(segment.versionLabel || segment.status, segment.sourceType || "AI 来源")}</strong>
+	                                <span>
+	                                  {displayText(segment.provider, segment.sourceType || "UNKNOWN")}
+	                                  {segment.status ? ` · ${segment.status}` : ""}
+	                                  {segment.runtimeMode ? ` · ${segment.runtimeMode}` : ""}
+	                                </span>
+	                              </div>
+	                              <small>
+	                                样本 {segment.analyzedSubmissionCount} · 校正 {segment.correctionCount} · 低置信 {segment.lowConfidenceCount} · 泄题{" "}
+	                                {segment.highLeakRiskCount} · 安全 {segment.promptSafetyIncidentCount || 0} · 失败{" "}
+	                                {segment.modelRuntimeFailureCount || 0} · 部分 {segment.modelPartialCount || 0}
+	                                {segment.failureStage || segment.failureReason
+	                                  ? ` · 归因 ${displayText(segment.failureStage, "unknown-stage")}/${displayText(segment.failureReason, "unknown-reason")}`
+	                                  : ""}
+	                              </small>
+                                {transportChips.length > 0 && (
+                                  <div className="teacher-ai-transport-chips teacher-ai-transport-chips--source" aria-label="来源传输归因">
+                                    {transportChips.map(chip => (
+                                      <span key={chip}>{chip}</span>
+                                    ))}
+                                  </div>
+                                )}
                             </article>
-                          ))}
+                              );
+                            })}
                         </div>
                       ) : (
                         <div className="teacher-ai-quality__empty">
@@ -1439,6 +1602,7 @@ export default function TeacherPage() {
                             <span>诊断草稿 {fixtureDraftDiagnosisCount}</span>
                             <span>课堂介入 {fixtureDraftInterventionCount}</span>
                             <span>提示安全 {fixtureDraftSafetyCount}</span>
+                            <span>模型运行 {fixtureDraftRuntimeCount}</span>
                           </div>
                           {fixtureDraftSafetyCount > 0 && (
                             <div className="teacher-fixture-draft-preview__safety">
@@ -1472,12 +1636,49 @@ export default function TeacherPage() {
                               </div>
                             </div>
                           )}
+                          {fixtureDraftRuntimeCount > 0 && (
+                            <div className="teacher-fixture-draft-preview__safety">
+                              <div className="teacher-fixture-draft-preview__safety-head">
+                                <strong>模型运行草稿</strong>
+                                <StatusPill tone="warning">{fixtureDraftRuntimeCount} 条</StatusPill>
+                              </div>
+                              <div className="teacher-fixture-draft-preview__safety-list">
+                                {visibleRuntimeFixtures.map(item => (
+                                  <article key={`${item.name}-${item.submissionId}`}>
+                                    <div>
+                                      <strong>提交 #{item.submissionId}</strong>
+                                      <span>{displayText(item.problem?.title, "未命名题目")}</span>
+                                    </div>
+                                    <StatusPill tone={item.failureType === "PARTIAL_COMPLETION" ? "warning" : "danger"}>
+                                      {runtimeAttributionLabel(item.failureType)}
+                                    </StatusPill>
+                                    {transportTelemetryChips(item).length > 0 && (
+                                      <div className="teacher-ai-transport-chips teacher-ai-transport-chips--source" aria-label="模型运行草稿传输归因">
+                                        {transportTelemetryChips(item).map(chip => (
+                                          <span key={chip}>{chip}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    <p>
+                                      {displayText(
+                                        item.expectedRuntimeAction ||
+                                          item.failureReason ||
+                                          item.quality?.evalPurpose,
+                                        "请审查模型运行归因、失败阶段和恢复动作。"
+                                      )}
+                                    </p>
+                                  </article>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <pre>
                             {JSON.stringify(
                               {
                                 diagnosisFixtures: fixtureDraft.fixtures,
                                 interventionFixtures: fixtureDraft.interventionFixtures || [],
-                                safetyFixtures
+                                safetyFixtures,
+                                runtimeFixtures
                               },
                               null,
                               2
@@ -1616,38 +1817,59 @@ export default function TeacherPage() {
                     <strong>{overview.attemptCount}</strong>
                   </div>
                   <div>
-                    <span>通过次数</span>
-                    <strong>{overview.passedAttemptCount}</strong>
-                  </div>
-                  <div>
                     <span>通过率</span>
                     <strong>{passRate}%</strong>
                   </div>
                   <div>
-                    <span>待迁移</span>
-                    <strong>{overview.postAcTransferPendingCount || 0}</strong>
+                    <span>需关注</span>
+                    <strong>{attentionStudents.length}</strong>
                   </div>
                   <div>
-                    <span>复发误区</span>
-                    <strong>{overview.recurringMisconceptionStudentCount || 0}</strong>
-                  </div>
-                  <div>
-                    <span>解释缺口</span>
-                    <strong>{overview.selfExplanationWeakStudentCount || 0}</strong>
-                  </div>
-                  <div>
-                    <span>支架风险</span>
-                    <strong>{overview.aiDependencyRiskStudentCount || 0}</strong>
-                  </div>
-                  <div>
-                    <span>成长风险</span>
-                    <strong>{overview.masteryGrowthRiskStudentCount || 0}</strong>
-                  </div>
-                  <div>
-                    <span>行动风险</span>
-                    <strong>{overview.teachingActionRiskStudentCount || 0}</strong>
+                    <span>高频问题</span>
+                    <strong>{overview.topIssues.length}</strong>
                   </div>
                 </div>
+                <section className="teacher-inspection-strip" aria-label="课堂巡视摘要">
+                  <article className={attentionStudents.length ? "is-warning" : "is-stable"}>
+                    <span>课堂风险</span>
+                    <strong>{classroomRiskLabel}</strong>
+                  </article>
+                  <article>
+                    <span>共性问题</span>
+                    <strong>{classroomFocusLabel}</strong>
+                  </article>
+                  <article>
+                    <span>先看谁</span>
+                    <strong>{nextInspectionLabel}</strong>
+                  </article>
+                  <article className="teacher-inspection-strip__ai">
+                    <span>AI 质量</span>
+                    <strong>{aiQualityStateLabel}</strong>
+                  </article>
+                </section>
+                <details className="teacher-system-drawer">
+                  <summary>
+                    <div>
+                      <span>系统信号</span>
+                      <strong>AI 质量、Coach 成效和长期学习信号</strong>
+                    </div>
+                    <div className="teacher-system-drawer__chips">
+                      {overview.classTeachingStrategySignal && <StatusPill tone="info">课堂策略</StatusPill>}
+                      {overview.coachAnswerQualitySummary && (
+                        <span className="teacher-system-signal-chip teacher-coach-quality">
+                          Coach {coachAnswerQualityLabel(overview.coachAnswerQualitySummary.dominantGap)}
+                        </span>
+                      )}
+                      {overview.coachFollowupImpactSummary && (
+                        <span className="teacher-system-signal-chip teacher-coach-impact">
+                          成效 {coachFollowupImpactLabel(overview.coachFollowupImpactSummary.dominantOutcome)}
+                        </span>
+                      )}
+                      <StatusPill tone={aiQualityTone}>AI {aiQualityStateLabel}</StatusPill>
+                      <span className="teacher-system-signal-chip teacher-compact-details">详情</span>
+                    </div>
+                  </summary>
+                  <div className="teacher-system-drawer__body">
                 {overview.postAcTransferSummary && (
                   <div className="teacher-transfer-summary">
                     <span>AC 后迁移</span>
@@ -1701,6 +1923,10 @@ export default function TeacherPage() {
                       <div>
                         <span>疑似越界</span>
                         <strong>{overview.coachAnswerQualitySummary.safetyRiskCount || 0}</strong>
+                      </div>
+                      <div>
+                        <span>安全回退</span>
+                        <strong>{overview.coachAnswerQualitySummary.coachSafetyRejectionCount || 0}</strong>
                       </div>
                       <div>
                         <span>需关注</span>
@@ -1888,6 +2114,9 @@ export default function TeacherPage() {
                     )}
                   </div>
                 )}
+                    {renderAiQualitySection()}
+                  </div>
+                </details>
 
                 <section className="teacher-main-grid">
                   <div className="teacher-block">
@@ -2210,8 +2439,6 @@ export default function TeacherPage() {
                     )}
                   </div>
                 </section>
-
-                {renderAiQualitySection()}
               </>
             )}
           </main>
