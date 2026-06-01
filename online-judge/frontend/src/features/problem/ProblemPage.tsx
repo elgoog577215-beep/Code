@@ -206,10 +206,11 @@ export default function ProblemPage() {
       setLatest(result);
       setCoachPrompt(null);
       setHistory(await api.history(problem.id));
-      setAlert({
-        type: result.verdict === "ACCEPTED" ? "success" : "error",
-        message: result.verdict === "INTERNAL_ERROR" ? result.errorMessage || "执行环境未就绪。" : `本次结果：${verdictLabel(result.verdict)}`
-      });
+      setAlert(
+        result.verdict === "INTERNAL_ERROR"
+          ? { type: "error", message: result.errorMessage || "执行环境未就绪。" }
+          : null
+      );
       if (!result.analysis && result.id) {
         void api.triggerAnalysis(result.id).then(() => pollSubmission(result.id)).catch(() => undefined);
       }
@@ -424,25 +425,30 @@ export default function ProblemPage() {
           action={problem.difficulty ? <span className="meta-badge meta-badge--success">{difficultyLabel(problem.difficulty)}</span> : undefined}
         >
           <div className="statement">{renderMarkdownLike(problem.description)}</div>
-          <div className="stack" style={{ marginTop: "1rem" }}>
-            <h3>公开样例</h3>
-            {problem.sampleTestCases.length ? (
-              problem.sampleTestCases.map((sample, index) => (
-                <div className="two-column" key={`${sample.input}-${index}`}>
-                  <div>
-                    <span className="code-label">输入 {index + 1}</span>
-                    <pre className="code-block">{sample.input || "(空输入)"}</pre>
+          <details className="problem-compact-details problem-sample-drawer">
+            <summary>
+              <span>公开样例</span>
+              <span className="meta-badge">{problem.sampleTestCases.length || "暂无"}</span>
+            </summary>
+            <div className="problem-sample-drawer__body">
+              {problem.sampleTestCases.length ? (
+                problem.sampleTestCases.map((sample, index) => (
+                  <div className="two-column" key={`${sample.input}-${index}`}>
+                    <div>
+                      <span className="code-label">输入 {index + 1}</span>
+                      <pre className="code-block">{sample.input || "(空输入)"}</pre>
+                    </div>
+                    <div>
+                      <span className="code-label">输出 {index + 1}</span>
+                      <pre className="code-block">{sample.expectedOutput || "(空输出)"}</pre>
+                    </div>
                   </div>
-                  <div>
-                    <span className="code-label">输出 {index + 1}</span>
-                    <pre className="code-block">{sample.expectedOutput || "(空输出)"}</pre>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState title="暂无公开样例" />
-            )}
-          </div>
+                ))
+              ) : (
+                <EmptyState title="暂无公开样例" />
+              )}
+            </div>
+          </details>
         </Panel>
 
         <Panel
@@ -533,7 +539,7 @@ export default function ProblemPage() {
                     {coachQuestionBlock}
                   </section>
                 </section>
-                <div className="problem-result-compact" aria-label="本次结果摘要">
+                <div className="problem-result-compact problem-result-compact--quiet" aria-label="本次结果摘要">
                   <div>
                     <span>评测</span>
                     <strong>{testCaseSummary}</strong>

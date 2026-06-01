@@ -836,6 +836,20 @@ export interface RuntimeAttributionSignal {
   streamNoContentCount?: number;
   streamInvalidChunkCount?: number;
   streamFallbackRetryCount?: number;
+  recoveryStatus?: "RECOVERED" | "BLOCKED" | "NOT_APPLICABLE" | string | null;
+  recoveryCheckCount?: number;
+  recoveryPassedCheckCount?: number;
+  recoveryBlockedReasonCount?: number;
+  recoveryPassedChecks?: string[];
+  recoveryBlockedReasons?: string[];
+  recoverySmokeRecommended?: boolean;
+  recoverySmokeCaseId?: string | null;
+  recoverySmokeRuntimeProfile?: string | null;
+  recoverySmokeRequiredChecks?: string[];
+  qualityComparabilityStatus?: "COMPARABLE" | "PARTIAL" | "NOT_COMPARABLE" | "NOT_APPLICABLE" | string | null;
+  qualityComparabilitySummary?: string | null;
+  qualityComparabilityReasonCount?: number;
+  qualityComparabilityReasons?: string[];
   summary?: string | null;
   recommendedAction?: string | null;
   evidenceRefs: string[];
@@ -851,6 +865,10 @@ export interface AiQualityEvalReadiness {
   interventionImprovedCount?: number;
   interventionShiftedCount?: number;
   interventionStillStuckCount?: number;
+  modelQualityBaselineStatus?: "READY" | "PARTIAL" | "BLOCKED" | "NOT_APPLICABLE" | string | null;
+  modelQualityBaselineSummary?: string | null;
+  modelQualityBaselineReasonCount?: number;
+  modelQualityBaselineReasons?: string[];
   recommendedAction?: string | null;
   priorityTags: Array<{
     originalTag: string;
@@ -1177,6 +1195,16 @@ export interface AiQualitySourceSegment {
   streamNoContentCount?: number;
   streamInvalidChunkCount?: number;
   streamFallbackRetryCount?: number;
+  recoveryStatus?: "RECOVERED" | "BLOCKED" | "NOT_APPLICABLE" | string | null;
+  recoveryCheckCount?: number;
+  recoveryPassedCheckCount?: number;
+  recoveryBlockedReasonCount?: number;
+  recoveryBlockedReasons?: string[];
+  recoverySmokeRequiredChecks?: string[];
+  qualityComparabilityStatus?: "COMPARABLE" | "PARTIAL" | "NOT_COMPARABLE" | "NOT_APPLICABLE" | string | null;
+  qualityComparabilitySummary?: string | null;
+  qualityComparabilityReasonCount?: number;
+  qualityComparabilityReasons?: string[];
   analyzedSubmissionCount: number;
   correctionCount: number;
   lowConfidenceCount: number;

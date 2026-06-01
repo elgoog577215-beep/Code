@@ -124,6 +124,14 @@ a {
   box-shadow: 0 1px 0 color-mix(in srgb, white 45%, transparent);
 }
 
+.app-header--practice {
+  position: static;
+  border-bottom-color: color-mix(in srgb, var(--line) 72%, transparent);
+  background: var(--bg-plain);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 .nav-toggle {
   display: none;
   min-height: 40px;
@@ -602,7 +610,7 @@ a {
 
 .student-assignment-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.34fr);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.28fr);
   gap: 1.15rem;
   align-items: start;
 }
@@ -714,6 +722,7 @@ a {
   align-items: center;
   min-height: 76px;
   padding-block: 0.76rem;
+  border-radius: var(--radius);
   box-shadow: none;
 }
 
@@ -771,7 +780,7 @@ a {
 
 .student-side-flow {
   display: grid;
-  gap: 1rem;
+  gap: 0.72rem;
 }
 
 .student-next-action {
@@ -1999,6 +2008,37 @@ a {
   margin: 0;
 }
 
+.teacher-runtime-details {
+  margin-top: 0.34rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.teacher-runtime-details > summary {
+  min-height: 36px;
+  padding: 0.46rem 0.54rem;
+  font-size: 0.78rem;
+}
+
+.teacher-runtime-details .teacher-compact-details__body {
+  gap: 0.42rem;
+  padding: 0 0.54rem 0.54rem;
+}
+
+.teacher-runtime-details--source {
+  margin-top: 0.42rem;
+}
+
+.teacher-runtime-list {
+  display: grid;
+  gap: 0.22rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.38;
+}
+
 .teacher-ai-transport-chips {
   display: flex;
   flex-wrap: wrap;
@@ -2022,6 +2062,126 @@ a {
 
 .teacher-ai-transport-chips--source {
   margin-top: 0.32rem;
+}
+
+.teacher-ai-recovery {
+  display: grid;
+  gap: 0.34rem;
+  margin-top: 0.18rem;
+  padding: 0.42rem 0.46rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+}
+
+.teacher-ai-recovery--blocked {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
+.teacher-ai-recovery--recovered {
+  border-color: color-mix(in srgb, var(--success) 36%, var(--line));
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+}
+
+.teacher-ai-recovery--source {
+  margin-top: 0.32rem;
+}
+
+.teacher-ai-recovery__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+}
+
+.teacher-ai-recovery__chips span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0.18rem 0.46rem;
+  border: 1px solid color-mix(in srgb, var(--ink-muted) 32%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.teacher-ai-recovery__detail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.36rem;
+}
+
+.teacher-ai-recovery__detail--single {
+  grid-template-columns: 1fr;
+}
+
+.teacher-ai-recovery__detail ul {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.teacher-ai-recovery__detail li {
+  overflow-wrap: anywhere;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.28;
+}
+
+.teacher-ai-comparability {
+  display: grid;
+  gap: 0.34rem;
+  margin-top: 0.18rem;
+  padding: 0.42rem 0.46rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+}
+
+.teacher-ai-comparability--blocked {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
+.teacher-ai-comparability--partial {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--line));
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+}
+
+.teacher-ai-comparability--comparable {
+  border-color: color-mix(in srgb, var(--success) 36%, var(--line));
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+}
+
+.teacher-ai-comparability--source {
+  margin-top: 0.32rem;
+}
+
+.teacher-ai-comparability p,
+.teacher-ai-comparability ul {
+  margin: 0;
+}
+
+.teacher-ai-comparability ul {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0;
+  list-style: none;
+}
+
+.teacher-ai-comparability li {
+  overflow-wrap: anywhere;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.28;
 }
 
 .teacher-ai-trend {
@@ -3085,7 +3245,7 @@ a {
   width: 100%;
   min-height: clamp(520px, 66vh, 720px);
   display: grid;
-  grid-template-columns: minmax(220px, 0.28fr) minmax(720px, 1fr);
+  grid-template-columns: minmax(210px, 0.24fr) minmax(0, 1fr);
   margin-inline: auto;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -3202,7 +3362,7 @@ a {
 }
 
 .management-task-card--large {
-  margin: 1rem;
+  margin: 0.85rem;
 }
 
 .management-task-grid .management-task-card--large {
@@ -3458,7 +3618,7 @@ a {
 .editor-secondary-drawer {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 .editor-side {
@@ -4082,7 +4242,7 @@ button.list-row:hover {
 
 .problem-layout {
   display: grid;
-  grid-template-columns: minmax(310px, 0.82fr) minmax(410px, 1.08fr) minmax(310px, 0.78fr);
+  grid-template-columns: minmax(300px, 0.74fr) minmax(430px, 1.06fr) minmax(330px, 0.82fr);
   grid-template-areas: "statement editor feedback";
   gap: 1.15rem;
   align-items: start;
@@ -4099,7 +4259,7 @@ button.list-row:hover {
 .problem-sidebar {
   grid-area: feedback;
   position: sticky;
-  top: 5.6rem;
+  top: 1rem;
 }
 
 .problem-compact-details,
@@ -4401,6 +4561,16 @@ button.list-row:hover {
     var(--surface-strong);
 }
 
+.problem-sample-drawer {
+  margin-top: 1rem;
+}
+
+.problem-sample-drawer__body {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0 0.88rem 0.88rem;
+}
+
 .problem-primary-action__head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -4448,6 +4618,10 @@ button.list-row:hover {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
+}
+
+.problem-result-compact--quiet {
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
 }
 
 .problem-result-compact > div {
@@ -6466,6 +6640,10 @@ tr:last-child td {
 
   .teacher-ai-quality__metrics > div:nth-last-child(-n + 2) {
     border-bottom: 0;
+  }
+
+  .teacher-ai-recovery__detail {
+    grid-template-columns: 1fr;
   }
 
   .teacher-eval-candidates__list {

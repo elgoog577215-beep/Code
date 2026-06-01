@@ -338,49 +338,15 @@ export default function StudentPage() {
         {student && (
         <aside className="student-side-flow">
           <Panel
-            title="学习状态"
-            action={<StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? learningStageLabel(trajectory.stageTransition) : "等待提交"}</StatusPill>}
+            title="提交状态"
+            action={<StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? `${trajectory.completedTasks}/${trajectory.totalTasks}` : "等待提交"}</StatusPill>}
           >
               {!trajectory ? (
                 <div className="stack">
-                  {nextTask && (
-                    <div className="student-next-action">
-                      <span>下一步</span>
-                      <strong>{nextTask.title}</strong>
-                      <ButtonLink
-                        to={`/app/problem/${nextTask.problemId}?assignmentId=${assignment.id}&studentProfileId=${student.id}`}
-                        variant="primary"
-                        icon={<ArrowRight size={16} />}
-                      >
-                        开始
-                      </ButtonLink>
-                    </div>
-                  )}
                   <EmptyState title="还没有提交记录" />
                 </div>
               ) : (
                 <div className="stack">
-                  {nextTask && (
-                    <div className="student-next-action">
-                      <span>{trajectory.nextStep ? "当前处理项" : "下一步"}</span>
-                      <strong>
-                        {trajectory.repeatedFineGrainedTag
-                          ? issueLabel(trajectory.repeatedFineGrainedTag)
-                          : trajectory.repeatedIssueTag
-                            ? issueLabel(trajectory.repeatedIssueTag)
-                            : trajectory.nextStep
-                              ? learningStageLabel(trajectory.nextStep)
-                              : nextTask.title}
-                      </strong>
-                      <ButtonLink
-                        to={`/app/problem/${nextTask.problemId}?assignmentId=${assignment.id}&studentProfileId=${student.id}`}
-                        variant="primary"
-                        icon={<ArrowRight size={16} />}
-                      >
-                        {trajectory.tasks.find(task => task.problemId === nextTask.problemId)?.attemptCount ? "继续处理" : "开始"}
-                      </ButtonLink>
-                    </div>
-                  )}
                   {trajectory.postAcTransferSignal &&
                     ["JUST_ACCEPTED", "REFLECTION_NEEDED"].includes((trajectory.postAcTransferSignal.phase || "").toUpperCase()) && (
                       <div className="student-transfer-action">
@@ -412,7 +378,7 @@ export default function StudentPage() {
                     <span style={{ "--progress": `${completion}%` } as React.CSSProperties} />
                   </div>
                   <div className="student-record-note">
-                    <span>{trajectory.repeatedFineGrainedTag || trajectory.repeatedIssueTag ? "处理项" : "状态"}</span>
+                    <span>当前阶段</span>
                     <strong>
                       {trajectory.repeatedFineGrainedTag
                         ? issueLabel(trajectory.repeatedFineGrainedTag)

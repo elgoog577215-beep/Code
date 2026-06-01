@@ -376,9 +376,9 @@ function runtimeAttributionLabel(value?: string | null) {
 function transportModeLabel(value?: string | null) {
   switch ((value || "").toLowerCase()) {
     case "stream":
-      return "stream";
+      return "流式通道";
     case "single-call":
-      return "single-call";
+      return "单次通道";
     default:
       return displayText(value, "");
   }
@@ -406,7 +406,7 @@ function transportTelemetryChips(value?: TransportTelemetry | null) {
   const noContentCount =
     (value.streamNoContentCount || 0) > 0
       ? value.streamNoContentCount || 0
-      : mode === "stream" && value.streamContentChunkCount === 0
+      : (value.primaryTransportMode || value.transportMode || "").toLowerCase() === "stream" && value.streamContentChunkCount === 0
         ? 1
         : 0;
   if (noContentCount > 0) {
@@ -421,6 +421,126 @@ function transportTelemetryChips(value?: TransportTelemetry | null) {
     chips.push("重试 1");
   }
   return chips;
+}
+
+function recoveryStatusLabel(value?: string | null) {
+  switch ((value || "").toUpperCase()) {
+    case "BLOCKED":
+      return "需复核";
+    case "RECOVERED":
+      return "已恢复";
+    case "NOT_APPLICABLE":
+      return "";
+    default:
+      return displayText(value, "");
+  }
+}
+
+function recoveryStatusTone(value?: string | null) {
+  switch ((value || "").toUpperCase()) {
+    case "BLOCKED":
+      return "blocked";
+    case "RECOVERED":
+      return "recovered";
+    default:
+      return "neutral";
+  }
+}
+
+function qualityComparabilityLabel(value?: string | null) {
+  switch ((value || "").toUpperCase()) {
+    case "NOT_COMPARABLE":
+      return "暂不可比";
+    case "PARTIAL":
+      return "部分可比";
+    case "COMPARABLE":
+      return "可比";
+    case "NOT_APPLICABLE":
+      return "";
+    default:
+      return displayText(value, "");
+  }
+}
+
+function qualityComparabilityTone(value?: string | null) {
+  switch ((value || "").toUpperCase()) {
+    case "NOT_COMPARABLE":
+    case "BLOCKED":
+      return "blocked";
+    case "PARTIAL":
+      return "partial";
+    case "COMPARABLE":
+    case "READY":
+      return "comparable";
+    default:
+      return "neutral";
+  }
+}
+
+type RuntimeRecoverySignal = {
+  recoveryStatus?: string | null;
+  recoveryCheckCount?: number | null;
+  recoveryPassedCheckCount?: number | null;
+  recoveryBlockedReasonCount?: number | null;
+  recoveryPassedChecks?: string[] | null;
+  recoveryBlockedReasons?: string[] | null;
+  recoverySmokeRecommended?: boolean | null;
+  recoverySmokeCaseId?: string | null;
+  recoverySmokeRuntimeProfile?: string | null;
+  recoverySmokeRequiredChecks?: string[] | null;
+};
+
+type RuntimeComparabilitySignal = {
+  qualityComparabilityStatus?: string | null;
+  qualityComparabilitySummary?: string | null;
+  qualityComparabilityReasonCount?: number | null;
+  qualityComparabilityReasons?: string[] | null;
+};
+
+function recoveryStatusChips(value?: RuntimeRecoverySignal | null) {
+  const status = recoveryStatusLabel(value?.recoveryStatus);
+  if (!value || !status) {
+    return [];
+  }
+  const chips = [`恢复 ${status}`];
+  if (value.recoverySmokeRecommended && value.recoverySmokeCaseId) {
+    chips.push(`验证用例 ${value.recoverySmokeCaseId}`);
+  }
+  if (value.recoverySmokeRuntimeProfile) {
+    chips.push(`运行配置 ${value.recoverySmokeRuntimeProfile}`);
+  }
+  const checkCount = value.recoveryCheckCount || value.recoverySmokeRequiredChecks?.length || 0;
+  const passedCount = value.recoveryPassedCheckCount || 0;
+  if (checkCount > 0) {
+    chips.push(`检查 ${passedCount}/${checkCount}`);
+  }
+  return chips;
+}
+
+function sourceStatusLabel(value?: string | null) {
+  switch ((value || "").toUpperCase()) {
+    case "HEALTHY":
+    case "OK":
+    case "SUCCESS":
+    case "READY":
+      return "稳定";
+    case "WATCH":
+    case "PARTIAL":
+      return "观察";
+    case "ACTION_NEEDED":
+    case "FAILED":
+    case "ERROR":
+    case "BLOCKED":
+      return "需复核";
+    case "NOT_COMPARABLE":
+      return "暂不可比";
+    case "COMPARABLE":
+      return "可比";
+    case "NOT_APPLICABLE":
+      return "";
+    default:
+      return displayText(value, "");
+  }
 }
 
 function sourceCodePreview(value?: string | null) {
@@ -601,7 +721,21 @@ export default function TeacherPage() {
   const visibleTrendAssignments = aiQualityTrend?.assignments?.slice(0, 4) || [];
   const visibleSourceSegments = aiQualityTrend?.sourceSegments?.slice(0, 3) || [];
   const runtimeTransportChips = transportTelemetryChips(aiQuality?.runtimeAttributionSignal);
+  const runtimeRecoveryChips = recoveryStatusChips(aiQuality?.runtimeAttributionSignal);
+  const runtimeRecoveryTone = recoveryStatusTone(aiQuality?.runtimeAttributionSignal?.recoveryStatus);
+  const runtimeRecoveryBlockedReasons = aiQuality?.runtimeAttributionSignal?.recoveryBlockedReasons?.slice(0, 2) || [];
+  const runtimeRecoveryRequiredChecks = aiQuality?.runtimeAttributionSignal?.recoverySmokeRequiredChecks?.slice(0, 3) || [];
+  const runtimeComparability = aiQuality?.runtimeAttributionSignal as RuntimeComparabilitySignal | undefined;
+  const runtimeComparabilityLabel = qualityComparabilityLabel(runtimeComparability?.qualityComparabilityStatus);
+  const runtimeComparabilityTone = qualityComparabilityTone(runtimeComparability?.qualityComparabilityStatus);
+  const runtimeComparabilityReasons = runtimeComparability?.qualityComparabilityReasons?.slice(0, 2) || [];
+  const evalBaselineStatus = aiQuality?.evalReadiness?.modelQualityBaselineStatus;
+  const evalBaselineVisible =
+    evalBaselineStatus && !["NOT_APPLICABLE", ""].includes(evalBaselineStatus.toUpperCase());
+  const evalBaselineTone = qualityComparabilityTone(evalBaselineStatus);
+  const evalBaselineReasons = aiQuality?.evalReadiness?.modelQualityBaselineReasons?.slice(0, 2) || [];
   const sourceSegmentTransportChips = (segment: AiQualitySourceSegment) => transportTelemetryChips(segment);
+  const sourceSegmentRecoveryChips = (segment: AiQualitySourceSegment) => recoveryStatusChips(segment);
   const hasModelRuntimeTrendSignal = (aiQualityTrend?.modelRuntimeFailureCount || 0) > 0 || (aiQualityTrend?.modelPartialCount || 0) > 0;
   const visibleRecommendationSignals = recommendationEffectiveness?.feedbackSignals?.slice(0, 3) || [];
   const visibleRecommendationSegments =
@@ -1080,15 +1214,78 @@ export default function TeacherPage() {
                   (aiQuality.runtimeAttributionSignal.modelRuntimeFailureCount > 0 ||
                     aiQuality.runtimeAttributionSignal.modelPartialCount > 0) && (
                     <div>
-                      <span>模型归因</span>
+                      <span>系统可用性</span>
                       <strong>{runtimeAttributionLabel(aiQuality.runtimeAttributionSignal.primaryFailureType)}</strong>
                       <p>{aiQuality.runtimeAttributionSignal.summary || "继续观察外部模型运行状态。"}</p>
-                      {runtimeTransportChips.length > 0 && (
-                        <div className="teacher-ai-transport-chips" aria-label="模型传输归因">
-                          {runtimeTransportChips.map(chip => (
-                            <span key={chip}>{chip}</span>
-                          ))}
-                        </div>
+                      {(runtimeTransportChips.length > 0 || runtimeRecoveryChips.length > 0 || runtimeComparabilityLabel) && (
+                        <details className="teacher-compact-details teacher-runtime-details">
+                          <summary>
+                            <span>运行细节</span>
+                            <StatusPill tone="neutral">已折叠</StatusPill>
+                          </summary>
+                          <div className="teacher-compact-details__body">
+                            {runtimeTransportChips.length > 0 && (
+                              <div className="teacher-ai-transport-chips" aria-label="运行通道">
+                                {runtimeTransportChips.map(chip => (
+                                  <span key={chip}>{chip}</span>
+                                ))}
+                              </div>
+                            )}
+                            {runtimeRecoveryChips.length > 0 && (
+                              <div
+                                className={`teacher-ai-recovery teacher-ai-recovery--${runtimeRecoveryTone}`}
+                                aria-label="恢复验证"
+                              >
+                                <div className="teacher-ai-recovery__chips">
+                                  {runtimeRecoveryChips.map(chip => (
+                                    <span key={chip}>{chip}</span>
+                                  ))}
+                                </div>
+                                {(runtimeRecoveryBlockedReasons.length > 0 || runtimeRecoveryRequiredChecks.length > 0) && (
+                                  <div className="teacher-ai-recovery__detail">
+                                    {runtimeRecoveryBlockedReasons.length > 0 && (
+                                      <ul aria-label="恢复阻塞原因">
+                                        {runtimeRecoveryBlockedReasons.map(reason => (
+                                          <li key={reason}>{reason}</li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                    {runtimeRecoveryRequiredChecks.length > 0 && (
+                                      <ul aria-label="恢复检查项">
+                                        {runtimeRecoveryRequiredChecks.map(check => (
+                                          <li key={check}>{check}</li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {runtimeComparabilityLabel && (
+                              <div
+                                className={`teacher-ai-comparability teacher-ai-comparability--${runtimeComparabilityTone}`}
+                                aria-label="质量可比性"
+                              >
+                                <div className="teacher-ai-recovery__chips">
+                                  <span>质量对比 {runtimeComparabilityLabel}</span>
+                                  {(runtimeComparability?.qualityComparabilityReasonCount || 0) > 0 && (
+                                    <span>原因 {runtimeComparability?.qualityComparabilityReasonCount}</span>
+                                  )}
+                                </div>
+                                {runtimeComparability?.qualityComparabilitySummary && (
+                                  <p>{runtimeComparability.qualityComparabilitySummary}</p>
+                                )}
+                                {runtimeComparabilityReasons.length > 0 && (
+                                  <ul aria-label="质量对比原因">
+                                    {runtimeComparabilityReasons.map(reason => (
+                                      <li key={reason}>{reason}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </details>
                       )}
                       {aiQuality.runtimeAttributionSignal.recommendedAction && (
                         <small>{aiQuality.runtimeAttributionSignal.recommendedAction}</small>
@@ -1102,7 +1299,29 @@ export default function TeacherPage() {
                   {(aiQuality.evalReadiness?.interventionCandidateCount || 0) > 0 && (
                     <small>课堂介入候选 {aiQuality.evalReadiness?.interventionCandidateCount}</small>
                   )}
-                  {aiQuality.evalReadiness?.recommendedAction && <small>{aiQuality.evalReadiness.recommendedAction}</small>}
+                    {aiQuality.evalReadiness?.recommendedAction && <small>{aiQuality.evalReadiness.recommendedAction}</small>}
+                    {evalBaselineVisible && (
+                      <details className="teacher-compact-details teacher-runtime-details">
+                        <summary>
+                          <span>模型基线</span>
+                          <StatusPill tone={evalBaselineTone === "blocked" ? "warning" : evalBaselineTone === "comparable" ? "success" : "neutral"}>
+                            {qualityComparabilityLabel(evalBaselineStatus)}
+                          </StatusPill>
+                        </summary>
+                        <div className="teacher-compact-details__body">
+                          {aiQuality.evalReadiness?.modelQualityBaselineSummary && (
+                            <p>{aiQuality.evalReadiness.modelQualityBaselineSummary}</p>
+                          )}
+                          {evalBaselineReasons.length > 0 && (
+                            <ul aria-label="模型质量基线原因" className="teacher-runtime-list">
+                              {evalBaselineReasons.map(reason => (
+                                <li key={reason}>{reason}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </details>
+                    )}
                 </div>
               </aside>
             </div>
@@ -1120,35 +1339,35 @@ export default function TeacherPage() {
                   </p>
                 </div>
                 <StatusPill
-	                  tone={
-	                    aiQualityTrendError
-	                      ? "danger"
-	                      : aiQualityTrendLoading
-	                        ? "info"
-	                        : hasPromptSafetyTrendSignal
-	                          ? "danger"
-	                          : hasModelRuntimeTrendSignal
-	                            ? "warning"
-	                          : hasInterventionTrendSignal
-	                            ? "warning"
-	                            : aiQualityTrend
-	                              ? "success"
-	                              : "neutral"
-	                  }
-	                >
-	                  {aiQualityTrendError
-	                    ? "暂不可用"
-	                    : aiQualityTrendLoading
-	                      ? "读取中"
-	                      : hasPromptSafetyTrendSignal
-	                        ? "需复核"
-	                        : hasModelRuntimeTrendSignal
-	                          ? "需归因"
-	                          : hasInterventionTrendSignal
-	                            ? "需复盘"
-	                            : aiQualityTrend
-	                              ? "已同步"
-	                              : "待同步"}
+                    tone={
+                      aiQualityTrendError
+                        ? "danger"
+                        : aiQualityTrendLoading
+                          ? "info"
+                          : hasPromptSafetyTrendSignal
+                            ? "danger"
+                            : hasModelRuntimeTrendSignal
+                              ? "warning"
+                            : hasInterventionTrendSignal
+                              ? "warning"
+                              : aiQualityTrend
+                                ? "success"
+                                : "neutral"
+                    }
+                  >
+                    {aiQualityTrendError
+                      ? "暂不可用"
+                      : aiQualityTrendLoading
+                        ? "读取中"
+                        : hasPromptSafetyTrendSignal
+                          ? "需复核"
+                          : hasModelRuntimeTrendSignal
+                            ? "需归因"
+                            : hasInterventionTrendSignal
+                              ? "需复盘"
+                              : aiQualityTrend
+                                ? "已同步"
+                                : "待同步"}
                 </StatusPill>
               </div>
 
@@ -1185,21 +1404,21 @@ export default function TeacherPage() {
                       <span>安全降级</span>
                       <strong>{aiQualityTrend.promptSafetyDowngradeCount || 0}</strong>
                     </div>
-	                    <div>
-	                      <span>Coach 回退</span>
-	                      <strong>{aiQualityTrend.coachSafetyRejectionCount || 0}</strong>
-	                    </div>
-	                    <div>
-	                      <span>模型失败</span>
-	                      <strong>{aiQualityTrend.modelRuntimeFailureCount || 0}</strong>
-	                    </div>
-	                    <div>
-	                      <span>部分完成</span>
-	                      <strong>{aiQualityTrend.modelPartialCount || 0}</strong>
-	                    </div>
-	                    <div>
-	                      <span>仍卡同类</span>
-	                      <strong>{aiQualityTrend.interventionStillStuckCount || 0}</strong>
+                      <div>
+                        <span>Coach 回退</span>
+                        <strong>{aiQualityTrend.coachSafetyRejectionCount || 0}</strong>
+                      </div>
+                      <div>
+                        <span>模型失败</span>
+                        <strong>{aiQualityTrend.modelRuntimeFailureCount || 0}</strong>
+                      </div>
+                      <div>
+                        <span>部分完成</span>
+                        <strong>{aiQualityTrend.modelPartialCount || 0}</strong>
+                      </div>
+                      <div>
+                        <span>仍卡同类</span>
+                        <strong>{aiQualityTrend.interventionStillStuckCount || 0}</strong>
                     </div>
                     <div>
                       <span>等待后续</span>
@@ -1233,17 +1452,17 @@ export default function TeacherPage() {
                                 {(point.promptSafetyDowngradeCount || 0) > 0 && (
                                   <StatusPill tone="warning">降级 {point.promptSafetyDowngradeCount}</StatusPill>
                                 )}
-	                                {(point.coachSafetyRejectionCount || 0) > 0 && (
-	                                  <StatusPill tone="danger">Coach {point.coachSafetyRejectionCount}</StatusPill>
-	                                )}
-	                                {(point.modelRuntimeFailureCount || 0) > 0 && (
-	                                  <StatusPill tone="danger">模型 {point.modelRuntimeFailureCount}</StatusPill>
-	                                )}
-	                                {(point.modelPartialCount || 0) > 0 && (
-	                                  <StatusPill tone="warning">部分 {point.modelPartialCount}</StatusPill>
-	                                )}
-	                                {(point.interventionStillStuckCount || 0) > 0 && (
-	                                  <StatusPill tone="danger">仍卡 {point.interventionStillStuckCount}</StatusPill>
+                                  {(point.coachSafetyRejectionCount || 0) > 0 && (
+                                    <StatusPill tone="danger">Coach {point.coachSafetyRejectionCount}</StatusPill>
+                                  )}
+                                  {(point.modelRuntimeFailureCount || 0) > 0 && (
+                                    <StatusPill tone="danger">模型 {point.modelRuntimeFailureCount}</StatusPill>
+                                  )}
+                                  {(point.modelPartialCount || 0) > 0 && (
+                                    <StatusPill tone="warning">部分 {point.modelPartialCount}</StatusPill>
+                                  )}
+                                  {(point.interventionStillStuckCount || 0) > 0 && (
+                                    <StatusPill tone="danger">仍卡 {point.interventionStillStuckCount}</StatusPill>
                                 )}
                                 {(point.interventionWaitingFollowupCount || 0) > 0 && (
                                   <StatusPill tone="warning">等待 {point.interventionWaitingFollowupCount}</StatusPill>
@@ -1267,35 +1486,95 @@ export default function TeacherPage() {
                       </div>
                       {visibleSourceSegments.length ? (
                         <div className="teacher-ai-trend__source-list">
-	                          {visibleSourceSegments.map(segment => {
+                            {visibleSourceSegments.map(segment => {
                               const transportChips = sourceSegmentTransportChips(segment);
+                              const recoveryChips = sourceSegmentRecoveryChips(segment);
+                              const recoveryTone = recoveryStatusTone(segment.recoveryStatus);
+                              const recoveryBlockedReasons = segment.recoveryBlockedReasons?.slice(0, 2) || [];
+                              const comparabilityLabel = qualityComparabilityLabel(segment.qualityComparabilityStatus);
+                              const comparabilityTone = qualityComparabilityTone(segment.qualityComparabilityStatus);
+                              const comparabilityReasons = segment.qualityComparabilityReasons?.slice(0, 2) || [];
                               return (
-	                            <article
-	                              className="teacher-ai-source"
-	                              key={`${segment.sourceType}-${segment.versionLabel}-${segment.status}-${segment.failureStage || "none"}-${segment.failureReason || "none"}`}
-	                            >
-	                              <div>
-	                                <strong>{displayText(segment.versionLabel || segment.status, segment.sourceType || "AI 来源")}</strong>
-	                                <span>
-	                                  {displayText(segment.provider, segment.sourceType || "UNKNOWN")}
-	                                  {segment.status ? ` · ${segment.status}` : ""}
-	                                  {segment.runtimeMode ? ` · ${segment.runtimeMode}` : ""}
-	                                </span>
-	                              </div>
-	                              <small>
-	                                样本 {segment.analyzedSubmissionCount} · 校正 {segment.correctionCount} · 低置信 {segment.lowConfidenceCount} · 泄题{" "}
-	                                {segment.highLeakRiskCount} · 安全 {segment.promptSafetyIncidentCount || 0} · 失败{" "}
-	                                {segment.modelRuntimeFailureCount || 0} · 部分 {segment.modelPartialCount || 0}
-	                                {segment.failureStage || segment.failureReason
-	                                  ? ` · 归因 ${displayText(segment.failureStage, "unknown-stage")}/${displayText(segment.failureReason, "unknown-reason")}`
-	                                  : ""}
-	                              </small>
-                                {transportChips.length > 0 && (
-                                  <div className="teacher-ai-transport-chips teacher-ai-transport-chips--source" aria-label="来源传输归因">
-                                    {transportChips.map(chip => (
-                                      <span key={chip}>{chip}</span>
-                                    ))}
-                                  </div>
+                              <article
+                                className="teacher-ai-source"
+                                key={`${segment.sourceType}-${segment.versionLabel}-${segment.status}-${segment.failureStage || "none"}-${segment.failureReason || "none"}`}
+                              >
+                                <div>
+                                  <strong>{displayText(segment.versionLabel || segment.status, segment.sourceType || "AI 来源")}</strong>
+                                  <span>
+                                    {displayText(segment.provider, "AI 来源")}
+                                    {segment.status ? ` · ${sourceStatusLabel(segment.status)}` : ""}
+                                    {segment.runtimeMode ? ` · ${transportModeLabel(segment.runtimeMode)}` : ""}
+                                  </span>
+                                </div>
+                                <small>
+                                  样本 {segment.analyzedSubmissionCount} · 校正 {segment.correctionCount} · 低置信 {segment.lowConfidenceCount} · 泄题{" "}
+                                  {segment.highLeakRiskCount} · 安全 {segment.promptSafetyIncidentCount || 0} · 失败{" "}
+                                  {segment.modelRuntimeFailureCount || 0} · 部分 {segment.modelPartialCount || 0}
+                                  {segment.failureStage || segment.failureReason
+                                    ? ` · 归因 ${displayText(segment.failureStage, "未知阶段")}/${runtimeAttributionLabel(segment.failureReason)}`
+                                    : ""}
+                                </small>
+                                {(transportChips.length > 0 || recoveryChips.length > 0 || comparabilityLabel) && (
+                                  <details className="teacher-compact-details teacher-runtime-details teacher-runtime-details--source">
+                                    <summary>
+                                      <span>来源细节</span>
+                                      <StatusPill tone={comparabilityTone === "blocked" ? "warning" : comparabilityTone === "comparable" ? "success" : "neutral"}>
+                                        {comparabilityLabel || "查看"}
+                                      </StatusPill>
+                                    </summary>
+                                    <div className="teacher-compact-details__body">
+                                      {transportChips.length > 0 && (
+                                        <div className="teacher-ai-transport-chips teacher-ai-transport-chips--source" aria-label="来源通道">
+                                          {transportChips.map(chip => (
+                                            <span key={chip}>{chip}</span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {recoveryChips.length > 0 && (
+                                        <div
+                                          className={`teacher-ai-recovery teacher-ai-recovery--source teacher-ai-recovery--${recoveryTone}`}
+                                          aria-label="来源恢复验证"
+                                        >
+                                          <div className="teacher-ai-recovery__chips">
+                                            {recoveryChips.map(chip => (
+                                              <span key={chip}>{chip}</span>
+                                            ))}
+                                          </div>
+                                          {recoveryBlockedReasons.length > 0 && (
+                                            <div className="teacher-ai-recovery__detail teacher-ai-recovery__detail--single">
+                                              <ul aria-label="来源恢复阻塞原因">
+                                                {recoveryBlockedReasons.map(reason => (
+                                                  <li key={reason}>{reason}</li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                      {comparabilityLabel && (
+                                        <div
+                                          className={`teacher-ai-comparability teacher-ai-comparability--source teacher-ai-comparability--${comparabilityTone}`}
+                                          aria-label="来源质量可比性"
+                                        >
+                                          <div className="teacher-ai-recovery__chips">
+                                            <span>质量对比 {comparabilityLabel}</span>
+                                            {(segment.qualityComparabilityReasonCount || 0) > 0 && (
+                                              <span>原因 {segment.qualityComparabilityReasonCount}</span>
+                                            )}
+                                          </div>
+                                          {segment.qualityComparabilitySummary && <p>{segment.qualityComparabilitySummary}</p>}
+                                          {comparabilityReasons.length > 0 && (
+                                            <ul aria-label="来源质量对比原因">
+                                              {comparabilityReasons.map(reason => (
+                                                <li key={reason}>{reason}</li>
+                                              ))}
+                                            </ul>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </details>
                                 )}
                             </article>
                               );
@@ -1415,7 +1694,7 @@ export default function TeacherPage() {
                                 </StatusPill>
                               </div>
                               <small>
-                                策略 {displayText(signal.strategy, "UNKNOWN")} · 证据 {signal.evidenceCount}
+                                策略 {displayText(signal.strategy, "未标注")} · 证据 {signal.evidenceCount}
                               </small>
                             </article>
                           ))}

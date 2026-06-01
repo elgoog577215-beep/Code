@@ -78,8 +78,10 @@ function Header() {
     setOpen(false);
   }, [location.pathname]);
 
+  const headerClassName = ["app-header", open ? "is-open" : "", isProblemPage ? "app-header--practice" : ""].filter(Boolean).join(" ");
+
   return (
-    <header className={`app-header ${open ? "is-open" : ""} ${isProblemPage ? "app-header--practice" : ""}`}>
+    <header className={headerClassName}>
       <NavLink to="/app" className="brand" aria-label="温中编程学习平台">
         <span className="brand__mark">
           <BookOpenCheck size={24} />
