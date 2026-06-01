@@ -30,7 +30,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -726,13 +728,16 @@ public class SubmissionAnalysisService {
         List<AbilitySignalAnalyzer.AbilitySignal> abilitySignals =
                 abilitySignalAnalyzer.summarize(history, analyses);
         List<TeacherDiagnosisCorrection> corrections = teacherCorrections(historyIds);
+        List<DiagnosisEvidencePackage.TeacherCalibrationPattern> calibrationPatterns =
+                teacherCalibrationPatterns(corrections);
         List<String> evidenceRefs = buildLearningMemoryEvidenceRefs(
                 submission,
                 history,
                 issueTags,
                 fineTags,
                 abilitySignals,
-                corrections
+                corrections,
+                calibrationPatterns
         );
 
         return DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
@@ -747,6 +752,8 @@ public class SubmissionAnalysisService {
                 .recentTrend(buildLearningMemoryTrend(history, analyses))
                 .interventionEffect(latestInterventionEffect(history, analyses))
                 .teacherCorrectionSummary(teacherCorrectionSummary(corrections))
+                .teacherCalibrationSignal(primaryTeacherCalibrationPattern(calibrationPatterns))
+                .teacherCalibrationPatterns(calibrationPatterns)
                 .evidenceRefs(evidenceRefs)
                 .build();
     }
@@ -766,7 +773,8 @@ public class SubmissionAnalysisService {
                                                          List<String> issueTags,
                                                          List<String> fineTags,
                                                          List<AbilitySignalAnalyzer.AbilitySignal> abilitySignals,
-                                                         List<TeacherDiagnosisCorrection> corrections) {
+                                                         List<TeacherDiagnosisCorrection> corrections,
+                                                         List<DiagnosisEvidencePackage.TeacherCalibrationPattern> calibrationPatterns) {
         List<String> refs = new ArrayList<>();
         if (current != null && current.getStudentProfileId() != null) {
             refs.add("memory:student:" + current.getStudentProfileId());
@@ -788,7 +796,120 @@ public class SubmissionAnalysisService {
         if (corrections != null && !corrections.isEmpty()) {
             refs.add("memory:teacher_corrections:" + corrections.size());
         }
+        if (calibrationPatterns != null && !calibrationPatterns.isEmpty()) {
+            calibrationPatterns.stream()
+                    .limit(3)
+                    .flatMap(pattern -> pattern.getEvidenceRefs() == null
+                            ? List.<String>of().stream()
+                            : pattern.getEvidenceRefs().stream())
+                    .forEach(refs::add);
+        }
         return deduplicate(refs);
+    }
+
+    private List<DiagnosisEvidencePackage.TeacherCalibrationPattern> teacherCalibrationPatterns(
+            List<TeacherDiagnosisCorrection> corrections) {
+        if (corrections == null || corrections.isEmpty()) {
+            return List.of();
+        }
+        Map<String, List<TeacherDiagnosisCorrection>> grouped = new LinkedHashMap<>();
+        for (TeacherDiagnosisCorrection correction : corrections) {
+            if (correction == null) {
+                continue;
+            }
+            String correctedIssue = normalizeCorrectionTag(correction.getCorrectedIssueTag());
+            String correctedFine = normalizeCorrectionTag(correction.getCorrectedFineGrainedTag());
+            if (correctedIssue.isBlank() && correctedFine.isBlank()) {
+                continue;
+            }
+            String key = String.join("->",
+                    normalizeCorrectionTag(correction.getOriginalIssueTag()),
+                    normalizeCorrectionTag(correction.getOriginalFineGrainedTag()),
+                    correctedIssue,
+                    correctedFine);
+            grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(correction);
+        }
+        return grouped.values()
+                .stream()
+                .map(this::toTeacherCalibrationPattern)
+                .sorted(Comparator
+                        .comparingLong((DiagnosisEvidencePackage.TeacherCalibrationPattern pattern) ->
+                                pattern.getCorrectionCount() == null ? 0L : pattern.getCorrectionCount())
+                        .reversed()
+                        .thenComparing(pattern -> pattern.getEvidenceSubmissionIds() == null
+                                        || pattern.getEvidenceSubmissionIds().isEmpty()
+                                        ? Long.MAX_VALUE
+                                        : pattern.getEvidenceSubmissionIds().get(0),
+                                Comparator.nullsLast(Long::compareTo)))
+                .limit(5)
+                .toList();
+    }
+
+    private DiagnosisEvidencePackage.TeacherCalibrationPattern toTeacherCalibrationPattern(
+            List<TeacherDiagnosisCorrection> corrections) {
+        List<TeacherDiagnosisCorrection> safeCorrections = corrections == null ? List.of() : corrections.stream()
+                .filter(Objects::nonNull)
+                .toList();
+        TeacherDiagnosisCorrection latest = safeCorrections.stream()
+                .max(Comparator.comparing(
+                        TeacherDiagnosisCorrection::getCorrectedAt,
+                        Comparator.nullsFirst(LocalDateTime::compareTo)))
+                .orElse(null);
+        TeacherDiagnosisCorrection sample = latest == null && !safeCorrections.isEmpty()
+                ? safeCorrections.get(0)
+                : latest;
+        List<Long> evidenceSubmissionIds = safeCorrections.stream()
+                .map(TeacherDiagnosisCorrection::getSubmissionId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .limit(5)
+                .toList();
+        long evalCandidateCount = safeCorrections.stream()
+                .filter(TeacherDiagnosisCorrection::isEvalCandidate)
+                .count();
+        String correctedFine = normalizeCorrectionTag(sample == null ? null : sample.getCorrectedFineGrainedTag());
+        String correctedIssue = normalizeCorrectionTag(sample == null ? null : sample.getCorrectedIssueTag());
+        List<String> refs = teacherCalibrationRefs(correctedIssue, correctedFine, evidenceSubmissionIds);
+        return DiagnosisEvidencePackage.TeacherCalibrationPattern.builder()
+                .originalIssueTag(normalizeCorrectionTag(sample == null ? null : sample.getOriginalIssueTag()))
+                .originalFineGrainedTag(normalizeCorrectionTag(sample == null ? null : sample.getOriginalFineGrainedTag()))
+                .correctedIssueTag(correctedIssue)
+                .correctedFineGrainedTag(correctedFine)
+                .correctionCount((long) safeCorrections.size())
+                .evalCandidateCount(evalCandidateCount)
+                .latestTeacherNote(truncateInline(sample == null ? null : sample.getTeacherNote()))
+                .evidenceSubmissionIds(evidenceSubmissionIds)
+                .evidenceRefs(refs)
+                .build();
+    }
+
+    private DiagnosisEvidencePackage.TeacherCalibrationPattern primaryTeacherCalibrationPattern(
+            List<DiagnosisEvidencePackage.TeacherCalibrationPattern> patterns) {
+        if (patterns == null || patterns.isEmpty()) {
+            return null;
+        }
+        return patterns.get(0);
+    }
+
+    private List<String> teacherCalibrationRefs(String correctedIssue,
+                                                String correctedFine,
+                                                List<Long> evidenceSubmissionIds) {
+        List<String> refs = new ArrayList<>();
+        String tag = firstNonBlank(correctedFine, correctedIssue);
+        if (tag != null && !tag.isBlank()) {
+            refs.add("memory:teacher_calibration:" + normalizeMemoryRef(tag));
+        }
+        if (evidenceSubmissionIds != null) {
+            evidenceSubmissionIds.stream()
+                    .limit(3)
+                    .map(id -> "teacher_correction:submission:" + id)
+                    .forEach(refs::add);
+        }
+        return deduplicate(refs);
+    }
+
+    private String normalizeCorrectionTag(String value) {
+        return value == null ? "" : value.trim().toUpperCase();
     }
 
     private List<DiagnosisEvidencePackage.MemoryTagStat> toMemoryTagStats(List<String> tags,

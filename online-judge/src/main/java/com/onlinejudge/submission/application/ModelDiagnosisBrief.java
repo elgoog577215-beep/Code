@@ -31,6 +31,7 @@ public class ModelDiagnosisBrief {
     private List<String> allowedFineGrainedTags;
     private String learningTrajectorySummary;
     private String learningMemorySummary;
+    private String teacherCalibrationSummary;
     private HiddenDataBoundary hiddenDataBoundary;
     private String uncertainty;
 

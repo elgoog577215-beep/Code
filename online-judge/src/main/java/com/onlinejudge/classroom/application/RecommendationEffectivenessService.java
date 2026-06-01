@@ -6,7 +6,6 @@ import com.onlinejudge.classroom.domain.StudentRecommendationEvent;
 import com.onlinejudge.classroom.dto.RecommendationEffectivenessResponse;
 import com.onlinejudge.classroom.persistence.StudentRecommendationEventRepository;
 import com.onlinejudge.submission.domain.Submission;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -23,7 +22,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class RecommendationEffectivenessService {
 
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {
@@ -31,14 +29,39 @@ public class RecommendationEffectivenessService {
 
     private final StudentRecommendationEventRepository eventRepository;
     private final ObjectMapper objectMapper;
+    private final RecommendationActionEvidenceAnalyzer actionEvidenceAnalyzer;
+
+    public RecommendationEffectivenessService(StudentRecommendationEventRepository eventRepository,
+                                               ObjectMapper objectMapper) {
+        this(eventRepository, objectMapper, new RecommendationActionEvidenceAnalyzer());
+    }
+
+    public RecommendationEffectivenessService(StudentRecommendationEventRepository eventRepository,
+                                               ObjectMapper objectMapper,
+                                               RecommendationActionEvidenceAnalyzer actionEvidenceAnalyzer) {
+        this.eventRepository = eventRepository;
+        this.objectMapper = objectMapper;
+        this.actionEvidenceAnalyzer = actionEvidenceAnalyzer == null ? new RecommendationActionEvidenceAnalyzer() : actionEvidenceAnalyzer;
+    }
 
     public RecommendationEffectivenessResponse buildOverview() {
         return buildFrom(eventRepository.findTop500ByOrderByCreatedAtDesc());
     }
 
+    public RecommendationEffectivenessResponse buildOverview(Long assignmentId) {
+        if (assignmentId == null) {
+            return buildOverview();
+        }
+        return buildFrom(eventRepository.findTop500ByAssignmentIdOrderByCreatedAtDesc(assignmentId));
+    }
+
     RecommendationEffectivenessResponse buildFrom(List<StudentRecommendationEvent> events) {
         List<StudentRecommendationEvent> safeEvents = normalizeEvents(events);
         Metrics overall = metricsFor(safeEvents);
+        List<RecommendationEffectivenessResponse.ActionEvidenceSignal> actionEvidenceSignals =
+                actionEvidenceAnalyzer.analyze(safeEvents);
+        List<RecommendationEffectivenessResponse.FeedbackSignal> feedbackSignals =
+                feedbackSignals(safeEvents, actionEvidenceSignals);
         return RecommendationEffectivenessResponse.builder()
                 .recentEventCount(safeEvents.size())
                 .uniqueRecommendationCount(overall.uniqueRecommendationCount)
@@ -49,13 +72,18 @@ public class RecommendationEffectivenessService {
                 .acceptedFollowupCount(overall.acceptedFollowupCount)
                 .sameFocusIssueCount(overall.sameFocusIssueCount)
                 .clickedWithoutSubmissionCount(overall.clickedWithoutSubmissionCount)
+                .unresolvedLearningSignalCount(overall.unresolvedLearningSignalCount)
+                .teacherInterventionRecommendedCount(overall.teacherInterventionRecommendedCount)
                 .clickThroughRate(overall.clickThroughRate())
                 .followupSubmissionRate(overall.followupSubmissionRate())
                 .acceptedFollowupRate(overall.acceptedFollowupRate())
                 .sameFocusIssueRate(overall.sameFocusIssueRate())
                 .summary(summary(overall))
                 .byType(segmentsByType(safeEvents))
+                .byStrategy(segmentsByStrategy(safeEvents))
                 .focusTags(segmentsByFocusTag(safeEvents))
+                .feedbackSignals(feedbackSignals)
+                .actionEvidenceSignals(actionEvidenceSignals)
                 .build();
     }
 
@@ -75,6 +103,17 @@ public class RecommendationEffectivenessService {
                 .entrySet()
                 .stream()
                 .map(entry -> toSegment(entry.getKey(), typeLabel(entry.getKey()), entry.getValue()))
+                .sorted(segmentComparator())
+                .limit(8)
+                .toList();
+    }
+
+    private List<RecommendationEffectivenessResponse.SegmentStat> segmentsByStrategy(List<StudentRecommendationEvent> events) {
+        return events.stream()
+                .collect(Collectors.groupingBy(event -> blankToUnknown(event.getStrategy()), LinkedHashMap::new, Collectors.toList()))
+                .entrySet()
+                .stream()
+                .map(entry -> toSegment(entry.getKey(), strategyLabel(entry.getKey()), entry.getValue()))
                 .sorted(segmentComparator())
                 .limit(8)
                 .toList();
@@ -121,6 +160,8 @@ public class RecommendationEffectivenessService {
                 .followupSubmissionCount(metrics.followupSubmissionCount)
                 .acceptedFollowupCount(metrics.acceptedFollowupCount)
                 .sameFocusIssueCount(metrics.sameFocusIssueCount)
+                .unresolvedLearningSignalCount(metrics.unresolvedLearningSignalCount)
+                .teacherInterventionRecommendedCount(metrics.teacherInterventionRecommendedCount)
                 .clickThroughRate(metrics.clickThroughRate())
                 .followupSubmissionRate(metrics.followupSubmissionRate())
                 .acceptedFollowupRate(metrics.acceptedFollowupRate())
@@ -144,6 +185,14 @@ public class RecommendationEffectivenessService {
         long sameFocus = submissions.stream()
                 .filter(this::sameFocusIssue)
                 .count();
+        long unresolvedLearningSignals = submissions.stream()
+                .filter(event -> !Submission.Verdict.ACCEPTED.name().equals(event.getFollowupVerdict()))
+                .filter(this::sameFocusIssue)
+                .count();
+        long teacherInterventionRecommended = byToken.values()
+                .stream()
+                .filter(this::needsTeacherIntervention)
+                .count();
         long exposedTokens = countTokenGroups(byToken.values(), StudentRecommendationEventService.EVENT_EXPOSED);
         long clickedTokens = countTokenGroups(byToken.values(), StudentRecommendationEventService.EVENT_CLICKED);
         long enteredTokens = countTokenGroups(byToken.values(), StudentRecommendationEventService.EVENT_ENTERED_PROBLEM);
@@ -163,6 +212,8 @@ public class RecommendationEffectivenessService {
                 accepted,
                 sameFocus,
                 clickedWithoutSubmission,
+                unresolvedLearningSignals,
+                teacherInterventionRecommended,
                 exposedTokens,
                 clickedTokens,
                 enteredTokens,
@@ -184,6 +235,18 @@ public class RecommendationEffectivenessService {
 
     private boolean containsEvent(List<StudentRecommendationEvent> group, String eventType) {
         return group.stream().anyMatch(event -> eventType.equals(event.getEventType()));
+    }
+
+    private boolean needsTeacherIntervention(List<StudentRecommendationEvent> group) {
+        if (group == null || group.isEmpty()) {
+            return false;
+        }
+        boolean highRisk = group.stream().anyMatch(event -> "HIGH".equals(event.getRiskLevel()));
+        boolean unresolved = group.stream()
+                .filter(event -> StudentRecommendationEventService.EVENT_SUBMITTED.equals(event.getEventType()))
+                .filter(event -> !Submission.Verdict.ACCEPTED.name().equals(event.getFollowupVerdict()))
+                .anyMatch(this::sameFocusIssue);
+        return highRisk && (unresolved || containsEvent(group, StudentRecommendationEventService.EVENT_SUBMITTED));
     }
 
     private boolean sameFocusIssue(StudentRecommendationEvent event) {
@@ -217,9 +280,92 @@ public class RecommendationEffectivenessService {
         }
     }
 
+    private List<RecommendationEffectivenessResponse.FeedbackSignal> feedbackSignals(
+            List<StudentRecommendationEvent> events,
+            List<RecommendationEffectivenessResponse.ActionEvidenceSignal> actionEvidenceSignals) {
+        if (events == null || events.isEmpty()) {
+            return List.of();
+        }
+        List<RecommendationEffectivenessResponse.ActionEvidenceSignal> safeSignals =
+                actionEvidenceSignals == null ? List.of() : actionEvidenceSignals;
+        List<String> unresolvedTokens = safeSignals.stream()
+                .filter(actionEvidenceAnalyzer::isUnresolved)
+                .map(RecommendationEffectivenessResponse.ActionEvidenceSignal::getRecommendationToken)
+                .filter(token -> token != null && !token.isBlank())
+                .toList();
+        List<String> clickedWithoutSubmissionTokens = safeSignals.stream()
+                .filter(signal -> RecommendationActionEvidenceAnalyzer.OUTCOME_NO_FOLLOWUP_SUBMISSION.equals(signal.getOutcome()))
+                .map(RecommendationEffectivenessResponse.ActionEvidenceSignal::getRecommendationToken)
+                .filter(token -> token != null && !token.isBlank())
+                .toList();
+        if (unresolvedTokens.isEmpty() && clickedWithoutSubmissionTokens.isEmpty()) {
+            Map<String, List<StudentRecommendationEvent>> byToken = events.stream()
+                    .collect(Collectors.groupingBy(StudentRecommendationEvent::getRecommendationToken, LinkedHashMap::new, Collectors.toList()));
+            unresolvedTokens = byToken.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue().stream()
+                        .filter(event -> StudentRecommendationEventService.EVENT_SUBMITTED.equals(event.getEventType()))
+                        .filter(event -> !Submission.Verdict.ACCEPTED.name().equals(event.getFollowupVerdict()))
+                        .anyMatch(this::sameFocusIssue))
+                .map(Map.Entry::getKey)
+                .toList();
+            clickedWithoutSubmissionTokens = byToken.entrySet()
+                .stream()
+                .filter(entry -> containsEvent(entry.getValue(), StudentRecommendationEventService.EVENT_CLICKED)
+                        || containsEvent(entry.getValue(), StudentRecommendationEventService.EVENT_ENTERED_PROBLEM))
+                .filter(entry -> !containsEvent(entry.getValue(), StudentRecommendationEventService.EVENT_SUBMITTED))
+                .map(Map.Entry::getKey)
+                .toList();
+        }
+        List<RecommendationEffectivenessResponse.FeedbackSignal> signals = new ArrayList<>();
+        if (!unresolvedTokens.isEmpty()) {
+            signals.add(RecommendationEffectivenessResponse.FeedbackSignal.builder()
+                    .signal("UNRESOLVED_SAME_FOCUS")
+                    .strategy(dominantStrategy(events, unresolvedTokens))
+                    .severity("HIGH")
+                    .evidenceCount(unresolvedTokens.size())
+                    .summary("推荐后仍有 " + unresolvedTokens.size() + " 个推荐命中同类错因。")
+                    .recommendedAction("下一轮先降级为最小样例复盘；高风险学生建议教师介入。")
+                    .evidenceTokens(unresolvedTokens.stream().limit(5).toList())
+                    .build());
+        }
+        if (!clickedWithoutSubmissionTokens.isEmpty()) {
+            signals.add(RecommendationEffectivenessResponse.FeedbackSignal.builder()
+                    .signal("CLICKED_WITHOUT_SUBMISSION")
+                    .strategy(dominantStrategy(events, clickedWithoutSubmissionTokens))
+                    .severity(unresolvedTokens.isEmpty() ? "WATCH" : "MEDIUM")
+                    .evidenceCount(clickedWithoutSubmissionTokens.size())
+                    .summary("有 " + clickedWithoutSubmissionTokens.size() + " 个推荐被点击或进入题目但没有提交。")
+                    .recommendedAction("先判断学生是否卡在读题或起步阶段，必要时改成更小复盘任务。")
+                    .evidenceTokens(clickedWithoutSubmissionTokens.stream().limit(5).toList())
+                    .build());
+        }
+        return signals.stream().limit(5).toList();
+    }
+
+    private String dominantStrategy(List<StudentRecommendationEvent> events, List<String> tokens) {
+        if (tokens == null || tokens.isEmpty()) {
+            return "UNKNOWN";
+        }
+        Set<String> tokenSet = new LinkedHashSet<>(tokens);
+        return events.stream()
+                .filter(event -> tokenSet.contains(event.getRecommendationToken()))
+                .map(StudentRecommendationEvent::getStrategy)
+                .map(this::blankToUnknown)
+                .collect(Collectors.groupingBy(Function.identity(), LinkedHashMap::new, Collectors.counting()))
+                .entrySet()
+                .stream()
+                .max(Map.Entry.<String, Long>comparingByValue().thenComparing(Map.Entry.comparingByKey()))
+                .map(Map.Entry::getKey)
+                .orElse("UNKNOWN");
+    }
+
     private String summary(Metrics metrics) {
         if (metrics.uniqueRecommendationCount == 0) {
             return "还没有推荐使用数据。先让学生看到并点击推荐，系统才能形成效果证据。";
+        }
+        if (metrics.unresolvedLearningSignalCount > 0) {
+            return "推荐后仍有 " + metrics.unresolvedLearningSignalCount + " 次命中同类错因，下一轮应降级复盘或安排教师介入。";
         }
         if (metrics.acceptedFollowupCount > 0) {
             return "推荐后已有 " + metrics.acceptedFollowupCount + " 次后续提交通过。这是观察性信号，建议继续看错因是否能迁移到新题。";
@@ -245,6 +391,17 @@ public class RecommendationEffectivenessService {
         };
     }
 
+    private String strategyLabel(String strategy) {
+        return switch (strategy) {
+            case "REPAIR_SAME_PROBLEM" -> "同题修复验证";
+            case "TRANSFER_TO_NEW_PROBLEM" -> "同类迁移练习";
+            case "REFLECTION_EVIDENCE" -> "证据复盘";
+            case "STEP_DOWN_REVIEW" -> "降级复盘";
+            case "UNKNOWN" -> "未知策略";
+            default -> strategy;
+        };
+    }
+
     private String blankToUnknown(String value) {
         return value == null || value.isBlank() ? "UNKNOWN" : value;
     }
@@ -261,6 +418,8 @@ public class RecommendationEffectivenessService {
                            long acceptedFollowupCount,
                            long sameFocusIssueCount,
                            long clickedWithoutSubmissionCount,
+                           long unresolvedLearningSignalCount,
+                           long teacherInterventionRecommendedCount,
                            long exposedTokenCount,
                            long clickedTokenCount,
                            long enteredTokenCount,

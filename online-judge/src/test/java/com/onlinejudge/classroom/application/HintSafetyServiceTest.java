@@ -108,4 +108,32 @@ class HintSafetyServiceTest {
         assertThat(result.getStudentHintPlan().getTeachingAction()).isEqualTo("COMPARE_INPUT_SPEC");
         assertThat(result.getReportMarkdown()).doesNotContain("提示已安全降级");
     }
+
+    @Test
+    void downgradesEnglishDirectFixAndHiddenTestPhrases() {
+        SubmissionAnalysisResponse analysis = SubmissionAnalysisResponse.builder()
+                .submissionId(101L)
+                .issueTags(List.of("IO_FORMAT"))
+                .studentHint("The final answer is to directly change the parser and use the hidden test input.")
+                .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
+                        .hintLevel("L2")
+                        .problemType("input format")
+                        .evidenceAnchor("problem:input-shape")
+                        .nextAction("Apply this exact fix now.")
+                        .coachQuestion("What is the hidden test output?")
+                        .teachingAction("COMPARE_INPUT_SPEC")
+                        .evidenceRefs(List.of("problem:input-shape"))
+                        .answerLeakRisk("LOW")
+                        .build())
+                .reportMarkdown("Hidden test input and output are shown here.")
+                .answerLeakRisk("LOW")
+                .build();
+
+        SubmissionAnalysisResponse result = service.verifyAndRecord(analysis, Assignment.HintPolicy.L2);
+
+        assertThat(result.getAnswerLeakRisk()).isEqualTo("HIGH");
+        assertThat(result.getStudentHint()).doesNotContain("directly change", "hidden test");
+        assertThat(result.getStudentHintPlan().getTeachingAction()).isEqualTo("COLLECT_EVIDENCE");
+        assertThat(result.getReportMarkdown()).contains("提示已安全降级");
+    }
 }

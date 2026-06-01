@@ -35,6 +35,7 @@ public class SubmissionAnalysisResponse {
     private LearningTrajectorySignal learningTrajectorySignal;
     private Double confidence;
     private LearningActionEvidence learningActionEvidence;
+    private TeacherCalibrationSignal teacherCalibrationSignal;
     private String uncertainty;
     private String diagnosticTrace;
     private AiInvocation aiInvocation;
@@ -122,6 +123,24 @@ public class SubmissionAnalysisResponse {
         private Double confidence;
         private List<String> evidenceRefs;
         private String nextAdjustment;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TeacherCalibrationSignal {
+        private String status;
+        private String summary;
+        private String originalIssueTag;
+        private String originalFineGrainedTag;
+        private String correctedIssueTag;
+        private String correctedFineGrainedTag;
+        private Long correctionCount;
+        private Double confidenceAdjustment;
+        private List<String> evidenceRefs;
+        private String recommendedAction;
+        private boolean needsTeacherReview;
     }
 
     @Data

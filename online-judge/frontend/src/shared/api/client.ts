@@ -5,6 +5,8 @@ import type {
   AiQualityTrend,
   ClassGroup,
   CoachPrompt,
+  DiagnosisEvalCandidates,
+  DiagnosisEvalFixtureDraft,
   DiagnosisTag,
   ExecutorStatus,
   ImportCommit,
@@ -165,6 +167,10 @@ export const api = {
     request<Assignment>(`/api/teacher/assignments/${id}/invite`, { method: "POST" }),
   assignmentOverview: (id: number) => request<AssignmentOverview>(`/api/teacher/assignments/${id}/overview`),
   aiQualityOverview: (id: number) => request<AiQualityOverview>(`/api/teacher/assignments/${id}/ai-quality`),
+  diagnosisEvalCandidates: (id: number) =>
+    request<DiagnosisEvalCandidates>(`/api/teacher/assignments/${id}/diagnosis-eval-candidates`),
+  diagnosisEvalFixtureDraft: (id: number) =>
+    request<DiagnosisEvalFixtureDraft>(`/api/teacher/assignments/${id}/diagnosis-eval-fixture-draft`),
   aiQualityTrend: () => request<AiQualityTrend>("/api/teacher/ai-quality/trend"),
   recommendationEffectiveness: () => request<RecommendationEffectiveness>("/api/teacher/recommendations/effectiveness"),
   recordClassReviewFeedback: (

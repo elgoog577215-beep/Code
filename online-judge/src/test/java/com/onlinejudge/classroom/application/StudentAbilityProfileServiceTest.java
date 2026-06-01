@@ -47,7 +47,16 @@ class StudentAbilityProfileServiceTest {
             new CoachInteractionAnalyzer(coachPromptRepository, new CoachAnswerQualityAnalyzer()),
             new StudentIdentityService(),
             recommendationEventRepository,
-            new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
+            new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+            new RecurringMisconceptionAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+            new SelfExplanationMasteryAnalyzer(new CoachAnswerQualityAnalyzer()),
+            new AiDependencyAnalyzer(),
+            new MasteryGrowthAnalyzer(
+                    new DiagnosisReportReader(objectMapper, taxonomy),
+                    taxonomy,
+                    new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
+            ),
+            new TeachingActionOrchestrator()
     );
 
     @Test
@@ -80,6 +89,72 @@ class StudentAbilityProfileServiceTest {
         assertThat(profile.getKnowledgeFocus()).extracting("label").contains("数组", "循环");
         assertThat(profile.getCommonMistakeFocus()).extracting("label").contains("边界漏判", "下标越界");
         assertThat(profile.getLatestCoachInteraction().getSubmissionId()).isEqualTo(12L);
+    }
+
+    @Test
+    void profileExposesRecurringMisconceptionSignal() {
+        StudentProfile student = student(1L, 9L, "张三", "08");
+        studentProfileRepository.items.put(1L, student);
+        problemRepository.items.put(101L, problem(101L, "数组边界", List.of("数组"), List.of("边界漏判"), List.of("单元素")));
+        problemRepository.items.put(102L, problem(102L, "循环统计", List.of("循环"), List.of("边界漏判"), List.of("最大规模")));
+        submissionRepository.items.add(submission(31L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 5));
+        submissionRepository.items.add(submission(32L, 1L, 102L, 8L, Submission.Verdict.WRONG_ANSWER, 1));
+        analysisRepository.save(analysis(31L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(32L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+
+        var profile = service.buildProfile(1L);
+
+        assertThat(profile.getRecurringMisconceptionSignal()).isNotNull();
+        assertThat(profile.getRecurringMisconceptionSignal().getStatus()).isEqualTo("ESCALATE");
+        assertThat(profile.getRecurringMisconceptionSignal().getFineGrainedTag()).isEqualTo("OFF_BY_ONE");
+        assertThat(profile.getRecurringMisconceptionSignal().getEvidenceProblemIds()).contains(101L, 102L);
+        assertThat(profile.getTeachingActionDecision()).isNotNull();
+        assertThat(profile.getTeachingActionDecision().getActionType()).isEqualTo(TeachingActionOrchestrator.ACTION_TEACHER_REVIEW);
+        assertThat(profile.getTeachingActionDecision().getSourceSignals()).contains("recurring_misconception:ESCALATE");
+    }
+
+    @Test
+    void profileDoesNotTreatSingleProblemRepeatedDebuggingAsLongTermRecurring() {
+        StudentProfile student = student(1L, 9L, "张三", "08");
+        studentProfileRepository.items.put(1L, student);
+        problemRepository.items.put(101L, problem(101L, "数组边界", List.of("数组"), List.of("边界漏判"), List.of("单元素")));
+        submissionRepository.items.add(submission(41L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 8));
+        submissionRepository.items.add(submission(42L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 6));
+        submissionRepository.items.add(submission(43L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 4));
+        submissionRepository.items.add(submission(44L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 1));
+        analysisRepository.save(analysis(41L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(42L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(43L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(44L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+
+        var profile = service.buildProfile(1L);
+
+        assertThat(profile.getRecurringMisconceptionSignal()).isNotNull();
+        assertThat(profile.getRecurringMisconceptionSignal().getStatus()).isEqualTo("WATCH");
+        assertThat(profile.getRecurringMisconceptionSignal().getProblemCount()).isEqualTo(1);
+        assertThat(profile.getRecurringMisconceptionSignal().isNeedsTeacherAttention()).isFalse();
+    }
+
+    @Test
+    void profileExposesSelfExplanationMasterySignal() {
+        StudentProfile student = student(1L, 9L, "张三", "08");
+        studentProfileRepository.items.put(1L, student);
+        problemRepository.items.put(101L, problem(101L, "数组边界", List.of("数组"), List.of("边界漏判"), List.of("单元素")));
+        submissionRepository.items.add(submission(51L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 4));
+        submissionRepository.items.add(submission(52L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 1));
+        analysisRepository.save(analysis(51L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(52L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        coachPromptRepository.saved.add(prompt(61L, 51L, LocalDateTime.of(2026, 5, 18, 9, 50),
+                "n=1 时预期输出 1，实际输出 0，所以最后一次循环没有覆盖。"));
+        coachPromptRepository.saved.add(prompt(62L, 52L, LocalDateTime.of(2026, 5, 18, 10, 10),
+                "变量 i 最后一次应该到 n-1，我只改边界再提交。"));
+
+        var profile = service.buildProfile(1L);
+
+        assertThat(profile.getSelfExplanationMasterySignal()).isNotNull();
+        assertThat(profile.getSelfExplanationMasterySignal().getStatus()).isEqualTo("EVIDENCE_GROUNDED");
+        assertThat(profile.getSelfExplanationMasterySignal().getVerifiableAnswerCount()).isEqualTo(2);
+        assertThat(profile.getSelfExplanationMasterySignal().getEvidenceTypes()).contains("MIN_CASE", "VARIABLE_TRACE");
     }
 
     @Test
@@ -220,6 +295,47 @@ class StudentAbilityProfileServiceTest {
         assertThat(profile.getRecommendationEffectSummary()).contains("1");
     }
 
+    @Test
+    void profileExposesAiDependencySignal() {
+        StudentProfile student = student(1L, 9L, "张三", "08");
+        studentProfileRepository.items.put(1L, student);
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 4));
+        submissionRepository.items.add(submission(12L, 1L, 102L, 7L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(11L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(12L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        coachPromptRepository.saved.add(prompt(21L, 11L, LocalDateTime.of(2026, 5, 18, 10, 10), "再给点提示"));
+        coachPromptRepository.saved.add(prompt(22L, 12L, LocalDateTime.of(2026, 5, 18, 10, 12), "我还是不会"));
+        recommendationEventRepository.items.add(recommendationEvent(31L, 11L, StudentRecommendationEventService.EVENT_SUBMITTED, Submission.Verdict.WRONG_ANSWER, 1));
+        recommendationEventRepository.items.add(recommendationEvent(32L, 12L, StudentRecommendationEventService.EVENT_SUBMITTED, Submission.Verdict.WRONG_ANSWER, 2));
+        recommendationEventRepository.items.add(recommendationEvent(33L, null, StudentRecommendationEventService.EVENT_CLICKED, null, 3));
+
+        var profile = service.buildProfile(1L);
+
+        assertThat(profile.getAiDependencySignal()).isNotNull();
+        assertThat(profile.getAiDependencySignal().getStatus()).isEqualTo(AiDependencyAnalyzer.STATUS_DEPENDENCY_RISK);
+        assertThat(profile.getAiDependencySignal().getRecommendationSubmissionCount()).isEqualTo(2);
+        assertThat(profile.getAiDependencySignal().getRecommendedAction()).contains("独立尝试");
+    }
+
+    @Test
+    void profileExposesMasteryGrowthSignal() {
+        StudentProfile student = student(1L, 9L, "张三", "08");
+        studentProfileRepository.items.put(1L, student);
+        submissionRepository.items.add(submission(61L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 6));
+        submissionRepository.items.add(submission(62L, 1L, 102L, 7L, Submission.Verdict.WRONG_ANSWER, 4));
+        submissionRepository.items.add(submission(63L, 1L, 103L, 7L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(61L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(62L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(63L, "[\"LOOP_BOUNDARY\"]", "[\"OFF_BY_ONE\"]"));
+
+        var profile = service.buildProfile(1L);
+
+        assertThat(profile.getMasteryGrowthSignal()).isNotNull();
+        assertThat(profile.getMasteryGrowthSignal().getStatus()).isEqualTo(MasteryGrowthAnalyzer.STATUS_SPIRAL_REVIEW_NEEDED);
+        assertThat(profile.getMasteryGrowthSignal().getFocusAbility()).isEqualTo("循环与边界");
+        assertThat(profile.getMasteryGrowthSignal().getRecommendedAction()).contains("螺旋复习");
+    }
+
     private StudentProfile student(Long id, Long classGroupId, String displayName, String studentNo) {
         return StudentProfile.builder()
                 .id(id)
@@ -281,16 +397,40 @@ class StudentAbilityProfileServiceTest {
     }
 
     private CoachPrompt prompt(Long id, Long submissionId, LocalDateTime createdAt) {
+        return prompt(id, submissionId, createdAt, "我会手推单元素");
+    }
+
+    private CoachPrompt prompt(Long id, Long submissionId, LocalDateTime createdAt, String answer) {
         return CoachPrompt.builder()
                 .id(id)
                 .submissionId(submissionId)
+                .studentProfileId(1L)
                 .turnIndex(1)
                 .hintPolicy("L2")
                 .promptType("SOCRATIC_NEXT_STEP")
                 .question("请手推边界")
-                .studentAnswer("我会手推单元素")
+                .studentAnswer(answer)
                 .coachFeedback("回答包含边界意识")
                 .createdAt(createdAt)
+                .answeredAt(createdAt)
+                .build();
+    }
+
+    private StudentRecommendationEvent recommendationEvent(Long id,
+                                                           Long followupSubmissionId,
+                                                           String eventType,
+                                                           Submission.Verdict verdict,
+                                                           int minuteOffset) {
+        return StudentRecommendationEvent.builder()
+                .id(id)
+                .recommendationToken("rec-" + id)
+                .studentProfileId(1L)
+                .type("REVIEW")
+                .assignmentId(7L)
+                .eventType(eventType)
+                .followupSubmissionId(followupSubmissionId)
+                .followupVerdict(verdict == null ? null : verdict.name())
+                .createdAt(LocalDateTime.of(2026, 5, 18, 10, 0).plusMinutes(minuteOffset))
                 .build();
     }
 
@@ -519,6 +659,15 @@ class StudentAbilityProfileServiceTest {
         @Override
         public List<StudentRecommendationEvent> findTop500ByOrderByCreatedAtDesc() {
             return items.stream()
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .limit(500)
+                    .toList();
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findTop500ByAssignmentIdOrderByCreatedAtDesc(Long assignmentId) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
                     .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
                     .limit(500)
                     .toList();

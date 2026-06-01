@@ -19,6 +19,11 @@ public class StudentAbilityProfileResponse {
     private String trendSignal;
     private String recommendationEffectSummary;
     private String coachImpactSummary;
+    private RecurringMisconceptionSignal recurringMisconceptionSignal;
+    private SelfExplanationMasterySignal selfExplanationMasterySignal;
+    private AiDependencySignal aiDependencySignal;
+    private MasteryGrowthSignal masteryGrowthSignal;
+    private TeachingActionDecision teachingActionDecision;
     private CoachInteractionSummaryResponse latestCoachInteraction;
     private CoachImpactResponse latestCoachImpact;
     private List<AbilityStat> abilityGaps;
@@ -41,5 +46,99 @@ public class StudentAbilityProfileResponse {
         private String label;
         private long count;
         private List<Long> evidenceProblemIds;
+    }
+
+    @Data
+    @Builder
+    public static class RecurringMisconceptionSignal {
+        private String status;
+        private String label;
+        private String summary;
+        private String misconceptionTag;
+        private String fineGrainedTag;
+        private String abilityPoint;
+        private long problemCount;
+        private long assignmentCount;
+        private long submissionCount;
+        private List<String> evidenceRefs;
+        private List<Long> evidenceProblemIds;
+        private String recommendedAction;
+        private boolean needsTeacherAttention;
+    }
+
+    @Data
+    @Builder
+    public static class SelfExplanationMasterySignal {
+        private String status;
+        private String label;
+        private String summary;
+        private Double evidenceCompleteness;
+        private long answeredTurnCount;
+        private long verifiableAnswerCount;
+        private long transferReadyCount;
+        private long vagueAnswerCount;
+        private long safetyRiskCount;
+        private List<String> evidenceTypes;
+        private List<String> evidenceRefs;
+        private String recommendedAction;
+        private boolean needsTeacherAttention;
+    }
+
+    @Data
+    @Builder
+    public static class AiDependencySignal {
+        private String status;
+        private String label;
+        private String summary;
+        private Double independenceScore;
+        private long coachPromptCount;
+        private long answeredCoachCount;
+        private long recommendationClickCount;
+        private long recommendationSubmissionCount;
+        private long independentSubmissionCount;
+        private long independentAcceptedCount;
+        private long scaffoldedAcceptedCount;
+        private List<String> dependencyEvidenceRefs;
+        private String recommendedAction;
+        private boolean needsTeacherAttention;
+    }
+
+    @Data
+    @Builder
+    public static class MasteryGrowthSignal {
+        private String status;
+        private String label;
+        private String summary;
+        private Double growthScore;
+        private String focusAbility;
+        private String focusTag;
+        private String fineGrainedTag;
+        private long recentSubmissionCount;
+        private long recentAcceptedCount;
+        private long recentFailedCount;
+        private long crossProblemEvidenceCount;
+        private long regressionCount;
+        private long plateauCount;
+        private List<String> evidenceRefs;
+        private String recommendedAction;
+        private boolean needsTeacherAttention;
+    }
+
+    @Data
+    @Builder
+    public static class TeachingActionDecision {
+        private String actionType;
+        private String actor;
+        private Integer priority;
+        private String riskLevel;
+        private String title;
+        private String summary;
+        private String primaryReason;
+        private String recommendedAction;
+        private String fallbackAction;
+        private List<String> evidenceRefs;
+        private List<String> sourceSignals;
+        private Integer candidateCount;
+        private boolean needsTeacherAttention;
     }
 }

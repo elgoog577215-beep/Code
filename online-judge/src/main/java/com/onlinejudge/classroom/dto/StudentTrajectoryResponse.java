@@ -25,6 +25,11 @@ public class StudentTrajectoryResponse {
     private LearningInterventionPlan latestLearningInterventionPlan;
     private LearningInterventionImpact latestLearningInterventionImpact;
     private LearningActionEvidence latestLearningActionEvidence;
+    private PostAcTransferSignal postAcTransferSignal;
+    private StudentAbilityProfileResponse.SelfExplanationMasterySignal selfExplanationMasterySignal;
+    private StudentAbilityProfileResponse.AiDependencySignal aiDependencySignal;
+    private StudentAbilityProfileResponse.MasteryGrowthSignal masteryGrowthSignal;
+    private StudentAbilityProfileResponse.TeachingActionDecision teachingActionDecision;
     private String primaryAbilityFocus;
     private String crossProblemSummary;
     private CoachInteractionSummaryResponse latestCoachInteraction;
@@ -64,6 +69,7 @@ public class StudentTrajectoryResponse {
         private LearningInterventionPlan latestLearningInterventionPlan;
         private LearningInterventionImpact latestLearningInterventionImpact;
         private LearningActionEvidence latestLearningActionEvidence;
+        private PostAcTransferSignal postAcTransferSignal;
         private String latestHint;
         private String latestImprovementSignal;
         private CoachInteractionSummaryResponse latestCoachInteraction;
@@ -143,5 +149,20 @@ public class StudentTrajectoryResponse {
         private Double confidence;
         private List<String> evidenceRefs;
         private String nextAdjustment;
+    }
+
+    @Data
+    @Builder
+    public static class PostAcTransferSignal {
+        private String phase;
+        private String label;
+        private String summary;
+        private List<String> evidenceRefs;
+        private String recommendedAction;
+        private String targetAbility;
+        private List<String> targetTags;
+        private Long problemId;
+        private String problemTitle;
+        private boolean needsTeacherAttention;
     }
 }

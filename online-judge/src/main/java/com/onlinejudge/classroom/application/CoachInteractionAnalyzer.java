@@ -90,7 +90,54 @@ public class CoachInteractionAnalyzer {
                 .latestFeedback(latestAnswered == null ? null : latestAnswered.getCoachFeedback())
                 .latestAt(latestAnswered == null ? (latest == null ? null : latest.getCreatedAt()) : answeredAtOrCreatedAt(latestAnswered))
                 .answerQualitySignal(coachAnswerQualityAnalyzer.analyze(latestAnswered == null ? null : latestAnswered.getStudentAnswer()))
+                .coachSafetyRejectionSignal(coachSafetyRejectionSignal(submissionId, sorted))
                 .build();
+    }
+
+    private CoachInteractionSummaryResponse.CoachSafetyRejectionSignal coachSafetyRejectionSignal(Long submissionId,
+                                                                                                  List<CoachPrompt> prompts) {
+        List<CoachPrompt> rejected = prompts == null ? List.of() : prompts.stream()
+                .filter(prompt -> "SAFETY_REJECTED".equalsIgnoreCase(prompt.getModelFailureReason()))
+                .sorted(Comparator
+                        .comparing(CoachPrompt::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo))
+                        .thenComparing(CoachPrompt::getId, Comparator.nullsLast(Long::compareTo)))
+                .toList();
+        if (rejected.isEmpty()) {
+            return CoachInteractionSummaryResponse.CoachSafetyRejectionSignal.builder()
+                    .status("HEALTHY")
+                    .rejectionCount(0)
+                    .latestReason("")
+                    .latestAnswerLeakRisk("")
+                    .summary("Coach 模型追问暂无安全拒绝记录。")
+                    .recommendedAction("继续观察 Coach 追问安全门。")
+                    .needsTeacherAttention(false)
+                    .evidenceRefs(List.of())
+                    .build();
+        }
+        CoachPrompt latestRejected = rejected.get(rejected.size() - 1);
+        return CoachInteractionSummaryResponse.CoachSafetyRejectionSignal.builder()
+                .status("SAFETY_REJECTED")
+                .rejectionCount(rejected.size())
+                .latestReason(latestRejected.getModelFailureReason())
+                .latestAnswerLeakRisk(latestRejected.getModelAnswerLeakRisk())
+                .summary("Coach 模型追问有 " + rejected.size() + " 次被安全门拒绝，系统已回退到规则追问。")
+                .recommendedAction("复核该提交的 Coach 上下文和 prompt 策略，把风险样本沉淀为 Coach 安全评测。")
+                .needsTeacherAttention(true)
+                .evidenceRefs(coachSafetyEvidenceRefs(submissionId, rejected))
+                .build();
+    }
+
+    private List<String> coachSafetyEvidenceRefs(Long submissionId, List<CoachPrompt> rejected) {
+        List<String> refs = rejected.stream()
+                .map(CoachPrompt::getId)
+                .filter(Objects::nonNull)
+                .map(id -> "coach_prompt:" + id)
+                .limit(5)
+                .collect(Collectors.toCollection(java.util.ArrayList::new));
+        if (submissionId != null) {
+            refs.add("coach_safety_rejection:submission:" + submissionId);
+        }
+        return refs.stream().distinct().toList();
     }
 
     private String resolveStatus(int turnCount, int answeredCount, CoachPrompt latest) {

@@ -17,13 +17,18 @@ public class RecommendationEffectivenessResponse {
     private long acceptedFollowupCount;
     private long sameFocusIssueCount;
     private long clickedWithoutSubmissionCount;
+    private long unresolvedLearningSignalCount;
+    private long teacherInterventionRecommendedCount;
     private double clickThroughRate;
     private double followupSubmissionRate;
     private double acceptedFollowupRate;
     private double sameFocusIssueRate;
     private String summary;
     private List<SegmentStat> byType;
+    private List<SegmentStat> byStrategy;
     private List<SegmentStat> focusTags;
+    private List<FeedbackSignal> feedbackSignals;
+    private List<ActionEvidenceSignal> actionEvidenceSignals;
 
     @Data
     @Builder
@@ -36,9 +41,44 @@ public class RecommendationEffectivenessResponse {
         private long followupSubmissionCount;
         private long acceptedFollowupCount;
         private long sameFocusIssueCount;
+        private long unresolvedLearningSignalCount;
+        private long teacherInterventionRecommendedCount;
         private double clickThroughRate;
         private double followupSubmissionRate;
         private double acceptedFollowupRate;
         private double sameFocusIssueRate;
+    }
+
+    @Data
+    @Builder
+    public static class FeedbackSignal {
+        private String signal;
+        private String strategy;
+        private String severity;
+        private long evidenceCount;
+        private String summary;
+        private String recommendedAction;
+        private List<String> evidenceTokens;
+    }
+
+    @Data
+    @Builder
+    public static class ActionEvidenceSignal {
+        private String recommendationToken;
+        private String type;
+        private String strategy;
+        private String riskLevel;
+        private String learningHypothesis;
+        private String expectedCompletionSignal;
+        private String outcome;
+        private String summary;
+        private String recommendedAdjustment;
+        private boolean needsTeacherAttention;
+        private Long followupSubmissionId;
+        private String followupVerdict;
+        private String followupIssueTag;
+        private String followupFineGrainedTag;
+        private List<String> evidenceRefs;
+        private String lastEventAt;
     }
 }

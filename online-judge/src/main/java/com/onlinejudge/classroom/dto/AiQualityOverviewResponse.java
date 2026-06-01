@@ -25,7 +25,66 @@ public class AiQualityOverviewResponse {
     private double modelRuntimeFailureRate;
     private String summary;
     private String qualityRiskSummary;
+    private PromptSafetyIncidentSignal promptSafetyIncidentSignal;
+    private List<QualityDimension> qualityDimensions;
+    private List<ImprovementPriority> improvementPriorities;
+    private EvalReadiness evalReadiness;
     private List<TagCorrectionStat> correctedTags;
+
+    @Data
+    @Builder
+    public static class QualityDimension {
+        private String dimension;
+        private String label;
+        private String status;
+        private double score;
+        private String summary;
+        private List<String> evidenceRefs;
+        private String recommendedAction;
+    }
+
+    @Data
+    @Builder
+    public static class ImprovementPriority {
+        private String priority;
+        private String dimension;
+        private String severity;
+        private String reason;
+        private String recommendedAction;
+        private List<String> evidenceRefs;
+    }
+
+    @Data
+    @Builder
+    public static class EvalReadiness {
+        private String status;
+        private String summary;
+        private long candidateCount;
+        private long correctionCount;
+        private long interventionCandidateCount;
+        private long interventionWaitingFollowupCount;
+        private long interventionImprovedCount;
+        private long interventionShiftedCount;
+        private long interventionStillStuckCount;
+        private String recommendedAction;
+        private List<TagCorrectionStat> priorityTags;
+        private List<String> evidenceRefs;
+    }
+
+    @Data
+    @Builder
+    public static class PromptSafetyIncidentSignal {
+        private String status;
+        private String primaryRiskSource;
+        private long totalIncidentCount;
+        private long highLeakRiskCount;
+        private long safetyDowngradeCount;
+        private long highRiskSafetyDowngradeCount;
+        private long coachSafetyRiskCount;
+        private String summary;
+        private String recommendedAction;
+        private List<String> evidenceRefs;
+    }
 
     @Data
     @Builder

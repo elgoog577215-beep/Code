@@ -12,11 +12,20 @@ public class AiQualityTrendResponse {
     private long analyzedSubmissionCount;
     private long correctionCount;
     private long evalCandidateCount;
+    private long interventionEvalCandidateCount;
+    private long interventionWaitingFollowupCount;
+    private long interventionImprovedCount;
+    private long interventionShiftedCount;
+    private long interventionStillStuckCount;
     private long lowConfidenceCount;
     private long highLeakRiskCount;
+    private long promptSafetyIncidentCount;
+    private long promptSafetyDowngradeCount;
+    private long promptSafetyHighRiskDowngradeCount;
     private double correctionRate;
     private double lowConfidenceRate;
     private double highLeakRiskRate;
+    private double promptSafetyIncidentRate;
     private String summary;
     private List<AssignmentQualityPoint> assignments;
     private List<TagTrendStat> correctedTags;
@@ -31,11 +40,20 @@ public class AiQualityTrendResponse {
         private long analyzedSubmissionCount;
         private long correctionCount;
         private long evalCandidateCount;
+        private long interventionEvalCandidateCount;
+        private long interventionWaitingFollowupCount;
+        private long interventionImprovedCount;
+        private long interventionShiftedCount;
+        private long interventionStillStuckCount;
         private long lowConfidenceCount;
         private long highLeakRiskCount;
+        private long promptSafetyIncidentCount;
+        private long promptSafetyDowngradeCount;
+        private long promptSafetyHighRiskDowngradeCount;
         private double correctionRate;
         private double lowConfidenceRate;
         private double highLeakRiskRate;
+        private double promptSafetyIncidentRate;
         private String summary;
     }
 
@@ -64,8 +82,12 @@ public class AiQualityTrendResponse {
         private long correctionCount;
         private long lowConfidenceCount;
         private long highLeakRiskCount;
+        private long promptSafetyIncidentCount;
+        private long promptSafetyDowngradeCount;
+        private long promptSafetyHighRiskDowngradeCount;
         private double correctionRate;
         private double lowConfidenceRate;
         private double highLeakRiskRate;
+        private double promptSafetyIncidentRate;
     }
 }

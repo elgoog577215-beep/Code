@@ -14,6 +14,21 @@ public class AssignmentOverviewResponse {
     private long attemptCount;
     private long passedAttemptCount;
     private long strugglingStudentCount;
+    private long postAcTransferPendingCount;
+    private String postAcTransferSummary;
+    private long recurringMisconceptionStudentCount;
+    private String recurringMisconceptionSummary;
+    private long selfExplanationWeakStudentCount;
+    private String selfExplanationSummary;
+    private CoachAnswerQualityClassSummary coachAnswerQualitySummary;
+    private CoachFollowupImpactSummary coachFollowupImpactSummary;
+    private long aiDependencyRiskStudentCount;
+    private String aiDependencySummary;
+    private long masteryGrowthRiskStudentCount;
+    private String masteryGrowthSummary;
+    private long teachingActionRiskStudentCount;
+    private String teachingActionSummary;
+    private ClassTeachingStrategySignal classTeachingStrategySignal;
     private List<IssueStat> topIssues;
     private List<AbilityStat> classAbilityWeaknesses;
     private List<ClassReviewSuggestion> classReviewSuggestions;
@@ -58,6 +73,12 @@ public class AssignmentOverviewResponse {
         private CoachInteractionSummaryResponse latestCoachInteraction;
         private CoachImpactResponse latestCoachImpact;
         private StudentTrajectoryResponse.LearningActionEvidence latestLearningActionEvidence;
+        private StudentTrajectoryResponse.PostAcTransferSignal postAcTransferSignal;
+        private StudentAbilityProfileResponse.RecurringMisconceptionSignal recurringMisconceptionSignal;
+        private StudentAbilityProfileResponse.SelfExplanationMasterySignal selfExplanationMasterySignal;
+        private StudentAbilityProfileResponse.AiDependencySignal aiDependencySignal;
+        private StudentAbilityProfileResponse.MasteryGrowthSignal masteryGrowthSignal;
+        private StudentAbilityProfileResponse.TeachingActionDecision teachingActionDecision;
         private String primaryAbilityFocus;
         private String crossProblemSummary;
         private List<AbilityStat> abilitySummary;
@@ -92,6 +113,39 @@ public class AssignmentOverviewResponse {
         private String action;
         private String evidenceSummary;
         private ClassReviewFeedbackSummary latestFeedback;
+        private TeacherInterventionImpact interventionImpact;
+    }
+
+    @Data
+    @Builder
+    public static class CoachAnswerQualityClassSummary {
+        private long promptedCount;
+        private long answeredCount;
+        private long verifiableCount;
+        private long transferReadyCount;
+        private long evidenceInsufficientCount;
+        private long safetyRiskCount;
+        private long teacherAttentionCount;
+        private String dominantGap;
+        private String summary;
+        private String recommendedAction;
+        private List<String> evidenceRefs;
+    }
+
+    @Data
+    @Builder
+    public static class CoachFollowupImpactSummary {
+        private long impactedCount;
+        private long acceptedCount;
+        private long shiftedCount;
+        private long sameIssueCount;
+        private long verdictChangedCount;
+        private long noClearChangeCount;
+        private long awaitingFollowupCount;
+        private String dominantOutcome;
+        private String summary;
+        private String recommendedAction;
+        private List<String> evidenceRefs;
     }
 
     @Data
@@ -101,6 +155,74 @@ public class AssignmentOverviewResponse {
         private String teacherNote;
         private String createdBy;
         private LocalDateTime createdAt;
+    }
+
+    @Data
+    @Builder
+    public static class TeacherInterventionImpact {
+        private String status;
+        private String statusLabel;
+        private String summary;
+        private String recommendedAction;
+        private boolean needsEscalation;
+        private String feedbackActionType;
+        private LocalDateTime feedbackAt;
+        private Long followupSubmissionId;
+        private String followupVerdict;
+        private List<Long> evidenceSubmissionIds;
+        private List<String> matchedTags;
+    }
+
+    @Data
+    @Builder
+    public static class ClassTeachingStrategySignal {
+        private String strategyKey;
+        private String status;
+        private String statusLabel;
+        private String strategyType;
+        private String title;
+        private String summary;
+        private String focusAbility;
+        private String focusTag;
+        private String focusLabel;
+        private long affectedStudentCount;
+        private Double affectedStudentRatio;
+        private Integer priority;
+        private String riskLevel;
+        private String teacherAction;
+        private String exitTicket;
+        private List<ClassTeachingStrategyGroup> groups;
+        private List<String> evidenceRefs;
+        private List<String> sourceSignals;
+        private ClassTeachingStrategyImpact impact;
+    }
+
+    @Data
+    @Builder
+    public static class ClassTeachingStrategyImpact {
+        private String status;
+        private String statusLabel;
+        private String summary;
+        private String recommendedAction;
+        private boolean needsEscalation;
+        private String feedbackActionType;
+        private LocalDateTime feedbackAt;
+        private Long followupSubmissionId;
+        private String followupVerdict;
+        private List<String> evidenceRefs;
+        private List<String> matchedTags;
+    }
+
+    @Data
+    @Builder
+    public static class ClassTeachingStrategyGroup {
+        private String groupType;
+        private String title;
+        private List<Long> studentProfileIds;
+        private List<String> studentNames;
+        private String focus;
+        private String action;
+        private List<String> evidenceRefs;
     }
 
     @Data

@@ -2,8 +2,28 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Clock3, FileText, History, Lightbulb, Play, RotateCcw, Target } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { CoachPrompt, Problem, StudentTrajectory, SubmissionHistorySummary, SubmissionResult } from "../../shared/api/types";
-import { difficultyLabel, formatDateTime, issueLabel, learningStageLabel, verdictLabel } from "../../shared/format";
+import type {
+  CoachPrompt,
+  Problem,
+  StudentAbilityProfile,
+  StudentTrajectory,
+  SubmissionHistorySummary,
+  SubmissionResult
+} from "../../shared/api/types";
+import {
+  abilityLabel,
+  aiDependencyStatusLabel,
+  difficultyLabel,
+  formatDateTime,
+  issueLabel,
+  learningStageLabel,
+  masteryGrowthStatusLabel,
+  recurringMisconceptionStatusLabel,
+  selfExplanationStatusLabel,
+  teachingActionActorLabel,
+  teachingActionTypeLabel,
+  verdictLabel
+} from "../../shared/format";
 import { loadDraft, loadStudent, saveDraft } from "../../shared/storage";
 import { Button } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -96,6 +116,7 @@ export default function ProblemPage() {
   const [latest, setLatest] = useState<SubmissionResult | null>(null);
   const [history, setHistory] = useState<SubmissionHistorySummary[]>([]);
   const [trajectory, setTrajectory] = useState<StudentTrajectory | null>(null);
+  const [abilityProfile, setAbilityProfile] = useState<StudentAbilityProfile | null>(null);
   const [coachPrompt, setCoachPrompt] = useState<CoachPrompt | null>(null);
   const [coachAnswer, setCoachAnswer] = useState("");
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -132,6 +153,14 @@ export default function ProblemPage() {
     }
     void api.studentTrajectory(assignmentId, studentProfileId).then(setTrajectory).catch(() => undefined);
   }, [assignmentId, studentProfileId, latest]);
+
+  useEffect(() => {
+    if (!studentProfileId) {
+      setAbilityProfile(null);
+      return;
+    }
+    void api.studentAbilityProfile(studentProfileId).then(setAbilityProfile).catch(() => undefined);
+  }, [studentProfileId, latest]);
 
   useEffect(() => {
     if (!studentProfileId || !recommendationToken) {
@@ -254,6 +283,90 @@ export default function ProblemPage() {
     (trajectory?.nextStep ? learningStageLabel(trajectory.nextStep) : "") ||
     (latest ? "先根据本次结果修改一处问题。" : "先完成一次提交。");
   const currentStage = latest ? verdictLabel(latest.verdict) : "尚未提交";
+  const recurringSignal = abilityProfile?.recurringMisconceptionSignal;
+  const hasRecurringSignal =
+    recurringSignal &&
+    ["WATCH", "RECURRING", "ESCALATE"].includes((recurringSignal.status || "").toUpperCase());
+  const selfExplanationSignal = abilityProfile?.selfExplanationMasterySignal || trajectory?.selfExplanationMasterySignal;
+  const selfExplanationStatus = (selfExplanationSignal?.status || "").toUpperCase();
+  const hasSelfExplanationSignal =
+    selfExplanationSignal &&
+    (["EMERGING", "NEEDS_COACHING", "SAFETY_RISK"].includes(selfExplanationStatus) ||
+      (selfExplanationStatus === "NO_EVIDENCE" && selfExplanationSignal.needsTeacherAttention));
+  const selfExplanationEvidence =
+    typeof selfExplanationSignal?.evidenceCompleteness === "number"
+      ? `${Math.round(selfExplanationSignal.evidenceCompleteness * 100)}%`
+      : "";
+  const aiDependencySignal = abilityProfile?.aiDependencySignal || trajectory?.aiDependencySignal;
+  const aiDependencyStatus = (aiDependencySignal?.status || "").toUpperCase();
+  const hasAiDependencySignal =
+    aiDependencySignal && ["SCAFFOLD_DENSE", "DEPENDENCY_RISK", "TEACHER_FADE_REVIEW"].includes(aiDependencyStatus);
+  const independenceScore =
+    typeof aiDependencySignal?.independenceScore === "number" ? `${Math.round(aiDependencySignal.independenceScore * 100)}%` : "";
+  const masteryGrowthSignal = abilityProfile?.masteryGrowthSignal || trajectory?.masteryGrowthSignal;
+  const masteryGrowthStatus = (masteryGrowthSignal?.status || "").toUpperCase();
+  const hasMasteryGrowthSignal =
+    masteryGrowthSignal && ["PLATEAU", "REGRESSION", "SPIRAL_REVIEW_NEEDED"].includes(masteryGrowthStatus);
+  const masteryGrowthScore =
+    typeof masteryGrowthSignal?.growthScore === "number" ? `${Math.round(masteryGrowthSignal.growthScore * 100)}%` : "";
+  const teachingActionDecision = trajectory?.teachingActionDecision || abilityProfile?.teachingActionDecision;
+  const hasTeachingActionDecision =
+    teachingActionDecision &&
+    (teachingActionDecision.actionType || "").toUpperCase() !== "CONTINUE_DIAGNOSIS";
+  const coachQuestionBlock = (
+    <div className="coach-next-question">
+      {latest?.analysis ? (
+        coachPrompt ? (
+          <>
+            <strong>{coachPrompt.question}</strong>
+            {coachPrompt.contextSummary && <p>{coachPrompt.contextSummary}</p>}
+            {coachPrompt.rationale && <p>{coachPrompt.rationale}</p>}
+            {coachPrompt.turns?.length ? (
+              <div className="coach-turn-list">
+                {coachPrompt.turns.map(turn => (
+                  <div className="coach-turn" key={turn.id}>
+                    <span>第 {turn.turnIndex || 1} 轮</span>
+                    <strong>{turn.question}</strong>
+                    {turn.studentAnswer && <p>我的回答：{turn.studentAnswer}</p>}
+                    {turn.coachFeedback && <p>反馈：{turn.coachFeedback}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {!coachPrompt.studentAnswer && (
+              <div className="coach-reply-box">
+                <TextArea
+                  value={coachAnswer}
+                  onChange={event => setCoachAnswer(event.target.value)}
+                  rows={3}
+                  maxLength={1200}
+                  placeholder="写下你的判断、最小样例、变量变化或复杂度估算。"
+                />
+                <Button type="button" variant="primary" onClick={() => void replyCoachPrompt()} disabled={coachReplyBusy}>
+                  {coachReplyBusy ? "提交中" : "提交回答"}
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <strong>生成一个定位问题。</strong>
+        )
+      ) : (
+        <p>提交后会根据本次反馈生成追问。</p>
+      )}
+      {latest?.analysis && (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => void generateCoachPrompt()}
+          disabled={coachBusy}
+          icon={<Lightbulb size={16} />}
+        >
+          {coachBusy ? "生成中" : coachPrompt ? "再生成一问" : "生成下一问"}
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <div className="stack problem-page">
@@ -449,63 +562,13 @@ export default function ProblemPage() {
                         </ul>
                       </div>
                     ) : null}
-                    <details className="problem-compact-details">
-                      <summary>
-                        <span>下一问</span>
-                        <span className={`meta-badge ${coachPrompt ? "meta-badge--info" : ""}`}>{coachPrompt ? "已生成" : "可生成"}</span>
-                      </summary>
-                      <div className="coach-next-question">
-                        {coachPrompt ? (
-                          <>
-                            <strong>{coachPrompt.question}</strong>
-                            {coachPrompt.contextSummary && <p>{coachPrompt.contextSummary}</p>}
-                            {coachPrompt.rationale && <p>{coachPrompt.rationale}</p>}
-                            {coachPrompt.turns?.length ? (
-                              <div className="coach-turn-list">
-                                {coachPrompt.turns.map(turn => (
-                                  <div className="coach-turn" key={turn.id}>
-                                    <span>第 {turn.turnIndex || 1} 轮</span>
-                                    <strong>{turn.question}</strong>
-                                    {turn.studentAnswer && <p>我的回答：{turn.studentAnswer}</p>}
-                                    {turn.coachFeedback && <p>反馈：{turn.coachFeedback}</p>}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : null}
-                            {!coachPrompt.studentAnswer && (
-                              <div className="coach-reply-box">
-                                <TextArea
-                                  value={coachAnswer}
-                                  onChange={event => setCoachAnswer(event.target.value)}
-                                  rows={3}
-                                  maxLength={1200}
-                                  placeholder="写下你的判断、最小样例、变量变化或复杂度估算。"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="primary"
-                                  onClick={() => void replyCoachPrompt()}
-                                  disabled={coachReplyBusy}
-                                >
-                                  {coachReplyBusy ? "提交中" : "提交回答"}
-                                </Button>
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <strong>生成一个定位问题。</strong>
-                        )}
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => void generateCoachPrompt()}
-                          disabled={coachBusy}
-                          icon={<Lightbulb size={16} />}
-                        >
-                          {coachBusy ? "生成中" : coachPrompt ? "再生成一问" : "生成下一问"}
-                        </Button>
+                    <section className="problem-feedback-coach" aria-label="下一问">
+                      <div className="problem-feedback-coach__head">
+                        <h3>下一问</h3>
+                        <StatusPill tone={coachPrompt ? "info" : "neutral"}>{coachPrompt ? "已生成" : "可生成"}</StatusPill>
                       </div>
-                    </details>
+                      {coachQuestionBlock}
+                    </section>
                   </div>
                 ) : (
                   <EmptyState title="反馈生成中" />
@@ -514,46 +577,124 @@ export default function ProblemPage() {
             )}
           </Panel>
 
-          <details className="problem-compact-details">
+          <details className="problem-compact-details problem-learning-drawer">
             <summary>
-              <span>作业记录</span>
-              <span className={`meta-badge ${trajectory ? "meta-badge--success" : ""}`}>{trajectory ? "已同步" : "未确认"}</span>
+              <span>学习过程 / 下一问记录</span>
+              <span className={`meta-badge ${coachPrompt ? "meta-badge--info" : trajectory ? "meta-badge--success" : ""}`}>
+                记录
+              </span>
             </summary>
-            {!trajectory ? (
-              <EmptyState title="未确认作业身份" />
-            ) : (
-              <div className="stack">
-                <div className="metric-grid">
-                  <Metric label="完成" value={`${trajectory.completedTasks}/${trajectory.totalTasks}`} />
-                  <Metric label="尝试" value={trajectory.totalAttempts} />
-                  <Metric label="卡点" value={trajectory.repeatedIssueTag ? issueLabel(trajectory.repeatedIssueTag) : "暂无"} />
-                  <Metric label="阶段" value={learningStageLabel(trajectory.stageTransition)} />
+            <div className="problem-learning-drawer__body">
+              <section className="problem-learning-section">
+                <div className="problem-learning-section__head">
+                  <h3>作业记录</h3>
+                  <StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? "已同步" : "未确认"}</StatusPill>
                 </div>
-                <div className="alert">{trajectory.nextStep ? learningStageLabel(trajectory.nextStep) : "暂无新的处理项。"}</div>
-              </div>
-            )}
-          </details>
-
-          <details className="problem-compact-details">
-            <summary>
-              <span>尝试记录</span>
-              <span className="meta-badge">{history.length} 次</span>
-            </summary>
-            <div className="stack">
-              {history.length ? (
-                history.slice(0, 6).map(item => (
-                  <div className="list-row" key={item.id}>
-                    <div className="actions">
-                      <VerdictPill verdict={item.verdict} />
-                      <span className="meta-badge">{formatDateTime(item.submittedAt)}</span>
+                {!trajectory ? (
+                  <EmptyState title="未确认作业身份" />
+                ) : (
+                  <div className="stack">
+                    <div className="metric-grid">
+                      <Metric label="完成" value={`${trajectory.completedTasks}/${trajectory.totalTasks}`} />
+                      <Metric label="尝试" value={trajectory.totalAttempts} />
+                      <Metric label="卡点" value={trajectory.repeatedIssueTag ? issueLabel(trajectory.repeatedIssueTag) : "暂无"} />
+                      <Metric label="阶段" value={learningStageLabel(trajectory.stageTransition)} />
                     </div>
-                    <h3>{item.analysisHeadline || verdictLabel(item.verdict)}</h3>
-                    <p>{item.analysisSummary || `${item.passedTestCases || 0}/${item.totalTestCases || 0} 个测试点通过`}</p>
+                    {hasRecurringSignal && (
+                      <div className="student-transfer-action student-transfer-action--recurring">
+                        <span>{recurringMisconceptionStatusLabel(recurringSignal?.status)}</span>
+                        <strong>
+                          {recurringSignal?.fineGrainedTag
+                            ? issueLabel(recurringSignal.fineGrainedTag)
+                            : abilityLabel(recurringSignal?.abilityPoint) || "长期复发误区"}
+                        </strong>
+                        <p>{recurringSignal?.recommendedAction || recurringSignal?.summary || "先对比两道证据题的共同失败条件。"}</p>
+                      </div>
+                    )}
+                    {hasSelfExplanationSignal && (
+                      <div className="student-transfer-action student-transfer-action--explanation">
+                        <span>{selfExplanationStatusLabel(selfExplanationSignal?.status)}</span>
+                        <strong>
+                          {selfExplanationEvidence
+                            ? `解释证据完整度 ${selfExplanationEvidence}`
+                            : "补齐可验证解释"}
+                        </strong>
+                        <p>
+                          {selfExplanationSignal?.recommendedAction ||
+                            selfExplanationSignal?.summary ||
+                            "补一条最小样例、变量轨迹或实际输出对比。"}
+                        </p>
+                      </div>
+                    )}
+                    {hasAiDependencySignal && (
+                      <div className="student-transfer-action student-transfer-action--dependency">
+                        <span>{aiDependencyStatusLabel(aiDependencySignal?.status)}</span>
+                        <strong>{independenceScore ? `自主推进度 ${independenceScore}` : "先做一次独立尝试"}</strong>
+                        <p>
+                          {aiDependencySignal?.recommendedAction ||
+                            aiDependencySignal?.summary ||
+                            "先不新增提示，写出一个最小样例和修改假设后再提交。"}
+                        </p>
+                      </div>
+                    )}
+                    {hasMasteryGrowthSignal && (
+                      <div className="student-transfer-action student-transfer-action--mastery">
+                        <span>{masteryGrowthStatusLabel(masteryGrowthSignal?.status)}</span>
+                        <strong>
+                          {masteryGrowthSignal?.focusAbility
+                            ? abilityLabel(masteryGrowthSignal.focusAbility)
+                            : masteryGrowthScore
+                              ? `成长分 ${masteryGrowthScore}`
+                              : "先做成长复盘"}
+                        </strong>
+                        <p>
+                          {masteryGrowthSignal?.recommendedAction ||
+                            masteryGrowthSignal?.summary ||
+                            "先对比近期提交证据，找出一个最小失败条件。"}
+                        </p>
+                      </div>
+                    )}
+                    {hasTeachingActionDecision && (
+                      <div className="student-transfer-action student-transfer-action--teaching">
+                        <span>
+                          {teachingActionTypeLabel(teachingActionDecision?.actionType)} ·{" "}
+                          {teachingActionActorLabel(teachingActionDecision?.actor)}
+                        </span>
+                        <strong>{teachingActionDecision?.title || "下一步教学动作"}</strong>
+                        <p>
+                          {teachingActionDecision?.recommendedAction ||
+                            teachingActionDecision?.summary ||
+                            "先完成系统建议的最高优先级动作。"}
+                        </p>
+                      </div>
+                    )}
+                    <div className="alert">{trajectory.nextStep ? learningStageLabel(trajectory.nextStep) : "暂无新的处理项。"}</div>
                   </div>
-                ))
-              ) : (
-                <EmptyState title="暂无历史记录" />
-              )}
+                )}
+              </section>
+
+              <section className="problem-learning-section">
+                <div className="problem-learning-section__head">
+                  <h3>尝试记录</h3>
+                  <StatusPill tone={history.length ? "neutral" : "info"}>{history.length} 次</StatusPill>
+                </div>
+                <div className="stack">
+                  {history.length ? (
+                    history.slice(0, 6).map(item => (
+                      <div className="list-row" key={item.id}>
+                        <div className="actions">
+                          <VerdictPill verdict={item.verdict} />
+                          <span className="meta-badge">{formatDateTime(item.submittedAt)}</span>
+                        </div>
+                        <h3>{item.analysisHeadline || verdictLabel(item.verdict)}</h3>
+                        <p>{item.analysisSummary || `${item.passedTestCases || 0}/${item.totalTestCases || 0} 个测试点通过`}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <EmptyState title="暂无历史记录" />
+                  )}
+                </div>
+              </section>
             </div>
           </details>
         </div>

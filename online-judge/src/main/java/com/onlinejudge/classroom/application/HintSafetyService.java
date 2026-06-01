@@ -88,15 +88,21 @@ public class HintSafetyService {
                 + interventionPlanText(interventionPlan) + "\n"
                 + visibleReportMarkdown).toLowerCase(Locale.ROOT);
         List<String> reasons = new ArrayList<>();
-        if (combined.contains("```") || combined.contains("#include") || combined.contains("int main")
-                || combined.contains("def ") || combined.contains("class solution")) {
+        boolean completeCodeLeak = combined.contains("```") || combined.contains("#include") || combined.contains("int main")
+                || combined.contains("def ") || combined.contains("class solution");
+        boolean hiddenTestLeak = (combined.contains("隐藏测试") || combined.contains("hidden test"))
+                && (combined.contains("输入") || combined.contains("输出")
+                || combined.contains("input") || combined.contains("output"));
+        if (completeCodeLeak) {
             reasons.add("疑似包含完整代码片段");
         }
         if (combined.contains("答案如下") || combined.contains("完整代码") || combined.contains("直接改成")
-                || combined.contains("最终答案")) {
+                || combined.contains("最终答案") || combined.contains("complete answer")
+                || combined.contains("directly change") || combined.contains("direct fix")
+                || combined.contains("exact fix") || combined.contains("final answer")) {
             reasons.add("疑似直接给出答案或完整改法");
         }
-        if (combined.contains("隐藏测试") && (combined.contains("输入") || combined.contains("输出"))) {
+        if (hiddenTestLeak) {
             reasons.add("疑似暴露隐藏测试点信息");
         }
         if (diagnosisTaxonomy.isBeyondPolicy(combined, hintPolicy)) {
@@ -113,7 +119,7 @@ public class HintSafetyService {
             case L3 -> "我先保留定位方向。请找到最可疑的局部逻辑，用一个最小样例验证它是否符合题意。";
             case L4 -> "原始提示可能过于直接。请先按题意复述算法思路，再决定是否需要参考改法。";
         };
-        String riskLevel = reasons.size() >= 2 ? "HIGH" : "MEDIUM";
+        String riskLevel = reasons.size() >= 2 || hiddenTestLeak ? "HIGH" : "MEDIUM";
         return new SafetyResult(riskLevel, originalHint, safeHint, reasons);
     }
 

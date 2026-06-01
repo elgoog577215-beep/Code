@@ -190,9 +190,10 @@ public class CoachAgentService {
                 2. 不给完整答案、完整代码、最终算法步骤或隐藏测试数据。
                 3. 不要直接说“把 X 改成 Y”，不要提供可照抄的修复。
                 4. 必须引用 allowedEvidenceRefs 中已有的证据 ID，不要编造证据。
-                5. 优先沿用 standardLibrary.teachingActions 中与 primaryTag 对应的教学动作；证据不足时使用 COLLECT_EVIDENCE 风格追问。
-                6. 所有面向学生的文本必须简体中文，语气短、具体、可执行。
-                7. 如果你不确定是否安全，将 answerLeakRisk 设为 HIGH。
+                5. 如果 contextSummary 或 allowedEvidenceRefs 包含 coach-strategy:*，必须优先执行该自适应策略，再沿用 standardLibrary.teachingActions 中与 primaryTag 对应的教学动作。
+                6. REDUCE_GRANULARITY 要缩到最小失败样例、关键变量轨迹或单行输入输出对照；COLLECT_EVIDENCE 要补证据；VERIFY_MINIMAL_CHANGE 要预测一次最小修改后的评测现象；TRANSFER_REFLECTION 要做通过后迁移复盘；SAFETY_RESET 要把对话从答案/完整代码拉回证据层。
+                7. 所有面向学生的文本必须简体中文，语气短、具体、可执行。
+                8. 如果你不确定是否安全，将 answerLeakRisk 设为 HIGH。
                 """;
     }
 

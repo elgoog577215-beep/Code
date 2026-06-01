@@ -2,8 +2,16 @@ package com.onlinejudge.classroom.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
+import com.onlinejudge.classroom.domain.ClassReviewFeedback;
+import com.onlinejudge.classroom.domain.CoachPrompt;
+import com.onlinejudge.classroom.domain.HintSafetyCheck;
+import com.onlinejudge.classroom.domain.StudentRecommendationEvent;
 import com.onlinejudge.classroom.domain.TeacherDiagnosisCorrection;
 import com.onlinejudge.classroom.persistence.AssignmentRepository;
+import com.onlinejudge.classroom.persistence.ClassReviewFeedbackRepository;
+import com.onlinejudge.classroom.persistence.CoachPromptRepository;
+import com.onlinejudge.classroom.persistence.HintSafetyCheckRepository;
+import com.onlinejudge.classroom.persistence.StudentRecommendationEventRepository;
 import com.onlinejudge.classroom.persistence.TeacherDiagnosisCorrectionRepository;
 import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
@@ -29,15 +37,40 @@ class AiQualityOverviewServiceTest {
     private final FakeSubmissionRepository submissionRepository = new FakeSubmissionRepository();
     private final FakeSubmissionAnalysisRepository analysisRepository = new FakeSubmissionAnalysisRepository();
     private final FakeTeacherDiagnosisCorrectionRepository correctionRepository = new FakeTeacherDiagnosisCorrectionRepository();
+    private final FakeCoachPromptRepository coachPromptRepository = new FakeCoachPromptRepository();
+    private final FakeHintSafetyCheckRepository hintSafetyCheckRepository = new FakeHintSafetyCheckRepository();
+    private final FakeStudentRecommendationEventRepository recommendationEventRepository = new FakeStudentRecommendationEventRepository();
+    private final FakeClassReviewFeedbackRepository classReviewFeedbackRepository = new FakeClassReviewFeedbackRepository();
     private final DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final DiagnosisReportReader diagnosisReportReader = new DiagnosisReportReader(objectMapper, taxonomy);
     private final AiQualityOverviewService service = new AiQualityOverviewService(
             assignmentRepository,
             submissionRepository,
             analysisRepository,
             correctionRepository,
-            new DiagnosisReportReader(objectMapper, taxonomy),
-            taxonomy
+            diagnosisReportReader,
+            taxonomy,
+            new CoachInteractionAnalyzer(coachPromptRepository, new CoachAnswerQualityAnalyzer()),
+            new CoachImpactAnalyzer(diagnosisReportReader, taxonomy),
+            new RecommendationEffectivenessService(recommendationEventRepository, objectMapper),
+            new ClassReviewFeedbackService(classReviewFeedbackRepository, assignmentRepository, objectMapper),
+            new TeacherInterventionImpactAnalyzer(diagnosisReportReader),
+            new PostAcTransferAnalyzer(diagnosisReportReader, taxonomy),
+            new RecurringMisconceptionAnalyzer(diagnosisReportReader, taxonomy),
+            new SelfExplanationMasteryAnalyzer(new CoachAnswerQualityAnalyzer()),
+            recommendationEventRepository,
+            new AiDependencyAnalyzer(),
+            new MasteryGrowthAnalyzer(
+                    diagnosisReportReader,
+                    taxonomy,
+                    new AbilitySignalAnalyzer(diagnosisReportReader, taxonomy)
+            ),
+            new TeachingActionOrchestrator(),
+            new ClassTeachingStrategyAnalyzer(),
+            new ClassTeachingStrategyImpactAnalyzer(diagnosisReportReader),
+            hintSafetyCheckRepository,
+            new PromptSafetyIncidentAnalyzer()
     );
 
     @Test
@@ -65,6 +98,71 @@ class AiQualityOverviewServiceTest {
         assertThat(overview.getModelRuntimeFailureRate()).isEqualTo(50.0);
         assertThat(overview.getSummary()).contains("外部模型兜底");
         assertThat(overview.getQualityRiskSummary()).contains("在线效果可能没有真正使用外部大模型");
+        assertThat(overview.getQualityDimensions()).extracting("dimension")
+                .containsExactly(
+                        "DIAGNOSIS_CONFIDENCE",
+                        "EVIDENCE_GROUNDING",
+                        "HINT_SAFETY",
+                        "PROMPT_SAFETY_INCIDENT_LOOP",
+                        "LEARNING_ACTION",
+                        "MODEL_RUNTIME",
+                        "TEACHER_CORRECTION",
+                        "TEACHER_CALIBRATION_LOOP",
+                        "COACH_UNDERSTANDING",
+                        "COACH_FOLLOWUP_IMPACT_LOOP",
+                        "RECOMMENDATION_LOOP",
+                        "POST_AC_TRANSFER_LOOP",
+                        "RECURRING_MISCONCEPTION_LOOP",
+                        "SELF_EXPLANATION_MASTERY_LOOP",
+                        "AI_DEPENDENCY_INDEPENDENCE_LOOP",
+                        "MASTERY_GROWTH_LOOP",
+                        "TEACHING_ACTION_ORCHESTRATION_LOOP",
+                        "CLASS_TEACHING_STRATEGY_LOOP",
+                        "TEACHER_INTERVENTION_LOOP"
+                );
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "MODEL_RUNTIME".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getScore()).isEqualTo(50.0);
+                    assertThat(dimension.getEvidenceRefs()).contains("eval:submission:11");
+                    assertThat(dimension.getRecommendedAction()).contains("模型调用");
+                });
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "HINT_SAFETY".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getEvidenceRefs()).contains("eval:submission:12");
+                });
+        assertThat(overview.getPromptSafetyIncidentSignal()).satisfies(signal -> {
+            assertThat(signal.getStatus()).isEqualTo("ACTION_NEEDED");
+            assertThat(signal.getHighLeakRiskCount()).isEqualTo(1);
+            assertThat(signal.getSafetyDowngradeCount()).isZero();
+            assertThat(signal.getEvidenceRefs()).contains("prompt_safety_source:DIAGNOSIS_HIGH_LEAK_RISK");
+        });
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "PROMPT_SAFETY_INCIDENT_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getSummary()).contains("高泄题风险诊断");
+                    assertThat(dimension.getEvidenceRefs()).contains("prompt_safety_source:DIAGNOSIS_HIGH_LEAK_RISK");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .containsSubsequence("MODEL_RUNTIME", "HINT_SAFETY", "PROMPT_SAFETY_INCIDENT_LOOP");
+        assertThat(overview.getImprovementPriorities()).first()
+                .satisfies(priority -> {
+                    assertThat(priority.getPriority()).isEqualTo("P1");
+                    assertThat(priority.getDimension()).isEqualTo("MODEL_RUNTIME");
+                    assertThat(priority.getSeverity()).isEqualTo("ACTION_NEEDED");
+                });
+        assertThat(overview.getEvalReadiness())
+                .satisfies(readiness -> {
+                    assertThat(readiness.getStatus()).isEqualTo("READY");
+                    assertThat(readiness.getCandidateCount()).isEqualTo(1);
+                    assertThat(readiness.getPriorityTags()).first()
+                            .satisfies(tag -> assertThat(tag.getCorrectedTag()).isEqualTo("INPUT_PARSING"));
+                    assertThat(readiness.getEvidenceRefs()).contains("eval_candidates:1");
+                });
         assertThat(overview.getCorrectedTags()).first()
                 .satisfies(tag -> {
                     assertThat(tag.getOriginalTag()).isEqualTo("OFF_BY_ONE");
@@ -74,15 +172,520 @@ class AiQualityOverviewServiceTest {
                 });
     }
 
+    @Test
+    void teacherCalibrationLoopReportsAppliedAndConflictSignals() {
+        assignmentRepository.items.put(8L, Assignment.builder().id(8L).title("作业").build());
+        submissionRepository.items.add(submission(21L, 8L));
+        submissionRepository.items.add(submission(22L, 8L));
+        analysisRepository.save(analysisWithTeacherCalibration(
+                21L,
+                "SUPPORTED",
+                "[\"IO_FORMAT\"]",
+                "[\"INPUT_PARSING\"]",
+                "memory:teacher_calibration:input_parsing"));
+        analysisRepository.save(analysisWithTeacherCalibration(
+                22L,
+                "CONFLICT_NEEDS_REVIEW",
+                "[\"LOOP_BOUNDARY\"]",
+                "[\"OFF_BY_ONE\"]",
+                "memory:teacher_calibration:input_parsing"));
+        correctionRepository.saved.add(correction(1L, 8L, 21L, "LOOP_BOUNDARY", "OFF_BY_ONE", "IO_FORMAT", "INPUT_PARSING", true));
+
+        var overview = service.buildOverview(8L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "TEACHER_CALIBRATION_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getSummary()).contains("1 条诊断与教师校准冲突");
+                    assertThat(dimension.getEvidenceRefs()).contains("memory:teacher_calibration:input_parsing");
+                    assertThat(dimension.getRecommendedAction()).contains("CONFLICT_NEEDS_REVIEW");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("TEACHER_CALIBRATION_LOOP");
+    }
+
+    @Test
+    void flagsContradictedLearningActionAsQualityPriority() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(21L, 7L));
+        analysisRepository.save(analysis(
+                21L,
+                0.78,
+                "LOW",
+                "[\"BOUNDARY_CONDITION\"]",
+                "[\"OFF_BY_ONE\"]",
+                "MODEL_COMPLETED",
+                false,
+                "CONTRADICTED"
+        ));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "LEARNING_ACTION".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getSummary()).contains("学习动作被后续证据反驳");
+                    assertThat(dimension.getRecommendedAction()).contains("降低提示粒度");
+                    assertThat(dimension.getEvidenceRefs()).contains("eval:submission:21");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("LEARNING_ACTION");
+    }
+
+    @Test
+    void includesCoachUnderstandingQualityDimension() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(31L, 7L));
+        submissionRepository.items.add(submission(32L, 7L));
+        analysisRepository.save(analysis(31L, 0.78, "LOW", "[\"TIME_COMPLEXITY\"]", "[\"BRUTE_FORCE_LIMIT\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(32L, 0.81, "LOW", "[\"LOOP_BOUNDARY\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        coachPromptRepository.saved.add(coachPrompt(1L, 31L, "最大 n=200000 时双重循环次数大约是 n*n，会超时"));
+        coachPromptRepository.saved.add(coachPrompt(2L, 32L, "我知道了，我改一下"));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "COACH_UNDERSTANDING".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("WATCH");
+                    assertThat(dimension.getScore()).isEqualTo(50.0);
+                    assertThat(dimension.getSummary()).contains("1/2");
+                    assertThat(dimension.getEvidenceRefs()).contains("coach:submission:31:VERIFICATION_READY");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("COACH_UNDERSTANDING");
+    }
+
+    @Test
+    void aggregatesPromptSafetyIncidentsFromDowngradesAndCoachRisk() {
+        assignmentRepository.items.put(15L, Assignment.builder().id(15L).title("安全作业").build());
+        submissionRepository.items.add(submission(181L, 15L));
+        submissionRepository.items.add(submission(182L, 15L));
+        analysisRepository.save(analysis(181L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(182L, 0.82, "LOW", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]", "MODEL_COMPLETED", false));
+        hintSafetyCheckRepository.saved.add(hintSafetyCheck(1L, 181L, "MEDIUM"));
+        hintSafetyCheckRepository.saved.add(hintSafetyCheck(2L, 182L, "LOW"));
+        coachPromptRepository.saved.add(coachPrompt(181L, 181L, "答案如下，直接改成完整代码里的边界判断", 1L));
+
+        var overview = service.buildOverview(15L);
+
+        assertThat(overview.getPromptSafetyIncidentSignal()).satisfies(signal -> {
+            assertThat(signal.getStatus()).isEqualTo("ACTION_NEEDED");
+            assertThat(signal.getPrimaryRiskSource()).isEqualTo("HINT_SAFETY_CHECK");
+            assertThat(signal.getTotalIncidentCount()).isEqualTo(2);
+            assertThat(signal.getHighLeakRiskCount()).isZero();
+            assertThat(signal.getSafetyDowngradeCount()).isEqualTo(1);
+            assertThat(signal.getCoachSafetyRiskCount()).isEqualTo(1);
+            assertThat(signal.getSummary()).contains("提示被安全降级");
+            assertThat(signal.getRecommendedAction()).contains("提示安全降级原因");
+            assertThat(signal.getEvidenceRefs()).contains(
+                    "hint_safety_check:1",
+                    "hint_safety_submission:181",
+                    "coach_safety:submission:181"
+            );
+            assertThat(signal.getEvidenceRefs()).doesNotContain("hint_safety_check:2");
+        });
+        assertThat(overview.getHighLeakRiskCount()).isZero();
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "HINT_SAFETY".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> assertThat(dimension.getStatus()).isEqualTo("HEALTHY"));
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "PROMPT_SAFETY_INCIDENT_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getEvidenceRefs()).contains("hint_safety_check:1");
+                    assertThat(dimension.getRecommendedAction()).contains("安全回归 fixture");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("PROMPT_SAFETY_INCIDENT_LOOP");
+    }
+
+    @Test
+    void includesCoachFollowupImpactLoopQualityDimension() {
+        assignmentRepository.items.put(12L, Assignment.builder().id(12L).title("作业").build());
+        submissionRepository.items.add(submission(171L, 12L, 1L, 201L,
+                Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(172L, 12L, 1L, 201L,
+                Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 13, 0)));
+        analysisRepository.save(analysis(171L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(172L, 0.79, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        coachPromptRepository.saved.add(coachPrompt(171L, 171L, "最小样例 n=1 时循环应该执行一次", 1L));
+
+        var overview = service.buildOverview(12L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "COACH_FOLLOWUP_IMPACT_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getScore()).isEqualTo(0.0);
+                    assertThat(dimension.getSummary()).contains("仍有 1 个样本卡在同类错因");
+                    assertThat(dimension.getEvidenceRefs()).contains(
+                            "coach_impact:SAME_ISSUE:submission:171",
+                            "followup_submission:172"
+                    );
+                    assertThat(dimension.getRecommendedAction()).contains("最小失败样例");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("COACH_FOLLOWUP_IMPACT_LOOP");
+    }
+
+    @Test
+    void includesRecommendationLoopQualityDimension() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(41L, 7L));
+        analysisRepository.save(analysis(41L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        recommendationEventRepository.items.add(recommendationEvent(
+                "rec-step-down",
+                7L,
+                StudentRecommendationEventService.EVENT_EXPOSED,
+                null,
+                null
+        ));
+        recommendationEventRepository.items.add(recommendationEvent(
+                "rec-step-down",
+                7L,
+                StudentRecommendationEventService.EVENT_SUBMITTED,
+                Submission.Verdict.WRONG_ANSWER.name(),
+                "OFF_BY_ONE"
+        ));
+        recommendationEventRepository.items.add(recommendationEvent(
+                "rec-other-assignment",
+                8L,
+                StudentRecommendationEventService.EVENT_SUBMITTED,
+                Submission.Verdict.WRONG_ANSWER.name(),
+                "OFF_BY_ONE"
+        ));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "RECOMMENDATION_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getSummary()).contains("学习信号未改善");
+                    assertThat(dimension.getEvidenceRefs()).contains(
+                            "recommendation:rec-step-down",
+                            "recommendation-outcome:UNRESOLVED_SAME_FOCUS"
+                    );
+                    assertThat(dimension.getEvidenceRefs()).doesNotContain("recommendation:rec-other-assignment");
+                    assertThat(dimension.getRecommendedAction()).contains("教师");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("RECOMMENDATION_LOOP");
+    }
+
+    @Test
+    void includesTeacherInterventionLoopQualityDimension() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(51L, 7L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(52L, 7L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 13, 0)));
+        analysisRepository.save(analysis(51L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(52L, 0.76, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        classReviewFeedbackRepository.saved.add(classReviewFeedback(
+                7L,
+                "review:7:ability:循环与边界:101:OFF_BY_ONE",
+                ClassReviewFeedbackService.ACTION_ACCEPTED,
+                101L,
+                "[\"OFF_BY_ONE\"]",
+                LocalDateTime.of(2026, 5, 18, 12, 0)
+        ));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "TEACHER_INTERVENTION_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getSummary()).contains("仍有 1 条复盘建议命中同类错因");
+                    assertThat(dimension.getRecommendedAction()).contains("降低课堂复盘颗粒度");
+                    assertThat(dimension.getEvidenceRefs()).contains("teacher_intervention:ACCEPTED:STILL_STUCK");
+                    assertThat(dimension.getEvidenceRefs()).contains("followup_submission:52");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("TEACHER_INTERVENTION_LOOP");
+    }
+
+    @Test
+    void evalReadinessUsesTeacherInterventionImpactCandidates() {
+        assignmentRepository.items.put(10L, Assignment.builder().id(10L).title("作业").build());
+        submissionRepository.items.add(submission(151L, 10L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(152L, 10L, Submission.Verdict.ACCEPTED, LocalDateTime.of(2026, 5, 18, 13, 0)));
+        analysisRepository.save(analysis(151L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        classReviewFeedbackRepository.saved.add(classReviewFeedback(
+                10L,
+                "review:10:ability:循环与边界:101:OFF_BY_ONE",
+                ClassReviewFeedbackService.ACTION_ACCEPTED,
+                101L,
+                "[\"OFF_BY_ONE\"]",
+                LocalDateTime.of(2026, 5, 18, 12, 0)
+        ));
+
+        var overview = service.buildOverview(10L);
+
+        assertThat(overview.getEvalReadiness()).satisfies(readiness -> {
+            assertThat(readiness.getStatus()).isEqualTo("READY");
+            assertThat(readiness.getCandidateCount()).isZero();
+            assertThat(readiness.getInterventionCandidateCount()).isEqualTo(1);
+            assertThat(readiness.getInterventionImprovedCount()).isEqualTo(1);
+            assertThat(readiness.getSummary()).contains("课堂介入");
+            assertThat(readiness.getRecommendedAction()).contains("课堂介入 fixture");
+            assertThat(readiness.getEvidenceRefs()).contains("teacher_intervention_eval:IMPROVED");
+            assertThat(readiness.getEvidenceRefs()).contains("followup_submission:152");
+        });
+    }
+
+    @Test
+    void evalReadinessTreatsWaitingInterventionAsPartial() {
+        assignmentRepository.items.put(11L, Assignment.builder().id(11L).title("作业").build());
+        submissionRepository.items.add(submission(161L, 11L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        analysisRepository.save(analysis(161L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        classReviewFeedbackRepository.saved.add(classReviewFeedback(
+                11L,
+                "review:11:ability:循环与边界:101:OFF_BY_ONE",
+                ClassReviewFeedbackService.ACTION_ACCEPTED,
+                101L,
+                "[\"OFF_BY_ONE\"]",
+                LocalDateTime.of(2026, 5, 18, 12, 0)
+        ));
+
+        var overview = service.buildOverview(11L);
+
+        assertThat(overview.getEvalReadiness()).satisfies(readiness -> {
+            assertThat(readiness.getStatus()).isEqualTo("PARTIAL");
+            assertThat(readiness.getInterventionCandidateCount()).isZero();
+            assertThat(readiness.getInterventionWaitingFollowupCount()).isEqualTo(1);
+            assertThat(readiness.getSummary()).contains("等待后续提交证据");
+            assertThat(readiness.getRecommendedAction()).contains("等待后续提交");
+        });
+    }
+
+    @Test
+    void includesPostAcTransferLoopQualityDimension() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(61L, 7L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(62L, 7L, 1L, 101L, Submission.Verdict.ACCEPTED, LocalDateTime.of(2026, 5, 18, 10, 12)));
+        analysisRepository.save(analysis(61L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "POST_AC_TRANSFER_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getSummary()).contains("已通过任务缺少复盘迁移证据");
+                    assertThat(dimension.getEvidenceRefs()).contains("post_ac_transfer:REFLECTION_NEEDED:problem:101");
+                    assertThat(dimension.getRecommendedAction()).contains("刚 AC");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("POST_AC_TRANSFER_LOOP");
+    }
+
+    @Test
+    void includesSelfExplanationMasteryLoopQualityDimension() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(81L, 7L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(82L, 7L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 12)));
+        analysisRepository.save(analysis(81L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(82L, 0.79, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        coachPromptRepository.saved.add(coachPrompt(81L, 81L, "知道了，我改一下", 1L));
+        coachPromptRepository.saved.add(coachPrompt(82L, 82L, "懂了，我试试", 1L));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "SELF_EXPLANATION_MASTERY_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("WATCH");
+                    assertThat(dimension.getSummary()).contains("自解释证据不足");
+                    assertThat(dimension.getEvidenceRefs()).contains("self_explanation:NEEDS_COACHING");
+                    assertThat(dimension.getRecommendedAction()).contains("SELF_EXPLANATION_PRACTICE");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("SELF_EXPLANATION_MASTERY_LOOP");
+    }
+
+    @Test
+    void includesAiDependencyIndependenceLoopQualityDimension() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(91L, 7L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(92L, 7L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 12)));
+        analysisRepository.save(analysis(91L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(92L, 0.79, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        coachPromptRepository.saved.add(coachPrompt(91L, 91L, "再给一个提示", 1L));
+        coachPromptRepository.saved.add(coachPrompt(92L, 92L, "我还是不会", 1L));
+        recommendationEventRepository.items.add(recommendationEvent("dep-1", 7L, 1L, 91L, StudentRecommendationEventService.EVENT_SUBMITTED, Submission.Verdict.WRONG_ANSWER.name(), "OFF_BY_ONE"));
+        recommendationEventRepository.items.add(recommendationEvent("dep-2", 7L, 1L, 92L, StudentRecommendationEventService.EVENT_SUBMITTED, Submission.Verdict.WRONG_ANSWER.name(), "OFF_BY_ONE"));
+        recommendationEventRepository.items.add(recommendationEvent("dep-3", 7L, 1L, null, StudentRecommendationEventService.EVENT_CLICKED, null, null));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "AI_DEPENDENCY_INDEPENDENCE_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getSummary()).contains("支架后仍未改善");
+                    assertThat(dimension.getEvidenceRefs()).contains("ai_dependency:DEPENDENCY_RISK");
+                    assertThat(dimension.getRecommendedAction()).contains("INDEPENDENT_ATTEMPT");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("AI_DEPENDENCY_INDEPENDENCE_LOOP");
+    }
+
+    @Test
+    void includesRecurringMisconceptionLoopQualityDimension() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(71L, 7L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(72L, 7L, 1L, 102L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 12)));
+        analysisRepository.save(analysis(71L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(72L, 0.79, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "RECURRING_MISCONCEPTION_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("WATCH");
+                    assertThat(dimension.getSummary()).contains("跨题或跨作业复发误区");
+                    assertThat(dimension.getEvidenceRefs()).contains("recurring_misconception:RECURRING:OFF_BY_ONE");
+                    assertThat(dimension.getEvidenceRefs()).contains("recurring-misconception:submission:72");
+                    assertThat(dimension.getRecommendedAction()).contains("MISCONCEPTION_REPAIR");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("RECURRING_MISCONCEPTION_LOOP");
+    }
+
+    @Test
+    void includesMasteryGrowthLoopQualityDimension() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(101L, 7L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(102L, 7L, 1L, 102L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 12)));
+        submissionRepository.items.add(submission(103L, 7L, 1L, 103L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 24)));
+        analysisRepository.save(analysis(101L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(102L, 0.79, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(103L, 0.80, "LOW", "[\"LOOP_BOUNDARY\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "MASTERY_GROWTH_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getSummary()).contains("螺旋复习");
+                    assertThat(dimension.getEvidenceRefs()).contains("mastery_growth:SPIRAL_REVIEW_NEEDED");
+                    assertThat(dimension.getRecommendedAction()).contains("MASTERY_SPIRAL_REVIEW");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("MASTERY_GROWTH_LOOP");
+    }
+
+    @Test
+    void includesTeachingActionOrchestrationLoopQualityDimension() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(111L, 7L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(112L, 7L, 1L, 102L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 12)));
+        submissionRepository.items.add(submission(113L, 7L, 1L, 103L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 24)));
+        analysisRepository.save(analysis(111L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(112L, 0.79, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(113L, 0.80, "LOW", "[\"LOOP_BOUNDARY\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "TEACHING_ACTION_ORCHESTRATION_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getSummary()).contains("高风险教学动作");
+                    assertThat(dimension.getEvidenceRefs()).contains("teaching_action:SPIRAL_REVIEW:HIGH");
+                    assertThat(dimension.getEvidenceRefs()).contains("mastery_growth:SPIRAL_REVIEW_NEEDED");
+                    assertThat(dimension.getRecommendedAction()).contains("TEACHING_ACTION");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("TEACHING_ACTION_ORCHESTRATION_LOOP");
+    }
+
+    @Test
+    void includesClassTeachingStrategyLoopQualityDimension() {
+        assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
+        submissionRepository.items.add(submission(121L, 7L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(122L, 7L, 2L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 10)));
+        analysisRepository.save(analysis(121L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(122L, 0.80, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "CLASS_TEACHING_STRATEGY_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("WATCH");
+                    assertThat(dimension.getSummary()).contains("缺少教师执行反馈");
+                    assertThat(dimension.getEvidenceRefs()).contains("class_strategy:strategy:7:whole-class-mini-lesson:off-by-one");
+                    assertThat(dimension.getRecommendedAction()).contains("采纳、调整或忽略");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("CLASS_TEACHING_STRATEGY_LOOP");
+    }
+
+    @Test
+    void classTeachingStrategyLoopUsesImpactWhenStudentsRemainStuck() {
+        assignmentRepository.items.put(9L, Assignment.builder().id(9L).title("作业").build());
+        submissionRepository.items.add(submission(131L, 9L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0)));
+        submissionRepository.items.add(submission(132L, 9L, 2L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 10)));
+        submissionRepository.items.add(submission(133L, 9L, 1L, 101L, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 40)));
+        analysisRepository.save(analysis(131L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(132L, 0.80, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(133L, 0.81, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
+        classReviewFeedbackRepository.saved.add(ClassReviewFeedback.builder()
+                .id(31L)
+                .assignmentId(9L)
+                .suggestionKey("strategy:9:whole-class-mini-lesson:off-by-one")
+                .targetAbility("循环与边界")
+                .evidenceTags("[\"OFF_BY_ONE\"]")
+                .actionType(ClassReviewFeedbackService.ACTION_ACCEPTED)
+                .teacherNote("已全班讲评")
+                .createdBy("teacher")
+                .createdAt(LocalDateTime.of(2026, 5, 18, 10, 20))
+                .build());
+
+        var overview = service.buildOverview(9L);
+
+        assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "CLASS_TEACHING_STRATEGY_LOOP".equals(dimension.getDimension()))
+                .first()
+                .satisfies(dimension -> {
+                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+                    assertThat(dimension.getSummary()).contains("仍命中原策略标签");
+                    assertThat(dimension.getEvidenceRefs()).contains("class_strategy_impact:STILL_STUCK");
+                    assertThat(dimension.getEvidenceRefs()).contains("followup_submission:133");
+                    assertThat(dimension.getRecommendedAction()).contains("更小粒度复盘");
+                });
+        assertThat(overview.getImprovementPriorities()).extracting("dimension")
+                .contains("CLASS_TEACHING_STRATEGY_LOOP");
+    }
+
     private Submission submission(Long id, Long assignmentId) {
+        return submission(id, assignmentId, Submission.Verdict.WRONG_ANSWER, LocalDateTime.of(2026, 5, 18, 10, 0));
+    }
+
+    private Submission submission(Long id, Long assignmentId, Submission.Verdict verdict, LocalDateTime submittedAt) {
+        return submission(id, assignmentId, null, 101L, verdict, submittedAt);
+    }
+
+    private Submission submission(Long id,
+                                  Long assignmentId,
+                                  Long studentProfileId,
+                                  Long problemId,
+                                  Submission.Verdict verdict,
+                                  LocalDateTime submittedAt) {
         return Submission.builder()
                 .id(id)
                 .assignmentId(assignmentId)
-                .problemId(101L)
+                .studentProfileId(studentProfileId)
+                .problemId(problemId)
                 .languageId(71)
                 .sourceCode("print(1)")
-                .verdict(Submission.Verdict.WRONG_ANSWER)
-                .submittedAt(LocalDateTime.of(2026, 5, 18, 10, 0))
+                .verdict(verdict)
+                .submittedAt(submittedAt)
                 .build();
     }
 
@@ -93,6 +696,28 @@ class AiQualityOverviewServiceTest {
                                         String fineTags,
                                         String invocationStatus,
                                         boolean fallbackUsed) {
+        return analysis(submissionId, confidence, leakRisk, issueTags, fineTags, invocationStatus, fallbackUsed, null);
+    }
+
+    private SubmissionAnalysis analysis(Long submissionId,
+                                        double confidence,
+                                        String leakRisk,
+                                        String issueTags,
+                                        String fineTags,
+                                        String invocationStatus,
+                                        boolean fallbackUsed,
+                                        String learningActionStatus) {
+        String learningActionJson = learningActionStatus == null ? "" : """
+                          ,
+                          "learningActionEvidence": {
+                            "expectedActionType": "TRACE_VARIABLES",
+                            "executionStatus": "%s",
+                            "observedEvidence": "后续提交仍停留在相同错因。",
+                            "confidence": 0.74,
+                            "evidenceRefs": ["eval:submission:%s", "action:%s"],
+                            "nextAdjustment": "降低提示粒度，要求最小样例。"
+                          }
+                """.formatted(learningActionStatus, submissionId, learningActionStatus);
         return SubmissionAnalysis.builder()
                 .submissionId(submissionId)
                 .analysisSource("TEST")
@@ -106,6 +731,7 @@ class AiQualityOverviewServiceTest {
                           "fineGrainedTags": %s,
                           "confidence": %s,
                           "answerLeakRisk": "%s",
+                          "evidenceRefs": ["eval:submission:%s"],
                           "aiInvocation": {
                             "provider": "modelscope",
                             "model": "deepseek-ai/DeepSeek-V4-Pro",
@@ -117,8 +743,60 @@ class AiQualityOverviewServiceTest {
                             "status": "%s",
                             "fallbackUsed": %s
                           }
+                          %s
                         }
-                        """.formatted(issueTags, fineTags, confidence, leakRisk, invocationStatus, fallbackUsed))
+                        """.formatted(issueTags, fineTags, confidence, leakRisk, submissionId, invocationStatus, fallbackUsed, learningActionJson))
+                .build();
+    }
+
+    private SubmissionAnalysis analysisWithTeacherCalibration(Long submissionId,
+                                                              String status,
+                                                              String issueTags,
+                                                              String fineTags,
+                                                              String evidenceRef) {
+        String correctedIssue = "CONFLICT_NEEDS_REVIEW".equals(status) ? "IO_FORMAT" : "IO_FORMAT";
+        String correctedFine = "CONFLICT_NEEDS_REVIEW".equals(status) ? "INPUT_PARSING" : "INPUT_PARSING";
+        return SubmissionAnalysis.builder()
+                .submissionId(submissionId)
+                .analysisSource("TEST")
+                .scenario("WA")
+                .headline("诊断")
+                .summary("summary")
+                .reportMarkdown("markdown")
+                .reportJson("""
+                        {
+                          "issueTags": %s,
+                          "fineGrainedTags": %s,
+                          "confidence": 0.78,
+                          "answerLeakRisk": "LOW",
+                          "evidenceRefs": ["eval:submission:%s", "%s"],
+                          "teacherCalibrationSignal": {
+                            "status": "%s",
+                            "summary": "教师校准",
+                            "originalIssueTag": "LOOP_BOUNDARY",
+                            "originalFineGrainedTag": "OFF_BY_ONE",
+                            "correctedIssueTag": "%s",
+                            "correctedFineGrainedTag": "%s",
+                            "correctionCount": 2,
+                            "confidenceAdjustment": -0.15,
+                            "evidenceRefs": ["%s"],
+                            "recommendedAction": "教师复核",
+                            "needsTeacherReview": %s
+                          },
+                          "aiInvocation": {
+                            "provider": "modelscope",
+                            "model": "deepseek-ai/DeepSeek-V4-Pro",
+                            "promptVersion": "external-model-runtime-v2",
+                            "agentVersion": "diagnostic-agent-v2",
+                            "analysisSchemaVersion": "diagnosis-v2",
+                            "evidenceSchemaVersion": "diagnosis-evidence-package-v1",
+                            "taxonomyVersion": "taxonomy-v1",
+                            "status": "MODEL_COMPLETED",
+                            "fallbackUsed": false
+                          }
+                        }
+                        """.formatted(issueTags, fineTags, submissionId, evidenceRef, status,
+                        correctedIssue, correctedFine, evidenceRef, "CONFLICT_NEEDS_REVIEW".equals(status)))
                 .build();
     }
 
@@ -140,6 +818,96 @@ class AiQualityOverviewServiceTest {
                 .correctedFineGrainedTag(correctedFine)
                 .evalCandidate(evalCandidate)
                 .correctedAt(LocalDateTime.of(2026, 5, 18, 11, 0))
+                .build();
+    }
+
+    private CoachPrompt coachPrompt(Long id, Long submissionId, String answer) {
+        return coachPrompt(id, submissionId, answer, null);
+    }
+
+    private CoachPrompt coachPrompt(Long id, Long submissionId, String answer, Long studentProfileId) {
+        return CoachPrompt.builder()
+                .id(id)
+                .submissionId(submissionId)
+                .studentProfileId(studentProfileId)
+                .turnIndex(1)
+                .hintPolicy("L2")
+                .promptType("SOCRATIC_NEXT_STEP")
+                .question("请补充证据。")
+                .studentAnswer(answer)
+                .coachFeedback("反馈")
+                .answeredAt(LocalDateTime.of(2026, 5, 18, 12, 1))
+                .createdAt(LocalDateTime.of(2026, 5, 18, 12, 0))
+                .build();
+    }
+
+    private HintSafetyCheck hintSafetyCheck(Long id, Long submissionId, String riskLevel) {
+        return HintSafetyCheck.builder()
+                .id(id)
+                .submissionId(submissionId)
+                .riskLevel(riskLevel)
+                .blockedReasonsJson("[\"疑似直接给出答案或完整改法\"]")
+                .originalHint("完整代码")
+                .safeHint("请先构造一个最小样例。")
+                .checkedAt(LocalDateTime.of(2026, 5, 18, 12, 30).plusMinutes(id))
+                .build();
+    }
+
+    private StudentRecommendationEvent recommendationEvent(String token,
+                                                           Long assignmentId,
+                                                           String eventType,
+                                                           String verdict,
+                                                           String fineTag) {
+        return recommendationEvent(token, assignmentId, 9L,
+                StudentRecommendationEventService.EVENT_SUBMITTED.equals(eventType) ? 9001L : null,
+                eventType, verdict, fineTag);
+    }
+
+    private StudentRecommendationEvent recommendationEvent(String token,
+                                                           Long assignmentId,
+                                                           Long studentProfileId,
+                                                           Long followupSubmissionId,
+                                                           String eventType,
+                                                           String verdict,
+                                                           String fineTag) {
+        return StudentRecommendationEvent.builder()
+                .recommendationToken(token)
+                .studentProfileId(studentProfileId)
+                .type("REVIEW")
+                .assignmentId(assignmentId)
+                .problemId(101L)
+                .focusAbility("循环与边界")
+                .focusTags("[\"OFF_BY_ONE\"]")
+                .strategy("STEP_DOWN_REVIEW")
+                .learningHypothesis("学生收到推荐后仍卡在同类错因")
+                .expectedCompletionSignal("后续提交不再命中同类错因")
+                .riskLevel("HIGH")
+                .fallbackAction("教师介入")
+                .eventType(eventType)
+                .followupSubmissionId(followupSubmissionId)
+                .followupVerdict(verdict)
+                .followupIssueTag(fineTag == null ? null : "BOUNDARY_CONDITION")
+                .followupFineGrainedTag(fineTag)
+                .createdAt(LocalDateTime.of(2026, 5, 18, 13, 0).plusMinutes(recommendationEventRepository.items.size()))
+                .build();
+    }
+
+    private ClassReviewFeedback classReviewFeedback(Long assignmentId,
+                                                    String suggestionKey,
+                                                    String actionType,
+                                                    Long exampleProblemId,
+                                                    String evidenceTags,
+                                                    LocalDateTime createdAt) {
+        return ClassReviewFeedback.builder()
+                .assignmentId(assignmentId)
+                .suggestionKey(suggestionKey)
+                .actionType(actionType)
+                .targetAbility("循环与边界")
+                .exampleProblemId(exampleProblemId)
+                .evidenceTags(evidenceTags)
+                .teacherNote("课堂复盘后仍需观察")
+                .createdBy("teacher")
+                .createdAt(createdAt)
                 .build();
     }
 
@@ -300,6 +1068,125 @@ class AiQualityOverviewServiceTest {
                     .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
                     .filter(TeacherDiagnosisCorrection::isEvalCandidate)
                     .toList();
+        }
+    }
+
+    private static class FakeCoachPromptRepository extends UnsupportedJpaRepository<CoachPrompt, Long> implements CoachPromptRepository {
+        private final List<CoachPrompt> saved = new ArrayList<>();
+
+        @Override
+        public Optional<CoachPrompt> findTopBySubmissionIdOrderByCreatedAtDesc(Long submissionId) {
+            return saved.stream()
+                    .filter(item -> Objects.equals(item.getSubmissionId(), submissionId))
+                    .reduce((left, right) -> right);
+        }
+
+        @Override
+        public List<CoachPrompt> findBySubmissionIdOrderByTurnIndexAscCreatedAtAsc(Long submissionId) {
+            return saved.stream()
+                    .filter(item -> Objects.equals(item.getSubmissionId(), submissionId))
+                    .toList();
+        }
+
+        @Override
+        public List<CoachPrompt> findBySubmissionIdIn(Collection<Long> submissionIds) {
+            return saved.stream()
+                    .filter(item -> submissionIds.contains(item.getSubmissionId()))
+                    .toList();
+        }
+    }
+
+    private static class FakeHintSafetyCheckRepository extends UnsupportedJpaRepository<HintSafetyCheck, Long>
+            implements HintSafetyCheckRepository {
+        private final List<HintSafetyCheck> saved = new ArrayList<>();
+
+        @Override
+        public Optional<HintSafetyCheck> findTopBySubmissionIdOrderByCheckedAtDesc(Long submissionId) {
+            return saved.stream()
+                    .filter(item -> Objects.equals(item.getSubmissionId(), submissionId))
+                    .max(Comparator.comparing(HintSafetyCheck::getCheckedAt, Comparator.nullsLast(LocalDateTime::compareTo)));
+        }
+
+        @Override
+        public List<HintSafetyCheck> findBySubmissionIdIn(Collection<Long> submissionIds) {
+            return saved.stream()
+                    .filter(item -> submissionIds.contains(item.getSubmissionId()))
+                    .toList();
+        }
+    }
+
+    private static class FakeStudentRecommendationEventRepository extends UnsupportedJpaRepository<StudentRecommendationEvent, Long>
+            implements StudentRecommendationEventRepository {
+        private final List<StudentRecommendationEvent> items = new ArrayList<>();
+
+        @Override
+        public List<StudentRecommendationEvent> findByStudentProfileIdOrderByCreatedAtDesc(Long studentProfileId) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getStudentProfileId(), studentProfileId))
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .toList();
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findTop500ByOrderByCreatedAtDesc() {
+            return items.stream()
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .limit(500)
+                    .toList();
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findTop500ByAssignmentIdOrderByCreatedAtDesc(Long assignmentId) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .limit(500)
+                    .toList();
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findByFollowupSubmissionIdAndEventTypeOrderByCreatedAtDesc(Long followupSubmissionId, String eventType) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getFollowupSubmissionId(), followupSubmissionId))
+                    .filter(item -> Objects.equals(item.getEventType(), eventType))
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .toList();
+        }
+
+        @Override
+        public Optional<StudentRecommendationEvent> findTopByRecommendationTokenAndEventTypeOrderByCreatedAtDesc(String recommendationToken, String eventType) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getRecommendationToken(), recommendationToken))
+                    .filter(item -> Objects.equals(item.getEventType(), eventType))
+                    .max(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)));
+        }
+    }
+
+    private static class FakeClassReviewFeedbackRepository extends UnsupportedJpaRepository<ClassReviewFeedback, Long>
+            implements ClassReviewFeedbackRepository {
+        private final List<ClassReviewFeedback> saved = new ArrayList<>();
+
+        @Override
+        public List<ClassReviewFeedback> findByAssignmentIdOrderByCreatedAtDesc(Long assignmentId) {
+            return saved.stream()
+                    .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
+                    .sorted(Comparator.comparing(ClassReviewFeedback::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .toList();
+        }
+
+        @Override
+        public List<ClassReviewFeedback> findByAssignmentIdIn(Collection<Long> assignmentIds) {
+            return saved.stream()
+                    .filter(item -> assignmentIds.contains(item.getAssignmentId()))
+                    .toList();
+        }
+
+        @Override
+        public Optional<ClassReviewFeedback> findTopByAssignmentIdAndSuggestionKeyOrderByCreatedAtDesc(Long assignmentId, String suggestionKey) {
+            return saved.stream()
+                    .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
+                    .filter(item -> Objects.equals(item.getSuggestionKey(), suggestionKey))
+                    .max(Comparator.comparing(ClassReviewFeedback::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)));
         }
     }
 

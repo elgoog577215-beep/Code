@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface StudentRecommendationEventRepository extends JpaRepository<StudentRecommendationEvent, Long> {
     List<StudentRecommendationEvent> findByStudentProfileIdOrderByCreatedAtDesc(Long studentProfileId);
     List<StudentRecommendationEvent> findTop500ByOrderByCreatedAtDesc();
+    List<StudentRecommendationEvent> findTop500ByAssignmentIdOrderByCreatedAtDesc(Long assignmentId);
     List<StudentRecommendationEvent> findByFollowupSubmissionIdAndEventTypeOrderByCreatedAtDesc(Long followupSubmissionId, String eventType);
     Optional<StudentRecommendationEvent> findTopByRecommendationTokenAndEventTypeOrderByCreatedAtDesc(String recommendationToken, String eventType);
 }

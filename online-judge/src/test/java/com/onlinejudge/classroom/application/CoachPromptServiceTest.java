@@ -54,16 +54,52 @@ class CoachPromptServiceTest {
 
         CoachPromptResponse response = service.generateNextQuestion(11L);
 
-        assertThat(response.getQuestion()).contains("先不要改代码");
+        assertThat(response.getQuestion()).contains("最小失败样例");
         assertThat(response.getQuestion()).contains("n=1");
         assertThat(response.getQuestion()).doesNotContain("完整代码");
         assertThat(response.getHintPolicy()).isEqualTo("L2");
         assertThat(response.getPromptType()).isEqualTo("SOCRATIC_NEXT_STEP");
         assertThat(response.getEvidenceRefs()).contains("submission:11", "tag:OFF_BY_ONE", "code:plus_minus_one");
+        assertThat(response.getAdaptiveStrategySignal()).isNotNull();
+        assertThat(response.getAdaptiveStrategySignal().getStrategy()).isEqualTo("REDUCE_GRANULARITY");
+        assertThat(response.getAdaptiveStrategySignal().getEvidenceRefs()).contains("coach-strategy:REDUCE_GRANULARITY");
         assertThat(response.getContextSummary()).contains("最近多次出现细分卡点");
         assertThat(response.getRationale()).contains("最近学习轨迹");
         assertThat(response.getTurnIndex()).isEqualTo(1);
         assertThat(promptRepository.saved).hasSize(1);
+    }
+
+    @Test
+    void reducesGranularityWhenPreviousLearningActionWasContradicted() {
+        createAssignment(7L, Assignment.HintPolicy.L2);
+        createSubmission(16L, 7L, Submission.Verdict.WRONG_ANSWER);
+        createAnalysis(16L, "[\"LOOP_BOUNDARY\"]", "[\"OFF_BY_ONE\"]", "[\"code:plus_minus_one\"]", null, """
+                "learningActionEvidence": {
+                  "expectedActionType": "TRACE_VARIABLES",
+                  "executionStatus": "CONTRADICTED",
+                  "observedEvidence": "后续提交仍停留在相同错因。",
+                  "confidence": 0.74,
+                  "evidenceRefs": ["eval:submission:16", "action:CONTRADICTED"],
+                  "nextAdjustment": "前次学习动作被后续证据反驳，需要降低提示粒度。"
+                }
+                """);
+
+        CoachPromptResponse response = service.generateNextQuestion(16L);
+
+        assertThat(response.getAdaptiveStrategySignal()).isNotNull();
+        assertThat(response.getAdaptiveStrategySignal().getStrategy()).isEqualTo("REDUCE_GRANULARITY");
+        assertThat(response.getAdaptiveStrategySignal().isNeedsTeacherAttention()).isTrue();
+        assertThat(response.getAdaptiveStrategySignal().getReason()).contains("反驳");
+        assertThat(response.getAdaptiveStrategySignal().getRecommendedCoachMove()).contains("最小失败样例");
+        assertThat(response.getEvidenceRefs()).contains(
+                "coach-strategy:REDUCE_GRANULARITY",
+                "coach-adaptive:previous_action:CONTRADICTED",
+                "eval:submission:16",
+                "action:CONTRADICTED"
+        );
+        assertThat(response.getQuestion()).contains("最小失败样例");
+        assertThat(response.getContextSummary()).contains("Coach 自适应策略");
+        assertThat(response.getRationale()).contains("降低提示粒度");
     }
 
     @Test
@@ -76,6 +112,9 @@ class CoachPromptServiceTest {
 
         assertThat(response.getQuestion()).contains("复杂度");
         assertThat(response.getQuestion()).contains("泛化能力");
+        assertThat(response.getAdaptiveStrategySignal()).isNotNull();
+        assertThat(response.getAdaptiveStrategySignal().getStrategy()).isEqualTo("TRANSFER_REFLECTION");
+        assertThat(response.getEvidenceRefs()).contains("coach-strategy:TRANSFER_REFLECTION", "coach-adaptive:verdict:ACCEPTED");
     }
 
     @Test
@@ -144,12 +183,19 @@ class CoachPromptServiceTest {
         assertThat(next.getTurnIndex()).isEqualTo(2);
         assertThat(next.getPromptType()).isEqualTo("SOCRATIC_FOLLOW_UP");
         assertThat(next.getQuestion()).contains("最小修改").doesNotContain("完整代码");
+        assertThat(next.getAdaptiveStrategySignal()).isNotNull();
+        assertThat(next.getAdaptiveStrategySignal().getStrategy()).isEqualTo("VERIFY_MINIMAL_CHANGE");
+        assertThat(next.getEvidenceRefs()).contains(
+                "coach-strategy:VERIFY_MINIMAL_CHANGE",
+                "coach-adaptive:answer_quality:EVIDENCE_GROUNDED"
+        );
         assertThat(next.getTurns()).hasSize(2);
         assertThat(next.getTurns().get(0).getStudentAnswer()).contains("最大 n=100000");
         assertThat(next.getTurns().get(0).getCoachFeedback()).contains("证据意识");
         assertThat(next.getTurns().get(0).getAnsweredAt()).isNotNull();
         assertThat(promptRepository.saved.get(0).getAnsweredAt()).isNotNull();
         assertThat(next.getTurns().get(1).getQuestion()).isEqualTo(next.getQuestion());
+        assertThat(next.getTurns().get(1).getAdaptiveStrategySignal().getStrategy()).isEqualTo("VERIFY_MINIMAL_CHANGE");
     }
 
     @Test
@@ -164,7 +210,35 @@ class CoachPromptServiceTest {
         CoachPromptResponse next = service.replyAndGenerateNext(15L, request);
 
         assertThat(next.getQuestion()).contains("最小 n 值");
+        assertThat(next.getAdaptiveStrategySignal()).isNotNull();
+        assertThat(next.getAdaptiveStrategySignal().getStrategy()).isEqualTo("COLLECT_EVIDENCE");
+        assertThat(next.getEvidenceRefs()).contains(
+                "coach-strategy:COLLECT_EVIDENCE",
+                "coach-adaptive:answer_quality:NEEDS_EVIDENCE"
+        );
         assertThat(next.getTurns().get(0).getCoachFeedback()).contains("证据还不够");
+    }
+
+    @Test
+    void safetyResetWhenStudentAnswerContainsAnswerLikeContent() {
+        createAssignment(7L, Assignment.HintPolicy.L2);
+        createSubmission(17L, 7L, Submission.Verdict.WRONG_ANSWER);
+        createAnalysis(17L, "[\"LOOP_BOUNDARY\"]", "[\"OFF_BY_ONE\"]", "[\"code:plus_minus_one\"]");
+        service.generateNextQuestion(17L);
+        CoachReplyRequest request = new CoachReplyRequest();
+        request.setAnswer("答案就是直接改成完整代码。");
+
+        CoachPromptResponse next = service.replyAndGenerateNext(17L, request);
+
+        assertThat(next.getAdaptiveStrategySignal()).isNotNull();
+        assertThat(next.getAdaptiveStrategySignal().getStrategy()).isEqualTo("SAFETY_RESET");
+        assertThat(next.getAdaptiveStrategySignal().isNeedsTeacherAttention()).isTrue();
+        assertThat(next.getEvidenceRefs()).contains(
+                "coach-strategy:SAFETY_RESET",
+                "coach-adaptive:answer_quality:SAFETY_RISK"
+        );
+        assertThat(next.getQuestion()).contains("输入特征").doesNotContain("完整代码即可");
+        assertThat(next.getTurns().get(0).getCoachFeedback()).contains("证据层");
     }
 
     private void createAssignment(Long id, Assignment.HintPolicy policy) {
@@ -194,6 +268,18 @@ class CoachPromptServiceTest {
     }
 
     private void createAnalysis(Long submissionId, String issueTags, String fineTags, String evidenceRefs, String evidenceJson) {
+        createAnalysis(submissionId, issueTags, fineTags, evidenceRefs, evidenceJson, null);
+    }
+
+    private void createAnalysis(Long submissionId,
+                                String issueTags,
+                                String fineTags,
+                                String evidenceRefs,
+                                String evidenceJson,
+                                String extraReportJsonFields) {
+        String extraFields = extraReportJsonFields == null || extraReportJsonFields.isBlank()
+                ? ""
+                : ",\n" + extraReportJsonFields;
         analysisRepository.items.put(submissionId, SubmissionAnalysis.builder()
                 .submissionId(submissionId)
                 .analysisSource("RULE_BASED_V1")
@@ -205,9 +291,9 @@ class CoachPromptServiceTest {
                         {
                           "issueTags": %s,
                           "fineGrainedTags": %s,
-                          "evidenceRefs": %s
+                          "evidenceRefs": %s%s
                         }
-                        """.formatted(issueTags, fineTags, evidenceRefs))
+                        """.formatted(issueTags, fineTags, evidenceRefs, extraFields))
                 .evidenceJson(evidenceJson)
                 .build());
     }

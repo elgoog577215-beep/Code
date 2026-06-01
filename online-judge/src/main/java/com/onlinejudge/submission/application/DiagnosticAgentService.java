@@ -67,6 +67,7 @@ public class DiagnosticAgentService {
         enhanced.setIssueTags(diagnosisTaxonomy.normalizeIssueTags(enhanced.getIssueTags()));
         enhanced.setFineGrainedTags(diagnosisTaxonomy.normalizeFineGrainedTags(enhanced.getFineGrainedTags()));
         enhanced = applyLowConfidenceGuard(enhanced);
+        enhanced = applyTeacherCalibration(enhanced, evidencePackage, ruleSignals);
         SubmissionAnalysisResponse.LearningTrajectorySignal trajectorySignal =
                 resolveLearningTrajectory(enhanced, evidencePackage);
         enhanced.setLearningTrajectorySignal(trajectorySignal);
@@ -645,6 +646,166 @@ public class DiagnosticAgentService {
             analysis.setUncertainty(analysis.getUncertainty() + " " + lowConfidenceNote);
         }
         return analysis;
+    }
+
+    private SubmissionAnalysisResponse applyTeacherCalibration(SubmissionAnalysisResponse analysis,
+                                                               DiagnosisEvidencePackage evidencePackage,
+                                                               RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        if (analysis == null || evidencePackage == null || evidencePackage.getLearningMemory() == null) {
+            return analysis;
+        }
+        DiagnosisEvidencePackage.TeacherCalibrationPattern pattern =
+                selectTeacherCalibrationPattern(evidencePackage.getLearningMemory().getTeacherCalibrationPatterns(), analysis, ruleSignals);
+        if (pattern == null) {
+            return analysis;
+        }
+        List<String> calibrationRefs = pattern.getEvidenceRefs() == null ? List.of() : pattern.getEvidenceRefs();
+        boolean correctedPresent = containsTag(analysis, pattern.getCorrectedIssueTag(), pattern.getCorrectedFineGrainedTag());
+        boolean originalPresent = containsTag(analysis, pattern.getOriginalIssueTag(), pattern.getOriginalFineGrainedTag());
+        String status;
+        double confidenceAdjustment = 0.0;
+        boolean needsTeacherReview = false;
+        String recommendedAction;
+        if (correctedPresent) {
+            status = "SUPPORTED";
+            recommendedAction = "当前诊断已参考教师校正方向，继续用当前提交证据验证即可。";
+            analysis.setEvidenceRefs(DiagnosisListSupport.deduplicate(mergeLists(analysis.getEvidenceRefs(), calibrationRefs)));
+        } else if (originalPresent && hasCorrectedTag(pattern)) {
+            status = "CONFLICT_NEEDS_REVIEW";
+            confidenceAdjustment = -0.15;
+            needsTeacherReview = true;
+            recommendedAction = "这次诊断命中了教师曾修正过的原始错因，请教师优先复核当前证据是否应改判为教师修正标签。";
+            analysis.setEvidenceRefs(DiagnosisListSupport.deduplicate(mergeLists(analysis.getEvidenceRefs(), calibrationRefs)));
+            analysis.setConfidence(adjustConfidence(analysis.getConfidence(), confidenceAdjustment));
+            analysis.setUncertainty(appendSentence(
+                    analysis.getUncertainty(),
+                    "教师校准提示：历史中该类诊断曾被教师修正，当前结论需要复核后再作为稳定错因。"
+            ));
+            analysis.setTeacherNote(appendSentence(
+                    analysis.getTeacherNote(),
+                    "教师校准冲突：系统仍命中曾被修正的原始标签，建议核对当前证据是否更符合 "
+                            + firstNonBlank(pattern.getCorrectedFineGrainedTag(), pattern.getCorrectedIssueTag()) + "。"
+            ));
+        } else {
+            status = "APPLIED";
+            recommendedAction = "存在相关教师校正记忆，当前诊断应把教师修正标签作为辅助观察方向。";
+            analysis.setEvidenceRefs(DiagnosisListSupport.deduplicate(mergeLists(analysis.getEvidenceRefs(), calibrationRefs)));
+        }
+        analysis.setTeacherCalibrationSignal(SubmissionAnalysisResponse.TeacherCalibrationSignal.builder()
+                .status(status)
+                .summary(teacherCalibrationSummary(status, pattern))
+                .originalIssueTag(blankToNull(pattern.getOriginalIssueTag()))
+                .originalFineGrainedTag(blankToNull(pattern.getOriginalFineGrainedTag()))
+                .correctedIssueTag(blankToNull(pattern.getCorrectedIssueTag()))
+                .correctedFineGrainedTag(blankToNull(pattern.getCorrectedFineGrainedTag()))
+                .correctionCount(pattern.getCorrectionCount())
+                .confidenceAdjustment(confidenceAdjustment)
+                .evidenceRefs(calibrationRefs)
+                .recommendedAction(recommendedAction)
+                .needsTeacherReview(needsTeacherReview)
+                .build());
+        return analysis;
+    }
+
+    private DiagnosisEvidencePackage.TeacherCalibrationPattern selectTeacherCalibrationPattern(
+            List<DiagnosisEvidencePackage.TeacherCalibrationPattern> patterns,
+            SubmissionAnalysisResponse analysis,
+            RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        if (patterns == null || patterns.isEmpty()) {
+            return null;
+        }
+        return patterns.stream()
+                .filter(pattern -> pattern != null && hasCorrectedTag(pattern))
+                .sorted((left, right) -> Integer.compare(
+                        teacherCalibrationScore(right, analysis, ruleSignals),
+                        teacherCalibrationScore(left, analysis, ruleSignals)))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private int teacherCalibrationScore(DiagnosisEvidencePackage.TeacherCalibrationPattern pattern,
+                                        SubmissionAnalysisResponse analysis,
+                                        RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        int score = 0;
+        if (containsTag(analysis, pattern.getCorrectedIssueTag(), pattern.getCorrectedFineGrainedTag())) {
+            score += 80;
+        }
+        if (containsTag(analysis, pattern.getOriginalIssueTag(), pattern.getOriginalFineGrainedTag())) {
+            score += 70;
+        }
+        if (ruleSignals != null) {
+            if (tagListContains(ruleSignals.getCandidateIssueTags(), pattern.getCorrectedIssueTag())
+                    || tagListContains(ruleSignals.getCandidateFineGrainedTags(), pattern.getCorrectedFineGrainedTag())) {
+                score += 50;
+            }
+            if (tagListContains(ruleSignals.getCandidateIssueTags(), pattern.getOriginalIssueTag())
+                    || tagListContains(ruleSignals.getCandidateFineGrainedTags(), pattern.getOriginalFineGrainedTag())) {
+                score += 45;
+            }
+        }
+        long count = pattern.getCorrectionCount() == null ? 0L : pattern.getCorrectionCount();
+        score += (int) Math.min(20L, count * 5L);
+        return score;
+    }
+
+    private boolean containsTag(SubmissionAnalysisResponse analysis, String issueTag, String fineTag) {
+        return tagListContains(analysis == null ? null : analysis.getIssueTags(), issueTag)
+                || tagListContains(analysis == null ? null : analysis.getFineGrainedTags(), fineTag);
+    }
+
+    private boolean tagListContains(List<String> tags, String tag) {
+        if (tags == null || tag == null || tag.isBlank()) {
+            return false;
+        }
+        return tags.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .anyMatch(value -> value.equalsIgnoreCase(tag));
+    }
+
+    private boolean hasCorrectedTag(DiagnosisEvidencePackage.TeacherCalibrationPattern pattern) {
+        return pattern != null
+                && ((pattern.getCorrectedIssueTag() != null && !pattern.getCorrectedIssueTag().isBlank())
+                || (pattern.getCorrectedFineGrainedTag() != null && !pattern.getCorrectedFineGrainedTag().isBlank()));
+    }
+
+    private Double adjustConfidence(Double confidence, double adjustment) {
+        double base = confidence == null ? 0.62 : confidence;
+        return Math.max(0.35, Math.min(0.95, base + adjustment));
+    }
+
+    private String teacherCalibrationSummary(String status, DiagnosisEvidencePackage.TeacherCalibrationPattern pattern) {
+        String corrected = firstNonBlank(pattern.getCorrectedFineGrainedTag(), pattern.getCorrectedIssueTag());
+        String original = firstNonBlank(pattern.getOriginalFineGrainedTag(), pattern.getOriginalIssueTag());
+        long count = pattern.getCorrectionCount() == null ? 0L : pattern.getCorrectionCount();
+        return switch (status) {
+            case "SUPPORTED" -> "教师校准支持当前诊断：历史中 " + count + " 次校正指向 " + corrected + "。";
+            case "CONFLICT_NEEDS_REVIEW" -> "教师校准与当前诊断存在冲突：历史曾将 " + original + " 修正为 " + corrected + "。";
+            default -> "教师校准已作为辅助观察方向：优先关注 " + corrected + "。";
+        };
+    }
+
+    private String appendSentence(String current, String sentence) {
+        if (sentence == null || sentence.isBlank()) {
+            return current;
+        }
+        if (current == null || current.isBlank()) {
+            return sentence;
+        }
+        if (current.contains(sentence)) {
+            return current;
+        }
+        return current + " " + sentence;
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        return second == null ? "" : second;
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private SubmissionAnalysisResponse.LearningTrajectorySignal resolveLearningTrajectory(

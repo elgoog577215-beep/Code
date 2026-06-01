@@ -149,6 +149,11 @@ public class ClassroomController {
         return ResponseEntity.ok(classroomService.getDiagnosisEvalCandidates(assignmentId));
     }
 
+    @GetMapping("/api/teacher/assignments/{assignmentId}/diagnosis-eval-fixture-draft")
+    public ResponseEntity<DiagnosisEvalFixtureDraftResponse> exportDiagnosisEvalFixtureDraft(@PathVariable Long assignmentId) {
+        return ResponseEntity.ok(classroomService.exportDiagnosisEvalFixtureDraft(assignmentId));
+    }
+
     @GetMapping("/api/teacher/diagnosis-tags")
     public ResponseEntity<List<DiagnosisTagResponse>> getDiagnosisTags() {
         return ResponseEntity.ok(diagnosisTaxonomy.allTags()

@@ -124,6 +124,24 @@ public class DiagnosisEvidencePackage {
         private String recentTrend;
         private String interventionEffect;
         private String teacherCorrectionSummary;
+        private TeacherCalibrationPattern teacherCalibrationSignal;
+        private List<TeacherCalibrationPattern> teacherCalibrationPatterns;
+        private List<String> evidenceRefs;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TeacherCalibrationPattern {
+        private String originalIssueTag;
+        private String originalFineGrainedTag;
+        private String correctedIssueTag;
+        private String correctedFineGrainedTag;
+        private Long correctionCount;
+        private Long evalCandidateCount;
+        private String latestTeacherNote;
+        private List<Long> evidenceSubmissionIds;
         private List<String> evidenceRefs;
     }
 

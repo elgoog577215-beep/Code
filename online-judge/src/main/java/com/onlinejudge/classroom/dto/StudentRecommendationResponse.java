@@ -20,11 +20,17 @@ public class StudentRecommendationResponse {
         private String title;
         private String reason;
         private String actionLabel;
+        private Long assignmentId;
         private Long problemId;
         private String problemTitle;
         private String focusAbility;
         private List<String> focusTags;
         private List<Long> evidenceProblemIds;
+        private String learningHypothesis;
+        private String expectedCompletionSignal;
+        private String strategy;
+        private String riskLevel;
+        private String fallbackAction;
         private int priority;
     }
 }

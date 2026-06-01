@@ -44,18 +44,41 @@ class RecommendationEffectivenessServiceTest {
         assertThat(overview.getAcceptedFollowupCount()).isEqualTo(1);
         assertThat(overview.getSameFocusIssueCount()).isEqualTo(1);
         assertThat(overview.getClickedWithoutSubmissionCount()).isEqualTo(1);
+        assertThat(overview.getUnresolvedLearningSignalCount()).isEqualTo(1);
+        assertThat(overview.getTeacherInterventionRecommendedCount()).isZero();
         assertThat(overview.getClickThroughRate()).isEqualTo(100.0);
         assertThat(overview.getFollowupSubmissionRate()).isEqualTo(66.7);
         assertThat(overview.getAcceptedFollowupRate()).isEqualTo(50.0);
         assertThat(overview.getSameFocusIssueRate()).isEqualTo(50.0);
-        assertThat(overview.getSummary()).contains("推荐后已有 1 次后续提交通过");
+        assertThat(overview.getSummary()).contains("下一轮应降级复盘");
         assertThat(overview.getByType()).extracting("key").contains("REDO", "NEXT_PROBLEM", "REVIEW");
+        assertThat(overview.getByStrategy()).extracting("key")
+                .contains("REPAIR_SAME_PROBLEM", "TRANSFER_TO_NEW_PROBLEM", "REFLECTION_EVIDENCE");
         assertThat(overview.getFocusTags()).extracting("key").contains("OFF_BY_ONE", "INPUT_PARSING", "COMPLEXITY");
         assertThat(overview.getFocusTags().stream()
                 .filter(item -> "OFF_BY_ONE".equals(item.getKey()))
                 .findFirst()
                 .orElseThrow()
                 .getSameFocusIssueCount()).isEqualTo(1);
+        assertThat(overview.getFeedbackSignals()).extracting("signal")
+                .contains("UNRESOLVED_SAME_FOCUS", "CLICKED_WITHOUT_SUBMISSION");
+        assertThat(overview.getActionEvidenceSignals()).extracting("outcome")
+                .contains(
+                        RecommendationActionEvidenceAnalyzer.OUTCOME_UNRESOLVED_SAME_FOCUS,
+                        RecommendationActionEvidenceAnalyzer.OUTCOME_CONTRACT_FULFILLED,
+                        RecommendationActionEvidenceAnalyzer.OUTCOME_NO_FOLLOWUP_SUBMISSION
+                );
+        assertThat(overview.getActionEvidenceSignals()).filteredOn(signal -> "rec-redo".equals(signal.getRecommendationToken()))
+                .first()
+                .satisfies(signal -> {
+                    assertThat(signal.getOutcome()).isEqualTo(RecommendationActionEvidenceAnalyzer.OUTCOME_UNRESOLVED_SAME_FOCUS);
+                    assertThat(signal.getRecommendedAdjustment()).contains("最小样例");
+                    assertThat(signal.getEvidenceRefs()).contains(
+                            "recommendation:rec-redo",
+                            "recommendation-outcome:UNRESOLVED_SAME_FOCUS",
+                            "submission:9001"
+                    );
+                });
     }
 
     @Test
@@ -69,6 +92,129 @@ class RecommendationEffectivenessServiceTest {
         assertThat(overview.getClickedWithoutSubmissionCount()).isEqualTo(1);
         assertThat(overview.getSummary()).contains("尚未提交");
         assertThat(overview.getFocusTags()).extracting("key").contains("OFF_BY_ONE", "BOUNDARY");
+        assertThat(overview.getActionEvidenceSignals()).first()
+                .satisfies(signal -> assertThat(signal.getOutcome())
+                        .isEqualTo(RecommendationActionEvidenceAnalyzer.OUTCOME_NO_FOLLOWUP_SUBMISSION));
+    }
+
+    @Test
+    void reportsHighRiskUnresolvedRecommendationAsTeacherInterventionSignal() {
+        eventRepository.items.add(event(
+                "rec-step-down",
+                "REVIEW",
+                "STEP_DOWN_REVIEW",
+                "HIGH",
+                StudentRecommendationEventService.EVENT_EXPOSED,
+                "[\"OFF_BY_ONE\"]",
+                null,
+                null
+        ));
+        eventRepository.items.add(event(
+                "rec-step-down",
+                "REVIEW",
+                "STEP_DOWN_REVIEW",
+                "HIGH",
+                StudentRecommendationEventService.EVENT_SUBMITTED,
+                "[\"OFF_BY_ONE\"]",
+                Submission.Verdict.WRONG_ANSWER.name(),
+                "OFF_BY_ONE"
+        ));
+
+        var overview = service.buildOverview();
+
+        assertThat(overview.getUnresolvedLearningSignalCount()).isEqualTo(1);
+        assertThat(overview.getTeacherInterventionRecommendedCount()).isEqualTo(1);
+        assertThat(overview.getByStrategy()).first().satisfies(segment -> {
+            assertThat(segment.getKey()).isEqualTo("STEP_DOWN_REVIEW");
+            assertThat(segment.getTeacherInterventionRecommendedCount()).isEqualTo(1);
+            assertThat(segment.getUnresolvedLearningSignalCount()).isEqualTo(1);
+        });
+        assertThat(overview.getFeedbackSignals()).first().satisfies(signal -> {
+            assertThat(signal.getSignal()).isEqualTo("UNRESOLVED_SAME_FOCUS");
+            assertThat(signal.getSeverity()).isEqualTo("HIGH");
+            assertThat(signal.getRecommendedAction()).contains("教师介入");
+            assertThat(signal.getEvidenceTokens()).contains("rec-step-down");
+        });
+        assertThat(overview.getActionEvidenceSignals()).first().satisfies(signal -> {
+            assertThat(signal.getOutcome()).isEqualTo(RecommendationActionEvidenceAnalyzer.OUTCOME_UNRESOLVED_SAME_FOCUS);
+            assertThat(signal.isNeedsTeacherAttention()).isTrue();
+            assertThat(signal.getRecommendedAdjustment()).contains("教师介入");
+        });
+    }
+
+    @Test
+    void actionEvidenceWaitsForDiagnosisWhenFollowupHasNoTagsYet() {
+        eventRepository.items.add(event(
+                "rec-waiting",
+                "NEXT_PROBLEM",
+                "TRANSFER_TO_NEW_PROBLEM",
+                "MEDIUM",
+                StudentRecommendationEventService.EVENT_EXPOSED,
+                "[\"OFF_BY_ONE\"]",
+                null,
+                null
+        ));
+        eventRepository.items.add(event(
+                "rec-waiting",
+                "NEXT_PROBLEM",
+                "TRANSFER_TO_NEW_PROBLEM",
+                "MEDIUM",
+                StudentRecommendationEventService.EVENT_SUBMITTED,
+                "[\"OFF_BY_ONE\"]",
+                Submission.Verdict.WRONG_ANSWER.name(),
+                null
+        ));
+
+        var overview = service.buildOverview();
+
+        assertThat(overview.getActionEvidenceSignals()).first().satisfies(signal -> {
+            assertThat(signal.getOutcome()).isEqualTo(RecommendationActionEvidenceAnalyzer.OUTCOME_WAITING_DIAGNOSIS);
+            assertThat(signal.getSummary()).contains("诊断标签尚未回填");
+        });
+    }
+
+    @Test
+    void canScopeRecommendationEffectivenessByAssignment() {
+        eventRepository.items.add(event(
+                "rec-current",
+                "REVIEW",
+                "STEP_DOWN_REVIEW",
+                "HIGH",
+                7L,
+                StudentRecommendationEventService.EVENT_EXPOSED,
+                "[\"OFF_BY_ONE\"]",
+                null,
+                null
+        ));
+        eventRepository.items.add(event(
+                "rec-current",
+                "REVIEW",
+                "STEP_DOWN_REVIEW",
+                "HIGH",
+                7L,
+                StudentRecommendationEventService.EVENT_SUBMITTED,
+                "[\"OFF_BY_ONE\"]",
+                Submission.Verdict.WRONG_ANSWER.name(),
+                "OFF_BY_ONE"
+        ));
+        eventRepository.items.add(event(
+                "rec-other",
+                "REVIEW",
+                "STEP_DOWN_REVIEW",
+                "HIGH",
+                8L,
+                StudentRecommendationEventService.EVENT_SUBMITTED,
+                "[\"OFF_BY_ONE\"]",
+                Submission.Verdict.WRONG_ANSWER.name(),
+                "OFF_BY_ONE"
+        ));
+
+        var overview = service.buildOverview(7L);
+
+        assertThat(overview.getUniqueRecommendationCount()).isEqualTo(1);
+        assertThat(overview.getUnresolvedLearningSignalCount()).isEqualTo(1);
+        assertThat(overview.getFeedbackSignals()).first()
+                .satisfies(signal -> assertThat(signal.getEvidenceTokens()).contains("rec-current").doesNotContain("rec-other"));
     }
 
     private StudentRecommendationEvent event(String token,
@@ -77,13 +223,30 @@ class RecommendationEffectivenessServiceTest {
                                              String focusTags,
                                              String verdict,
                                              String issueTag) {
+        return event(token, type, strategyForType(type), "MEDIUM", eventType, focusTags, verdict, issueTag);
+    }
+
+    private StudentRecommendationEvent event(String token,
+                                             String type,
+                                             String strategy,
+                                             String riskLevel,
+                                             String eventType,
+                                             String focusTags,
+                                             String verdict,
+                                             String issueTag) {
         return StudentRecommendationEvent.builder()
                 .recommendationToken(token)
                 .studentProfileId(41L)
                 .type(type)
+                .assignmentId(7L)
                 .problemId(101L)
                 .focusAbility("Boundary reasoning")
                 .focusTags(focusTags)
+                .strategy(strategy)
+                .learningHypothesis("验证推荐学习假设")
+                .expectedCompletionSignal("后续提交不再命中同类错因")
+                .riskLevel(riskLevel)
+                .fallbackAction("降级复盘")
                 .eventType(eventType)
                 .followupSubmissionId(StudentRecommendationEventService.EVENT_SUBMITTED.equals(eventType) ? 9001L : null)
                 .followupVerdict(verdict)
@@ -91,6 +254,29 @@ class RecommendationEffectivenessServiceTest {
                 .followupFineGrainedTag(issueTag)
                 .createdAt(LocalDateTime.of(2026, 5, 19, 10, 0).plusMinutes(eventRepository.items.size()))
                 .build();
+    }
+
+    private StudentRecommendationEvent event(String token,
+                                             String type,
+                                             String strategy,
+                                             String riskLevel,
+                                             Long assignmentId,
+                                             String eventType,
+                                             String focusTags,
+                                             String verdict,
+                                             String issueTag) {
+        StudentRecommendationEvent event = event(token, type, strategy, riskLevel, eventType, focusTags, verdict, issueTag);
+        event.setAssignmentId(assignmentId);
+        return event;
+    }
+
+    private String strategyForType(String type) {
+        return switch (type) {
+            case "REDO" -> "REPAIR_SAME_PROBLEM";
+            case "NEXT_PROBLEM" -> "TRANSFER_TO_NEW_PROBLEM";
+            case "REVIEW" -> "REFLECTION_EVIDENCE";
+            default -> null;
+        };
     }
 
     private static class FakeStudentRecommendationEventRepository extends UnsupportedJpaRepository<StudentRecommendationEvent, Long>
@@ -108,6 +294,15 @@ class RecommendationEffectivenessServiceTest {
         @Override
         public List<StudentRecommendationEvent> findTop500ByOrderByCreatedAtDesc() {
             return items.stream()
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .limit(500)
+                    .toList();
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findTop500ByAssignmentIdOrderByCreatedAtDesc(Long assignmentId) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
                     .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
                     .limit(500)
                     .toList();

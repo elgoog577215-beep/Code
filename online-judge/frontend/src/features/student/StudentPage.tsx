@@ -3,7 +3,7 @@ import { ArrowRight, CheckCircle2, KeyRound, UserRound } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, StudentProfile, StudentTrajectory } from "../../shared/api/types";
-import { difficultyLabel, issueLabel, learningStageLabel, verdictLabel } from "../../shared/format";
+import { difficultyLabel, issueLabel, learningStageLabel, postAcTransferPhaseLabel, verdictLabel } from "../../shared/format";
 import { loadInviteCode, loadStudent, saveInviteCode, saveStudent } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -62,6 +62,30 @@ export default function StudentPage() {
     }
     return assignment.title.includes("试点任务") ? "课堂编程作业" : assignment.title;
   }, [assignment]);
+
+  const trajectoryTaskByProblemId = useMemo(() => {
+    const tasks = new Map<number, StudentTrajectory["tasks"][number]>();
+    trajectory?.tasks.forEach(task => tasks.set(task.problemId, task));
+    return tasks;
+  }, [trajectory]);
+
+  const nextTask = useMemo(() => {
+    if (!assignment?.tasks.length) {
+      return null;
+    }
+    const pendingTrajectoryTask = trajectory?.tasks.find(task => !task.passed) || trajectory?.tasks[0] || null;
+    if (!pendingTrajectoryTask) {
+      return assignment.tasks[0];
+    }
+    return assignment.tasks.find(task => task.problemId === pendingTrajectoryTask.problemId) || assignment.tasks[0];
+  }, [assignment, trajectory]);
+
+  const postAcTransferTask = useMemo(() => {
+    if (!trajectory?.postAcTransferSignal?.problemId) {
+      return nextTask;
+    }
+    return assignment?.tasks.find(task => task.problemId === trajectory.postAcTransferSignal?.problemId) || nextTask;
+  }, [assignment, nextTask, trajectory]);
 
   async function resolveInvite(rawCode = inviteCode) {
     const code = rawCode.trim();
@@ -192,6 +216,16 @@ export default function StudentPage() {
           title={assignmentTitle}
           action={<StatusPill tone={student ? "success" : "neutral"}>{student ? "身份已确认" : "先确认身份"}</StatusPill>}
         >
+          {student && (
+            <div className="student-identity-strip">
+              <span>
+                <CheckCircle2 size={15} /> {student.displayName}
+              </span>
+              <span>{className || student.className || "未填写班级"}</span>
+              <span>{student.studentNo ? `座号 ${student.studentNo}` : "座号未填写"}</span>
+            </div>
+          )}
+
           <div className="student-assignment-meta">
             <span>{assignment.tasks.length} 个题目</span>
             <span>邀请码 {assignment.inviteCode}</span>
@@ -202,17 +236,20 @@ export default function StudentPage() {
           ) : (
             <div className="student-task-list">
               {assignment.tasks.map((task, index) => {
+                const taskState = trajectoryTaskByProblemId.get(task.problemId);
                 const query = new URLSearchParams();
                 query.set("assignmentId", String(assignment.id));
                 if (student) {
                   query.set("studentProfileId", String(student.id));
                 }
+                const actionLabel = !student ? "先确认身份" : taskState?.attemptCount ? "继续" : "开始";
                 return (
                   <article className="task-card task-card--learning student-task-card" key={task.problemId}>
                     <div>
                       <div className="student-task-meta-line">
                         <span>题目 {index + 1}</span>
                         <span>{difficultyLabel(task.difficulty)}</span>
+                        {taskState?.latestVerdict && <VerdictPill verdict={taskState.latestVerdict} />}
                       </div>
                       <h3>{task.title}</h3>
                     </div>
@@ -222,7 +259,7 @@ export default function StudentPage() {
                       disabled={!student}
                       icon={<ArrowRight size={18} />}
                     >
-                      {student ? "开始" : "先确认身份"}
+                      {actionLabel}
                     </ButtonLink>
                   </article>
                 );
@@ -234,33 +271,66 @@ export default function StudentPage() {
         {student && (
         <aside className="student-side-flow">
           <Panel
-            title="学生信息"
-            action={<StatusPill tone="success"><CheckCircle2 size={15} /> 已确认</StatusPill>}
+            title="学习状态"
+            action={<StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? learningStageLabel(trajectory.stageTransition) : "等待提交"}</StatusPill>}
           >
-            <div className="student-identity-summary">
-              <div>
-                <span>姓名</span>
-                <strong>{student.displayName}</strong>
-              </div>
-              <div>
-                <span>班级</span>
-                <strong>{className || student.className || "未填写"}</strong>
-              </div>
-              <div>
-                <span>学号/座号</span>
-                <strong>{student.studentNo || "未填写"}</strong>
-              </div>
-            </div>
-          </Panel>
-
-          <Panel
-            title="提交结果"
-              action={<StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? learningStageLabel(trajectory.stageTransition) : "等待提交"}</StatusPill>}
-            >
               {!trajectory ? (
-                <EmptyState title="还没有提交记录" />
+                <div className="stack">
+                  {nextTask && (
+                    <div className="student-next-action">
+                      <span>下一步</span>
+                      <strong>{nextTask.title}</strong>
+                      <ButtonLink
+                        to={`/app/problem/${nextTask.problemId}?assignmentId=${assignment.id}&studentProfileId=${student.id}`}
+                        variant="primary"
+                        icon={<ArrowRight size={16} />}
+                      >
+                        开始
+                      </ButtonLink>
+                    </div>
+                  )}
+                  <EmptyState title="还没有提交记录" />
+                </div>
               ) : (
                 <div className="stack">
+                  {nextTask && (
+                    <div className="student-next-action">
+                      <span>{trajectory.nextStep ? "当前处理项" : "下一步"}</span>
+                      <strong>
+                        {trajectory.repeatedFineGrainedTag
+                          ? issueLabel(trajectory.repeatedFineGrainedTag)
+                          : trajectory.repeatedIssueTag
+                            ? issueLabel(trajectory.repeatedIssueTag)
+                            : trajectory.nextStep
+                              ? learningStageLabel(trajectory.nextStep)
+                              : nextTask.title}
+                      </strong>
+                      <ButtonLink
+                        to={`/app/problem/${nextTask.problemId}?assignmentId=${assignment.id}&studentProfileId=${student.id}`}
+                        variant="primary"
+                        icon={<ArrowRight size={16} />}
+                      >
+                        {trajectory.tasks.find(task => task.problemId === nextTask.problemId)?.attemptCount ? "继续" : "开始"}
+                      </ButtonLink>
+                    </div>
+                  )}
+                  {trajectory.postAcTransferSignal &&
+                    ["JUST_ACCEPTED", "REFLECTION_NEEDED"].includes((trajectory.postAcTransferSignal.phase || "").toUpperCase()) && (
+                      <div className="student-transfer-action">
+                        <span>{postAcTransferPhaseLabel(trajectory.postAcTransferSignal.phase)}</span>
+                        <strong>{trajectory.postAcTransferSignal.problemTitle || postAcTransferTask?.title || "通过后复盘"}</strong>
+                        <p>{trajectory.postAcTransferSignal.recommendedAction || trajectory.postAcTransferSignal.summary}</p>
+                        {postAcTransferTask && (
+                          <ButtonLink
+                            to={`/app/problem/${postAcTransferTask.problemId}?assignmentId=${assignment.id}&studentProfileId=${student.id}`}
+                            variant="secondary"
+                            icon={<ArrowRight size={16} />}
+                          >
+                            复盘
+                          </ButtonLink>
+                        )}
+                      </div>
+                    )}
                   <div className="student-record-summary">
                     <div>
                       <span>任务完成</span>
@@ -296,8 +366,11 @@ export default function StudentPage() {
                       <strong>{trajectory.latestCoachInteraction.answered ? "已回答" : "待回答"}</strong>
                     </div>
                   )}
-                  <div className="student-latest-status">
-                    <h3>每题状态</h3>
+                  <details className="student-latest-status">
+                    <summary>
+                      <span>每题状态</span>
+                      <StatusPill tone="neutral">{trajectory.tasks.length} 题</StatusPill>
+                    </summary>
                     {trajectory.tasks.map(task => (
                       <div className="list-row" key={task.problemId}>
                         <div className="actions">
@@ -308,9 +381,12 @@ export default function StudentPage() {
                         <p>
                           {task.attemptCount} 次尝试 · {task.latestHint ? learningStageLabel(task.latestHint) : verdictLabel(task.latestVerdict)}
                         </p>
+                        {task.postAcTransferSignal && task.postAcTransferSignal.phase !== "NOT_ACCEPTED" && (
+                          <small>{postAcTransferPhaseLabel(task.postAcTransferSignal.phase)}</small>
+                        )}
                       </div>
                     ))}
-                  </div>
+                  </details>
                 </div>
               )}
             </Panel>

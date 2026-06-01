@@ -47,7 +47,16 @@ class StudentRecommendationServiceTest {
             new CoachInteractionAnalyzer(coachPromptRepository, new CoachAnswerQualityAnalyzer()),
             new StudentIdentityService(),
             recommendationEventRepository,
-            new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
+            new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+            new RecurringMisconceptionAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+            new SelfExplanationMasteryAnalyzer(new CoachAnswerQualityAnalyzer()),
+            new AiDependencyAnalyzer(),
+            new MasteryGrowthAnalyzer(
+                    new DiagnosisReportReader(objectMapper, taxonomy),
+                    taxonomy,
+                    new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
+            ),
+            new TeachingActionOrchestrator()
     );
     private final StudentRecommendationEventService recommendationEventService = new StudentRecommendationEventService(
             recommendationEventRepository,
@@ -59,7 +68,19 @@ class StudentRecommendationServiceTest {
             abilityProfileService,
             problemRepository,
             submissionRepository,
-            recommendationEventService
+            analysisRepository,
+            new CoachInteractionAnalyzer(coachPromptRepository, new CoachAnswerQualityAnalyzer()),
+            recommendationEventService,
+            new PostAcTransferAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+            new RecurringMisconceptionAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+            new SelfExplanationMasteryAnalyzer(new CoachAnswerQualityAnalyzer()),
+            new AiDependencyAnalyzer(),
+            new MasteryGrowthAnalyzer(
+                    new DiagnosisReportReader(objectMapper, taxonomy),
+                    taxonomy,
+                    new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
+            ),
+            new TeachingActionOrchestrator()
     );
 
     @Test
@@ -76,8 +97,18 @@ class StudentRecommendationServiceTest {
         assertThat(response.getRecommendations()).extracting("type")
                 .containsExactly("REDO", "NEXT_PROBLEM", "REVIEW");
         assertThat(response.getRecommendations().get(0).getProblemId()).isEqualTo(101L);
+        assertThat(response.getRecommendations().get(0).getAssignmentId()).isEqualTo(7L);
         assertThat(response.getRecommendations().get(1).getProblemId()).isEqualTo(102L);
         assertThat(response.getRecommendations().get(1).getFocusTags()).contains("数组", "边界漏判");
+        assertThat(response.getRecommendations()).allSatisfy(item -> {
+            assertThat(item.getLearningHypothesis()).isNotBlank();
+            assertThat(item.getExpectedCompletionSignal()).isNotBlank();
+            assertThat(item.getStrategy()).isNotBlank();
+            assertThat(item.getRiskLevel()).isNotBlank();
+            assertThat(item.getFallbackAction()).isNotBlank();
+        });
+        assertThat(response.getRecommendations()).extracting("strategy")
+                .containsExactly("REPAIR_SAME_PROBLEM", "TRANSFER_TO_NEW_PROBLEM", "REFLECTION_EVIDENCE");
     }
 
     @Test
@@ -113,9 +144,187 @@ class StudentRecommendationServiceTest {
                 .first()
                 .satisfies(item -> {
                     assertThat(item.getFollowupSubmissionId()).isEqualTo(12L);
+                    assertThat(item.getAssignmentId()).isEqualTo(7L);
                     assertThat(item.getFollowupVerdict()).isEqualTo(Submission.Verdict.ACCEPTED.name());
                     assertThat(item.getFollowupFineGrainedTag()).isEqualTo("OFF_BY_ONE");
+                    assertThat(item.getStrategy()).isEqualTo("REPAIR_SAME_PROBLEM");
+                    assertThat(item.getLearningHypothesis()).contains("同题重做");
+                    assertThat(item.getExpectedCompletionSignal()).contains("同题后续提交通过");
+                    assertThat(item.getFallbackAction()).contains("降级");
                 });
+    }
+
+    @Test
+    void unresolvedRecommendationOutcomeStepsDownToReviewBeforeMorePractice() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+        problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(11L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        recommendationEventRepository.items.add(StudentRecommendationEvent.builder()
+                .recommendationToken("old-rec")
+                .studentProfileId(1L)
+                .type("REDO")
+                .problemId(101L)
+                .focusAbility("循环与边界")
+                .focusTags("[\"OFF_BY_ONE\"]")
+                .strategy("REPAIR_SAME_PROBLEM")
+                .riskLevel("MEDIUM")
+                .eventType(StudentRecommendationEventService.EVENT_SUBMITTED)
+                .followupSubmissionId(10L)
+                .followupVerdict(Submission.Verdict.WRONG_ANSWER.name())
+                .followupIssueTag("BOUNDARY_CONDITION")
+                .followupFineGrainedTag("OFF_BY_ONE")
+                .createdAt(LocalDateTime.of(2026, 5, 18, 9, 30))
+                .build());
+
+        var response = service.recommend(1L);
+
+        assertThat(response.getSummary()).contains("先降级到复盘");
+        assertThat(response.getRecommendations().get(0)).satisfies(item -> {
+            assertThat(item.getType()).isEqualTo("REVIEW");
+            assertThat(item.getStrategy()).isEqualTo("STEP_DOWN_REVIEW");
+            assertThat(item.getRiskLevel()).isEqualTo("HIGH");
+            assertThat(item.getLearningHypothesis()).contains("仍卡在同类错因");
+            assertThat(item.getFallbackAction()).contains("教师介入");
+        });
+    }
+
+    @Test
+    void acceptedProblemWithoutReflectionEvidenceGetsPostAcRecommendation() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+        problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 8));
+        submissionRepository.items.add(submission(12L, 1L, 101L, 7L, Submission.Verdict.ACCEPTED, 1));
+        analysisRepository.save(analysis(11L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+
+        var response = service.recommend(1L);
+
+        assertThat(response.getRecommendations()).first()
+                .satisfies(item -> {
+                    assertThat(item.getType()).isEqualTo("POST_AC_REFLECTION");
+                    assertThat(item.getStrategy()).isEqualTo("POST_AC_REFLECTION");
+                    assertThat(item.getProblemId()).isEqualTo(101L);
+                    assertThat(item.getLearningHypothesis()).contains("AC");
+                    assertThat(item.getExpectedCompletionSignal()).contains("边界样例");
+                });
+        assertThat(response.getRecommendations()).extracting("strategy")
+                .doesNotContain("REPAIR_SAME_PROBLEM");
+    }
+
+    @Test
+    void recurringMisconceptionSignalGeneratesRepairRecommendation() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+        problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
+        problemRepository.items.put(103L, problem(103L, "other task", List.of("string"), List.of("format"), List.of("empty")));
+        submissionRepository.items.add(submission(31L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 8));
+        submissionRepository.items.add(submission(32L, 1L, 102L, 8L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(31L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(32L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+
+        var response = service.recommend(1L);
+
+        assertThat(response.getRecommendations()).first()
+                .satisfies(item -> {
+                    assertThat(item.getStrategy()).isEqualTo("TEACHING_ACTION_TEACHER_REVIEW");
+                    assertThat(item.getRiskLevel()).isEqualTo("HIGH");
+                    assertThat(item.getFocusTags()).contains("recurring_misconception:ESCALATE", "循环与边界");
+                    assertThat(item.getLearningHypothesis()).contains("编排");
+                });
+    }
+
+    @Test
+    void selfExplanationGapGeneratesPracticeRecommendation() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+        problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
+        submissionRepository.items.add(submission(41L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 8));
+        submissionRepository.items.add(submission(42L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(41L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(42L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        coachPromptRepository.items.add(prompt(51L, 41L, "知道了，我改一下"));
+        coachPromptRepository.items.add(prompt(52L, 42L, "懂了，我试试"));
+
+        var response = service.recommend(1L);
+
+        assertThat(response.getRecommendations()).first()
+                .satisfies(item -> {
+                    assertThat(item.getStrategy()).isEqualTo("TEACHING_ACTION_SELF_EXPLANATION_PRACTICE");
+                    assertThat(item.getFocusTags()).contains("self_explanation:NEEDS_COACHING");
+                    assertThat(item.getLearningHypothesis()).contains("编排");
+                    assertThat(item.getExpectedCompletionSignal()).contains("最小样例");
+                });
+        assertThat(response.getSummary()).contains("解释证据");
+    }
+
+    @Test
+    void aiDependencyRiskGeneratesIndependentAttemptRecommendation() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+        problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
+        submissionRepository.items.add(submission(61L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 8));
+        submissionRepository.items.add(submission(62L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(61L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(62L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        coachPromptRepository.items.add(prompt(71L, 61L, "再给一个提示"));
+        coachPromptRepository.items.add(prompt(72L, 62L, "我还是不会"));
+        recommendationEventRepository.items.add(recommendationEvent(81L, 61L, StudentRecommendationEventService.EVENT_SUBMITTED, Submission.Verdict.WRONG_ANSWER, 1));
+        recommendationEventRepository.items.add(recommendationEvent(82L, 62L, StudentRecommendationEventService.EVENT_SUBMITTED, Submission.Verdict.WRONG_ANSWER, 2));
+        recommendationEventRepository.items.add(recommendationEvent(83L, null, StudentRecommendationEventService.EVENT_CLICKED, null, 3));
+
+        var response = service.recommend(1L);
+
+        assertThat(response.getRecommendations()).first()
+                .satisfies(item -> {
+                    assertThat(item.getStrategy()).isEqualTo("TEACHING_ACTION_INDEPENDENT_ATTEMPT");
+                    assertThat(item.getFocusTags()).contains("ai_dependency:DEPENDENCY_RISK");
+                    assertThat(item.getLearningHypothesis()).contains("编排");
+                    assertThat(item.getExpectedCompletionSignal()).contains("不新增 Coach");
+                });
+        assertThat(response.getSummary()).contains("支架风险");
+    }
+
+    @Test
+    void masteryGrowthRiskGeneratesSpiralReviewRecommendation() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+        problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        problemRepository.items.put(102L, problem(102L, "second boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
+        problemRepository.items.put(103L, problem(103L, "third boundary task", List.of("loop"), List.of("OFF_BY_ONE"), List.of("large")));
+        submissionRepository.items.add(submission(91L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 8));
+        submissionRepository.items.add(submission(92L, 1L, 102L, 7L, Submission.Verdict.WRONG_ANSWER, 5));
+        submissionRepository.items.add(submission(93L, 1L, 103L, 7L, Submission.Verdict.WRONG_ANSWER, 2));
+        analysisRepository.save(analysis(91L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(92L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+        analysisRepository.save(analysis(93L, "[\"LOOP_BOUNDARY\"]", "[\"OFF_BY_ONE\"]"));
+
+        var response = service.recommend(1L);
+
+        assertThat(response.getRecommendations()).first()
+                .satisfies(item -> {
+                    assertThat(item.getStrategy()).isEqualTo("TEACHING_ACTION_SPIRAL_REVIEW");
+                    assertThat(item.getFocusTags()).contains("mastery_growth:SPIRAL_REVIEW_NEEDED", "循环与边界");
+                    assertThat(item.getExpectedCompletionSignal()).contains("共同失败条件");
+                });
+        assertThat(response.getSummary()).contains("螺旋复习");
+    }
+
+    @Test
+    void transferVerifiedAcceptedProblemDoesNotRepeatPostAcRecommendation() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+        problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
+        problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
+        problemRepository.items.put(103L, problem(103L, "next task", List.of("string"), List.of("format"), List.of("empty")));
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 9));
+        submissionRepository.items.add(submission(12L, 1L, 101L, 7L, Submission.Verdict.ACCEPTED, 8));
+        submissionRepository.items.add(submission(13L, 1L, 102L, 7L, Submission.Verdict.ACCEPTED, 1));
+        analysisRepository.save(analysis(11L, "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]"));
+
+        var response = service.recommend(1L);
+
+        assertThat(response.getRecommendations()).extracting("strategy")
+                .doesNotContain("POST_AC_REFLECTION");
     }
 
     @Test
@@ -200,6 +409,41 @@ class StudentRecommendationServiceTest {
                           "fineGrainedTags": %s
                         }
                         """.formatted(issueTags, fineTags))
+                .build();
+    }
+
+    private CoachPrompt prompt(Long id, Long submissionId, String answer) {
+        return CoachPrompt.builder()
+                .id(id)
+                .assignmentId(7L)
+                .studentProfileId(1L)
+                .submissionId(submissionId)
+                .turnIndex(1)
+                .hintPolicy("L2")
+                .promptType("SOCRATIC_NEXT_STEP")
+                .question("请补充证据。")
+                .studentAnswer(answer)
+                .coachFeedback("反馈")
+                .answeredAt(LocalDateTime.of(2026, 5, 18, 10, 0).plusMinutes(id))
+                .createdAt(LocalDateTime.of(2026, 5, 18, 10, 0).plusMinutes(id))
+                .build();
+    }
+
+    private StudentRecommendationEvent recommendationEvent(Long id,
+                                                           Long followupSubmissionId,
+                                                           String eventType,
+                                                           Submission.Verdict verdict,
+                                                           int minuteOffset) {
+        return StudentRecommendationEvent.builder()
+                .id(id)
+                .recommendationToken("rec-" + id)
+                .studentProfileId(1L)
+                .type("REVIEW")
+                .assignmentId(7L)
+                .eventType(eventType)
+                .followupSubmissionId(followupSubmissionId)
+                .followupVerdict(verdict == null ? null : verdict.name())
+                .createdAt(LocalDateTime.of(2026, 5, 18, 10, 0).plusMinutes(minuteOffset))
                 .build();
     }
 
@@ -390,19 +634,27 @@ class StudentRecommendationServiceTest {
     }
 
     private static class FakeCoachPromptRepository extends UnsupportedJpaRepository<CoachPrompt, Long> implements CoachPromptRepository {
+        private final List<CoachPrompt> items = new ArrayList<>();
+
         @Override
         public Optional<CoachPrompt> findTopBySubmissionIdOrderByCreatedAtDesc(Long submissionId) {
-            return Optional.empty();
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getSubmissionId(), submissionId))
+                    .reduce((left, right) -> right);
         }
 
         @Override
         public List<CoachPrompt> findBySubmissionIdOrderByTurnIndexAscCreatedAtAsc(Long submissionId) {
-            return List.of();
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getSubmissionId(), submissionId))
+                    .toList();
         }
 
         @Override
         public List<CoachPrompt> findBySubmissionIdIn(Collection<Long> submissionIds) {
-            return List.of();
+            return items.stream()
+                    .filter(item -> submissionIds.contains(item.getSubmissionId()))
+                    .toList();
         }
     }
 
@@ -429,6 +681,15 @@ class StudentRecommendationServiceTest {
         @Override
         public List<StudentRecommendationEvent> findTop500ByOrderByCreatedAtDesc() {
             return items.stream()
+                    .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                    .limit(500)
+                    .toList();
+        }
+
+        @Override
+        public List<StudentRecommendationEvent> findTop500ByAssignmentIdOrderByCreatedAtDesc(Long assignmentId) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
                     .sorted(Comparator.comparing(StudentRecommendationEvent::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
                     .limit(500)
                     .toList();

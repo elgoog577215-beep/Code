@@ -107,6 +107,26 @@ public class DiagnosisReportReader {
         );
     }
 
+    public TeacherCalibrationSignalSnapshot teacherCalibrationSignal(SubmissionAnalysis analysis) {
+        Object value = payloadValue(analysis, "teacherCalibrationSignal");
+        if (!(value instanceof Map<?, ?> map)) {
+            return null;
+        }
+        return new TeacherCalibrationSignalSnapshot(
+                stringValue(map, "status"),
+                stringValue(map, "summary"),
+                stringValue(map, "originalIssueTag"),
+                stringValue(map, "originalFineGrainedTag"),
+                stringValue(map, "correctedIssueTag"),
+                stringValue(map, "correctedFineGrainedTag"),
+                longValue(map.get("correctionCount")),
+                doubleValue(map.get("confidenceAdjustment")),
+                stringListValue(map.get("evidenceRefs")),
+                stringValue(map, "recommendedAction"),
+                booleanValue(map.get("needsTeacherReview"))
+        );
+    }
+
     public String progressSignal(SubmissionAnalysis analysis) {
         Object value = payloadValue(analysis, "progressSignal");
         return value == null ? "" : String.valueOf(value);
@@ -272,6 +292,20 @@ public class DiagnosisReportReader {
         return null;
     }
 
+    private Long longValue(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Long.parseLong(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     private String normalizeExecutionStatus(String value) {
         String normalized = value == null ? "" : value.trim().toUpperCase();
         return switch (normalized) {
@@ -334,6 +368,19 @@ public class DiagnosisReportReader {
                                                  Double confidence,
                                                  List<String> evidenceRefs,
                                                  String nextAdjustment) {
+    }
+
+    public record TeacherCalibrationSignalSnapshot(String status,
+                                                   String summary,
+                                                   String originalIssueTag,
+                                                   String originalFineGrainedTag,
+                                                   String correctedIssueTag,
+                                                   String correctedFineGrainedTag,
+                                                   Long correctionCount,
+                                                   Double confidenceAdjustment,
+                                                   List<String> evidenceRefs,
+                                                   String recommendedAction,
+                                                   boolean needsTeacherReview) {
     }
 
     public record LearningTrajectorySignalSnapshot(String phase,

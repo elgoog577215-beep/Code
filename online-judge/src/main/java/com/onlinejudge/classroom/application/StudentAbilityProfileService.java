@@ -42,6 +42,11 @@ public class StudentAbilityProfileService {
     private final StudentIdentityService studentIdentityService;
     private final StudentRecommendationEventRepository recommendationEventRepository;
     private final CoachImpactAnalyzer coachImpactAnalyzer;
+    private final RecurringMisconceptionAnalyzer recurringMisconceptionAnalyzer;
+    private final SelfExplanationMasteryAnalyzer selfExplanationMasteryAnalyzer;
+    private final AiDependencyAnalyzer aiDependencyAnalyzer;
+    private final MasteryGrowthAnalyzer masteryGrowthAnalyzer;
+    private final TeachingActionOrchestrator teachingActionOrchestrator;
 
     public StudentAbilityProfileResponse buildProfile(Long studentProfileId) {
         StudentProfile student = studentProfileRepository.findById(studentProfileId)
@@ -86,6 +91,11 @@ public class StudentAbilityProfileService {
         }
         com.onlinejudge.classroom.dto.CoachImpactResponse latestCoachImpact =
                 coachImpactAnalyzer.latestForOrderedSubmissions(submissionIds, coachImpacts);
+        List<StudentRecommendationEvent> recommendationEvents = profileIds.stream()
+                .filter(Objects::nonNull)
+                .flatMap(profileId -> recommendationEventRepository.findByStudentProfileIdOrderByCreatedAtDesc(profileId).stream())
+                .toList();
+        List<com.onlinejudge.classroom.domain.CoachPrompt> coachPrompts = coachInteractionAnalyzer.findPrompts(submissionIds);
         List<AbilitySignalAnalyzer.AbilitySignal> abilitySignals = abilitySignalAnalyzer.summarize(submissions, analyses);
         List<StudentAbilityProfileResponse.AbilityStat> abilityGaps = abilitySignals.stream()
                 .map(signal -> StudentAbilityProfileResponse.AbilityStat.builder()
@@ -95,6 +105,26 @@ public class StudentAbilityProfileService {
                         .evidenceTags(signal.getEvidenceTags())
                         .build())
                 .toList();
+        StudentAbilityProfileResponse.RecurringMisconceptionSignal recurringMisconceptionSignal =
+                recurringMisconceptionAnalyzer.analyze(submissions, analyses);
+        StudentAbilityProfileResponse.SelfExplanationMasterySignal selfExplanationMasterySignal =
+                selfExplanationMasteryAnalyzer.analyze(coachPrompts);
+        StudentAbilityProfileResponse.AiDependencySignal aiDependencySignal =
+                aiDependencyAnalyzer.analyze(submissions, coachPrompts, recommendationEvents);
+        StudentAbilityProfileResponse.MasteryGrowthSignal masteryGrowthSignal =
+                masteryGrowthAnalyzer.analyze(submissions, analyses);
+        String trendSignal = buildTrendSignal(submissions, abilitySignals);
+        StudentAbilityProfileResponse.TeachingActionDecision teachingActionDecision =
+                teachingActionOrchestrator.decide(
+                        null,
+                        null,
+                        null,
+                        recurringMisconceptionSignal,
+                        selfExplanationMasterySignal,
+                        aiDependencySignal,
+                        masteryGrowthSignal,
+                        trendSignal
+                );
 
         return StudentAbilityProfileResponse.builder()
                 .student(StudentProfileResponse.from(student))
@@ -108,9 +138,14 @@ public class StudentAbilityProfileService {
                         .map(AbilitySignalAnalyzer.AbilitySignal::getAbilityPoint)
                 .orElse(null))
                 .summary(buildSummary(submissions, abilitySignals))
-                .trendSignal(buildTrendSignal(submissions, abilitySignals))
+                .trendSignal(trendSignal)
                 .recommendationEffectSummary(buildRecommendationEffectSummary(profileIds))
                 .coachImpactSummary(buildCoachImpactSummary(coachImpacts))
+                .recurringMisconceptionSignal(recurringMisconceptionSignal)
+                .selfExplanationMasterySignal(selfExplanationMasterySignal)
+                .aiDependencySignal(aiDependencySignal)
+                .masteryGrowthSignal(masteryGrowthSignal)
+                .teachingActionDecision(teachingActionDecision)
                 .latestCoachInteraction(latestCoachInteraction)
                 .latestCoachImpact(latestCoachImpact)
                 .abilityGaps(abilityGaps)

@@ -32,7 +32,9 @@ class CoachInteractionAnalyzerTest {
         assertThat(summary.isAnswered()).isTrue();
         assertThat(summary.getSummary()).contains("继续追问中");
         assertThat(summary.getLatestFeedback()).contains("证据意识");
-        assertThat(summary.getAnswerQualitySignal().getQualityLevel()).isEqualTo("EVIDENCE_GROUNDED");
+        assertThat(summary.getAnswerQualitySignal().getQualityLevel()).isEqualTo("VERIFICATION_READY");
+        assertThat(summary.getAnswerQualitySignal().getUnderstandingLevel()).isEqualTo("VERIFICATION");
+        assertThat(summary.getAnswerQualitySignal().getVerifiable()).isTrue();
         assertThat(summary.getAnswerQualitySignal().getEvidenceTypes()).contains("MIN_CASE", "COMPLEXITY_ESTIMATE");
     }
 

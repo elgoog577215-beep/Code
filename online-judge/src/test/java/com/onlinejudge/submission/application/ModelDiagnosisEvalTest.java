@@ -202,6 +202,72 @@ class ModelDiagnosisEvalTest {
                 });
     }
 
+    @Test
+    void promptSafetyFixturesLoadAsRegressionSafetyCases() throws IOException {
+        List<PromptSafetyEvalFixtureLoader.Fixture> fixtures =
+                new PromptSafetyEvalFixtureLoader(objectMapper).loadDefault();
+
+        assertThat(fixtures).hasSizeGreaterThanOrEqualTo(3);
+        assertThat(fixtures)
+                .allSatisfy(fixture -> {
+                    assertThat(fixture.source()).isEqualTo("prompt-safety-eval-v1");
+                    assertThat(fixture.name()).isNotBlank();
+                    assertThat(fixture.toProblem().getTitle()).isNotBlank();
+                    assertThat(fixture.toSubmission().getSourceCode()).isNotBlank();
+                    assertThat(fixture.toCaseResults()).as(fixture.name() + " case results").isNotEmpty();
+                    assertThat(fixture.toUnsafeAnalysis().getStudentHint()).as(fixture.name() + " unsafe hint").isNotBlank();
+                    assertThat(fixture.expected().riskLevel()).as(fixture.name() + " risk level").isIn("MEDIUM", "HIGH");
+                    assertThat(fixture.expected().blockedReasons()).as(fixture.name() + " blocked reasons").isNotEmpty();
+                    assertThat(fixture.expected().expectedSafetyAction()).as(fixture.name() + " safety action").isEqualTo("COLLECT_EVIDENCE");
+                    assertThat(fixture.expected().mustNotMention()).as(fixture.name() + " forbidden phrases").isNotEmpty();
+                    assertThat(fixture.expected().requiredEvidenceRefs()).as(fixture.name() + " evidence refs").isNotEmpty();
+                    assertThat(fixture.sourceMaterial().artifacts()).as(fixture.name() + " source artifacts").isNotEmpty();
+                    assertThat(fixture.quality().evalPurpose()).as(fixture.name() + " eval purpose").isNotBlank();
+                });
+    }
+
+    @Test
+    void promptSafetyFixturesConstrainLocalSafetyGate() throws IOException {
+        HintSafetyService safetyService = new HintSafetyService(null, objectMapper, new DiagnosisTaxonomy());
+        List<PromptSafetyEvalFixtureLoader.Fixture> fixtures =
+                new PromptSafetyEvalFixtureLoader(objectMapper).loadDefault();
+
+        for (PromptSafetyEvalFixtureLoader.Fixture fixture : fixtures) {
+            SubmissionAnalysisResponse safeAnalysis = safetyService.verifyAndRecord(
+                    fixture.toUnsafeAnalysis(),
+                    Assignment.HintPolicy.L2
+            );
+            String combinedText = String.join("\n",
+                    safe(safeAnalysis.getStudentHint()),
+                    safeAnalysis.getStudentHintPlan() == null ? "" : safe(safeAnalysis.getStudentHintPlan().getNextAction()),
+                    safeAnalysis.getStudentHintPlan() == null ? "" : safe(safeAnalysis.getStudentHintPlan().getCoachQuestion()),
+                    safeAnalysis.getLearningInterventionPlan() == null ? "" : safe(safeAnalysis.getLearningInterventionPlan().getStudentTask()),
+                    safeAnalysis.getLearningInterventionPlan() == null ? "" : safe(safeAnalysis.getLearningInterventionPlan().getCheckQuestion()),
+                    safe(safeAnalysis.getReportMarkdown())
+            ).toLowerCase();
+
+            assertThat(riskWeight(safeAnalysis.getAnswerLeakRisk()))
+                    .as(fixture.name() + " risk level")
+                    .isGreaterThanOrEqualTo(riskWeight(fixture.expected().riskLevel()));
+            assertThat(safeAnalysis.getStudentHintPlan()).as(fixture.name() + " safe hint plan").isNotNull();
+            assertThat(safeAnalysis.getStudentHintPlan().getTeachingAction())
+                    .as(fixture.name() + " teaching action")
+                    .isEqualTo(fixture.expected().expectedSafetyAction());
+            assertThat(safeAnalysis.getLearningInterventionPlan()).as(fixture.name() + " intervention plan").isNotNull();
+            assertThat(safeAnalysis.getLearningInterventionPlan().getInterventionType())
+                    .as(fixture.name() + " intervention action")
+                    .isEqualTo(fixture.expected().expectedSafetyAction());
+            assertThat(safeAnalysis.getEvidenceRefs()).as(fixture.name() + " evidence refs")
+                    .containsAll(fixture.expected().requiredEvidenceRefs());
+            fixture.expected().mustNotMention().forEach(phrase -> assertThat(combinedText)
+                    .as(fixture.name() + " avoids " + phrase)
+                    .doesNotContain(phrase.toLowerCase()));
+            assertThat(combinedText)
+                    .as(fixture.name() + " safe evidence action")
+                    .containsAnyOf("最小", "evidence", "样例", "输出对比", "验证");
+        }
+    }
+
     private DiagnosticAgentService newLiveService(String apiKey) {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
@@ -366,6 +432,15 @@ class ModelDiagnosisEvalTest {
 
     private String valueOrDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private int riskWeight(String risk) {
+        return switch (risk == null ? "" : risk.toUpperCase()) {
+            case "HIGH" -> 3;
+            case "MEDIUM" -> 2;
+            case "LOW" -> 1;
+            default -> 0;
+        };
     }
 
     private long longValueOrDefault(String value, long fallback) {

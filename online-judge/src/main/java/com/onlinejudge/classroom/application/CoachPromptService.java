@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,6 +31,12 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class CoachPromptService {
+
+    private static final String STRATEGY_REDUCE_GRANULARITY = "REDUCE_GRANULARITY";
+    private static final String STRATEGY_COLLECT_EVIDENCE = "COLLECT_EVIDENCE";
+    private static final String STRATEGY_VERIFY_MINIMAL_CHANGE = "VERIFY_MINIMAL_CHANGE";
+    private static final String STRATEGY_TRANSFER_REFLECTION = "TRANSFER_REFLECTION";
+    private static final String STRATEGY_SAFETY_RESET = "SAFETY_RESET";
 
     private final SubmissionRepository submissionRepository;
     private final SubmissionAnalysisRepository submissionAnalysisRepository;
@@ -53,7 +60,7 @@ public class CoachPromptService {
         String primaryTag = fineTags.isEmpty()
                 ? issueTags.stream().findFirst().orElse("NEEDS_MORE_EVIDENCE")
                 : fineTags.get(0);
-        LearningContext learningContext = buildLearningContext(submission, analysis, primaryTag);
+        LearningContext learningContext = buildLearningContext(submission, analysis, primaryTag, null, null, hintPolicy);
         List<String> evidenceRefs = learningContext.evidenceRefs();
         CoachAgentService.CoachDraft draft = coachAgentService.generateInitialQuestion(
                 submission,
@@ -62,7 +69,11 @@ public class CoachPromptService {
                 hintPolicy,
                 learningContext.summary(),
                 evidenceRefs,
-                ruleDraft(buildQuestion(submission, primaryTag, hintPolicy), buildRationale(primaryTag, learningContext), evidenceRefs)
+                ruleDraft(
+                        buildQuestion(submission, primaryTag, hintPolicy, learningContext.adaptiveStrategySignal()),
+                        buildRationale(primaryTag, learningContext),
+                        evidenceRefs
+                )
         );
         CoachPrompt prompt = coachPromptRepository.save(CoachPrompt.builder()
                 .assignmentId(submission.getAssignmentId())
@@ -71,6 +82,8 @@ public class CoachPromptService {
                 .turnIndex(nextTurnIndex(submission.getId()))
                 .hintPolicy(hintPolicy.name())
                 .promptType(promptType("SOCRATIC_NEXT_STEP", draft))
+                .modelFailureReason(blankToNull(draft.getFailureReason()))
+                .modelAnswerLeakRisk(blankToNull(draft.getAnswerLeakRisk()))
                 .question(draft.getQuestion())
                 .rationale(buildDraftRationale(draft, learningContext))
                 .contextSummary(learningContext.summary())
@@ -109,7 +122,7 @@ public class CoachPromptService {
         String primaryTag = fineTags.isEmpty()
                 ? issueTags.stream().findFirst().orElse("NEEDS_MORE_EVIDENCE")
                 : fineTags.get(0);
-        LearningContext learningContext = buildLearningContext(submission, analysis, primaryTag);
+        LearningContext learningContext = buildLearningContext(submission, analysis, primaryTag, answer, current.getTurnIndex(), hintPolicy);
         List<String> evidenceRefs = learningContext.evidenceRefs();
         CoachAgentService.CoachDraft draft = coachAgentService.generateFollowUpQuestion(
                 submission,
@@ -121,7 +134,7 @@ public class CoachPromptService {
                 answer,
                 current.getTurnIndex(),
                 ruleDraft(
-                        buildFollowUpQuestion(primaryTag, answer, current.getTurnIndex(), hintPolicy),
+                        buildFollowUpQuestion(primaryTag, answer, current.getTurnIndex(), hintPolicy, learningContext.adaptiveStrategySignal()),
                         "基于学生上一轮回答继续追问，要求学生补充证据或自测，不直接给出改法。 " + learningContext.summary(),
                         evidenceRefs
                 )
@@ -134,6 +147,8 @@ public class CoachPromptService {
                 .turnIndex(nextTurnIndex(submission.getId()))
                 .hintPolicy(hintPolicy.name())
                 .promptType(promptType("SOCRATIC_FOLLOW_UP", draft))
+                .modelFailureReason(blankToNull(draft.getFailureReason()))
+                .modelAnswerLeakRisk(blankToNull(draft.getAnswerLeakRisk()))
                 .question(draft.getQuestion())
                 .rationale(buildDraftRationale(draft, learningContext))
                 .contextSummary(learningContext.summary())
@@ -172,7 +187,7 @@ public class CoachPromptService {
         if (draft.getEvidenceRefs() == null || draft.getEvidenceRefs().isEmpty()) {
             return fallbackRefs == null ? List.of() : fallbackRefs;
         }
-        return draft.getEvidenceRefs();
+        return mergeRefs(draft.getEvidenceRefs(), fallbackRefs);
     }
 
     private Assignment.HintPolicy resolveHintPolicy(Submission submission) {
@@ -184,7 +199,12 @@ public class CoachPromptService {
                 .orElse(Assignment.HintPolicy.L2);
     }
 
-    private LearningContext buildLearningContext(Submission submission, SubmissionAnalysis analysis, String primaryTag) {
+    private LearningContext buildLearningContext(Submission submission,
+                                                 SubmissionAnalysis analysis,
+                                                 String primaryTag,
+                                                 String studentAnswer,
+                                                 Integer currentTurnIndex,
+                                                 Assignment.HintPolicy hintPolicy) {
         List<String> refs = diagnosisReportReader.evidenceRefs(analysis);
         DiagnosisEvidencePackageReader.EvidenceSummary evidenceSummary = diagnosisEvidencePackageReader.summarize(analysis, submission);
         List<String> baseRefs = mergeRefs(List.of(
@@ -202,8 +222,168 @@ public class CoachPromptService {
         String repeatedFineTag = repeatedTag(recentSubmissions, analyses, true);
         String repeatedIssueTag = repeatedTag(recentSubmissions, analyses, false);
         String transition = buildTransition(recentSubmissions);
-        String summary = buildContextSummary(primaryTag, repeatedFineTag, repeatedIssueTag, transition, evidenceRefs, evidenceSummary);
-        return new LearningContext(summary, evidenceRefs);
+        DiagnosisReportReader.LearningActionEvidenceSnapshot actionEvidence = diagnosisReportReader.learningActionEvidence(analysis);
+        CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal = selectAdaptiveStrategy(
+                submission,
+                primaryTag,
+                repeatedFineTag,
+                repeatedIssueTag,
+                actionEvidence,
+                studentAnswer,
+                currentTurnIndex,
+                hintPolicy,
+                evidenceRefs
+        );
+        evidenceRefs = mergeRefs(evidenceRefs, adaptiveStrategySignal.getEvidenceRefs());
+        String summary = buildContextSummary(
+                primaryTag,
+                repeatedFineTag,
+                repeatedIssueTag,
+                transition,
+                evidenceRefs,
+                evidenceSummary,
+                adaptiveStrategySignal
+        );
+        return new LearningContext(summary, evidenceRefs, adaptiveStrategySignal);
+    }
+
+    private CoachPromptResponse.CoachAdaptiveStrategySignal selectAdaptiveStrategy(Submission submission,
+                                                                                  String primaryTag,
+                                                                                  String repeatedFineTag,
+                                                                                  String repeatedIssueTag,
+                                                                                  DiagnosisReportReader.LearningActionEvidenceSnapshot actionEvidence,
+                                                                                  String studentAnswer,
+                                                                                  Integer currentTurnIndex,
+                                                                                  Assignment.HintPolicy hintPolicy,
+                                                                                  List<String> baseEvidenceRefs) {
+        LinkedHashSet<String> refs = new LinkedHashSet<>(baseEvidenceRefs == null ? List.of() : baseEvidenceRefs);
+        StrategyDecision decision;
+        if (studentAnswer != null) {
+            decision = selectFollowUpStrategy(studentAnswer, currentTurnIndex, hintPolicy);
+        } else {
+            decision = selectInitialStrategy(submission, primaryTag, repeatedFineTag, repeatedIssueTag, actionEvidence);
+        }
+        refs.add("coach-strategy:" + decision.strategy());
+        refs.addAll(decision.evidenceRefs());
+        return CoachPromptResponse.CoachAdaptiveStrategySignal.builder()
+                .strategy(decision.strategy())
+                .reason(decision.reason())
+                .recommendedCoachMove(decision.recommendedCoachMove())
+                .needsTeacherAttention(decision.needsTeacherAttention())
+                .evidenceRefs(List.copyOf(refs))
+                .build();
+    }
+
+    private StrategyDecision selectInitialStrategy(Submission submission,
+                                                   String primaryTag,
+                                                   String repeatedFineTag,
+                                                   String repeatedIssueTag,
+                                                   DiagnosisReportReader.LearningActionEvidenceSnapshot actionEvidence) {
+        if (submission != null && submission.getVerdict() == Submission.Verdict.ACCEPTED) {
+            return strategy(
+                    STRATEGY_TRANSFER_REFLECTION,
+                    "当前提交已经通过，需要把通过经验迁移到边界、复杂度或新样例复盘。",
+                    "请学生解释复杂度、补一个非样例测试或说明最容易漏掉的边界。",
+                    false,
+                    List.of("coach-adaptive:verdict:ACCEPTED")
+            );
+        }
+        if (actionEvidence != null && "CONTRADICTED".equals(actionEvidence.executionStatus())) {
+            return strategy(
+                    STRATEGY_REDUCE_GRANULARITY,
+                    firstText(actionEvidence.nextAdjustment(), "前次学习动作被后续证据反驳，需要降低提示颗粒度。"),
+                    "把问题缩到一个最小失败样例或一条关键变量轨迹，先验证学生是否真正看见失败条件。",
+                    true,
+                    mergeRefs(
+                            List.of("coach-adaptive:previous_action:CONTRADICTED"),
+                            actionEvidence.evidenceRefs()
+                    )
+            );
+        }
+        if (hasText(repeatedFineTag)) {
+            return strategy(
+                    STRATEGY_REDUCE_GRANULARITY,
+                    "最近多次出现细分卡点“" + diagnosisTaxonomy.label(repeatedFineTag) + "”，需要缩小追问颗粒度。",
+                    "要求学生写出最小失败样例、变量首次和末次取值，避免继续泛泛讨论。",
+                    true,
+                    List.of("coach-adaptive:repeated_fine_tag:" + repeatedFineTag)
+            );
+        }
+        if (hasText(repeatedIssueTag)) {
+            return strategy(
+                    STRATEGY_REDUCE_GRANULARITY,
+                    "最近多次出现同类问题“" + diagnosisTaxonomy.label(repeatedIssueTag) + "”，需要缩小追问颗粒度。",
+                    "要求学生把同类问题落到一个可手推样例或输入输出对照。",
+                    true,
+                    List.of("coach-adaptive:repeated_issue_tag:" + repeatedIssueTag)
+            );
+        }
+        return strategy(
+                STRATEGY_COLLECT_EVIDENCE,
+                "当前还缺少学生可自证的样例、变量或复杂度证据。",
+                "先让学生补一个最小样例、关键变量变化或输入输出对照。",
+                false,
+                List.of("coach-adaptive:primary_tag:" + (primaryTag == null ? "NEEDS_MORE_EVIDENCE" : primaryTag))
+        );
+    }
+
+    private StrategyDecision selectFollowUpStrategy(String studentAnswer,
+                                                    Integer currentTurnIndex,
+                                                    Assignment.HintPolicy hintPolicy) {
+        String normalized = studentAnswer == null ? "" : studentAnswer.toLowerCase(Locale.ROOT);
+        if (!hasText(studentAnswer)) {
+            return strategy(
+                    STRATEGY_COLLECT_EVIDENCE,
+                    "学生上一轮还没有形成可验证回答。",
+                    "请学生补一个最小样例或关键变量变化。",
+                    false,
+                    List.of("coach-adaptive:answer_quality:NOT_ANSWERED")
+            );
+        }
+        if (mentionsAnswerLikeContent(normalized)) {
+            return strategy(
+                    STRATEGY_SAFETY_RESET,
+                    "学生回答出现答案或完整代码倾向，需要把对话拉回证据层。",
+                    "避免确认直接改法，改问能暴露问题的输入特征或测试现象。",
+                    true,
+                    List.of("coach-adaptive:answer_quality:SAFETY_RISK")
+            );
+        }
+        if (!mentionsEvidence(normalized)) {
+            return strategy(
+                    STRATEGY_COLLECT_EVIDENCE,
+                    "学生上一轮只有方向但缺少样例、变量、输入输出或复杂度证据。",
+                    "继续要求补证据，先不要推进到改代码。",
+                    false,
+                    List.of("coach-adaptive:answer_quality:NEEDS_EVIDENCE")
+            );
+        }
+        return strategy(
+                STRATEGY_VERIFY_MINIMAL_CHANGE,
+                "学生回答已经包含可验证证据，可以推进到最小修改验证。",
+                currentTurnIndex != null && currentTurnIndex >= 3
+                        ? "请学生先提交一次最小修改，用评测结果验证判断。"
+                        : "请学生只做一个最小修改，并预测下一次提交会改变哪个测试现象。",
+                false,
+                List.of(
+                        "coach-adaptive:answer_quality:EVIDENCE_GROUNDED",
+                        "coach-adaptive:hint_policy:" + (hintPolicy == null ? Assignment.HintPolicy.L2.name() : hintPolicy.name())
+                )
+        );
+    }
+
+    private StrategyDecision strategy(String strategy,
+                                      String reason,
+                                      String recommendedCoachMove,
+                                      boolean needsTeacherAttention,
+                                      List<String> evidenceRefs) {
+        return new StrategyDecision(
+                strategy,
+                reason == null ? "" : reason,
+                recommendedCoachMove == null ? "" : recommendedCoachMove,
+                needsTeacherAttention,
+                evidenceRefs == null ? List.of() : evidenceRefs
+        );
     }
 
     private List<Submission> loadRecentSubmissions(Submission submission) {
@@ -255,7 +435,8 @@ public class CoachPromptService {
                                        String repeatedIssueTag,
                                        String transition,
                                        List<String> evidenceRefs,
-                                       DiagnosisEvidencePackageReader.EvidenceSummary evidenceSummary) {
+                                       DiagnosisEvidencePackageReader.EvidenceSummary evidenceSummary,
+                                       CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal) {
         StringBuilder summary = new StringBuilder("本次追问基于“")
                 .append(diagnosisTaxonomy.label(primaryTag))
                 .append("”。");
@@ -273,6 +454,13 @@ public class CoachPromptService {
         if (evidenceSummary != null && evidenceSummary.detailLines() != null && !evidenceSummary.detailLines().isEmpty()) {
             summary.append(" 证据包摘要：")
                     .append(evidenceSummary.detailLines().stream().limit(3).collect(Collectors.joining("；")))
+                    .append("。");
+        }
+        if (adaptiveStrategySignal != null && hasText(adaptiveStrategySignal.getStrategy())) {
+            summary.append(" Coach 自适应策略：")
+                    .append(firstText(adaptiveStrategySignal.getReason(), adaptiveStrategyLabel(adaptiveStrategySignal.getStrategy())))
+                    .append(" 下一问动作：")
+                    .append(firstText(adaptiveStrategySignal.getRecommendedCoachMove(), adaptiveStrategyLabel(adaptiveStrategySignal.getStrategy())))
                     .append("。");
         }
         return summary.toString();
@@ -299,13 +487,27 @@ public class CoachPromptService {
         };
     }
 
-    private String buildQuestion(Submission submission, String tagId, Assignment.HintPolicy hintPolicy) {
+    private String buildQuestion(Submission submission,
+                                 String tagId,
+                                 Assignment.HintPolicy hintPolicy,
+                                 CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal) {
         String tag = tagId == null ? "NEEDS_MORE_EVIDENCE" : tagId.toUpperCase(Locale.ROOT);
         Assignment.HintPolicy policy = hintPolicy == null ? Assignment.HintPolicy.L2 : hintPolicy;
+        String strategy = adaptiveStrategy(adaptiveStrategySignal);
         if (submission.getVerdict() == Submission.Verdict.ACCEPTED) {
             return switch (policy) {
                 case L1, L2 -> "这题已经通过了。你能说出一个最容易漏掉的边界样例，并解释为什么你的代码能处理它吗？";
                 case L3, L4 -> "这题已经通过了。请用自己的话说明算法复杂度，并补一个和样例不同的测试来验证泛化能力。";
+            };
+        }
+        if (STRATEGY_REDUCE_GRANULARITY.equals(strategy)) {
+            return switch (tag) {
+                case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "先把问题缩到一个最小失败样例。请写出循环变量第一次、最后一次分别取什么值，再手推 n=1 或 n=2。";
+                case "OUTPUT_FORMAT_DETAIL", "IO_FORMAT" -> "先把问题缩到一行输出。请对照题面写出你的输出多了或少了哪个字符、空格或换行。";
+                case "INPUT_PARSING" -> "先把问题缩到第一行输入。请逐项写出题面这一行是什么，你的代码这一行读到了什么。";
+                case "BRUTE_FORCE_LIMIT", "TIME_COMPLEXITY", "MAX_BOUNDARY" -> "先把问题缩到最大输入规模。请估算核心循环次数，并写出它为什么会超出时间限制。";
+                case "INITIAL_STATE", "STATE_RESET", "VARIABLE_INITIALIZATION" -> "先把问题缩到一个变量。请写出它第一次赋值、每轮更新、下一组数据开始前的值。";
+                default -> "先把问题缩到一个最小失败样例。请手推输入、关键变量变化和你的程序输出，从第一处不一致开始看。";
             };
         }
         return switch (tag) {
@@ -322,10 +524,24 @@ public class CoachPromptService {
         };
     }
 
-    private String buildFollowUpQuestion(String tagId, String answer, Integer currentTurnIndex, Assignment.HintPolicy hintPolicy) {
+    private String buildFollowUpQuestion(String tagId,
+                                         String answer,
+                                         Integer currentTurnIndex,
+                                         Assignment.HintPolicy hintPolicy,
+                                         CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal) {
         String normalized = answer == null ? "" : answer.toLowerCase(Locale.ROOT);
         String tag = tagId == null ? "NEEDS_MORE_EVIDENCE" : tagId.toUpperCase(Locale.ROOT);
         Assignment.HintPolicy policy = hintPolicy == null ? Assignment.HintPolicy.L2 : hintPolicy;
+        String strategy = adaptiveStrategy(adaptiveStrategySignal);
+        if (STRATEGY_SAFETY_RESET.equals(strategy)) {
+            return "先把注意力从完整写法收回来。你能只描述一个会暴露问题的输入特征或测试现象，而不是直接说改法吗？";
+        }
+        if (STRATEGY_VERIFY_MINIMAL_CHANGE.equals(strategy)) {
+            if (currentTurnIndex != null && currentTurnIndex >= 3) {
+                return "这一轮已经有足够线索了。请先提交一次最小修改，用新的评测结果验证你的判断。";
+            }
+            return "很好，先不要看答案。请根据你刚才的证据，只做一个最小修改，然后预测下一次提交会改变哪个测试现象。";
+        }
         if (!hasText(answer)) {
             return "先不用急着改代码。请补一句：你准备用哪个最小样例验证刚才的问题？";
         }
@@ -425,9 +641,118 @@ public class CoachPromptService {
     private CoachPromptResponse responseWithTurns(CoachPrompt prompt) {
         List<CoachPrompt> turns = coachPromptRepository.findBySubmissionIdOrderByTurnIndexAscCreatedAtAsc(prompt.getSubmissionId());
         List<CoachPromptResponse> turnResponses = turns.stream()
-                .map(turn -> CoachPromptResponse.from(turn, parseRefs(turn.getEvidenceRefs())))
+                .map(turn -> {
+                    List<String> refs = parseRefs(turn.getEvidenceRefs());
+                    return CoachPromptResponse.from(turn, refs, adaptiveStrategySignalFromPrompt(turn, refs));
+                })
                 .toList();
-        return CoachPromptResponse.from(prompt, parseRefs(prompt.getEvidenceRefs()), turnResponses);
+        List<String> refs = parseRefs(prompt.getEvidenceRefs());
+        return CoachPromptResponse.from(prompt, refs, turnResponses, adaptiveStrategySignalFromPrompt(prompt, refs));
+    }
+
+    private CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignalFromPrompt(CoachPrompt prompt, List<String> evidenceRefs) {
+        String strategy = (evidenceRefs == null ? List.<String>of() : evidenceRefs)
+                .stream()
+                .filter(ref -> ref != null && ref.startsWith("coach-strategy:"))
+                .map(ref -> ref.substring("coach-strategy:".length()).trim())
+                .filter(ref -> !ref.isBlank())
+                .findFirst()
+                .orElse("");
+        if (strategy.isBlank()) {
+            return null;
+        }
+        List<String> strategyRefs = (evidenceRefs == null ? List.<String>of() : evidenceRefs)
+                .stream()
+                .filter(ref -> ref != null && (ref.startsWith("coach-strategy:") || ref.startsWith("coach-adaptive:")))
+                .distinct()
+                .toList();
+        return CoachPromptResponse.CoachAdaptiveStrategySignal.builder()
+                .strategy(strategy)
+                .reason(extractAdaptiveReason(prompt == null ? "" : prompt.getContextSummary(), strategy))
+                .recommendedCoachMove(extractAdaptiveMove(prompt == null ? "" : prompt.getContextSummary(), strategy))
+                .needsTeacherAttention(needsTeacherAttention(strategy, strategyRefs))
+                .evidenceRefs(evidenceRefs == null ? List.of() : evidenceRefs)
+                .build();
+    }
+
+    private String extractAdaptiveReason(String contextSummary, String strategy) {
+        if (contextSummary == null || contextSummary.isBlank()) {
+            return adaptiveStrategyLabel(strategy);
+        }
+        String marker = "Coach 自适应策略：";
+        int start = contextSummary.indexOf(marker);
+        if (start < 0) {
+            return adaptiveStrategyLabel(strategy);
+        }
+        int valueStart = start + marker.length();
+        int end = contextSummary.indexOf(" 下一问动作：", valueStart);
+        if (end < 0) {
+            end = contextSummary.indexOf('。', valueStart);
+        }
+        if (end < 0) {
+            end = contextSummary.length();
+        }
+        String value = contextSummary.substring(valueStart, end).trim();
+        return value.isBlank() ? adaptiveStrategyLabel(strategy) : value;
+    }
+
+    private String extractAdaptiveMove(String contextSummary, String strategy) {
+        if (contextSummary == null || contextSummary.isBlank()) {
+            return adaptiveStrategyMove(strategy);
+        }
+        String marker = " 下一问动作：";
+        int start = contextSummary.indexOf(marker);
+        if (start < 0) {
+            return adaptiveStrategyMove(strategy);
+        }
+        int valueStart = start + marker.length();
+        int end = contextSummary.indexOf('。', valueStart);
+        if (end < 0) {
+            end = contextSummary.length();
+        }
+        String value = contextSummary.substring(valueStart, end).trim();
+        return value.isBlank() ? adaptiveStrategyMove(strategy) : value;
+    }
+
+    private boolean needsTeacherAttention(String strategy, List<String> evidenceRefs) {
+        return STRATEGY_SAFETY_RESET.equals(strategy)
+                || (STRATEGY_REDUCE_GRANULARITY.equals(strategy)
+                && evidenceRefs != null
+                && evidenceRefs.stream().anyMatch(ref -> ref.contains("previous_action:CONTRADICTED") || ref.contains("repeated_")));
+    }
+
+    private String adaptiveStrategy(String strategy) {
+        return strategy == null ? "" : strategy.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String adaptiveStrategy(CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal) {
+        return adaptiveStrategy(adaptiveStrategySignal == null ? "" : adaptiveStrategySignal.getStrategy());
+    }
+
+    private String adaptiveStrategyLabel(String strategy) {
+        return switch (adaptiveStrategy(strategy)) {
+            case STRATEGY_REDUCE_GRANULARITY -> "降低提示颗粒度";
+            case STRATEGY_COLLECT_EVIDENCE -> "收集可验证证据";
+            case STRATEGY_VERIFY_MINIMAL_CHANGE -> "验证一个最小修改";
+            case STRATEGY_TRANSFER_REFLECTION -> "通过后迁移复盘";
+            case STRATEGY_SAFETY_RESET -> "回到证据层避免泄题";
+            default -> "继续苏格拉底式追问";
+        };
+    }
+
+    private String adaptiveStrategyMove(String strategy) {
+        return switch (adaptiveStrategy(strategy)) {
+            case STRATEGY_REDUCE_GRANULARITY -> "缩到最小失败样例、关键变量轨迹或单行输入输出对照。";
+            case STRATEGY_COLLECT_EVIDENCE -> "要求学生补一个样例、变量变化、输入输出对照或复杂度数量级。";
+            case STRATEGY_VERIFY_MINIMAL_CHANGE -> "让学生只做一个最小修改，并预测下一次评测现象。";
+            case STRATEGY_TRANSFER_REFLECTION -> "让学生解释复杂度、边界样例或迁移到新测试。";
+            case STRATEGY_SAFETY_RESET -> "避免确认改法，把问题拉回输入特征和测试现象。";
+            default -> "继续提出短、具体、可验证的下一问。";
+        };
+    }
+
+    private String firstText(String first, String fallback) {
+        return first == null || first.isBlank() ? fallback : first;
     }
 
     private int nextTurnIndex(Long submissionId) {
@@ -443,10 +768,23 @@ public class CoachPromptService {
         return answer == null ? "" : answer.trim();
     }
 
+    private String blankToNull(String value) {
+        return hasText(value) ? value : null;
+    }
+
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
-    private record LearningContext(String summary, List<String> evidenceRefs) {
+    private record LearningContext(String summary,
+                                   List<String> evidenceRefs,
+                                   CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal) {
+    }
+
+    private record StrategyDecision(String strategy,
+                                    String reason,
+                                    String recommendedCoachMove,
+                                    boolean needsTeacherAttention,
+                                    List<String> evidenceRefs) {
     }
 }

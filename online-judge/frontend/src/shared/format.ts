@@ -179,6 +179,133 @@ export function learningStageLabel(value?: string | null): string {
   return map[normalized] || text;
 }
 
+export function postAcTransferPhaseLabel(value?: string | null): string {
+  switch ((value || "").toUpperCase()) {
+    case "NOT_ACCEPTED":
+      return "未通过";
+    case "JUST_ACCEPTED":
+      return "刚通过";
+    case "REFLECTION_NEEDED":
+      return "待复盘";
+    case "REFLECTION_EVIDENCED":
+      return "已有复盘";
+    case "TRANSFER_READY":
+      return "可迁移";
+    case "TRANSFER_VERIFIED":
+      return "迁移已验证";
+    default:
+      return value || "待判断";
+  }
+}
+
+export function recurringMisconceptionStatusLabel(value?: string | null): string {
+  switch ((value || "").toUpperCase()) {
+    case "NONE":
+      return "暂无复发";
+    case "WATCH":
+      return "同题观察";
+    case "RECURRING":
+      return "跨题复发";
+    case "ESCALATE":
+      return "需教师复盘";
+    default:
+      return value || "待判断";
+  }
+}
+
+export function selfExplanationStatusLabel(value?: string | null): string {
+  switch ((value || "").toUpperCase()) {
+    case "NO_EVIDENCE":
+      return "缺少解释";
+    case "EMERGING":
+      return "解释起步";
+    case "EVIDENCE_GROUNDED":
+      return "证据充分";
+    case "TRANSFER_READY":
+      return "可迁移解释";
+    case "NEEDS_COACHING":
+      return "需补证据";
+    case "SAFETY_RISK":
+      return "解释需复核";
+    default:
+      return value || "待判断";
+  }
+}
+
+export function aiDependencyStatusLabel(value?: string | null): string {
+  switch ((value || "").toUpperCase()) {
+    case "NO_SIGNAL":
+      return "支架待观察";
+    case "INDEPENDENT_PROGRESS":
+      return "独立推进";
+    case "SCAFFOLD_EFFECTIVE":
+      return "支架有效";
+    case "SCAFFOLD_DENSE":
+      return "支架过密";
+    case "DEPENDENCY_RISK":
+      return "依赖风险";
+    case "TEACHER_FADE_REVIEW":
+      return "需撤支架";
+    default:
+      return value || "待判断";
+  }
+}
+
+export function masteryGrowthStatusLabel(value?: string | null): string {
+  switch ((value || "").toUpperCase()) {
+    case "NO_SIGNAL":
+      return "成长待观察";
+    case "GROWING":
+      return "正在增长";
+    case "TRANSFER_CONFIRMED":
+      return "迁移已验证";
+    case "PLATEAU":
+      return "成长停滞";
+    case "REGRESSION":
+      return "近期回退";
+    case "SPIRAL_REVIEW_NEEDED":
+      return "需螺旋复习";
+    default:
+      return value || "待判断";
+  }
+}
+
+export function teachingActionTypeLabel(value?: string | null): string {
+  switch ((value || "").toUpperCase()) {
+    case "TEACHER_REVIEW":
+      return "教师复盘";
+    case "SPIRAL_REVIEW":
+      return "螺旋复习";
+    case "REGRESSION_REPAIR":
+      return "回退修复";
+    case "INDEPENDENT_ATTEMPT":
+      return "独立尝试";
+    case "SELF_EXPLANATION_PRACTICE":
+      return "自解释练习";
+    case "POST_AC_REFLECTION":
+      return "通过后复盘";
+    case "TRANSFER_PRACTICE":
+      return "迁移练习";
+    case "CONTINUE_DIAGNOSIS":
+      return "继续诊断";
+    default:
+      return value || "教学动作";
+  }
+}
+
+export function teachingActionActorLabel(value?: string | null): string {
+  switch ((value || "").toUpperCase()) {
+    case "TEACHER":
+      return "教师执行";
+    case "STUDENT":
+      return "学生执行";
+    case "AI_COACH":
+      return "AI 教练跟进";
+    default:
+      return value || "待分配";
+  }
+}
+
 export function abilityLabel(value?: string | null): string {
   const text = (value || "").trim();
   if (!text) {

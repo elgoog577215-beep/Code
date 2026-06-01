@@ -77,6 +77,59 @@ class DiagnosticAgentServiceTest {
     }
 
     @Test
+    void teacherCalibrationConflictLowersConfidenceAndRequestsTeacherReview() {
+        DiagnosticAgentService service = newService();
+        SubmissionAnalysisResponse baseline = SubmissionAnalysisResponse.builder()
+                .submissionId(10L)
+                .sourceType("RULE_BASED_V1")
+                .scenario("WA")
+                .issueTags(List.of("LOOP_BOUNDARY"))
+                .fineGrainedTags(List.of("OFF_BY_ONE"))
+                .evidenceRefs(List.of("code:plus_minus_one"))
+                .confidence(0.82)
+                .uncertainty("当前代码存在边界迹象。")
+                .teacherNote("先看边界。")
+                .build();
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
+                DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                        .teacherCalibrationPatterns(List.of(DiagnosisEvidencePackage.TeacherCalibrationPattern.builder()
+                                .originalIssueTag("LOOP_BOUNDARY")
+                                .originalFineGrainedTag("OFF_BY_ONE")
+                                .correctedIssueTag("TIME_COMPLEXITY")
+                                .correctedFineGrainedTag("BRUTE_FORCE_LIMIT")
+                                .correctionCount(2L)
+                                .evidenceSubmissionIds(List.of(21L, 22L))
+                                .evidenceRefs(List.of("memory:teacher_calibration:brute_force_limit"))
+                                .build()))
+                        .build();
+
+        DiagnosticAgentService.AgentResult result = service.diagnose(
+                Problem.builder().id(1L).title("多组输入").description("需要读到 EOF。").build(),
+                Submission.builder()
+                        .id(10L)
+                        .languageName("Python 3")
+                        .verdict(Submission.Verdict.WRONG_ANSWER)
+                        .sourceCode("n=int(input())\nprint(n)")
+                        .build(),
+                List.of(),
+                baseline,
+                Assignment.HintPolicy.L2,
+                DiagnosisEvidencePackage.HistoryEvidence.builder().build(),
+                memory
+        );
+
+        assertThat(result.analysis().getTeacherCalibrationSignal()).isNotNull();
+        assertThat(result.analysis().getTeacherCalibrationSignal().getStatus()).isEqualTo("CONFLICT_NEEDS_REVIEW");
+        assertThat(result.analysis().getTeacherCalibrationSignal().isNeedsTeacherReview()).isTrue();
+        assertThat(result.analysis().getConfidence()).isLessThan(0.82);
+        assertThat(result.analysis().getEvidenceRefs()).contains("memory:teacher_calibration:brute_force_limit");
+        assertThat(result.analysis().getUncertainty()).contains("教师校准提示");
+        assertThat(result.analysis().getTeacherNote()).contains("教师校准冲突");
+        assertThat(result.analysis().getIssueTags()).contains("LOOP_BOUNDARY");
+        assertThat(result.analysis().getFineGrainedTags()).contains("OFF_BY_ONE");
+    }
+
+    @Test
     void diagnoseAlignsGenericModelTeachingActionToConcreteFineGrainedTag() {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         DiagnosticAgentService service = new DiagnosticAgentService(

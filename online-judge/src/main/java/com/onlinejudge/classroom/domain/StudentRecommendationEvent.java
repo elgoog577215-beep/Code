@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
         name = "student_recommendation_events",
         indexes = {
                 @Index(name = "idx_reco_events_student", columnList = "student_profile_id, created_at"),
+                @Index(name = "idx_reco_events_assignment", columnList = "assignment_id, created_at"),
                 @Index(name = "idx_reco_events_token", columnList = "recommendation_token"),
                 @Index(name = "idx_reco_events_submission", columnList = "followup_submission_id")
         }
@@ -36,6 +37,9 @@ public class StudentRecommendationEvent {
     @Column(name = "type", nullable = false)
     private String type;
 
+    @Column(name = "assignment_id")
+    private Long assignmentId;
+
     @Column(name = "problem_id")
     private Long problemId;
 
@@ -44,6 +48,21 @@ public class StudentRecommendationEvent {
 
     @Column(name = "focus_tags", columnDefinition = "TEXT")
     private String focusTags;
+
+    @Column(name = "strategy")
+    private String strategy;
+
+    @Column(name = "learning_hypothesis", columnDefinition = "TEXT")
+    private String learningHypothesis;
+
+    @Column(name = "expected_completion_signal", columnDefinition = "TEXT")
+    private String expectedCompletionSignal;
+
+    @Column(name = "risk_level")
+    private String riskLevel;
+
+    @Column(name = "fallback_action", columnDefinition = "TEXT")
+    private String fallbackAction;
 
     @Column(name = "event_type", nullable = false)
     private String eventType;

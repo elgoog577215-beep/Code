@@ -82,6 +82,7 @@ export interface StudentTrajectoryTask {
   latestLearningInterventionPlan?: LearningInterventionPlan | null;
   latestLearningInterventionImpact?: LearningInterventionImpact | null;
   latestLearningActionEvidence?: LearningActionEvidence | null;
+  postAcTransferSignal?: PostAcTransferSignal | null;
   latestHint?: string | null;
   latestImprovementSignal?: string | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
@@ -103,6 +104,34 @@ export interface CoachInteractionSummary {
   latestFeedback?: string | null;
   latestAt?: string | null;
   impact?: CoachImpact | null;
+  answerQualitySignal?: CoachAnswerQualitySignal | null;
+  coachSafetyRejectionSignal?: CoachSafetyRejectionSignal | null;
+}
+
+export interface CoachSafetyRejectionSignal {
+  status?: string | null;
+  rejectionCount: number;
+  latestReason?: string | null;
+  latestAnswerLeakRisk?: string | null;
+  summary?: string | null;
+  recommendedAction?: string | null;
+  needsTeacherAttention?: boolean;
+  evidenceRefs?: string[];
+}
+
+export interface CoachAnswerQualitySignal {
+  qualityLevel?: string | null;
+  qualityLabel?: string | null;
+  understandingLevel?: string | null;
+  evidenceCompleteness?: number | null;
+  verifiable?: boolean | null;
+  actionStatus?: string | null;
+  recommendedTeachingAction?: string | null;
+  evidenceTypes?: string[];
+  missingEvidence?: string[];
+  summary?: string | null;
+  nextCoachMove?: string | null;
+  needsTeacherAttention?: boolean;
 }
 
 export interface CoachImpact {
@@ -139,6 +168,11 @@ export interface StudentTrajectory {
   latestLearningInterventionPlan?: LearningInterventionPlan | null;
   latestLearningInterventionImpact?: LearningInterventionImpact | null;
   latestLearningActionEvidence?: LearningActionEvidence | null;
+  postAcTransferSignal?: PostAcTransferSignal | null;
+  selfExplanationMasterySignal?: SelfExplanationMasterySignal | null;
+  aiDependencySignal?: AiDependencySignal | null;
+  masteryGrowthSignal?: MasteryGrowthSignal | null;
+  teachingActionDecision?: TeachingActionDecision | null;
   primaryAbilityFocus?: string | null;
   crossProblemSummary?: string | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
@@ -167,6 +201,11 @@ export interface StudentAbilityProfile {
   trendSignal?: string | null;
   recommendationEffectSummary?: string | null;
   coachImpactSummary?: string | null;
+  recurringMisconceptionSignal?: RecurringMisconceptionSignal | null;
+  selfExplanationMasterySignal?: SelfExplanationMasterySignal | null;
+  aiDependencySignal?: AiDependencySignal | null;
+  masteryGrowthSignal?: MasteryGrowthSignal | null;
+  teachingActionDecision?: TeachingActionDecision | null;
   latestCoachInteraction?: CoachInteractionSummary | null;
   latestCoachImpact?: CoachImpact | null;
   abilityGaps?: AbilityStat[];
@@ -180,12 +219,18 @@ export interface StudentRecommendationItem {
   title: string;
   reason?: string | null;
   actionLabel?: string | null;
+  assignmentId?: number | null;
   problemId?: number | null;
   problemTitle?: string | null;
   focusAbility?: string | null;
   focusTags?: string[];
   evidenceProblemIds?: number[];
   recommendationToken?: string | null;
+  learningHypothesis?: string | null;
+  expectedCompletionSignal?: string | null;
+  strategy?: string | null;
+  riskLevel?: string | null;
+  fallbackAction?: string | null;
   priority: number;
 }
 
@@ -295,6 +340,103 @@ export interface LearningActionEvidence {
   nextAdjustment?: string | null;
 }
 
+export interface PostAcTransferSignal {
+  phase?: string | null;
+  label?: string | null;
+  summary?: string | null;
+  evidenceRefs?: string[];
+  recommendedAction?: string | null;
+  targetAbility?: string | null;
+  targetTags?: string[];
+  problemId?: number | null;
+  problemTitle?: string | null;
+  needsTeacherAttention?: boolean;
+}
+
+export interface RecurringMisconceptionSignal {
+  status?: string | null;
+  label?: string | null;
+  summary?: string | null;
+  misconceptionTag?: string | null;
+  fineGrainedTag?: string | null;
+  abilityPoint?: string | null;
+  problemCount?: number;
+  assignmentCount?: number;
+  submissionCount?: number;
+  evidenceRefs?: string[];
+  evidenceProblemIds?: number[];
+  recommendedAction?: string | null;
+  needsTeacherAttention?: boolean;
+}
+
+export interface SelfExplanationMasterySignal {
+  status?: string | null;
+  label?: string | null;
+  summary?: string | null;
+  evidenceCompleteness?: number | null;
+  answeredTurnCount?: number;
+  verifiableAnswerCount?: number;
+  transferReadyCount?: number;
+  vagueAnswerCount?: number;
+  safetyRiskCount?: number;
+  evidenceTypes?: string[];
+  evidenceRefs?: string[];
+  recommendedAction?: string | null;
+  needsTeacherAttention?: boolean;
+}
+
+export interface AiDependencySignal {
+  status?: string | null;
+  label?: string | null;
+  summary?: string | null;
+  independenceScore?: number | null;
+  coachPromptCount?: number;
+  answeredCoachCount?: number;
+  recommendationClickCount?: number;
+  recommendationSubmissionCount?: number;
+  independentSubmissionCount?: number;
+  independentAcceptedCount?: number;
+  scaffoldedAcceptedCount?: number;
+  dependencyEvidenceRefs?: string[];
+  recommendedAction?: string | null;
+  needsTeacherAttention?: boolean;
+}
+
+export interface MasteryGrowthSignal {
+  status?: string | null;
+  label?: string | null;
+  summary?: string | null;
+  growthScore?: number | null;
+  focusAbility?: string | null;
+  focusTag?: string | null;
+  fineGrainedTag?: string | null;
+  recentSubmissionCount?: number;
+  recentAcceptedCount?: number;
+  recentFailedCount?: number;
+  crossProblemEvidenceCount?: number;
+  regressionCount?: number;
+  plateauCount?: number;
+  evidenceRefs?: string[];
+  recommendedAction?: string | null;
+  needsTeacherAttention?: boolean;
+}
+
+export interface TeachingActionDecision {
+  actionType?: string | null;
+  actor?: string | null;
+  priority?: number | null;
+  riskLevel?: string | null;
+  title?: string | null;
+  summary?: string | null;
+  primaryReason?: string | null;
+  recommendedAction?: string | null;
+  fallbackAction?: string | null;
+  evidenceRefs?: string[];
+  sourceSignals?: string[];
+  candidateCount?: number | null;
+  needsTeacherAttention?: boolean;
+}
+
 export interface SubmissionAnalysis {
   submissionId: number;
   sourceType?: string;
@@ -341,6 +483,8 @@ export interface CoachPrompt {
   turnIndex?: number | null;
   hintPolicy: HintPolicy | string;
   promptType: string;
+  modelFailureReason?: string | null;
+  modelAnswerLeakRisk?: string | null;
   question: string;
   studentAnswer?: string | null;
   coachFeedback?: string | null;
@@ -348,6 +492,13 @@ export interface CoachPrompt {
   rationale?: string | null;
   contextSummary?: string | null;
   evidenceRefs?: string[];
+  adaptiveStrategySignal?: {
+    strategy?: string | null;
+    reason?: string | null;
+    recommendedCoachMove?: string | null;
+    needsTeacherAttention?: boolean;
+    evidenceRefs?: string[];
+  } | null;
   turns?: CoachPrompt[];
   createdAt?: string;
 }
@@ -405,6 +556,85 @@ export interface AssignmentOverview {
   attemptCount: number;
   passedAttemptCount: number;
   strugglingStudentCount: number;
+  postAcTransferPendingCount?: number;
+  postAcTransferSummary?: string | null;
+  recurringMisconceptionStudentCount?: number;
+  recurringMisconceptionSummary?: string | null;
+  selfExplanationWeakStudentCount?: number;
+  selfExplanationSummary?: string | null;
+  coachAnswerQualitySummary?: {
+    promptedCount?: number;
+    answeredCount?: number;
+    verifiableCount?: number;
+    transferReadyCount?: number;
+    evidenceInsufficientCount?: number;
+    safetyRiskCount?: number;
+    teacherAttentionCount?: number;
+    dominantGap?: string | null;
+    summary?: string | null;
+    recommendedAction?: string | null;
+    evidenceRefs?: string[];
+  } | null;
+  coachFollowupImpactSummary?: {
+    impactedCount?: number;
+    acceptedCount?: number;
+    shiftedCount?: number;
+    sameIssueCount?: number;
+    verdictChangedCount?: number;
+    noClearChangeCount?: number;
+    awaitingFollowupCount?: number;
+    dominantOutcome?: string | null;
+    summary?: string | null;
+    recommendedAction?: string | null;
+    evidenceRefs?: string[];
+  } | null;
+  aiDependencyRiskStudentCount?: number;
+  aiDependencySummary?: string | null;
+  masteryGrowthRiskStudentCount?: number;
+  masteryGrowthSummary?: string | null;
+  teachingActionRiskStudentCount?: number;
+  teachingActionSummary?: string | null;
+  classTeachingStrategySignal?: {
+    strategyKey?: string | null;
+    status?: string | null;
+    statusLabel?: string | null;
+    strategyType?: string | null;
+    title?: string | null;
+    summary?: string | null;
+    focusAbility?: string | null;
+    focusTag?: string | null;
+    focusLabel?: string | null;
+    affectedStudentCount?: number;
+    affectedStudentRatio?: number | null;
+    priority?: number | null;
+    riskLevel?: string | null;
+    teacherAction?: string | null;
+    exitTicket?: string | null;
+    groups?: Array<{
+      groupType?: string | null;
+      title?: string | null;
+      studentProfileIds?: number[];
+      studentNames?: string[];
+      focus?: string | null;
+      action?: string | null;
+      evidenceRefs?: string[];
+    }>;
+    evidenceRefs?: string[];
+    sourceSignals?: string[];
+    impact?: {
+      status?: string | null;
+      statusLabel?: string | null;
+      summary?: string | null;
+      recommendedAction?: string | null;
+      needsEscalation?: boolean;
+      feedbackActionType?: string | null;
+      feedbackAt?: string | null;
+      followupSubmissionId?: number | null;
+      followupVerdict?: string | null;
+      evidenceRefs?: string[];
+      matchedTags?: string[];
+    } | null;
+  } | null;
   topIssues: Array<{
     label: string;
     count: number;
@@ -438,6 +668,19 @@ export interface AssignmentOverview {
       createdBy?: string | null;
       createdAt?: string | null;
     } | null;
+    interventionImpact?: {
+      status?: string | null;
+      statusLabel?: string | null;
+      summary?: string | null;
+      recommendedAction?: string | null;
+      needsEscalation?: boolean;
+      feedbackActionType?: string | null;
+      feedbackAt?: string | null;
+      followupSubmissionId?: number | null;
+      followupVerdict?: string | null;
+      evidenceSubmissionIds?: number[];
+      matchedTags?: string[];
+    } | null;
   }>;
   students: Array<{
     studentProfileId: number;
@@ -458,6 +701,12 @@ export interface AssignmentOverview {
     latestCoachInteraction?: CoachInteractionSummary | null;
     latestCoachImpact?: CoachImpact | null;
     latestLearningActionEvidence?: LearningActionEvidence | null;
+    postAcTransferSignal?: PostAcTransferSignal | null;
+    recurringMisconceptionSignal?: RecurringMisconceptionSignal | null;
+    selfExplanationMasterySignal?: SelfExplanationMasterySignal | null;
+    aiDependencySignal?: AiDependencySignal | null;
+    masteryGrowthSignal?: MasteryGrowthSignal | null;
+    teachingActionDecision?: TeachingActionDecision | null;
     primaryAbilityFocus?: string | null;
     crossProblemSummary?: string | null;
     abilitySummary?: AbilityStat[];
@@ -485,12 +734,28 @@ export interface AiQualityOverview {
   analyzedSubmissionCount: number;
   correctionCount: number;
   evalCandidateCount: number;
+  interventionEvalCandidateCount?: number;
+  interventionWaitingFollowupCount?: number;
+  interventionImprovedCount?: number;
+  interventionShiftedCount?: number;
+  interventionStillStuckCount?: number;
   lowConfidenceCount: number;
   highLeakRiskCount: number;
+  modelFallbackCount: number;
+  modelPartialCount: number;
+  modelRuntimeFailureCount: number;
+  modelCompletedCount: number;
   correctionRate: number;
   lowConfidenceRate: number;
   highLeakRiskRate: number;
+  modelFallbackRate: number;
+  modelRuntimeFailureRate: number;
   summary?: string | null;
+  qualityRiskSummary?: string | null;
+  promptSafetyIncidentSignal?: PromptSafetyIncidentSignal | null;
+  qualityDimensions: AiQualityDimension[];
+  improvementPriorities: AiQualityImprovementPriority[];
+  evalReadiness?: AiQualityEvalReadiness | null;
   correctedTags: Array<{
     originalTag: string;
     originalLabel?: string | null;
@@ -500,16 +765,252 @@ export interface AiQualityOverview {
   }>;
 }
 
+export interface AiQualityDimension {
+  dimension: string;
+  label?: string | null;
+  status: "HEALTHY" | "WATCH" | "ACTION_NEEDED" | string;
+  score: number;
+  summary?: string | null;
+  evidenceRefs: string[];
+  recommendedAction?: string | null;
+}
+
+export interface AiQualityImprovementPriority {
+  priority: string;
+  dimension: string;
+  severity: "HEALTHY" | "WATCH" | "ACTION_NEEDED" | string;
+  reason?: string | null;
+  recommendedAction?: string | null;
+  evidenceRefs: string[];
+}
+
+export interface PromptSafetyIncidentSignal {
+  status: "HEALTHY" | "WATCH" | "ACTION_NEEDED" | string;
+  primaryRiskSource?: string | null;
+  totalIncidentCount: number;
+  highLeakRiskCount: number;
+  safetyDowngradeCount: number;
+  highRiskSafetyDowngradeCount: number;
+  coachSafetyRiskCount: number;
+  summary?: string | null;
+  recommendedAction?: string | null;
+  evidenceRefs: string[];
+}
+
+export interface AiQualityEvalReadiness {
+  status: "READY" | "PARTIAL" | "NO_SAMPLE" | "INSUFFICIENT_SIGNAL" | string;
+  summary?: string | null;
+  candidateCount: number;
+  correctionCount: number;
+  interventionCandidateCount?: number;
+  interventionWaitingFollowupCount?: number;
+  interventionImprovedCount?: number;
+  interventionShiftedCount?: number;
+  interventionStillStuckCount?: number;
+  recommendedAction?: string | null;
+  priorityTags: Array<{
+    originalTag: string;
+    originalLabel?: string | null;
+    correctedTag: string;
+    correctedLabel?: string | null;
+    count: number;
+  }>;
+  evidenceRefs: string[];
+}
+
+export interface DiagnosisEvalCandidate {
+  correctionId: number;
+  submissionId: number;
+  studentProfileId?: number | null;
+  problemId?: number | null;
+  problemTitle?: string | null;
+  problemDescription?: string | null;
+  problemDifficulty?: string | null;
+  problemTimeLimit?: number | null;
+  problemMemoryLimit?: number | null;
+  verdict?: string | null;
+  languageName?: string | null;
+  sourceCode?: string | null;
+  scenario?: string | null;
+  originalIssueTag?: string | null;
+  originalFineGrainedTag?: string | null;
+  correctedIssueTag?: string | null;
+  correctedFineGrainedTag?: string | null;
+  teacherNote?: string | null;
+  analysisHeadline?: string | null;
+  analysisSource?: string | null;
+  sourceCodePreview?: string | null;
+  correctedAt?: string;
+}
+
+export interface DiagnosisEvalCandidates {
+  assignmentId: number;
+  candidateCount: number;
+  candidates: DiagnosisEvalCandidate[];
+}
+
+export interface DiagnosisEvalFixtureDraft {
+  assignmentId: number;
+  candidateCount: number;
+  fixtureCount: number;
+  interventionFixtureCount?: number;
+  safetyFixtureCount?: number;
+  summary?: string | null;
+  fixtures: DiagnosisEvalFixtureDraftItem[];
+  interventionFixtures?: DiagnosisEvalInterventionFixtureDraftItem[];
+  safetyFixtures?: DiagnosisEvalSafetyFixtureDraftItem[];
+}
+
+export interface DiagnosisEvalFixtureDraftItem {
+  name: string;
+  source: string;
+  correctionId: number;
+  submissionId: number;
+  problem: {
+    id?: number | null;
+    title?: string | null;
+    description?: string | null;
+    difficulty?: string | null;
+    timeLimit?: number | null;
+    memoryLimit?: number | null;
+  };
+  submission: {
+    languageName?: string | null;
+    verdict?: string | null;
+    sourceCode?: string | null;
+  };
+  caseResults: Array<{
+    testCaseNumber?: number | null;
+    passed?: boolean | null;
+    hidden?: boolean | null;
+    inputSnapshot?: string | null;
+    actualOutput?: string | null;
+    expectedOutput?: string | null;
+    executionTime?: number | null;
+    memoryUsed?: number | null;
+  }>;
+  analysis: {
+    scenario?: string | null;
+    originalIssueTags: string[];
+    originalFineGrainedTags: string[];
+    analysisHeadline?: string | null;
+  };
+  teacherCorrection: {
+    correctedIssueTag?: string | null;
+    correctedFineGrainedTag?: string | null;
+    teacherNote?: string | null;
+  };
+  expectedIssueTags: string[];
+  expectedFineTags: string[];
+  mustMention: string[];
+  mustNotMention: string[];
+  sourceMaterial: {
+    localFolder?: string | null;
+    artifacts: string[];
+    anonymizationNote?: string | null;
+  };
+  quality: {
+    bugPattern?: string | null;
+    misconception?: string | null;
+    expectedStudentMove?: string | null;
+    evalPurpose?: string | null;
+  };
+}
+
+export interface DiagnosisEvalInterventionFixtureDraftItem {
+  name: string;
+  source: string;
+  suggestionKey: string;
+  title?: string | null;
+  targetAbility?: string | null;
+  feedbackActionType?: string | null;
+  feedbackNote?: string | null;
+  impactStatus?: string | null;
+  impactSummary?: string | null;
+  followupSubmissionId?: number | null;
+  followupVerdict?: string | null;
+  evidenceTags: string[];
+  evidenceRefs: string[];
+  mustMention: string[];
+  mustNotMention: string[];
+  expectedTeachingActions: string[];
+  sourceMaterial: {
+    localFolder?: string | null;
+    artifacts: string[];
+    anonymizationNote?: string | null;
+  };
+  quality: {
+    bugPattern?: string | null;
+    misconception?: string | null;
+    expectedStudentMove?: string | null;
+    evalPurpose?: string | null;
+  };
+}
+
+export interface DiagnosisEvalSafetyFixtureDraftItem {
+  name: string;
+  source: string;
+  submissionId: number;
+  problem: {
+    id?: number | null;
+    title?: string | null;
+    description?: string | null;
+    difficulty?: string | null;
+    timeLimit?: number | null;
+    memoryLimit?: number | null;
+  };
+  submission: {
+    languageName?: string | null;
+    verdict?: string | null;
+    sourceCode?: string | null;
+  };
+  analysis: {
+    scenario?: string | null;
+    originalIssueTags: string[];
+    originalFineGrainedTags: string[];
+    analysisHeadline?: string | null;
+  };
+  riskLevel?: string | null;
+  riskSources: string[];
+  blockedReasons: string[];
+  originalHintPreview?: string | null;
+  safeHintPreview?: string | null;
+  evidenceRefs: string[];
+  mustMention: string[];
+  mustNotMention: string[];
+  expectedSafetyAction?: string | null;
+  sourceMaterial: {
+    localFolder?: string | null;
+    artifacts: string[];
+    anonymizationNote?: string | null;
+  };
+  quality: {
+    bugPattern?: string | null;
+    misconception?: string | null;
+    expectedStudentMove?: string | null;
+    evalPurpose?: string | null;
+  };
+}
+
 export interface AiQualityTrend {
   assignmentCount: number;
   analyzedSubmissionCount: number;
   correctionCount: number;
   evalCandidateCount: number;
+  interventionEvalCandidateCount?: number;
+  interventionWaitingFollowupCount?: number;
+  interventionImprovedCount?: number;
+  interventionShiftedCount?: number;
+  interventionStillStuckCount?: number;
   lowConfidenceCount: number;
   highLeakRiskCount: number;
+  promptSafetyIncidentCount?: number;
+  promptSafetyDowngradeCount?: number;
+  promptSafetyHighRiskDowngradeCount?: number;
   correctionRate: number;
   lowConfidenceRate: number;
   highLeakRiskRate: number;
+  promptSafetyIncidentRate?: number;
   summary?: string | null;
   assignments: AiQualityTrendPoint[];
   correctedTags: AiQualityTrendTag[];
@@ -523,11 +1024,20 @@ export interface AiQualityTrendPoint {
   analyzedSubmissionCount: number;
   correctionCount: number;
   evalCandidateCount: number;
+  interventionEvalCandidateCount?: number;
+  interventionWaitingFollowupCount?: number;
+  interventionImprovedCount?: number;
+  interventionShiftedCount?: number;
+  interventionStillStuckCount?: number;
   lowConfidenceCount: number;
   highLeakRiskCount: number;
+  promptSafetyIncidentCount?: number;
+  promptSafetyDowngradeCount?: number;
+  promptSafetyHighRiskDowngradeCount?: number;
   correctionRate: number;
   lowConfidenceRate: number;
   highLeakRiskRate: number;
+  promptSafetyIncidentRate?: number;
   summary?: string | null;
 }
 
@@ -552,9 +1062,13 @@ export interface AiQualitySourceSegment {
   correctionCount: number;
   lowConfidenceCount: number;
   highLeakRiskCount: number;
+  promptSafetyIncidentCount?: number;
+  promptSafetyDowngradeCount?: number;
+  promptSafetyHighRiskDowngradeCount?: number;
   correctionRate: number;
   lowConfidenceRate: number;
   highLeakRiskRate: number;
+  promptSafetyIncidentRate?: number;
 }
 
 export interface RecommendationEffectiveness {
@@ -567,13 +1081,18 @@ export interface RecommendationEffectiveness {
   acceptedFollowupCount: number;
   sameFocusIssueCount: number;
   clickedWithoutSubmissionCount: number;
+  unresolvedLearningSignalCount: number;
+  teacherInterventionRecommendedCount: number;
   clickThroughRate: number;
   followupSubmissionRate: number;
   acceptedFollowupRate: number;
   sameFocusIssueRate: number;
   summary?: string | null;
   byType: RecommendationEffectivenessSegment[];
+  byStrategy: RecommendationEffectivenessSegment[];
   focusTags: RecommendationEffectivenessSegment[];
+  feedbackSignals: RecommendationFeedbackSignal[];
+  actionEvidenceSignals?: RecommendationActionEvidenceSignal[];
 }
 
 export interface RecommendationEffectivenessSegment {
@@ -585,10 +1104,41 @@ export interface RecommendationEffectivenessSegment {
   followupSubmissionCount: number;
   acceptedFollowupCount: number;
   sameFocusIssueCount: number;
+  unresolvedLearningSignalCount: number;
+  teacherInterventionRecommendedCount: number;
   clickThroughRate: number;
   followupSubmissionRate: number;
   acceptedFollowupRate: number;
   sameFocusIssueRate: number;
+}
+
+export interface RecommendationFeedbackSignal {
+  signal: string;
+  strategy?: string | null;
+  severity?: string | null;
+  evidenceCount: number;
+  summary?: string | null;
+  recommendedAction?: string | null;
+  evidenceTokens?: string[];
+}
+
+export interface RecommendationActionEvidenceSignal {
+  recommendationToken?: string | null;
+  type?: string | null;
+  strategy?: string | null;
+  riskLevel?: string | null;
+  learningHypothesis?: string | null;
+  expectedCompletionSignal?: string | null;
+  outcome?: string | null;
+  summary?: string | null;
+  recommendedAdjustment?: string | null;
+  needsTeacherAttention?: boolean;
+  followupSubmissionId?: number | null;
+  followupVerdict?: string | null;
+  followupIssueTag?: string | null;
+  followupFineGrainedTag?: string | null;
+  evidenceRefs?: string[];
+  lastEventAt?: string | null;
 }
 
 export interface TeacherDiagnosisCorrection {

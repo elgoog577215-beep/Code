@@ -1,8 +1,10 @@
 package com.onlinejudge.classroom.application;
 
 import com.onlinejudge.classroom.dto.AssignmentResponse;
+import com.onlinejudge.classroom.dto.StudentAbilityProfileResponse;
 import com.onlinejudge.classroom.dto.StudentProfileResponse;
 import com.onlinejudge.classroom.dto.StudentTrajectoryResponse;
+import com.onlinejudge.classroom.persistence.StudentRecommendationEventRepository;
 import com.onlinejudge.classroom.persistence.StudentProfileRepository;
 import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
@@ -43,6 +45,13 @@ public class StudentTrajectoryService {
     private final CoachImpactAnalyzer coachImpactAnalyzer;
     private final LearningInterventionImpactAnalyzer learningInterventionImpactAnalyzer;
     private final LearningActionEvidenceAnalyzer learningActionEvidenceAnalyzer;
+    private final PostAcTransferAnalyzer postAcTransferAnalyzer;
+    private final RecurringMisconceptionAnalyzer recurringMisconceptionAnalyzer;
+    private final SelfExplanationMasteryAnalyzer selfExplanationMasteryAnalyzer;
+    private final StudentRecommendationEventRepository recommendationEventRepository;
+    private final AiDependencyAnalyzer aiDependencyAnalyzer;
+    private final MasteryGrowthAnalyzer masteryGrowthAnalyzer;
+    private final TeachingActionOrchestrator teachingActionOrchestrator;
 
     public StudentTrajectoryResponse buildTrajectory(Long assignmentId, Long studentProfileId) {
         AssignmentResponse assignment = classroomService.getAssignment(assignmentId);
@@ -70,6 +79,23 @@ public class StudentTrajectoryService {
                         .toList())
                 .stream()
                 .collect(Collectors.toMap(Problem::getId, Function.identity()));
+        Map<Long, StudentTrajectoryResponse.PostAcTransferSignal> postAcTransferSignals =
+                postAcTransferAnalyzer.analyzeTasks(submissions, analyses, coachInteractions, problems);
+        List<com.onlinejudge.classroom.domain.CoachPrompt> coachPrompts = coachInteractionAnalyzer.findPrompts(submissionIds);
+        StudentAbilityProfileResponse.SelfExplanationMasterySignal selfExplanationMasterySignal =
+                selfExplanationMasteryAnalyzer.analyze(coachPrompts);
+        StudentAbilityProfileResponse.AiDependencySignal aiDependencySignal =
+                aiDependencyAnalyzer.analyze(
+                        submissions,
+                        coachPrompts,
+                        recommendationEventRepository.findByStudentProfileIdOrderByCreatedAtDesc(studentProfileId).stream()
+                                .filter(event -> Objects.equals(event.getAssignmentId(), assignmentId))
+                                .toList()
+                );
+        StudentAbilityProfileResponse.MasteryGrowthSignal masteryGrowthSignal =
+                masteryGrowthAnalyzer.analyze(submissions, analyses);
+        StudentAbilityProfileResponse.RecurringMisconceptionSignal recurringMisconceptionSignal =
+                recurringMisconceptionAnalyzer.analyze(submissions, analyses);
 
         List<StudentTrajectoryResponse.TaskTrajectory> taskTrajectories = assignment.getTasks().stream()
                 .map(task -> buildTaskTrajectory(
@@ -80,7 +106,8 @@ public class StudentTrajectoryService {
                         coachInteractions,
                         coachImpacts,
                         interventionImpacts,
-                        actionEvidence
+                        actionEvidence,
+                        postAcTransferSignals.get(task.getProblemId())
                 ))
                 .toList();
 
@@ -121,6 +148,10 @@ public class StudentTrajectoryService {
                 learningInterventionImpactAnalyzer.latestForOrderedSubmissions(submissionIds, interventionImpacts);
         StudentTrajectoryResponse.LearningActionEvidence latestLearningActionEvidence =
                 learningActionEvidenceAnalyzer.latestForOrderedSubmissions(submissionIds, actionEvidence);
+        StudentTrajectoryResponse.PostAcTransferSignal postAcTransferSignal =
+                postAcTransferAnalyzer.summarize(taskTrajectories.stream()
+                        .map(StudentTrajectoryResponse.TaskTrajectory::getPostAcTransferSignal)
+                        .toList());
         if (latestLearningTrajectorySignal != null) {
             nextStep = learningTrajectoryPolicy.nextStep(latestLearningTrajectorySignal, nextStep);
             attentionReason = learningTrajectoryPolicy.attentionReason(latestLearningTrajectorySignal, attentionReason);
@@ -134,6 +165,37 @@ public class StudentTrajectoryService {
             nextStep = learningTrajectoryPolicy.nextStep(latestLearningActionEvidence, nextStep);
             attentionReason = learningTrajectoryPolicy.attentionReason(latestLearningActionEvidence, attentionReason);
             improvementSignal = learningTrajectoryPolicy.improvementSignal(latestLearningActionEvidence, improvementSignal);
+        }
+        if (postAcTransferSignal != null && postAcTransferAnalyzer.isPending(postAcTransferSignal)) {
+            nextStep = postAcTransferSignal.getRecommendedAction();
+            attentionReason = postAcTransferSignal.getSummary();
+        }
+        if (selfExplanationMasteryAnalyzer.needsPractice(selfExplanationMasterySignal)) {
+            nextStep = selfExplanationMasterySignal.getRecommendedAction();
+            attentionReason = selfExplanationMasterySignal.getSummary();
+        }
+        if (aiDependencyAnalyzer.isRisk(aiDependencySignal)) {
+            nextStep = aiDependencySignal.getRecommendedAction();
+            attentionReason = aiDependencySignal.getSummary();
+        }
+        if (masteryGrowthAnalyzer.isRisk(masteryGrowthSignal)) {
+            nextStep = masteryGrowthSignal.getRecommendedAction();
+            attentionReason = masteryGrowthSignal.getSummary();
+        }
+        StudentAbilityProfileResponse.TeachingActionDecision teachingActionDecision =
+                teachingActionOrchestrator.decide(
+                        latestLearningTrajectorySignal,
+                        latestLearningActionEvidence,
+                        postAcTransferSignal,
+                        recurringMisconceptionSignal,
+                        selfExplanationMasterySignal,
+                        aiDependencySignal,
+                        masteryGrowthSignal,
+                        nextStep
+                );
+        if (teachingActionOrchestrator.isActionable(teachingActionDecision)) {
+            nextStep = teachingActionDecision.getRecommendedAction();
+            attentionReason = firstNonBlank(teachingActionDecision.getPrimaryReason(), teachingActionDecision.getSummary(), attentionReason);
         }
         List<AbilitySignalAnalyzer.AbilitySignal> abilitySignals = abilitySignalAnalyzer.summarize(submissions, analyses);
         String primaryAbilityFocus = abilitySignals.stream()
@@ -165,6 +227,11 @@ public class StudentTrajectoryService {
                 .latestLearningInterventionPlan(latestLearningInterventionPlan)
                 .latestLearningInterventionImpact(latestLearningInterventionImpact)
                 .latestLearningActionEvidence(latestLearningActionEvidence)
+                .postAcTransferSignal(postAcTransferSignal)
+                .selfExplanationMasterySignal(selfExplanationMasterySignal)
+                .aiDependencySignal(aiDependencySignal)
+                .masteryGrowthSignal(masteryGrowthSignal)
+                .teachingActionDecision(teachingActionDecision)
                 .primaryAbilityFocus(primaryAbilityFocus)
                 .crossProblemSummary(crossProblemSummary)
                 .latestCoachInteraction(withImpact(
@@ -200,7 +267,7 @@ public class StudentTrajectoryService {
                                                                          Problem problem,
                                                                          List<Submission> allSubmissions,
                                                                          Map<Long, SubmissionAnalysis> analyses) {
-        return buildTaskTrajectory(task, problem, allSubmissions, analyses, Map.of(), Map.of(), Map.of(), Map.of());
+        return buildTaskTrajectory(task, problem, allSubmissions, analyses, Map.of(), Map.of(), Map.of(), Map.of(), null);
     }
 
     private StudentTrajectoryResponse.TaskTrajectory buildTaskTrajectory(AssignmentResponse.TaskSummary task,
@@ -210,7 +277,8 @@ public class StudentTrajectoryService {
                                                                          Map<Long, com.onlinejudge.classroom.dto.CoachInteractionSummaryResponse> coachInteractions,
                                                                          Map<Long, com.onlinejudge.classroom.dto.CoachImpactResponse> coachImpacts,
                                                                          Map<Long, StudentTrajectoryResponse.LearningInterventionImpact> interventionImpacts,
-                                                                         Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence) {
+                                                                         Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence,
+                                                                         StudentTrajectoryResponse.PostAcTransferSignal postAcTransferSignal) {
         List<Submission> submissions = allSubmissions.stream()
                 .filter(submission -> Objects.equals(submission.getProblemId(), task.getProblemId()))
                 .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
@@ -245,6 +313,7 @@ public class StudentTrajectoryService {
                 .latestLearningInterventionPlan(latestLearningInterventionPlan)
                 .latestLearningInterventionImpact(latestLearningInterventionImpact)
                 .latestLearningActionEvidence(latestLearningActionEvidence)
+                .postAcTransferSignal(postAcTransferSignal)
                 .latestHint(extractStudentHint(latestAnalysis))
                 .latestImprovementSignal(latestImprovementSignal)
                 .latestCoachInteraction(latestCoachInteraction(submissions, coachInteractions, coachImpacts))
@@ -489,6 +558,15 @@ public class StudentTrajectoryService {
             case "COMPILATION_ERROR" -> "编译错误";
             default -> "待观察";
         };
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 
     private String extractStudentHint(SubmissionAnalysis analysis) {

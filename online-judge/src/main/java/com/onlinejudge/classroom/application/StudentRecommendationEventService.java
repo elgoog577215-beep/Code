@@ -64,9 +64,15 @@ public class StudentRecommendationEventService {
                 .recommendationToken(recommendationToken)
                 .studentProfileId(studentProfileId == null ? exposure.getStudentProfileId() : studentProfileId)
                 .type(exposure.getType())
+                .assignmentId(exposure.getAssignmentId())
                 .problemId(exposure.getProblemId())
                 .focusAbility(exposure.getFocusAbility())
                 .focusTags(exposure.getFocusTags())
+                .strategy(exposure.getStrategy())
+                .learningHypothesis(exposure.getLearningHypothesis())
+                .expectedCompletionSignal(exposure.getExpectedCompletionSignal())
+                .riskLevel(exposure.getRiskLevel())
+                .fallbackAction(exposure.getFallbackAction())
                 .eventType(eventType)
                 .createdAt(LocalDateTime.now())
                 .build());
@@ -86,9 +92,15 @@ public class StudentRecommendationEventService {
                 .recommendationToken(recommendationToken)
                 .studentProfileId(submission.getStudentProfileId() == null ? exposure.getStudentProfileId() : submission.getStudentProfileId())
                 .type(exposure.getType())
+                .assignmentId(submission.getAssignmentId() == null ? exposure.getAssignmentId() : submission.getAssignmentId())
                 .problemId(exposure.getProblemId() == null ? submission.getProblemId() : exposure.getProblemId())
                 .focusAbility(exposure.getFocusAbility())
                 .focusTags(exposure.getFocusTags())
+                .strategy(exposure.getStrategy())
+                .learningHypothesis(exposure.getLearningHypothesis())
+                .expectedCompletionSignal(exposure.getExpectedCompletionSignal())
+                .riskLevel(exposure.getRiskLevel())
+                .fallbackAction(exposure.getFallbackAction())
                 .eventType(EVENT_SUBMITTED)
                 .followupSubmissionId(submission.getId())
                 .followupVerdict(submission.getVerdict() == null ? null : submission.getVerdict().name())
@@ -151,7 +163,11 @@ public class StudentRecommendationEventService {
                 Integer.toHexString(Objects.hash(
                         nullToBlank(item.getFocusAbility()),
                         item.getFocusTags() == null ? List.of() : item.getFocusTags(),
-                        item.getEvidenceProblemIds() == null ? List.of() : item.getEvidenceProblemIds()
+                        item.getEvidenceProblemIds() == null ? List.of() : item.getEvidenceProblemIds(),
+                        item.getAssignmentId() == null ? 0 : item.getAssignmentId(),
+                        nullToBlank(item.getStrategy()),
+                        nullToBlank(item.getRiskLevel()),
+                        nullToBlank(item.getExpectedCompletionSignal())
                 ))
         );
     }
@@ -171,9 +187,15 @@ public class StudentRecommendationEventService {
                 .recommendationToken(item.getRecommendationToken())
                 .studentProfileId(studentProfileId)
                 .type(item.getType())
+                .assignmentId(item.getAssignmentId())
                 .problemId(item.getProblemId())
                 .focusAbility(item.getFocusAbility())
                 .focusTags(toJson(item.getFocusTags()))
+                .strategy(item.getStrategy())
+                .learningHypothesis(item.getLearningHypothesis())
+                .expectedCompletionSignal(item.getExpectedCompletionSignal())
+                .riskLevel(item.getRiskLevel())
+                .fallbackAction(item.getFallbackAction())
                 .eventType(eventType)
                 .createdAt(LocalDateTime.now());
     }

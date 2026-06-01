@@ -47,6 +47,12 @@ public class CoachPrompt {
     @Column(name = "prompt_type", nullable = false)
     private String promptType;
 
+    @Column(name = "model_failure_reason")
+    private String modelFailureReason;
+
+    @Column(name = "model_answer_leak_risk")
+    private String modelAnswerLeakRisk;
+
     @Column(name = "question", columnDefinition = "TEXT", nullable = false)
     private String question;
 

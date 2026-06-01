@@ -189,10 +189,48 @@ class ModelDiagnosisBriefBuilderTest {
                     assertThat(signal.getEvidenceRef()).isEqualTo("code:range_excludes_n");
                     assertThat(signal.getConfidence()).isGreaterThan(0.8);
                 })
+	                .anySatisfy(signal -> {
+	                    assertThat(signal.getEvidenceRef()).isEqualTo("memory:recurring_issue:IO_FORMAT");
+	                    assertThat(signal.getConfidence()).isLessThan(0.6);
+	                    assertThat(signal.getReason()).contains("auxiliary");
+	                });
+    }
+
+    @Test
+    void briefCarriesTeacherCalibrationAsAuxiliaryConstraint() {
+        DiagnosisEvidencePackage evidencePackage = DiagnosisEvidencePackage.builder()
+                .problem(problem())
+                .submission(submission())
+                .learningMemory(DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                        .teacherCalibrationPatterns(List.of(DiagnosisEvidencePackage.TeacherCalibrationPattern.builder()
+                                .originalIssueTag("LOOP_BOUNDARY")
+                                .originalFineGrainedTag("OFF_BY_ONE")
+                                .correctedIssueTag("IO_FORMAT")
+                                .correctedFineGrainedTag("INPUT_PARSING")
+                                .correctionCount(2L)
+                                .latestTeacherNote("学生实际是读入多组数据时漏读。")
+                                .evidenceSubmissionIds(List.of(31L, 32L))
+                                .evidenceRefs(List.of("memory:teacher_calibration:input_parsing", "teacher_correction:submission:31"))
+                                .build()))
+                        .evidenceRefs(List.of("memory:teacher_corrections:2"))
+                        .build())
+                .build();
+
+        ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, ruleSignals(), null);
+
+        assertThat(brief.getTeacherCalibrationSummary())
+                .contains("corrected=INPUT_PARSING")
+                .contains("count=2");
+        assertThat(brief.getLearningMemorySummary()).contains("teacherCalibration");
+        assertThat(brief.getAllowedIssueTags()).contains("LOOP_BOUNDARY", "IO_FORMAT");
+        assertThat(brief.getAllowedFineGrainedTags()).contains("OFF_BY_ONE", "INPUT_PARSING");
+        assertThat(brief.getEvidenceRefs()).contains("memory:teacher_calibration:input_parsing");
+        assertThat(brief.getCandidateSignals())
                 .anySatisfy(signal -> {
-                    assertThat(signal.getEvidenceRef()).isEqualTo("memory:recurring_issue:IO_FORMAT");
-                    assertThat(signal.getConfidence()).isLessThan(0.6);
-                    assertThat(signal.getReason()).contains("auxiliary");
+                    assertThat(signal.getEvidenceRef()).isEqualTo("memory:teacher_calibration:input_parsing");
+                    assertThat(signal.getIssueTag()).isEqualTo("IO_FORMAT");
+                    assertThat(signal.getFineGrainedTag()).isEqualTo("INPUT_PARSING");
+                    assertThat(signal.getReason()).contains("Teacher calibration");
                 });
     }
 

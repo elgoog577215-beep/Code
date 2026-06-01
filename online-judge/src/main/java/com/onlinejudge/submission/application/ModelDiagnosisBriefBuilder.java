@@ -42,6 +42,7 @@ public class ModelDiagnosisBriefBuilder {
                 .allowedFineGrainedTags(allowedFineTags(ruleSignals, evidencePackage, baseline))
                 .learningTrajectorySummary(learningTrajectorySummary(evidencePackage, baseline))
                 .learningMemorySummary(learningMemorySummary(evidencePackage))
+                .teacherCalibrationSummary(teacherCalibrationSummary(evidencePackage))
                 .hiddenDataBoundary(hiddenDataBoundary(judgeFacts))
                 .uncertainty(uncertainty(judgeFacts, ruleSignals))
                 .build();
@@ -166,6 +167,17 @@ public class ModelDiagnosisBriefBuilder {
                             .reason("Student memory shows repeated issue tag. Use only as auxiliary evidence; current submission evidence has higher priority.")
                             .build()));
         }
+        if (memory.getTeacherCalibrationPatterns() != null) {
+            memory.getTeacherCalibrationPatterns().stream()
+                    .limit(3)
+                    .forEach(pattern -> signals.add(ModelDiagnosisBrief.CandidateSignal.builder()
+                            .evidenceRef(firstEvidenceRef(pattern))
+                            .issueTag(blankToNull(pattern.getCorrectedIssueTag()))
+                            .fineGrainedTag(blankToNull(pattern.getCorrectedFineGrainedTag()))
+                            .confidence(teacherCalibrationConfidence(pattern))
+                            .reason("Teacher calibration pattern: previous AI diagnosis was corrected by teacher. Use as auxiliary constraint; current submission facts still have priority.")
+                            .build()));
+        }
         return signals;
     }
 
@@ -228,6 +240,7 @@ public class ModelDiagnosisBriefBuilder {
                     .filter(tag -> tag != null && !tag.isBlank())
                     .forEach(tags::add);
         }
+        addTeacherCalibrationIssueTags(tags, memory);
         tags.add("NEEDS_MORE_EVIDENCE");
         return List.copyOf(tags);
     }
@@ -250,6 +263,7 @@ public class ModelDiagnosisBriefBuilder {
                     .filter(tag -> tag != null && !tag.isBlank())
                     .forEach(tags::add);
         }
+        addTeacherCalibrationFineTags(tags, memory);
         return List.copyOf(tags);
     }
 
@@ -319,10 +333,78 @@ public class ModelDiagnosisBriefBuilder {
         if (memory.getTeacherCorrectionSummary() != null && !memory.getTeacherCorrectionSummary().isBlank()) {
             parts.add("teacherCorrection=" + memory.getTeacherCorrectionSummary());
         }
+        String teacherCalibration = teacherCalibrationSummary(evidencePackage);
+        if (!teacherCalibration.isBlank()) {
+            parts.add("teacherCalibration=" + teacherCalibration);
+        }
         if (memory.getEvidenceRefs() != null && !memory.getEvidenceRefs().isEmpty()) {
             parts.add("memoryEvidenceRefs=" + String.join(",", memory.getEvidenceRefs()));
         }
         return truncate(String.join(" | ", parts), 900);
+    }
+
+    private String teacherCalibrationSummary(DiagnosisEvidencePackage evidencePackage) {
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
+                evidencePackage == null ? null : evidencePackage.getLearningMemory();
+        if (memory == null || memory.getTeacherCalibrationPatterns() == null
+                || memory.getTeacherCalibrationPatterns().isEmpty()) {
+            return "";
+        }
+        return truncate(memory.getTeacherCalibrationPatterns().stream()
+                .limit(3)
+                .map(pattern -> "original="
+                        + defaultIfBlank(pattern.getOriginalFineGrainedTag(), pattern.getOriginalIssueTag())
+                        + " corrected="
+                        + defaultIfBlank(pattern.getCorrectedFineGrainedTag(), pattern.getCorrectedIssueTag())
+                        + " count=" + (pattern.getCorrectionCount() == null ? 0L : pattern.getCorrectionCount())
+                        + " refs=" + String.join(",", pattern.getEvidenceRefs() == null ? List.of() : pattern.getEvidenceRefs())
+                        + (isBlank(pattern.getLatestTeacherNote()) ? "" : " note=" + truncate(pattern.getLatestTeacherNote(), 120)))
+                .toList()
+                .toString(), 600);
+    }
+
+    private void addTeacherCalibrationIssueTags(Set<String> tags,
+                                                DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory) {
+        if (memory == null || memory.getTeacherCalibrationPatterns() == null) {
+            return;
+        }
+        memory.getTeacherCalibrationPatterns().stream()
+                .map(DiagnosisEvidencePackage.TeacherCalibrationPattern::getCorrectedIssueTag)
+                .filter(tag -> tag != null && !tag.isBlank())
+                .forEach(tags::add);
+    }
+
+    private void addTeacherCalibrationFineTags(Set<String> tags,
+                                               DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory) {
+        if (memory == null || memory.getTeacherCalibrationPatterns() == null) {
+            return;
+        }
+        memory.getTeacherCalibrationPatterns().stream()
+                .map(DiagnosisEvidencePackage.TeacherCalibrationPattern::getCorrectedFineGrainedTag)
+                .filter(tag -> tag != null && !tag.isBlank())
+                .forEach(tags::add);
+    }
+
+    private String firstEvidenceRef(DiagnosisEvidencePackage.TeacherCalibrationPattern pattern) {
+        if (pattern == null || pattern.getEvidenceRefs() == null || pattern.getEvidenceRefs().isEmpty()) {
+            return "memory:teacher_calibration";
+        }
+        return pattern.getEvidenceRefs().get(0);
+    }
+
+    private Double teacherCalibrationConfidence(DiagnosisEvidencePackage.TeacherCalibrationPattern pattern) {
+        long count = pattern == null || pattern.getCorrectionCount() == null ? 0L : pattern.getCorrectionCount();
+        if (count >= 3) {
+            return 0.64;
+        }
+        if (count >= 2) {
+            return 0.58;
+        }
+        return 0.5;
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private void addMemoryStats(List<String> parts,

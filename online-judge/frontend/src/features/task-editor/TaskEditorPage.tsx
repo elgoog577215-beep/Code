@@ -208,7 +208,7 @@ export default function TaskEditorPage() {
               </Field>
               <details className="editor-compact-details">
                 <summary>
-                  <span>题目设置</span>
+                  <span>教学增强信息</span>
                   <StatusPill tone={qualityItems[4].ready ? "success" : "neutral"}>{qualityItems[4].ready ? "已填写" : "选填"}</StatusPill>
                 </summary>
                 <div className="editor-compact-details__body">

@@ -23,16 +23,35 @@ public class CoachInteractionSummaryResponse {
     private LocalDateTime latestAt;
     private CoachImpactResponse impact;
     private CoachAnswerQualitySignal answerQualitySignal;
+    private CoachSafetyRejectionSignal coachSafetyRejectionSignal;
 
     @Data
     @Builder
     public static class CoachAnswerQualitySignal {
         private String qualityLevel;
         private String qualityLabel;
+        private String understandingLevel;
+        private Double evidenceCompleteness;
+        private Boolean verifiable;
+        private String actionStatus;
+        private String recommendedTeachingAction;
         private List<String> evidenceTypes;
         private List<String> missingEvidence;
         private String summary;
         private String nextCoachMove;
         private boolean needsTeacherAttention;
+    }
+
+    @Data
+    @Builder
+    public static class CoachSafetyRejectionSignal {
+        private String status;
+        private long rejectionCount;
+        private String latestReason;
+        private String latestAnswerLeakRisk;
+        private String summary;
+        private String recommendedAction;
+        private boolean needsTeacherAttention;
+        private List<String> evidenceRefs;
     }
 }

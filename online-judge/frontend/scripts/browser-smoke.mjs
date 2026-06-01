@@ -310,6 +310,32 @@ const assignmentOverview = {
     }
   ],
   classAbilityWeaknesses: [{ abilityPoint: "循环与边界", taskCount: 2, submissionCount: 12, evidenceTags: ["OFF_BY_ONE"] }],
+  coachAnswerQualitySummary: {
+    promptedCount: 4,
+    answeredCount: 3,
+    verifiableCount: 2,
+    transferReadyCount: 1,
+    evidenceInsufficientCount: 1,
+    safetyRiskCount: 1,
+    teacherAttentionCount: 2,
+    dominantGap: "SAFETY_RISK",
+    summary: "有 1 个 Coach 回答疑似越过证据层或需要教师关注。",
+    recommendedAction: "先示范如何描述最小样例、输出对比或变量轨迹，避免直接给改法。",
+    evidenceRefs: ["coach-submission:9001", "coach-submission:9002"]
+  },
+  coachFollowupImpactSummary: {
+    impactedCount: 4,
+    acceptedCount: 1,
+    shiftedCount: 1,
+    sameIssueCount: 1,
+    verdictChangedCount: 0,
+    noClearChangeCount: 1,
+    awaitingFollowupCount: 1,
+    dominantOutcome: "SAME_ISSUE",
+    summary: "有 1 个 Coach 追问后仍卡同类问题。",
+    recommendedAction: "降低追问颗粒度，补一个最小失败样例或让教师检查学生证据。",
+    evidenceRefs: ["coach-impact:SAME_ISSUE:submission:9001", "followup-submission:9002"]
+  },
   classReviewSuggestions: [
     {
       title: "下次练习前复盘最小输入",
@@ -535,6 +561,8 @@ const scenarios = [
       [".teacher-mode-tabs", "teacher mode tabs"],
       [".teacher-rail", "teacher assignment rail"],
       [".teacher-stage", "teacher classroom stage"],
+      [".teacher-coach-quality", "teacher coach answer quality summary"],
+      [".teacher-coach-impact", "teacher coach followup impact summary"],
       [".teacher-main-grid", "teacher classroom grid"],
       [".teacher-compact-details", "teacher compact details"],
       [".teacher-student-row", "teacher student row"]
