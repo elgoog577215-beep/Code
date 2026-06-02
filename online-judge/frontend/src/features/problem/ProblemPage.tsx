@@ -566,7 +566,7 @@ export default function ProblemPage() {
                       <div className="student-feedback-list">
                         {studentFeedback.blockingIssues.slice(0, 3).map((issue, index) => (
                           <article className="student-feedback-item" key={`${issue.title || issue.issueTag || "blocking"}-${index}`}>
-                            <span>{issue.priority ? `优先级 ${issue.priority}` : issue.fineGrainedTag ? issueLabel(issue.fineGrainedTag) : "先处理"}</span>
+                            <span>{issue.priority ? `优先级 ${issue.priority}` : "先处理"}</span>
                             <strong>{issue.title || issueLabel(issue.issueTag) || "当前失败原因"}</strong>
                             {issue.studentMessage && <p>{issue.studentMessage}</p>}
                             {issue.evidence && <small>{issue.evidence}</small>}
@@ -586,7 +586,7 @@ export default function ProblemPage() {
                       <div className="student-feedback-list">
                         {studentFeedback.secondaryIssues.slice(0, 2).map((issue, index) => (
                           <article className="student-feedback-item" key={`${issue.title || issue.issueTag || "secondary"}-${index}`}>
-                            <span>{issue.issueTag ? issueLabel(issue.issueTag) : "次要信号"}</span>
+                            <span>次要信号</span>
                             <strong>{issue.title || "可以后置观察"}</strong>
                             {issue.studentMessage && <p>{issue.studentMessage}</p>}
                             {issue.whyNotPrimary && <small>{issue.whyNotPrimary}</small>}
@@ -637,7 +637,7 @@ export default function ProblemPage() {
                     <strong>{feedbackSummary}</strong>
                   </div>
                   <div>
-                    <span>AI</span>
+                    <span>分析</span>
                     <strong>{analysisStateLabel}</strong>
                   </div>
                 </div>
