@@ -78,8 +78,11 @@ class AiQualityOverviewServiceTest {
         assignmentRepository.items.put(7L, Assignment.builder().id(7L).title("作业").build());
         submissionRepository.items.add(submission(11L, 7L));
         submissionRepository.items.add(submission(12L, 7L));
-        analysisRepository.save(analysis(11L, 0.55, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_RUNTIME_FALLBACK", true));
-        analysisRepository.save(analysis(12L, 0.82, "HIGH", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]", "MODEL_PARTIAL_COMPLETED", false));
+        analysisRepository.save(analysis(11L, 0.55, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
+                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_TEACHING", "INSUFFICIENT_QUOTA",
+                "stream", 0, 0, 0, false));
+        analysisRepository.save(analysis(12L, 0.82, "HIGH", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]",
+                "MODEL_PARTIAL_COMPLETED", false, null, "single-call", "TEACHING_HINT", "SAFETY_RISK"));
         correctionRepository.saved.add(correction(1L, 7L, 11L, "BOUNDARY_CONDITION", "OFF_BY_ONE", "IO_FORMAT", "INPUT_PARSING", true));
 
         var overview = service.buildOverview(7L);
@@ -122,12 +125,12 @@ class AiQualityOverviewServiceTest {
                 );
         assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "MODEL_RUNTIME".equals(dimension.getDimension()))
                 .first()
-                .satisfies(dimension -> {
-                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
-                    assertThat(dimension.getScore()).isEqualTo(50.0);
-                    assertThat(dimension.getEvidenceRefs()).contains("eval:submission:11");
-                    assertThat(dimension.getRecommendedAction()).contains("模型调用");
-                });
+	                .satisfies(dimension -> {
+	                    assertThat(dimension.getStatus()).isEqualTo("ACTION_NEEDED");
+	                    assertThat(dimension.getScore()).isEqualTo(25.0);
+	                    assertThat(dimension.getEvidenceRefs()).contains("eval:submission:11");
+	                    assertThat(dimension.getRecommendedAction()).contains("ModelScope 额度");
+	                });
         assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "HINT_SAFETY".equals(dimension.getDimension()))
                 .first()
                 .satisfies(dimension -> {
@@ -139,6 +142,53 @@ class AiQualityOverviewServiceTest {
             assertThat(signal.getHighLeakRiskCount()).isEqualTo(1);
             assertThat(signal.getSafetyDowngradeCount()).isZero();
             assertThat(signal.getEvidenceRefs()).contains("prompt_safety_source:DIAGNOSIS_HIGH_LEAK_RISK");
+        });
+        assertThat(overview.getRuntimeAttributionSignal()).satisfies(signal -> {
+            assertThat(signal.getStatus()).isEqualTo("ACTION_NEEDED");
+            assertThat(signal.getPrimaryFailureType()).isEqualTo("QUOTA_LIMIT");
+            assertThat(signal.getPrimaryFailureReason()).isEqualTo("INSUFFICIENT_QUOTA");
+            assertThat(signal.getPrimaryFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+            assertThat(signal.getPrimaryTransportMode()).isEqualTo("stream");
+            assertThat(signal.getModelPartialCount()).isEqualTo(1);
+            assertThat(signal.getModelRuntimeFailureCount()).isEqualTo(1);
+            assertThat(signal.getRuntimeFailureRate()).isEqualTo(50.0);
+            assertThat(signal.getStreamNoContentCount()).isEqualTo(1);
+            assertThat(signal.getStreamInvalidChunkCount()).isZero();
+            assertThat(signal.getStreamFallbackRetryCount()).isZero();
+            assertThat(signal.getRecoveryStatus()).isEqualTo("BLOCKED");
+            assertThat(signal.isRecoverySmokeRecommended()).isTrue();
+            assertThat(signal.getRecoverySmokeCaseId()).isEqualTo("submission:11");
+            assertThat(signal.getRecoverySmokeRuntimeProfile()).isEqualTo("single-call");
+            assertThat(signal.getRecoverySmokeRequiredChecks()).contains(
+                    "status=MODEL_COMPLETED",
+                    "fallbackUsed=false",
+                    "modelHit=true",
+                    "evidenceRefs present",
+                    "answerLeakRisk!=HIGH",
+                    "streamContentChunkCount>0"
+            );
+            assertThat(signal.getRecoveryCheckCount()).isEqualTo(6);
+            assertThat(signal.getRecoveryPassedCheckCount()).isZero();
+            assertThat(signal.getRecoveryBlockedReasonCount()).isGreaterThanOrEqualTo(4);
+            assertThat(signal.getRecoveryBlockedReasons()).contains(
+                    "recovery smoke pending: submission:11",
+                    "submission:11: runtime fallback",
+                    "submission:11: model not completed",
+                    "submission:11: stream content chunk missing",
+                    "submission:11: INSUFFICIENT_QUOTA"
+            );
+            assertThat(signal.getQualityComparabilityStatus()).isEqualTo("NOT_COMPARABLE");
+            assertThat(signal.getQualityComparabilityReasonCount()).isGreaterThanOrEqualTo(4);
+            assertThat(signal.getQualityComparabilityReasons()).contains(
+                    "current recovery blocked",
+                    "model hits missing; fallback hits present",
+                    "partial model outputs present",
+                    "runtime failures still present"
+            );
+            assertThat(signal.getQualityComparabilitySummary()).contains("不能代表真实外部模型质量");
+            assertThat(signal.getSummary()).contains("额度不足", "stream 请求已发出", "content chunk", "BLOCKED");
+            assertThat(signal.getRecommendedAction()).contains("ModelScope 额度", "content chunk", "recovery smoke");
+            assertThat(signal.getEvidenceRefs()).contains("eval:submission:11");
         });
         assertThat(overview.getQualityDimensions()).filteredOn(dimension -> "PROMPT_SAFETY_INCIDENT_LOOP".equals(dimension.getDimension()))
                 .first()
@@ -154,14 +204,21 @@ class AiQualityOverviewServiceTest {
                     assertThat(priority.getPriority()).isEqualTo("P1");
                     assertThat(priority.getDimension()).isEqualTo("MODEL_RUNTIME");
                     assertThat(priority.getSeverity()).isEqualTo("ACTION_NEEDED");
+                    assertThat(priority.getRecommendedAction()).contains("ModelScope 额度");
                 });
         assertThat(overview.getEvalReadiness())
                 .satisfies(readiness -> {
                     assertThat(readiness.getStatus()).isEqualTo("READY");
                     assertThat(readiness.getCandidateCount()).isEqualTo(1);
+                    assertThat(readiness.getModelQualityBaselineStatus()).isEqualTo("BLOCKED");
+                    assertThat(readiness.getModelQualityBaselineReasons()).contains(
+                            "current recovery blocked",
+                            "model hits missing; fallback hits present"
+                    );
+                    assertThat(readiness.getModelQualityBaselineSummary()).contains("不可代表真实外部模型质量");
                     assertThat(readiness.getPriorityTags()).first()
                             .satisfies(tag -> assertThat(tag.getCorrectedTag()).isEqualTo("INPUT_PARSING"));
-                    assertThat(readiness.getEvidenceRefs()).contains("eval_candidates:1");
+                    assertThat(readiness.getEvidenceRefs()).contains("eval_candidates:1", "model_quality_baseline:BLOCKED");
                 });
         assertThat(overview.getCorrectedTags()).first()
                 .satisfies(tag -> {
@@ -170,6 +227,174 @@ class AiQualityOverviewServiceTest {
                     assertThat(tag.getOriginalLabel()).isEqualTo("差一位错误");
                     assertThat(tag.getCorrectedLabel()).isEqualTo("输入读取理解");
                 });
+	    }
+
+    @Test
+    void runtimeAttributionSignalClassifiesBudgetGuardFailures() {
+        assignmentRepository.items.put(19L, Assignment.builder().id(19L).title("预算保护作业").build());
+        submissionRepository.items.add(submission(191L, 19L));
+        submissionRepository.items.add(submission(192L, 19L));
+        analysisRepository.save(analysis(191L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
+                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_TEACHING", "BUDGET_GUARD_OPEN"));
+        analysisRepository.save(analysis(192L, 0.81, "LOW", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]",
+                "MODEL_COMPLETED", false));
+
+        var overview = service.buildOverview(19L);
+
+        assertThat(overview.getRuntimeAttributionSignal()).satisfies(signal -> {
+            assertThat(signal.getPrimaryFailureType()).isEqualTo("BUDGET_GUARD");
+            assertThat(signal.getPrimaryFailureReason()).isEqualTo("BUDGET_GUARD_OPEN");
+            assertThat(signal.getPrimaryTransportMode()).isEmpty();
+            assertThat(signal.getStreamNoContentCount()).isZero();
+            assertThat(signal.getStreamInvalidChunkCount()).isZero();
+            assertThat(signal.getStreamFallbackRetryCount()).isZero();
+            assertThat(signal.getSummary()).contains("预算保护打开", "未发出 HTTP 请求");
+            assertThat(signal.getRecommendedAction()).contains("解除预算保护", "小样本 live eval", "本地短路");
+            assertThat(signal.getEvidenceRefs()).contains("eval:submission:191");
+        });
+        assertThat(overview.getImprovementPriorities()).first()
+                .satisfies(priority -> {
+                    assertThat(priority.getDimension()).isEqualTo("MODEL_RUNTIME");
+                    assertThat(priority.getRecommendedAction()).contains("预算保护");
+                });
+    }
+
+    @Test
+    void runtimeAttributionSignalClassifiesOutputTruncatedFailures() {
+        assignmentRepository.items.put(20L, Assignment.builder().id(20L).title("输出截断作业").build());
+        submissionRepository.items.add(submission(201L, 20L));
+        submissionRepository.items.add(submission(202L, 20L));
+        analysisRepository.save(analysis(201L, 0.76, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
+                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_TEACHING", "OUTPUT_TRUNCATED",
+                "stream", 241, 77, 0, "length", false));
+        analysisRepository.save(analysis(202L, 0.81, "LOW", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]",
+                "MODEL_COMPLETED", false));
+
+        var overview = service.buildOverview(20L);
+
+        assertThat(overview.getRuntimeAttributionSignal()).satisfies(signal -> {
+            assertThat(signal.getPrimaryFailureType()).isEqualTo("OUTPUT_TRUNCATED");
+            assertThat(signal.getPrimaryFailureReason()).isEqualTo("OUTPUT_TRUNCATED");
+            assertThat(signal.getPrimaryFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+            assertThat(signal.getPrimaryTransportMode()).isEqualTo("stream");
+            assertThat(signal.getModelRuntimeFailureCount()).isEqualTo(1);
+            assertThat(signal.getModelCompletedCount()).isEqualTo(1);
+            assertThat(signal.getRuntimeFailureRate()).isEqualTo(50.0);
+            assertThat(signal.getStreamNoContentCount()).isZero();
+            assertThat(signal.getStreamInvalidChunkCount()).isZero();
+            assertThat(signal.getStreamFallbackRetryCount()).isZero();
+            assertThat(signal.getSummary()).contains("输出被 token 预算截断", "max tokens", "schema");
+            assertThat(signal.getRecommendedAction()).contains("输出 token 预算", "JSON schema", "finish_reason=length", "max_tokens");
+            assertThat(signal.getRecommendedAction()).doesNotContain("额度", "provider");
+            assertThat(signal.getEvidenceRefs()).contains("eval:submission:201");
+        });
+        assertThat(overview.getImprovementPriorities()).first()
+                .satisfies(priority -> {
+                    assertThat(priority.getDimension()).isEqualTo("MODEL_RUNTIME");
+                    assertThat(priority.getRecommendedAction()).contains("输出 token 预算", "max_tokens");
+                    assertThat(priority.getRecommendedAction()).doesNotContain("额度", "provider");
+                });
+    }
+
+    @Test
+    void runtimeAttributionSignalMarksRecoveryRecoveredWhenLaterModelSamplePassesChecks() {
+        assignmentRepository.items.put(21L, Assignment.builder().id(21L).title("恢复作业").build());
+        submissionRepository.items.add(submission(211L, 21L));
+        submissionRepository.items.add(submission(212L, 21L));
+        analysisRepository.save(analysis(211L, 0.58, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
+                "MODEL_RUNTIME_FALLBACK", true, null, "low-latency", "DIAGNOSIS_AND_TEACHING", "RATE_LIMITED",
+                "stream", 0, 0, 0, false));
+        analysisRepository.save(analysis(212L, 0.86, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
+                "MODEL_COMPLETED", false, null, "low-latency", "", "",
+                "stream", 12, 5, 0, false));
+
+        var overview = service.buildOverview(21L);
+
+        assertThat(overview.getRuntimeAttributionSignal()).satisfies(signal -> {
+            assertThat(signal.getPrimaryFailureType()).isEqualTo("QUOTA_LIMIT");
+            assertThat(signal.getRecoveryStatus()).isEqualTo("RECOVERED");
+            assertThat(signal.isRecoverySmokeRecommended()).isFalse();
+            assertThat(signal.getRecoverySmokeCaseId()).isEmpty();
+            assertThat(signal.getRecoveryBlockedReasons()).isEmpty();
+            assertThat(signal.getRecoverySmokeRequiredChecks()).contains("streamContentChunkCount>0");
+            assertThat(signal.getRecoveryPassedChecks()).contains(
+                    "status=MODEL_COMPLETED",
+                    "fallbackUsed=false",
+                    "modelHit=true",
+                    "evidenceRefs present",
+                    "answerLeakRisk!=HIGH",
+                    "streamContentChunkCount>0",
+                    "recoveryEvidenceRef=eval:submission:212"
+            );
+            assertThat(signal.getQualityComparabilityStatus()).isEqualTo("COMPARABLE");
+            assertThat(signal.getQualityComparabilityReasonCount()).isZero();
+            assertThat(signal.getQualityComparabilityReasons()).isEmpty();
+            assertThat(signal.getQualityComparabilitySummary()).contains("可支持小批量模型质量对比");
+            assertThat(signal.getSummary()).contains("RECOVERED", "恢复证据");
+            assertThat(signal.getRecommendedAction()).contains("已有恢复证据", "无 fallback");
+        });
+        assertThat(overview.getEvalReadiness()).satisfies(readiness -> {
+            assertThat(readiness.getModelQualityBaselineStatus()).isEqualTo("READY");
+            assertThat(readiness.getModelQualityBaselineReasonCount()).isZero();
+            assertThat(readiness.getModelQualityBaselineReasons()).isEmpty();
+            assertThat(readiness.getModelQualityBaselineSummary()).contains("可沉淀为小批量模型质量 baseline");
+        });
+    }
+
+    @Test
+    void runtimeAttributionSignalMarksRecoveryNotApplicableForHealthyAssignments() {
+        assignmentRepository.items.put(22L, Assignment.builder().id(22L).title("健康作业").build());
+        submissionRepository.items.add(submission(221L, 22L));
+        submissionRepository.items.add(submission(222L, 22L));
+        analysisRepository.save(analysis(221L, 0.82, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
+                "MODEL_COMPLETED", false, null, "low-latency", "", "",
+                "stream", 20, 6, 0, false));
+        analysisRepository.save(analysis(222L, 0.84, "LOW", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]",
+                "MODEL_COMPLETED", false));
+
+        var overview = service.buildOverview(22L);
+
+        assertThat(overview.getRuntimeAttributionSignal()).satisfies(signal -> {
+            assertThat(signal.getStatus()).isEqualTo("HEALTHY");
+            assertThat(signal.getPrimaryFailureType()).isEqualTo("NONE");
+            assertThat(signal.getRecoveryStatus()).isEqualTo("NOT_APPLICABLE");
+            assertThat(signal.isRecoverySmokeRecommended()).isFalse();
+            assertThat(signal.getRecoveryCheckCount()).isZero();
+            assertThat(signal.getRecoveryPassedChecks()).isEmpty();
+            assertThat(signal.getRecoveryBlockedReasons()).isEmpty();
+            assertThat(signal.getQualityComparabilityStatus()).isEqualTo("NOT_APPLICABLE");
+            assertThat(signal.getQualityComparabilityReasonCount()).isZero();
+            assertThat(signal.getQualityComparabilityReasons()).isEmpty();
+            assertThat(signal.getQualityComparabilitySummary()).contains("没有需要解释");
+            assertThat(signal.getSummary()).doesNotContain("BLOCKED", "RECOVERED");
+        });
+    }
+
+    @Test
+    void runtimeAttributionSignalMarksQualityComparabilityPartialForPartialOnlyAssignments() {
+        assignmentRepository.items.put(23L, Assignment.builder().id(23L).title("部分完成作业").build());
+        submissionRepository.items.add(submission(231L, 23L));
+        submissionRepository.items.add(submission(232L, 23L));
+        analysisRepository.save(analysis(231L, 0.83, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
+                "MODEL_COMPLETED", false));
+        analysisRepository.save(analysis(232L, 0.80, "LOW", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]",
+                "MODEL_PARTIAL_COMPLETED", false, null, "low-latency", "TEACHING_HINT", "SAFETY_RISK"));
+
+        var overview = service.buildOverview(23L);
+
+        assertThat(overview.getRuntimeAttributionSignal()).satisfies(signal -> {
+            assertThat(signal.getStatus()).isEqualTo("WATCH");
+            assertThat(signal.getPrimaryFailureType()).isEqualTo("PARTIAL_COMPLETION");
+            assertThat(signal.getRecoveryStatus()).isEqualTo("RECOVERED");
+            assertThat(signal.getQualityComparabilityStatus()).isEqualTo("PARTIAL");
+            assertThat(signal.getQualityComparabilityReasons()).contains("partial model outputs present");
+            assertThat(signal.getQualityComparabilitySummary()).contains("部分真实模型证据");
+        });
+        assertThat(overview.getEvalReadiness()).satisfies(readiness -> {
+            assertThat(readiness.getModelQualityBaselineStatus()).isEqualTo("PARTIAL");
+            assertThat(readiness.getModelQualityBaselineReasons()).contains("partial model outputs present");
+            assertThat(readiness.getModelQualityBaselineSummary()).contains("部分真实外部模型质量证据");
+        });
     }
 
     @Test
@@ -707,6 +932,63 @@ class AiQualityOverviewServiceTest {
                                         String invocationStatus,
                                         boolean fallbackUsed,
                                         String learningActionStatus) {
+        return analysis(submissionId, confidence, leakRisk, issueTags, fineTags, invocationStatus, fallbackUsed,
+                learningActionStatus, "single-call", "", "");
+    }
+
+    private SubmissionAnalysis analysis(Long submissionId,
+                                        double confidence,
+                                        String leakRisk,
+                                        String issueTags,
+                                        String fineTags,
+                                        String invocationStatus,
+                                        boolean fallbackUsed,
+                                        String learningActionStatus,
+                                        String runtimeMode,
+                                        String failureStage,
+                                        String failureReason) {
+        return analysis(submissionId, confidence, leakRisk, issueTags, fineTags, invocationStatus, fallbackUsed,
+                learningActionStatus, runtimeMode, failureStage, failureReason, "", 0, 0, 0, false);
+    }
+
+    private SubmissionAnalysis analysis(Long submissionId,
+                                        double confidence,
+                                        String leakRisk,
+                                        String issueTags,
+                                        String fineTags,
+                                        String invocationStatus,
+                                        boolean fallbackUsed,
+                                        String learningActionStatus,
+                                        String runtimeMode,
+                                        String failureStage,
+                                        String failureReason,
+                                        String transportMode,
+                                        int streamChunkCount,
+                                        int streamContentChunkCount,
+                                        int streamInvalidChunkCount,
+                                        boolean streamFallbackRetryUsed) {
+        return analysis(submissionId, confidence, leakRisk, issueTags, fineTags, invocationStatus, fallbackUsed,
+                learningActionStatus, runtimeMode, failureStage, failureReason, transportMode, streamChunkCount,
+                streamContentChunkCount, streamInvalidChunkCount, "", streamFallbackRetryUsed);
+    }
+
+    private SubmissionAnalysis analysis(Long submissionId,
+                                        double confidence,
+                                        String leakRisk,
+                                        String issueTags,
+                                        String fineTags,
+                                        String invocationStatus,
+                                        boolean fallbackUsed,
+                                        String learningActionStatus,
+                                        String runtimeMode,
+                                        String failureStage,
+                                        String failureReason,
+                                        String transportMode,
+                                        int streamChunkCount,
+                                        int streamContentChunkCount,
+                                        int streamInvalidChunkCount,
+                                        String streamFinishReason,
+                                        boolean streamFallbackRetryUsed) {
         String learningActionJson = learningActionStatus == null ? "" : """
                           ,
                           "learningActionEvidence": {
@@ -718,6 +1000,16 @@ class AiQualityOverviewServiceTest {
                             "nextAdjustment": "降低提示粒度，要求最小样例。"
                           }
                 """.formatted(learningActionStatus, submissionId, learningActionStatus);
+        String transportTelemetryJson = transportMode == null || transportMode.isBlank() ? "" : """
+                            ,
+                            "transportMode": "%s",
+                            "streamChunkCount": %s,
+                            "streamContentChunkCount": %s,
+                            "streamInvalidChunkCount": %s,
+                            "streamFinishReason": "%s",
+                            "streamFallbackRetryUsed": %s
+                """.formatted(transportMode, streamChunkCount, streamContentChunkCount, streamInvalidChunkCount,
+                streamFinishReason == null ? "" : streamFinishReason, streamFallbackRetryUsed);
         return SubmissionAnalysis.builder()
                 .submissionId(submissionId)
                 .analysisSource("TEST")
@@ -741,11 +1033,16 @@ class AiQualityOverviewServiceTest {
                             "evidenceSchemaVersion": "diagnosis-evidence-package-v1",
                             "taxonomyVersion": "taxonomy-v1",
                             "status": "%s",
-                            "fallbackUsed": %s
+                            "fallbackUsed": %s,
+                            "runtimeMode": "%s",
+                            "failureStage": "%s",
+                            "failureReason": "%s"
+                            %s
                           }
                           %s
                         }
-                        """.formatted(issueTags, fineTags, confidence, leakRisk, submissionId, invocationStatus, fallbackUsed, learningActionJson))
+                        """.formatted(issueTags, fineTags, confidence, leakRisk, submissionId, invocationStatus, fallbackUsed,
+                        runtimeMode, failureStage, failureReason, transportTelemetryJson, learningActionJson))
                 .build();
     }
 

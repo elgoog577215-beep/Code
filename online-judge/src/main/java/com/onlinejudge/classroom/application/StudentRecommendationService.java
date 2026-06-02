@@ -12,6 +12,7 @@ import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -63,6 +64,7 @@ public class StudentRecommendationService {
     private final TeachingActionOrchestrator teachingActionOrchestrator;
     private final RecommendationActionEvidenceAnalyzer recommendationActionEvidenceAnalyzer;
 
+    @Autowired
     public StudentRecommendationService(StudentAbilityProfileService abilityProfileService,
                                         ProblemRepository problemRepository,
                                         SubmissionRepository submissionRepository,

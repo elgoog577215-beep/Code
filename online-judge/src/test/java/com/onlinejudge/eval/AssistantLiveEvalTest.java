@@ -121,6 +121,7 @@ class AssistantLiveEvalTest {
         assertThat(report.getEntries()).hasSize(fixtures.size());
         assertThat(reportPath).exists();
         assertLiveEvalQualityGateIfEnabled(report);
+        assertBaselineRegressionGateIfEnabled(report, reportPath);
     }
 
     private AssistantLiveEvalReport runLiveEval(List<AssistantEvalFixtureLoader.Fixture> fixtures,
@@ -201,7 +202,7 @@ class AssistantLiveEvalTest {
                 .actualEvidenceRefs(analysis.getEvidenceRefs())
                 .teachingAction(analysis.getStudentHintPlan() == null ? "" : analysis.getStudentHintPlan().getTeachingAction())
                 .safetyTrigger(resolveSafetyTrigger(analysis.getAnswerLeakRisk(), combinedText, fixture.rubric().forbiddenPhrases()))
-                .failureStage(resolveFailureStage(fallbackUsed, partialCompleted, analysis.getUncertainty()))
+                .failureStage(resolveFailureStage(fallbackUsed, partialCompleted, invocation, analysis.getUncertainty()))
                 .failureReason(resolveFailureReason(fallbackUsed, partialCompleted, invocation,
                         analysis.getUncertainty(), signalHit, safetyPassed, teachingActionValid))
                 .outputSummary(truncate(safe(analysis.getHeadline()) + " | " + safe(analysis.getSummary()), 220))
@@ -370,7 +371,7 @@ class AssistantLiveEvalTest {
         ReflectionTestUtils.setField(service, "externalRuntimeEnabled",
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_ENABLED"), "true")));
         ReflectionTestUtils.setField(service, "externalRuntimeMode",
-                valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_MODE"), "staged"));
+                valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_MODE"), "single-call"));
         ReflectionTestUtils.setField(service, "maxOutputTokens", (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
         ReflectionTestUtils.setField(service, "streamEnabled",
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_ENABLED"), "true")));
@@ -394,6 +395,10 @@ class AssistantLiveEvalTest {
     }
 
     private AssistantLiveEvalReport summarize(String model, List<AssistantLiveEvalReport.Entry> entries) {
+        List<LiveEvalRuntimeFixtureDraft> runtimeDrafts =
+                new LiveEvalRuntimeFixtureDraftFactory().fromAssistantEntries(entries);
+        List<LiveEvalQualityBaselineDraft> qualityBaselines =
+                new LiveEvalQualityBaselineDraftFactory().fromAssistantEntries(entries);
         return AssistantLiveEvalReport.builder()
                 .model(model)
                 .totalCount(entries.size())
@@ -406,7 +411,11 @@ class AssistantLiveEvalTest {
                 .safetyFailureCount((int) entries.stream().filter(entry -> !Boolean.TRUE.equals(entry.getSafetyPassed())).count())
                 .expectedSignalHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getExpectedSignalHit())).count())
                 .evidenceValidCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getEvidenceValid())).count())
+                .runtimeFixtureDraftCount(runtimeDrafts.size())
+                .qualityBaselineDraftCount(qualityBaselines.size())
                 .entries(entries)
+                .runtimeFixtureDrafts(runtimeDrafts)
+                .qualityBaselineDrafts(qualityBaselines)
                 .build();
     }
 
@@ -427,11 +436,43 @@ class AssistantLiveEvalTest {
                 .isEmpty();
     }
 
+    private void assertBaselineRegressionGateIfEnabled(AssistantLiveEvalReport report, Path reportPath) throws IOException {
+        String baselineReport = System.getenv("AI_EVAL_BASELINE_REPORT");
+        if (baselineReport == null || baselineReport.isBlank()) {
+            return;
+        }
+        Path baselinePath = Path.of(baselineReport);
+        AssistantLiveEvalReport baseline = objectMapper.readValue(baselinePath.toFile(), AssistantLiveEvalReport.class);
+        List<String> violations = LiveEvalBaselineRegressionGate.evaluate(report, baseline.getQualityBaselineDrafts());
+        LiveEvalBaselineRegressionReport regressionReport = new LiveEvalBaselineRegressionReportFactory()
+                .fromAssistant(report, baseline.getQualityBaselineDrafts(),
+                        baselinePath.toString(), reportPath.toString(), violations);
+        Path regressionReportPath = writeBaselineRegressionReport(
+                "assistant-live-eval-baseline-regression",
+                regressionReport
+        );
+        System.out.println("Assistant live eval baseline regression report saved to: " + regressionReportPath);
+        System.out.println("Assistant live eval baseline regression summary: " + regressionReport.consoleSummary());
+        assertThat(violations)
+                .as("assistant live eval baseline regression violations against " + baselinePath)
+                .isEmpty();
+    }
+
     private Path writeReport(AssistantLiveEvalReport report) throws IOException {
         Path reportDir = Path.of("target", "ai-eval-reports");
         Files.createDirectories(reportDir);
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         Path reportPath = reportDir.resolve("assistant-live-eval-" + timestamp + ".json");
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(reportPath.toFile(), report);
+        return reportPath;
+    }
+
+    private Path writeBaselineRegressionReport(String prefix,
+                                               LiveEvalBaselineRegressionReport report) throws IOException {
+        Path reportDir = Path.of("target", "ai-eval-reports");
+        Files.createDirectories(reportDir);
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path reportPath = reportDir.resolve(prefix + "-" + timestamp + ".json");
         objectMapper.writerWithDefaultPrettyPrinter().writeValue(reportPath.toFile(), report);
         return reportPath;
     }
@@ -609,11 +650,17 @@ class AssistantLiveEvalTest {
                                         boolean teachingActionValid) {
         if (fallbackUsed) {
             String status = invocation == null ? "MODEL_RUNTIME_FALLBACK" : safe(invocation.getStatus());
-            String detail = extractRuntimeFailureReason(uncertainty);
+            String detail = structuredFailureReason(invocation);
+            if (detail.isBlank()) {
+                detail = extractRuntimeFailureReason(uncertainty);
+            }
             return detail.isBlank() ? status : status + ":" + detail;
         }
         if (partialCompleted) {
-            String detail = extractRuntimeFailureReason(uncertainty);
+            String detail = structuredFailureReason(invocation);
+            if (detail.isBlank()) {
+                detail = extractRuntimeFailureReason(uncertainty);
+            }
             return detail.isBlank() ? "MODEL_PARTIAL_COMPLETED" : "MODEL_PARTIAL_COMPLETED:" + detail;
         }
         if (!safetyPassed) {
@@ -692,8 +739,28 @@ class AssistantLiveEvalTest {
         return text.replaceAll("(?s)\\n*<!-- AI_FAILURE:.*?-->\\s*$", "").trim();
     }
 
-    private String resolveFailureStage(boolean fallbackUsed, boolean partialCompleted, String uncertainty) {
+    private String structuredFailureReason(SubmissionAnalysisResponse.AiInvocation invocation) {
+        if (invocation == null) {
+            return "";
+        }
+        List<String> values = List.of(
+                        safe(invocation.getFailureStage()),
+                        safe(invocation.getFailureReason()))
+                .stream()
+                .filter(value -> !value.isBlank())
+                .toList();
+        return String.join(":", values);
+    }
+
+    private String resolveFailureStage(boolean fallbackUsed,
+                                       boolean partialCompleted,
+                                       SubmissionAnalysisResponse.AiInvocation invocation,
+                                       String uncertainty) {
         if (fallbackUsed || partialCompleted) {
+            String structuredStage = invocation == null ? "" : safe(invocation.getFailureStage());
+            if (!structuredStage.isBlank()) {
+                return structuredStage;
+            }
             return extractRuntimeFailureStage(uncertainty);
         }
         return "NONE";
@@ -703,6 +770,7 @@ class AssistantLiveEvalTest {
         String text = safe(uncertainty);
         List<String> knownStages = List.of(
                 "DIAGNOSIS_JUDGE",
+                "DIAGNOSIS_AND_TEACHING",
                 "TEACHING_HINT",
                 "SUBMISSION_ANALYSIS",
                 "UNKNOWN_STAGE"

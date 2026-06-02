@@ -18,6 +18,7 @@ public class DiagnosticAgentService {
 
     private static final String AGENT_VERSION = "diagnostic-agent-v2";
     private static final String RULE_PROMPT_VERSION = "rule-signal-diagnosis-v1";
+    private static final int MAX_CONTEXT_EVIDENCE_REFS = 16;
 
     private final DiagnosisEvidencePackageBuilder evidencePackageBuilder;
     private final RuleSignalAnalyzer ruleSignalAnalyzer;
@@ -66,6 +67,7 @@ public class DiagnosticAgentService {
         SubmissionAnalysisResponse enhanced = modelStage.analysis();
         enhanced.setIssueTags(diagnosisTaxonomy.normalizeIssueTags(enhanced.getIssueTags()));
         enhanced.setFineGrainedTags(diagnosisTaxonomy.normalizeFineGrainedTags(enhanced.getFineGrainedTags()));
+        enhanced = preserveContextEvidenceRefs(enhanced, evidencePackage, ruleSignals);
         enhanced = applyLowConfidenceGuard(enhanced);
         enhanced = applyTeacherCalibration(enhanced, evidencePackage, ruleSignals);
         SubmissionAnalysisResponse.LearningTrajectorySignal trajectorySignal =
@@ -84,6 +86,8 @@ public class DiagnosticAgentService {
         enhanced = applyPreviousActionEvidence(enhanced, evidencePackage);
         enhanced.setLearningInterventionPlan(resolveInterventionPlan(enhanced, effectivePolicy, evidencePackage));
         enhanced = hintSafetyService.verifyAndRecord(enhanced, effectivePolicy);
+        enhanced.setStudentFeedback(new StudentFeedbackAssembler(diagnosisTaxonomy)
+                .assemble(enhanced, evidencePackage, ruleSignals, modelStage.fallbackUsed()));
         String traceSummary = buildTraceSummary(ruleSignals, enhanced, modelStage.fallbackUsed());
         enhanced.setDiagnosticTrace(traceSummary);
         enhanced.setAiInvocation(resolveInvocation(enhanced, modelStage.fallbackUsed()));
@@ -99,9 +103,10 @@ public class DiagnosticAgentService {
         String primaryTag = primaryTag(analysis);
         String problemType = diagnosisTaxonomy.label(primaryTag);
         String teachingAction = diagnosisTaxonomy.teachingAction(primaryTag);
-        List<String> evidenceRefs = DiagnosisListSupport.deduplicate(existing == null || existing.getEvidenceRefs() == null
-                ? analysis.getEvidenceRefs()
-                : existing.getEvidenceRefs());
+        List<String> evidenceRefs = DiagnosisListSupport.deduplicate(mergeLists(
+                existing == null ? List.of() : existing.getEvidenceRefs(),
+                analysis.getEvidenceRefs()
+        ));
         String safeHint = defaultIfBlank(analysis.getStudentHint(), defaultHintForTag(primaryTag));
         boolean actionMismatch = existing != null
                 && !defaultIfBlank(existing.getTeachingAction(), teachingAction).equals(teachingAction);
@@ -648,6 +653,93 @@ public class DiagnosticAgentService {
         return analysis;
     }
 
+    private SubmissionAnalysisResponse preserveContextEvidenceRefs(SubmissionAnalysisResponse analysis,
+                                                                   DiagnosisEvidencePackage evidencePackage,
+                                                                   RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        if (analysis == null) {
+            return null;
+        }
+        analysis.setEvidenceRefs(DiagnosisListSupport.deduplicate(mergeLists(
+                mergeLists(analysis.getEvidenceRefs(), ruleSignals == null ? List.of() : ruleSignals.getEvidenceRefs()),
+                contextEvidenceRefs(evidencePackage)
+        )).stream().limit(MAX_CONTEXT_EVIDENCE_REFS).toList());
+        return analysis;
+    }
+
+    private List<String> contextEvidenceRefs(DiagnosisEvidencePackage evidencePackage) {
+        if (evidencePackage == null) {
+            return List.of();
+        }
+        List<String> refs = List.of();
+        DiagnosisEvidencePackage.SubmissionEvidence submission = evidencePackage.getSubmission();
+        if (submission != null) {
+            if (submission.getId() != null) {
+                refs = mergeLists(refs, List.of("submission:" + submission.getId()));
+            }
+            String verdict = normalizeVerdict(submission.getVerdict()).toLowerCase();
+            if (!"unknown".equals(verdict)) {
+                refs = mergeLists(refs, List.of("verdict:" + verdict));
+            }
+            if (submission.getSourceCodeLineCount() != null) {
+                refs = mergeLists(refs, List.of("source:lines:" + submission.getSourceCodeLineCount()));
+            }
+        }
+        DiagnosisEvidencePackage.ProblemEvidence problem = evidencePackage.getProblem();
+        if (problem != null && problem.getId() != null) {
+            refs = mergeLists(refs, List.of("problem:" + problem.getId()));
+        }
+        DiagnosisEvidencePackage.JudgeFacts judgeFacts = evidencePackage.getJudgeFacts();
+        if (judgeFacts != null) {
+            if (judgeFacts.getPassedCount() != null && judgeFacts.getTotalCount() != null) {
+                refs = mergeLists(refs, List.of("judge:cases:" + judgeFacts.getPassedCount() + "/" + judgeFacts.getTotalCount()));
+            }
+            if (judgeFacts.getFirstFailedCase() != null) {
+                refs = mergeLists(refs, List.of("judge:first_failed_case:" + judgeFacts.getFirstFailedCase().getTestCaseNumber()));
+            } else if (judgeFacts.getCaseResultsSummary() != null) {
+                Integer firstFailedCaseNumber = judgeFacts.getCaseResultsSummary().stream()
+                        .filter(summary -> summary != null && !Boolean.TRUE.equals(summary.getPassed()))
+                        .map(DiagnosisEvidencePackage.CaseSummary::getTestCaseNumber)
+                        .filter(testCaseNumber -> testCaseNumber != null)
+                        .findFirst()
+                        .orElse(null);
+                if (firstFailedCaseNumber != null) {
+                    refs = mergeLists(refs, List.of("judge:first_failed_case:" + firstFailedCaseNumber));
+                }
+            }
+            if (Boolean.TRUE.equals(judgeFacts.getHiddenFailureObserved())) {
+                refs = mergeLists(refs, List.of("judge:hidden_failure"));
+            }
+            if (judgeFacts.getCompileOutput() != null && !judgeFacts.getCompileOutput().isBlank()) {
+                refs = mergeLists(refs, List.of("judge:compile_output"));
+            }
+            if (judgeFacts.getRuntimeErrorMessage() != null && !judgeFacts.getRuntimeErrorMessage().isBlank()) {
+                refs = mergeLists(refs, List.of("judge:runtime_error"));
+            }
+        }
+        DiagnosisEvidencePackage.HistoryEvidence history = evidencePackage.getHistory();
+        if (history != null) {
+            refs = mergeLists(refs, singletonIfPresent(history.getRepeatedFineGrainedTag() == null
+                    ? null
+                    : "history:repeated_fine_tag:" + history.getRepeatedFineGrainedTag()));
+            refs = mergeLists(refs, singletonIfPresent(history.getRepeatedIssueTag() == null
+                    ? null
+                    : "history:repeated_issue_tag:" + history.getRepeatedIssueTag()));
+            if (history.getTransitionSignal() != null && !history.getTransitionSignal().isBlank()) {
+                refs = mergeLists(refs, List.of("history:transition"));
+            }
+            refs = mergeLists(refs, history.getPreviousLearningActionEvidenceRefs());
+        }
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory = evidencePackage.getLearningMemory();
+        if (memory != null) {
+            refs = mergeLists(refs, memory.getEvidenceRefs());
+        }
+        DiagnosisEvidencePackage.PolicyEvidence policy = evidencePackage.getPolicy();
+        if (policy != null && policy.getHintPolicy() != null && !policy.getHintPolicy().isBlank()) {
+            refs = mergeLists(refs, List.of("policy:" + policy.getHintPolicy()));
+        }
+        return DiagnosisListSupport.deduplicate(refs);
+    }
+
     private SubmissionAnalysisResponse applyTeacherCalibration(SubmissionAnalysisResponse analysis,
                                                                DiagnosisEvidencePackage evidencePackage,
                                                                RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
@@ -1039,6 +1131,22 @@ public class DiagnosticAgentService {
                 ))
                 .status(status)
                 .fallbackUsed(fallbackUsed)
+                .runtimeMode(defaultIfBlank(
+                        existing == null ? null : existing.getRuntimeMode(),
+                        modelFallbackUsed ? "local-rule" : ""
+                ))
+                .runtimeProfile(defaultIfBlank(existing == null ? null : existing.getRuntimeProfile(), "standard"))
+                .requestBytes(existing == null || existing.getRequestBytes() == null ? 0 : existing.getRequestBytes())
+                .requestCompact(existing != null && Boolean.TRUE.equals(existing.getRequestCompact()))
+                .failureStage(defaultIfBlank(existing == null ? null : existing.getFailureStage(), ""))
+                .failureReason(defaultIfBlank(existing == null ? null : existing.getFailureReason(), ""))
+                .transportMode(defaultIfBlank(existing == null ? null : existing.getTransportMode(), ""))
+                .streamChunkCount(existing == null ? null : existing.getStreamChunkCount())
+                .streamContentChunkCount(existing == null ? null : existing.getStreamContentChunkCount())
+                .streamReasoningChunkCount(existing == null ? null : existing.getStreamReasoningChunkCount())
+                .streamInvalidChunkCount(existing == null ? null : existing.getStreamInvalidChunkCount())
+                .streamFinishReason(defaultIfBlank(existing == null ? null : existing.getStreamFinishReason(), ""))
+                .streamFallbackRetryUsed(existing == null ? null : existing.getStreamFallbackRetryUsed())
                 .build();
     }
 

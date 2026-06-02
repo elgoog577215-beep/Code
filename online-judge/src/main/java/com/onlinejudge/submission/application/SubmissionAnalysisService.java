@@ -407,7 +407,7 @@ public class SubmissionAnalysisService {
         String reportMarkdown = buildMarkdown(problem, submission, headline, summary, focusPoints, fixDirections,
                 wrongSolution, correctSolution, failedCase);
 
-        return SubmissionAnalysisResponse.builder()
+        SubmissionAnalysisResponse response = SubmissionAnalysisResponse.builder()
                 .analysisSchemaVersion("diagnosis-v1")
                 .evidenceSchemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
                 .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
@@ -448,6 +448,9 @@ public class SubmissionAnalysisService {
                 .firstFailedCase(failedCase)
                 .reportMarkdown(reportMarkdown)
                 .build();
+        response.setStudentFeedback(new StudentFeedbackAssembler(diagnosisTaxonomy)
+                .assemble(response, null, null, true));
+        return response;
     }
 
     private DiagnosisEvidencePackage.HistoryEvidence buildHistoryEvidence(Submission submission) {

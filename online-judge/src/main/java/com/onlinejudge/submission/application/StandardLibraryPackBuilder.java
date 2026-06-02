@@ -64,21 +64,59 @@ public class StandardLibraryPackBuilder {
                 .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
                 .issueTags(issueTags)
                 .fineGrainedTags(fineTags)
+                .improvementTags(buildImprovementTags())
                 .teachingActions(teachingActions)
                 .decisionProtocol(buildDecisionProtocol())
+                .studentFeedbackRules(buildStudentFeedbackRules())
                 .safetyRules(List.of(
                         "Do not provide complete code.",
                         "Do not provide direct final answers.",
                         "Do not guess or reveal hidden test data.",
                         "Do not provide replacement loop headers, transition formulas, or executable control structures.",
                         "For input-format issues, ask the student to compare required input lines with actual read operations instead of naming the exact loop to add.",
-                        "Prefer evidence-grounded hints and one verifiable next action."
+                        "Prefer evidence-grounded hints and one verifiable next action.",
+                        "Student-facing improvement opportunities must not include direct code replacements or hidden test guesses."
                 ))
                 .uncertaintyOptions(List.of(
                         "NEEDS_MORE_EVIDENCE",
                         "LOW_CONFIDENCE",
                         "HIDDEN_TEST_DATA_UNAVAILABLE"
                 ))
+                .build();
+    }
+
+    private List<StandardLibraryPack.ImprovementTagOption> buildImprovementTags() {
+        return List.of(
+                improvement("COMPLEXITY", "复杂度提升",
+                        "Use when the current or follow-up solution should be checked against maximum input scale.",
+                        "帮助学生从样例正确推进到规模正确。"),
+                improvement("TESTING_HABIT", "自测习惯",
+                        "Use when the student would benefit from constructing non-sample, boundary, or multi-case tests.",
+                        "帮助学生提前发现样例特判、漏读、多组输入和边界问题。"),
+                improvement("CODE_CLARITY", "代码清晰度",
+                        "Use when input, computation, output, helper functions, or debug branches can be separated more clearly.",
+                        "帮助学生减少漏处理和复盘成本。"),
+                improvement("BOUNDARY_AWARENESS", "边界意识",
+                        "Use when minimum, maximum, empty, repeated, or single-element cases deserve follow-up checks.",
+                        "帮助学生形成可迁移的边界清单。"),
+                improvement("ROBUSTNESS", "鲁棒性",
+                        "Use when runtime stability, guards, or extreme cases need a follow-up validation habit.",
+                        "帮助学生确认修复不只覆盖眼前样例。"),
+                improvement("DEBUG_CLEANUP", "调试清理",
+                        "Use when temporary debug output, dead branches, or unused helpers could distract from the main flow.",
+                        "帮助学生提交更干净、可读的代码。")
+        );
+    }
+
+    private StandardLibraryPack.ImprovementTagOption improvement(String id,
+                                                                 String label,
+                                                                 String whenToUse,
+                                                                 String studentBenefit) {
+        return StandardLibraryPack.ImprovementTagOption.builder()
+                .id(id)
+                .label(label)
+                .whenToUse(whenToUse)
+                .studentBenefit(studentBenefit)
                 .build();
     }
 
@@ -127,6 +165,29 @@ public class StandardLibraryPackBuilder {
                         "When learning memory shows repeated stuck behavior or ineffective previous intervention, reduce the task size or change the teaching action instead of repeating the same hint.",
                         "When previous learning action feedback is CONTRADICTED, shrink the next action into a minimal case, variable trace, or teacher-checkable artifact instead of repeating the same broad hint.",
                         "When previous learning action feedback is OBSERVED, shift toward review, transfer, or explaining why the fix generalizes."
+                ))
+                .build();
+    }
+
+    private StandardLibraryPack.StudentFeedbackRules buildStudentFeedbackRules() {
+        return StandardLibraryPack.StudentFeedbackRules.builder()
+                .blockingIssueRules(List.of(
+                        "blockingIssues must explain the current verdict, firstFailedCase, compiler error, or runtime error before any broad improvement.",
+                        "The first blocking issue is the student's next priority and must include evidenceRefs from the brief.",
+                        "Do not put code style, elegance, or optional optimization into blockingIssues unless it directly caused the current failure."
+                ))
+                .secondaryIssueRules(List.of(
+                        "secondaryIssues may mention plausible non-primary signals only when they do not outrank the first failed observable behavior.",
+                        "If a signal is distracting, explain why it is not primary instead of treating it as a fix target."
+                ))
+                .improvementRules(List.of(
+                        "improvementOpportunities must use standardLibrary.improvementTags ids only.",
+                        "Improvements are follow-up learning value after or alongside the current fix, not the primary cause.",
+                        "Prefer testing habit, complexity estimate, code clarity, boundary awareness, robustness, and debug cleanup."
+                ))
+                .nextActionRules(List.of(
+                        "nextLearningAction must be one observable comparison, trace, estimate, counterexample, or checklist task.",
+                        "Do not provide a full solution, replacement loop header, transition formula, or executable control structure."
                 ))
                 .build();
     }

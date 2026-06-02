@@ -103,6 +103,7 @@ ai:
   base-url: https://api-inference.modelscope.cn/v1
   api-key: ${MODELSCOPE_API_KEY:}
   model: deepseek-ai/DeepSeek-V4-Pro
+  external-runtime-mode: single-call
   stream-enabled: true
 ```
 
@@ -112,6 +113,18 @@ Set your token before startup:
 
 ```powershell
 $env:MODELSCOPE_API_KEY="your-token"
+```
+
+默认提交诊断使用 `single-call` 外部模型 runtime，一次请求同时生成结构化错因和教学提示，以降低 ModelScope 额度与限流风险。若需要回滚到两阶段诊断，可设置：
+
+```powershell
+$env:AI_EXTERNAL_RUNTIME_MODE="staged"
+```
+
+运行真实 live eval 时可复用同一 token：
+
+```powershell
+$env:AI_EVAL_API_KEY=$env:MODELSCOPE_API_KEY
 ```
 
 If the token is missing, the core judge flow can still run, but AI-related features may fall back or become unavailable.

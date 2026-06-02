@@ -221,7 +221,17 @@ public class DiagnosisReportReader {
                 stringValue(map, "evidenceSchemaVersion"),
                 stringValue(map, "taxonomyVersion"),
                 stringValue(map, "status"),
-                booleanValue(map.get("fallbackUsed"))
+                booleanValue(map.get("fallbackUsed")),
+                stringValue(map, "runtimeMode"),
+                stringValue(map, "failureStage"),
+                stringValue(map, "failureReason"),
+                stringValue(map, "transportMode"),
+                intValueOrZero(map.get("streamChunkCount")),
+                intValueOrZero(map.get("streamContentChunkCount")),
+                intValueOrZero(map.get("streamReasoningChunkCount")),
+                intValueOrZero(map.get("streamInvalidChunkCount")),
+                stringValue(map, "streamFinishReason"),
+                booleanValue(map.get("streamFallbackRetryUsed"))
         );
     }
 
@@ -276,6 +286,11 @@ public class DiagnosisReportReader {
             }
         }
         return null;
+    }
+
+    private int intValueOrZero(Object value) {
+        Integer parsed = integerValue(value);
+        return parsed == null ? 0 : parsed;
     }
 
     private Double doubleValue(Object value) {
@@ -339,7 +354,17 @@ public class DiagnosisReportReader {
                                        String evidenceSchemaVersion,
                                        String taxonomyVersion,
                                        String status,
-                                       boolean fallbackUsed) {
+                                       boolean fallbackUsed,
+                                       String runtimeMode,
+                                       String failureStage,
+                                       String failureReason,
+                                       String transportMode,
+                                       int streamChunkCount,
+                                       int streamContentChunkCount,
+                                       int streamReasoningChunkCount,
+                                       int streamInvalidChunkCount,
+                                       String streamFinishReason,
+                                       boolean streamFallbackRetryUsed) {
     }
 
     public record StudentHintPlanSnapshot(String hintLevel,

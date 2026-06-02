@@ -13,10 +13,12 @@ public class DiagnosisEvalFixtureDraftResponse {
     private int fixtureCount;
     private int interventionFixtureCount;
     private int safetyFixtureCount;
+    private int runtimeFixtureCount;
     private String summary;
     private List<FixtureDraft> fixtures;
     private List<InterventionFixtureDraft> interventionFixtures;
     private List<SafetyFixtureDraft> safetyFixtures;
+    private List<RuntimeFixtureDraft> runtimeFixtures;
 
     @Data
     @Builder
@@ -145,6 +147,41 @@ public class DiagnosisEvalFixtureDraftResponse {
         private List<String> mustMention;
         private List<String> mustNotMention;
         private String expectedSafetyAction;
+        private SourceMaterialDraft sourceMaterial;
+        private QualityDraft quality;
+    }
+
+    @Data
+    @Builder
+    public static class RuntimeFixtureDraft {
+        private String name;
+        private String source;
+        private Long submissionId;
+        private ProblemDraft problem;
+        private SubmissionDraft submission;
+        private AnalysisDraft analysis;
+        private String runtimeMode;
+        private String status;
+        private Boolean fallbackUsed;
+        private String transportMode;
+        private Integer streamChunkCount;
+        private Integer streamContentChunkCount;
+        private Integer streamReasoningChunkCount;
+        private Integer streamInvalidChunkCount;
+        private String streamFinishReason;
+        private Boolean streamFallbackRetryUsed;
+        private String failureType;
+        private String failureStage;
+        private String failureReason;
+        private String expectedRuntimeAction;
+        private Boolean recoverySmokeRecommended;
+        private String recoverySmokeCaseId;
+        private String recoverySmokeRuntimeProfile;
+        private String recoverySmokeCommandHint;
+        private List<String> recoverySmokeRequiredChecks;
+        private List<String> evidenceRefs;
+        private List<String> mustMention;
+        private List<String> mustNotMention;
         private SourceMaterialDraft sourceMaterial;
         private QualityDraft quality;
     }

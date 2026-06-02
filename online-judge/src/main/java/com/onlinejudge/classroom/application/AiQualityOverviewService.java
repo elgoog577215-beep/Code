@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -252,12 +253,14 @@ public class AiQualityOverviewService {
                 classTeachingStrategySignal,
                 coachImpacts,
                 promptSafetyIncidentSignal);
+        AiQualityOverviewResponse.RuntimeAttributionSignal runtimeAttributionSignal =
+                buildRuntimeAttributionSignal(metrics, analyses);
         List<AiQualityOverviewResponse.TagCorrectionStat> correctedTags = buildCorrectedTags(corrections);
         List<AiQualityOverviewResponse.QualityDimension> qualityDimensions =
                 buildQualityDimensions(metrics, analyses, corrections, coachInteractions, recommendationEffectiveness,
                         teacherInterventionImpacts, postAcTransferSignals, recurringMisconceptionSignals, selfExplanationSignals,
                         aiDependencySignals, masteryGrowthSignals, teachingActionDecisions, classTeachingStrategySignal, coachImpacts,
-                        promptSafetyIncidentSignal);
+                        promptSafetyIncidentSignal, runtimeAttributionSignal);
         List<AiQualityOverviewResponse.ImprovementPriority> improvementPriorities = buildImprovementPriorities(qualityDimensions);
 
         return AiQualityOverviewResponse.builder()
@@ -279,9 +282,11 @@ public class AiQualityOverviewService {
                 .summary(buildSummary(metrics))
                 .qualityRiskSummary(buildQualityRiskSummary(metrics))
                 .promptSafetyIncidentSignal(promptSafetyIncidentSignal)
+                .runtimeAttributionSignal(runtimeAttributionSignal)
                 .qualityDimensions(qualityDimensions)
                 .improvementPriorities(improvementPriorities)
-                .evalReadiness(buildEvalReadiness(metrics, correctedTags, teacherInterventionImpacts, classTeachingStrategySignal))
+                .evalReadiness(buildEvalReadiness(metrics, correctedTags, teacherInterventionImpacts,
+                        classTeachingStrategySignal, runtimeAttributionSignal))
                 .correctedTags(correctedTags)
                 .build();
     }
@@ -300,7 +305,8 @@ public class AiQualityOverviewService {
                                                                                     List<StudentAbilityProfileResponse.TeachingActionDecision> teachingActionDecisions,
                                                                                     AssignmentOverviewResponse.ClassTeachingStrategySignal classTeachingStrategySignal,
                                                                                     Map<Long, CoachImpactResponse> coachImpacts,
-                                                                                    AiQualityOverviewResponse.PromptSafetyIncidentSignal promptSafetyIncidentSignal) {
+                                                                                    AiQualityOverviewResponse.PromptSafetyIncidentSignal promptSafetyIncidentSignal,
+                                                                                    AiQualityOverviewResponse.RuntimeAttributionSignal runtimeAttributionSignal) {
         return List.of(
                 dimension(
                         "DIAGNOSIS_CONFIDENCE",
@@ -362,15 +368,11 @@ public class AiQualityOverviewService {
                 dimension(
                         "MODEL_RUNTIME",
                         "模型运行",
-                        statusByCount(metrics.modelRuntimeFailureCount(), metrics.analyzedSubmissionCount(), 0.1),
-                        scoreFromBadRate(metrics.modelRuntimeFailureCount(), metrics.analyzedSubmissionCount()),
-                        metrics.modelRuntimeFailureCount() == 0
-                                ? "外部模型运行暂无明显失败。"
-                                : "存在 " + metrics.modelRuntimeFailureCount() + " 条模型运行失败或兜底样本。",
-                        evidenceRefsForRuntime(analyses),
-                        metrics.modelRuntimeFailureCount() == 0
-                                ? "继续观察 fallback 和 partial 比例。"
-                                : "优先检查模型调用、prompt 输出稳定性和预算保护状态。"
+                        runtimeAttributionStatus(runtimeAttributionSignal),
+                        runtimeAttributionScore(runtimeAttributionSignal, metrics),
+                        runtimeAttributionSummary(runtimeAttributionSignal),
+                        runtimeAttributionEvidenceRefs(runtimeAttributionSignal, analyses),
+                        runtimeAttributionRecommendedAction(runtimeAttributionSignal)
                 ),
                 dimension(
                         "TEACHER_CORRECTION",
@@ -544,12 +546,15 @@ public class AiQualityOverviewService {
             AiQualityMetrics metrics,
             List<AiQualityOverviewResponse.TagCorrectionStat> correctedTags,
             List<AssignmentOverviewResponse.TeacherInterventionImpact> teacherInterventionImpacts,
-            AssignmentOverviewResponse.ClassTeachingStrategySignal classTeachingStrategySignal) {
+            AssignmentOverviewResponse.ClassTeachingStrategySignal classTeachingStrategySignal,
+            AiQualityOverviewResponse.RuntimeAttributionSignal runtimeAttributionSignal) {
         List<AiQualityOverviewResponse.TagCorrectionStat> priorityTags = correctedTags == null ? List.of() : correctedTags.stream()
                 .limit(3)
                 .toList();
         InterventionEvalReadiness interventionReadiness =
                 interventionEvalReadiness(teacherInterventionImpacts, classTeachingStrategySignal);
+        ModelQualityBaselineReadiness modelQualityBaselineReadiness =
+                modelQualityBaselineReadiness(runtimeAttributionSignal);
         String status;
         String summary;
         String recommendedAction;
@@ -588,6 +593,7 @@ public class AiQualityOverviewService {
         evidenceRefs.add("eval_candidates:" + metrics.evalCandidateCount());
         evidenceRefs.add("risk_samples:" + (metrics.highLeakRiskCount() + metrics.lowConfidenceCount()));
         evidenceRefs.addAll(interventionReadiness.evidenceRefs());
+        evidenceRefs.add("model_quality_baseline:" + modelQualityBaselineReadiness.status());
         return AiQualityOverviewResponse.EvalReadiness.builder()
                 .status(status)
                 .summary(summary)
@@ -598,10 +604,56 @@ public class AiQualityOverviewService {
                 .interventionImprovedCount(interventionReadiness.improvedCount())
                 .interventionShiftedCount(interventionReadiness.shiftedCount())
                 .interventionStillStuckCount(interventionReadiness.stillStuckCount())
+                .modelQualityBaselineStatus(modelQualityBaselineReadiness.status())
+                .modelQualityBaselineSummary(modelQualityBaselineReadiness.summary())
+                .modelQualityBaselineReasonCount(modelQualityBaselineReadiness.reasons().size())
+                .modelQualityBaselineReasons(modelQualityBaselineReadiness.reasons())
                 .recommendedAction(recommendedAction)
                 .priorityTags(priorityTags)
                 .evidenceRefs(evidenceRefs.stream().filter(ref -> ref != null && !ref.isBlank()).distinct().limit(8).toList())
                 .build();
+    }
+
+    private ModelQualityBaselineReadiness modelQualityBaselineReadiness(
+            AiQualityOverviewResponse.RuntimeAttributionSignal runtimeAttributionSignal) {
+        if (runtimeAttributionSignal == null
+                || runtimeAttributionSignal.getQualityComparabilityStatus() == null
+                || runtimeAttributionSignal.getQualityComparabilityStatus().isBlank()) {
+            return new ModelQualityBaselineReadiness(
+                    "NOT_APPLICABLE",
+                    "当前作业没有需要沉淀为外部模型质量 baseline 的运行上下文。",
+                    List.of()
+            );
+        }
+        List<String> reasons = runtimeAttributionSignal.getQualityComparabilityReasons() == null
+                ? List.of()
+                : runtimeAttributionSignal.getQualityComparabilityReasons().stream()
+                .filter(reason -> reason != null && !reason.isBlank())
+                .distinct()
+                .limit(8)
+                .toList();
+        return switch (runtimeAttributionSignal.getQualityComparabilityStatus().toUpperCase(Locale.ROOT)) {
+            case "COMPARABLE" -> new ModelQualityBaselineReadiness(
+                    "READY",
+                    "当前已有可比的真实外部模型完成样本，可沉淀为小批量模型质量 baseline。",
+                    reasons
+            );
+            case "PARTIAL" -> new ModelQualityBaselineReadiness(
+                    "PARTIAL",
+                    "当前只有部分真实外部模型质量证据，适合先观察或沉淀 runtime fixture，暂不宜作为完整质量 baseline。",
+                    reasons
+            );
+            case "NOT_COMPARABLE" -> new ModelQualityBaselineReadiness(
+                    "BLOCKED",
+                    "当前样本不可代表真实外部模型质量；先恢复 provider、减少 fallback 或补充无 fallback 模型命中后再沉淀质量 baseline。",
+                    reasons
+            );
+            default -> new ModelQualityBaselineReadiness(
+                    "NOT_APPLICABLE",
+                    "当前作业没有需要沉淀为外部模型质量 baseline 的运行上下文。",
+                    List.of()
+            );
+        };
     }
 
     private InterventionEvalReadiness interventionEvalReadiness(
@@ -683,6 +735,94 @@ public class AiQualityOverviewService {
                                              long shiftedCount,
                                              long stillStuckCount,
                                              List<String> evidenceRefs) {
+    }
+
+    private record ModelQualityBaselineReadiness(String status,
+                                                 String summary,
+                                                 List<String> reasons) {
+        private ModelQualityBaselineReadiness {
+            status = status == null || status.isBlank() ? "NOT_APPLICABLE" : status;
+            summary = summary == null ? "" : summary;
+            reasons = reasons == null ? List.of() : List.copyOf(reasons);
+        }
+    }
+
+    private static class RuntimeAttributionAccumulator {
+        private final String type;
+        private long count;
+        private String failureReason = "";
+        private String failureStage = "";
+        private String transportMode = "";
+        private String streamFinishReason = "";
+        private long streamNoContentCount;
+        private long streamInvalidChunkCount;
+        private long streamFallbackRetryCount;
+        private final List<String> evidenceRefs = new ArrayList<>();
+
+        private RuntimeAttributionAccumulator(String type) {
+            this.type = type;
+        }
+
+        private long count() {
+            return count;
+        }
+    }
+
+    private static class RecoveryStatusSummary {
+        private final String status;
+        private final List<String> requiredChecks;
+        private final List<String> passedChecks;
+        private final List<String> blockedReasons;
+        private final boolean smokeRecommended;
+        private final String smokeCaseId;
+        private final String runtimeProfile;
+
+        private RecoveryStatusSummary(String status,
+                                      List<String> requiredChecks,
+                                      List<String> passedChecks,
+                                      List<String> blockedReasons,
+                                      boolean smokeRecommended,
+                                      String smokeCaseId,
+                                      String runtimeProfile) {
+            this.status = status;
+            this.requiredChecks = requiredChecks == null ? List.of() : List.copyOf(requiredChecks);
+            this.passedChecks = passedChecks == null ? List.of() : List.copyOf(passedChecks);
+            this.blockedReasons = blockedReasons == null ? List.of() : List.copyOf(blockedReasons);
+            this.smokeRecommended = smokeRecommended;
+            this.smokeCaseId = smokeCaseId == null ? "" : smokeCaseId;
+            this.runtimeProfile = runtimeProfile == null ? "" : runtimeProfile;
+        }
+
+        private static RecoveryStatusSummary notApplicable() {
+            return new RecoveryStatusSummary("NOT_APPLICABLE", List.of(), List.of(), List.of(), false, "", "");
+        }
+
+        private static RecoveryStatusSummary recovered(List<String> requiredChecks, String evidenceRef) {
+            List<String> checks = requiredChecks == null ? List.of() : requiredChecks;
+            List<String> passed = new ArrayList<>(checks);
+            if (evidenceRef != null && !evidenceRef.isBlank()) {
+                passed.add("recoveryEvidenceRef=" + evidenceRef);
+            }
+            return new RecoveryStatusSummary("RECOVERED", checks, passed, List.of(), false, "", "");
+        }
+
+        private static RecoveryStatusSummary blocked(List<String> requiredChecks,
+                                                     List<String> blockedReasons,
+                                                     String smokeCaseId,
+                                                     String runtimeProfile) {
+            return new RecoveryStatusSummary("BLOCKED", requiredChecks, List.of(), blockedReasons, true,
+                    smokeCaseId, runtimeProfile);
+        }
+    }
+
+    private record QualityComparabilitySummary(String status,
+                                               String summary,
+                                               List<String> reasons) {
+        private QualityComparabilitySummary {
+            status = status == null || status.isBlank() ? "NOT_APPLICABLE" : status;
+            summary = summary == null ? "" : summary;
+            reasons = reasons == null ? List.of() : List.copyOf(reasons);
+        }
     }
 
     private List<HintSafetyCheck> loadHintSafetyChecks(List<Long> submissionIds) {
@@ -827,6 +967,515 @@ public class AiQualityOverviewService {
             return "继续观察提示安全事件，并保留安全降级记录作为后续评测样本。";
         }
         return signal.getRecommendedAction();
+    }
+
+    private AiQualityOverviewResponse.RuntimeAttributionSignal buildRuntimeAttributionSignal(
+            AiQualityMetrics metrics,
+            List<SubmissionAnalysis> analyses) {
+        if (metrics.analyzedSubmissionCount() == 0) {
+            return null;
+        }
+        Map<String, RuntimeAttributionAccumulator> accumulators = new LinkedHashMap<>();
+        List<SubmissionAnalysis> safeAnalyses = analyses == null ? List.of() : analyses;
+        for (SubmissionAnalysis analysis : safeAnalyses) {
+            DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+            if (invocation == null) {
+                continue;
+            }
+            boolean runtimeFailure = "MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status()) || invocation.fallbackUsed();
+            boolean partial = "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(invocation.status());
+            if (!runtimeFailure && !partial) {
+                continue;
+            }
+            String type = runtimeFailure
+                    ? runtimeFailureType(invocation)
+                    : "PARTIAL_COMPLETION";
+            RuntimeAttributionAccumulator accumulator = accumulators.computeIfAbsent(type, RuntimeAttributionAccumulator::new);
+            accumulator.count++;
+            if (accumulator.failureReason.isBlank()) {
+                accumulator.failureReason = firstNonBlank(invocation.failureReason(), invocation.status(), type);
+            }
+            if (accumulator.failureStage.isBlank()) {
+                accumulator.failureStage = firstNonBlank(invocation.failureStage(), invocation.runtimeMode(), "UNKNOWN_STAGE");
+            }
+            if (accumulator.transportMode.isBlank()) {
+                accumulator.transportMode = firstNonBlank(invocation.transportMode(), "");
+            }
+            if (accumulator.streamFinishReason.isBlank()) {
+                accumulator.streamFinishReason = firstNonBlank(invocation.streamFinishReason(), "");
+            }
+            if (isStreamNoContent(invocation)) {
+                accumulator.streamNoContentCount++;
+            }
+            accumulator.streamInvalidChunkCount += Math.max(0, invocation.streamInvalidChunkCount());
+            if (invocation.streamFallbackRetryUsed()) {
+                accumulator.streamFallbackRetryCount++;
+            }
+            List<String> refs = diagnosisReportReader.evidenceRefs(analysis);
+            accumulator.evidenceRefs.add(refs.isEmpty() ? "runtime_attribution:submission:" + analysis.getSubmissionId() : refs.get(0));
+        }
+        RecoveryStatusSummary recovery = buildRecoveryStatusSummary(safeAnalyses, !accumulators.isEmpty());
+        QualityComparabilitySummary comparability = buildQualityComparabilitySummary(metrics, recovery);
+        if (accumulators.isEmpty()) {
+            return AiQualityOverviewResponse.RuntimeAttributionSignal.builder()
+                    .status("HEALTHY")
+                    .primaryFailureType("NONE")
+                    .primaryTransportMode("")
+                    .modelCompletedCount(metrics.modelCompletedCount())
+                    .modelPartialCount(metrics.modelPartialCount())
+                    .modelRuntimeFailureCount(metrics.modelRuntimeFailureCount())
+                    .modelFallbackCount(metrics.modelFallbackCount())
+                    .runtimeFailureRate(metrics.modelRuntimeFailureRate())
+                    .streamNoContentCount(0)
+                    .streamInvalidChunkCount(0)
+                    .streamFallbackRetryCount(0)
+                    .recoveryStatus(recovery.status)
+                    .recoveryCheckCount(recovery.requiredChecks.size())
+                    .recoveryPassedCheckCount(recovery.passedChecks.size())
+                    .recoveryBlockedReasonCount(recovery.blockedReasons.size())
+                    .recoveryPassedChecks(recovery.passedChecks)
+                    .recoveryBlockedReasons(recovery.blockedReasons)
+                    .recoverySmokeRecommended(recovery.smokeRecommended)
+                    .recoverySmokeCaseId(recovery.smokeCaseId)
+                    .recoverySmokeRuntimeProfile(recovery.runtimeProfile)
+                    .recoverySmokeRequiredChecks(recovery.requiredChecks)
+                    .qualityComparabilityStatus(comparability.status())
+                    .qualityComparabilitySummary(comparability.summary())
+                    .qualityComparabilityReasonCount(comparability.reasons().size())
+                    .qualityComparabilityReasons(comparability.reasons())
+                    .summary("外部模型运行暂无明显失败，继续观察 fallback、partial 和 live eval 趋势。")
+                    .recommendedAction("继续保持结构化归因记录，并定期对照 live eval 完成率。")
+                    .evidenceRefs(List.of())
+                    .build();
+        }
+        RuntimeAttributionAccumulator primary = accumulators.values().stream()
+                .sorted(Comparator
+                        .comparingLong(RuntimeAttributionAccumulator::count)
+                        .reversed()
+                        .thenComparingInt(accumulator -> runtimeFailureTypeRank(accumulator.type)))
+                .findFirst()
+                .orElseThrow();
+        return AiQualityOverviewResponse.RuntimeAttributionSignal.builder()
+                .status(metrics.modelRuntimeFailureCount() > 0 ? "ACTION_NEEDED" : "WATCH")
+                .primaryFailureType(primary.type)
+                .primaryFailureReason(primary.failureReason)
+                .primaryFailureStage(primary.failureStage)
+                .primaryTransportMode(primary.transportMode)
+                .modelCompletedCount(metrics.modelCompletedCount())
+                .modelPartialCount(metrics.modelPartialCount())
+                .modelRuntimeFailureCount(metrics.modelRuntimeFailureCount())
+                .modelFallbackCount(metrics.modelFallbackCount())
+                .primaryFailureCount(primary.count)
+                .runtimeFailureRate(metrics.modelRuntimeFailureRate())
+                .streamNoContentCount(primary.streamNoContentCount)
+                .streamInvalidChunkCount(primary.streamInvalidChunkCount)
+                .streamFallbackRetryCount(primary.streamFallbackRetryCount)
+                .recoveryStatus(recovery.status)
+                .recoveryCheckCount(recovery.requiredChecks.size())
+                .recoveryPassedCheckCount(recovery.passedChecks.size())
+                .recoveryBlockedReasonCount(recovery.blockedReasons.size())
+                .recoveryPassedChecks(recovery.passedChecks)
+                .recoveryBlockedReasons(recovery.blockedReasons)
+                .recoverySmokeRecommended(recovery.smokeRecommended)
+                .recoverySmokeCaseId(recovery.smokeCaseId)
+                .recoverySmokeRuntimeProfile(recovery.runtimeProfile)
+                .recoverySmokeRequiredChecks(recovery.requiredChecks)
+                .qualityComparabilityStatus(comparability.status())
+                .qualityComparabilitySummary(comparability.summary())
+                .qualityComparabilityReasonCount(comparability.reasons().size())
+                .qualityComparabilityReasons(comparability.reasons())
+                .summary(withRecoverySummary(runtimeAttributionSummary(primary, metrics), recovery))
+                .recommendedAction(withRecoveryAction(runtimeAttributionAction(primary), recovery))
+                .evidenceRefs(primary.evidenceRefs.stream()
+                        .filter(ref -> ref != null && !ref.isBlank())
+                        .distinct()
+                        .limit(5)
+                        .toList())
+                .build();
+    }
+
+    private String runtimeAttributionStatus(AiQualityOverviewResponse.RuntimeAttributionSignal signal) {
+        if (signal == null || signal.getStatus() == null || signal.getStatus().isBlank()) {
+            return "HEALTHY";
+        }
+        return signal.getStatus();
+    }
+
+    private double runtimeAttributionScore(AiQualityOverviewResponse.RuntimeAttributionSignal signal,
+                                           AiQualityMetrics metrics) {
+        if (signal == null) {
+            return scoreFromBadRate(metrics.modelRuntimeFailureCount(), metrics.analyzedSubmissionCount());
+        }
+        if (metrics.analyzedSubmissionCount() <= 0) {
+            return 100.0;
+        }
+        double weightedBad = metrics.modelRuntimeFailureCount() + Math.max(0, metrics.modelPartialCount()) * 0.5;
+        double score = 100.0 - weightedBad * 100.0 / metrics.analyzedSubmissionCount();
+        return Math.round(Math.max(0.0, Math.min(100.0, score)) * 10.0) / 10.0;
+    }
+
+    private String runtimeAttributionSummary(AiQualityOverviewResponse.RuntimeAttributionSignal signal) {
+        if (signal == null || signal.getSummary() == null || signal.getSummary().isBlank()) {
+            return "外部模型运行暂无明显失败。";
+        }
+        return signal.getSummary();
+    }
+
+    private List<String> runtimeAttributionEvidenceRefs(AiQualityOverviewResponse.RuntimeAttributionSignal signal,
+                                                        List<SubmissionAnalysis> analyses) {
+        if (signal == null || signal.getEvidenceRefs() == null || signal.getEvidenceRefs().isEmpty()) {
+            return evidenceRefsForRuntime(analyses);
+        }
+        return signal.getEvidenceRefs();
+    }
+
+    private String runtimeAttributionRecommendedAction(AiQualityOverviewResponse.RuntimeAttributionSignal signal) {
+        if (signal == null || signal.getRecommendedAction() == null || signal.getRecommendedAction().isBlank()) {
+            return "继续观察 fallback 和 partial 比例。";
+        }
+        return signal.getRecommendedAction();
+    }
+
+    private QualityComparabilitySummary buildQualityComparabilitySummary(AiQualityMetrics metrics,
+                                                                         RecoveryStatusSummary recovery) {
+        List<String> reasons = new ArrayList<>();
+        String recoveryStatus = recovery == null ? "NOT_APPLICABLE" : recovery.status;
+        if ("BLOCKED".equals(recoveryStatus)) {
+            reasons.add("current recovery blocked");
+            if (recovery != null) {
+                reasons.addAll(recovery.blockedReasons.stream()
+                        .filter(reason -> reason != null && !reason.isBlank())
+                        .limit(4)
+                        .toList());
+            }
+        }
+        if (metrics.modelCompletedCount() <= 0 && metrics.modelFallbackCount() > 0) {
+            reasons.add("model hits missing; fallback hits present");
+        }
+        if (metrics.modelPartialCount() > 0) {
+            reasons.add("partial model outputs present");
+        }
+        if (!"RECOVERED".equals(recoveryStatus) && metrics.modelRuntimeFailureCount() > 0) {
+            reasons.add("runtime failures still present");
+        }
+        List<String> distinctReasons = reasons.stream()
+                .filter(reason -> reason != null && !reason.isBlank())
+                .distinct()
+                .limit(8)
+                .toList();
+        if ("BLOCKED".equals(recoveryStatus) || (metrics.modelCompletedCount() <= 0 && metrics.modelFallbackCount() > 0)) {
+            return new QualityComparabilitySummary(
+                    "NOT_COMPARABLE",
+                    "当前样本不能代表真实外部模型质量；需要先恢复 provider 或确认无 fallback 的模型命中后再做质量对比。",
+                    distinctReasons
+            );
+        }
+        if (metrics.modelPartialCount() > 0) {
+            return new QualityComparabilitySummary(
+                    "PARTIAL",
+                    "当前已有部分真实模型证据，但仍混有 partial 或运行失败样本，只适合做小范围质量观察。",
+                    distinctReasons
+            );
+        }
+        if ("RECOVERED".equals(recoveryStatus) && metrics.modelCompletedCount() > 0) {
+            return new QualityComparabilitySummary(
+                    "COMPARABLE",
+                    "当前已有通过恢复检查的真实外部模型完成样本，可支持小批量模型质量对比。",
+                    List.of()
+            );
+        }
+        if (metrics.modelRuntimeFailureCount() > 0) {
+            return new QualityComparabilitySummary(
+                    "PARTIAL",
+                    "当前已有外部模型运行证据，但仍混有运行失败样本，只适合做小范围质量观察。",
+                    distinctReasons
+            );
+        }
+        return new QualityComparabilitySummary(
+                "NOT_APPLICABLE",
+                "当前作业没有需要解释的外部模型质量对比上下文。",
+                List.of()
+        );
+    }
+
+    private RecoveryStatusSummary buildRecoveryStatusSummary(List<SubmissionAnalysis> analyses,
+                                                             boolean hasRuntimeRecoveryContext) {
+        List<SubmissionAnalysis> safeAnalyses = analyses == null ? List.of() : analyses;
+        List<SubmissionAnalysis> contextAnalyses = safeAnalyses.stream()
+                .filter(this::isRecoveryContextAnalysis)
+                .toList();
+        if (!hasRuntimeRecoveryContext && contextAnalyses.isEmpty()) {
+            return RecoveryStatusSummary.notApplicable();
+        }
+        boolean streamRequired = contextAnalyses.stream()
+                .map(diagnosisReportReader::aiInvocation)
+                .anyMatch(invocation -> invocation != null && "stream".equalsIgnoreCase(invocation.transportMode()));
+        List<String> requiredChecks = recoveryRequiredChecks(streamRequired);
+        for (SubmissionAnalysis analysis : safeAnalyses) {
+            if (isRecoveredModelSample(analysis, streamRequired)) {
+                return RecoveryStatusSummary.recovered(requiredChecks, recoveryEvidenceRef(analysis));
+            }
+        }
+        SubmissionAnalysis smokeSource = contextAnalyses.isEmpty() ? null : contextAnalyses.get(0);
+        DiagnosisReportReader.AiInvocationSnapshot smokeInvocation =
+                smokeSource == null ? null : diagnosisReportReader.aiInvocation(smokeSource);
+        List<String> blockedReasons = new ArrayList<>();
+        if (smokeSource != null) {
+            blockedReasons.add("recovery smoke pending: submission:" + smokeSource.getSubmissionId());
+        }
+        for (SubmissionAnalysis analysis : contextAnalyses.isEmpty() ? safeAnalyses : contextAnalyses) {
+            blockedReasons.addAll(recoveryBlockedReasons(analysis, streamRequired));
+        }
+        return RecoveryStatusSummary.blocked(
+                requiredChecks,
+                blockedReasons.stream()
+                        .filter(reason -> reason != null && !reason.isBlank())
+                        .distinct()
+                        .limit(8)
+                        .toList(),
+                smokeSource == null ? "" : "submission:" + smokeSource.getSubmissionId(),
+                firstNonBlank(smokeInvocation == null ? "" : smokeInvocation.runtimeMode(), "low-latency")
+        );
+    }
+
+    private boolean isRecoveryContextAnalysis(SubmissionAnalysis analysis) {
+        DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+        if (invocation == null) {
+            return false;
+        }
+        return "MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status())
+                || "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(invocation.status())
+                || invocation.fallbackUsed();
+    }
+
+    private boolean isRecoveredModelSample(SubmissionAnalysis analysis, boolean streamRequired) {
+        DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+        if (invocation == null || !"MODEL_COMPLETED".equalsIgnoreCase(invocation.status()) || invocation.fallbackUsed()) {
+            return false;
+        }
+        if (!hasModelHit(analysis) || diagnosisReportReader.evidenceRefs(analysis).isEmpty()) {
+            return false;
+        }
+        if ("HIGH".equalsIgnoreCase(diagnosisReportReader.answerLeakRisk(analysis))) {
+            return false;
+        }
+        if (!streamRequired) {
+            return true;
+        }
+        return "stream".equalsIgnoreCase(invocation.transportMode())
+                && invocation.streamContentChunkCount() > 0;
+    }
+
+    private boolean hasModelHit(SubmissionAnalysis analysis) {
+        return !diagnosisReportReader.fineGrainedTags(analysis).isEmpty()
+                || !diagnosisReportReader.issueTags(analysis).isEmpty();
+    }
+
+    private List<String> recoveryBlockedReasons(SubmissionAnalysis analysis, boolean streamRequired) {
+        DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
+        if (invocation == null) {
+            return List.of("submission:" + analysis.getSubmissionId() + ": missing aiInvocation");
+        }
+        List<String> reasons = new ArrayList<>();
+        String prefix = "submission:" + analysis.getSubmissionId() + ": ";
+        if ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status()) || invocation.fallbackUsed()) {
+            reasons.add(prefix + "runtime fallback");
+        }
+        if (!"MODEL_COMPLETED".equalsIgnoreCase(invocation.status())) {
+            reasons.add(prefix + "model not completed");
+        }
+        if (!hasModelHit(analysis)) {
+            reasons.add(prefix + "missing model hit");
+        }
+        if (diagnosisReportReader.evidenceRefs(analysis).isEmpty()) {
+            reasons.add(prefix + "missing evidence");
+        }
+        if ("HIGH".equalsIgnoreCase(diagnosisReportReader.answerLeakRisk(analysis))) {
+            reasons.add(prefix + "safety failed");
+        }
+        if (streamRequired
+                && "stream".equalsIgnoreCase(invocation.transportMode())
+                && invocation.streamContentChunkCount() <= 0) {
+            reasons.add(prefix + "stream content chunk missing");
+        }
+        String failureReason = firstNonBlank(invocation.failureReason(), "");
+        if (!failureReason.isBlank()) {
+            reasons.add(prefix + sanitizeRecoveryFailureReason(failureReason));
+        }
+        return reasons;
+    }
+
+    private List<String> recoveryRequiredChecks(boolean streamRequired) {
+        List<String> checks = new ArrayList<>(List.of(
+                "status=MODEL_COMPLETED",
+                "fallbackUsed=false",
+                "modelHit=true",
+                "evidenceRefs present",
+                "answerLeakRisk!=HIGH"
+        ));
+        if (streamRequired) {
+            checks.add("streamContentChunkCount>0");
+        }
+        return List.copyOf(checks);
+    }
+
+    private String recoveryEvidenceRef(SubmissionAnalysis analysis) {
+        List<String> refs = diagnosisReportReader.evidenceRefs(analysis);
+        if (!refs.isEmpty()) {
+            return refs.get(0);
+        }
+        return "submission:" + analysis.getSubmissionId();
+    }
+
+    private String sanitizeRecoveryFailureReason(String reason) {
+        String normalized = reason == null ? "" : reason.trim();
+        if (normalized.length() <= 120) {
+            return normalized;
+        }
+        return normalized.substring(0, 120);
+    }
+
+    private String withRecoverySummary(String base, RecoveryStatusSummary recovery) {
+        if (recovery == null || "NOT_APPLICABLE".equals(recovery.status)) {
+            return base;
+        }
+        if ("RECOVERED".equals(recovery.status)) {
+            return base + " 当前外部模型恢复验证为 RECOVERED：已观察到真实外部模型完成样本通过 recovery checks，可作为恢复证据。";
+        }
+        String reason = recovery.blockedReasons.isEmpty() ? "缺少通过恢复检查的样本" : recovery.blockedReasons.get(0);
+        return base + " 当前外部模型恢复验证仍为 BLOCKED：" + reason + "。";
+    }
+
+    private String withRecoveryAction(String base, RecoveryStatusSummary recovery) {
+        if (recovery == null || "NOT_APPLICABLE".equals(recovery.status)) {
+            return base;
+        }
+        if ("RECOVERED".equals(recovery.status)) {
+            return base + " 已有恢复证据，继续用小批量 live eval 观察是否稳定保持无 fallback 和有证据输出。";
+        }
+        return base + " 恢复前先运行单条 recovery smoke，确认 status=MODEL_COMPLETED、fallbackUsed=false、modelHit=true、evidenceRefs 存在"
+                + (recovery.requiredChecks.contains("streamContentChunkCount>0") ? "、streamContentChunkCount>0" : "")
+                + "。";
+    }
+
+    private String runtimeFailureType(DiagnosisReportReader.AiInvocationSnapshot invocation) {
+        String reason = (firstNonBlank(invocation.failureReason(), invocation.status()) + " " + firstNonBlank(invocation.failureStage(), ""))
+                .toUpperCase(Locale.ROOT);
+        if (reason.contains("INSUFFICIENT_QUOTA") || reason.contains("QUOTA") || reason.contains("RATE_LIMIT")) {
+            return "QUOTA_LIMIT";
+        }
+        if (reason.contains("BUDGET_GUARD")) {
+            return "BUDGET_GUARD";
+        }
+        if (reason.contains("SAFETY")) {
+            return "SAFETY_REJECTED";
+        }
+        if (reason.contains("TIMEOUT")) {
+            return "TIMEOUT";
+        }
+        if (reason.contains("OUTPUT_TRUNCATED") || reason.contains("TRUNCATED")) {
+            return "OUTPUT_TRUNCATED";
+        }
+        if (reason.contains("INVALID") || reason.contains("VALIDATION") || reason.contains("JSON")) {
+            return "VALIDATION_FAILED";
+        }
+        if (reason.contains("HTTP") || reason.contains("PROVIDER")) {
+            return "PROVIDER_ERROR";
+        }
+        return "UNKNOWN_RUNTIME_FAILURE";
+    }
+
+    private int runtimeFailureTypeRank(String type) {
+        return switch (type == null ? "" : type) {
+            case "QUOTA_LIMIT" -> 1;
+            case "BUDGET_GUARD" -> 2;
+            case "SAFETY_REJECTED" -> 3;
+            case "VALIDATION_FAILED" -> 4;
+            case "OUTPUT_TRUNCATED" -> 5;
+            case "TIMEOUT" -> 6;
+            case "PROVIDER_ERROR" -> 7;
+            case "PARTIAL_COMPLETION" -> 8;
+            default -> 8;
+        };
+    }
+
+    private String runtimeAttributionSummary(String type, long count, AiQualityMetrics metrics) {
+        return switch (type == null ? "" : type) {
+            case "QUOTA_LIMIT" -> "主导模型运行问题是额度不足，共 " + count + " 条；当前作业真实外部模型参与率受限。";
+            case "BUDGET_GUARD" -> "主导模型运行问题是预算保护打开，共 " + count + " 条；系统正在避免连续失败继续消耗调用。";
+            case "SAFETY_REJECTED" -> "主导模型运行问题是安全拒绝或安全校验失败，共 " + count + " 条；需要复核提示安全边界。";
+            case "VALIDATION_FAILED" -> "主导模型运行问题是输出契约或结构校验失败，共 " + count + " 条；需要复核 prompt 契约和解析校验。";
+            case "OUTPUT_TRUNCATED" -> "主导模型运行问题是输出被 token 预算截断，共 " + count + " 条；需要复核 max tokens、schema 体积和单次调用策略。";
+            case "TIMEOUT" -> "主导模型运行问题是超时，共 " + count + " 条；需要检查模型响应时延和超时配置。";
+            case "PROVIDER_ERROR" -> "主导模型运行问题是 provider 或网络错误，共 " + count + " 条；需要检查外部服务稳定性。";
+            case "PARTIAL_COMPLETION" -> "外部模型存在部分完成样本，共 " + metrics.modelPartialCount() + " 条；诊断可用但教学提示阶段仍需复核。";
+            default -> "存在 " + metrics.modelRuntimeFailureCount() + " 条模型运行失败或兜底样本，失败原因尚未完整归类。";
+        };
+    }
+
+    private String runtimeAttributionSummary(RuntimeAttributionAccumulator primary,
+                                             AiQualityMetrics metrics) {
+        String base = runtimeAttributionSummary(primary == null ? "" : primary.type,
+                primary == null ? 0 : primary.count,
+                metrics);
+        if (primary == null) {
+            return base;
+        }
+        if (primary.streamNoContentCount > 0) {
+            return base + " 其中 " + primary.streamNoContentCount
+                    + " 条是 stream 请求已发出但没有返回 content chunk。";
+        }
+        if (primary.streamInvalidChunkCount > 0) {
+            return base + " 其中观察到 " + primary.streamInvalidChunkCount
+                    + " 个不可解析 stream chunk。";
+        }
+        if (primary.streamFallbackRetryCount > 0) {
+            return base + " 其中 " + primary.streamFallbackRetryCount
+                    + " 条从 non-stream 回退到 stream 后恢复。";
+        }
+        if ("BUDGET_GUARD".equals(primary.type) && primary.transportMode.isBlank()) {
+            return base + " 本类样本通常未发出 HTTP 请求。";
+        }
+        return base;
+    }
+
+    private String runtimeAttributionAction(String type) {
+        return switch (type == null ? "" : type) {
+            case "QUOTA_LIMIT" -> "先检查 ModelScope 额度和计费状态；在恢复前降低 live eval 调用规模或继续使用 single-call 低预算路径。";
+            case "BUDGET_GUARD" -> "检查近期连续失败记录，确认额度或 provider 恢复后再解除预算保护并重跑小样本 live eval。";
+            case "SAFETY_REJECTED" -> "把对应样本沉淀为提示安全 fixture，复核 prompt 是否诱导直接给答案或越过教学边界。";
+            case "VALIDATION_FAILED" -> "收窄输出 schema 和 prompt 契约，补充校验失败 fixture，优先修复结构化解析。";
+            case "OUTPUT_TRUNCATED" -> "提高输出 token 预算或收缩 JSON schema/上下文；必要时切换 staged runtime 避免单次输出截断。";
+            case "TIMEOUT" -> "降低单次上下文体积或调整超时阈值，再用小批量 live eval 验证响应时延。";
+            case "PROVIDER_ERROR" -> "检查 provider 状态、网络和重试策略，并保留失败样本用于稳定性回归。";
+            case "PARTIAL_COMPLETION" -> "保留可用诊断，同时复核教学提示阶段的安全和结构校验规则。";
+            default -> "先查看 source segment 的 failureStage/failureReason，补充归因分类后再扩大外部模型评测。";
+        };
+    }
+
+    private String runtimeAttributionAction(RuntimeAttributionAccumulator primary) {
+        if (primary == null) {
+            return runtimeAttributionAction("");
+        }
+        if ("QUOTA_LIMIT".equals(primary.type) && primary.streamNoContentCount > 0) {
+            return "先检查 ModelScope 额度和计费状态；恢复前用单条 smoke 验证 stream 是否能返回 content chunk。";
+        }
+        if ("BUDGET_GUARD".equals(primary.type) && primary.transportMode.isBlank()) {
+            return "确认 provider 或额度恢复后解除预算保护，再重跑小样本 live eval，避免把本地短路误判为 provider 响应。";
+        }
+        if (primary.streamInvalidChunkCount > 0) {
+            return "保留该样本作为 stream 解析 fixture，复核 SSE chunk 兼容性与 JSON 提取逻辑。";
+        }
+        if ("OUTPUT_TRUNCATED".equals(primary.type) && "length".equalsIgnoreCase(primary.streamFinishReason)) {
+            return "提高输出 token 预算或收缩 JSON schema/上下文；当前 stream finish_reason=length，优先验证 max_tokens 是否不足。";
+        }
+        return runtimeAttributionAction(primary.type);
+    }
+
+    private boolean isStreamNoContent(DiagnosisReportReader.AiInvocationSnapshot invocation) {
+        return invocation != null
+                && "stream".equalsIgnoreCase(invocation.transportMode())
+                && invocation.streamContentChunkCount() <= 0;
     }
 
     private String learningActionStatus(AiQualityMetrics metrics) {

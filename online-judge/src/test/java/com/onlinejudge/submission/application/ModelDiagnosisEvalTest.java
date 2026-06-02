@@ -3,6 +3,13 @@ package com.onlinejudge.submission.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.application.HintSafetyService;
 import com.onlinejudge.classroom.domain.Assignment;
+import com.onlinejudge.eval.LiveEvalBaselineRegressionGate;
+import com.onlinejudge.eval.LiveEvalBaselineRegressionReport;
+import com.onlinejudge.eval.LiveEvalBaselineRegressionReportFactory;
+import com.onlinejudge.eval.LiveEvalQualityBaselineDraft;
+import com.onlinejudge.eval.LiveEvalQualityBaselineDraftFactory;
+import com.onlinejudge.eval.LiveEvalRuntimeFixtureDraft;
+import com.onlinejudge.eval.LiveEvalRuntimeFixtureDraftFactory;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
@@ -18,13 +25,35 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ModelDiagnosisEvalTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ComplexDiagnosisQualityScorer complexQualityScorer = new ComplexDiagnosisQualityScorer();
+    private static final List<String> REPRESENTATIVE_COMPLEX_LIVE_CASE_IDS = List.of(
+            "complex-live-01-multi-query-prefix",
+            "complex-live-02-multi-case-run-reset",
+            "complex-live-03-house-dp-state",
+            "complex-live-04-coin-greedy-trap",
+            "complex-live-05-large-range-simulation",
+            "complex-live-06-output-format-extra",
+            "complex-live-07-zero-division-guard",
+            "complex-live-08-off-by-one-window",
+            "complex-live-09-duplicate-count-set",
+            "complex-live-10-initial-best-negative",
+            "complex-live-11-pair-sum-bruteforce",
+            "complex-live-12-sample-overfit-special",
+            "complex-live-13-partial-fix-regression",
+            "complex-live-14-in-place-swap-progress"
+    );
 
     @Test
     void liveModelKeepsDiagnosisWithinExpectedTagsWhenEnabled() {
@@ -75,24 +104,17 @@ class ModelDiagnosisEvalTest {
         Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "Set AI_EVAL_API_KEY to run live model smoke eval.");
 
         DiagnosticAgentService service = newLiveService(apiKey);
-        List<EvalCase> cases = allEvalCases().stream()
-                .limit(Math.max(1, (int) longValueOrDefault(System.getenv("AI_EVAL_SMOKE_LIMIT"), 2L)))
-                .toList();
+        List<EvalCase> cases = selectedLiveEvalCases();
 
         LiveModelEvalReport report = runLiveEvalReport(service, cases);
         Path reportPath = writeLiveEvalReport(report);
 
         System.out.println("Live model eval report saved to: " + reportPath);
-        System.out.println("Live model eval summary: total=" + report.getTotalCount()
-                + ", completed=" + report.getCompletedCount()
-                + ", fallback=" + report.getFallbackCount()
-                + ", timeout=" + report.getTimeoutCount()
-                + ", issueHits=" + report.getIssueTagHitCount()
-                + ", fineHits=" + report.getFineTagHitCount()
-                + ", safetyPassed=" + report.getSafetyPassedCount());
+        System.out.println("Live model eval summary: " + liveModelSummaryLine(report));
 
         assertThat(report.getEntries()).hasSize(cases.size());
         assertThat(reportPath).exists();
+        assertModelBaselineRegressionGateIfEnabled(report, reportPath);
     }
 
     @Test
@@ -100,6 +122,20 @@ class ModelDiagnosisEvalTest {
         List<EvalCase> cases = allEvalCases();
 
         assertThat(cases).hasSizeGreaterThanOrEqualTo(5);
+        assertThat(cases).extracting(EvalCase::name).contains(
+                "live-core-input-parsing",
+                "live-core-state-reset",
+                "live-core-dp-state-design",
+                "live-core-greedy-counterexample",
+                "live-core-max-boundary-complexity",
+                "live-core-output-format",
+                "complex-live-01-multi-query-prefix",
+                "complex-live-02-multi-case-run-reset",
+                "complex-live-03-house-dp-state",
+                "complex-live-04-coin-greedy-trap",
+                "complex-live-05-large-range-simulation",
+                "complex-live-06-output-format-extra"
+        );
         assertThat(cases)
                 .allSatisfy(evalCase -> {
                     assertThat(evalCase.expectedIssueTags()).isNotEmpty();
@@ -107,6 +143,643 @@ class ModelDiagnosisEvalTest {
                     assertThat(evalCase.submission().getSourceCode()).isNotBlank();
                     assertThat(evalCase.baseline().getScenario()).isNotBlank();
                 });
+    }
+
+    @Test
+    void complexGeneratedLiveCandidatesCarryQualityTruthIntoEvalCases() {
+        List<EvalCase> complexCases = allEvalCases().stream()
+                .filter(evalCase -> evalCase.name().startsWith("complex-live-"))
+                .toList();
+
+        assertThat(complexCases).hasSize(24);
+        assertThat(complexCases)
+                .allSatisfy(evalCase -> {
+                    assertThat(evalCase.complexFixture()).isNotNull();
+                    assertThat(evalCase.complexFixture().quality().expectedMetrics())
+                            .containsExactlyElementsOf(ComplexDiagnosisQualityScorer.METRICS);
+                    assertThat(evalCase.complexFixture().primaryRootCause()).isNotNull();
+                    assertThat(evalCase.complexFixture().requiredEvidenceRefs()).isNotEmpty();
+                });
+    }
+
+    @Test
+    void representativeComplexLiveSetCoversFourteenBugPatternsForExternalIntelligenceEval() {
+        List<EvalCase> representativeCases = representativeComplexLiveEvalCases();
+
+        assertThat(representativeCases).hasSize(14);
+        assertThat(representativeCases).extracting(EvalCase::name)
+                .containsExactlyElementsOf(REPRESENTATIVE_COMPLEX_LIVE_CASE_IDS);
+        assertThat(representativeCases.stream()
+                .map(evalCase -> evalCase.complexFixture().quality().bugPattern())
+                .collect(Collectors.toSet()))
+                .hasSize(14);
+        assertThat(representativeCases)
+                .allSatisfy(evalCase -> assertThat(evalCase.complexFixture()).isNotNull());
+    }
+
+    @Test
+    void liveModelCoreFixturesLoadAsComparableEvalCases() throws IOException {
+        List<LiveModelCoreEvalFixtureLoader.Fixture> fixtures =
+                new LiveModelCoreEvalFixtureLoader(objectMapper).loadDefault();
+
+        assertThat(fixtures).hasSizeGreaterThanOrEqualTo(6);
+        assertThat(fixtures).extracting(LiveModelCoreEvalFixtureLoader.Fixture::caseId)
+                .doesNotHaveDuplicates()
+                .contains(
+                        "live-core-input-parsing",
+                        "live-core-state-reset",
+                        "live-core-dp-state-design",
+                        "live-core-greedy-counterexample",
+                        "live-core-max-boundary-complexity",
+                        "live-core-output-format"
+                );
+        assertThat(fixtures)
+                .allSatisfy(fixture -> {
+                    assertThat(fixture.toProblem().getDescription()).isNotBlank();
+                    assertThat(fixture.toSubmission().getSourceCode()).isNotBlank();
+                    assertThat(fixture.toBaseline().getEvidenceRefs()).isNotEmpty();
+                    assertThat(fixture.expectedIssueTags()).isNotEmpty();
+                    assertThat(fixture.expectedFineTags()).isNotEmpty();
+                    assertThat(fixture.requiredEvidenceRefs()).isNotEmpty();
+                    assertThat(fixture.mustMention()).isNotEmpty();
+                    assertThat(fixture.mustNotMention()).containsAnyOf("完整代码", "参考答案");
+                    assertThat(fixture.quality().evalPurpose()).isNotBlank();
+                });
+    }
+
+    @Test
+    void liveModelCaseIdFilterSelectsStableCoreCases() {
+        List<EvalCase> selected = allEvalCases().stream()
+                .filter(evalCase -> shouldIncludeCaseId(evalCase,
+                        "LIVE-CORE-INPUT-PARSING, live-core-output-format, complex-live-01-multi-query-prefix"))
+                .toList();
+
+        assertThat(selected).extracting(EvalCase::name).containsExactly(
+                "live-core-input-parsing",
+                "live-core-output-format",
+                "complex-live-01-multi-query-prefix"
+        );
+    }
+
+    @Test
+    void complexGeneratedLiveCandidatesEnterModelEvalCases() {
+        List<EvalCase> complexCases = allEvalCases().stream()
+                .filter(evalCase -> evalCase.name().startsWith("complex-live-"))
+                .toList();
+
+        assertThat(complexCases).hasSize(24);
+        assertThat(complexCases).extracting(EvalCase::name).contains(
+                "complex-live-01-multi-query-prefix",
+                "complex-live-02-multi-case-run-reset",
+                "complex-live-03-house-dp-state",
+                "complex-live-04-coin-greedy-trap",
+                "complex-live-05-large-range-simulation",
+                "complex-live-06-output-format-extra"
+        );
+        assertThat(complexCases)
+                .allSatisfy(evalCase -> {
+                    assertThat(evalCase.problem().getDescription()).isNotBlank();
+                    assertThat(evalCase.submission().getSourceCode().split("\\R", -1).length)
+                            .isBetween(40, 80);
+                    assertThat(evalCase.caseResults()).isNotEmpty();
+                    assertThat(evalCase.baseline().getSourceType()).isEqualTo("COMPLEX_AUTOGENERATED_FIXTURE");
+                    assertThat(evalCase.expectedIssueTags()).isNotEmpty();
+                    assertThat(evalCase.expectedFineTags()).isNotEmpty();
+                });
+    }
+
+    @Test
+    void liveModelReportRecordsCaseDelayWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("off-by-one")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .latencyMs(1_200L)
+                        .latencyBudgetMs(35_000L)
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .modelIssueTagHit(true)
+                        .modelFineTagHit(true)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .failureReason("NONE")
+                        .build(),
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("output-format")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_RUNTIME_FALLBACK")
+                        .latencyMs(900L)
+                        .latencyBudgetMs(35_000L)
+                        .fallbackUsed(true)
+                        .modelCompleted(false)
+                        .modelIssueTagHit(false)
+                        .modelFineTagHit(false)
+                        .fallbackIssueTagHit(true)
+                        .fallbackFineTagHit(true)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .failureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_TEACHING:RATE_LIMITED")
+                        .build()
+        ), 1_500L);
+
+        assertThat(report.getCaseDelayMs()).isEqualTo(1_500L);
+        assertThat(report.getDelayedCaseCount()).isEqualTo(1);
+        assertThat(liveModelSummaryLine(report)).contains(
+                "caseDelayMs=1500",
+                "delayedCases=1"
+        );
+    }
+
+    @Test
+    void liveModelReportTreatsNegativeCaseDelayAsZeroWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("single-case")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .latencyMs(1_000L)
+                        .latencyBudgetMs(35_000L)
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .modelIssueTagHit(true)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .failureReason("NONE")
+                        .build()
+        ), -200L);
+
+        assertThat(report.getCaseDelayMs()).isZero();
+        assertThat(report.getDelayedCaseCount()).isZero();
+        assertThat(liveModelSummaryLine(report)).contains(
+                "caseDelayMs=0",
+                "delayedCases=0"
+        );
+    }
+
+    @Test
+    void liveModelReportSummarizesLatencyBudgetWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        List<LiveModelEvalReport.Entry> entries = List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("off-by-one-fast")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .runtimeProfile("standard")
+                        .requestBytes(12_400)
+                        .requestCompact(false)
+                        .latencyMs(1_200L)
+                        .latencyBudgetMs(35_000L)
+                        .latencyBudgetExceeded(false)
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .expectedIssueTagHit(true)
+                        .expectedFineTagHit(true)
+                        .modelIssueTagHit(true)
+                        .modelFineTagHit(true)
+                        .fallbackIssueTagHit(false)
+                        .fallbackFineTagHit(false)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .actualIssueTags(List.of("LOOP_BOUNDARY"))
+                        .actualFineGrainedTags(List.of("OFF_BY_ONE"))
+                        .actualEvidenceRefs(List.of("code:range_excludes_n"))
+                        .failureReason("NONE")
+                        .build(),
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("off-by-one-slow")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .runtimeProfile("low-latency")
+                        .requestBytes(6_100)
+                        .requestCompact(true)
+                        .latencyMs(53_492L)
+                        .latencyBudgetMs(35_000L)
+                        .latencyBudgetExceeded(true)
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .expectedIssueTagHit(true)
+                        .expectedFineTagHit(true)
+                        .modelIssueTagHit(true)
+                        .modelFineTagHit(true)
+                        .fallbackIssueTagHit(false)
+                        .fallbackFineTagHit(false)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .actualIssueTags(List.of("LOOP_BOUNDARY"))
+                        .actualFineGrainedTags(List.of("OFF_BY_ONE"))
+                        .actualEvidenceRefs(List.of("code:range_excludes_n"))
+                        .failureReason("NONE")
+                        .build(),
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("off-by-one-partial")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_PARTIAL_COMPLETED")
+                        .runtimeProfile("low-latency")
+                        .requestBytes(6_300)
+                        .requestCompact(true)
+                        .latencyMs(22_000L)
+                        .latencyBudgetMs(35_000L)
+                        .latencyBudgetExceeded(false)
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .expectedIssueTagHit(true)
+                        .expectedFineTagHit(true)
+                        .modelIssueTagHit(true)
+                        .modelFineTagHit(true)
+                        .fallbackIssueTagHit(false)
+                        .fallbackFineTagHit(false)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .actualIssueTags(List.of("LOOP_BOUNDARY"))
+                        .actualFineGrainedTags(List.of("OFF_BY_ONE"))
+                        .actualEvidenceRefs(List.of("code:range_excludes_n"))
+                        .failureReason("MODEL_PARTIAL_COMPLETED:DIAGNOSIS_AND_TEACHING:OUTPUT_TRUNCATED")
+                        .build(),
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("quota-fallback")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_RUNTIME_FALLBACK")
+                        .runtimeProfile("standard")
+                        .requestBytes(12_200)
+                        .requestCompact(false)
+                        .latencyMs(1_500L)
+                        .latencyBudgetMs(35_000L)
+                        .latencyBudgetExceeded(false)
+                        .fallbackUsed(true)
+                        .modelCompleted(false)
+                        .expectedIssueTagHit(true)
+                        .expectedFineTagHit(true)
+                        .modelIssueTagHit(false)
+                        .modelFineTagHit(false)
+                        .fallbackIssueTagHit(true)
+                        .fallbackFineTagHit(true)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .actualIssueTags(List.of("LOOP_BOUNDARY"))
+                        .actualFineGrainedTags(List.of("OFF_BY_ONE"))
+                        .actualEvidenceRefs(List.of("rule:fallback:loop_boundary"))
+                        .failureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_TEACHING:INSUFFICIENT_QUOTA")
+                        .build()
+        );
+
+        LiveModelEvalReport report = summarizeReport(model, entries);
+
+        assertThat(report.getLatencyBudgetMs()).isEqualTo(35_000L);
+        assertThat(report.getLatencyBudgetExceededCount()).isEqualTo(1);
+        assertThat(report.getTimeoutCount()).isZero();
+        assertThat(report.getCompletedCount()).isEqualTo(2);
+        assertThat(report.getPartialCount()).isEqualTo(1);
+        assertThat(report.getFallbackCount()).isEqualTo(1);
+        assertThat(report.getIssueTagHitCount()).isEqualTo(4);
+        assertThat(report.getFineTagHitCount()).isEqualTo(4);
+        assertThat(report.getModelIssueTagHitCount()).isEqualTo(3);
+        assertThat(report.getModelFineTagHitCount()).isEqualTo(3);
+        assertThat(report.getFallbackIssueTagHitCount()).isEqualTo(1);
+        assertThat(report.getFallbackFineTagHitCount()).isEqualTo(1);
+        assertThat(report.getRecoveryStatus()).isEqualTo("RECOVERED");
+        assertThat(report.getRecoveryCheckCount()).isEqualTo(5);
+        assertThat(report.getRecoveryPassedCheckCount()).isEqualTo(5);
+        assertThat(report.getRecoveryBlockedReasonCount()).isZero();
+        assertThat(report.getRecoveryPassedChecks()).contains(
+                "modelCompleted=true",
+                "fallbackUsed=false",
+                "modelIssueTagHit=true or modelFineTagHit=true",
+                "evidenceValid=true",
+                "safetyPassed=true"
+        );
+        assertThat(liveModelSummaryLine(report)).contains(
+                "finalIssueHits=4",
+                "finalFineHits=4",
+                "modelIssueHits=3",
+                "modelFineHits=3",
+                "fallbackIssueHits=1",
+                "fallbackFineHits=1",
+                "recoveryStatus=RECOVERED",
+                "recoveryBlockedReasons=0"
+        );
+        assertThat(report.getRuntimeFixtureDraftCount()).isEqualTo(3);
+        assertThat(report.getQualityBaselineDraftCount()).isEqualTo(1);
+        assertThat(report.getRuntimeFixtureDrafts()).extracting("caseId")
+                .containsExactly("off-by-one-slow", "off-by-one-partial", "quota-fallback");
+        assertThat(report.getRuntimeFixtureDrafts()).filteredOn(draft -> "off-by-one-slow".equals(draft.getCaseId()))
+                .singleElement()
+                .satisfies(draft -> {
+                    assertThat(draft.getFailureType()).isEqualTo("SLOW_RESPONSE");
+                    assertThat(draft.getRuntimeProfile()).isEqualTo("low-latency");
+                    assertThat(draft.getRequestBytes()).isEqualTo(6_100);
+                    assertThat(draft.getRequestCompact()).isTrue();
+                    assertThat(draft.getMustMention()).contains("latencyBudgetExceeded=true",
+                            "runtimeProfile=low-latency", "requestBytes=6100", "requestCompact=true", "latencyMs=53492");
+                });
+        assertThat(report.getRuntimeFixtureDrafts()).filteredOn(draft -> "off-by-one-partial".equals(draft.getCaseId()))
+                .singleElement()
+                .satisfies(draft -> {
+                    assertThat(draft.getFailureType()).isEqualTo("PARTIAL_COMPLETION");
+                    assertThat(draft.getFailureReason()).contains("OUTPUT_TRUNCATED");
+                    assertThat(draft.getExpectedRuntimeAction()).contains("保留可用诊断");
+                });
+        assertThat(report.getRuntimeFixtureDrafts()).filteredOn(draft -> "quota-fallback".equals(draft.getCaseId()))
+                .singleElement()
+                .satisfies(draft -> {
+                    assertThat(draft.getFailureType()).isEqualTo("QUOTA_LIMIT");
+                    assertThat(draft.getOfflineProfileEvalRecommended()).isTrue();
+                    assertThat(draft.getOfflineProfileReportPattern())
+                            .isEqualTo("target/ai-eval-reports/offline-runtime-profile-eval-*.json");
+                    assertThat(draft.getOfflineProfileCaseId()).isEqualTo("quota-fallback");
+                    assertThat(draft.getOfflineProfileRequiredChecks()).contains(
+                            "lowLatencyRequestBytes < standardRequestBytes",
+                            "lowLatencyRequestCompact=true",
+                            "compressionRatio < 1.0",
+                            "evidenceRefCount > 0",
+                            "hiddenBoundaryPresent=true"
+                    );
+                    assertThat(draft.getExpectedRuntimeAction()).contains("offline runtime profile eval",
+                            "offline-runtime-profile-eval-*.json", "request bytes", "结构锚点");
+                });
+        assertThat(report.getQualityBaselineDrafts()).singleElement()
+                .satisfies(draft -> {
+                    assertThat(draft.getCaseId()).isEqualTo("off-by-one-fast");
+                    assertThat(draft.getMustKeep()).contains("latencyBudgetHealthy");
+                });
+    }
+
+    @Test
+    void liveModelReportSummarizesComplexQualityWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-pass")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .modelIssueTagHit(true)
+                        .modelFineTagHit(true)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .complexCase(true)
+                        .complexQualityPassed(true)
+                        .complexMetricPassedCount(6)
+                        .complexMetricTotalCount(6)
+                        .complexQualityScore(1.0)
+                        .complexPassedMetrics(List.of(
+                                "complexMetric:primaryRootCauseHit",
+                                "complexMetric:teachingPriorityCorrect",
+                                "complexMetric:secondaryIssuesNotOverweighted",
+                                "complexMetric:distractingSignalsIgnored",
+                                "complexMetric:evidenceGrounded",
+                                "complexMetric:noFullSolutionLeak"))
+                        .intelligenceEvaluated(true)
+                        .intelligenceQualityPassed(true)
+                        .intelligenceMetricPassedCount(6)
+                        .intelligenceMetricTotalCount(6)
+                        .intelligenceQualityScore(1.0)
+                        .intelligencePassedMetrics(List.of(
+                                "intelligenceMetric:autonomousRootCauseDiscovery",
+                                "intelligenceMetric:teachingDecisionQuality",
+                                "intelligenceMetric:complexSignalPrioritization",
+                                "intelligenceMetric:distractorResistance",
+                                "intelligenceMetric:evidenceGroundedReasoning",
+                                "intelligenceMetric:modelSafetyAndBoundary"))
+                        .intelligenceFailedMetrics(List.of())
+                        .actualIssueTags(List.of("IO_FORMAT"))
+                        .actualFineGrainedTags(List.of("INPUT_PARSING"))
+                        .actualEvidenceRefs(List.of("generator:multi-query-prefix:input_parsing"))
+                        .build(),
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-partial")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .modelIssueTagHit(true)
+                        .modelFineTagHit(false)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .complexCase(true)
+                        .complexQualityPassed(false)
+                        .complexMetricPassedCount(3)
+                        .complexMetricTotalCount(6)
+                        .complexQualityScore(0.5)
+                        .complexPassedMetrics(List.of("complexMetric:primaryRootCauseHit"))
+                        .complexFailedMetrics(List.of("teachingPriorityCorrect", "evidenceGrounded"))
+                        .intelligenceEvaluated(true)
+                        .intelligenceQualityPassed(false)
+                        .intelligenceMetricPassedCount(3)
+                        .intelligenceMetricTotalCount(6)
+                        .intelligenceQualityScore(0.5)
+                        .intelligencePassedMetrics(List.of(
+                                "intelligenceMetric:autonomousRootCauseDiscovery",
+                                "intelligenceMetric:complexSignalPrioritization",
+                                "intelligenceMetric:modelSafetyAndBoundary"))
+                        .intelligenceFailedMetrics(List.of(
+                                "teachingDecisionQuality",
+                                "evidenceGroundedReasoning",
+                                "distractorResistance"))
+                        .build()
+        ));
+
+        assertThat(report.getComplexCaseCount()).isEqualTo(2);
+        assertThat(report.getComplexQualityPassedCount()).isEqualTo(1);
+        assertThat(report.getComplexMetricPassedCount()).isEqualTo(9);
+        assertThat(report.getComplexMetricTotalCount()).isEqualTo(12);
+        assertThat(report.getComplexQualityAverageScore()).isEqualTo(0.75);
+        assertThat(report.getIntelligenceCaseCount()).isEqualTo(2);
+        assertThat(report.getIntelligenceCompletedCount()).isEqualTo(2);
+        assertThat(report.getIntelligenceFallbackExcludedCount()).isZero();
+        assertThat(report.getIntelligenceQualityPassedCount()).isEqualTo(1);
+        assertThat(report.getIntelligenceMetricPassedCount()).isEqualTo(9);
+        assertThat(report.getIntelligenceMetricTotalCount()).isEqualTo(12);
+        assertThat(report.getIntelligenceQualityAverageScore()).isEqualTo(0.75);
+        assertThat(report.getIntelligenceMetricPassCounts()).containsEntry("autonomousRootCauseDiscovery", 2);
+        assertThat(report.getIntelligenceMetricFailCounts()).containsEntry("evidenceGroundedReasoning", 1);
+        assertThat(liveModelSummaryLine(report)).contains(
+                "complexQuality=1/2",
+                "complexMetrics=9/12",
+                "intelligenceCompleted=2/2",
+                "intelligenceQuality=1/2",
+                "intelligenceMetrics=9/12",
+                "evidenceGroundedReasoning:1"
+        );
+        assertThat(report.getQualityBaselineDrafts()).singleElement()
+                .satisfies(draft -> assertThat(draft.getMustKeep()).contains(
+                        "complexQualityPassed",
+                        "complexMetric:primaryRootCauseHit",
+                        "complexMetric:noFullSolutionLeak",
+                        "intelligenceQualityPassed",
+                        "intelligenceMetric:autonomousRootCauseDiscovery",
+                        "intelligenceMetric:modelSafetyAndBoundary"
+                ));
+    }
+
+    @Test
+    void liveModelReportExcludesFallbackComplexCasesFromExternalIntelligenceScore() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-fallback")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_RUNTIME_FALLBACK")
+                        .fallbackUsed(true)
+                        .modelCompleted(false)
+                        .modelIssueTagHit(false)
+                        .modelFineTagHit(false)
+                        .fallbackIssueTagHit(true)
+                        .fallbackFineTagHit(true)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .complexCase(true)
+                        .complexQualityPassed(true)
+                        .complexMetricPassedCount(6)
+                        .complexMetricTotalCount(6)
+                        .complexQualityScore(1.0)
+                        .complexPassedMetrics(List.of(
+                                "complexMetric:primaryRootCauseHit",
+                                "complexMetric:evidenceGrounded"))
+                        .intelligenceEvaluated(false)
+                        .intelligenceQualityPassed(false)
+                        .intelligenceMetricPassedCount(0)
+                        .intelligenceMetricTotalCount(0)
+                        .intelligenceQualityScore(0.0)
+                        .intelligencePassedMetrics(List.of())
+                        .intelligenceFailedMetrics(List.of())
+                        .build()
+        ));
+
+        assertThat(report.getIntelligenceCaseCount()).isEqualTo(1);
+        assertThat(report.getIntelligenceCompletedCount()).isZero();
+        assertThat(report.getIntelligenceFallbackExcludedCount()).isEqualTo(1);
+        assertThat(report.getIntelligenceMetricPassedCount()).isZero();
+        assertThat(report.getIntelligenceMetricTotalCount()).isZero();
+        assertThat(report.getQualityBaselineDrafts()).isEmpty();
+    }
+
+    @Test
+    void liveModelReportMarksRecoveryBlockedWhenOnlyFallbackHitsWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("quota-fallback")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_RUNTIME_FALLBACK")
+                        .runtimeProfile("low-latency")
+                        .latencyMs(800L)
+                        .latencyBudgetMs(35_000L)
+                        .latencyBudgetExceeded(false)
+                        .fallbackUsed(true)
+                        .transportMode("stream")
+                        .streamContentChunkCount(0)
+                        .modelCompleted(false)
+                        .expectedIssueTagHit(true)
+                        .expectedFineTagHit(true)
+                        .modelIssueTagHit(false)
+                        .modelFineTagHit(false)
+                        .fallbackIssueTagHit(true)
+                        .fallbackFineTagHit(true)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .failureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_TEACHING:RATE_LIMITED")
+                        .build()
+        ));
+
+        assertThat(report.getRecoveryStatus()).isEqualTo("BLOCKED");
+        assertThat(report.getRecoveryCheckCount()).isEqualTo(6);
+        assertThat(report.getRecoveryPassedCheckCount()).isZero();
+        assertThat(report.getRecoveryBlockedReasons()).contains(
+                "recovery smoke pending: quota-fallback",
+                "quota-fallback: runtime fallback",
+                "quota-fallback: model not completed",
+                "quota-fallback: missing model hit",
+                "quota-fallback: stream content chunk missing",
+                "quota-fallback: MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_TEACHING:RATE_LIMITED"
+        );
+        assertThat(liveModelSummaryLine(report)).contains("recoveryStatus=BLOCKED");
+    }
+
+    @Test
+    void liveModelReportMarksRecoveryNotApplicableForHealthyNonRecoverySummary() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("healthy-non-recovery")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .runtimeProfile("standard")
+                        .latencyMs(1_000L)
+                        .latencyBudgetMs(35_000L)
+                        .latencyBudgetExceeded(false)
+                        .fallbackUsed(false)
+                        .modelCompleted(false)
+                        .expectedIssueTagHit(false)
+                        .expectedFineTagHit(false)
+                        .modelIssueTagHit(false)
+                        .modelFineTagHit(false)
+                        .fallbackIssueTagHit(false)
+                        .fallbackFineTagHit(false)
+                        .evidenceValid(false)
+                        .safetyPassed(false)
+                        .failureReason("NONE")
+                        .build()
+        ));
+
+        assertThat(report.getRuntimeFixtureDraftCount()).isZero();
+        assertThat(report.getRecoveryStatus()).isEqualTo("NOT_APPLICABLE");
+        assertThat(report.getRecoveryCheckCount()).isZero();
+        assertThat(report.getRecoveryPassedChecks()).isEmpty();
+        assertThat(report.getRecoveryBlockedReasons()).isEmpty();
+    }
+
+    @Test
+    void offlineRuntimeProfileEvalComparesRequestSizeWithoutRawPrompt() throws IOException {
+        OfflineRuntimeProfileEvalReport report = runOfflineRuntimeProfileEval(allEvalCases().stream()
+                .limit(3)
+                .toList());
+        Path reportPath = writeOfflineRuntimeProfileEvalReport(report);
+        String reportJson = Files.readString(reportPath);
+
+        assertThat(report.getTotalCount()).isEqualTo(3);
+        assertThat(report.getReducedCount()).isEqualTo(3);
+        assertThat(report.getQualityPreservedCount()).isEqualTo(3);
+        assertThat(report.getAverageCompressionRatio()).isBetween(0.0, 1.0);
+        assertThat(report.getEntries())
+                .allSatisfy(entry -> {
+                    assertThat(entry.getLowLatencyRuntimeProfile()).isEqualTo("low-latency");
+                    assertThat(entry.getLowLatencyRequestCompact()).isTrue();
+                    assertThat(entry.getLowLatencyRequestBytes()).isLessThan(entry.getStandardRequestBytes());
+                    assertThat(entry.getCompressionRatio()).isBetween(0.0, 1.0);
+                    assertThat(entry.getCandidateSignalCount()).isPositive();
+                    assertThat(entry.getEvidenceRefCount()).isPositive();
+                    assertThat(entry.getIssueTagCount()).isPositive();
+                    assertThat(entry.getTeachingActionCount()).isPositive();
+                    assertThat(entry.getHiddenBoundaryPresent()).isTrue();
+                    assertThat(entry.getQualityPreserved()).isTrue();
+                    assertThat(entry.getFailureReasons()).isEmpty();
+                });
+        assertThat(reportPath).exists();
+        assertThat(reportJson)
+                .doesNotContain("\"messages\"")
+                .doesNotContain("\"brief\"")
+                .doesNotContain("\"standardLibrary\"")
+                .doesNotContain("sourceCode")
+                .doesNotContain("api_key")
+                .doesNotContain("Authorization")
+                .doesNotContain("Bearer")
+                .doesNotContain("ms-");
     }
 
     @Test
@@ -284,6 +957,10 @@ class ModelDiagnosisEvalTest {
         ReflectionTestUtils.setField(aiReportService, "timeoutSeconds", longValueOrDefault(System.getenv("AI_EVAL_TIMEOUT_SECONDS"), 35L));
         ReflectionTestUtils.setField(aiReportService, "externalRuntimeEnabled",
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_ENABLED"), "true")));
+        ReflectionTestUtils.setField(aiReportService, "externalRuntimeMode",
+                valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_MODE"), "single-call"));
+        ReflectionTestUtils.setField(aiReportService, "externalRuntimeProfile",
+                valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "standard"));
         ReflectionTestUtils.setField(aiReportService, "maxOutputTokens", (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
         ReflectionTestUtils.setField(aiReportService, "streamEnabled",
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_ENABLED"), "true")));
@@ -337,7 +1014,8 @@ class ModelDiagnosisEvalTest {
                 List.of(),
                 baseline(submission, "WA", List.of("BOUNDARY_CONDITION"), List.of()),
                 List.of("LOOP_BOUNDARY", "BOUNDARY_CONDITION"),
-                List.of("OFF_BY_ONE")
+                List.of("OFF_BY_ONE"),
+                null
         );
     }
 
@@ -373,7 +1051,8 @@ class ModelDiagnosisEvalTest {
                 cases,
                 baseline(submission, "WA", List.of("IO_FORMAT"), List.of()),
                 List.of("IO_FORMAT"),
-                List.of("OUTPUT_FORMAT_DETAIL")
+                List.of("OUTPUT_FORMAT_DETAIL"),
+                null
         );
     }
 
@@ -408,7 +1087,8 @@ class ModelDiagnosisEvalTest {
                 List.of(),
                 baseline(submission, "TLE", List.of("TIME_COMPLEXITY"), List.of()),
                 List.of("TIME_COMPLEXITY"),
-                List.of("BRUTE_FORCE_LIMIT")
+                List.of("BRUTE_FORCE_LIMIT"),
+                null
         );
     }
 
@@ -460,7 +1140,89 @@ class ModelDiagnosisEvalTest {
         cases.add(outputFormatCase());
         cases.add(bruteForceCase());
         cases.addAll(teacherCorrectionEvalCases());
+        cases.addAll(liveModelCoreEvalCases());
+        cases.addAll(complexGeneratedLiveEvalCases());
         return cases;
+    }
+
+    private List<EvalCase> complexGeneratedLiveEvalCases() {
+        try {
+            return new ComplexStudentSubmissionEvalFixtureLoader(objectMapper).loadDefault()
+                    .stream()
+                    .filter(ComplexStudentSubmissionEvalFixtureLoader.Fixture::liveCandidate)
+                    .map(fixture -> new EvalCase(
+                            fixture.caseId(),
+                            fixture.toProblem(),
+                            fixture.toSubmission(),
+                            fixture.toCaseResults(),
+                            fixture.toBaseline(),
+                            fixture.expectedIssueTags(),
+                            fixture.expectedFineTags(),
+                            fixture
+                    ))
+                    .toList();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to load complex generated eval fixtures", exception);
+        }
+    }
+
+    private List<EvalCase> representativeComplexLiveEvalCases() {
+        Map<String, EvalCase> casesById = complexGeneratedLiveEvalCases().stream()
+                .collect(Collectors.toMap(EvalCase::name, evalCase -> evalCase, (left, ignored) -> left, LinkedHashMap::new));
+        return REPRESENTATIVE_COMPLEX_LIVE_CASE_IDS.stream()
+                .map(caseId -> {
+                    EvalCase evalCase = casesById.get(caseId);
+                    if (evalCase == null) {
+                        throw new IllegalStateException("Missing representative complex live eval case: " + caseId);
+                    }
+                    return evalCase;
+                })
+                .toList();
+    }
+
+    private List<EvalCase> liveModelCoreEvalCases() {
+        try {
+            return new LiveModelCoreEvalFixtureLoader(objectMapper).loadDefault()
+                    .stream()
+                    .map(fixture -> new EvalCase(
+                            fixture.caseId(),
+                            fixture.toProblem(),
+                            fixture.toSubmission(),
+                            fixture.toCaseResults(),
+                            fixture.toBaseline(),
+                            fixture.expectedIssueTags(),
+                            fixture.expectedFineTags(),
+                            null
+                    ))
+                    .toList();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to load live model core eval fixtures", exception);
+        }
+    }
+
+    private boolean shouldIncludeCaseId(EvalCase evalCase, String caseIds) {
+        if (caseIds == null || caseIds.isBlank()) {
+            return true;
+        }
+        Set<String> allowed = java.util.Arrays.stream(caseIds.split(","))
+                .map(value -> value.trim().toLowerCase(Locale.ROOT))
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toSet());
+        return allowed.isEmpty() || allowed.contains(evalCase.name().toLowerCase(Locale.ROOT));
+    }
+
+    private List<EvalCase> selectedLiveEvalCases() {
+        String caseIds = System.getenv("AI_EVAL_CASE_IDS");
+        boolean representativeIntelligenceRun = Boolean.parseBoolean(
+                valueOrDefault(System.getenv("AI_EVAL_COMPLEX_INTELLIGENCE_14"), "false"));
+        List<EvalCase> sourceCases = representativeIntelligenceRun && (caseIds == null || caseIds.isBlank())
+                ? representativeComplexLiveEvalCases()
+                : allEvalCases();
+        return sourceCases.stream()
+                .filter(evalCase -> shouldIncludeCaseId(evalCase, caseIds))
+                .limit(Math.max(1, (int) longValueOrDefault(System.getenv("AI_EVAL_SMOKE_LIMIT"),
+                        representativeIntelligenceRun ? 14L : 2L)))
+                .toList();
     }
 
     private List<EvalCase> teacherCorrectionEvalCases() {
@@ -474,7 +1236,8 @@ class ModelDiagnosisEvalTest {
                             fixture.toCaseResults(),
                             fixture.toBaseline(),
                             fixture.expectedIssueTags(),
-                            fixture.expectedFineTags()
+                            fixture.expectedFineTags(),
+                            null
                     ))
                     .toList();
         } catch (IOException exception) {
@@ -484,8 +1247,12 @@ class ModelDiagnosisEvalTest {
 
     private LiveModelEvalReport runLiveEvalReport(DiagnosticAgentService service, List<EvalCase> cases) {
         String model = valueOrDefault(System.getenv("AI_EVAL_MODEL"), "deepseek-ai/DeepSeek-V4-Pro");
+        long latencyBudgetMs = longValueOrDefault(System.getenv("AI_EVAL_LATENCY_BUDGET_MS"), 35_000L);
+        long caseDelayMs = Math.max(0, longValueOrDefault(System.getenv("AI_EVAL_CASE_DELAY_MS"), 0L));
         List<LiveModelEvalReport.Entry> entries = new ArrayList<>();
-        for (EvalCase evalCase : cases) {
+        for (int index = 0; index < cases.size(); index++) {
+            EvalCase evalCase = cases.get(index);
+            waitBetweenLiveModelCases(index, caseDelayMs);
             long startedAt = System.nanoTime();
             try {
                 DiagnosticAgentService.AgentResult result = service.diagnose(
@@ -501,64 +1268,698 @@ class ModelDiagnosisEvalTest {
                 boolean fallbackUsed = invocation == null || invocation.isFallbackUsed();
                 boolean issueHit = intersects(analysis.getIssueTags(), evalCase.expectedIssueTags());
                 boolean fineHit = intersects(analysis.getFineGrainedTags(), evalCase.expectedFineTags());
+                boolean modelCompleted = modelCompleted(invocation, fallbackUsed);
                 boolean evidenceValid = analysis.getEvidenceRefs() != null && !analysis.getEvidenceRefs().isEmpty();
                 boolean safetyPassed = !"HIGH".equalsIgnoreCase(analysis.getAnswerLeakRisk());
+                ComplexDiagnosisQualityScorer.Result complexQuality = complexQualityScorer.score(evalCase.complexFixture(), analysis);
+                ComplexDiagnosisQualityScorer.IntelligenceResult intelligenceQuality =
+                        complexQualityScorer.intelligence(complexQuality, modelCompleted, fallbackUsed);
+                ComplexDiagnosisQualityScorer.StudentFeedbackResult studentFeedbackQuality =
+                        complexQualityScorer.studentFeedback(evalCase.complexFixture(), analysis, modelCompleted, fallbackUsed);
+                Integer requestBytes = invocation == null || invocation.getRequestBytes() == null
+                        ? 0
+                        : invocation.getRequestBytes();
+                String failureReason = fallbackUsed || "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(safe(invocation == null ? "" : invocation.getStatus()))
+                        ? failureReasonFromInvocation(invocation, result.traceSummary(), analysis.getUncertainty())
+                        : "NONE";
+                String outputSummary = safe(analysis.getHeadline()) + " | " + safe(analysis.getSummary());
                 entries.add(LiveModelEvalReport.Entry.builder()
                         .caseId(evalCase.name())
                         .model(model)
                         .promptVersion(invocation == null ? "unknown" : invocation.getPromptVersion())
                         .stage("DIAGNOSIS_AGENT")
                         .latencyMs(latencyMs)
+                        .latencyBudgetMs(latencyBudgetMs)
+                        .latencyBudgetExceeded(latencyMs > latencyBudgetMs)
                         .status(invocation == null ? "UNKNOWN" : invocation.getStatus())
+                        .failureStage(failureStageFromInvocation(invocation, analysis.getUncertainty()))
                         .fallbackUsed(fallbackUsed)
+                        .runtimeProfile(invocation == null ? "standard" : invocation.getRuntimeProfile())
+                        .requestBytes(requestBytes)
+                        .requestCompact(invocation != null && Boolean.TRUE.equals(invocation.getRequestCompact()))
+                        .transportMode(invocation == null ? "" : invocation.getTransportMode())
+                        .streamChunkCount(invocation == null ? 0 : invocation.getStreamChunkCount())
+                        .streamContentChunkCount(invocation == null ? 0 : invocation.getStreamContentChunkCount())
+                        .streamReasoningChunkCount(invocation == null ? 0 : invocation.getStreamReasoningChunkCount())
+                        .streamInvalidChunkCount(invocation == null ? 0 : invocation.getStreamInvalidChunkCount())
+                        .streamFinishReason(invocation == null ? "" : invocation.getStreamFinishReason())
+                        .streamFallbackRetryUsed(invocation != null && Boolean.TRUE.equals(invocation.getStreamFallbackRetryUsed()))
                         .jsonValid(!fallbackUsed)
+                        .modelCompleted(modelCompleted)
                         .expectedIssueTagHit(issueHit)
                         .expectedFineTagHit(fineHit)
+                        .modelIssueTagHit(modelCompleted && issueHit)
+                        .modelFineTagHit(modelCompleted && fineHit)
+                        .fallbackIssueTagHit(fallbackUsed && issueHit)
+                        .fallbackFineTagHit(fallbackUsed && fineHit)
                         .evidenceValid(evidenceValid)
                         .safetyPassed(safetyPassed)
-                        .failureReason(fallbackUsed
-                                ? failureReasonFromInvocation(invocation, result.traceSummary(), analysis.getUncertainty())
-                                : "NONE")
-                        .outputSummary(safe(analysis.getHeadline()) + " | " + safe(analysis.getSummary()))
+                        .complexCase(complexQuality.complexCase())
+                        .complexQualityPassed(complexQuality.passed())
+                        .complexMetricPassedCount(complexQuality.passedMetricCount())
+                        .complexMetricTotalCount(complexQuality.totalMetricCount())
+                        .complexQualityScore(complexQuality.score())
+                        .complexPassedMetrics(complexQuality.passedMetricSignals())
+                        .complexFailedMetrics(complexQuality.failedMetrics())
+                        .intelligenceEvaluated(intelligenceQuality.evaluated())
+                        .intelligenceQualityPassed(intelligenceQuality.passed())
+                        .intelligenceMetricPassedCount(intelligenceQuality.passedMetricCount())
+                        .intelligenceMetricTotalCount(intelligenceQuality.totalMetricCount())
+                        .intelligenceQualityScore(intelligenceQuality.score())
+                        .intelligencePassedMetrics(intelligenceQuality.passedMetricSignals())
+                        .intelligenceFailedMetrics(intelligenceQuality.failedMetrics())
+                        .studentFeedbackEvaluated(studentFeedbackQuality.evaluated())
+                        .studentFeedbackQualityPassed(studentFeedbackQuality.passed())
+                        .studentFeedbackMetricPassedCount(studentFeedbackQuality.passedMetricCount())
+                        .studentFeedbackMetricTotalCount(studentFeedbackQuality.totalMetricCount())
+                        .studentFeedbackQualityScore(studentFeedbackQuality.score())
+                        .studentFeedbackPassedMetrics(studentFeedbackQuality.passedMetricSignals())
+                        .studentFeedbackFailedMetrics(studentFeedbackQuality.failedMetrics())
+                        .localTruth(localTruth(evalCase.complexFixture()))
+                        .modelOutput(modelOutput(analysis, outputSummary))
+                        .studentFeedback(studentFeedbackOutput(analysis.getStudentFeedback()))
+                        .modelJudgment(modelJudgment(model, invocation, modelCompleted, fallbackUsed,
+                                intelligenceQuality.evaluated(), failureReason))
+                        .qualityScore(qualityScore(complexQuality, intelligenceQuality, studentFeedbackQuality))
+                        .actualIssueTags(analysis.getIssueTags())
+                        .actualFineGrainedTags(analysis.getFineGrainedTags())
+                        .actualEvidenceRefs(analysis.getEvidenceRefs())
+                        .failureReason(failureReason)
+                        .outputSummary(outputSummary)
                         .build());
             } catch (Exception exception) {
                 long latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
+                ComplexDiagnosisQualityScorer.IntelligenceResult intelligenceQuality =
+                        ComplexDiagnosisQualityScorer.IntelligenceResult.empty(evalCase.complexFixture() != null);
+                ComplexDiagnosisQualityScorer.StudentFeedbackResult studentFeedbackQuality =
+                        ComplexDiagnosisQualityScorer.StudentFeedbackResult.empty(evalCase.complexFixture() != null, false);
+                String failureReason = classifyException(exception);
                 entries.add(LiveModelEvalReport.Entry.builder()
                         .caseId(evalCase.name())
                         .model(model)
                         .promptVersion("unknown")
                         .stage("DIAGNOSIS_AGENT")
                         .latencyMs(latencyMs)
+                        .latencyBudgetMs(latencyBudgetMs)
+                        .latencyBudgetExceeded(latencyMs > latencyBudgetMs)
                         .status("EXCEPTION")
                         .fallbackUsed(true)
+                        .runtimeProfile(valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "standard"))
+                        .requestBytes(0)
+                        .requestCompact(false)
                         .jsonValid(false)
+                        .modelCompleted(false)
                         .expectedIssueTagHit(false)
                         .expectedFineTagHit(false)
+                        .modelIssueTagHit(false)
+                        .modelFineTagHit(false)
+                        .fallbackIssueTagHit(false)
+                        .fallbackFineTagHit(false)
                         .evidenceValid(false)
                         .safetyPassed(false)
-                        .failureReason(classifyException(exception))
+                        .complexCase(evalCase.complexFixture() != null)
+                        .complexQualityPassed(false)
+                        .complexMetricPassedCount(0)
+                        .complexMetricTotalCount(evalCase.complexFixture() == null ? 0 : ComplexDiagnosisQualityScorer.METRICS.size())
+                        .complexQualityScore(0.0)
+                        .complexPassedMetrics(List.of())
+                        .complexFailedMetrics(evalCase.complexFixture() == null ? List.of() : ComplexDiagnosisQualityScorer.METRICS)
+                        .intelligenceEvaluated(intelligenceQuality.evaluated())
+                        .intelligenceQualityPassed(false)
+                        .intelligenceMetricPassedCount(0)
+                        .intelligenceMetricTotalCount(0)
+                        .intelligenceQualityScore(0.0)
+                        .intelligencePassedMetrics(List.of())
+                        .intelligenceFailedMetrics(List.of())
+                        .studentFeedbackEvaluated(false)
+                        .studentFeedbackQualityPassed(false)
+                        .studentFeedbackMetricPassedCount(0)
+                        .studentFeedbackMetricTotalCount(0)
+                        .studentFeedbackQualityScore(0.0)
+                        .studentFeedbackPassedMetrics(List.of())
+                        .studentFeedbackFailedMetrics(List.of())
+                        .localTruth(localTruth(evalCase.complexFixture()))
+                        .modelOutput(LiveModelEvalReport.ModelOutput.builder()
+                                .summary(exception.getClass().getSimpleName() + ": " + exception.getMessage())
+                                .build())
+                        .modelJudgment(LiveModelEvalReport.ModelJudgment.builder()
+                                .modelCompleted(false)
+                                .fallbackUsed(true)
+                                .countedAsIntelligence(false)
+                                .status("EXCEPTION")
+                                .failureReason(failureReason)
+                                .provider("ModelScope")
+                                .model(model)
+                                .baseUrl(valueOrDefault(System.getenv("AI_EVAL_BASE_URL"), "https://api-inference.modelscope.cn/v1"))
+                                .runtimeProfile(valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "standard"))
+                                .build())
+                        .qualityScore(qualityScore(null, intelligenceQuality, studentFeedbackQuality))
+                        .failureReason(failureReason)
                         .outputSummary(exception.getClass().getSimpleName() + ": " + exception.getMessage())
                         .build());
             }
         }
-        return summarizeReport(model, entries);
+        return summarizeReport(model, entries, caseDelayMs);
+    }
+
+    private void waitBetweenLiveModelCases(int index, long caseDelayMs) {
+        if (index <= 0 || caseDelayMs <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(caseDelayMs);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Live model eval interrupted while waiting between cases.", exception);
+        }
+    }
+
+    private LiveModelEvalReport.LocalTruth localTruth(ComplexStudentSubmissionEvalFixtureLoader.Fixture fixture) {
+        if (fixture == null) {
+            return null;
+        }
+        return LiveModelEvalReport.LocalTruth.builder()
+                .caseId(fixture.caseId())
+                .bugPattern(fixture.quality() == null ? "" : fixture.quality().bugPattern())
+                .primaryIssueTag(fixture.primaryRootCause() == null ? "" : fixture.primaryRootCause().issueTag())
+                .primaryFineGrainedTag(fixture.primaryRootCause() == null ? "" : fixture.primaryRootCause().fineGrainedTag())
+                .primaryEvidenceRef(fixture.primaryRootCause() == null ? "" : fixture.primaryRootCause().evidenceRef())
+                .expectedTeachingPriority(fixture.expectedTeachingPriority())
+                .requiredEvidenceRefs(fixture.requiredEvidenceRefs())
+                .distractingSignals(fixture.distractingSignals())
+                .mustMention(fixture.mustMention())
+                .mustNotMention(fixture.mustNotMention())
+                .expectedImprovementOpportunities(fixture.expectedImprovementOpportunities() == null
+                        ? List.of()
+                        : fixture.expectedImprovementOpportunities().stream()
+                        .map(item -> LiveModelEvalReport.ExpectedImprovementOpportunity.builder()
+                                .category(item.category())
+                                .studentMessage(item.studentMessage())
+                                .benefit(item.benefit())
+                                .build())
+                        .toList())
+                .build();
+    }
+
+    private LiveModelEvalReport.StudentFeedbackOutput studentFeedbackOutput(SubmissionAnalysisResponse.StudentFeedback feedback) {
+        if (feedback == null) {
+            return null;
+        }
+        List<String> refs = new ArrayList<>();
+        if (feedback.getBlockingIssues() != null) {
+            feedback.getBlockingIssues().forEach(issue -> {
+                if (issue != null && issue.getEvidenceRefs() != null) {
+                    refs.addAll(issue.getEvidenceRefs());
+                }
+            });
+        }
+        if (feedback.getNextLearningAction() != null && feedback.getNextLearningAction().getEvidenceRefs() != null) {
+            refs.addAll(feedback.getNextLearningAction().getEvidenceRefs());
+        }
+        return LiveModelEvalReport.StudentFeedbackOutput.builder()
+                .summary(feedback.getSummary())
+                .blockingMessages(feedback.getBlockingIssues() == null ? List.of() : feedback.getBlockingIssues().stream()
+                        .map(SubmissionAnalysisResponse.FeedbackIssue::getStudentMessage)
+                        .toList())
+                .secondaryMessages(feedback.getSecondaryIssues() == null ? List.of() : feedback.getSecondaryIssues().stream()
+                        .map(SubmissionAnalysisResponse.SecondaryIssue::getStudentMessage)
+                        .toList())
+                .improvementCategories(feedback.getImprovementOpportunities() == null ? List.of() : feedback.getImprovementOpportunities().stream()
+                        .map(SubmissionAnalysisResponse.ImprovementOpportunity::getCategory)
+                        .toList())
+                .improvementMessages(feedback.getImprovementOpportunities() == null ? List.of() : feedback.getImprovementOpportunities().stream()
+                        .map(SubmissionAnalysisResponse.ImprovementOpportunity::getStudentMessage)
+                        .toList())
+                .nextAction(feedback.getNextLearningAction() == null ? "" : feedback.getNextLearningAction().getTask())
+                .evidenceRefs(refs.stream().distinct().toList())
+                .build();
+    }
+
+    private LiveModelEvalReport.ModelOutput modelOutput(SubmissionAnalysisResponse analysis, String outputSummary) {
+        if (analysis == null) {
+            return null;
+        }
+        return LiveModelEvalReport.ModelOutput.builder()
+                .issueTags(analysis.getIssueTags())
+                .fineGrainedTags(analysis.getFineGrainedTags())
+                .evidenceRefs(analysis.getEvidenceRefs())
+                .answerLeakRisk(analysis.getAnswerLeakRisk())
+                .summary(outputSummary)
+                .build();
+    }
+
+    private LiveModelEvalReport.ModelJudgment modelJudgment(String model,
+                                                            SubmissionAnalysisResponse.AiInvocation invocation,
+                                                            boolean modelCompleted,
+                                                            boolean fallbackUsed,
+                                                            boolean countedAsIntelligence,
+                                                            String failureReason) {
+        return LiveModelEvalReport.ModelJudgment.builder()
+                .modelCompleted(modelCompleted)
+                .fallbackUsed(fallbackUsed)
+                .countedAsIntelligence(countedAsIntelligence)
+                .status(invocation == null ? "UNKNOWN" : invocation.getStatus())
+                .failureReason(failureReason)
+                .provider("ModelScope")
+                .model(model)
+                .baseUrl(valueOrDefault(System.getenv("AI_EVAL_BASE_URL"), "https://api-inference.modelscope.cn/v1"))
+                .runtimeProfile(invocation == null ? valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "standard")
+                        : invocation.getRuntimeProfile())
+                .build();
+    }
+
+    private LiveModelEvalReport.QualityScore qualityScore(ComplexDiagnosisQualityScorer.Result complexQuality,
+                                                          ComplexDiagnosisQualityScorer.IntelligenceResult intelligenceQuality,
+                                                          ComplexDiagnosisQualityScorer.StudentFeedbackResult studentFeedbackQuality) {
+        return LiveModelEvalReport.QualityScore.builder()
+                .complexQualityScore(complexQuality == null ? 0.0 : complexQuality.score())
+                .intelligenceQualityScore(intelligenceQuality == null ? 0.0 : intelligenceQuality.score())
+                .studentFeedbackQualityScore(studentFeedbackQuality == null ? 0.0 : studentFeedbackQuality.score())
+                .complexMetrics(complexQuality == null ? Map.of() : complexQuality.metrics())
+                .intelligenceMetrics(intelligenceQuality == null ? Map.of() : intelligenceQuality.metrics())
+                .studentFeedbackMetrics(studentFeedbackQuality == null ? Map.of() : studentFeedbackQuality.metrics())
+                .build();
+    }
+
+    private OfflineRuntimeProfileEvalReport runOfflineRuntimeProfileEval(List<EvalCase> cases) {
+        DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
+        ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
+                new ModelDiagnosisBriefBuilder(),
+                new StandardLibraryPackBuilder(taxonomy),
+                new PromptTemplateRegistry(),
+                new ModelOutputValidator()
+        );
+        DiagnosisEvidencePackageBuilder evidenceBuilder = new DiagnosisEvidencePackageBuilder();
+        RuleSignalAnalyzer signalAnalyzer = new RuleSignalAnalyzer();
+        List<OfflineRuntimeProfileEvalReportFactory.OfflineEvalCase> offlineCases = cases.stream()
+                .map(evalCase -> {
+                    DiagnosisEvidencePackage evidencePackage = evidenceBuilder.build(
+                            evalCase.problem(),
+                            evalCase.submission(),
+                            evalCase.caseResults(),
+                            evalCase.baseline(),
+                            Assignment.HintPolicy.L2,
+                            null,
+                            null
+                    );
+                    RuleSignalAnalyzer.RuleSignalResult ruleSignals = signalAnalyzer.analyze(evidencePackage);
+                    return new OfflineRuntimeProfileEvalReportFactory.OfflineEvalCase(
+                            evalCase.name(),
+                            evidencePackage,
+                            ruleSignals,
+                            evalCase.baseline()
+                    );
+                })
+                .toList();
+        return new OfflineRuntimeProfileEvalReportFactory(objectMapper, runtime)
+                .fromCases(offlineCases);
+    }
+
+    private void assertModelBaselineRegressionGateIfEnabled(LiveModelEvalReport report, Path reportPath) throws IOException {
+        String baselineReport = System.getenv("AI_EVAL_MODEL_BASELINE_REPORT");
+        if (baselineReport == null || baselineReport.isBlank()) {
+            return;
+        }
+        Path baselinePath = Path.of(baselineReport);
+        LiveModelEvalReport baseline = objectMapper.readValue(baselinePath.toFile(), LiveModelEvalReport.class);
+        List<String> violations = LiveEvalBaselineRegressionGate.evaluateModel(report, baseline.getQualityBaselineDrafts());
+        LiveEvalBaselineRegressionReport regressionReport = new LiveEvalBaselineRegressionReportFactory()
+                .fromModel(report, baseline.getQualityBaselineDrafts(),
+                        baselinePath.toString(), reportPath.toString(), violations);
+        Path regressionReportPath = writeBaselineRegressionReport(
+                "live-model-eval-baseline-regression",
+                regressionReport
+        );
+        System.out.println("Live model eval baseline regression report saved to: " + regressionReportPath);
+        System.out.println("Live model eval baseline regression summary: " + regressionReport.consoleSummary());
+        assertThat(violations)
+                .as("live model eval baseline regression violations against " + baselinePath)
+                .isEmpty();
     }
 
     private LiveModelEvalReport summarizeReport(String model, List<LiveModelEvalReport.Entry> entries) {
+        return summarizeReport(model, entries, 0L);
+    }
+
+    private LiveModelEvalReport summarizeReport(String model, List<LiveModelEvalReport.Entry> entries, long caseDelayMs) {
+        List<LiveEvalRuntimeFixtureDraft> runtimeDrafts =
+                new LiveEvalRuntimeFixtureDraftFactory().fromModelEntries(entries);
+        List<LiveEvalQualityBaselineDraft> qualityBaselines =
+                new LiveEvalQualityBaselineDraftFactory().fromModelEntries(entries);
+        RecoverySummary recoverySummary = summarizeRecovery(entries, runtimeDrafts);
+        long safeCaseDelayMs = Math.max(0, caseDelayMs);
         return LiveModelEvalReport.builder()
                 .model(model)
                 .promptVersion("mixed")
+                .provider("ModelScope")
+                .baseUrl(valueOrDefault(System.getenv("AI_EVAL_BASE_URL"), "https://api-inference.modelscope.cn/v1"))
+                .runtimeProfile(valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "standard"))
                 .totalCount(entries.size())
-                .completedCount((int) entries.stream().filter(entry -> !Boolean.TRUE.equals(entry.getFallbackUsed())).count())
+                .completedCount((int) entries.stream()
+                        .filter(entry -> "MODEL_COMPLETED".equalsIgnoreCase(safe(entry.getStatus())))
+                        .count())
+                .partialCount((int) entries.stream()
+                        .filter(entry -> "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(safe(entry.getStatus())))
+                        .count())
                 .fallbackCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getFallbackUsed())).count())
                 .timeoutCount((int) entries.stream()
                         .filter(entry -> entry.getFailureReason() != null && entry.getFailureReason().contains("TIMEOUT"))
                         .count())
+                .caseDelayMs(safeCaseDelayMs)
+                .delayedCaseCount(safeCaseDelayMs <= 0 ? 0 : Math.max(0, entries.size() - 1))
+                .latencyBudgetMs(entries.stream()
+                        .map(LiveModelEvalReport.Entry::getLatencyBudgetMs)
+                        .filter(value -> value != null && value > 0)
+                        .findFirst()
+                        .orElse(0L))
+                .latencyBudgetExceededCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getLatencyBudgetExceeded()))
+                        .count())
                 .issueTagHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getExpectedIssueTagHit())).count())
                 .fineTagHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getExpectedFineTagHit())).count())
+                .modelIssueTagHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getModelIssueTagHit())).count())
+                .modelFineTagHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getModelFineTagHit())).count())
+                .fallbackIssueTagHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getFallbackIssueTagHit())).count())
+                .fallbackFineTagHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getFallbackFineTagHit())).count())
                 .safetyPassedCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getSafetyPassed())).count())
+                .complexCaseCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getComplexCase())).count())
+                .complexQualityPassedCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getComplexQualityPassed())).count())
+                .complexMetricPassedCount(entries.stream().mapToInt(entry -> intValue(entry.getComplexMetricPassedCount())).sum())
+                .complexMetricTotalCount(entries.stream().mapToInt(entry -> intValue(entry.getComplexMetricTotalCount())).sum())
+                .complexQualityAverageScore(complexQualityAverageScore(entries))
+                .intelligenceCaseCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getComplexCase())).count())
+                .intelligenceCompletedCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getIntelligenceEvaluated())).count())
+                .intelligenceFallbackExcludedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getComplexCase())
+                                && !Boolean.TRUE.equals(entry.getIntelligenceEvaluated()))
+                        .count())
+                .intelligenceQualityPassedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getIntelligenceQualityPassed()))
+                        .count())
+                .intelligenceMetricPassedCount(entries.stream()
+                        .mapToInt(entry -> intValue(entry.getIntelligenceMetricPassedCount()))
+                        .sum())
+                .intelligenceMetricTotalCount(entries.stream()
+                        .mapToInt(entry -> intValue(entry.getIntelligenceMetricTotalCount()))
+                        .sum())
+                .intelligenceQualityAverageScore(intelligenceQualityAverageScore(entries))
+                .intelligenceMetricPassCounts(intelligenceMetricCounts(entries, true))
+                .intelligenceMetricFailCounts(intelligenceMetricCounts(entries, false))
+                .studentFeedbackCaseCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getComplexCase()))
+                        .count())
+                .studentFeedbackCompletedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getStudentFeedbackEvaluated()))
+                        .count())
+                .studentFeedbackQualityPassedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getStudentFeedbackQualityPassed()))
+                        .count())
+                .studentFeedbackMetricPassedCount(entries.stream()
+                        .mapToInt(entry -> intValue(entry.getStudentFeedbackMetricPassedCount()))
+                        .sum())
+                .studentFeedbackMetricTotalCount(entries.stream()
+                        .mapToInt(entry -> intValue(entry.getStudentFeedbackMetricTotalCount()))
+                        .sum())
+                .studentFeedbackQualityAverageScore(studentFeedbackQualityAverageScore(entries))
+                .studentFeedbackMetricPassCounts(studentFeedbackMetricCounts(entries, true))
+                .studentFeedbackMetricFailCounts(studentFeedbackMetricCounts(entries, false))
+                .runtimeFixtureDraftCount(runtimeDrafts.size())
+                .qualityBaselineDraftCount(qualityBaselines.size())
+                .recoveryStatus(recoverySummary.status())
+                .recoveryCheckCount(recoverySummary.checkCount())
+                .recoveryPassedCheckCount(recoverySummary.passedCheckCount())
+                .recoveryBlockedReasonCount(recoverySummary.blockedReasons().size())
+                .recoveryPassedChecks(recoverySummary.passedChecks())
+                .recoveryBlockedReasons(recoverySummary.blockedReasons())
                 .entries(entries)
+                .runtimeFixtureDrafts(runtimeDrafts)
+                .qualityBaselineDrafts(qualityBaselines)
                 .build();
+    }
+
+    private RecoverySummary summarizeRecovery(List<LiveModelEvalReport.Entry> entries,
+                                              List<LiveEvalRuntimeFixtureDraft> runtimeDrafts) {
+        List<LiveModelEvalReport.Entry> safeEntries = entries == null ? List.of() : entries;
+        List<String> passedChecks = new ArrayList<>();
+        for (LiveModelEvalReport.Entry entry : safeEntries) {
+            List<String> entryChecks = recoveryPassedChecks(entry);
+            int requiredCount = recoveryRequiredCheckCount(entry);
+            if (entryChecks.size() == requiredCount && requiredCount > 0) {
+                passedChecks.addAll(entryChecks);
+                return new RecoverySummary(
+                        "RECOVERED",
+                        requiredCount,
+                        entryChecks.size(),
+                        passedChecks.stream().distinct().toList(),
+                        List.of()
+                );
+            }
+        }
+
+        boolean hasRecoveryContext = safeEntries.stream().anyMatch(this::runtimeFailureEntry)
+                || (runtimeDrafts != null && runtimeDrafts.stream()
+                .anyMatch(draft -> Boolean.TRUE.equals(draft.getRecoverySmokeRecommended())));
+        if (!hasRecoveryContext) {
+            return new RecoverySummary("NOT_APPLICABLE", 0, 0, List.of(), List.of());
+        }
+
+        List<String> blockedReasons = new ArrayList<>();
+        if (runtimeDrafts != null) {
+            runtimeDrafts.stream()
+                    .filter(draft -> Boolean.TRUE.equals(draft.getRecoverySmokeRecommended()))
+                    .map(draft -> "recovery smoke pending: " + safe(draft.getRecoverySmokeCaseId()))
+                    .forEach(blockedReasons::add);
+        }
+        safeEntries.forEach(entry -> blockedReasons.addAll(recoveryBlockedReasons(entry)));
+        List<String> distinctReasons = blockedReasons.stream()
+                .filter(reason -> reason != null && !reason.isBlank())
+                .distinct()
+                .limit(12)
+                .toList();
+        return new RecoverySummary("BLOCKED", 6, 0, List.of(), distinctReasons);
+    }
+
+    private boolean runtimeFailureEntry(LiveModelEvalReport.Entry entry) {
+        if (entry == null) {
+            return false;
+        }
+        return Boolean.TRUE.equals(entry.getFallbackUsed())
+                || "MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(safe(entry.getStatus()))
+                || "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(safe(entry.getStatus()))
+                || "EXCEPTION".equalsIgnoreCase(safe(entry.getStatus()))
+                || Boolean.TRUE.equals(entry.getLatencyBudgetExceeded());
+    }
+
+    private List<String> recoveryPassedChecks(LiveModelEvalReport.Entry entry) {
+        if (entry == null) {
+            return List.of();
+        }
+        List<String> checks = new ArrayList<>();
+        if (Boolean.TRUE.equals(entry.getModelCompleted())) {
+            checks.add("modelCompleted=true");
+        }
+        if (!Boolean.TRUE.equals(entry.getFallbackUsed())) {
+            checks.add("fallbackUsed=false");
+        }
+        if (Boolean.TRUE.equals(entry.getModelIssueTagHit()) || Boolean.TRUE.equals(entry.getModelFineTagHit())) {
+            checks.add("modelIssueTagHit=true or modelFineTagHit=true");
+        }
+        if (Boolean.TRUE.equals(entry.getEvidenceValid())) {
+            checks.add("evidenceValid=true");
+        }
+        if (Boolean.TRUE.equals(entry.getSafetyPassed())) {
+            checks.add("safetyPassed=true");
+        }
+        if ("stream".equalsIgnoreCase(safe(entry.getTransportMode())) && intValue(entry.getStreamContentChunkCount()) > 0) {
+            checks.add("streamContentChunkCount>0");
+        }
+        return checks;
+    }
+
+    private int recoveryRequiredCheckCount(LiveModelEvalReport.Entry entry) {
+        return "stream".equalsIgnoreCase(safe(entry == null ? "" : entry.getTransportMode())) ? 6 : 5;
+    }
+
+    private List<String> recoveryBlockedReasons(LiveModelEvalReport.Entry entry) {
+        if (entry == null) {
+            return List.of();
+        }
+        List<String> reasons = new ArrayList<>();
+        String caseId = safe(entry.getCaseId()).isBlank() ? "unknown-case" : safe(entry.getCaseId());
+        if (Boolean.TRUE.equals(entry.getFallbackUsed())
+                || "MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(safe(entry.getStatus()))) {
+            reasons.add(caseId + ": runtime fallback");
+        }
+        if (!Boolean.TRUE.equals(entry.getModelCompleted())) {
+            reasons.add(caseId + ": model not completed");
+        }
+        if (!Boolean.TRUE.equals(entry.getModelIssueTagHit()) && !Boolean.TRUE.equals(entry.getModelFineTagHit())) {
+            reasons.add(caseId + ": missing model hit");
+        }
+        if (!Boolean.TRUE.equals(entry.getEvidenceValid())) {
+            reasons.add(caseId + ": missing evidence");
+        }
+        if (!Boolean.TRUE.equals(entry.getSafetyPassed())) {
+            reasons.add(caseId + ": safety failed");
+        }
+        if ("stream".equalsIgnoreCase(safe(entry.getTransportMode())) && intValue(entry.getStreamContentChunkCount()) <= 0) {
+            reasons.add(caseId + ": stream content chunk missing");
+        }
+        if (!safe(entry.getFailureReason()).isBlank() && !"NONE".equalsIgnoreCase(safe(entry.getFailureReason()))) {
+            reasons.add(caseId + ": " + safe(entry.getFailureReason()));
+        }
+        return reasons;
+    }
+
+    private boolean modelCompleted(SubmissionAnalysisResponse.AiInvocation invocation, boolean fallbackUsed) {
+        if (invocation == null || fallbackUsed) {
+            return false;
+        }
+        String status = safe(invocation.getStatus());
+        return "MODEL_COMPLETED".equalsIgnoreCase(status)
+                || "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(status);
+    }
+
+    private String liveModelSummaryLine(LiveModelEvalReport report) {
+        return "total=" + count(report.getTotalCount())
+                + ", completed=" + count(report.getCompletedCount())
+                + ", partial=" + count(report.getPartialCount())
+                + ", fallback=" + count(report.getFallbackCount())
+                + ", timeout=" + count(report.getTimeoutCount())
+                + ", caseDelayMs=" + longCount(report.getCaseDelayMs())
+                + ", delayedCases=" + count(report.getDelayedCaseCount())
+                + ", finalIssueHits=" + count(report.getIssueTagHitCount())
+                + ", finalFineHits=" + count(report.getFineTagHitCount())
+                + ", modelIssueHits=" + count(report.getModelIssueTagHitCount())
+                + ", modelFineHits=" + count(report.getModelFineTagHitCount())
+                + ", fallbackIssueHits=" + count(report.getFallbackIssueTagHitCount())
+                + ", fallbackFineHits=" + count(report.getFallbackFineTagHitCount())
+                + ", recoveryStatus=" + safe(report.getRecoveryStatus())
+                + ", recoveryBlockedReasons=" + count(report.getRecoveryBlockedReasonCount())
+                + ", complexQuality=" + count(report.getComplexQualityPassedCount()) + "/" + count(report.getComplexCaseCount())
+                + ", complexMetrics=" + count(report.getComplexMetricPassedCount()) + "/" + count(report.getComplexMetricTotalCount())
+                + ", intelligenceCompleted=" + count(report.getIntelligenceCompletedCount()) + "/" + count(report.getIntelligenceCaseCount())
+                + ", intelligenceQuality=" + count(report.getIntelligenceQualityPassedCount()) + "/" + count(report.getIntelligenceCompletedCount())
+                + ", intelligenceMetrics=" + count(report.getIntelligenceMetricPassedCount()) + "/" + count(report.getIntelligenceMetricTotalCount())
+                + ", studentFeedbackCompleted=" + count(report.getStudentFeedbackCompletedCount()) + "/" + count(report.getStudentFeedbackCaseCount())
+                + ", studentFeedbackQuality=" + count(report.getStudentFeedbackQualityPassedCount()) + "/" + count(report.getStudentFeedbackCompletedCount())
+                + ", studentFeedbackMetrics=" + count(report.getStudentFeedbackMetricPassedCount()) + "/" + count(report.getStudentFeedbackMetricTotalCount())
+                + ", failedIntelligenceMetrics=" + failedIntelligenceMetricsSummary(report.getIntelligenceMetricFailCounts())
+                + ", safetyPassed=" + count(report.getSafetyPassedCount());
+    }
+
+    private double complexQualityAverageScore(List<LiveModelEvalReport.Entry> entries) {
+        List<LiveModelEvalReport.Entry> complexEntries = entries == null ? List.of() : entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getComplexCase()))
+                .toList();
+        if (complexEntries.isEmpty()) {
+            return 0.0;
+        }
+        double total = complexEntries.stream()
+                .map(LiveModelEvalReport.Entry::getComplexQualityScore)
+                .filter(value -> value != null)
+                .mapToDouble(Double::doubleValue)
+                .sum();
+        return total / complexEntries.size();
+    }
+
+    private double intelligenceQualityAverageScore(List<LiveModelEvalReport.Entry> entries) {
+        List<LiveModelEvalReport.Entry> evaluatedEntries = entries == null ? List.of() : entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getIntelligenceEvaluated()))
+                .toList();
+        if (evaluatedEntries.isEmpty()) {
+            return 0.0;
+        }
+        double total = evaluatedEntries.stream()
+                .map(LiveModelEvalReport.Entry::getIntelligenceQualityScore)
+                .filter(value -> value != null)
+                .mapToDouble(Double::doubleValue)
+                .sum();
+        return total / evaluatedEntries.size();
+    }
+
+    private Map<String, Integer> intelligenceMetricCounts(List<LiveModelEvalReport.Entry> entries, boolean passed) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        ComplexDiagnosisQualityScorer.INTELLIGENCE_METRICS.forEach(metric -> counts.put(metric, 0));
+        if (entries == null) {
+            return counts;
+        }
+        entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getIntelligenceEvaluated()))
+                .forEach(entry -> {
+                    List<String> metrics = passed
+                            ? entry.getIntelligencePassedMetrics()
+                            : entry.getIntelligenceFailedMetrics();
+                    if (metrics == null) {
+                        return;
+                    }
+                    metrics.stream()
+                            .map(metric -> metric.replace("intelligenceMetric:", ""))
+                            .filter(counts::containsKey)
+                            .forEach(metric -> counts.merge(metric, 1, Integer::sum));
+                });
+        return counts;
+    }
+
+    private double studentFeedbackQualityAverageScore(List<LiveModelEvalReport.Entry> entries) {
+        List<LiveModelEvalReport.Entry> evaluatedEntries = entries == null ? List.of() : entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getStudentFeedbackEvaluated()))
+                .toList();
+        if (evaluatedEntries.isEmpty()) {
+            return 0.0;
+        }
+        double total = evaluatedEntries.stream()
+                .map(LiveModelEvalReport.Entry::getStudentFeedbackQualityScore)
+                .filter(value -> value != null)
+                .mapToDouble(Double::doubleValue)
+                .sum();
+        return total / evaluatedEntries.size();
+    }
+
+    private Map<String, Integer> studentFeedbackMetricCounts(List<LiveModelEvalReport.Entry> entries, boolean passed) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        ComplexDiagnosisQualityScorer.STUDENT_FEEDBACK_METRICS.forEach(metric -> counts.put(metric, 0));
+        if (entries == null) {
+            return counts;
+        }
+        entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getStudentFeedbackEvaluated()))
+                .forEach(entry -> {
+                    List<String> metrics = passed
+                            ? entry.getStudentFeedbackPassedMetrics()
+                            : entry.getStudentFeedbackFailedMetrics();
+                    if (metrics == null) {
+                        return;
+                    }
+                    metrics.stream()
+                            .map(metric -> metric.replace("studentFeedbackMetric:", ""))
+                            .filter(counts::containsKey)
+                            .forEach(metric -> counts.merge(metric, 1, Integer::sum));
+                });
+        return counts;
+    }
+
+    private String failedIntelligenceMetricsSummary(Map<String, Integer> failCounts) {
+        if (failCounts == null || failCounts.isEmpty()) {
+            return "none";
+        }
+        String summary = failCounts.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue() > 0)
+                .map(entry -> entry.getKey() + ":" + entry.getValue())
+                .collect(Collectors.joining("|"));
+        return summary.isBlank() ? "none" : summary;
+    }
+
+    private int count(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    private long longCount(Long value) {
+        return value == null ? 0L : value;
+    }
+
+    private int intValue(Integer value) {
+        return value == null ? 0 : value;
     }
 
     private Path writeLiveEvalReport(LiveModelEvalReport report) throws IOException {
@@ -566,6 +1967,25 @@ class ModelDiagnosisEvalTest {
         Files.createDirectories(reportDir);
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         Path reportPath = reportDir.resolve("live-model-eval-" + timestamp + ".json");
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(reportPath.toFile(), report);
+        return reportPath;
+    }
+
+    private Path writeOfflineRuntimeProfileEvalReport(OfflineRuntimeProfileEvalReport report) throws IOException {
+        Path reportDir = Path.of("target", "ai-eval-reports");
+        Files.createDirectories(reportDir);
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path reportPath = reportDir.resolve("offline-runtime-profile-eval-" + timestamp + ".json");
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(reportPath.toFile(), report);
+        return reportPath;
+    }
+
+    private Path writeBaselineRegressionReport(String prefix,
+                                               LiveEvalBaselineRegressionReport report) throws IOException {
+        Path reportDir = Path.of("target", "ai-eval-reports");
+        Files.createDirectories(reportDir);
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path reportPath = reportDir.resolve(prefix + "-" + timestamp + ".json");
         objectMapper.writerWithDefaultPrettyPrinter().writeValue(reportPath.toFile(), report);
         return reportPath;
     }
@@ -589,11 +2009,42 @@ class ModelDiagnosisEvalTest {
                                                String traceSummary,
                                                String uncertainty) {
         String status = invocation == null ? "" : safe(invocation.getStatus());
-        String detail = extractRuntimeFailureReason(uncertainty);
+        String detail = structuredFailureReason(invocation);
+        if (detail.isBlank()) {
+            detail = extractRuntimeFailureReason(uncertainty);
+        }
         if (!status.isBlank()) {
             return detail.isBlank() ? status : status + ":" + detail;
         }
         return failureReasonFromTrace(traceSummary);
+    }
+
+    private String failureStageFromInvocation(SubmissionAnalysisResponse.AiInvocation invocation,
+                                              String uncertainty) {
+        String structured = invocation == null ? "" : safe(invocation.getFailureStage());
+        if (!structured.isBlank()) {
+            return structured;
+        }
+        String text = safe(uncertainty);
+        for (String stage : List.of("DIAGNOSIS_AND_TEACHING", "DIAGNOSIS_JUDGE", "TEACHING_HINT", "SUBMISSION_ANALYSIS")) {
+            if (text.contains(stage)) {
+                return stage;
+            }
+        }
+        return "";
+    }
+
+    private String structuredFailureReason(SubmissionAnalysisResponse.AiInvocation invocation) {
+        if (invocation == null) {
+            return "";
+        }
+        List<String> values = List.of(
+                        safe(invocation.getFailureStage()),
+                        safe(invocation.getFailureReason()))
+                .stream()
+                .filter(value -> !value.isBlank())
+                .toList();
+        return String.join(":", values);
     }
 
     private String extractRuntimeFailureReason(String uncertainty) {
@@ -628,13 +2079,21 @@ class ModelDiagnosisEvalTest {
         return "EXCEPTION";
     }
 
+    private record RecoverySummary(String status,
+                                   int checkCount,
+                                   int passedCheckCount,
+                                   List<String> passedChecks,
+                                   List<String> blockedReasons) {
+    }
+
     private record EvalCase(String name,
                             Problem problem,
                             Submission submission,
                             List<SubmissionCaseResult> caseResults,
                             SubmissionAnalysisResponse baseline,
                             List<String> expectedIssueTags,
-                            List<String> expectedFineTags) {
+                            List<String> expectedFineTags,
+                            ComplexStudentSubmissionEvalFixtureLoader.Fixture complexFixture) {
     }
 
     private String safe(String value) {

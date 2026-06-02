@@ -139,6 +139,7 @@ public class CoachAgentService {
                         draft.getAnswerLeakRisk(),
                         preview(draft.getQuestion()));
                 safeFallback.setFailureReason("SAFETY_REJECTED");
+                safeFallback.setModelAnswerLeakRisk(rejectedModelRisk(draft, allowedEvidenceRefs));
                 return safeFallback;
             }
             return draft;
@@ -405,6 +406,7 @@ public class CoachAgentService {
                 .evidenceRefs(normalizeEvidenceRefs(payload.evidenceRefs, allowedEvidenceRefs))
                 .confidence(payload.confidence == null ? 0.5 : Math.max(0, Math.min(1, payload.confidence)))
                 .answerLeakRisk(normalizeLeakRisk(payload.answerLeakRisk))
+                .modelAnswerLeakRisk(normalizeLeakRisk(payload.answerLeakRisk))
                 .source("MODEL")
                 .build();
     }
@@ -448,12 +450,41 @@ public class CoachAgentService {
         String normalized = text == null ? "" : text.toLowerCase(Locale.ROOT);
         return normalized.contains("完整代码")
                 || normalized.contains("参考代码")
+                || normalized.contains("参考答案")
                 || normalized.contains("答案如下")
                 || normalized.contains("直接改成")
+                || normalized.contains("隐藏测试")
+                || normalized.contains("隐藏测试点")
+                || normalized.contains("complete code")
+                || normalized.contains("complete answer")
+                || normalized.contains("final answer")
+                || normalized.contains("direct fix")
+                || normalized.contains("exact fix")
+                || normalized.contains("change it to")
+                || normalized.contains("replace ")
+                || normalized.contains("hidden test")
+                || normalized.contains("reference solution")
+                || normalized.contains("solution code")
                 || normalized.contains("#include")
                 || normalized.contains("int main")
                 || normalized.contains("def ")
                 || normalized.contains("```");
+    }
+
+    private String rejectedModelRisk(CoachDraft draft, List<String> allowedEvidenceRefs) {
+        if (draft == null) {
+            return "UNKNOWN";
+        }
+        if ("HIGH".equalsIgnoreCase(draft.getAnswerLeakRisk())
+                || containsLeakLikeText(draft.getQuestion())
+                || containsLeakLikeText(draft.getRationale())) {
+            return "HIGH";
+        }
+        if (allowedEvidenceRefs != null && !allowedEvidenceRefs.isEmpty()
+                && (draft.getEvidenceRefs() == null || draft.getEvidenceRefs().isEmpty())) {
+            return "MEDIUM";
+        }
+        return normalizeLeakRisk(draft.getAnswerLeakRisk());
     }
 
     private String normalizeLeakRisk(String risk) {
@@ -501,6 +532,7 @@ public class CoachAgentService {
         private List<String> evidenceRefs;
         private Double confidence;
         private String answerLeakRisk;
+        private String modelAnswerLeakRisk;
         private String source;
         private String failureReason;
 
@@ -511,6 +543,7 @@ public class CoachAgentService {
                     .evidenceRefs(List.of())
                     .confidence(1.0)
                     .answerLeakRisk("LOW")
+                    .modelAnswerLeakRisk("")
                     .source("RULE")
                     .failureReason("")
                     .build();

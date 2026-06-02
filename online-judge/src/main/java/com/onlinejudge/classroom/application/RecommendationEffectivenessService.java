@@ -6,6 +6,7 @@ import com.onlinejudge.classroom.domain.StudentRecommendationEvent;
 import com.onlinejudge.classroom.dto.RecommendationEffectivenessResponse;
 import com.onlinejudge.classroom.persistence.StudentRecommendationEventRepository;
 import com.onlinejudge.submission.domain.Submission;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -31,8 +32,9 @@ public class RecommendationEffectivenessService {
     private final ObjectMapper objectMapper;
     private final RecommendationActionEvidenceAnalyzer actionEvidenceAnalyzer;
 
+    @Autowired
     public RecommendationEffectivenessService(StudentRecommendationEventRepository eventRepository,
-                                               ObjectMapper objectMapper) {
+                                              ObjectMapper objectMapper) {
         this(eventRepository, objectMapper, new RecommendationActionEvidenceAnalyzer());
     }
 

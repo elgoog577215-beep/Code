@@ -103,7 +103,17 @@ class DiagnosisReportReaderTest {
                             "evidenceSchemaVersion": "diagnosis-evidence-v1",
                             "taxonomyVersion": "diagnosis-taxonomy-v1",
                             "status": "MODEL_COMPLETED",
-                            "fallbackUsed": false
+                            "fallbackUsed": false,
+                            "runtimeMode": "single-call",
+                            "failureStage": "",
+                            "failureReason": "",
+                            "transportMode": "stream",
+                            "streamChunkCount": 4,
+                            "streamContentChunkCount": 3,
+                            "streamReasoningChunkCount": 1,
+                            "streamInvalidChunkCount": 2,
+                            "streamFinishReason": "stop",
+                            "streamFallbackRetryUsed": true
                           }
                         }
                         """)
@@ -118,6 +128,16 @@ class DiagnosisReportReaderTest {
         assertThat(snapshot.agentVersion()).isEqualTo("diagnostic-agent-v2");
         assertThat(snapshot.status()).isEqualTo("MODEL_COMPLETED");
         assertThat(snapshot.fallbackUsed()).isFalse();
+        assertThat(snapshot.runtimeMode()).isEqualTo("single-call");
+        assertThat(snapshot.failureStage()).isEmpty();
+        assertThat(snapshot.failureReason()).isEmpty();
+        assertThat(snapshot.transportMode()).isEqualTo("stream");
+        assertThat(snapshot.streamChunkCount()).isEqualTo(4);
+        assertThat(snapshot.streamContentChunkCount()).isEqualTo(3);
+        assertThat(snapshot.streamReasoningChunkCount()).isEqualTo(1);
+        assertThat(snapshot.streamInvalidChunkCount()).isEqualTo(2);
+        assertThat(snapshot.streamFinishReason()).isEqualTo("stop");
+        assertThat(snapshot.streamFallbackRetryUsed()).isTrue();
     }
 
     @Test

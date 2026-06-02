@@ -26,6 +26,7 @@ public class AiQualityOverviewResponse {
     private String summary;
     private String qualityRiskSummary;
     private PromptSafetyIncidentSignal promptSafetyIncidentSignal;
+    private RuntimeAttributionSignal runtimeAttributionSignal;
     private List<QualityDimension> qualityDimensions;
     private List<ImprovementPriority> improvementPriorities;
     private EvalReadiness evalReadiness;
@@ -66,6 +67,10 @@ public class AiQualityOverviewResponse {
         private long interventionImprovedCount;
         private long interventionShiftedCount;
         private long interventionStillStuckCount;
+        private String modelQualityBaselineStatus;
+        private String modelQualityBaselineSummary;
+        private long modelQualityBaselineReasonCount;
+        private List<String> modelQualityBaselineReasons;
         private String recommendedAction;
         private List<TagCorrectionStat> priorityTags;
         private List<String> evidenceRefs;
@@ -81,6 +86,42 @@ public class AiQualityOverviewResponse {
         private long safetyDowngradeCount;
         private long highRiskSafetyDowngradeCount;
         private long coachSafetyRiskCount;
+        private String summary;
+        private String recommendedAction;
+        private List<String> evidenceRefs;
+    }
+
+    @Data
+    @Builder
+    public static class RuntimeAttributionSignal {
+        private String status;
+        private String primaryFailureType;
+        private String primaryFailureReason;
+        private String primaryFailureStage;
+        private String primaryTransportMode;
+        private long modelCompletedCount;
+        private long modelPartialCount;
+        private long modelRuntimeFailureCount;
+        private long modelFallbackCount;
+        private long primaryFailureCount;
+        private double runtimeFailureRate;
+        private long streamNoContentCount;
+        private long streamInvalidChunkCount;
+        private long streamFallbackRetryCount;
+        private String recoveryStatus;
+        private long recoveryCheckCount;
+        private long recoveryPassedCheckCount;
+        private long recoveryBlockedReasonCount;
+        private List<String> recoveryPassedChecks;
+        private List<String> recoveryBlockedReasons;
+        private boolean recoverySmokeRecommended;
+        private String recoverySmokeCaseId;
+        private String recoverySmokeRuntimeProfile;
+        private List<String> recoverySmokeRequiredChecks;
+        private String qualityComparabilityStatus;
+        private String qualityComparabilitySummary;
+        private long qualityComparabilityReasonCount;
+        private List<String> qualityComparabilityReasons;
         private String summary;
         private String recommendedAction;
         private List<String> evidenceRefs;

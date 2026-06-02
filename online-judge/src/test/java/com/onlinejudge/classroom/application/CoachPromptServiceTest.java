@@ -44,6 +44,20 @@ class CoachPromptServiceTest {
             objectMapper
     );
 
+    private CoachPromptService serviceWith(CoachAgentService coachAgentService) {
+        return new CoachPromptService(
+                submissionRepository,
+                analysisRepository,
+                assignmentRepository,
+                promptRepository,
+                new DiagnosisReportReader(objectMapper, taxonomy),
+                taxonomy,
+                new DiagnosisEvidencePackageReader(objectMapper),
+                coachAgentService,
+                objectMapper
+        );
+    }
+
     @Test
     void generatesSocraticQuestionFromFineGrainedTag() {
         createAssignment(7L, Assignment.HintPolicy.L2);
@@ -241,6 +255,24 @@ class CoachPromptServiceTest {
         assertThat(next.getTurns().get(0).getCoachFeedback()).contains("证据层");
     }
 
+    @Test
+    void persistsCoachModelSafetyRejectionMetadata() {
+        CoachPromptService service = serviceWith(new SafetyRejectedCoachAgentService(objectMapper, taxonomy));
+        createAssignment(7L, Assignment.HintPolicy.L2);
+        createSubmission(18L, 7L, Submission.Verdict.WRONG_ANSWER);
+        createAnalysis(18L, "[\"LOOP_BOUNDARY\"]", "[\"OFF_BY_ONE\"]", "[\"code:plus_minus_one\"]");
+
+        CoachPromptResponse response = service.generateNextQuestion(18L);
+
+        assertThat(response.getQuestion()).isEqualTo("请先构造最小失败样例。");
+        assertThat(response.getPromptType()).isEqualTo("SOCRATIC_NEXT_STEP");
+        assertThat(response.getModelFailureReason()).isEqualTo("SAFETY_REJECTED");
+        assertThat(response.getModelAnswerLeakRisk()).isEqualTo("HIGH");
+        assertThat(promptRepository.saved).hasSize(1);
+        assertThat(promptRepository.saved.get(0).getModelFailureReason()).isEqualTo("SAFETY_REJECTED");
+        assertThat(promptRepository.saved.get(0).getModelAnswerLeakRisk()).isEqualTo("HIGH");
+    }
+
     private void createAssignment(Long id, Assignment.HintPolicy policy) {
         assignmentRepository.items.put(id, Assignment.builder()
                 .id(id)
@@ -296,6 +328,29 @@ class CoachPromptServiceTest {
                         """.formatted(issueTags, fineTags, evidenceRefs, extraFields))
                 .evidenceJson(evidenceJson)
                 .build());
+    }
+
+    private static class SafetyRejectedCoachAgentService extends CoachAgentService {
+        private SafetyRejectedCoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy diagnosisTaxonomy) {
+            super(objectMapper, diagnosisTaxonomy);
+        }
+
+        @Override
+        public CoachDraft generateInitialQuestion(Submission submission,
+                                                  SubmissionAnalysis analysis,
+                                                  String primaryTag,
+                                                  Assignment.HintPolicy hintPolicy,
+                                                  String contextSummary,
+                                                  List<String> evidenceRefs,
+                                                  CoachDraft fallback) {
+            CoachDraft draft = fallback == null ? CoachDraft.fallback("请先构造最小失败样例。") : fallback;
+            draft.setQuestion("请先构造最小失败样例。");
+            draft.setAnswerLeakRisk("LOW");
+            draft.setModelAnswerLeakRisk("HIGH");
+            draft.setFailureReason("SAFETY_REJECTED");
+            draft.setSource("RULE");
+            return draft;
+        }
     }
 
     private static class FakeSubmissionRepository extends UnsupportedJpaRepository<Submission, Long> implements SubmissionRepository {

@@ -46,6 +46,7 @@ public final class ExternalModelStagePayloads {
     public static class CombinedOutput {
         private DiagnosisJudgeOutput diagnosisDecision;
         private TeachingHintOutput teachingHint;
+        private SubmissionAnalysisResponse.StudentFeedback studentFeedback;
     }
 
     @Data

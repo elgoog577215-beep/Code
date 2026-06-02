@@ -102,6 +102,25 @@ function renderMarkdownLike(text: string) {
   return nodes;
 }
 
+function improvementLabel(category?: string | null) {
+  switch ((category || "").toUpperCase()) {
+    case "COMPLEXITY":
+      return "复杂度";
+    case "TESTING_HABIT":
+      return "测试习惯";
+    case "CODE_CLARITY":
+      return "代码清晰度";
+    case "BOUNDARY_AWARENESS":
+      return "边界意识";
+    case "ROBUSTNESS":
+      return "鲁棒性";
+    case "DEBUG_CLEANUP":
+      return "调试清理";
+    default:
+      return "继续提升";
+  }
+}
+
 export default function ProblemPage() {
   const params = useParams();
   const [searchParams] = useSearchParams();
@@ -278,7 +297,14 @@ export default function ProblemPage() {
   const total = latest?.testCaseResults?.length || 0;
   const firstFailedCase = latest?.testCaseResults?.find(item => !item.passed) || null;
   const codeLineCount = sourceCode.split(/\r?\n/).filter(line => line.trim()).length;
+  const studentFeedback = latest?.analysis?.studentFeedback || null;
+  const primaryBlockingIssue = studentFeedback?.blockingIssues?.[0] || null;
+  const nextLearningAction = studentFeedback?.nextLearningAction || null;
   const focusText =
+    nextLearningAction?.task ||
+    primaryBlockingIssue?.nextAction ||
+    primaryBlockingIssue?.studentMessage ||
+    studentFeedback?.summary ||
     latest?.analysis?.studentHint ||
     latest?.analysis?.fixDirections?.[0] ||
     (trajectory?.nextStep ? learningStageLabel(trajectory.nextStep) : "") ||
@@ -517,7 +543,7 @@ export default function ProblemPage() {
                     </div>
                     <StatusPill tone={latest.verdict === "ACCEPTED" ? "success" : "warning"}>{verdictLabel(latest.verdict)}</StatusPill>
                   </div>
-                  {latest.analysis?.studentHint && latest.analysis.studentHint !== focusText && <p>{latest.analysis.studentHint}</p>}
+                  {studentFeedback?.summary && studentFeedback.summary !== focusText && <p>{studentFeedback.summary}</p>}
                   {firstFailedCase && !firstFailedCase.hidden ? (
                     <div className="problem-primary-action__evidence">
                       <span>公开失败点</span>
@@ -530,6 +556,68 @@ export default function ProblemPage() {
                       <span>隐藏失败点</span>
                       <strong>先检查边界条件和泛化能力。</strong>
                     </div>
+                  ) : null}
+                  {studentFeedback?.blockingIssues?.length ? (
+                    <section className="student-feedback-channel" aria-label="当前错误点">
+                      <div className="student-feedback-channel__head">
+                        <h3>当前错误点</h3>
+                        <StatusPill tone="warning">{studentFeedback.blockingIssues.length} 个</StatusPill>
+                      </div>
+                      <div className="student-feedback-list">
+                        {studentFeedback.blockingIssues.slice(0, 3).map((issue, index) => (
+                          <article className="student-feedback-item" key={`${issue.title || issue.issueTag || "blocking"}-${index}`}>
+                            <span>{issue.priority ? `优先级 ${issue.priority}` : issue.fineGrainedTag ? issueLabel(issue.fineGrainedTag) : "先处理"}</span>
+                            <strong>{issue.title || issueLabel(issue.issueTag) || "当前失败原因"}</strong>
+                            {issue.studentMessage && <p>{issue.studentMessage}</p>}
+                            {issue.evidence && <small>{issue.evidence}</small>}
+                            {issue.nextAction && <em>{issue.nextAction}</em>}
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  ) : latest.analysis?.studentHint && latest.analysis.studentHint !== focusText ? (
+                    <p>{latest.analysis.studentHint}</p>
+                  ) : null}
+                  {studentFeedback?.secondaryIssues?.length ? (
+                    <section className="student-feedback-channel student-feedback-channel--secondary" aria-label="次要问题">
+                      <div className="student-feedback-channel__head">
+                        <h3>先不放大的问题</h3>
+                      </div>
+                      <div className="student-feedback-list">
+                        {studentFeedback.secondaryIssues.slice(0, 2).map((issue, index) => (
+                          <article className="student-feedback-item" key={`${issue.title || issue.issueTag || "secondary"}-${index}`}>
+                            <span>{issue.issueTag ? issueLabel(issue.issueTag) : "次要信号"}</span>
+                            <strong>{issue.title || "可以后置观察"}</strong>
+                            {issue.studentMessage && <p>{issue.studentMessage}</p>}
+                            {issue.whyNotPrimary && <small>{issue.whyNotPrimary}</small>}
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+                  {studentFeedback?.improvementOpportunities?.length ? (
+                    <section className="student-feedback-channel student-feedback-channel--improvement" aria-label="继续提升点">
+                      <div className="student-feedback-channel__head">
+                        <h3>继续提升点</h3>
+                        <StatusPill tone="info">{studentFeedback.improvementOpportunities.length} 条</StatusPill>
+                      </div>
+                      <div className="student-feedback-list">
+                        {studentFeedback.improvementOpportunities.slice(0, 3).map((item, index) => (
+                          <article className="student-feedback-item" key={`${item.category || "improvement"}-${index}`}>
+                            <span>{improvementLabel(item.category)}</span>
+                            {item.studentMessage && <strong>{item.studentMessage}</strong>}
+                            {item.benefit && <p>{item.benefit}</p>}
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+                  {nextLearningAction ? (
+                    <section className="student-feedback-next" aria-label="下一步">
+                      <span>下一步</span>
+                      <strong>{nextLearningAction.task || focusText}</strong>
+                      {nextLearningAction.checkQuestion && <p>{nextLearningAction.checkQuestion}</p>}
+                    </section>
                   ) : null}
                   <section className="problem-feedback-coach" aria-label="下一问">
                     <div className="problem-feedback-coach__head">

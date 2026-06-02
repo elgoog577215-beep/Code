@@ -1,5 +1,6 @@
 package com.onlinejudge.submission.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.problem.domain.Problem;
@@ -10,6 +11,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 
@@ -61,6 +63,7 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "staged");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -81,6 +84,9 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
         assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-judge-v2+teaching-hint-v1");
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("staged");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEmpty();
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEmpty();
         assertThat(service.callCount()).isEqualTo(2);
     }
 
@@ -126,6 +132,7 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "staged");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -141,6 +148,7 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getStudentHintPlan().getTeachingAction()).isEqualTo("TRACE_VARIABLES");
         assertThat(analysis.getStudentHintPlan().getEvidenceRefs()).containsExactly("code:range_excludes_n");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("staged");
         assertThat(service.callCount()).isEqualTo(2);
     }
 
@@ -182,11 +190,38 @@ class AiReportServiceExternalRuntimeTest {
                     },
                     "teacherNote": "单次调用已给出安全教学提示。",
                     "answerLeakRisk": "LOW"
+                  },
+                  "studentFeedback": {
+                    "summary": "这次主要问题是循环边界没有覆盖到题目要求的范围。",
+                    "blockingIssues": [{
+                      "priority": 1,
+                      "title": "当前最需要先处理的问题",
+                      "studentMessage": "循环边界和题目要求的闭区间不一致，先手推最小样例确认缺失位置。",
+                      "evidence": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "issueTag": "LOOP_BOUNDARY",
+                      "fineGrainedTag": "OFF_BY_ONE",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "secondaryIssues": [],
+                    "improvementOpportunities": [{
+                      "category": "TESTING_HABIT",
+                      "studentMessage": "通过后补一个 n=1 的最小自测。",
+                      "benefit": "能提前发现边界遗漏。",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "nextLearningAction": {
+                      "hintLevel": "L2",
+                      "action": "TRACE_VARIABLES",
+                      "task": "列出 range 产生的 i。",
+                      "checkQuestion": "当 n=1 时循环执行几次？",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    }
                   }
                 }
                 """
         );
-        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -200,8 +235,155 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getFineGrainedTags()).containsExactly("OFF_BY_ONE");
         assertThat(analysis.getStudentHint()).contains("n=1");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v2");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v3");
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("single-call");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEmpty();
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEmpty();
         assertThat(service.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void lowLatencyRuntimeProfileCompactsRequestAndStillCompletes() throws Exception {
+        StubAiReportService standardService = newService(validSingleCallResponse());
+        CapturingAiReportService lowLatencyService = new CapturingAiReportService(objectMapper, runtime(), validSingleCallApiResponse());
+        ReflectionTestUtils.setField(lowLatencyService, "enabled", true);
+        ReflectionTestUtils.setField(lowLatencyService, "apiKey", "test-key");
+        ReflectionTestUtils.setField(lowLatencyService, "baseUrl", "https://example.test/v1");
+        ReflectionTestUtils.setField(lowLatencyService, "model", "test-model");
+        ReflectionTestUtils.setField(lowLatencyService, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(lowLatencyService, "externalRuntimeMode", "single-call");
+        ReflectionTestUtils.setField(lowLatencyService, "externalRuntimeProfile", "low-latency");
+        ReflectionTestUtils.setField(lowLatencyService, "maxOutputTokens", 900);
+        ReflectionTestUtils.setField(lowLatencyService, "streamEnabled", false);
+        ReflectionTestUtils.setField(lowLatencyService, "streamFallbackEnabled", false);
+
+        SubmissionAnalysisResponse standardAnalysis = standardService.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackageWithLargeContext(),
+                richRuleSignals()
+        );
+        SubmissionAnalysisResponse lowLatencyAnalysis = lowLatencyService.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackageWithLargeContext(),
+                richRuleSignals()
+        );
+
+        int standardRequestBytes = standardService.lastUserPromptBytes();
+        int lowLatencyRequestBytes = lowLatencyService.lastRequestBytes();
+        JsonNode lowLatencyRequest = objectMapper.readTree(lowLatencyService.lastRequestBody());
+        String lowLatencyUserContent = lowLatencyRequest.path("messages").path(1).path("content").asText();
+        JsonNode runtimePayload = objectMapper.readTree(lowLatencyUserContent);
+
+        assertThat(standardAnalysis.getAiInvocation().getRuntimeProfile()).isEqualTo("standard");
+        assertThat(lowLatencyAnalysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(lowLatencyAnalysis.getAiInvocation().getRuntimeProfile()).isEqualTo("low-latency");
+        assertThat(lowLatencyAnalysis.getAiInvocation().getRequestCompact()).isTrue();
+        assertThat(lowLatencyAnalysis.getAiInvocation().getRequestBytes()).isEqualTo(lowLatencyRequestBytes);
+        assertThat(lowLatencyRequestBytes).isLessThan(standardRequestBytes);
+        assertThat(runtimePayload.path("brief").path("candidateSignals")).hasSize(3);
+        assertThat(runtimePayload.path("brief").path("evidenceRefs"))
+                .anySatisfy(ref -> assertThat(ref.asText()).isEqualTo("code:range_excludes_n"));
+        assertThat(runtimePayload.path("brief").path("allowedIssueTags"))
+                .anySatisfy(tag -> assertThat(tag.asText()).isEqualTo("LOOP_BOUNDARY"));
+        assertThat(runtimePayload.path("standardLibrary").path("issueTags").path(0).path("id").asText())
+                .isNotBlank();
+        assertThat(runtimePayload.path("standardLibrary").path("issueTags").path(0).path("studentExplanation").isMissingNode())
+                .isTrue();
+        assertThat(runtimePayload.path("standardLibrary").path("teachingActions").path(0).path("id").asText())
+                .isNotBlank();
+        assertThat(runtimePayload.path("standardLibrary").path("teachingActions").path(0).path("studentTaskTemplate").isMissingNode())
+                .isTrue();
+    }
+
+    @Test
+    void lowLatencyRuntimeProfileDoesNotBypassValidation() {
+        StubAiReportService service = newService(
+                """
+                {
+                  "diagnosisDecision": {
+                    "primaryIssueTag": "MADE_UP_TAG",
+                    "fineGrainedTag": "OFF_BY_ONE",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.5,
+                    "uncertainty": "bad tag",
+                    "needsMoreEvidence": false,
+                    "answerLeakRisk": "LOW"
+                  },
+                  "teachingHint": {
+                    "studentHint": "先看 range 边界。",
+                    "studentHintPlan": {
+                      "hintLevel": "L2",
+                      "problemType": "循环边界",
+                      "evidenceAnchor": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "coachQuestion": "右边界包含 n 吗？",
+                      "teachingAction": "TRACE_VARIABLES",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    },
+                    "learningInterventionPlan": {
+                      "interventionType": "VARIABLE_TRACE",
+                      "goal": "确认循环边界。",
+                      "studentTask": "手推最小样例。",
+                      "checkQuestion": "是否处理到 n？",
+                      "completionSignal": "能指出缺失位置。",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "estimatedMinutes": 5,
+                      "answerLeakRisk": "LOW"
+                    },
+                    "teacherNote": "invalid diagnosis should fall back",
+                    "answerLeakRisk": "LOW"
+                  },
+                  "studentFeedback": {
+                    "summary": "这次主要问题是循环边界没有覆盖到题目要求的范围。",
+                    "blockingIssues": [{
+                      "priority": 1,
+                      "title": "当前最需要先处理的问题",
+                      "studentMessage": "循环边界和题目要求的闭区间不一致，先手推最小样例确认缺失位置。",
+                      "evidence": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "issueTag": "LOOP_BOUNDARY",
+                      "fineGrainedTag": "OFF_BY_ONE",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "secondaryIssues": [],
+                    "improvementOpportunities": [{
+                      "category": "TESTING_HABIT",
+                      "studentMessage": "通过后补一个 n=1 的最小自测。",
+                      "benefit": "能提前发现边界遗漏。",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "nextLearningAction": {
+                      "hintLevel": "L2",
+                      "action": "TRACE_VARIABLES",
+                      "task": "列出 range 产生的 i。",
+                      "checkQuestion": "当 n=1 时循环执行几次？",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    }
+                  }
+                }
+                """
+        );
+        ReflectionTestUtils.setField(service, "externalRuntimeProfile", "low-latency");
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackageWithLargeContext(),
+                richRuleSignals()
+        );
+
+        assertThat(analysis.getSourceType()).isEqualTo("RULE_BASED_V1");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
+        assertThat(analysis.getAiInvocation().getRuntimeProfile()).isEqualTo("low-latency");
+        assertThat(analysis.getAiInvocation().getRequestCompact()).isTrue();
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INVALID_TAG");
     }
 
     @Test
@@ -242,11 +424,38 @@ class AiReportServiceExternalRuntimeTest {
                     },
                     "teacherNote": "模型给了泛化教学动作，但诊断已经足够明确。",
                     "answerLeakRisk": "LOW"
+                  },
+                  "studentFeedback": {
+                    "summary": "这次主要问题是循环边界没有覆盖到题目要求的范围。",
+                    "blockingIssues": [{
+                      "priority": 1,
+                      "title": "当前最需要先处理的问题",
+                      "studentMessage": "循环边界和题目要求的闭区间不一致，先手推最小样例确认缺失位置。",
+                      "evidence": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "issueTag": "LOOP_BOUNDARY",
+                      "fineGrainedTag": "OFF_BY_ONE",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "secondaryIssues": [],
+                    "improvementOpportunities": [{
+                      "category": "TESTING_HABIT",
+                      "studentMessage": "通过后补一个 n=1 的最小自测。",
+                      "benefit": "能提前发现边界遗漏。",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "nextLearningAction": {
+                      "hintLevel": "L2",
+                      "action": "TRACE_VARIABLES",
+                      "task": "列出 range 产生的 i。",
+                      "checkQuestion": "当 n=1 时循环执行几次？",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    }
                   }
                 }
                 """
         );
-        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -320,7 +529,10 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getFineGrainedTags()).containsExactly("OFF_BY_ONE");
         assertThat(analysis.getStudentHint()).doesNotContain("def solve").contains("先不要大改代码");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_PARTIAL_COMPLETED");
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v2");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v3");
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("single-call");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("SAFETY_RISK");
         assertThat(analysis.getUncertainty()).contains("DIAGNOSIS_AND_TEACHING").contains("SAFETY_RISK");
         assertThat(service.callCount()).isEqualTo(1);
     }
@@ -341,6 +553,7 @@ class AiReportServiceExternalRuntimeTest {
                 """,
                 "{}"
         );
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "staged");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -354,6 +567,9 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isTrue();
         assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-judge-v2+teaching-hint-v1");
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("staged");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_JUDGE");
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INVALID_TAG");
         assertThat(analysis.getUncertainty()).contains("INVALID_TAG");
         assertThat(service.callCount()).isEqualTo(1);
     }
@@ -396,11 +612,38 @@ class AiReportServiceExternalRuntimeTest {
                     },
                     "teacherNote": "invalid diagnosis should fall back",
                     "answerLeakRisk": "LOW"
+                  },
+                  "studentFeedback": {
+                    "summary": "这次主要问题是循环边界没有覆盖到题目要求的范围。",
+                    "blockingIssues": [{
+                      "priority": 1,
+                      "title": "当前最需要先处理的问题",
+                      "studentMessage": "循环边界和题目要求的闭区间不一致，先手推最小样例确认缺失位置。",
+                      "evidence": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "issueTag": "LOOP_BOUNDARY",
+                      "fineGrainedTag": "OFF_BY_ONE",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "secondaryIssues": [],
+                    "improvementOpportunities": [{
+                      "category": "TESTING_HABIT",
+                      "studentMessage": "通过后补一个 n=1 的最小自测。",
+                      "benefit": "能提前发现边界遗漏。",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "nextLearningAction": {
+                      "hintLevel": "L2",
+                      "action": "TRACE_VARIABLES",
+                      "task": "列出 range 产生的 i。",
+                      "checkQuestion": "当 n=1 时循环执行几次？",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    }
                   }
                 }
                 """
         );
-        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -413,7 +656,10 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getSourceType()).isEqualTo("RULE_BASED_V1");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isTrue();
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v2");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("diagnosis-and-teaching-v3");
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("single-call");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INVALID_TAG");
         assertThat(analysis.getUncertainty()).contains("DIAGNOSIS_AND_TEACHING").contains("INVALID_TAG");
         assertThat(service.callCount()).isEqualTo(1);
     }
@@ -433,6 +679,7 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "staged");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -452,6 +699,9 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getLearningInterventionPlan()).isNotNull();
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_PARTIAL_COMPLETED");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("staged");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("TEACHING_HINT");
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("API_ERROR");
         assertThat(analysis.getUncertainty()).contains("TEACHING_HINT").contains("API_ERROR");
         assertThat(service.callCount()).isEqualTo(2);
     }
@@ -498,6 +748,7 @@ class AiReportServiceExternalRuntimeTest {
                 }
                 """
         );
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "staged");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -519,6 +770,9 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getLearningInterventionPlan().getAnswerLeakRisk()).isEqualTo("LOW");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_PARTIAL_COMPLETED");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("staged");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("TEACHING_HINT");
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("SAFETY_RISK");
         assertThat(analysis.getUncertainty()).contains("TEACHING_HINT").contains("SAFETY_RISK");
         assertThat(service.callCount()).isEqualTo(2);
     }
@@ -582,6 +836,7 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo("submission-diagnosis-prompt-v2");
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("legacy-long-prompt");
         assertThat(service.callCount()).isEqualTo(1);
     }
 
@@ -590,13 +845,68 @@ class AiReportServiceExternalRuntimeTest {
         StubAiReportService service = newService(
                 """
                 {
-                  "primaryIssueTag": "MADE_UP_TAG",
-                  "fineGrainedTag": "OFF_BY_ONE",
-                  "evidenceRefs": ["code:range_excludes_n"],
-                  "confidence": 0.5,
-                  "uncertainty": "bad tag",
-                  "needsMoreEvidence": false,
-                  "answerLeakRisk": "LOW"
+                  "diagnosisDecision": {
+                    "primaryIssueTag": "MADE_UP_TAG",
+                    "fineGrainedTag": "OFF_BY_ONE",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.5,
+                    "uncertainty": "bad tag",
+                    "needsMoreEvidence": false,
+                    "answerLeakRisk": "LOW"
+                  },
+                  "teachingHint": {
+                    "studentHint": "先看 range 边界。",
+                    "studentHintPlan": {
+                      "hintLevel": "L2",
+                      "problemType": "循环边界",
+                      "evidenceAnchor": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "coachQuestion": "右边界包含 n 吗？",
+                      "teachingAction": "TRACE_VARIABLES",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    },
+                    "learningInterventionPlan": {
+                      "interventionType": "VARIABLE_TRACE",
+                      "goal": "确认循环边界。",
+                      "studentTask": "手推最小样例。",
+                      "checkQuestion": "是否处理到 n？",
+                      "completionSignal": "能指出缺失位置。",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "estimatedMinutes": 5,
+                      "answerLeakRisk": "LOW"
+                    },
+                    "teacherNote": "invalid diagnosis should fall back",
+                    "answerLeakRisk": "LOW"
+                  },
+                  "studentFeedback": {
+                    "summary": "这次主要问题是循环边界没有覆盖到题目要求的范围。",
+                    "blockingIssues": [{
+                      "priority": 1,
+                      "title": "当前最需要先处理的问题",
+                      "studentMessage": "循环边界和题目要求的闭区间不一致，先手推最小样例确认缺失位置。",
+                      "evidence": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "issueTag": "LOOP_BOUNDARY",
+                      "fineGrainedTag": "OFF_BY_ONE",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "secondaryIssues": [],
+                    "improvementOpportunities": [{
+                      "category": "TESTING_HABIT",
+                      "studentMessage": "通过后补一个 n=1 的最小自测。",
+                      "benefit": "能提前发现边界遗漏。",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "nextLearningAction": {
+                      "hintLevel": "L2",
+                      "action": "TRACE_VARIABLES",
+                      "task": "列出 range 产生的 i。",
+                      "checkQuestion": "当 n=1 时循环执行几次？",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    }
+                  }
                 }
                 """
         );
@@ -619,6 +929,12 @@ class AiReportServiceExternalRuntimeTest {
 
         assertThat(result.analysis().getAiInvocation().isFallbackUsed()).isTrue();
         assertThat(result.analysis().getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
+        assertThat(result.analysis().getAiInvocation().getRuntimeMode()).isEqualTo("single-call");
+        assertThat(result.analysis().getAiInvocation().getRuntimeProfile()).isEqualTo("standard");
+        assertThat(result.analysis().getAiInvocation().getRequestBytes()).isZero();
+        assertThat(result.analysis().getAiInvocation().getRequestCompact()).isFalse();
+        assertThat(result.analysis().getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+        assertThat(result.analysis().getAiInvocation().getFailureReason()).isEqualTo("INVALID_TAG");
         assertThat(result.traceSummary()).contains("model=rule-fallback");
     }
 
@@ -636,8 +952,140 @@ class AiReportServiceExternalRuntimeTest {
 
         String content = service.chatCompletion("system", "user");
 
-        assertThat(content).isEqualTo("{\"primaryIssueTag\":\"LOOP_BOUNDARY\"}");
+        assertThat(content).contains("\"diagnosisDecision\"", "\"primaryIssueTag\":\"LOOP_BOUNDARY\"");
+        assertThat(content).doesNotContain("先判断");
         assertThat(service.streamFlags()).containsExactly(false, true);
+    }
+
+    @Test
+    void singleCallRuntimeRecordsStreamingTelemetryWithoutReasoningLeakage() {
+        StreamingFallbackAiReportService service = new StreamingFallbackAiReportService(objectMapper);
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://example.test/v1");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+        ReflectionTestUtils.setField(service, "timeoutSeconds", 5L);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 128);
+        ReflectionTestUtils.setField(service, "streamEnabled", false);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", true);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getAiInvocation().getTransportMode()).isEqualTo("stream");
+        assertThat(analysis.getAiInvocation().getStreamChunkCount()).isEqualTo(3);
+        assertThat(analysis.getAiInvocation().getStreamContentChunkCount()).isEqualTo(1);
+        assertThat(analysis.getAiInvocation().getStreamReasoningChunkCount()).isEqualTo(1);
+        assertThat(analysis.getAiInvocation().getStreamInvalidChunkCount()).isEqualTo(1);
+        assertThat(analysis.getAiInvocation().getStreamFinishReason()).isEqualTo("stop");
+        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
+        assertThat(analysis.getReportMarkdown()).doesNotContain("先判断");
+        assertThat(service.streamFlags()).containsExactly(false, true);
+    }
+
+    @Test
+    void singleCallRuntimeClassifiesLengthFinishAsOutputTruncated() {
+        LengthTruncatedAiReportService service = new LengthTruncatedAiReportService(objectMapper);
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://example.test/v1");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+        ReflectionTestUtils.setField(service, "timeoutSeconds", 5L);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 384);
+        ReflectionTestUtils.setField(service, "streamEnabled", true);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", true);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
+        assertThat(analysis.getAiInvocation().isFallbackUsed()).isTrue();
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+        assertThat(analysis.getAiInvocation().getTransportMode()).isEqualTo("stream");
+        assertThat(analysis.getAiInvocation().getStreamContentChunkCount()).isEqualTo(1);
+        assertThat(analysis.getAiInvocation().getStreamFinishReason()).isEqualTo("length");
+        assertThat(analysis.getUncertainty()).contains("OUTPUT_TRUNCATED");
+    }
+
+    @Test
+    void singleCallRuntimeRetainsValidDiagnosisWhenTeachingHintIsTruncated() {
+        TeachingHintTruncatedAiReportService service = new TeachingHintTruncatedAiReportService(objectMapper, true);
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://example.test/v1");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+        ReflectionTestUtils.setField(service, "timeoutSeconds", 5L);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 384);
+        ReflectionTestUtils.setField(service, "streamEnabled", true);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
+        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getFineGrainedTags()).containsExactly("OFF_BY_ONE");
+        assertThat(analysis.getEvidenceRefs()).contains("code:range_excludes_n");
+        assertThat(analysis.getStudentHint()).contains("先不要大改代码").doesNotContain("截断残留");
+        assertThat(analysis.getStudentHintPlan().getTeachingAction()).isEqualTo("TRACE_VARIABLES");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_PARTIAL_COMPLETED");
+        assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(analysis.getAiInvocation().getTransportMode()).isEqualTo("stream");
+        assertThat(analysis.getAiInvocation().getStreamContentChunkCount()).isEqualTo(1);
+        assertThat(analysis.getAiInvocation().getStreamFinishReason()).isEqualTo("length");
+        assertThat(analysis.getUncertainty()).contains("OUTPUT_TRUNCATED");
+    }
+
+    @Test
+    void singleCallRuntimeDoesNotRetainInvalidDiagnosisFromTruncatedOutput() {
+        TeachingHintTruncatedAiReportService service = new TeachingHintTruncatedAiReportService(objectMapper, false);
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://example.test/v1");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+        ReflectionTestUtils.setField(service, "timeoutSeconds", 5L);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 384);
+        ReflectionTestUtils.setField(service, "streamEnabled", true);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getSourceType()).isEqualTo("RULE_BASED_V1");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
+        assertThat(analysis.getAiInvocation().isFallbackUsed()).isTrue();
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(analysis.getUncertainty()).contains("OUTPUT_TRUNCATED");
     }
 
     @Test
@@ -705,6 +1153,10 @@ class AiReportServiceExternalRuntimeTest {
         );
 
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("single-call");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INSUFFICIENT_QUOTA");
+        assertThat(analysis.getAiInvocation().getTransportMode()).isEmpty();
         assertThat(analysis.getUncertainty()).contains("INSUFFICIENT_QUOTA");
         assertThat(service.callCount()).isEqualTo(1);
 
@@ -722,6 +1174,89 @@ class AiReportServiceExternalRuntimeTest {
         ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
         ReflectionTestUtils.setField(service, "maxOutputTokens", 900);
         return service;
+    }
+
+    private String validSingleCallResponse() {
+        return """
+                {
+                  "diagnosisDecision": {
+                    "primaryIssueTag": "LOOP_BOUNDARY",
+                    "fineGrainedTag": "OFF_BY_ONE",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.9,
+                    "uncertainty": "range 右边界证据明确。",
+                    "needsMoreEvidence": false,
+                    "answerLeakRisk": "LOW"
+                  },
+                  "teachingHint": {
+                    "studentHint": "先用 n=1 手推循环会不会执行。",
+                    "studentHintPlan": {
+                      "hintLevel": "L2",
+                      "problemType": "循环边界",
+                      "evidenceAnchor": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "coachQuestion": "当 n=1 时循环执行几次？",
+                      "teachingAction": "TRACE_VARIABLES",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    },
+                    "learningInterventionPlan": {
+                      "interventionType": "VARIABLE_TRACE",
+                      "goal": "确认循环是否覆盖 n。",
+                      "studentTask": "手推 n=1 和 n=2。",
+                      "checkQuestion": "最后一次循环是否处理到 n？",
+                      "completionSignal": "能写出 i 的取值表。",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "estimatedMinutes": 6,
+                      "answerLeakRisk": "LOW"
+                    },
+                    "teacherNote": "单次调用已给出安全教学提示。",
+                    "answerLeakRisk": "LOW"
+                  },
+                  "studentFeedback": {
+                    "summary": "这次主要问题是循环边界没有覆盖到题目要求的范围。",
+                    "blockingIssues": [{
+                      "priority": 1,
+                      "title": "当前最需要先处理的问题",
+                      "studentMessage": "循环边界和题目要求的闭区间不一致，先手推最小样例确认缺失位置。",
+                      "evidence": "code:range_excludes_n",
+                      "nextAction": "列出 range 产生的 i。",
+                      "issueTag": "LOOP_BOUNDARY",
+                      "fineGrainedTag": "OFF_BY_ONE",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "secondaryIssues": [],
+                    "improvementOpportunities": [{
+                      "category": "TESTING_HABIT",
+                      "studentMessage": "通过后补一个 n=1 的最小自测。",
+                      "benefit": "能提前发现边界遗漏。",
+                      "evidenceRefs": ["code:range_excludes_n"]
+                    }],
+                    "nextLearningAction": {
+                      "hintLevel": "L2",
+                      "action": "TRACE_VARIABLES",
+                      "task": "列出 range 产生的 i。",
+                      "checkQuestion": "当 n=1 时循环执行几次？",
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "answerLeakRisk": "LOW"
+                    }
+                  }
+                }
+                """;
+    }
+
+    private String validSingleCallApiResponse() {
+        try {
+            return objectMapper.writeValueAsString(java.util.Map.of(
+                    "choices",
+                    List.of(java.util.Map.of(
+                            "message", java.util.Map.of("content", validSingleCallResponse()),
+                            "finish_reason", "stop"
+                    ))
+            ));
+        } catch (IOException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 
     private ExternalModelAgentRuntime runtime() {
@@ -785,6 +1320,125 @@ class AiReportServiceExternalRuntimeTest {
                         .hiddenFailureObserved(false)
                         .build())
                 .build();
+    }
+
+    private DiagnosisEvidencePackage evidencePackageWithLargeContext() {
+        String longDescription = "输入正整数 n，输出 1 到 n 的整数和。".repeat(80);
+        String longCode = """
+                n = int(input())
+                total = 0
+                for i in range(1, n):
+                    total += i
+                print(total)
+                """.repeat(80);
+        return DiagnosisEvidencePackage.builder()
+                .schemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
+                .problem(DiagnosisEvidencePackage.ProblemEvidence.builder()
+                        .title("求 1 到 n 的和")
+                        .description(longDescription)
+                        .aiPromptDirection("请关注闭区间边界和最小样例。".repeat(20))
+                        .difficulty("EASY")
+                        .timeLimit(1000)
+                        .memoryLimit(65536)
+                        .knowledgePoints(List.of("循环", "边界", "求和"))
+                        .algorithmStrategies(List.of("模拟", "数学归纳"))
+                        .commonMistakes(List.of("range 右边界不包含 n", "遗漏 n=1"))
+                        .boundaryTypes(List.of("n=1", "最大 n"))
+                        .build())
+                .submission(DiagnosisEvidencePackage.SubmissionEvidence.builder()
+                        .id(11L)
+                        .language("Python 3")
+                        .verdict("WRONG_ANSWER")
+                        .sourceCode(longCode)
+                        .sourceCodeWithLineNumbers(numbered(longCode))
+                        .sourceCodeLineCount(longCode.split("\\n", -1).length)
+                        .build())
+                .judgeFacts(DiagnosisEvidencePackage.JudgeFacts.builder()
+                        .hiddenFailureObserved(true)
+                        .firstFailedCase(SubmissionAnalysisResponse.FailedCaseSnapshot.builder()
+                                .testCaseNumber(1)
+                                .hidden(false)
+                                .input("1")
+                                .expectedOutput("1")
+                                .actualOutput("0")
+                                .build())
+                        .caseResultsSummary(List.of(
+                                DiagnosisEvidencePackage.CaseSummary.builder()
+                                        .testCaseNumber(1)
+                                        .passed(false)
+                                        .hidden(false)
+                                        .actualOutputPreview("0")
+                                        .expectedOutputPreview("1")
+                                        .build(),
+                                DiagnosisEvidencePackage.CaseSummary.builder()
+                                        .testCaseNumber(2)
+                                        .passed(false)
+                                        .hidden(true)
+                                        .build()))
+                        .build())
+                .learningMemory(DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                        .observedSubmissionCount(12)
+                        .observedProblemCount(4)
+                        .recurringIssueTags(List.of(
+                                DiagnosisEvidencePackage.MemoryTagStat.builder().tag("LOOP_BOUNDARY").count(4L).build(),
+                                DiagnosisEvidencePackage.MemoryTagStat.builder().tag("BOUNDARY_CONDITION").count(3L).build()))
+                        .recurringFineGrainedTags(List.of(
+                                DiagnosisEvidencePackage.MemoryTagStat.builder().tag("OFF_BY_ONE").count(4L).build()))
+                        .recentTrend("连续两题在闭区间右边界上反复出错。")
+                        .interventionEffect("上一次变量追踪部分完成，需要缩小任务。")
+                        .teacherCorrectionSummary("教师多次把边界条件校正为循环边界。")
+                        .evidenceRefs(List.of("memory:recurring_fine:OFF_BY_ONE"))
+                        .build())
+                .build();
+    }
+
+    private RuleSignalAnalyzer.RuleSignalResult richRuleSignals() {
+        return RuleSignalAnalyzer.RuleSignalResult.builder()
+                .candidateIssueTags(List.of("LOOP_BOUNDARY", "BOUNDARY_CONDITION", "NEEDS_MORE_EVIDENCE"))
+                .candidateFineGrainedTags(List.of("OFF_BY_ONE", "MAX_BOUNDARY", "EMPTY_INPUT", "SAMPLE_OVERFIT"))
+                .evidenceRefs(List.of("code:range_excludes_n", "judge:first_failed_case", "judge:hidden_failure"))
+                .signals(List.of(
+                        RuleSignalAnalyzer.Signal.builder()
+                                .evidenceRef("code:range_excludes_n")
+                                .coarseTag("LOOP_BOUNDARY")
+                                .fineTag("OFF_BY_ONE")
+                                .confidence(0.95)
+                                .message("range(1, n) excludes n and directly explains the visible failed case. ".repeat(6))
+                                .build(),
+                        RuleSignalAnalyzer.Signal.builder()
+                                .evidenceRef("judge:first_failed_case")
+                                .coarseTag("BOUNDARY_CONDITION")
+                                .fineTag("EMPTY_INPUT")
+                                .confidence(0.52)
+                                .message("Visible failure appears on a minimum case. ".repeat(6))
+                                .build(),
+                        RuleSignalAnalyzer.Signal.builder()
+                                .evidenceRef("judge:hidden_failure")
+                                .coarseTag("BOUNDARY_CONDITION")
+                                .fineTag("MAX_BOUNDARY")
+                                .confidence(0.42)
+                                .message("Hidden failure is observed but hidden data must not be inferred. ".repeat(6))
+                                .build(),
+                        RuleSignalAnalyzer.Signal.builder()
+                                .evidenceRef("problem:sample")
+                                .coarseTag("SAMPLE_ONLY")
+                                .fineTag("SAMPLE_OVERFIT")
+                                .confidence(0.22)
+                                .message("Weak generic sample-only signal. ".repeat(6))
+                                .build()))
+                .build();
+    }
+
+    private String numbered(String sourceCode) {
+        String[] lines = sourceCode.split("\\n", -1);
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < lines.length; index++) {
+            if (index > 0) {
+                builder.append('\n');
+            }
+            builder.append(index + 1).append(": ").append(lines[index]);
+        }
+        return builder.toString();
     }
 
     private RuleSignalAnalyzer.RuleSignalResult ruleSignals() {
@@ -890,6 +1544,7 @@ class AiReportServiceExternalRuntimeTest {
 
     private static class StubAiReportService extends AiReportService {
         private final Queue<Object> responses = new ArrayDeque<>();
+        private final List<String> userPrompts = new ArrayList<>();
         private int callCount;
 
         StubAiReportService(ObjectMapper objectMapper,
@@ -909,6 +1564,7 @@ class AiReportServiceExternalRuntimeTest {
         @Override
         protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException {
             callCount++;
+            userPrompts.add(userPrompt);
             Object response = responses.poll();
             if (response instanceof IOException exception) {
                 recordBudgetFailureForTest(exception);
@@ -922,6 +1578,46 @@ class AiReportServiceExternalRuntimeTest {
 
         int callCount() {
             return callCount;
+        }
+
+        int lastUserPromptBytes() {
+            if (userPrompts.isEmpty()) {
+                return 0;
+            }
+            return userPrompts.get(userPrompts.size() - 1).getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        }
+    }
+
+    private static class CapturingAiReportService extends AiReportService {
+        private final Queue<String> responses = new ArrayDeque<>();
+        private final List<String> requestBodies = new ArrayList<>();
+
+        CapturingAiReportService(ObjectMapper objectMapper,
+                                 ExternalModelAgentRuntime runtime,
+                                 String... responses) {
+            super(objectMapper, new AiCodeAssistSupport(), runtime);
+            this.responses.addAll(List.of(responses));
+        }
+
+        @Override
+        protected String sendChatCompletionRequest(String requestBody, boolean stream) throws IOException {
+            requestBodies.add(requestBody);
+            String response = responses.poll();
+            if (response == null) {
+                throw new IOException("No stub response configured.");
+            }
+            return response;
+        }
+
+        String lastRequestBody() {
+            if (requestBodies.isEmpty()) {
+                return "";
+            }
+            return requestBodies.get(requestBodies.size() - 1);
+        }
+
+        int lastRequestBytes() {
+            return lastRequestBody().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
         }
     }
 
@@ -943,7 +1639,9 @@ class AiReportServiceExternalRuntimeTest {
             return """
                     data: {"choices":[{"delta":{"reasoning_content":"先判断。","content":""}}]}
 
-                    data: {"choices":[{"delta":{"reasoning_content":"","content":"{\\"primaryIssueTag\\":\\"LOOP_BOUNDARY\\"}"}}]}
+                    data: not-json
+
+                    data: {"choices":[{"delta":{"reasoning_content":"","content":"{\\"diagnosisDecision\\":{\\"primaryIssueTag\\":\\"LOOP_BOUNDARY\\",\\"fineGrainedTag\\":\\"OFF_BY_ONE\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"confidence\\":0.9,\\"uncertainty\\":\\"ok\\",\\"needsMoreEvidence\\":false,\\"answerLeakRisk\\":\\"LOW\\"},\\"teachingHint\\":{\\"studentHint\\":\\"先用 n=1 手推。\\",\\"studentHintPlan\\":{\\"hintLevel\\":\\"L2\\",\\"problemType\\":\\"循环边界\\",\\"evidenceAnchor\\":\\"code:range_excludes_n\\",\\"nextAction\\":\\"列出 range 产生的 i。\\",\\"coachQuestion\\":\\"当 n=1 时循环执行几次？\\",\\"teachingAction\\":\\"TRACE_VARIABLES\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"answerLeakRisk\\":\\"LOW\\"},\\"learningInterventionPlan\\":{\\"interventionType\\":\\"VARIABLE_TRACE\\",\\"goal\\":\\"确认循环边界。\\",\\"studentTask\\":\\"手推最小样例。\\",\\"checkQuestion\\":\\"是否处理到 n？\\",\\"completionSignal\\":\\"能指出缺失位置。\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"estimatedMinutes\\":5,\\"answerLeakRisk\\":\\"LOW\\"},\\"teacherNote\\":\\"stream ok\\",\\"answerLeakRisk\\":\\"LOW\\"}}"},"finish_reason":"stop"}]}
 
                     data: [DONE]
                     """;
@@ -951,6 +1649,28 @@ class AiReportServiceExternalRuntimeTest {
 
         List<Boolean> streamFlags() {
             return streamFlags;
+        }
+    }
+
+    private static class LengthTruncatedAiReportService extends AiReportService {
+        LengthTruncatedAiReportService(ObjectMapper objectMapper) {
+            super(objectMapper, new AiCodeAssistSupport(), new ExternalModelAgentRuntime(
+                    new ModelDiagnosisBriefBuilder(),
+                    new StandardLibraryPackBuilder(new DiagnosisTaxonomy()),
+                    new PromptTemplateRegistry(),
+                    new ModelOutputValidator()
+            ));
+        }
+
+        @Override
+        protected String sendChatCompletionRequest(String requestBody, boolean stream) {
+            return """
+                    data: {"choices":[{"delta":{"reasoning_content":"先判断边界。","content":""}}]}
+
+                    data: {"choices":[{"delta":{"reasoning_content":"","content":"{\\"diagnosisDecision\\":{\\"primaryIssueTag\\":\\"LOOP_BOUNDARY\\""},"finish_reason":"length"}]}
+
+                    data: [DONE]
+                    """;
         }
     }
 
@@ -992,6 +1712,43 @@ class AiReportServiceExternalRuntimeTest {
         @Override
         protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException {
             throw exception;
+        }
+    }
+
+    private static class TeachingHintTruncatedAiReportService extends AiReportService {
+        private final boolean validDiagnosis;
+
+        TeachingHintTruncatedAiReportService(ObjectMapper objectMapper, boolean validDiagnosis) {
+            super(objectMapper, new AiCodeAssistSupport(), new ExternalModelAgentRuntime(
+                    new ModelDiagnosisBriefBuilder(),
+                    new StandardLibraryPackBuilder(new DiagnosisTaxonomy()),
+                    new PromptTemplateRegistry(),
+                    new ModelOutputValidator()
+            ));
+            this.validDiagnosis = validDiagnosis;
+        }
+
+        @Override
+        protected String sendChatCompletionRequest(String requestBody, boolean stream) {
+            String primaryIssueTag = validDiagnosis ? "LOOP_BOUNDARY" : "MADE_UP_TAG";
+            String content = """
+                    {"diagnosisDecision":{"primaryIssueTag":"%s","fineGrainedTag":"OFF_BY_ONE","evidenceRefs":["code:range_excludes_n"],"confidence":0.9,"uncertainty":"保留完整诊断。","needsMoreEvidence":false,"answerLeakRisk":"LOW"},"teachingHint":{"studentHint":"截断残留"}
+                    """.formatted(primaryIssueTag);
+            return """
+                    data: {"choices":[{"delta":{"reasoning_content":"先判断边界。","content":""}}]}
+
+                    data: {"choices":[{"delta":{"reasoning_content":"","content":%s},"finish_reason":"length"}]}
+
+                    data: [DONE]
+                    """.formatted(quoteJson(content));
+        }
+
+        private String quoteJson(String value) {
+            try {
+                return new ObjectMapper().writeValueAsString(value);
+            } catch (IOException exception) {
+                throw new IllegalStateException(exception);
+            }
         }
     }
 }

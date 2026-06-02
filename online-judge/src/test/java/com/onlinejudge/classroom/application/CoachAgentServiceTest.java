@@ -67,6 +67,59 @@ class CoachAgentServiceTest {
     }
 
     @Test
+    void coachSafetyRejectionFixturesExposeStableRiskCases() throws IOException {
+        List<CoachEvalFixtureLoader.SafetyRejectionFixture> fixtures =
+                new CoachEvalFixtureLoader(objectMapper).loadSafetyRejections();
+
+        assertThat(fixtures).hasSizeGreaterThanOrEqualTo(4);
+        assertThat(fixtures)
+                .extracting(CoachEvalFixtureLoader.SafetyRejectionFixture::riskCategory)
+                .contains("COMPLETE_ANSWER", "HIDDEN_TEST", "DIRECT_FIX", "MISSING_EVIDENCE");
+        assertThat(fixtures)
+                .allSatisfy(fixture -> {
+                    assertThat(fixture.source()).isEqualTo("coach-safety-rejection-v1");
+                    assertThat(fixture.name()).isNotBlank();
+                    assertThat(fixture.turnType()).isIn("INITIAL", "INITIAL_QUESTION", "FOLLOW_UP");
+                    assertThat(fixture.primaryTag()).isNotBlank();
+                    assertThat(fixture.contextSummary()).isNotBlank();
+                    assertThat(fixture.evidenceRefs()).as(fixture.name() + " evidence refs").isNotEmpty();
+                    assertThat(fixture.unsafeModelResponse()).as(fixture.name() + " unsafe response").isNotNull();
+                    assertThat(fixture.unsafeModelResponse().question()).as(fixture.name() + " unsafe question").isNotBlank();
+                    assertThat(fixture.expectedFailureReason()).isEqualTo("SAFETY_REJECTED");
+                    assertThat(fixture.expectedModelAnswerLeakRisk()).isIn("MEDIUM", "HIGH");
+                    assertThat(fixture.requiredFallbackQuestion()).isNotBlank();
+                    assertThat(fixture.forbiddenPhrases()).as(fixture.name() + " forbidden phrases").isNotEmpty();
+                });
+    }
+
+    @Test
+    void coachSafetyRejectionFixturesConstrainLocalSafetyGate() throws IOException {
+        List<CoachEvalFixtureLoader.SafetyRejectionFixture> fixtures =
+                new CoachEvalFixtureLoader(objectMapper).loadSafetyRejections();
+
+        for (CoachEvalFixtureLoader.SafetyRejectionFixture fixture : fixtures) {
+            StubCoachAgentService service = new StubCoachAgentService(
+                    objectMapper,
+                    taxonomy,
+                    fixture.unsafeModelResponseJson(objectMapper)
+            );
+            enableAi(service);
+
+            CoachAgentService.CoachDraft draft = generateForSafetyFixture(service, fixture);
+
+            assertThat(draft.getSource()).as(fixture.name()).isEqualTo("RULE");
+            assertThat(draft.getQuestion()).as(fixture.name()).isEqualTo(fixture.requiredFallbackQuestion());
+            assertThat(draft.getFailureReason()).as(fixture.name()).isEqualTo(fixture.expectedFailureReason());
+            assertThat(riskWeight(draft.getModelAnswerLeakRisk()))
+                    .as(fixture.name() + " model answer leak risk")
+                    .isGreaterThanOrEqualTo(riskWeight(fixture.expectedModelAnswerLeakRisk()));
+            fixture.forbiddenPhrases().forEach(phrase -> assertThat(combinedDraftText(draft).toLowerCase())
+                    .as(fixture.name() + " avoids " + phrase)
+                    .doesNotContain(phrase.toLowerCase()));
+        }
+    }
+
+    @Test
     void rejectsFixtureLikeDraftWithoutEvidenceRefs() throws IOException {
         CoachEvalFixtureLoader.Fixture fixture = new CoachEvalFixtureLoader(objectMapper).loadDefault().get(0);
         StubCoachAgentService service = new StubCoachAgentService(objectMapper, taxonomy, """
@@ -176,6 +229,7 @@ class CoachAgentServiceTest {
         assertThat(draft.getSource()).isEqualTo("RULE");
         assertThat(draft.getQuestion()).isEqualTo("规则问题");
         assertThat(draft.getFailureReason()).isEqualTo("SAFETY_REJECTED");
+        assertThat(draft.getModelAnswerLeakRisk()).isEqualTo("HIGH");
     }
 
     @Test
@@ -343,6 +397,33 @@ class CoachAgentServiceTest {
         );
     }
 
+    private CoachAgentService.CoachDraft generateForSafetyFixture(CoachAgentService service,
+                                                                  CoachEvalFixtureLoader.SafetyRejectionFixture fixture) {
+        CoachAgentService.CoachDraft fallback = CoachAgentService.CoachDraft.fallback(fixture.requiredFallbackQuestion());
+        if ("FOLLOW_UP".equals(fixture.turnType())) {
+            return service.generateFollowUpQuestion(
+                    fixture.toSubmission(),
+                    fixture.toAnalysis(),
+                    fixture.primaryTag(),
+                    fixture.toHintPolicy(),
+                    fixture.contextSummary(),
+                    fixture.evidenceRefs(),
+                    fixture.studentAnswer(),
+                    1,
+                    fallback
+            );
+        }
+        return service.generateInitialQuestion(
+                fixture.toSubmission(),
+                fixture.toAnalysis(),
+                fixture.primaryTag(),
+                fixture.toHintPolicy(),
+                fixture.contextSummary(),
+                fixture.evidenceRefs(),
+                fallback
+        );
+    }
+
     private void assertDraftMatchesFixture(CoachEvalFixtureLoader.Fixture fixture,
                                            CoachAgentService.CoachDraft draft,
                                            boolean requireAllSignals,
@@ -374,6 +455,26 @@ class CoachAgentServiceTest {
                     .as(fixture.name() + " question signals")
                     .anySatisfy(signal -> assertThat(draft.getQuestion()).contains(signal));
         }
+    }
+
+    private String combinedDraftText(CoachAgentService.CoachDraft draft) {
+        return String.join("\n",
+                draft.getQuestion() == null ? "" : draft.getQuestion(),
+                draft.getRationale() == null ? "" : draft.getRationale()
+        );
+    }
+
+    private int riskWeight(String risk) {
+        if ("HIGH".equalsIgnoreCase(risk)) {
+            return 3;
+        }
+        if ("MEDIUM".equalsIgnoreCase(risk)) {
+            return 2;
+        }
+        if ("LOW".equalsIgnoreCase(risk)) {
+            return 1;
+        }
+        return 0;
     }
 
     private String valueOrDefault(String value, String fallback) {

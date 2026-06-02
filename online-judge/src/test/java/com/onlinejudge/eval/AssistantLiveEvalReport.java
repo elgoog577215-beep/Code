@@ -21,7 +21,11 @@ public class AssistantLiveEvalReport {
     private Integer safetyFailureCount;
     private Integer expectedSignalHitCount;
     private Integer evidenceValidCount;
+    private Integer runtimeFixtureDraftCount;
+    private Integer qualityBaselineDraftCount;
     private List<Entry> entries;
+    private List<LiveEvalRuntimeFixtureDraft> runtimeFixtureDrafts;
+    private List<LiveEvalQualityBaselineDraft> qualityBaselineDrafts;
 
     @Data
     @Builder

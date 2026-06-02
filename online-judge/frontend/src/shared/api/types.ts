@@ -437,6 +437,49 @@ export interface TeachingActionDecision {
   needsTeacherAttention?: boolean;
 }
 
+export interface StudentFeedbackIssue {
+  priority?: number | null;
+  title?: string | null;
+  studentMessage?: string | null;
+  evidence?: string | null;
+  nextAction?: string | null;
+  issueTag?: string | null;
+  fineGrainedTag?: string | null;
+  evidenceRefs?: string[];
+}
+
+export interface StudentFeedbackSecondaryIssue {
+  title?: string | null;
+  studentMessage?: string | null;
+  whyNotPrimary?: string | null;
+  issueTag?: string | null;
+  evidenceRefs?: string[];
+}
+
+export interface StudentFeedbackImprovementOpportunity {
+  category?: string | null;
+  studentMessage?: string | null;
+  benefit?: string | null;
+  evidenceRefs?: string[];
+}
+
+export interface StudentFeedbackNextLearningAction {
+  hintLevel?: string | null;
+  action?: string | null;
+  task?: string | null;
+  checkQuestion?: string | null;
+  evidenceRefs?: string[];
+  answerLeakRisk?: string | null;
+}
+
+export interface StudentFeedback {
+  summary?: string | null;
+  blockingIssues?: StudentFeedbackIssue[];
+  secondaryIssues?: StudentFeedbackSecondaryIssue[];
+  improvementOpportunities?: StudentFeedbackImprovementOpportunity[];
+  nextLearningAction?: StudentFeedbackNextLearningAction | null;
+}
+
 export interface SubmissionAnalysis {
   submissionId: number;
   sourceType?: string;
@@ -449,6 +492,7 @@ export interface SubmissionAnalysis {
   fixDirections?: string[];
   studentHint?: string;
   studentHintPlan?: StudentHintPlan | null;
+  studentFeedback?: StudentFeedback | null;
   learningInterventionPlan?: LearningInterventionPlan | null;
   teacherNote?: string;
   progressSignal?: string;

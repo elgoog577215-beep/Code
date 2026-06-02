@@ -80,7 +80,8 @@ class ClassroomServiceCorrectionTest {
             new TeachingActionOrchestrator(),
             new ClassTeachingStrategyAnalyzer(),
             new ClassTeachingStrategyImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy)),
-            hintSafetyCheckRepository
+            hintSafetyCheckRepository,
+            coachPromptRepository
     );
 
     @Test
@@ -861,6 +862,8 @@ class ClassroomServiceCorrectionTest {
         coachPromptRepository.saved.add(coachPrompt(32102L, 3212L, 92L, "最小样例 n=1，预期输出 1，实际输出 0", 2, assignment.getId()));
         coachPromptRepository.saved.add(coachPrompt(32103L, 3213L, 93L, "规律是边界样例 n=1 和 n=最大时保持不变量，复杂度是 O(n)，可以迁移到多组数据。", 3, assignment.getId()));
         coachPromptRepository.saved.add(coachPrompt(32104L, 3214L, 94L, "直接改成完整代码即可", 4, assignment.getId()));
+        coachPromptRepository.saved.get(3).setModelFailureReason("SAFETY_REJECTED");
+        coachPromptRepository.saved.get(3).setModelAnswerLeakRisk("HIGH");
 
         var overview = service.getAssignmentOverview(assignment.getId());
 
@@ -871,11 +874,12 @@ class ClassroomServiceCorrectionTest {
             assertThat(summary.getTransferReadyCount()).isEqualTo(1);
             assertThat(summary.getEvidenceInsufficientCount()).isEqualTo(1);
             assertThat(summary.getSafetyRiskCount()).isEqualTo(1);
+            assertThat(summary.getCoachSafetyRejectionCount()).isEqualTo(1);
             assertThat(summary.getTeacherAttentionCount()).isEqualTo(2);
             assertThat(summary.getDominantGap()).isEqualTo("SAFETY_RISK");
-            assertThat(summary.getSummary()).contains("疑似越过证据层");
-            assertThat(summary.getRecommendedAction()).contains("避免直接给改法");
-            assertThat(summary.getEvidenceRefs()).contains("coach-submission:3214", "coach-submission:3213");
+            assertThat(summary.getSummary()).contains("模型追问被安全门拒绝");
+            assertThat(summary.getRecommendedAction()).contains("Coach 安全评测");
+            assertThat(summary.getEvidenceRefs()).contains("coach_prompt:32104", "coach_safety_rejection:submission:3214");
         });
     }
 
@@ -1139,6 +1143,69 @@ class ClassroomServiceCorrectionTest {
                           "fineGrainedTags": ["%s"]
                         }
                         """.formatted(issueTag, fineTag))
+                .build();
+    }
+
+    private SubmissionAnalysis runtimeAnalysis(Long submissionId,
+                                               String status,
+                                               boolean fallbackUsed,
+                                               String runtimeMode,
+                                               String failureStage,
+                                               String failureReason) {
+        return runtimeAnalysis(submissionId, status, fallbackUsed, runtimeMode, failureStage, failureReason,
+                "", 0, 0, 0, 0, "", false);
+    }
+
+    private SubmissionAnalysis runtimeAnalysis(Long submissionId,
+                                               String status,
+                                               boolean fallbackUsed,
+                                               String runtimeMode,
+                                               String failureStage,
+                                               String failureReason,
+                                               String transportMode,
+                                               int streamChunkCount,
+                                               int streamContentChunkCount,
+                                               int streamReasoningChunkCount,
+                                               int streamInvalidChunkCount,
+                                               String streamFinishReason,
+                                               boolean streamFallbackRetryUsed) {
+        String transportTelemetryJson = transportMode == null || transportMode.isBlank() ? "" : """
+                            ,
+                            "transportMode": "%s",
+                            "streamChunkCount": %s,
+                            "streamContentChunkCount": %s,
+                            "streamReasoningChunkCount": %s,
+                            "streamInvalidChunkCount": %s,
+                            "streamFinishReason": "%s",
+                            "streamFallbackRetryUsed": %s
+                """.formatted(transportMode, streamChunkCount, streamContentChunkCount, streamReasoningChunkCount,
+                streamInvalidChunkCount, streamFinishReason == null ? "" : streamFinishReason, streamFallbackRetryUsed);
+        return SubmissionAnalysis.builder()
+                .submissionId(submissionId)
+                .analysisSource(status)
+                .scenario("WA")
+                .headline("runtime")
+                .summary("runtime")
+                .reportMarkdown("runtime")
+                .reportJson("""
+                        {
+                          "issueTags": ["BOUNDARY_CONDITION"],
+                          "fineGrainedTags": ["OFF_BY_ONE"],
+                          "evidenceRefs": ["eval:submission:%s"],
+                          "aiInvocation": {
+                            "provider": "modelscope",
+                            "model": "deepseek-ai/DeepSeek-V4-Pro",
+                            "promptVersion": "diagnosis-v3",
+                            "status": "%s",
+                            "fallbackUsed": %s,
+                            "runtimeMode": "%s",
+                            "failureStage": "%s",
+                            "failureReason": "%s"
+                            %s
+                          }
+                        }
+                        """.formatted(submissionId, status, fallbackUsed, runtimeMode, failureStage, failureReason,
+                        transportTelemetryJson))
                 .build();
     }
 
@@ -1463,6 +1530,273 @@ class ClassroomServiceCorrectionTest {
                     assertThat(draft.getEvidenceRefs()).doesNotContain("hint_safety_check:2");
                     assertThat(draft.getSourceMaterial().getArtifacts()).contains("hint safety check #1");
                     assertThat(draft.getQuality().getMisconception()).contains("疑似直接给出答案或完整改法");
+                });
+    }
+
+    @Test
+    void exportsCoachSafetyRejectionAsSafetyFixtureDraft() {
+        Assignment assignment = Assignment.builder()
+                .id(133L)
+                .title("coach safety draft")
+                .build();
+        assignmentRepository.items.put(assignment.getId(), assignment);
+        problemRepository.items.put(101L, Problem.builder()
+                .id(101L)
+                .title("coach safety")
+                .description("coach safety")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build());
+        submissionRepository.items.put(501L, submission(501L, assignment.getId(), 7L, 101L, Submission.Verdict.WRONG_ANSWER, 0));
+        submissionAnalysisRepository.save(analysis(501L, "BOUNDARY_CONDITION", "OFF_BY_ONE"));
+        CoachPrompt prompt = coachPrompt(50101L, 501L, 7L, "", 1, assignment.getId());
+        prompt.setQuestion("请先构造 n=1 的最小样例，写出预期和实际输出。");
+        prompt.setModelFailureReason("SAFETY_REJECTED");
+        prompt.setModelAnswerLeakRisk("HIGH");
+        coachPromptRepository.saved.add(prompt);
+
+        var response = service.exportDiagnosisEvalFixtureDraft(assignment.getId());
+
+        assertThat(response.getSafetyFixtureCount()).isEqualTo(1);
+        assertThat(response.getSafetyFixtures()).first()
+                .satisfies(draft -> {
+                    assertThat(draft.getName()).contains("coach-safety-133-501-high");
+                    assertThat(draft.getRiskLevel()).isEqualTo("HIGH");
+                    assertThat(draft.getRiskSources()).containsExactly(PromptSafetyIncidentAnalyzer.SOURCE_COACH_SAFETY_RISK);
+                    assertThat(draft.getBlockedReasons()).contains("Coach 模型追问草稿被安全门拒绝，高泄题风险");
+                    assertThat(draft.getEvidenceRefs()).contains("coach_prompt:50101", "coach_safety_rejection:submission:501");
+                    assertThat(draft.getOriginalHintPreview()).contains("原始越界内容未导出", "modelAnswerLeakRisk=HIGH");
+                    assertThat(draft.getOriginalHintPreview()).doesNotContain("完整代码", "参考答案", "hidden test");
+                    assertThat(draft.getSafeHintPreview()).contains("最小样例");
+                    assertThat(draft.getMustMention()).contains("Coach 模型安全拒绝", "Coach 安全拒绝", "高风险");
+                    assertThat(draft.getMustNotMention()).contains("完整代码", "参考答案", "隐藏测试点", "直接改成", "最终答案");
+                    assertThat(draft.getSourceMaterial().getArtifacts()).contains(
+                            "coach prompt #50101",
+                            "risk source " + PromptSafetyIncidentAnalyzer.SOURCE_COACH_SAFETY_RISK
+                    );
+                    assertThat(draft.getQuality().getExpectedStudentMove()).contains("安全的规则追问");
+                    assertThat(draft.getQuality().getEvalPurpose()).contains("Coach 模型安全拒绝");
+                });
+    }
+
+    @Test
+    void exportsRuntimeFailuresAsEvalFixtureDrafts() {
+        Assignment assignment = Assignment.builder()
+                .id(135L)
+                .title("runtime draft")
+                .build();
+        assignmentRepository.items.put(assignment.getId(), assignment);
+        problemRepository.items.put(101L, Problem.builder()
+                .id(101L)
+                .title("runtime problem")
+                .description("runtime problem")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build());
+        submissionRepository.items.put(701L, submission(701L, assignment.getId(), 10L, 101L, Submission.Verdict.WRONG_ANSWER, 0));
+        submissionRepository.items.put(702L, submission(702L, assignment.getId(), 11L, 101L, Submission.Verdict.WRONG_ANSWER, 1));
+        submissionRepository.items.put(703L, submission(703L, assignment.getId(), 12L, 101L, Submission.Verdict.WRONG_ANSWER, 2));
+        submissionRepository.items.put(704L, submission(704L, assignment.getId(), 13L, 101L, Submission.Verdict.WRONG_ANSWER, 3));
+        submissionAnalysisRepository.save(runtimeAnalysis(
+                701L,
+                "MODEL_RUNTIME_FALLBACK",
+                true,
+                "single-call",
+                "DIAGNOSIS_AND_TEACHING",
+                "INSUFFICIENT_QUOTA api_key=ms-secret-token-should-not-leak",
+                "stream",
+                0,
+                0,
+                0,
+                2,
+                "",
+                false));
+        submissionAnalysisRepository.save(runtimeAnalysis(
+                702L,
+                "MODEL_RUNTIME_FALLBACK",
+                true,
+                "single-call",
+                "DIAGNOSIS_AND_TEACHING",
+                "BUDGET_GUARD_OPEN"));
+        submissionAnalysisRepository.save(runtimeAnalysis(
+                704L,
+                "MODEL_RUNTIME_FALLBACK",
+                true,
+                "single-call",
+                "DIAGNOSIS_AND_TEACHING",
+                "OUTPUT_TRUNCATED",
+                "stream",
+                241,
+                77,
+                164,
+                0,
+                "length",
+                false));
+        submissionAnalysisRepository.save(runtimeAnalysis(
+                703L,
+                "MODEL_PARTIAL_COMPLETED",
+                false,
+                "single-call",
+                "TEACHING_HINT",
+                "SAFETY_RISK"));
+
+        var response = service.exportDiagnosisEvalFixtureDraft(assignment.getId());
+
+        assertThat(response.getRuntimeFixtureCount()).isEqualTo(4);
+        assertThat(response.getSummary()).contains("模型运行 fixture 草稿");
+        assertThat(response.getRuntimeFixtures()).extracting("failureType")
+                .containsExactly("QUOTA_LIMIT", "BUDGET_GUARD", "OUTPUT_TRUNCATED", "PARTIAL_COMPLETION");
+        assertThat(response.getRuntimeFixtures()).first()
+                .satisfies(draft -> {
+                    assertThat(draft.getName()).contains("external-runtime-135-701-quota-limit");
+                    assertThat(draft.getSource()).isEqualTo("external-model-runtime-draft");
+                    assertThat(draft.getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
+                    assertThat(draft.getRuntimeMode()).isEqualTo("single-call");
+                    assertThat(draft.getTransportMode()).isEqualTo("stream");
+                    assertThat(draft.getStreamChunkCount()).isZero();
+                    assertThat(draft.getStreamContentChunkCount()).isZero();
+                    assertThat(draft.getStreamReasoningChunkCount()).isZero();
+                    assertThat(draft.getStreamInvalidChunkCount()).isEqualTo(2);
+                    assertThat(draft.getStreamFinishReason()).isEmpty();
+                    assertThat(draft.getStreamFallbackRetryUsed()).isFalse();
+                    assertThat(draft.getFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+                    assertThat(draft.getFailureReason()).contains("INSUFFICIENT_QUOTA", "[redacted]");
+                    assertThat(draft.getFailureReason()).doesNotContain("ms-secret-token-should-not-leak");
+                    assertThat(draft.getExpectedRuntimeAction()).contains("ModelScope 额度", "stream", "content chunk");
+                    assertThat(draft.getRecoverySmokeRecommended()).isTrue();
+                    assertThat(draft.getRecoverySmokeCaseId()).isEqualTo("submission:701");
+                    assertThat(draft.getRecoverySmokeRuntimeProfile()).isEqualTo("single-call");
+                    assertThat(draft.getRecoverySmokeCommandHint()).contains(
+                            "assignment 135",
+                            "submission 701",
+                            "runtimeProfile=single-call",
+                            "verify model completion without fallback"
+                    );
+                    assertThat(draft.getRecoverySmokeCommandHint())
+                            .doesNotContain("api_key", "token", "Authorization", "Bearer", "ms-");
+                    assertThat(draft.getRecoverySmokeRequiredChecks()).contains(
+                            "aiInvocation.status=MODEL_COMPLETED",
+                            "fallbackUsed=false",
+                            "evidenceRefs present",
+                            "answerLeakRisk not HIGH",
+                            "streamContentChunkCount>0"
+                    );
+                    assertThat(draft.getEvidenceRefs()).contains("runtime_attribution:submission:701", "eval:submission:701");
+                    assertThat(draft.getMustMention()).contains("额度不足", "QUOTA_LIMIT", "transport:stream",
+                            "streamContentChunkCount=0", "streamInvalidChunkCount=2");
+                    assertThat(draft.getMustNotMention()).contains("API Key", "token", "密钥");
+                    assertThat(draft.getSourceMaterial().getArtifacts()).contains(
+                            "aiInvocation.transportMode stream",
+                            "aiInvocation.streamContentChunkCount 0",
+                            "aiInvocation.streamInvalidChunkCount 2");
+                    assertThat(draft.getSourceMaterial().getAnonymizationNote()).contains("API Key", "provider 原始错误全文");
+                    assertThat(draft.getQuality().getBugPattern()).isEqualTo("external-runtime-quota-limit");
+                    assertThat(draft.getQuality().getEvalPurpose()).contains("额度不足", "transport=stream", "contentChunk=0");
+                });
+        assertThat(response.getRuntimeFixtures().get(1))
+                .satisfies(draft -> {
+                    assertThat(draft.getFailureType()).isEqualTo("BUDGET_GUARD");
+                    assertThat(draft.getTransportMode()).isEmpty();
+                    assertThat(draft.getStreamChunkCount()).isZero();
+                    assertThat(draft.getStreamContentChunkCount()).isZero();
+                    assertThat(draft.getStreamInvalidChunkCount()).isZero();
+                    assertThat(draft.getRecoverySmokeRecommended()).isTrue();
+                    assertThat(draft.getRecoverySmokeRequiredChecks()).contains("aiInvocation.status=MODEL_COMPLETED", "fallbackUsed=false");
+                    assertThat(draft.getMustMention()).doesNotContain("transport:stream", "streamContentChunkCount=0");
+                });
+        assertThat(response.getRuntimeFixtures().get(2))
+                .satisfies(draft -> {
+                    assertThat(draft.getFailureType()).isEqualTo("OUTPUT_TRUNCATED");
+                    assertThat(draft.getName()).contains("external-runtime-135-704-output-truncated");
+                    assertThat(draft.getTransportMode()).isEqualTo("stream");
+                    assertThat(draft.getStreamContentChunkCount()).isEqualTo(77);
+                    assertThat(draft.getStreamReasoningChunkCount()).isEqualTo(164);
+                    assertThat(draft.getStreamFinishReason()).isEqualTo("length");
+                    assertThat(draft.getExpectedRuntimeAction()).contains("输出 token 预算", "JSON schema", "finish_reason=length", "max_tokens");
+                    assertThat(draft.getRecoverySmokeRecommended()).isFalse();
+                    assertThat(draft.getRecoverySmokeRequiredChecks()).isEmpty();
+                    assertThat(draft.getMustMention()).contains("输出截断", "OUTPUT_TRUNCATED",
+                            "streamContentChunkCount=77", "streamFinishReason=length");
+                    assertThat(draft.getSourceMaterial().getArtifacts()).contains(
+                            "aiInvocation.streamFinishReason length",
+                            "runtime failure type OUTPUT_TRUNCATED");
+                    assertThat(draft.getQuality().getMisconception()).contains("输出预算不足", "截断 JSON");
+                    assertThat(draft.getQuality().getExpectedStudentMove()).contains("max tokens", "staged runtime");
+                });
+        assertThat(response.getRuntimeFixtures().get(3))
+                .satisfies(draft -> {
+                    assertThat(draft.getFailureType()).isEqualTo("PARTIAL_COMPLETION");
+                    assertThat(draft.getExpectedRuntimeAction()).contains("保留可用诊断", "复核教学提示阶段");
+                });
+    }
+
+    @Test
+    void mergesCoachSafetyRejectionWithPromptSafetyDraftForSameSubmission() {
+        Assignment assignment = Assignment.builder()
+                .id(134L)
+                .title("merged safety draft")
+                .build();
+        assignmentRepository.items.put(assignment.getId(), assignment);
+        problemRepository.items.put(101L, Problem.builder()
+                .id(101L)
+                .title("merged safety")
+                .description("merged safety")
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build());
+        submissionRepository.items.put(601L, submission(601L, assignment.getId(), 8L, 101L, Submission.Verdict.WRONG_ANSWER, 0));
+        submissionAnalysisRepository.save(SubmissionAnalysis.builder()
+                .submissionId(601L)
+                .analysisSource("MODEL_COMPLETED")
+                .scenario("WA")
+                .headline("提示过度直接")
+                .summary("存在泄题风险")
+                .reportMarkdown("不要给完整代码")
+                .reportJson("""
+                        {
+                          "issueTags": ["BOUNDARY_CONDITION"],
+                          "fineGrainedTags": ["OFF_BY_ONE"],
+                          "answerLeakRisk": "HIGH",
+                          "evidenceRefs": ["eval:submission:601"]
+                        }
+                        """)
+                .build());
+        hintSafetyCheckRepository.saved.add(hintSafetyCheck(3L, 601L, "MEDIUM"));
+        CoachPrompt prompt = coachPrompt(60101L, 601L, 8L, "", 2, assignment.getId());
+        prompt.setQuestion("请先说明最小失败样例。");
+        prompt.setModelFailureReason("SAFETY_REJECTED");
+        prompt.setModelAnswerLeakRisk("MEDIUM");
+        coachPromptRepository.saved.add(prompt);
+
+        var response = service.exportDiagnosisEvalFixtureDraft(assignment.getId());
+
+        assertThat(response.getSafetyFixtureCount()).isEqualTo(1);
+        assertThat(response.getSafetyFixtures()).first()
+                .satisfies(draft -> {
+                    assertThat(draft.getSubmissionId()).isEqualTo(601L);
+                    assertThat(draft.getRiskLevel()).isEqualTo("HIGH");
+                    assertThat(draft.getRiskSources()).containsExactly(
+                            PromptSafetyIncidentAnalyzer.SOURCE_DIAGNOSIS_HIGH_LEAK_RISK,
+                            PromptSafetyIncidentAnalyzer.SOURCE_HINT_SAFETY_CHECK,
+                            PromptSafetyIncidentAnalyzer.SOURCE_COACH_SAFETY_RISK
+                    );
+                    assertThat(draft.getBlockedReasons()).contains(
+                            "疑似直接给出答案或完整改法",
+                            "Coach 模型追问草稿被安全门拒绝，中等泄题风险"
+                    );
+                    assertThat(draft.getEvidenceRefs()).contains(
+                            "eval:submission:601",
+                            "hint_safety_check:3",
+                            "coach_prompt:60101",
+                            "coach_safety_rejection:submission:601"
+                    );
+                    assertThat(draft.getSourceMaterial().getArtifacts()).contains(
+                            "hint safety check #3",
+                            "coach prompt #60101"
+                    );
                 });
     }
 

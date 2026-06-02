@@ -4895,6 +4895,83 @@ button.list-row:hover {
   background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
+.student-feedback-channel,
+.student-feedback-next {
+  display: grid;
+  gap: 0.54rem;
+  padding: 0.72rem 0.76rem;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, var(--brand));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+}
+
+.student-feedback-channel--secondary {
+  border-color: color-mix(in srgb, var(--line) 82%, var(--ink-faint));
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.student-feedback-channel--improvement {
+  border-color: color-mix(in srgb, var(--blue) 24%, var(--line));
+  background: color-mix(in srgb, var(--blue-soft) 32%, var(--surface-strong));
+}
+
+.student-feedback-channel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.student-feedback-channel__head h3 {
+  margin: 0;
+  font-size: 0.94rem;
+}
+
+.student-feedback-list {
+  display: grid;
+  gap: 0.46rem;
+}
+
+.student-feedback-item {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.58rem 0.62rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+}
+
+.student-feedback-item strong,
+.student-feedback-next strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.student-feedback-item p,
+.student-feedback-item small,
+.student-feedback-item em,
+.student-feedback-next p {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.46;
+}
+
+.student-feedback-item small,
+.student-feedback-item em {
+  font-size: 0.82rem;
+}
+
+.student-feedback-item em {
+  font-style: normal;
+  color: var(--brand-strong);
+}
+
+.student-feedback-next {
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 38%, var(--surface-strong));
+}
+
 .problem-result-compact {
   display: grid;
   grid-template-columns: minmax(92px, 0.38fr) minmax(0, 1fr) minmax(96px, 0.38fr);

@@ -125,6 +125,7 @@ public class AssignmentOverviewResponse {
         private long transferReadyCount;
         private long evidenceInsufficientCount;
         private long safetyRiskCount;
+        private long coachSafetyRejectionCount;
         private long teacherAttentionCount;
         private String dominantGap;
         private String summary;

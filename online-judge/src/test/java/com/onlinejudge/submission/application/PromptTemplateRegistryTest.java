@@ -26,6 +26,8 @@ class PromptTemplateRegistryTest {
                 .contains("standardLibrary.decisionProtocol")
                 .contains("most evidence-supported tag")
                 .contains("direct evidence distinguishes")
+                .contains("teachable root cause")
+                .contains("distracting signals")
                 .contains("Do not provide complete code")
                 .contains("hidden test data");
     }
@@ -48,19 +50,24 @@ class PromptTemplateRegistryTest {
 
     @Test
     void singleCallPromptReturnsDiagnosisAndTeachingInOneContract() {
-        PromptTemplateRegistry.PromptTemplate template = registry.get(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V2);
+        PromptTemplateRegistry.PromptTemplate template = registry.get(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
 
-        assertThat(template.getVersion()).isEqualTo("diagnosis-and-teaching-v2");
+        assertThat(template.getVersion()).isEqualTo("diagnosis-and-teaching-v3");
         assertThat(template.getStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
         assertThat(template.getSystemPrompt())
                 .contains("low-budget single-call runtime")
                 .contains("diagnosisDecision")
                 .contains("teachingHint")
+                .contains("studentFeedback")
                 .contains("studentHintPlan")
                 .contains("learningInterventionPlan")
+                .contains("blockingIssues")
+                .contains("improvementOpportunities")
                 .contains("standardLibrary.decisionProtocol")
-                .contains("most evidence-supported tag")
-                .contains("direct evidence distinguishes")
+                .contains("standardLibrary.studentFeedbackRules")
+                .contains("current blocking root cause")
+                .contains("secondary issues")
+                .contains("distracting signals")
                 .contains("teachingHint.studentHintPlan.teachingAction MUST come from standardLibrary.teachingActions")
                 .contains("Do not provide complete code");
     }

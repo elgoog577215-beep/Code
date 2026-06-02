@@ -6,6 +6,7 @@ import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
+import com.onlinejudge.submission.domain.SubmissionCaseResult;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import org.junit.jupiter.api.Test;
 
@@ -181,6 +182,72 @@ class DiagnosticAgentServiceTest {
         assertThat(result.analysis().getStudentHintPlan().getTeachingAction()).isEqualTo("COUNT_COMPLEXITY");
         assertThat(result.analysis().getStudentHintPlan().getNextAction()).contains("最大输入");
         assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isEqualTo("COMPLEXITY_ESTIMATE");
+    }
+
+    @Test
+    void modelSuccessKeepsStableContextEvidenceRefs() {
+        DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
+        DiagnosticAgentService service = new DiagnosticAgentService(
+                new DiagnosisEvidencePackageBuilder(),
+                new RuleSignalAnalyzer(),
+                new ModelOnlyEvidenceAiReportService(),
+                new PassThroughHintSafetyService(taxonomy),
+                taxonomy
+        );
+        Submission submission = Submission.builder()
+                .id(20L)
+                .languageName("Python 3")
+                .verdict(Submission.Verdict.WRONG_ANSWER)
+                .sourceCode("""
+                        n = int(input())
+                        dp = [0] * n
+                        for i in range(1, n):
+                            dp[i] = max(dp[i - 1], i)
+                        print(dp[-1])
+                        """)
+                .build();
+        Problem problem = Problem.builder()
+                .id(3L)
+                .title("不相邻选择最大和")
+                .description("需要设计状态表达选择约束和不同来源。")
+                .difficulty(Problem.Difficulty.MEDIUM)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build();
+        SubmissionAnalysisResponse baseline = SubmissionAnalysisResponse.builder()
+                .submissionId(20L)
+                .sourceType("FIXTURE_BASELINE")
+                .scenario("WA")
+                .issueTags(List.of("ALGORITHM_STRATEGY"))
+                .fineGrainedTags(List.of("DP_STATE_DESIGN"))
+                .evidenceRefs(List.of("problem:dp_state_needs_design"))
+                .build();
+
+        DiagnosticAgentService.AgentResult result = service.diagnose(
+                problem,
+                submission,
+                List.of(SubmissionCaseResult.builder()
+                        .testCaseNumber(1)
+                        .passed(false)
+                        .hidden(false)
+                        .inputSnapshot("5\n2 7 9 3 1")
+                        .actualOutput("9")
+                        .expectedOutput("12")
+                        .build()),
+                baseline,
+                Assignment.HintPolicy.L2
+        );
+
+        assertThat(result.analysis().getAiInvocation().isFallbackUsed()).isFalse();
+        assertThat(result.analysis().getIssueTags()).contains("ALGORITHM_STRATEGY");
+        assertThat(result.analysis().getFineGrainedTags()).contains("DP_STATE_DESIGN");
+        assertThat(result.analysis().getEvidenceRefs()).contains(
+                "model:dp_state_decision",
+                "problem:dp_state_needs_design",
+                "verdict:wrong_answer",
+                "judge:first_failed_case:1"
+        );
+        assertThat(result.analysis().getStudentHintPlan().getEvidenceRefs()).contains("verdict:wrong_answer");
     }
 
     @Test
@@ -620,6 +687,61 @@ class DiagnosticAgentServiceTest {
                     .answerLeakRisk("LOW")
                     .build());
             return fallback;
+        }
+    }
+
+    private static class ModelOnlyEvidenceAiReportService extends PassThroughAiReportService {
+        @Override
+        public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
+                                                                    Submission submission,
+                                                                    SubmissionAnalysisResponse fallback,
+                                                                    DiagnosisEvidencePackage evidencePackage,
+                                                                    RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+            return SubmissionAnalysisResponse.builder()
+                    .analysisSchemaVersion("diagnosis-v1")
+                    .evidenceSchemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
+                    .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
+                    .submissionId(submission.getId())
+                    .sourceType("AI_MODEL")
+                    .scenario("WA")
+                    .headline("DP 状态来源不足")
+                    .summary("模型选择了 DP 状态设计问题。")
+                    .issueTags(List.of("ALGORITHM_STRATEGY"))
+                    .fineGrainedTags(List.of("DP_STATE_DESIGN"))
+                    .evidenceRefs(List.of("model:dp_state_decision"))
+                    .studentHint("先说明 dp[i] 表示什么。")
+                    .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
+                            .hintLevel("L2")
+                            .problemType("动态规划状态设计")
+                            .evidenceAnchor("model:dp_state_decision")
+                            .nextAction("手推一个最小样例。")
+                            .coachQuestion("这个状态包含选择当前值的来源吗？")
+                            .teachingAction("DEFINE_STATE")
+                            .evidenceRefs(List.of("model:dp_state_decision"))
+                            .answerLeakRisk("LOW")
+                            .build())
+                    .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                            .interventionType("STATE_DEFINITION")
+                            .goal("确认状态语义。")
+                            .studentTask("写出 dp[i] 的含义。")
+                            .checkQuestion("状态是否覆盖不相邻约束？")
+                            .completionSignal("能说清状态来源。")
+                            .evidenceRefs(List.of("model:dp_state_decision"))
+                            .estimatedMinutes(6)
+                            .answerLeakRisk("LOW")
+                            .build())
+                    .confidence(0.83)
+                    .uncertainty("")
+                    .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                            .provider("MODEL_SCOPE")
+                            .model("deepseek-ai/DeepSeek-V4-Pro")
+                            .promptVersion("diagnosis-and-teaching-v2")
+                            .status("MODEL_COMPLETED")
+                            .fallbackUsed(false)
+                            .runtimeMode("single-call")
+                            .build())
+                    .answerLeakRisk("LOW")
+                    .build();
         }
     }
 }

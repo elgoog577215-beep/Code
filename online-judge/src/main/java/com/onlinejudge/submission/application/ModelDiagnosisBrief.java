@@ -1,5 +1,6 @@
 package com.onlinejudge.submission.application;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,6 +13,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ModelDiagnosisBrief {
 
     public static final String SCHEMA_VERSION = "model-diagnosis-brief-v1";
@@ -39,6 +41,7 @@ public class ModelDiagnosisBrief {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class VisibleCaseFact {
         private Integer testCaseNumber;
         private Boolean passed;
@@ -53,6 +56,7 @@ public class ModelDiagnosisBrief {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class CandidateSignal {
         private String evidenceRef;
         private String issueTag;
@@ -65,6 +69,7 @@ public class ModelDiagnosisBrief {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class HiddenDataBoundary {
         private Boolean hiddenFailureObserved;
         private Boolean hiddenInputVisible;

@@ -9,13 +9,13 @@
 - 持久化 Coach 模型草稿被安全拒绝的结构化信号。
 - 在 Coach prompt API 响应中返回模型失败原因和模型 `answerLeakRisk`。
 - 在 Coach 交互摘要中输出安全拒绝计数、最近原因、证据引用和 `needsTeacherAttention`。
+- 在班级 Coach 回答质量汇总中显示安全回退计数，让教师可见。
 - 保持现有规则 fallback 行为不变：学生仍只看到安全的规则追问。
 
 **Non-Goals:**
 
 - 不新增新的安全判定策略。
 - 不引入新的安全事件表。
-- 不修改前端展示。
 - 不改变学生回答质量分析中的 `SAFETY_RISK` 语义。
 
 ## Decisions
@@ -32,6 +32,10 @@
 ### 交互摘要区分两类安全风险
 
 `CoachAnswerQualitySignal.SAFETY_RISK` 继续表示学生回答疑似越界；新增 `CoachSafetyRejectionSignal` 表示 AI 模型追问草稿被安全门拒绝。两者都可要求教师关注，但来源不同。
+
+### 复用现有 Coach 回答质量卡片
+
+班级 `CoachAnswerQualityClassSummary` 新增 `coachSafetyRejectionCount`，教师端在现有 Coach 回答质量指标中显示“安全回退”。这样教师能看到模型追问安全门触发，不需要新增独立面板。
 
 ### 证据引用使用 prompt 与 submission 级别
 

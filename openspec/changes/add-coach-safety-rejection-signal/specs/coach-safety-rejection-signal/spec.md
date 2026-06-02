@@ -40,3 +40,15 @@
 - **WHEN** 系统汇总没有安全拒绝记录的 Coach 交互
 - **THEN** `coachSafetyRejectionSignal` SHALL 表示健康或为空计数
 - **AND** 原有学生回答质量信号 SHALL 保持兼容
+
+### Requirement: 班级 Coach 质量汇总必须展示安全回退
+
+系统 SHALL 在班级 Coach 回答质量汇总中统计 Coach 模型追问安全拒绝事件，让教师能在现有 Coach 质量卡片中发现模型安全问题。
+
+#### Scenario: 班级内存在 Coach 安全拒绝
+
+- **GIVEN** 作业内至少一条 Coach 交互摘要包含 `coachSafetyRejectionSignal.rejectionCount > 0`
+- **WHEN** 教师查看作业概览
+- **THEN** `coachAnswerQualitySummary` SHALL 包含 `coachSafetyRejectionCount`
+- **AND** summary SHALL 描述模型追问已被安全门拒绝并回退
+- **AND** evidenceRefs SHALL 包含 `coach_prompt:<id>` 或 `coach_safety_rejection:submission:<submissionId>`

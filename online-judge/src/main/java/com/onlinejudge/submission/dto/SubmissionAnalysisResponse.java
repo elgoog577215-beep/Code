@@ -29,6 +29,7 @@ public class SubmissionAnalysisResponse {
     private List<String> evidenceRefs;
     private String studentHint;
     private StudentHintPlan studentHintPlan;
+    private StudentFeedback studentFeedback;
     private LearningInterventionPlan learningInterventionPlan;
     private String teacherNote;
     private String progressSignal;
@@ -80,6 +81,69 @@ public class SubmissionAnalysisResponse {
         private String nextAction;
         private String coachQuestion;
         private String teachingAction;
+        private List<String> evidenceRefs;
+        private String answerLeakRisk;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StudentFeedback {
+        private String summary;
+        private List<FeedbackIssue> blockingIssues;
+        private List<SecondaryIssue> secondaryIssues;
+        private List<ImprovementOpportunity> improvementOpportunities;
+        private NextLearningAction nextLearningAction;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FeedbackIssue {
+        private Integer priority;
+        private String title;
+        private String studentMessage;
+        private String evidence;
+        private String nextAction;
+        private String issueTag;
+        private String fineGrainedTag;
+        private List<String> evidenceRefs;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SecondaryIssue {
+        private String title;
+        private String studentMessage;
+        private String whyNotPrimary;
+        private String issueTag;
+        private List<String> evidenceRefs;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ImprovementOpportunity {
+        private String category;
+        private String studentMessage;
+        private String benefit;
+        private List<String> evidenceRefs;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class NextLearningAction {
+        private String hintLevel;
+        private String action;
+        private String task;
+        private String checkQuestion;
         private List<String> evidenceRefs;
         private String answerLeakRisk;
     }
@@ -158,5 +222,18 @@ public class SubmissionAnalysisResponse {
         private String taxonomyVersion;
         private String status;
         private boolean fallbackUsed;
+        private String runtimeMode;
+        private String runtimeProfile;
+        private Integer requestBytes;
+        private Boolean requestCompact;
+        private String failureStage;
+        private String failureReason;
+        private String transportMode;
+        private Integer streamChunkCount;
+        private Integer streamContentChunkCount;
+        private Integer streamReasoningChunkCount;
+        private Integer streamInvalidChunkCount;
+        private String streamFinishReason;
+        private Boolean streamFallbackRetryUsed;
     }
 }

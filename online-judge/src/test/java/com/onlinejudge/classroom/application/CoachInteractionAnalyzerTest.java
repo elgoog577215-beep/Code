@@ -36,6 +36,9 @@ class CoachInteractionAnalyzerTest {
         assertThat(summary.getAnswerQualitySignal().getUnderstandingLevel()).isEqualTo("VERIFICATION");
         assertThat(summary.getAnswerQualitySignal().getVerifiable()).isTrue();
         assertThat(summary.getAnswerQualitySignal().getEvidenceTypes()).contains("MIN_CASE", "COMPLEXITY_ESTIMATE");
+        assertThat(summary.getCoachSafetyRejectionSignal()).isNotNull();
+        assertThat(summary.getCoachSafetyRejectionSignal().getStatus()).isEqualTo("HEALTHY");
+        assertThat(summary.getCoachSafetyRejectionSignal().getRejectionCount()).isZero();
     }
 
     @Test
@@ -48,6 +51,26 @@ class CoachInteractionAnalyzerTest {
 
         assertThat(latest.getSubmissionId()).isEqualTo(12L);
         assertThat(latest.getStatus()).isEqualTo("ANSWERED");
+    }
+
+    @Test
+    void summarizesCoachSafetyRejectionSignalSeparatelyFromStudentAnswerQuality() {
+        repository.saved.add(prompt(1L, 31L, 1, "请先构造最小样例", null, null));
+        repository.saved.get(0).setModelFailureReason("SAFETY_REJECTED");
+        repository.saved.get(0).setModelAnswerLeakRisk("HIGH");
+
+        CoachInteractionSummaryResponse summary = analyzer.summarize(List.of(31L)).get(31L);
+
+        assertThat(summary.getStatus()).isEqualTo("PROMPTED");
+        assertThat(summary.getAnswerQualitySignal().getQualityLevel()).isEqualTo("NO_ANSWER");
+        assertThat(summary.getCoachSafetyRejectionSignal()).isNotNull();
+        assertThat(summary.getCoachSafetyRejectionSignal().getStatus()).isEqualTo("SAFETY_REJECTED");
+        assertThat(summary.getCoachSafetyRejectionSignal().getRejectionCount()).isEqualTo(1);
+        assertThat(summary.getCoachSafetyRejectionSignal().getLatestReason()).isEqualTo("SAFETY_REJECTED");
+        assertThat(summary.getCoachSafetyRejectionSignal().getLatestAnswerLeakRisk()).isEqualTo("HIGH");
+        assertThat(summary.getCoachSafetyRejectionSignal().isNeedsTeacherAttention()).isTrue();
+        assertThat(summary.getCoachSafetyRejectionSignal().getEvidenceRefs())
+                .contains("coach_prompt:1", "coach_safety_rejection:submission:31");
     }
 
     private CoachPrompt prompt(Long id, Long submissionId, Integer turnIndex, String question, String answer, String feedback) {

@@ -7,6 +7,7 @@ public enum ModelStageFailureReason {
     RATE_LIMITED,
     BUDGET_GUARD_OPEN,
     MODEL_UNSUPPORTED,
+    OUTPUT_TRUNCATED,
     EMPTY_RESPONSE,
     INVALID_JSON,
     INVALID_TAG,

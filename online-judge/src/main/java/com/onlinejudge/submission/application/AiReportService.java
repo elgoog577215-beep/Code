@@ -38,7 +38,7 @@ public class AiReportService {
     private static final String PROVIDER = "ModelScope";
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
     private static final String RUNTIME_PROMPT_VERSION = "diagnosis-judge-v2+teaching-hint-v1";
-    private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = "diagnosis-and-teaching-v2";
+    private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = "diagnosis-and-teaching-v3";
     private static final String RUNTIME_MODE_SINGLE_CALL = "single-call";
     private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^(\\d+):\\s?(.*)$", Pattern.MULTILINE);
     private static final Pattern REPORT_LINE_ISSUE_PATTERN = Pattern.compile(
@@ -51,6 +51,10 @@ public class AiReportService {
     private final ExternalModelAgentRuntime externalModelAgentRuntime;
     private final ExternalModelFailureClassifier failureClassifier;
     private final ExternalModelBudgetGuard budgetGuard;
+    private final ThreadLocal<ExternalModelCallTelemetry> lastCallTelemetry = ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
+    private final ThreadLocal<ExternalModelRequestContext> nextRequestContext =
+            ThreadLocal.withInitial(ExternalModelRequestContext::standard);
+    private final ThreadLocal<String> lastModelStageRawContent = ThreadLocal.withInitial(() -> "");
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -96,8 +100,11 @@ public class AiReportService {
     @Value("${ai.external-runtime-enabled:true}")
     private boolean externalRuntimeEnabled;
 
-    @Value("${ai.external-runtime-mode:staged}")
-    private String externalRuntimeMode;
+    @Value("${ai.external-runtime-mode:single-call}")
+    private String externalRuntimeMode = RUNTIME_MODE_SINGLE_CALL;
+
+    @Value("${ai.external-runtime-profile:standard}")
+    private String externalRuntimeProfile = ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD;
 
     @Value("${ai.max-output-tokens:900}")
     private int maxOutputTokens;
@@ -297,6 +304,7 @@ public class AiReportService {
                             .evidenceRefs(cleanList(fallback.getEvidenceRefs(), List.of()))
                             .studentHint(fallback.getStudentHint())
                             .studentHintPlan(fallback.getStudentHintPlan())
+                            .studentFeedback(fallback.getStudentFeedback())
                             .learningInterventionPlan(fallback.getLearningInterventionPlan())
                             .learningActionEvidence(fallback.getLearningActionEvidence())
                             .teacherNote(fallback.getTeacherNote())
@@ -334,6 +342,7 @@ public class AiReportService {
                     .evidenceRefs(cleanList(payload.evidenceRefs, fallback.getEvidenceRefs()))
                     .studentHint(defaultIfBlank(payload.studentHint, fallback.getStudentHint()))
                     .studentHintPlan(cleanHintPlan(payload.studentHintPlan, fallback.getStudentHintPlan()))
+                    .studentFeedback(fallback.getStudentFeedback())
                     .learningInterventionPlan(cleanInterventionPlan(payload.learningInterventionPlan, fallback.getLearningInterventionPlan()))
                     .learningActionEvidence(fallback.getLearningActionEvidence())
                     .teacherNote(defaultIfBlank(payload.teacherNote, fallback.getTeacherNote()))
@@ -386,7 +395,8 @@ public class AiReportService {
         ExternalModelAgentRuntime.RuntimePlan runtimePlan = externalModelAgentRuntime.prepare(
                 evidencePackage,
                 ruleSignals,
-                fallback
+                fallback,
+                externalRuntimeProfile
         );
         if (useSingleCallRuntime()) {
             return enhanceWithSingleCallRuntime(
@@ -408,6 +418,7 @@ public class AiReportService {
         ExternalModelStagePayloads.StageValidationResult decisionValidation =
                 withStage("DIAGNOSIS_JUDGE", externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan));
         if (!decisionValidation.isValid()) {
+            decisionValidation = withTransportAttribution(decisionValidation);
             log.warn("External model diagnosis stage failed validation. submissionId={}, reason={}, message={}",
                     submission.getId(),
                     decisionValidation.getFailureReason(),
@@ -432,6 +443,7 @@ public class AiReportService {
         ExternalModelStagePayloads.StageValidationResult teachingValidation =
                 withStage("TEACHING_HINT", externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan));
         if (!teachingValidation.isValid()) {
+            teachingValidation = withTransportAttribution(teachingValidation);
             log.warn("External model teaching stage failed validation. submissionId={}, reason={}, message={}",
                     submission.getId(),
                     teachingValidation.getFailureReason(),
@@ -451,6 +463,7 @@ public class AiReportService {
                 runtimePlan,
                 decision,
                 teachingHint,
+                null,
                 rawSourceCode,
                 baselineLineIssues
         );
@@ -461,6 +474,7 @@ public class AiReportService {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("brief", runtimePlan.getBrief());
         request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        activateRuntimePlan(runtimePlan);
         String content = chatCompletion(
                 runtimePlan.getDiagnosisPrompt().getSystemPrompt(),
                 objectMapper.writeValueAsString(request)
@@ -484,12 +498,31 @@ public class AiReportService {
         } catch (Exception exception) {
             return runtimeFallback(fallback, stageFailureFromException("DIAGNOSIS_AND_TEACHING", exception));
         }
+        if (combinedOutput == null) {
+            ExternalModelStagePayloads.DiagnosisJudgeOutput retainedDecision =
+                    retainDiagnosisDecisionFromTruncatedSingleCall(runtimePlan);
+            if (retainedDecision != null) {
+                return buildPartialRuntimeAnalysisResponse(
+                        fallback,
+                        runtimePlan,
+                        retainedDecision,
+                        withStage("DIAGNOSIS_AND_TEACHING", ExternalModelStagePayloads.StageValidationResult.builder()
+                                .valid(false)
+                                .failureReason(ModelStageFailureReason.OUTPUT_TRUNCATED)
+                                .message("Single-call output was truncated after a valid diagnosisDecision.")
+                                .build()),
+                        rawSourceCode,
+                        baselineLineIssues
+                );
+            }
+        }
 
         ExternalModelStagePayloads.DiagnosisJudgeOutput decision =
                 combinedOutput == null ? null : combinedOutput.getDiagnosisDecision();
         ExternalModelStagePayloads.StageValidationResult decisionValidation =
                 withStage("DIAGNOSIS_AND_TEACHING", externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan));
         if (!decisionValidation.isValid()) {
+            decisionValidation = withTransportAttribution(decisionValidation);
             log.warn("External model single-call diagnosis failed validation. submissionId={}, reason={}, message={}",
                     submission.getId(),
                     decisionValidation.getFailureReason(),
@@ -502,6 +535,7 @@ public class AiReportService {
         ExternalModelStagePayloads.StageValidationResult teachingValidation =
                 withStage("DIAGNOSIS_AND_TEACHING", externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan));
         if (!teachingValidation.isValid()) {
+            teachingValidation = withTransportAttribution(teachingValidation);
             log.warn("External model single-call teaching failed validation. submissionId={}, reason={}, message={}",
                     submission.getId(),
                     teachingValidation.getFailureReason(),
@@ -516,11 +550,36 @@ public class AiReportService {
             );
         }
 
+        SubmissionAnalysisResponse.StudentFeedback studentFeedback =
+                combinedOutput == null ? null : combinedOutput.getStudentFeedback();
+        ExternalModelStagePayloads.StageValidationResult feedbackValidation =
+                withStage("DIAGNOSIS_AND_TEACHING", externalModelAgentRuntime.validateStudentFeedback(
+                        studentFeedback,
+                        decision,
+                        runtimePlan
+                ));
+        if (!feedbackValidation.isValid()) {
+            feedbackValidation = withTransportAttribution(feedbackValidation);
+            log.warn("External model single-call student feedback failed validation. submissionId={}, reason={}, message={}",
+                    submission.getId(),
+                    feedbackValidation.getFailureReason(),
+                    feedbackValidation.getMessage());
+            return buildPartialRuntimeAnalysisResponse(
+                    fallback,
+                    runtimePlan,
+                    decision,
+                    feedbackValidation,
+                    rawSourceCode,
+                    baselineLineIssues
+            );
+        }
+
         SubmissionAnalysisResponse response = buildRuntimeAnalysisResponse(
                 fallback,
                 runtimePlan,
                 decision,
                 teachingHint,
+                studentFeedback,
                 rawSourceCode,
                 baselineLineIssues
         );
@@ -533,11 +592,42 @@ public class AiReportService {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("brief", runtimePlan.getBrief());
         request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        activateRuntimePlan(runtimePlan);
         String content = chatCompletion(
                 runtimePlan.getSingleCallPrompt().getSystemPrompt(),
                 objectMapper.writeValueAsString(request)
         );
         return parseModelStagePayload(content, ExternalModelStagePayloads.CombinedOutput.class);
+    }
+
+    private ExternalModelStagePayloads.DiagnosisJudgeOutput retainDiagnosisDecisionFromTruncatedSingleCall(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (!"length".equalsIgnoreCase(defaultIfBlank(lastCallTelemetry.get().streamFinishReason(), ""))) {
+            return null;
+        }
+        String fragment = extractJsonObjectField(lastModelStageRawContent.get(), "diagnosisDecision");
+        if (fragment.isBlank()) {
+            return null;
+        }
+        ExternalModelStagePayloads.DiagnosisJudgeOutput decision;
+        try {
+            decision = objectMapper.readValue(fragment, ExternalModelStagePayloads.DiagnosisJudgeOutput.class);
+            decision = externalModelAgentRuntime.normalizeDiagnosisDecision(decision, runtimePlan);
+        } catch (JsonProcessingException exception) {
+            log.warn("Truncated single-call diagnosisDecision extraction failed. error={}, contentPreview={}",
+                    exception.getMessage(),
+                    previewBody(fragment));
+            return null;
+        }
+        ExternalModelStagePayloads.StageValidationResult validation =
+                externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan);
+        if (validation == null || !validation.isValid()) {
+            log.warn("Truncated single-call diagnosisDecision failed validation. reason={}, message={}",
+                    validation == null ? ModelStageFailureReason.UNKNOWN_ERROR : validation.getFailureReason(),
+                    validation == null ? "" : validation.getMessage());
+            return null;
+        }
+        return decision;
     }
 
     private ExternalModelStagePayloads.TeachingHintOutput callTeachingHintStage(
@@ -548,6 +638,7 @@ public class AiReportService {
         request.put("brief", runtimePlan.getBrief());
         request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
         request.put("diagnosisDecision", decision);
+        activateRuntimePlan(runtimePlan);
         String content = chatCompletion(
                 runtimePlan.getTeachingPrompt().getSystemPrompt(),
                 objectMapper.writeValueAsString(request)
@@ -560,6 +651,7 @@ public class AiReportService {
             ExternalModelAgentRuntime.RuntimePlan runtimePlan,
             ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
             ExternalModelStagePayloads.TeachingHintOutput teachingHint,
+            SubmissionAnalysisResponse.StudentFeedback studentFeedback,
             String rawSourceCode,
             List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues) {
         String primaryIssueTag = cleanupAiText(decision.getPrimaryIssueTag()).toUpperCase();
@@ -593,6 +685,7 @@ public class AiReportService {
                 .studentHintPlan(alignedTeachingHint.getStudentHintPlan() == null
                         ? fallback.getStudentHintPlan()
                         : alignedTeachingHint.getStudentHintPlan())
+                .studentFeedback(studentFeedback)
                 .learningInterventionPlan(alignedTeachingHint.getLearningInterventionPlan() == null
                         ? fallback.getLearningInterventionPlan()
                         : alignedTeachingHint.getLearningInterventionPlan())
@@ -801,10 +894,17 @@ public class AiReportService {
                 runtimePlan,
                 decision,
                 localTeachingHint,
+                null,
                 rawSourceCode,
                 baselineLineIssues
         );
-        response.setAiInvocation(modelInvocation(fallback, "MODEL_PARTIAL_COMPLETED", false, activeRuntimePromptVersion()));
+        response.setAiInvocation(modelInvocation(
+                fallback,
+                "MODEL_PARTIAL_COMPLETED",
+                false,
+                activeRuntimePromptVersion(),
+                teachingFailure
+        ));
         response.setUncertainty(appendFailureNote(
                 response.getUncertainty(),
                 "教学提示阶段由本地安全模板补齐",
@@ -820,6 +920,24 @@ public class AiReportService {
 
     private boolean useSingleCallRuntime() {
         return RUNTIME_MODE_SINGLE_CALL.equalsIgnoreCase(cleanupAiText(externalRuntimeMode));
+    }
+
+    private void activateRuntimePlan(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (runtimePlan == null) {
+            nextRequestContext.set(ExternalModelRequestContext.standard());
+            lastCallTelemetry.set(ExternalModelCallTelemetry.empty());
+            return;
+        }
+        ExternalModelRequestContext context = new ExternalModelRequestContext(
+                runtimePlan.getRuntimeProfile(),
+                runtimePlan.isRequestCompact()
+        );
+        nextRequestContext.set(context);
+        lastCallTelemetry.set(ExternalModelCallTelemetry.request(
+                context.runtimeProfile(),
+                context.requestCompact(),
+                0
+        ));
     }
 
     private String activeRuntimePromptVersion() {
@@ -1013,20 +1131,50 @@ public class AiReportService {
         if (fallback == null) {
             return null;
         }
-        String reason = validationResult == null || validationResult.getFailureReason() == null
+        ExternalModelStagePayloads.StageValidationResult attributionResult =
+                withTransportAttribution(validationResult);
+        String reason = attributionResult == null || attributionResult.getFailureReason() == null
                 ? ModelStageFailureReason.UNKNOWN_ERROR.name()
-                : validationResult.getFailureReason().name();
-        String stage = validationResult == null || validationResult.getStage() == null || validationResult.getStage().isBlank()
+                : attributionResult.getFailureReason().name();
+        String stage = attributionResult == null || attributionResult.getStage() == null || attributionResult.getStage().isBlank()
                 ? "UNKNOWN_STAGE"
-                : validationResult.getStage();
-        String message = validationResult == null ? "" : cleanupAiText(validationResult.getMessage());
-        fallback.setAiInvocation(modelInvocation(fallback, "MODEL_RUNTIME_FALLBACK", true, activeRuntimePromptVersion()));
+                : attributionResult.getStage();
+        String message = attributionResult == null ? "" : cleanupAiText(attributionResult.getMessage());
+        fallback.setAiInvocation(modelInvocation(
+                fallback,
+                "MODEL_RUNTIME_FALLBACK",
+                true,
+                activeRuntimePromptVersion(),
+                attributionResult
+        ));
         fallback.setUncertainty(defaultIfBlank(
                 "外部模型阶段化诊断未通过校验，已使用本地规则兜底。失败阶段：" + stage + "；失败原因：" + reason
                         + (message.isBlank() ? "" : "，" + message),
                 fallback.getUncertainty()
         ));
         return fallback;
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult withTransportAttribution(
+            ExternalModelStagePayloads.StageValidationResult result) {
+        if (result == null) {
+            return null;
+        }
+        if (!"length".equalsIgnoreCase(defaultIfBlank(lastCallTelemetry.get().streamFinishReason(), ""))) {
+            return result;
+        }
+        ModelStageFailureReason reason = result.getFailureReason();
+        if (reason != ModelStageFailureReason.EMPTY_RESPONSE
+                && reason != ModelStageFailureReason.INVALID_JSON
+                && reason != ModelStageFailureReason.UNKNOWN_ERROR) {
+            return result;
+        }
+        return ExternalModelStagePayloads.StageValidationResult.builder()
+                .valid(false)
+                .stage(result.getStage())
+                .failureReason(ModelStageFailureReason.OUTPUT_TRUNCATED)
+                .message(defaultIfBlank(result.getMessage(), "External model output ended with finish_reason=length."))
+                .build();
     }
 
     private ExternalModelStagePayloads.StageValidationResult withStage(String stage,
@@ -1114,18 +1262,26 @@ public class AiReportService {
     }
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
+        ExternalModelRequestContext requestContext = nextRequestContext.get();
+        nextRequestContext.set(ExternalModelRequestContext.standard());
+        lastCallTelemetry.set(ExternalModelCallTelemetry.request(
+                requestContext.runtimeProfile(),
+                requestContext.requestCompact(),
+                0
+        ));
         ExternalModelBudgetGuard.Decision decision = budgetGuard.check(PROVIDER, model);
         if (!decision.allowed()) {
             throw new IOException(decision.message());
         }
         try {
-            String content = doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled);
+            String content = doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled, requestContext);
             budgetGuard.recordSuccess(PROVIDER, model);
             return content;
         } catch (IOException exception) {
             if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
                 log.warn("Retrying AI chat completion with stream=true after non-stream response was unusable. model={}", model);
-                String content = doChatCompletionWithRetry(systemPrompt, userPrompt, true);
+                String content = doChatCompletionWithRetry(systemPrompt, userPrompt, true, requestContext);
+                lastCallTelemetry.set(lastCallTelemetry.get().withFallbackRetryUsed(true));
                 budgetGuard.recordSuccess(PROVIDER, model);
                 return content;
             }
@@ -1136,12 +1292,13 @@ public class AiReportService {
 
     private String doChatCompletionWithRetry(String systemPrompt,
                                              String userPrompt,
-                                             boolean stream) throws IOException, InterruptedException {
+                                             boolean stream,
+                                             ExternalModelRequestContext requestContext) throws IOException, InterruptedException {
         int attempts = Math.max(1, retryMaxAttempts);
         IOException lastException = null;
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
-                return doChatCompletion(systemPrompt, userPrompt, stream);
+                return doChatCompletion(systemPrompt, userPrompt, stream, requestContext);
             } catch (IOException exception) {
                 lastException = exception;
                 if (attempt >= attempts || !isRetryableCallFailure(exception)) {
@@ -1162,7 +1319,8 @@ public class AiReportService {
 
     private String doChatCompletion(String systemPrompt,
                                     String userPrompt,
-                                    boolean stream) throws IOException, InterruptedException {
+                                    boolean stream,
+                                    ExternalModelRequestContext requestContext) throws IOException, InterruptedException {
         Map<String, Object> requestBody = new LinkedHashMap<>();
         requestBody.put("model", model);
         requestBody.put("messages", List.of(
@@ -1178,11 +1336,27 @@ public class AiReportService {
                 Math.max(timeoutSeconds, 5),
                 stream,
                 endpoint);
+        String activeProfile = requestContext.runtimeProfile();
+        boolean activeCompact = requestContext.requestCompact();
 
-        String responseBody = sendChatCompletionRequest(objectMapper.writeValueAsString(requestBody), stream);
-        String content = stream
-                ? extractStreamingChatMessageContent(responseBody)
-                : extractChatMessageContent(objectMapper.readTree(responseBody));
+        String serializedRequest = objectMapper.writeValueAsString(requestBody);
+        int requestBytes = serializedRequest.getBytes(StandardCharsets.UTF_8).length;
+        lastCallTelemetry.set((stream
+                ? ExternalModelCallTelemetry.stream(0, 0, 0, 0, "")
+                : ExternalModelCallTelemetry.nonStream("")).withRequestTelemetry(requestBytes, activeProfile, activeCompact));
+
+        String responseBody = sendChatCompletionRequest(serializedRequest, stream);
+        String content;
+        if (stream) {
+            ParsedStreamingContent parsed = extractStreamingChatMessageContent(responseBody);
+            content = parsed.content();
+            lastCallTelemetry.set(parsed.telemetry().withRequestTelemetry(requestBytes, activeProfile, activeCompact));
+        } else {
+            JsonNode root = objectMapper.readTree(responseBody);
+            content = extractChatMessageContent(root);
+            lastCallTelemetry.set(ExternalModelCallTelemetry.nonStream(extractFinishReason(root.path("choices").path(0)))
+                    .withRequestTelemetry(requestBytes, activeProfile, activeCompact));
+        }
         if (content.isBlank()) {
             log.warn("AI response did not include usable message content. bodyPreview={}",
                     previewBody(responseBody));
@@ -1252,11 +1426,16 @@ public class AiReportService {
         );
     }
 
-    private String extractStreamingChatMessageContent(String responseBody) throws IOException {
+    private ParsedStreamingContent extractStreamingChatMessageContent(String responseBody) throws IOException {
         if (responseBody == null || responseBody.isBlank()) {
-            return "";
+            return new ParsedStreamingContent("", ExternalModelCallTelemetry.stream(0, 0, 0, 0, ""));
         }
         StringBuilder content = new StringBuilder();
+        int chunkCount = 0;
+        int contentChunkCount = 0;
+        int reasoningChunkCount = 0;
+        int invalidChunkCount = 0;
+        String finishReason = "";
         String[] lines = responseBody.replace("\r\n", "\n").replace('\r', '\n').split("\n");
         for (String line : lines) {
             String trimmed = line == null ? "" : line.trim();
@@ -1267,7 +1446,9 @@ public class AiReportService {
             if (payload.isBlank() || "[DONE]".equals(payload)) {
                 continue;
             }
+            chunkCount++;
             if (!payload.startsWith("{")) {
+                invalidChunkCount++;
                 continue;
             }
             JsonNode root;
@@ -1275,14 +1456,31 @@ public class AiReportService {
                 root = objectMapper.readTree(payload);
             } catch (JsonProcessingException exception) {
                 log.debug("Skipping unparsable AI stream chunk. chunkPreview={}", previewBody(payload));
+                invalidChunkCount++;
                 continue;
             }
-            String chunk = extractStreamingChoiceContent(root.path("choices").path(0));
+            JsonNode choice = root.path("choices").path(0);
+            finishReason = firstNonBlank(finishReason, extractFinishReason(choice));
+            String reasoningChunk = extractStreamingChoiceReasoning(choice);
+            if (!reasoningChunk.isEmpty()) {
+                reasoningChunkCount++;
+            }
+            String chunk = extractStreamingChoiceContent(choice);
             if (!chunk.isEmpty()) {
                 content.append(chunk);
+                contentChunkCount++;
             }
         }
-        return content.toString();
+        return new ParsedStreamingContent(
+                content.toString(),
+                ExternalModelCallTelemetry.stream(
+                        chunkCount,
+                        contentChunkCount,
+                        reasoningChunkCount,
+                        invalidChunkCount,
+                        finishReason
+                )
+        );
     }
 
     private String extractStreamingChoiceContent(JsonNode firstChoice) {
@@ -1295,6 +1493,17 @@ public class AiReportService {
             return messageContent;
         }
         return extractContentNode(firstChoice.path("text"));
+    }
+
+    private String extractStreamingChoiceReasoning(JsonNode firstChoice) {
+        return firstNonBlank(
+                extractContentNode(firstChoice.path("delta").path("reasoning_content")),
+                extractContentNode(firstChoice.path("message").path("reasoning_content"))
+        );
+    }
+
+    private String extractFinishReason(JsonNode firstChoice) {
+        return extractContentNode(firstChoice.path("finish_reason"));
     }
 
     private String extractContentNode(JsonNode contentNode) {
@@ -1336,6 +1545,7 @@ public class AiReportService {
 
     private <T> T parseModelStagePayload(String rawContent, Class<T> payloadType) {
         String normalized = cleanupAiText(rawContent);
+        lastModelStageRawContent.set(normalized);
         try {
             return objectMapper.readValue(normalized, payloadType);
         } catch (JsonProcessingException firstError) {
@@ -1353,6 +1563,63 @@ public class AiReportService {
             }
             return null;
         }
+    }
+
+    private String extractJsonObjectField(String rawContent, String fieldName) {
+        String normalized = cleanupAiText(rawContent);
+        String fieldToken = "\"" + fieldName + "\"";
+        int fieldIndex = normalized.indexOf(fieldToken);
+        if (fieldIndex < 0) {
+            return "";
+        }
+        int colonIndex = normalized.indexOf(':', fieldIndex + fieldToken.length());
+        if (colonIndex < 0) {
+            return "";
+        }
+        int objectStart = normalized.indexOf('{', colonIndex + 1);
+        if (objectStart < 0) {
+            return "";
+        }
+        int objectEnd = findBalancedObjectEnd(normalized, objectStart);
+        if (objectEnd <= objectStart) {
+            return "";
+        }
+        return normalized.substring(objectStart, objectEnd + 1);
+    }
+
+    private int findBalancedObjectEnd(String text, int objectStart) {
+        if (text == null || objectStart < 0 || objectStart >= text.length() || text.charAt(objectStart) != '{') {
+            return -1;
+        }
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int index = objectStart; index < text.length(); index++) {
+            char current = text.charAt(index);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (current == '\\') {
+                    escaped = true;
+                } else if (current == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (current == '"') {
+                inString = true;
+                continue;
+            }
+            if (current == '{') {
+                depth++;
+            } else if (current == '}') {
+                depth--;
+                if (depth == 0) {
+                    return index;
+                }
+            }
+        }
+        return -1;
     }
 
     private String previewBody(String body) {
@@ -1713,6 +1980,16 @@ public class AiReportService {
                                                                     String status,
                                                                     boolean fallbackUsed,
                                                                     String promptVersion) {
+        return modelInvocation(fallback, status, fallbackUsed, promptVersion, null);
+    }
+
+    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
+                                                                    String status,
+                                                                    boolean fallbackUsed,
+                                                                    String promptVersion,
+                                                                    ExternalModelStagePayloads.StageValidationResult failure) {
+        ExternalModelCallTelemetry telemetry = lastCallTelemetry.get();
+        int requestBytes = telemetry.requestBytes() == null ? 0 : telemetry.requestBytes();
         return SubmissionAnalysisResponse.AiInvocation.builder()
                 .provider(PROVIDER)
                 .model(model)
@@ -1726,7 +2003,151 @@ public class AiReportService {
                 .taxonomyVersion(fallback == null ? null : fallback.getTaxonomyVersion())
                 .status(status)
                 .fallbackUsed(fallbackUsed)
+                .runtimeMode(runtimeModeForPrompt(promptVersion))
+                .runtimeProfile(defaultIfBlank(telemetry.runtimeProfile(),
+                        ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD))
+                .requestBytes(requestBytes)
+                .requestCompact(Boolean.TRUE.equals(telemetry.requestCompact()))
+                .failureStage(failure == null ? "" : defaultIfBlank(failure.getStage(), "UNKNOWN_STAGE"))
+                .failureReason(failure == null || failure.getFailureReason() == null
+                        ? ""
+                        : failure.getFailureReason().name())
+                .transportMode(telemetry.transportMode())
+                .streamChunkCount(telemetry.streamChunkCount())
+                .streamContentChunkCount(telemetry.streamContentChunkCount())
+                .streamReasoningChunkCount(telemetry.streamReasoningChunkCount())
+                .streamInvalidChunkCount(telemetry.streamInvalidChunkCount())
+                .streamFinishReason(telemetry.streamFinishReason())
+                .streamFallbackRetryUsed(telemetry.streamFallbackRetryUsed())
                 .build();
+    }
+
+    private String runtimeModeForPrompt(String promptVersion) {
+        String version = cleanupAiText(promptVersion);
+        if (SINGLE_CALL_RUNTIME_PROMPT_VERSION.equals(version)) {
+            return RUNTIME_MODE_SINGLE_CALL;
+        }
+        if (RUNTIME_PROMPT_VERSION.equals(version)) {
+            return "staged";
+        }
+        return "legacy-long-prompt";
+    }
+
+    private record ParsedStreamingContent(String content, ExternalModelCallTelemetry telemetry) {
+    }
+
+    private record ExternalModelRequestContext(String runtimeProfile, boolean requestCompact) {
+        ExternalModelRequestContext {
+            runtimeProfile = runtimeProfile == null || runtimeProfile.isBlank()
+                    ? ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD
+                    : runtimeProfile;
+        }
+
+        static ExternalModelRequestContext standard() {
+            return new ExternalModelRequestContext(ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD, false);
+        }
+    }
+
+    private record ExternalModelCallTelemetry(String transportMode,
+                                              Integer streamChunkCount,
+                                              Integer streamContentChunkCount,
+                                              Integer streamReasoningChunkCount,
+                                              Integer streamInvalidChunkCount,
+                                              String streamFinishReason,
+                                              Boolean streamFallbackRetryUsed,
+                                              Integer requestBytes,
+                                              String runtimeProfile,
+                                              Boolean requestCompact) {
+        static ExternalModelCallTelemetry empty() {
+            return request(ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD, false, 0);
+        }
+
+        static ExternalModelCallTelemetry request(String runtimeProfile,
+                                                  boolean requestCompact,
+                                                  int requestBytes) {
+            return new ExternalModelCallTelemetry(
+                    "",
+                    0,
+                    0,
+                    0,
+                    0,
+                    "",
+                    false,
+                    Math.max(0, requestBytes),
+                    runtimeProfile == null || runtimeProfile.isBlank()
+                            ? ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD
+                            : runtimeProfile,
+                    requestCompact
+            );
+        }
+
+        static ExternalModelCallTelemetry nonStream(String finishReason) {
+            return new ExternalModelCallTelemetry(
+                    "non-stream",
+                    0,
+                    0,
+                    0,
+                    0,
+                    finishReason == null ? "" : finishReason,
+                    false,
+                    0,
+                    ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD,
+                    false
+            );
+        }
+
+        static ExternalModelCallTelemetry stream(int chunkCount,
+                                                 int contentChunkCount,
+                                                 int reasoningChunkCount,
+                                                 int invalidChunkCount,
+                                                 String finishReason) {
+            return new ExternalModelCallTelemetry(
+                    "stream",
+                    Math.max(0, chunkCount),
+                    Math.max(0, contentChunkCount),
+                    Math.max(0, reasoningChunkCount),
+                    Math.max(0, invalidChunkCount),
+                    finishReason == null ? "" : finishReason,
+                    false,
+                    0,
+                    ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD,
+                    false
+            );
+        }
+
+        ExternalModelCallTelemetry withFallbackRetryUsed(boolean fallbackRetryUsed) {
+            return new ExternalModelCallTelemetry(
+                    transportMode,
+                    streamChunkCount,
+                    streamContentChunkCount,
+                    streamReasoningChunkCount,
+                    streamInvalidChunkCount,
+                    streamFinishReason,
+                    fallbackRetryUsed,
+                    requestBytes,
+                    runtimeProfile,
+                    requestCompact
+            );
+        }
+
+        ExternalModelCallTelemetry withRequestTelemetry(int requestBytes,
+                                                        String runtimeProfile,
+                                                        boolean requestCompact) {
+            return new ExternalModelCallTelemetry(
+                    transportMode,
+                    streamChunkCount,
+                    streamContentChunkCount,
+                    streamReasoningChunkCount,
+                    streamInvalidChunkCount,
+                    streamFinishReason,
+                    streamFallbackRetryUsed,
+                    Math.max(0, requestBytes),
+                    runtimeProfile == null || runtimeProfile.isBlank()
+                            ? ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD
+                            : runtimeProfile,
+                    requestCompact
+            );
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

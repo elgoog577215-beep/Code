@@ -67,6 +67,12 @@ public class ExternalModelFailureClassifier {
                 || normalized.contains("unsupported model")) {
             return ModelStageFailureReason.MODEL_UNSUPPORTED;
         }
+        if (normalized.contains("output_truncated")
+                || normalized.contains("finish_reason=length")
+                || normalized.contains("finish reason length")
+                || normalized.contains("streamfinishreason=length")) {
+            return ModelStageFailureReason.OUTPUT_TRUNCATED;
+        }
         if (normalized.contains("json")) {
             return ModelStageFailureReason.INVALID_JSON;
         }

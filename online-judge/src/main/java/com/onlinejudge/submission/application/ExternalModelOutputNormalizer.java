@@ -62,7 +62,52 @@ public class ExternalModelOutputNormalizer {
         }
         output.setDiagnosisDecision(normalizeDiagnosisDecision(output.getDiagnosisDecision(), runtimePlan));
         output.setTeachingHint(normalizeTeachingHint(output.getTeachingHint(), runtimePlan));
+        output.setStudentFeedback(normalizeStudentFeedback(output.getStudentFeedback(), runtimePlan));
         return output;
+    }
+
+    public SubmissionAnalysisResponse.StudentFeedback normalizeStudentFeedback(
+            SubmissionAnalysisResponse.StudentFeedback feedback,
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (feedback == null) {
+            return null;
+        }
+        ModelDiagnosisBrief brief = runtimePlan == null ? null : runtimePlan.getBrief();
+        StandardLibraryPack standardLibraryPack = runtimePlan == null ? null : runtimePlan.getStandardLibraryPack();
+        Set<String> improvementTags = improvementTagLookup(
+                standardLibraryPack == null ? null : standardLibraryPack.getImprovementTags());
+        if (feedback.getBlockingIssues() != null) {
+            feedback.getBlockingIssues().forEach(issue -> {
+                if (issue == null) {
+                    return;
+                }
+                issue.setEvidenceRefs(normalizeEvidenceRefs(issue.getEvidenceRefs(), brief));
+            });
+        }
+        if (feedback.getSecondaryIssues() != null) {
+            feedback.getSecondaryIssues().forEach(issue -> {
+                if (issue == null) {
+                    return;
+                }
+                issue.setEvidenceRefs(normalizeEvidenceRefs(issue.getEvidenceRefs(), brief));
+            });
+        }
+        if (feedback.getImprovementOpportunities() != null) {
+            feedback.getImprovementOpportunities().forEach(item -> {
+                if (item == null) {
+                    return;
+                }
+                item.setCategory(resolveImprovementTag(item.getCategory(), improvementTags));
+                item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), brief));
+            });
+        }
+        if (feedback.getNextLearningAction() != null) {
+            feedback.getNextLearningAction().setEvidenceRefs(
+                    normalizeEvidenceRefs(feedback.getNextLearningAction().getEvidenceRefs(), brief));
+            feedback.getNextLearningAction().setAnswerLeakRisk(
+                    normalizeRisk(feedback.getNextLearningAction().getAnswerLeakRisk()));
+        }
+        return feedback;
     }
 
     private String resolveTag(String rawValue, List<StandardLibraryPack.TagOption> options) {
@@ -140,6 +185,28 @@ public class ExternalModelOutputNormalizer {
                     .forEach(id -> ids.add(id.trim()));
         }
         return ids;
+    }
+
+    private Set<String> improvementTagLookup(List<StandardLibraryPack.ImprovementTagOption> tags) {
+        Set<String> ids = new LinkedHashSet<>();
+        if (tags != null) {
+            tags.stream()
+                    .map(StandardLibraryPack.ImprovementTagOption::getId)
+                    .filter(id -> id != null && !id.isBlank())
+                    .forEach(id -> ids.add(id.trim()));
+        }
+        return ids;
+    }
+
+    private String resolveImprovementTag(String rawValue, Set<String> allowedTags) {
+        if (rawValue == null || rawValue.isBlank() || allowedTags == null || allowedTags.isEmpty()) {
+            return rawValue;
+        }
+        String key = normalizeKey(rawValue);
+        return allowedTags.stream()
+                .filter(tag -> normalizeKey(tag).equals(key))
+                .findFirst()
+                .orElse(rawValue);
     }
 
     private String resolveAction(String rawValue, Set<String> allowedActions) {

@@ -162,6 +162,51 @@ class ModelOutputValidatorTest {
     }
 
     @Test
+    void acceptsValidStudentFeedback() {
+        Fixture fixture = fixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateStudentFeedback(
+                validStudentFeedback("TESTING_HABIT", "列出 range 产生的 i。"),
+                validDecision(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.NONE);
+    }
+
+    @Test
+    void rejectsInvalidStudentFeedbackImprovementCategory() {
+        Fixture fixture = fixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateStudentFeedback(
+                validStudentFeedback("MADE_UP_IMPROVEMENT", "列出 range 产生的 i。"),
+                validDecision(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
+    }
+
+    @Test
+    void rejectsUnsafeStudentFeedbackEvenWhenRiskIsMarkedLow() {
+        Fixture fixture = fixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateStudentFeedback(
+                validStudentFeedback("TESTING_HABIT", "直接改成 range(1, n + 1)。"),
+                validDecision(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
     void runtimePlanCarriesBriefLibraryAndPromptVersions() {
         Fixture fixture = fixture();
         ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
@@ -181,7 +226,7 @@ class ModelOutputValidatorTest {
         assertThat(plan.getStandardLibraryPack().getSchemaVersion()).isEqualTo(StandardLibraryPack.SCHEMA_VERSION);
         assertThat(plan.getDiagnosisPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_JUDGE_V2);
         assertThat(plan.getTeachingPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.TEACHING_HINT_V1);
-        assertThat(plan.getSingleCallPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V2);
+        assertThat(plan.getSingleCallPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
     }
 
     private ExternalModelStagePayloads.DiagnosisJudgeOutput validDecision() {
@@ -190,6 +235,38 @@ class ModelOutputValidatorTest {
                 .fineGrainedTag("OFF_BY_ONE")
                 .evidenceRefs(List.of("code:range_excludes_n"))
                 .answerLeakRisk("LOW")
+                .build();
+    }
+
+    private SubmissionAnalysisResponse.StudentFeedback validStudentFeedback(String improvementCategory,
+                                                                            String nextAction) {
+        return SubmissionAnalysisResponse.StudentFeedback.builder()
+                .summary("这次主要问题是循环边界没有覆盖题目要求。")
+                .blockingIssues(List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
+                        .priority(1)
+                        .title("当前最需要先处理的问题")
+                        .studentMessage("循环边界和题目要求不一致，先手推最小样例。")
+                        .evidence("code:range_excludes_n")
+                        .nextAction(nextAction)
+                        .issueTag("LOOP_BOUNDARY")
+                        .fineGrainedTag("OFF_BY_ONE")
+                        .evidenceRefs(List.of("code:range_excludes_n"))
+                        .build()))
+                .secondaryIssues(List.of())
+                .improvementOpportunities(List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                        .category(improvementCategory)
+                        .studentMessage("通过后补一个最小边界自测。")
+                        .benefit("能提前发现边界遗漏。")
+                        .evidenceRefs(List.of("code:range_excludes_n"))
+                        .build()))
+                .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                        .hintLevel("L2")
+                        .action("TRACE_VARIABLES")
+                        .task(nextAction)
+                        .checkQuestion("当 n=1 时循环执行几次？")
+                        .evidenceRefs(List.of("code:range_excludes_n"))
+                        .answerLeakRisk("LOW")
+                        .build())
                 .build();
     }
 

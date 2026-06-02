@@ -3,10 +3,12 @@ package com.onlinejudge.classroom.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.classroom.domain.ClassReviewFeedback;
+import com.onlinejudge.classroom.domain.CoachPrompt;
 import com.onlinejudge.classroom.domain.HintSafetyCheck;
 import com.onlinejudge.classroom.domain.TeacherDiagnosisCorrection;
 import com.onlinejudge.classroom.persistence.AssignmentRepository;
 import com.onlinejudge.classroom.persistence.ClassReviewFeedbackRepository;
+import com.onlinejudge.classroom.persistence.CoachPromptRepository;
 import com.onlinejudge.classroom.persistence.HintSafetyCheckRepository;
 import com.onlinejudge.classroom.persistence.TeacherDiagnosisCorrectionRepository;
 import com.onlinejudge.leaderboard.persistence.ProblemSubmissionStatsProjection;
@@ -35,6 +37,7 @@ class AiQualityTrendServiceTest {
     private final FakeTeacherDiagnosisCorrectionRepository correctionRepository = new FakeTeacherDiagnosisCorrectionRepository();
     private final FakeClassReviewFeedbackRepository classReviewFeedbackRepository = new FakeClassReviewFeedbackRepository();
     private final FakeHintSafetyCheckRepository hintSafetyCheckRepository = new FakeHintSafetyCheckRepository();
+    private final FakeCoachPromptRepository coachPromptRepository = new FakeCoachPromptRepository();
     private final DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AiQualityTrendService service = new AiQualityTrendService(
@@ -44,6 +47,7 @@ class AiQualityTrendServiceTest {
             correctionRepository,
             classReviewFeedbackRepository,
             hintSafetyCheckRepository,
+            coachPromptRepository,
             new DiagnosisReportReader(objectMapper, taxonomy),
             taxonomy
     );
@@ -56,8 +60,11 @@ class AiQualityTrendServiceTest {
         submissionRepository.items.add(submission(12L, 7L));
         submissionRepository.items.add(submission(21L, 8L));
         analysisRepository.save(analysis(11L, 0.55, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
-        analysisRepository.save(analysis(12L, 0.82, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
-        analysisRepository.save(analysis(21L, 0.72, "HIGH", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]", "RULE_FALLBACK", true));
+        analysisRepository.save(analysis(12L, 0.82, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_PARTIAL_COMPLETED", false,
+                "single-call", "TEACHING_HINT", "SAFETY_RISK"));
+        analysisRepository.save(analysis(21L, 0.72, "HIGH", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]", "MODEL_RUNTIME_FALLBACK", true,
+                "single-call", "DIAGNOSIS_AND_TEACHING", "INSUFFICIENT_QUOTA",
+                "stream", 0, 0, 2, false));
         correctionRepository.saved.add(correction(1L, 7L, 11L, "BOUNDARY_CONDITION", "OFF_BY_ONE", "IO_FORMAT", "INPUT_PARSING", true));
         correctionRepository.saved.add(correction(2L, 8L, 21L, "BOUNDARY_CONDITION", "OFF_BY_ONE", "IO_FORMAT", "INPUT_PARSING", false));
 
@@ -69,10 +76,18 @@ class AiQualityTrendServiceTest {
         assertThat(trend.getEvalCandidateCount()).isEqualTo(1);
         assertThat(trend.getLowConfidenceCount()).isEqualTo(1);
         assertThat(trend.getHighLeakRiskCount()).isEqualTo(1);
+        assertThat(trend.getModelCompletedCount()).isEqualTo(1);
+        assertThat(trend.getModelPartialCount()).isEqualTo(1);
+        assertThat(trend.getModelRuntimeFailureCount()).isEqualTo(1);
+        assertThat(trend.getModelRuntimeFailureRate()).isEqualTo(33.3);
         assertThat(trend.getCorrectionRate()).isEqualTo(66.7);
         assertThat(trend.getSummary()).contains("高泄题风险");
         assertThat(trend.getAssignments()).extracting("assignmentTitle").containsExactly("边界作业", "输入作业");
         assertThat(trend.getAssignments().get(0).getCorrectionRate()).isEqualTo(50.0);
+        assertThat(trend.getAssignments().get(0).getModelCompletedCount()).isEqualTo(1);
+        assertThat(trend.getAssignments().get(0).getModelPartialCount()).isEqualTo(1);
+        assertThat(trend.getAssignments().get(0).getModelRuntimeFailureCount()).isZero();
+        assertThat(trend.getAssignments().get(1).getModelRuntimeFailureCount()).isEqualTo(1);
         assertThat(trend.getCorrectedTags()).first()
                 .satisfies(tag -> {
                     assertThat(tag.getTag()).isEqualTo("INPUT_PARSING");
@@ -85,29 +100,118 @@ class AiQualityTrendServiceTest {
                     assertThat(tag.getTag()).isEqualTo("INPUT_PARSING");
                     assertThat(tag.getCount()).isEqualTo(1);
                 });
-        assertThat(trend.getSourceSegments()).hasSize(2);
-        assertThat(trend.getSourceSegments().get(0))
+        assertThat(trend.getSourceSegments()).hasSize(3);
+        assertThat(trend.getSourceSegments()).filteredOn(segment -> "MODEL_COMPLETED".equals(segment.getStatus()))
+                .first()
                 .satisfies(segment -> {
                     assertThat(segment.getSourceType()).isEqualTo("TEST");
                     assertThat(segment.getProvider()).isEqualTo("ModelScope");
                     assertThat(segment.getModelVersion()).isEqualTo("MiniMax/MiniMax-M2.7");
                     assertThat(segment.getPromptVersion()).isEqualTo("submission-diagnosis-prompt-v2");
                     assertThat(segment.getAgentVersion()).isEqualTo("diagnostic-agent-v2");
+                    assertThat(segment.getRuntimeMode()).isEqualTo("single-call");
                     assertThat(segment.getVersionLabel()).contains("submission-diagnosis-prompt-v2");
-                    assertThat(segment.getAnalyzedSubmissionCount()).isEqualTo(2);
+                    assertThat(segment.getAnalyzedSubmissionCount()).isEqualTo(1);
                     assertThat(segment.getCorrectionCount()).isEqualTo(1);
                     assertThat(segment.getLowConfidenceCount()).isEqualTo(1);
                     assertThat(segment.getHighLeakRiskCount()).isZero();
                     assertThat(segment.getFallbackCount()).isZero();
-                    assertThat(segment.getCorrectionRate()).isEqualTo(50.0);
+                    assertThat(segment.getModelCompletedCount()).isEqualTo(1);
+                    assertThat(segment.getModelPartialCount()).isZero();
+                    assertThat(segment.getModelRuntimeFailureCount()).isZero();
+                    assertThat(segment.getCorrectionRate()).isEqualTo(100.0);
                 });
-        assertThat(trend.getSourceSegments().get(1))
+        assertThat(trend.getSourceSegments()).filteredOn(segment -> "MODEL_PARTIAL_COMPLETED".equals(segment.getStatus()))
+                .first()
                 .satisfies(segment -> {
-                    assertThat(segment.getStatus()).isEqualTo("RULE_FALLBACK");
+                    assertThat(segment.getRuntimeMode()).isEqualTo("single-call");
+                    assertThat(segment.getFailureStage()).isEqualTo("TEACHING_HINT");
+                    assertThat(segment.getFailureReason()).isEqualTo("SAFETY_RISK");
+                    assertThat(segment.getModelPartialCount()).isEqualTo(1);
+                    assertThat(segment.getModelRuntimeFailureCount()).isZero();
+                    assertThat(segment.getAnalyzedSubmissionCount()).isEqualTo(1);
+                    assertThat(segment.getQualityComparabilityStatus()).isEqualTo("NOT_COMPARABLE");
+                    assertThat(segment.getQualityComparabilityReasons()).contains(
+                            "current recovery blocked",
+                            "partial model outputs present"
+                    );
+                });
+        assertThat(trend.getSourceSegments()).filteredOn(segment -> "MODEL_RUNTIME_FALLBACK".equals(segment.getStatus()))
+                .first()
+                .satisfies(segment -> {
+                    assertThat(segment.getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
+                    assertThat(segment.getRuntimeMode()).isEqualTo("single-call");
+                    assertThat(segment.getFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+                    assertThat(segment.getFailureReason()).isEqualTo("INSUFFICIENT_QUOTA");
+                    assertThat(segment.getTransportMode()).isEqualTo("stream");
                     assertThat(segment.getFallbackCount()).isEqualTo(1);
+                    assertThat(segment.getModelRuntimeFailureCount()).isEqualTo(1);
+                    assertThat(segment.getModelRuntimeFailureRate()).isEqualTo(100.0);
+                    assertThat(segment.getStreamNoContentCount()).isEqualTo(1);
+                    assertThat(segment.getStreamInvalidChunkCount()).isEqualTo(2);
+                    assertThat(segment.getStreamFallbackRetryCount()).isZero();
+                    assertThat(segment.getRecoveryStatus()).isEqualTo("BLOCKED");
+                    assertThat(segment.getRecoveryCheckCount()).isEqualTo(6);
+                    assertThat(segment.getRecoveryPassedCheckCount()).isZero();
+                    assertThat(segment.getRecoverySmokeRequiredChecks()).contains(
+                            "status=MODEL_COMPLETED",
+                            "fallbackUsed=false",
+                            "modelHit=true",
+                            "evidenceRefs present",
+                            "answerLeakRisk!=HIGH",
+                            "streamContentChunkCount>0"
+                    );
+                    assertThat(segment.getRecoveryBlockedReasons()).contains(
+                            "submission:21: runtime fallback",
+                            "submission:21: model not completed",
+                            "submission:21: safety failed",
+                            "submission:21: stream content chunk missing",
+                            "submission:21: INSUFFICIENT_QUOTA"
+                    );
+                    assertThat(segment.getQualityComparabilityStatus()).isEqualTo("NOT_COMPARABLE");
+                    assertThat(segment.getQualityComparabilityReasonCount()).isGreaterThanOrEqualTo(4);
+                    assertThat(segment.getQualityComparabilityReasons()).contains(
+                            "current recovery blocked",
+                            "model hits missing; fallback hits present",
+                            "runtime failures still present"
+                    );
+                    assertThat(segment.getQualityComparabilitySummary()).contains("不能代表真实外部模型质量");
                     assertThat(segment.getAnalyzedSubmissionCount()).isEqualTo(1);
                     assertThat(segment.getCorrectionCount()).isEqualTo(1);
                     assertThat(segment.getHighLeakRiskCount()).isEqualTo(1);
+                });
+    }
+
+    @Test
+    void marksRecoveredSourceQualityComparableAndPartialWhenSameSourceHasRecoveredModelSample() {
+        assignmentRepository.items.put(37L, Assignment.builder().id(37L).title("恢复趋势作业").build());
+        submissionRepository.items.add(submission(371L, 37L));
+        submissionRepository.items.add(submission(372L, 37L));
+        analysisRepository.save(analysis(371L, 0.80, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
+                "MODEL_PARTIAL_COMPLETED", false, "low-latency", "TEACHING_HINT", "SAFETY_RISK",
+                "stream", 0, 0, 0, false));
+        analysisRepository.save(analysis(372L, 0.86, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
+                "MODEL_COMPLETED", false, "low-latency", "", "",
+                "stream", 12, 6, 0, false));
+
+        var trend = service.buildTrend();
+
+        assertThat(trend.getSourceSegments()).filteredOn(segment -> "MODEL_COMPLETED".equals(segment.getStatus()))
+                .first()
+                .satisfies(segment -> {
+                    assertThat(segment.getRecoveryStatus()).isEqualTo("RECOVERED");
+                    assertThat(segment.getQualityComparabilityStatus()).isEqualTo("COMPARABLE");
+                    assertThat(segment.getQualityComparabilityReasonCount()).isZero();
+                    assertThat(segment.getQualityComparabilityReasons()).isEmpty();
+                    assertThat(segment.getQualityComparabilitySummary()).contains("可支持小批量模型质量对比");
+                });
+        assertThat(trend.getSourceSegments()).filteredOn(segment -> "MODEL_PARTIAL_COMPLETED".equals(segment.getStatus()))
+                .first()
+                .satisfies(segment -> {
+                    assertThat(segment.getRecoveryStatus()).isEqualTo("RECOVERED");
+                    assertThat(segment.getQualityComparabilityStatus()).isEqualTo("PARTIAL");
+                    assertThat(segment.getQualityComparabilityReasons()).contains("partial model outputs present");
+                    assertThat(segment.getQualityComparabilitySummary()).contains("部分真实模型证据");
                 });
     }
 
@@ -173,38 +277,44 @@ class AiQualityTrendServiceTest {
         hintSafetyCheckRepository.saved.add(safetyCheck(1001L, 61L, "MEDIUM"));
         hintSafetyCheckRepository.saved.add(safetyCheck(1002L, 62L, "LOW"));
         hintSafetyCheckRepository.saved.add(safetyCheck(1003L, 71L, "HIGH"));
+        coachPromptRepository.saved.add(coachPrompt(2001L, 71L, "SAFETY_REJECTED", "HIGH"));
+        coachPromptRepository.saved.add(coachPrompt(2002L, 61L, "", ""));
 
         var trend = service.buildTrend();
 
-        assertThat(trend.getPromptSafetyIncidentCount()).isEqualTo(3);
+        assertThat(trend.getPromptSafetyIncidentCount()).isEqualTo(4);
         assertThat(trend.getPromptSafetyDowngradeCount()).isEqualTo(2);
         assertThat(trend.getPromptSafetyHighRiskDowngradeCount()).isEqualTo(1);
-        assertThat(trend.getPromptSafetyIncidentRate()).isEqualTo(100.0);
+        assertThat(trend.getCoachSafetyRejectionCount()).isEqualTo(1);
+        assertThat(trend.getPromptSafetyIncidentRate()).isEqualTo(133.3);
         assertThat(trend.getAssignments()).filteredOn(point -> Objects.equals(point.getAssignmentId(), 27L))
                 .first()
                 .satisfies(point -> {
                     assertThat(point.getPromptSafetyIncidentCount()).isEqualTo(2);
                     assertThat(point.getPromptSafetyDowngradeCount()).isEqualTo(1);
                     assertThat(point.getPromptSafetyHighRiskDowngradeCount()).isZero();
+                    assertThat(point.getCoachSafetyRejectionCount()).isZero();
                     assertThat(point.getPromptSafetyIncidentRate()).isEqualTo(100.0);
                     assertThat(point.getSummary()).contains("高泄题风险");
                 });
         assertThat(trend.getAssignments()).filteredOn(point -> Objects.equals(point.getAssignmentId(), 28L))
                 .first()
                 .satisfies(point -> {
-                    assertThat(point.getPromptSafetyIncidentCount()).isEqualTo(1);
+                    assertThat(point.getPromptSafetyIncidentCount()).isEqualTo(2);
                     assertThat(point.getPromptSafetyDowngradeCount()).isEqualTo(1);
                     assertThat(point.getPromptSafetyHighRiskDowngradeCount()).isEqualTo(1);
-                    assertThat(point.getSummary()).contains("提示安全降级");
+                    assertThat(point.getCoachSafetyRejectionCount()).isEqualTo(1);
+                    assertThat(point.getSummary()).contains("安全降级", "Coach 安全回退");
                 });
         assertThat(trend.getSourceSegments()).first()
                 .satisfies(segment -> {
                     assertThat(segment.getAnalyzedSubmissionCount()).isEqualTo(3);
                     assertThat(segment.getHighLeakRiskCount()).isEqualTo(1);
-                    assertThat(segment.getPromptSafetyIncidentCount()).isEqualTo(3);
+                    assertThat(segment.getPromptSafetyIncidentCount()).isEqualTo(4);
                     assertThat(segment.getPromptSafetyDowngradeCount()).isEqualTo(2);
                     assertThat(segment.getPromptSafetyHighRiskDowngradeCount()).isEqualTo(1);
-                    assertThat(segment.getPromptSafetyIncidentRate()).isEqualTo(100.0);
+                    assertThat(segment.getCoachSafetyRejectionCount()).isEqualTo(1);
+                    assertThat(segment.getPromptSafetyIncidentRate()).isEqualTo(133.3);
                 });
     }
 
@@ -231,6 +341,48 @@ class AiQualityTrendServiceTest {
                                         String fineTags,
                                         String status,
                                         boolean fallbackUsed) {
+        return analysis(submissionId, confidence, leakRisk, issueTags, fineTags, status, fallbackUsed,
+                "single-call", "", "");
+    }
+
+    private SubmissionAnalysis analysis(Long submissionId,
+                                        double confidence,
+                                        String leakRisk,
+                                        String issueTags,
+                                        String fineTags,
+                                        String status,
+                                        boolean fallbackUsed,
+                                        String runtimeMode,
+                                        String failureStage,
+                                        String failureReason) {
+        return analysis(submissionId, confidence, leakRisk, issueTags, fineTags, status, fallbackUsed,
+                runtimeMode, failureStage, failureReason, "", 0, 0, 0, false);
+    }
+
+    private SubmissionAnalysis analysis(Long submissionId,
+                                        double confidence,
+                                        String leakRisk,
+                                        String issueTags,
+                                        String fineTags,
+                                        String status,
+                                        boolean fallbackUsed,
+                                        String runtimeMode,
+                                        String failureStage,
+                                        String failureReason,
+                                        String transportMode,
+                                        int streamChunkCount,
+                                        int streamContentChunkCount,
+                                        int streamInvalidChunkCount,
+                                        boolean streamFallbackRetryUsed) {
+        String transportTelemetryJson = transportMode == null || transportMode.isBlank() ? "" : """
+                            ,
+                            "transportMode": "%s",
+                            "streamChunkCount": %s,
+                            "streamContentChunkCount": %s,
+                            "streamInvalidChunkCount": %s,
+                            "streamFallbackRetryUsed": %s
+                """.formatted(transportMode, streamChunkCount, streamContentChunkCount, streamInvalidChunkCount,
+                streamFallbackRetryUsed);
         return SubmissionAnalysis.builder()
                 .submissionId(submissionId)
                 .analysisSource("TEST")
@@ -244,6 +396,7 @@ class AiQualityTrendServiceTest {
                           "fineGrainedTags": %s,
                           "confidence": %s,
                           "answerLeakRisk": "%s",
+                          "evidenceRefs": ["eval:submission:%s"],
                           "diagnosticTrace": "diagnostic-agent-v2 signals=2 evidenceRefs=3 source=TEST model=completed",
                           "aiInvocation": {
                             "provider": "ModelScope",
@@ -255,10 +408,15 @@ class AiQualityTrendServiceTest {
                             "evidenceSchemaVersion": "diagnosis-evidence-v1",
                             "taxonomyVersion": "diagnosis-taxonomy-v1",
                             "status": "%s",
-                            "fallbackUsed": %s
+                            "fallbackUsed": %s,
+                            "runtimeMode": "%s",
+                            "failureStage": "%s",
+                            "failureReason": "%s"
+                            %s
                           }
                         }
-                        """.formatted(issueTags, fineTags, confidence, leakRisk, status, fallbackUsed))
+                        """.formatted(issueTags, fineTags, confidence, leakRisk, submissionId, status, fallbackUsed, runtimeMode, failureStage,
+                        failureReason, transportTelemetryJson))
                 .build();
     }
 
@@ -311,6 +469,22 @@ class AiQualityTrendServiceTest {
                 .originalHint("直接改成完整答案")
                 .safeHint("先比较样例输出和变量变化")
                 .checkedAt(LocalDateTime.of(2026, 5, 18, 12, 30))
+                .build();
+    }
+
+    private CoachPrompt coachPrompt(Long id, Long submissionId, String failureReason, String leakRisk) {
+        return CoachPrompt.builder()
+                .id(id)
+                .submissionId(submissionId)
+                .assignmentId(99L)
+                .studentProfileId(7L)
+                .turnIndex(1)
+                .hintPolicy("L2")
+                .promptType("SOCRATIC_NEXT_STEP")
+                .question("请先补一个最小样例。")
+                .modelFailureReason(failureReason)
+                .modelAnswerLeakRisk(leakRisk)
+                .createdAt(LocalDateTime.of(2026, 5, 18, 12, 40))
                 .build();
     }
 
@@ -518,6 +692,35 @@ class AiQualityTrendServiceTest {
 
         @Override
         public List<HintSafetyCheck> findBySubmissionIdIn(Collection<Long> submissionIds) {
+            return saved.stream()
+                    .filter(item -> submissionIds.contains(item.getSubmissionId()))
+                    .toList();
+        }
+    }
+
+    private static class FakeCoachPromptRepository extends UnsupportedJpaRepository<CoachPrompt, Long>
+            implements CoachPromptRepository {
+        private final List<CoachPrompt> saved = new ArrayList<>();
+
+        @Override
+        public Optional<CoachPrompt> findTopBySubmissionIdOrderByCreatedAtDesc(Long submissionId) {
+            return saved.stream()
+                    .filter(item -> Objects.equals(item.getSubmissionId(), submissionId))
+                    .reduce((left, right) -> right);
+        }
+
+        @Override
+        public List<CoachPrompt> findBySubmissionIdOrderByTurnIndexAscCreatedAtAsc(Long submissionId) {
+            return saved.stream()
+                    .filter(item -> Objects.equals(item.getSubmissionId(), submissionId))
+                    .sorted(Comparator
+                            .comparing(CoachPrompt::getTurnIndex, Comparator.nullsLast(Integer::compareTo))
+                            .thenComparing(CoachPrompt::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)))
+                    .toList();
+        }
+
+        @Override
+        public List<CoachPrompt> findBySubmissionIdIn(Collection<Long> submissionIds) {
             return saved.stream()
                     .filter(item -> submissionIds.contains(item.getSubmissionId()))
                     .toList();

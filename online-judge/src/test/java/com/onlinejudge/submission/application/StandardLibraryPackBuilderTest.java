@@ -30,6 +30,12 @@ class StandardLibraryPackBuilderTest {
         assertThat(pack.getTeachingActions())
                 .extracting(StandardLibraryPack.TeachingActionOption::getId)
                 .contains("CHECK_INVARIANT", "DEFINE_STATE", "COLLECT_EVIDENCE");
+        assertThat(pack.getImprovementTags())
+                .extracting(StandardLibraryPack.ImprovementTagOption::getId)
+                .contains("COMPLEXITY", "TESTING_HABIT", "CODE_CLARITY", "BOUNDARY_AWARENESS", "ROBUSTNESS", "DEBUG_CLEANUP");
+        assertThat(pack.getStudentFeedbackRules()).isNotNull();
+        assertThat(pack.getStudentFeedbackRules().getBlockingIssueRules())
+                .anySatisfy(rule -> assertThat(rule).contains("blockingIssues"));
         assertThat(pack.getDecisionProtocol()).isNotNull();
         assertThat(pack.getDecisionProtocol().getGlobalRules())
                 .anySatisfy(rule -> assertThat(rule).contains("most evidence-supported diagnosis"));

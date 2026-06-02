@@ -36,6 +36,8 @@ ai:
   model: ${AI_MODEL:deepseek-ai/DeepSeek-V4-Pro}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:25}
   external-runtime-enabled: ${AI_EXTERNAL_RUNTIME_ENABLED:true}
+  external-runtime-mode: ${AI_EXTERNAL_RUNTIME_MODE:single-call}
+  external-runtime-profile: ${AI_EXTERNAL_RUNTIME_PROFILE:standard}
   max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:900}
   stream-enabled: ${AI_STREAM_ENABLED:true}
   stream-fallback-enabled: ${AI_STREAM_FALLBACK_ENABLED:true}
