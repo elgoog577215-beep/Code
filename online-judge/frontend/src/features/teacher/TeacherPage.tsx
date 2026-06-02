@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChartNoAxesColumnIncreasing, Copy, PenLine, RefreshCw, RotateCw, Settings } from "lucide-react";
+import { ChartNoAxesColumnIncreasing, Copy, ExternalLink, PenLine, RefreshCw, RotateCw, Settings } from "lucide-react";
 import { ApiError, api } from "../../shared/api/client";
 import type {
   AiQualityDimension,
@@ -2077,6 +2077,15 @@ export default function TeacherPage() {
                 <ButtonLink to="/app/class-overview" variant="secondary" icon={<ChartNoAxesColumnIncreasing size={16} />}>
                   班级概览
                 </ButtonLink>
+                {selectedAssignment && (
+                  <ButtonLink
+                    to={`/app/teacher/assignment/${selectedAssignment.id}`}
+                    variant="primary"
+                    icon={<ExternalLink size={16} />}
+                  >
+                    作业详情
+                  </ButtonLink>
+                )}
               </div>
             </div>
 

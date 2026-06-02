@@ -503,12 +503,28 @@ const scenarios = [
     ],
     afterChecks: async page => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      record("entry top nav has student and teacher only", navLabels.join("|") === "学生|教师", navLabels.join("|"));
+      record("entry top nav has learning routes", navLabels.join("|") === "题库|学生|教师|邀请码", navLabels.join("|"));
       const entryText = ((await page.locator(".role-entry-grid--primary").textContent()) || "").replace(/\s+/g, "");
       record("entry grid has student column", entryText.includes("学生"), entryText);
       record("entry grid has teacher column", entryText.includes("教师"), entryText);
       record("entry grid omits separate management column", !entryText.includes("教师管理"), entryText);
     }
+  },
+  {
+    name: "catalog",
+    path: "/app/problems",
+    afterChecks: async page => {
+      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
+      const catalogText = ((await page.locator(".catalog-grid").first().textContent()) || "").replace(/\s+/g, "");
+      record("catalog nav is active", activeNav.includes("题库"), activeNav.join("|"));
+      record("catalog uses real problem catalog data", catalogText.includes("求和边界") && catalogText.includes("循环边界"), catalogText);
+      record("catalog formats memory as MB", catalogText.includes("64MB"), catalogText);
+    },
+    selectors: [
+      [".catalog-command", "catalog command"],
+      [".catalog-tools", "catalog filters"],
+      [".catalog-card", "catalog problem card"]
+    ]
   },
   {
     name: "student",
@@ -558,7 +574,7 @@ const scenarios = [
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
       const tabs = ((await page.locator(".teacher-mode-tabs").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher global nav remains two-role", navLabels.join("|") === "学生|教师", navLabels.join("|"));
+      record("teacher global nav includes learning routes", navLabels.join("|") === "题库|学生|教师|邀请码", navLabels.join("|"));
       record("teacher nav is active", activeNav.includes("教师"), activeNav.join("|"));
       record("teacher page has internal management tab", tabs.includes("课堂过程") && tabs.includes("管理"), tabs);
     },
@@ -571,6 +587,24 @@ const scenarios = [
       [".teacher-main-grid", "teacher classroom grid"],
       [".teacher-compact-details", "teacher compact details"],
       [".teacher-student-row", "teacher student row"]
+    ]
+  },
+  {
+    name: "assignment-detail",
+    path: "/app/teacher/assignment/7",
+    afterChecks: async page => {
+      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
+      const commandText = ((await page.locator(".assignment-detail-command").first().textContent()) || "").replace(/\s+/g, "");
+      record("assignment detail belongs to teacher nav", activeNav.includes("教师"), activeNav.join("|"));
+      record("assignment detail shows invite code", commandText.includes("WZAI01"), commandText);
+    },
+    selectors: [
+      [".assignment-detail-command", "assignment detail command"],
+      [".assignment-kpi-strip", "assignment kpi strip"],
+      [".assignment-focus-strip", "assignment focus strip"],
+      [".assignment-detail-grid", "assignment detail grid"],
+      [".assignment-student-panel", "assignment student panel"],
+      [".teacher-student-row", "assignment student row"]
     ]
   },
   {
@@ -621,8 +655,9 @@ const scenarios = [
 ];
 
 const viewports = [
-  { name: "desktop", width: 1366, height: 900 },
-  { name: "mobile", width: 390, height: 844 }
+  { name: "mobile", width: 390, height: 844 },
+  { name: "tablet", width: 820, height: 900 },
+  { name: "desktop", width: 1440, height: 900 }
 ];
 
 const checks = [];

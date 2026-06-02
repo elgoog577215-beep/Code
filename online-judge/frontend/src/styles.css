@@ -344,6 +344,24 @@ a {
   color: var(--brand-strong);
 }
 
+.role-entry-card--primary {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.role-entry-card--primary strong,
+.role-entry-card--primary span {
+  display: block;
+}
+
+.role-entry-card--primary strong {
+  margin-bottom: 0.18rem;
+}
+
+.role-entry-card--primary span {
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
 .role-entry-card > .actions,
 .role-entry-card > .ui-button {
   justify-self: end;
@@ -354,6 +372,168 @@ a {
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.65rem;
+}
+
+.catalog-page {
+  gap: 1rem;
+}
+
+.catalog-command,
+.catalog-tools,
+.assignment-detail-command,
+.assignment-focus-strip,
+.assignment-detail-grid > .teacher-block {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.catalog-command,
+.assignment-detail-command {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+  padding: 0.95rem 1.05rem;
+}
+
+.catalog-command h1,
+.assignment-detail-command h1 {
+  margin: 0.35rem 0 0;
+  font-size: clamp(1.65rem, 2.8vw, 2.45rem);
+  line-height: 1.08;
+}
+
+.catalog-command p:not(.eyebrow) {
+  margin: 0.42rem 0 0;
+  color: var(--ink-soft);
+}
+
+.catalog-tools {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.62fr) minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.75rem;
+}
+
+.catalog-search {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.52rem;
+  align-items: center;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.catalog-search svg {
+  color: var(--ink-soft);
+}
+
+.catalog-search .control {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.catalog-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  justify-content: flex-end;
+}
+
+.catalog-tabs button {
+  min-height: 44px;
+  padding: 0.42rem 0.68rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.catalog-tabs button:hover,
+.catalog-tabs button.is-active {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 62%, var(--surface-strong));
+}
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.82rem;
+}
+
+.catalog-card {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.58rem;
+  min-height: 178px;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.catalog-card h2 {
+  margin: 0;
+  font-size: 1.08rem;
+  line-height: 1.28;
+}
+
+.catalog-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.52;
+}
+
+.catalog-card .ui-button {
+  justify-self: start;
+  margin-top: auto;
+}
+
+.catalog-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.36rem;
+  align-items: center;
+}
+
+.catalog-card__meta > span:not(.status-pill) {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.catalog-card--loading span,
+.catalog-card--loading strong,
+.catalog-card--loading p {
+  display: block;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 58%, transparent);
+}
+
+.catalog-card--loading span {
+  width: 86px;
+  height: 26px;
+}
+
+.catalog-card--loading strong {
+  width: 70%;
+  height: 22px;
+}
+
+.catalog-card--loading p {
+  width: 92%;
+  height: 14px;
 }
 
 .role-entry--compact {
@@ -1306,12 +1486,12 @@ a {
 
 .teacher-mode-tab,
 .teacher-mode-tabs .ui-button {
-  min-height: 34px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.34rem;
-  padding: 0.38rem 0.62rem;
+  padding: 0.5rem 0.72rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-strong);
@@ -1382,9 +1562,9 @@ a {
 }
 
 .teacher-stage-toolbar .ui-button {
-  min-height: 34px;
-  padding: 0.38rem 0.58rem;
-  font-size: 0.84rem;
+  min-height: 44px;
+  padding: 0.52rem 0.72rem;
+  font-size: 0.88rem;
   box-shadow: none;
 }
 
@@ -2975,6 +3155,110 @@ a {
   min-height: 92px;
 }
 
+.assignment-detail-page {
+  max-width: 1440px;
+  width: 100%;
+  margin-inline: auto;
+}
+
+.assignment-detail-command {
+  align-items: center;
+}
+
+.assignment-detail-command .back-link {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  margin-bottom: 0.58rem;
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-weight: 850;
+}
+
+.assignment-detail-command .back-link:hover {
+  color: var(--brand-strong);
+}
+
+.assignment-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.46rem;
+  max-width: 480px;
+}
+
+.assignment-kpi-strip {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.assignment-focus-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.assignment-focus-strip article {
+  min-height: 78px;
+  display: grid;
+  align-content: center;
+  gap: 0.2rem;
+  padding: 0.82rem 0.92rem;
+  border-right: 1px solid var(--line);
+}
+
+.assignment-focus-strip article:last-child {
+  border-right: 0;
+}
+
+.assignment-focus-strip article.is-warning {
+  background: color-mix(in srgb, var(--warning-soft) 42%, var(--surface));
+}
+
+.assignment-focus-strip article.is-stable {
+  background: color-mix(in srgb, var(--success-soft) 34%, var(--surface));
+}
+
+.assignment-focus-strip span {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.assignment-focus-strip strong {
+  min-width: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.assignment-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.42fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.assignment-detail-grid > .teacher-block {
+  padding: 0.95rem;
+}
+
+.assignment-issue-panel {
+  position: sticky;
+  top: 5.2rem;
+}
+
+.assignment-student-panel {
+  gap: 0.72rem;
+}
+
+.assignment-correction-panel {
+  width: min(100%, 980px);
+  margin-inline: auto;
+}
+
 .teacher-config-drawer {
   overflow: clip;
   border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
@@ -3780,7 +4064,7 @@ a {
 }
 
 .ui-button {
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5778,6 +6062,11 @@ tr:last-child td {
   .role-entry,
   .role-entry-grid,
   .role-entry-grid--primary,
+  .catalog-command,
+  .catalog-tools,
+  .assignment-detail-command,
+  .assignment-focus-strip,
+  .assignment-detail-grid,
   .management-command,
   .management-console,
   .management-task-grid,
@@ -5885,6 +6174,10 @@ tr:last-child td {
   .teacher-system-drawer__chips {
     justify-content: flex-start;
   }
+
+  .assignment-issue-panel {
+    position: static;
+  }
 }
 
 @media (max-width: 760px) {
@@ -5981,6 +6274,13 @@ tr:last-child td {
   .role-entry-grid,
   .role-entry-grid--primary,
   .role-entry-card,
+  .role-entry-card--primary,
+  .catalog-command,
+  .catalog-tools,
+  .catalog-grid,
+  .assignment-detail-command,
+  .assignment-focus-strip,
+  .assignment-detail-grid,
   .management-command,
   .management-section-list,
   .management-form-row,
@@ -6008,6 +6308,31 @@ tr:last-child td {
   .role-entry-card > .actions,
   .role-entry-card > .ui-button {
     justify-self: stretch;
+  }
+
+  .catalog-command,
+  .assignment-detail-command {
+    align-items: start;
+  }
+
+  .catalog-command .ui-button,
+  .assignment-detail-actions,
+  .assignment-detail-actions .ui-button {
+    width: 100%;
+  }
+
+  .catalog-tabs {
+    justify-content: flex-start;
+  }
+
+  .catalog-tabs button {
+    flex: 1 1 74px;
+    min-height: 44px;
+  }
+
+  .assignment-focus-strip article,
+  .teacher-kpi-strip > div {
+    border-right: 0;
   }
 
   .role-entry-card > .ui-button,
@@ -6502,7 +6827,7 @@ tr:last-child td {
   .teacher-mode-tab,
   .teacher-mode-tabs .ui-button {
     flex: 0 0 auto;
-    min-height: 40px;
+    min-height: 44px;
   }
 
   .teacher-rail__head {
@@ -6560,7 +6885,7 @@ tr:last-child td {
   }
 
   .teacher-stage-toolbar .ui-button {
-    min-height: 40px;
+    min-height: 44px;
   }
 
   .teacher-kpi-strip {
