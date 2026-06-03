@@ -205,6 +205,7 @@ class ComplexStudentSubmissionEvalFixtureLoader {
                           String evalPurpose,
                           Integer lineCount,
                           Integer injectedBugCount,
+                          String semanticVariant,
                           Boolean verifiedByExecution,
                           Boolean correctSolutionVerified,
                           List<String> expectedMetrics,

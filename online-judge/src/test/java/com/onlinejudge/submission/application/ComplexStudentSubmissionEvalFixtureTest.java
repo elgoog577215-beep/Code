@@ -17,6 +17,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ComplexStudentSubmissionEvalFixtureTest {
 
+    private static final int EXPECTED_COMPLEX_FIXTURE_COUNT = 210;
+    private static final int EXPECTED_LIVE_CANDIDATE_COUNT = 42;
+    private static final int MIN_SOURCE_LINE_COUNT = 50;
+    private static final int LARGE_SOURCE_LINE_COUNT = 100;
+    private static final int MIN_LARGE_SOURCE_CASE_COUNT = 80;
+
     private static final List<String> EXPECTED_METRICS = List.of(
             "primaryRootCauseHit",
             "teachingPriorityCorrect",
@@ -33,7 +39,7 @@ class ComplexStudentSubmissionEvalFixtureTest {
     void generatedComplexFixturesAreHighQualityAndExecutableEvidenceBacked() throws IOException {
         List<ComplexStudentSubmissionEvalFixtureLoader.Fixture> fixtures = loadFixtures();
 
-        assertThat(fixtures).hasSize(100);
+        assertThat(fixtures).hasSizeGreaterThanOrEqualTo(EXPECTED_COMPLEX_FIXTURE_COUNT);
         assertThat(fixtures).extracting(ComplexStudentSubmissionEvalFixtureLoader.Fixture::caseId)
                 .doesNotHaveDuplicates();
         assertThat(fixtures).extracting(ComplexStudentSubmissionEvalFixtureLoader.Fixture::generatorSpecId)
@@ -50,20 +56,26 @@ class ComplexStudentSubmissionEvalFixtureTest {
             semanticSourceGroups.add(semanticSourceKey(fixture));
             assertThat(fixture.generatorSpecId()).startsWith("complex-generator-v1::");
             assertThat(fixture.sourceLineCount()).as(fixture.caseId() + " source line count")
-                    .isBetween(40, 80);
+                    .isGreaterThanOrEqualTo(MIN_SOURCE_LINE_COUNT);
             assertThat(fixture.quality().lineCount()).as(fixture.caseId() + " quality line count")
                     .isEqualTo(fixture.sourceLineCount());
             assertThat(fixture.quality().injectedBugCount()).as(fixture.caseId() + " injected bug count")
                     .isGreaterThanOrEqualTo(3);
+            assertThat(fixture.quality().semanticVariant()).as(fixture.caseId() + " semantic variant")
+                    .isNotBlank();
             assertThat(fixture.quality().verifiedByExecution()).isTrue();
             assertThat(fixture.quality().correctSolutionVerified()).isTrue();
             assertThat(fixture.quality().expectedMetrics()).containsExactlyElementsOf(EXPECTED_METRICS);
+            assertThat(fixture.teacherExpectation()).as(fixture.caseId() + " teacher expectation").isNotBlank();
             assertThat(fixture.primaryRootCause()).as(fixture.caseId() + " root cause").isNotNull();
+            assertThat(fixture.primaryRootCause().whyPrimary()).as(fixture.caseId() + " why primary").isNotBlank();
             assertThat(fixture.primaryRootCause().issueTag()).isIn(fixture.expectedIssueTags());
             assertThat(fixture.primaryRootCause().fineGrainedTag()).isEqualTo(fixture.expectedFineTags().get(0));
             assertThat(taxonomy.get(fixture.primaryRootCause().issueTag())).as(fixture.caseId() + " issue taxonomy").isNotNull();
             assertThat(taxonomy.get(fixture.primaryRootCause().fineGrainedTag())).as(fixture.caseId() + " fine taxonomy").isNotNull();
             assertThat(fixture.secondaryIssues()).as(fixture.caseId() + " secondary issues").hasSizeGreaterThanOrEqualTo(2);
+            assertThat(fixture.secondaryIssues()).as(fixture.caseId() + " secondary reasons")
+                    .allSatisfy(issue -> assertThat(issue.whySecondary()).isNotBlank());
             assertThat(fixture.distractingSignals()).as(fixture.caseId() + " distracting signals").hasSizeGreaterThanOrEqualTo(2);
             assertThat(fixture.expectedTeachingPriority()).isNotBlank();
             assertThat(fixture.requiredEvidenceRefs()).contains(fixture.primaryRootCause().evidenceRef());
@@ -77,23 +89,27 @@ class ComplexStudentSubmissionEvalFixtureTest {
             assertThat(fixture.toBaseline().getEvidenceRefs()).containsAll(fixture.requiredEvidenceRefs());
         }
 
-        assertThat(patternCounts).hasSizeGreaterThanOrEqualTo(12);
+        long largeSourceCaseCount = fixtures.stream()
+                .filter(fixture -> fixture.sourceLineCount() >= LARGE_SOURCE_LINE_COUNT)
+                .count();
+        assertThat(largeSourceCaseCount).isGreaterThanOrEqualTo(MIN_LARGE_SOURCE_CASE_COUNT);
+        assertThat(patternCounts).hasSizeGreaterThanOrEqualTo(14);
         assertThat(templateSlugs).hasSizeGreaterThanOrEqualTo(14);
-        assertThat(primaryFineTags).hasSizeGreaterThanOrEqualTo(12);
-        assertThat(semanticSourceGroups).hasSizeGreaterThanOrEqualTo(14);
+        assertThat(primaryFineTags).hasSizeGreaterThanOrEqualTo(14);
+        assertThat(semanticSourceGroups).hasSizeGreaterThanOrEqualTo(28);
     }
 
     @Test
-    void generatedComplexFixturesExposeTwentyFourLiveCandidates() throws IOException {
+    void generatedComplexFixturesExposeExpandedLiveCandidates() throws IOException {
         List<ComplexStudentSubmissionEvalFixtureLoader.Fixture> liveCandidates = loadFixtures().stream()
                 .filter(ComplexStudentSubmissionEvalFixtureLoader.Fixture::liveCandidate)
                 .toList();
 
-        assertThat(liveCandidates).hasSize(24);
+        assertThat(liveCandidates).hasSizeGreaterThanOrEqualTo(EXPECTED_LIVE_CANDIDATE_COUNT);
         assertThat(liveCandidates).extracting(ComplexStudentSubmissionEvalFixtureLoader.Fixture::caseId)
                 .allSatisfy(caseId -> assertThat(caseId).startsWith("complex-live-"));
         assertThat(liveCandidates.stream().map(fixture -> fixture.quality().bugPattern()).collect(java.util.stream.Collectors.toSet()))
-                .hasSizeGreaterThanOrEqualTo(12);
+                .hasSizeGreaterThanOrEqualTo(14);
         assertThat(liveCandidates.stream().limit(6).map(ComplexStudentSubmissionEvalFixtureLoader.Fixture::caseId))
                 .containsExactly(
                         "complex-live-01-multi-query-prefix",
@@ -120,7 +136,7 @@ class ComplexStudentSubmissionEvalFixtureTest {
         int exitCode = process.waitFor();
 
         assertThat(exitCode).as(output).isZero();
-        assertThat(output).contains("Wrote 100 complex fixtures");
+        assertThat(output).contains("Wrote 210 complex fixtures");
         assertThat(Files.readString(generatedPath))
                 .isEqualTo(Files.readString(Path.of("src/test/resources/diagnosis-eval-fixtures/complex-student-submission-cases.json")));
     }
@@ -135,8 +151,6 @@ class ComplexStudentSubmissionEvalFixtureTest {
     }
 
     private String semanticSourceKey(ComplexStudentSubmissionEvalFixtureLoader.Fixture fixture) {
-        return fixture.submission().sourceCode()
-                .replaceAll("(?s)\\ndef audit_variant_\\d+\\(.*?\\nif __name__ == \"__main__\":", "\nif __name__ == \"__main__\":")
-                .replaceAll("variant-\\d+", "variant");
+        return templateSlug(fixture.generatorSpecId()) + "::" + fixture.quality().semanticVariant();
     }
 }

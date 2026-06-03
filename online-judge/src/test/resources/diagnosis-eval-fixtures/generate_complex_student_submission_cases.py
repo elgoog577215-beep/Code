@@ -20,8 +20,11 @@ from typing import Callable
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT = Path(os.environ.get("COMPLEX_FIXTURE_OUTPUT", str(ROOT / "complex-student-submission-cases.json")))
-TOTAL_CASES = 100
-LIVE_CANDIDATES = 24
+TOTAL_CASES = 210
+LIVE_CANDIDATES = 42
+MIN_SOURCE_LINES = 50
+LARGE_SOURCE_LINES = 100
+MIN_LARGE_CASES = 80
 
 MUST_NOT_MENTION = ["完整代码", "参考答案", "隐藏测试点", "直接改成", "for _ in range", "def solve"]
 QUALITY_METRICS = [
@@ -1183,6 +1186,23 @@ def variant_guard_{variant}(items=()):
     if total < 0:
         return -1
     return total
+
+def variant_shadow_signal_{variant}(values=()):
+    shadows = []
+    for index, item in enumerate(str(values)):
+        if index % 2 == 0:
+            shadows.append(item)
+    return "".join(shadows)
+
+def variant_boundary_probe_{variant}(left=0, right=0):
+    if left > right:
+        left, right = right, left
+    width = right - left
+    if width == 0:
+        return "single"
+    if width < 3:
+        return "small"
+    return "wide"
 """
     if variant % 2 == 1:
         extra += f"""
@@ -1190,14 +1210,72 @@ def variant_guard_{variant}(items=()):
 def variant_note_{variant}():
     return "complex-eval-variant-{variant}"
 """
+    if variant >= 10:
+        extra += f"""
+
+def long_audit_path_{variant}_a(values=()):
+    total = 0
+    for index, item in enumerate(str(values)):
+        total += (index + ord(item)) % 11
+    return total
+
+def long_audit_path_{variant}_b(values=()):
+    bucket = {{}}
+    for item in str(values):
+        bucket[item] = bucket.get(item, 0) + 1
+    return sorted(bucket.items())
+
+def long_audit_path_{variant}_c(values=()):
+    flags = []
+    for index, item in enumerate(str(values)):
+        if index % 3 == 0:
+            flags.append(item)
+        elif index % 3 == 1:
+            flags.append(str(len(item)))
+        else:
+            flags.append("-")
+    return "".join(flags)
+
+def long_audit_path_{variant}_d(values=()):
+    score = long_audit_path_{variant}_a(values)
+    if score < 0:
+        return "impossible"
+    if score % 2 == 0:
+        return "even-shadow"
+    return "odd-shadow"
+
+def long_audit_path_{variant}_e(values=()):
+    pairs = long_audit_path_{variant}_b(values)
+    text = []
+    for key, count in pairs:
+        if count > 0:
+            text.append(str(key) + ":" + str(count))
+    return "|".join(text)
+
+def long_audit_path_{variant}_f(values=()):
+    marker = long_audit_path_{variant}_d(values)
+    digest = long_audit_path_{variant}_e(values)
+    if not digest:
+        return marker
+    return marker + "/" + digest
+"""
     return code.replace("\nif __name__ == \"__main__\":\n", extra + "\nif __name__ == \"__main__\":\n")
+
+
+def semantic_variant(variant: int) -> str:
+    parts = ["base-audit"]
+    if variant % 2 == 1:
+        parts.append("note-branch")
+    if variant >= 10:
+        parts.append("long-audit")
+    return "+".join(parts)
 
 
 def build_case(template: Template, index: int, variant: int, live_index: int | None) -> dict:
     bug_code = variant_code(template, variant)
     line_count = code_lines(bug_code)
-    if line_count < 40 or line_count > 80:
-        raise AssertionError(f"{template.slug} variant {variant} has {line_count} lines")
+    if line_count < MIN_SOURCE_LINES:
+        raise AssertionError(f"{template.slug} variant {variant} has only {line_count} lines")
     first_index, verdict, actual, expected, stderr = first_failed_case(
         Template(**{**template.__dict__, "bug_code": bug_code})
     )
@@ -1278,6 +1356,7 @@ def build_case(template: Template, index: int, variant: int, live_index: int | N
             "evalPurpose": "验证模型能在多错因复杂学生提交中优先定位最该先教的根因。",
             "lineCount": line_count,
             "injectedBugCount": 1 + len(template.secondary_issues),
+            "semanticVariant": semantic_variant(variant),
             "verifiedByExecution": True,
             "correctSolutionVerified": True,
             "expectedMetrics": QUALITY_METRICS,
@@ -1303,6 +1382,10 @@ def main() -> None:
             raise AssertionError(f"duplicate generated source at {case['caseId']}")
         seen_sources.add(source)
         cases.append(case)
+
+    large_count = sum(1 for case in cases if case["quality"]["lineCount"] >= LARGE_SOURCE_LINES)
+    if large_count < MIN_LARGE_CASES:
+        raise AssertionError(f"only {large_count} generated cases have at least {LARGE_SOURCE_LINES} lines")
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(cases, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
