@@ -59,9 +59,7 @@ public class LiveEvalQualityBaselineDraftFactory {
                 && tagHit
                 && Boolean.TRUE.equals(entry.getEvidenceValid())
                 && Boolean.TRUE.equals(entry.getSafetyPassed())
-                && (!Boolean.TRUE.equals(entry.getComplexCase()) || Boolean.TRUE.equals(entry.getIntelligenceQualityPassed()))
-                && (!Boolean.TRUE.equals(entry.getComplexCase()) || !Boolean.TRUE.equals(entry.getModelTraceEvaluated())
-                || Boolean.TRUE.equals(entry.getModelTraceQualityPassed()));
+                && (!Boolean.TRUE.equals(entry.getComplexCase()) || Boolean.TRUE.equals(entry.getRubricChainPassed()));
     }
 
     private LiveEvalQualityBaselineDraft fromAssistantEntry(AssistantLiveEvalReport.Entry entry) {
@@ -165,28 +163,39 @@ public class LiveEvalQualityBaselineDraftFactory {
         if (Boolean.TRUE.equals(entry.getSafetyPassed())) {
             signals.add("safetyPassed");
         }
+        if (Boolean.TRUE.equals(entry.getRubricChainPassed())) {
+            signals.add("rubricChainPassed");
+        }
+        if (entry.getRubricChainPassedStages() != null) {
+            signals.addAll(entry.getRubricChainPassedStages().stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .toList());
+        }
         if (Boolean.TRUE.equals(entry.getComplexQualityPassed())) {
-            signals.add("complexQualityPassed");
+            signals.add("legacy:complexQualityPassed");
         }
         if (entry.getComplexPassedMetrics() != null) {
             signals.addAll(entry.getComplexPassedMetrics().stream()
                     .filter(value -> value != null && !value.isBlank())
+                    .map(value -> "legacy:" + value)
                     .toList());
         }
         if (Boolean.TRUE.equals(entry.getIntelligenceQualityPassed())) {
-            signals.add("intelligenceQualityPassed");
+            signals.add("legacy:intelligenceQualityPassed");
         }
         if (entry.getIntelligencePassedMetrics() != null) {
             signals.addAll(entry.getIntelligencePassedMetrics().stream()
                     .filter(value -> value != null && !value.isBlank())
+                    .map(value -> "legacy:" + value)
                     .toList());
         }
         if (Boolean.TRUE.equals(entry.getModelTraceQualityPassed())) {
-            signals.add("modelTraceQualityPassed");
+            signals.add("legacy:modelTraceQualityPassed");
         }
         if (entry.getModelTracePassedMetrics() != null) {
             signals.addAll(entry.getModelTracePassedMetrics().stream()
                     .filter(value -> value != null && !value.isBlank())
+                    .map(value -> "legacy:" + value)
                     .toList());
         }
         if (!Boolean.TRUE.equals(entry.getLatencyBudgetExceeded())) {

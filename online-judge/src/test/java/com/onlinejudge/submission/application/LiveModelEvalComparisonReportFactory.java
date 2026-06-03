@@ -205,6 +205,7 @@ public class LiveModelEvalComparisonReportFactory {
                 .filter(metric -> !candidatePassedStudentFeedbackMetrics.contains(metric))
                 .sorted()
                 .toList();
+        double rubricChainDelta = delta(score(baseline, ScoreKind.RUBRIC_CHAIN), score(candidate, ScoreKind.RUBRIC_CHAIN));
         double traceDelta = delta(score(baseline, ScoreKind.MODEL_TRACE), score(candidate, ScoreKind.MODEL_TRACE));
         double intelligenceDelta = delta(score(baseline, ScoreKind.INTELLIGENCE), score(candidate, ScoreKind.INTELLIGENCE));
         double educationAgentDelta = delta(
@@ -238,6 +239,12 @@ public class LiveModelEvalComparisonReportFactory {
         String candidateSafetyBoundaryEvidence = safetyBoundaryEvidence(candidate);
         if (safetyBoundaryEvidence(baseline).isBlank() && !candidateSafetyBoundaryEvidence.isBlank()) {
             regressions.add(caseId + ": safety boundary regression: " + candidateSafetyBoundaryEvidence);
+        }
+        if (rubricChainDelta >= SCORE_DELTA_THRESHOLD) {
+            improvements.add(caseId + ": rubricChainScore +" + format(rubricChainDelta));
+        }
+        if (rubricChainDelta <= -SCORE_DELTA_THRESHOLD) {
+            regressions.add(caseId + ": rubricChainScore " + format(rubricChainDelta));
         }
         if (traceDelta >= SCORE_DELTA_THRESHOLD) {
             improvements.add(caseId + ": modelTraceQualityScore +" + format(traceDelta));
@@ -301,6 +308,15 @@ public class LiveModelEvalComparisonReportFactory {
                 .candidateCountedAsModel(countedAsModel(candidate))
                 .baselineFallbackUsed(Boolean.TRUE.equals(baseline == null ? null : baseline.getFallbackUsed()))
                 .candidateFallbackUsed(Boolean.TRUE.equals(candidate == null ? null : candidate.getFallbackUsed()))
+                .baselineRubricChainScore(score(baseline, ScoreKind.RUBRIC_CHAIN))
+                .candidateRubricChainScore(score(candidate, ScoreKind.RUBRIC_CHAIN))
+                .rubricChainScoreDelta(rubricChainDelta)
+                .baselineFailedRubricStages(baseline == null || baseline.getRubricChainFailedStages() == null
+                        ? List.of()
+                        : baseline.getRubricChainFailedStages())
+                .candidateFailedRubricStages(candidate == null || candidate.getRubricChainFailedStages() == null
+                        ? List.of()
+                        : candidate.getRubricChainFailedStages())
                 .baselineModelTraceQualityScore(score(baseline, ScoreKind.MODEL_TRACE))
                 .candidateModelTraceQualityScore(score(candidate, ScoreKind.MODEL_TRACE))
                 .modelTraceQualityScoreDelta(traceDelta)
@@ -344,6 +360,9 @@ public class LiveModelEvalComparisonReportFactory {
                 .safetyCategoryCounts(report == null || report.getSafetyCategoryCounts() == null
                         ? Map.of()
                         : report.getSafetyCategoryCounts())
+                .rubricChainEvaluatedCount(safeInt(report == null ? null : report.getRubricChainEvaluatedCount()))
+                .rubricChainPassedCount(safeInt(report == null ? null : report.getRubricChainPassedCount()))
+                .rubricChainAverageScore(safeDouble(report == null ? null : report.getRubricChainAverageScore()))
                 .intelligenceCompletedCount(safeInt(report == null ? null : report.getIntelligenceCompletedCount()))
                 .intelligenceQualityPassedCount(safeInt(report == null ? null : report.getIntelligenceQualityPassedCount()))
                 .intelligenceQualityAverageScore(safeDouble(report == null ? null : report.getIntelligenceQualityAverageScore()))
@@ -376,6 +395,15 @@ public class LiveModelEvalComparisonReportFactory {
                 .safetyCategoryCountDelta(metricDelta(
                         baseline.getSafetyCategoryCounts(),
                         candidate.getSafetyCategoryCounts()))
+                .rubricChainEvaluatedCountDelta(intDelta(
+                        baseline.getRubricChainEvaluatedCount(),
+                        candidate.getRubricChainEvaluatedCount()))
+                .rubricChainPassedCountDelta(intDelta(
+                        baseline.getRubricChainPassedCount(),
+                        candidate.getRubricChainPassedCount()))
+                .rubricChainAverageScoreDelta(doubleDelta(
+                        baseline.getRubricChainAverageScore(),
+                        candidate.getRubricChainAverageScore()))
                 .intelligenceCompletedCountDelta(intDelta(
                         baseline.getIntelligenceCompletedCount(),
                         candidate.getIntelligenceCompletedCount()))
@@ -425,6 +453,12 @@ public class LiveModelEvalComparisonReportFactory {
                                             Map<String, Integer> studentFeedbackMetricFailDelta,
                                             List<LiveModelEvalComparisonReport.CaseComparison> cases) {
         List<String> signals = new ArrayList<>();
+        if (delta.getRubricChainAverageScoreDelta() > 0.0) {
+            signals.add("rubricChainAverageScore +" + format(delta.getRubricChainAverageScoreDelta()));
+        }
+        if (delta.getRubricChainPassedCountDelta() > 0) {
+            signals.add("rubricChainPassedCount +" + delta.getRubricChainPassedCountDelta());
+        }
         if (delta.getModelTraceQualityAverageScoreDelta() > 0.0) {
             signals.add("modelTraceQualityAverageScore +" + format(delta.getModelTraceQualityAverageScoreDelta()));
         }
@@ -488,6 +522,12 @@ public class LiveModelEvalComparisonReportFactory {
         }
         if (delta.getLatencyBudgetExceededCountDelta() > 0) {
             signals.add("latencyBudgetExceededCount +" + delta.getLatencyBudgetExceededCountDelta());
+        }
+        if (delta.getRubricChainAverageScoreDelta() < -SCORE_DELTA_THRESHOLD) {
+            signals.add("rubricChainAverageScore " + format(delta.getRubricChainAverageScoreDelta()));
+        }
+        if (delta.getRubricChainPassedCountDelta() < 0) {
+            signals.add("rubricChainPassedCount " + delta.getRubricChainPassedCountDelta());
         }
         if (delta.getSafetyCategoryCountDelta() != null) {
             delta.getSafetyCategoryCountDelta().entrySet().stream()
@@ -1723,6 +1763,7 @@ public class LiveModelEvalComparisonReportFactory {
         LiveModelEvalReport.QualityScore score = entry.getQualityScore();
         if (score != null) {
             return switch (kind) {
+                case RUBRIC_CHAIN -> safeDouble(score.getRubricChainScore());
                 case MODEL_TRACE -> safeDouble(score.getModelTraceQualityScore());
                 case INTELLIGENCE -> safeDouble(score.getIntelligenceQualityScore());
                 case EDUCATION_AGENT -> safeDouble(score.getEducationAgentQualityScore());
@@ -1730,6 +1771,7 @@ public class LiveModelEvalComparisonReportFactory {
             };
         }
         return switch (kind) {
+            case RUBRIC_CHAIN -> safeDouble(entry.getRubricChainScore());
             case MODEL_TRACE -> safeDouble(entry.getModelTraceQualityScore());
             case INTELLIGENCE -> safeDouble(entry.getIntelligenceQualityScore());
             case EDUCATION_AGENT -> safeDouble(entry.getEducationAgentQualityScore());
@@ -1788,6 +1830,7 @@ public class LiveModelEvalComparisonReportFactory {
     }
 
     private enum ScoreKind {
+        RUBRIC_CHAIN,
         MODEL_TRACE,
         INTELLIGENCE,
         EDUCATION_AGENT,

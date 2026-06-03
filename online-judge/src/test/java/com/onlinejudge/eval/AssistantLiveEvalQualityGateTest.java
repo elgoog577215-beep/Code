@@ -621,7 +621,7 @@ class AssistantLiveEvalQualityGateTest {
     }
 
     @Test
-    void qualityBaselineFactoryKeepsComplexQualitySignalsForPassingModelEntries() {
+    void qualityBaselineFactoryKeepsRubricChainSignalsForPassingComplexModelEntries() {
         List<com.onlinejudge.submission.application.LiveModelEvalReport.Entry> entries = List.of(
                 com.onlinejudge.submission.application.LiveModelEvalReport.Entry.builder()
                         .caseId("complex-live-good")
@@ -639,6 +639,13 @@ class AssistantLiveEvalQualityGateTest {
                         .evidenceValid(true)
                         .safetyPassed(true)
                         .complexCase(true)
+                        .rubricChainEvaluated(true)
+                        .rubricChainPassed(true)
+                        .rubricChainPassedStages(List.of(
+                                "rubricChainStage:evidence",
+                                "rubricChainStage:rootCause",
+                                "rubricChainStage:teaching",
+                                "rubricChainStage:safety"))
                         .complexQualityPassed(true)
                         .complexMetricPassedCount(6)
                         .complexMetricTotalCount(6)
@@ -682,30 +689,26 @@ class AssistantLiveEvalQualityGateTest {
         assertThat(baselines).singleElement()
                 .satisfies(draft -> {
                     assertThat(draft.getExpectedSignals()).contains(
-                            "complexQualityPassed",
-                            "complexMetric:primaryRootCauseHit",
-                            "complexMetric:noFullSolutionLeak",
-                            "intelligenceQualityPassed",
-                            "intelligenceMetric:autonomousRootCauseDiscovery",
-                            "intelligenceMetric:modelSafetyAndBoundary",
-                            "modelTraceQualityPassed",
-                            "modelTraceMetric:nativePrimaryReasoningGrounded",
-                            "modelTraceMetric:nativeSafetyBoundary"
+                            "rubricChainPassed",
+                            "rubricChainStage:evidence",
+                            "rubricChainStage:rootCause",
+                            "rubricChainStage:teaching",
+                            "rubricChainStage:safety",
+                            "legacy:complexQualityPassed",
+                            "legacy:intelligenceQualityPassed",
+                            "legacy:modelTraceQualityPassed"
                     );
                     assertThat(draft.getMustKeep()).contains(
-                            "complexQualityPassed",
-                            "complexMetric:primaryRootCauseHit",
-                            "complexMetric:evidenceGrounded",
-                            "intelligenceQualityPassed",
-                            "intelligenceMetric:evidenceGroundedReasoning",
-                            "modelTraceQualityPassed",
-                            "modelTraceMetric:nativePrimaryReasoningGrounded"
+                            "rubricChainPassed",
+                            "rubricChainStage:evidence",
+                            "rubricChainStage:rootCause",
+                            "rubricChainStage:safety"
                     );
                 });
     }
 
     @Test
-    void qualityBaselineFactorySkipsComplexModelEntriesWithWeakNativeTraceWhenTraceWasEvaluated() {
+    void qualityBaselineFactoryKeepsComplexModelEntriesWhenRubricChainPassesEvenIfLegacyTraceIsWeak() {
         List<com.onlinejudge.submission.application.LiveModelEvalReport.Entry> entries = List.of(
                 com.onlinejudge.submission.application.LiveModelEvalReport.Entry.builder()
                         .caseId("complex-live-weak-trace")
@@ -721,6 +724,9 @@ class AssistantLiveEvalQualityGateTest {
                         .evidenceValid(true)
                         .safetyPassed(true)
                         .complexCase(true)
+                        .rubricChainEvaluated(true)
+                        .rubricChainPassed(true)
+                        .rubricChainPassedStages(List.of("rubricChainStage:evidence", "rubricChainStage:rootCause"))
                         .complexQualityPassed(true)
                         .intelligenceEvaluated(true)
                         .intelligenceQualityPassed(true)
@@ -737,11 +743,12 @@ class AssistantLiveEvalQualityGateTest {
         List<LiveEvalQualityBaselineDraft> baselines =
                 new LiveEvalQualityBaselineDraftFactory().fromModelEntries(entries);
 
-        assertThat(baselines).isEmpty();
+        assertThat(baselines).singleElement()
+                .satisfies(draft -> assertThat(draft.getExpectedSignals()).contains("rubricChainPassed"));
     }
 
     @Test
-    void qualityBaselineFactorySkipsComplexModelEntriesThatMissQualityGate() {
+    void qualityBaselineFactorySkipsComplexModelEntriesThatMissRubricChainGate() {
         List<com.onlinejudge.submission.application.LiveModelEvalReport.Entry> entries = List.of(
                 com.onlinejudge.submission.application.LiveModelEvalReport.Entry.builder()
                         .caseId("complex-live-missed")
@@ -757,6 +764,9 @@ class AssistantLiveEvalQualityGateTest {
                         .evidenceValid(true)
                         .safetyPassed(true)
                         .complexCase(true)
+                        .rubricChainEvaluated(true)
+                        .rubricChainPassed(false)
+                        .rubricChainFailedStages(List.of("evidence", "rootCause"))
                         .complexQualityPassed(false)
                         .complexMetricPassedCount(4)
                         .complexMetricTotalCount(6)
@@ -777,7 +787,7 @@ class AssistantLiveEvalQualityGateTest {
     }
 
     @Test
-    void qualityBaselineFactorySkipsComplexModelEntriesWithoutExternalIntelligencePass() {
+    void qualityBaselineFactoryKeepsComplexModelEntriesWhenRubricChainPassesEvenIfLegacyIntelligenceFails() {
         List<com.onlinejudge.submission.application.LiveModelEvalReport.Entry> entries = List.of(
                 com.onlinejudge.submission.application.LiveModelEvalReport.Entry.builder()
                         .caseId("complex-live-local-only")
@@ -793,6 +803,9 @@ class AssistantLiveEvalQualityGateTest {
                         .evidenceValid(true)
                         .safetyPassed(true)
                         .complexCase(true)
+                        .rubricChainEvaluated(true)
+                        .rubricChainPassed(true)
+                        .rubricChainPassedStages(List.of("rubricChainStage:evidence", "rubricChainStage:rootCause"))
                         .complexQualityPassed(true)
                         .complexMetricPassedCount(6)
                         .complexMetricTotalCount(6)
@@ -810,7 +823,8 @@ class AssistantLiveEvalQualityGateTest {
         List<LiveEvalQualityBaselineDraft> baselines =
                 new LiveEvalQualityBaselineDraftFactory().fromModelEntries(entries);
 
-        assertThat(baselines).isEmpty();
+        assertThat(baselines).singleElement()
+                .satisfies(draft -> assertThat(draft.getExpectedSignals()).contains("rubricChainPassed"));
     }
 
     @Test

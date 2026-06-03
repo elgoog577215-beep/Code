@@ -47,6 +47,8 @@ public class LiveModelEvalComparisonReport {
     public String consoleSummary() {
         return "recommendation=" + safe(recommendation)
                 + ", comparable=" + number(comparableCaseCount)
+                + ", rubricChainAvgDelta=" + decimal(delta == null ? null : delta.getRubricChainAverageScoreDelta())
+                + ", rubricChainPassedDelta=" + number(delta == null ? null : delta.getRubricChainPassedCountDelta())
                 + ", modelTraceAvgDelta=" + decimal(delta == null ? null : delta.getModelTraceQualityAverageScoreDelta())
                 + ", modelTracePassRateDelta=" + decimal(delta == null ? null : delta.getModelTraceMetricPassRateDelta())
                 + ", intelligenceAvgDelta=" + decimal(delta == null ? null : delta.getIntelligenceQualityAverageScoreDelta())
@@ -83,6 +85,9 @@ public class LiveModelEvalComparisonReport {
         private Integer timeoutCount;
         private Integer latencyBudgetExceededCount;
         private Map<String, Integer> safetyCategoryCounts;
+        private Integer rubricChainEvaluatedCount;
+        private Integer rubricChainPassedCount;
+        private Double rubricChainAverageScore;
         private Integer intelligenceCompletedCount;
         private Integer intelligenceQualityPassedCount;
         private Double intelligenceQualityAverageScore;
@@ -109,6 +114,9 @@ public class LiveModelEvalComparisonReport {
         private Integer fallbackCountDelta;
         private Integer latencyBudgetExceededCountDelta;
         private Map<String, Integer> safetyCategoryCountDelta;
+        private Integer rubricChainEvaluatedCountDelta;
+        private Integer rubricChainPassedCountDelta;
+        private Double rubricChainAverageScoreDelta;
         private Integer intelligenceCompletedCountDelta;
         private Integer intelligenceQualityPassedCountDelta;
         private Double intelligenceQualityAverageScoreDelta;
@@ -136,6 +144,11 @@ public class LiveModelEvalComparisonReport {
         private Boolean candidateCountedAsModel;
         private Boolean baselineFallbackUsed;
         private Boolean candidateFallbackUsed;
+        private Double baselineRubricChainScore;
+        private Double candidateRubricChainScore;
+        private Double rubricChainScoreDelta;
+        private List<String> baselineFailedRubricStages;
+        private List<String> candidateFailedRubricStages;
         private Double baselineModelTraceQualityScore;
         private Double candidateModelTraceQualityScore;
         private Double modelTraceQualityScoreDelta;

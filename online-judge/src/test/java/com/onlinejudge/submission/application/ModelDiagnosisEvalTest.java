@@ -39,6 +39,7 @@ class ModelDiagnosisEvalTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ComplexDiagnosisQualityScorer complexQualityScorer = new ComplexDiagnosisQualityScorer();
+    private final DiagnosisChainRubricEvaluator rubricEvaluator = new DiagnosisChainRubricEvaluator();
     private static final int EXPECTED_COMPLEX_LIVE_CANDIDATE_COUNT = 42;
     private static final List<String> REPRESENTATIVE_COMPLEX_LIVE_CASE_IDS = List.of(
             "complex-live-01-multi-query-prefix",
@@ -665,6 +666,19 @@ class ModelDiagnosisEvalTest {
                         .evidenceValid(true)
                         .safetyPassed(true)
                         .complexCase(true)
+                        .rubricChainEvaluated(true)
+                        .rubricChainPassed(true)
+                        .rubricChainStagePassedCount(5)
+                        .rubricChainStageTotalCount(5)
+                        .rubricChainScore(1.0)
+                        .rubricChainPassedStages(List.of(
+                                "rubricChainStage:evidence",
+                                "rubricChainStage:rootCause",
+                                "rubricChainStage:distractor",
+                                "rubricChainStage:teaching",
+                                "rubricChainStage:safety"))
+                        .rubricChainFailedStages(List.of())
+                        .rubricChainFailedReasons(List.of())
                         .complexQualityPassed(true)
                         .complexMetricPassedCount(6)
                         .complexMetricTotalCount(6)
@@ -736,6 +750,19 @@ class ModelDiagnosisEvalTest {
                         .evidenceValid(true)
                         .safetyPassed(true)
                         .complexCase(true)
+                        .rubricChainEvaluated(true)
+                        .rubricChainPassed(false)
+                        .rubricChainStagePassedCount(3)
+                        .rubricChainStageTotalCount(5)
+                        .rubricChainScore(0.6)
+                        .rubricChainPassedStages(List.of(
+                                "rubricChainStage:rootCause",
+                                "rubricChainStage:teaching",
+                                "rubricChainStage:safety"))
+                        .rubricChainFailedStages(List.of("evidence", "distractor"))
+                        .rubricChainFailedReasons(List.of(
+                                "evidence:缺少 rubric 必需证据、主证据或首个失败用例锚点。",
+                                "distractor:次要问题或干扰信号抢占了主因优先级。"))
                         .complexQualityPassed(false)
                         .complexMetricPassedCount(3)
                         .complexMetricTotalCount(6)
@@ -790,6 +817,16 @@ class ModelDiagnosisEvalTest {
         ));
 
         assertThat(report.getComplexCaseCount()).isEqualTo(2);
+        assertThat(report.getRubricChainCaseCount()).isEqualTo(2);
+        assertThat(report.getRubricChainEvaluatedCount()).isEqualTo(2);
+        assertThat(report.getRubricChainFallbackExcludedCount()).isZero();
+        assertThat(report.getRubricChainPassedCount()).isEqualTo(1);
+        assertThat(report.getRubricChainStagePassedCount()).isEqualTo(8);
+        assertThat(report.getRubricChainStageTotalCount()).isEqualTo(10);
+        assertThat(report.getRubricChainAverageScore()).isEqualTo(0.8);
+        assertThat(report.getRubricChainStagePassCounts()).containsEntry("rootCause", 2);
+        assertThat(report.getRubricChainStageFailCounts()).containsEntry("evidence", 1);
+        assertThat(report.getRubricChainStageFailCounts()).containsEntry("distractor", 1);
         assertThat(report.getComplexQualityPassedCount()).isEqualTo(1);
         assertThat(report.getComplexMetricPassedCount()).isEqualTo(9);
         assertThat(report.getComplexMetricTotalCount()).isEqualTo(12);
@@ -824,28 +861,24 @@ class ModelDiagnosisEvalTest {
         assertThat(report.getModelTraceMetricFailCounts()).containsEntry("nativeRootCauseDecisionChecklistApplied", 1);
         assertThat(report.getModelTraceMetricFailCounts()).containsEntry("nativeTeachingPriorityClear", 1);
         assertThat(liveModelSummaryLine(report)).contains(
-                "complexQuality=1/2",
-                "complexMetrics=9/12",
-                "intelligenceCompleted=2/2",
-                "intelligenceQuality=1/2",
-                "intelligenceMetrics=9/12",
-                "educationAgentCompleted=2/2",
-                "educationAgentJudgmentComplete=1/2",
-                "educationAgentQuality=1/2",
-                "educationAgentMetrics=8/10",
-                "modelTraceCompleted=2/2",
-                "modelTraceQuality=1/2",
-                "modelTraceMetrics=9/12",
-                "evidenceGroundedReasoning:1"
+                "rubricChainEvaluated=2/2",
+                "rubricChainQuality=1/2",
+                "rubricChainStages=8/10",
+                "rubricChainAvg=0.800",
+                "failedRubricStages=evidence:1|distractor:1"
+        ).doesNotContain(
+                "complexQuality=",
+                "intelligenceQuality=",
+                "educationAgentQuality=",
+                "modelTraceQuality=",
+                "studentFeedbackQuality="
         );
         assertThat(report.getQualityBaselineDrafts()).singleElement()
                 .satisfies(draft -> assertThat(draft.getMustKeep()).contains(
-                        "complexQualityPassed",
-                        "complexMetric:primaryRootCauseHit",
-                        "complexMetric:noFullSolutionLeak",
-                        "intelligenceQualityPassed",
-                        "intelligenceMetric:autonomousRootCauseDiscovery",
-                        "intelligenceMetric:modelSafetyAndBoundary"
+                        "rubricChainPassed",
+                        "rubricChainStage:evidence",
+                        "rubricChainStage:rootCause",
+                        "rubricChainStage:safety"
                 ));
     }
 
@@ -984,6 +1017,14 @@ class ModelDiagnosisEvalTest {
                         .evidenceValid(true)
                         .safetyPassed(true)
                         .complexCase(true)
+                        .rubricChainEvaluated(false)
+                        .rubricChainPassed(false)
+                        .rubricChainStagePassedCount(0)
+                        .rubricChainStageTotalCount(0)
+                        .rubricChainScore(0.0)
+                        .rubricChainPassedStages(List.of())
+                        .rubricChainFailedStages(List.of())
+                        .rubricChainFailedReasons(List.of())
                         .complexQualityPassed(true)
                         .complexMetricPassedCount(6)
                         .complexMetricTotalCount(6)
@@ -1022,6 +1063,13 @@ class ModelDiagnosisEvalTest {
         ));
 
         assertThat(report.getIntelligenceCaseCount()).isEqualTo(1);
+        assertThat(report.getRubricChainCaseCount()).isEqualTo(1);
+        assertThat(report.getRubricChainEvaluatedCount()).isZero();
+        assertThat(report.getRubricChainFallbackExcludedCount()).isEqualTo(1);
+        assertThat(report.getRubricChainPassedCount()).isZero();
+        assertThat(report.getRubricChainStagePassedCount()).isZero();
+        assertThat(report.getRubricChainStageTotalCount()).isZero();
+        assertThat(report.getRubricChainAverageScore()).isZero();
         assertThat(report.getIntelligenceCompletedCount()).isZero();
         assertThat(report.getIntelligenceFallbackExcludedCount()).isEqualTo(1);
         assertThat(report.getIntelligenceMetricPassedCount()).isZero();
@@ -1748,6 +1796,12 @@ class ModelDiagnosisEvalTest {
                         complexQualityScorer.educationAgentQuality(evalCase.complexFixture(), analysis, modelCompleted, fallbackUsed);
                 ComplexDiagnosisQualityScorer.ModelTraceQualityResult modelTraceQuality =
                         complexQualityScorer.modelEducationTrace(evalCase.complexFixture(), analysis, modelCompleted, fallbackUsed);
+                DiagnosisChainRubricEvaluator.Result rubricChainQuality = rubricEvaluator.evaluate(
+                        DiagnosisQualityRubric.from(evalCase.complexFixture()),
+                        analysis,
+                        modelCompleted,
+                        fallbackUsed
+                );
                 EducationAgentEval educationAgentEval = educationAgentEval(analysis, modelCompleted, fallbackUsed,
                         evalCase.complexFixture() != null);
                 Integer requestBytes = invocation == null || invocation.getRequestBytes() == null
@@ -1789,6 +1843,14 @@ class ModelDiagnosisEvalTest {
                         .evidenceValid(evidenceValid)
                         .safetyPassed(safetyPassed)
                         .complexCase(complexQuality.complexCase())
+                        .rubricChainEvaluated(rubricChainQuality.evaluated())
+                        .rubricChainPassed(rubricChainQuality.overallVerdict())
+                        .rubricChainStagePassedCount(rubricChainQuality.passedStageCount())
+                        .rubricChainStageTotalCount(rubricChainQuality.totalStageCount())
+                        .rubricChainScore(rubricChainQuality.score())
+                        .rubricChainPassedStages(rubricChainQuality.passedStageSignals())
+                        .rubricChainFailedStages(rubricChainQuality.failedStages())
+                        .rubricChainFailedReasons(rubricChainQuality.failedReasons())
                         .complexQualityPassed(complexQuality.passed())
                         .complexMetricPassedCount(complexQuality.passedMetricCount())
                         .complexMetricTotalCount(complexQuality.totalMetricCount())
@@ -1835,7 +1897,7 @@ class ModelDiagnosisEvalTest {
                         .modelJudgment(modelJudgment(model, invocation, modelCompleted, fallbackUsed,
                                 intelligenceQuality.evaluated(), failureReason))
                         .qualityScore(qualityScore(complexQuality, intelligenceQuality, educationAgentQuality, modelTraceQuality,
-                                studentFeedbackQuality))
+                                studentFeedbackQuality, rubricChainQuality))
                         .actualIssueTags(analysis.getIssueTags())
                         .actualFineGrainedTags(analysis.getFineGrainedTags())
                         .actualEvidenceRefs(analysis.getEvidenceRefs())
@@ -1854,6 +1916,8 @@ class ModelDiagnosisEvalTest {
                         ComplexDiagnosisQualityScorer.ModelTraceQualityResult.empty(evalCase.complexFixture() != null);
                 ComplexDiagnosisQualityScorer.StudentFeedbackResult studentFeedbackQuality =
                         ComplexDiagnosisQualityScorer.StudentFeedbackResult.empty(evalCase.complexFixture() != null, false);
+                DiagnosisChainRubricEvaluator.Result rubricChainQuality =
+                        DiagnosisChainRubricEvaluator.Result.empty(evalCase.complexFixture() != null);
                 String failureReason = classifyException(exception);
                 LiveModelEvalReport.Entry entry = LiveModelEvalReport.Entry.builder()
                         .caseId(evalCase.name())
@@ -1879,6 +1943,14 @@ class ModelDiagnosisEvalTest {
                         .evidenceValid(false)
                         .safetyPassed(false)
                         .complexCase(evalCase.complexFixture() != null)
+                        .rubricChainEvaluated(rubricChainQuality.evaluated())
+                        .rubricChainPassed(rubricChainQuality.overallVerdict())
+                        .rubricChainStagePassedCount(rubricChainQuality.passedStageCount())
+                        .rubricChainStageTotalCount(rubricChainQuality.totalStageCount())
+                        .rubricChainScore(rubricChainQuality.score())
+                        .rubricChainPassedStages(rubricChainQuality.passedStageSignals())
+                        .rubricChainFailedStages(rubricChainQuality.failedStages())
+                        .rubricChainFailedReasons(rubricChainQuality.failedReasons())
                         .complexQualityPassed(false)
                         .complexMetricPassedCount(0)
                         .complexMetricTotalCount(evalCase.complexFixture() == null ? 0 : ComplexDiagnosisQualityScorer.METRICS.size())
@@ -1935,7 +2007,7 @@ class ModelDiagnosisEvalTest {
                                 .runtimeProfile(valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "auto"))
                                 .build())
                         .qualityScore(qualityScore(null, intelligenceQuality, educationAgentQuality, modelTraceQuality,
-                                studentFeedbackQuality))
+                                studentFeedbackQuality, rubricChainQuality))
                         .failureReason(failureReason)
                         .outputSummary(exception.getClass().getSimpleName() + ": " + exception.getMessage())
                         .build();
@@ -2255,18 +2327,21 @@ class ModelDiagnosisEvalTest {
                                                           ComplexDiagnosisQualityScorer.IntelligenceResult intelligenceQuality,
                                                           ComplexDiagnosisQualityScorer.EducationAgentQualityResult educationAgentQuality,
                                                           ComplexDiagnosisQualityScorer.ModelTraceQualityResult modelTraceQuality,
-                                                          ComplexDiagnosisQualityScorer.StudentFeedbackResult studentFeedbackQuality) {
+                                                          ComplexDiagnosisQualityScorer.StudentFeedbackResult studentFeedbackQuality,
+                                                          DiagnosisChainRubricEvaluator.Result rubricChainQuality) {
         return LiveModelEvalReport.QualityScore.builder()
                 .complexQualityScore(complexQuality == null ? 0.0 : complexQuality.score())
                 .intelligenceQualityScore(intelligenceQuality == null ? 0.0 : intelligenceQuality.score())
                 .educationAgentQualityScore(educationAgentQuality == null ? 0.0 : educationAgentQuality.score())
                 .modelTraceQualityScore(modelTraceQuality == null ? 0.0 : modelTraceQuality.score())
                 .studentFeedbackQualityScore(studentFeedbackQuality == null ? 0.0 : studentFeedbackQuality.score())
+                .rubricChainScore(rubricChainQuality == null ? 0.0 : rubricChainQuality.score())
                 .complexMetrics(complexQuality == null ? Map.of() : complexQuality.metrics())
                 .intelligenceMetrics(intelligenceQuality == null ? Map.of() : intelligenceQuality.metrics())
                 .educationAgentMetrics(educationAgentQuality == null ? Map.of() : educationAgentQuality.metrics())
                 .modelTraceMetrics(modelTraceQuality == null ? Map.of() : modelTraceQuality.metrics())
                 .studentFeedbackMetrics(studentFeedbackQuality == null ? Map.of() : studentFeedbackQuality.metrics())
+                .rubricChainStages(rubricChainQuality == null ? Map.of() : rubricChainQuality.stagePasses())
                 .build();
     }
 
@@ -2380,6 +2455,26 @@ class ModelDiagnosisEvalTest {
                 .safetyPassedCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getSafetyPassed())).count())
                 .safetyCategoryCounts(safetyCategoryCounts(entries))
                 .complexCaseCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getComplexCase())).count())
+                .rubricChainCaseCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getComplexCase())).count())
+                .rubricChainEvaluatedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getRubricChainEvaluated()))
+                        .count())
+                .rubricChainFallbackExcludedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getComplexCase())
+                                && !Boolean.TRUE.equals(entry.getRubricChainEvaluated()))
+                        .count())
+                .rubricChainPassedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getRubricChainPassed()))
+                        .count())
+                .rubricChainStagePassedCount(entries.stream()
+                        .mapToInt(entry -> intValue(entry.getRubricChainStagePassedCount()))
+                        .sum())
+                .rubricChainStageTotalCount(entries.stream()
+                        .mapToInt(entry -> intValue(entry.getRubricChainStageTotalCount()))
+                        .sum())
+                .rubricChainAverageScore(rubricChainAverageScore(entries))
+                .rubricChainStagePassCounts(rubricChainStageCounts(entries, true))
+                .rubricChainStageFailCounts(rubricChainStageCounts(entries, false))
                 .complexQualityPassedCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getComplexQualityPassed())).count())
                 .complexMetricPassedCount(entries.stream().mapToInt(entry -> intValue(entry.getComplexMetricPassedCount())).sum())
                 .complexMetricTotalCount(entries.stream().mapToInt(entry -> intValue(entry.getComplexMetricTotalCount())).sum())
@@ -2679,23 +2774,50 @@ class ModelDiagnosisEvalTest {
                 + ", fallbackFineHits=" + count(report.getFallbackFineTagHitCount())
                 + ", recoveryStatus=" + safe(report.getRecoveryStatus())
                 + ", recoveryBlockedReasons=" + count(report.getRecoveryBlockedReasonCount())
-                + ", complexQuality=" + count(report.getComplexQualityPassedCount()) + "/" + count(report.getComplexCaseCount())
-                + ", complexMetrics=" + count(report.getComplexMetricPassedCount()) + "/" + count(report.getComplexMetricTotalCount())
-                + ", intelligenceCompleted=" + count(report.getIntelligenceCompletedCount()) + "/" + count(report.getIntelligenceCaseCount())
-                + ", intelligenceQuality=" + count(report.getIntelligenceQualityPassedCount()) + "/" + count(report.getIntelligenceCompletedCount())
-                + ", intelligenceMetrics=" + count(report.getIntelligenceMetricPassedCount()) + "/" + count(report.getIntelligenceMetricTotalCount())
-                + ", educationAgentCompleted=" + count(report.getEducationAgentCompletedCount()) + "/" + count(report.getEducationAgentCaseCount())
-                + ", educationAgentJudgmentComplete=" + count(report.getEducationAgentJudgmentCompleteCount()) + "/" + count(report.getEducationAgentCompletedCount())
-                + ", educationAgentQuality=" + count(report.getEducationAgentQualityPassedCount()) + "/" + count(report.getEducationAgentCompletedCount())
-                + ", educationAgentMetrics=" + count(report.getEducationAgentMetricPassedCount()) + "/" + count(report.getEducationAgentMetricTotalCount())
-                + ", modelTraceCompleted=" + count(report.getModelTraceCompletedCount()) + "/" + count(report.getModelTraceCaseCount())
-                + ", modelTraceQuality=" + count(report.getModelTraceQualityPassedCount()) + "/" + count(report.getModelTraceCompletedCount())
-                + ", modelTraceMetrics=" + count(report.getModelTraceMetricPassedCount()) + "/" + count(report.getModelTraceMetricTotalCount())
-                + ", studentFeedbackCompleted=" + count(report.getStudentFeedbackCompletedCount()) + "/" + count(report.getStudentFeedbackCaseCount())
-                + ", studentFeedbackQuality=" + count(report.getStudentFeedbackQualityPassedCount()) + "/" + count(report.getStudentFeedbackCompletedCount())
-                + ", studentFeedbackMetrics=" + count(report.getStudentFeedbackMetricPassedCount()) + "/" + count(report.getStudentFeedbackMetricTotalCount())
-                + ", failedIntelligenceMetrics=" + failedIntelligenceMetricsSummary(report.getIntelligenceMetricFailCounts())
+                + ", rubricChainEvaluated=" + count(report.getRubricChainEvaluatedCount()) + "/" + count(report.getRubricChainCaseCount())
+                + ", rubricChainQuality=" + count(report.getRubricChainPassedCount()) + "/" + count(report.getRubricChainEvaluatedCount())
+                + ", rubricChainStages=" + count(report.getRubricChainStagePassedCount()) + "/" + count(report.getRubricChainStageTotalCount())
+                + ", rubricChainAvg=" + decimal(report.getRubricChainAverageScore())
+                + ", failedRubricStages=" + failedRubricStagesSummary(report.getRubricChainStageFailCounts())
                 + ", safetyPassed=" + count(report.getSafetyPassedCount());
+    }
+
+    private double rubricChainAverageScore(List<LiveModelEvalReport.Entry> entries) {
+        List<LiveModelEvalReport.Entry> evaluatedEntries = entries == null ? List.of() : entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getRubricChainEvaluated()))
+                .toList();
+        if (evaluatedEntries.isEmpty()) {
+            return 0.0;
+        }
+        double total = evaluatedEntries.stream()
+                .map(LiveModelEvalReport.Entry::getRubricChainScore)
+                .filter(value -> value != null)
+                .mapToDouble(Double::doubleValue)
+                .sum();
+        return total / evaluatedEntries.size();
+    }
+
+    private Map<String, Integer> rubricChainStageCounts(List<LiveModelEvalReport.Entry> entries, boolean passed) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        DiagnosisChainRubricEvaluator.STAGES.forEach(stage -> counts.put(stage, 0));
+        if (entries == null) {
+            return counts;
+        }
+        entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getRubricChainEvaluated()))
+                .forEach(entry -> {
+                    List<String> stages = passed
+                            ? entry.getRubricChainPassedStages()
+                            : entry.getRubricChainFailedStages();
+                    if (stages == null) {
+                        return;
+                    }
+                    stages.stream()
+                            .map(stage -> stage.replace("rubricChainStage:", ""))
+                            .filter(counts::containsKey)
+                            .forEach(stage -> counts.merge(stage, 1, Integer::sum));
+                });
+        return counts;
     }
 
     private double complexQualityAverageScore(List<LiveModelEvalReport.Entry> entries) {
@@ -2874,6 +2996,24 @@ class ModelDiagnosisEvalTest {
                 .map(entry -> entry.getKey() + ":" + entry.getValue())
                 .collect(Collectors.joining("|"));
         return summary.isBlank() ? "none" : summary;
+    }
+
+    private String failedRubricStagesSummary(Map<String, Integer> failCounts) {
+        if (failCounts == null || failCounts.isEmpty()) {
+            return "none";
+        }
+        String summary = failCounts.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue() > 0)
+                .map(entry -> entry.getKey() + ":" + entry.getValue())
+                .collect(Collectors.joining("|"));
+        return summary.isBlank() ? "none" : summary;
+    }
+
+    private String decimal(Double value) {
+        if (value == null) {
+            return "0.000";
+        }
+        return String.format(Locale.ROOT, "%.3f", value);
     }
 
     private int count(Integer value) {

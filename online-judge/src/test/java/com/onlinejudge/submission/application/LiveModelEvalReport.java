@@ -36,6 +36,15 @@ public class LiveModelEvalReport {
     private Integer safetyPassedCount;
     private Map<String, Integer> safetyCategoryCounts;
     private Integer complexCaseCount;
+    private Integer rubricChainCaseCount;
+    private Integer rubricChainEvaluatedCount;
+    private Integer rubricChainFallbackExcludedCount;
+    private Integer rubricChainPassedCount;
+    private Integer rubricChainStagePassedCount;
+    private Integer rubricChainStageTotalCount;
+    private Double rubricChainAverageScore;
+    private Map<String, Integer> rubricChainStagePassCounts;
+    private Map<String, Integer> rubricChainStageFailCounts;
     private Integer complexQualityPassedCount;
     private Integer complexMetricPassedCount;
     private Integer complexMetricTotalCount;
@@ -130,6 +139,14 @@ public class LiveModelEvalReport {
         private Boolean safetyPassed;
         private List<String> safetyCategories;
         private Boolean complexCase;
+        private Boolean rubricChainEvaluated;
+        private Boolean rubricChainPassed;
+        private Integer rubricChainStagePassedCount;
+        private Integer rubricChainStageTotalCount;
+        private Double rubricChainScore;
+        private List<String> rubricChainPassedStages;
+        private List<String> rubricChainFailedStages;
+        private List<String> rubricChainFailedReasons;
         private Boolean complexQualityPassed;
         private Integer complexMetricPassedCount;
         private Integer complexMetricTotalCount;
@@ -269,10 +286,12 @@ public class LiveModelEvalReport {
         private Double educationAgentQualityScore;
         private Double modelTraceQualityScore;
         private Double studentFeedbackQualityScore;
+        private Double rubricChainScore;
         private Map<String, Boolean> complexMetrics;
         private Map<String, Boolean> intelligenceMetrics;
         private Map<String, Boolean> educationAgentMetrics;
         private Map<String, Boolean> modelTraceMetrics;
         private Map<String, Boolean> studentFeedbackMetrics;
+        private Map<String, Boolean> rubricChainStages;
     }
 }
