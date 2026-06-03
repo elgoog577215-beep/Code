@@ -6,7 +6,6 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -26,7 +25,29 @@ public class ExternalModelOutputNormalizer {
         output.setFineGrainedTag(resolveTag(output.getFineGrainedTag(),
                 standardLibraryPack == null ? null : standardLibraryPack.getFineGrainedTags()));
         output.setEvidenceRefs(normalizeEvidenceRefs(output.getEvidenceRefs(), brief));
-        output.setAnswerLeakRisk(normalizeRisk(output.getAnswerLeakRisk()));
+        output.setSecondaryIssues(normalizeEducationIssueNotes(output.getSecondaryIssues(), runtimePlan));
+        output.setDistractorNotes(normalizeEducationIssueNotes(output.getDistractorNotes(), runtimePlan));
+        output.setImprovementOpportunities(normalizeImprovementOpportunities(output.getImprovementOpportunities(), runtimePlan));
+        if (output.getNextLearningAction() != null) {
+            output.getNextLearningAction().setEvidenceRefs(
+                    normalizeEvidenceRefs(output.getNextLearningAction().getEvidenceRefs(), brief));
+            output.getNextLearningAction().setAnswerLeakRisk(
+                    ModelOutputSafetyPolicy.calibrateModelReportedRisk(
+                            output.getNextLearningAction().getAnswerLeakRisk(),
+                            output.getNextLearningAction().getAction(),
+                            output.getNextLearningAction().getTask(),
+                            output.getNextLearningAction().getCheckQuestion()
+                    ));
+        }
+        output.setAnswerLeakRisk(ModelOutputSafetyPolicy.calibrateModelReportedRisk(
+                output.getAnswerLeakRisk(),
+                output.getPrimaryReasoning(),
+                output.getTeachingPriority(),
+                educationIssueText(output.getSecondaryIssues()),
+                educationIssueText(output.getDistractorNotes()),
+                improvementText(output.getImprovementOpportunities()),
+                nextLearningActionText(output.getNextLearningAction())
+        ));
         return output;
     }
 
@@ -43,14 +64,33 @@ public class ExternalModelOutputNormalizer {
             SubmissionAnalysisResponse.StudentHintPlan plan = output.getStudentHintPlan();
             plan.setTeachingAction(resolveAction(plan.getTeachingAction(), allowedActions));
             plan.setEvidenceRefs(normalizeEvidenceRefs(plan.getEvidenceRefs(), brief));
-            plan.setAnswerLeakRisk(normalizeRisk(plan.getAnswerLeakRisk()));
+            plan.setAnswerLeakRisk(ModelOutputSafetyPolicy.calibrateModelReportedRisk(
+                    plan.getAnswerLeakRisk(),
+                    plan.getNextAction(),
+                    plan.getCoachQuestion()
+            ));
         }
         if (output.getLearningInterventionPlan() != null) {
             SubmissionAnalysisResponse.LearningInterventionPlan plan = output.getLearningInterventionPlan();
             plan.setEvidenceRefs(normalizeEvidenceRefs(plan.getEvidenceRefs(), brief));
-            plan.setAnswerLeakRisk(normalizeRisk(plan.getAnswerLeakRisk()));
+            plan.setAnswerLeakRisk(ModelOutputSafetyPolicy.calibrateModelReportedRisk(
+                    plan.getAnswerLeakRisk(),
+                    plan.getGoal(),
+                    plan.getStudentTask(),
+                    plan.getCheckQuestion(),
+                    plan.getCompletionSignal()
+            ));
         }
-        output.setAnswerLeakRisk(normalizeRisk(output.getAnswerLeakRisk()));
+        output.setAnswerLeakRisk(ModelOutputSafetyPolicy.calibrateModelReportedRisk(
+                output.getAnswerLeakRisk(),
+                output.getStudentHint(),
+                output.getTeacherNote(),
+                output.getStudentHintPlan() == null ? "" : output.getStudentHintPlan().getNextAction(),
+                output.getStudentHintPlan() == null ? "" : output.getStudentHintPlan().getCoachQuestion(),
+                output.getLearningInterventionPlan() == null ? "" : output.getLearningInterventionPlan().getGoal(),
+                output.getLearningInterventionPlan() == null ? "" : output.getLearningInterventionPlan().getStudentTask(),
+                output.getLearningInterventionPlan() == null ? "" : output.getLearningInterventionPlan().getCheckQuestion()
+        ));
         return output;
     }
 
@@ -105,9 +145,95 @@ public class ExternalModelOutputNormalizer {
             feedback.getNextLearningAction().setEvidenceRefs(
                     normalizeEvidenceRefs(feedback.getNextLearningAction().getEvidenceRefs(), brief));
             feedback.getNextLearningAction().setAnswerLeakRisk(
-                    normalizeRisk(feedback.getNextLearningAction().getAnswerLeakRisk()));
+                    ModelOutputSafetyPolicy.calibrateModelReportedRisk(
+                            feedback.getNextLearningAction().getAnswerLeakRisk(),
+                            feedback.getNextLearningAction().getAction(),
+                            feedback.getNextLearningAction().getTask(),
+                            feedback.getNextLearningAction().getCheckQuestion()
+                    ));
         }
         return feedback;
+    }
+
+    private String educationIssueText(List<ExternalModelStagePayloads.EducationIssueNote> notes) {
+        if (notes == null || notes.isEmpty()) {
+            return "";
+        }
+        return String.join("\n", notes.stream()
+                .filter(note -> note != null)
+                .map(note -> safeJoin(note.getTitle(), note.getMessage()))
+                .toList());
+    }
+
+    private String improvementText(List<SubmissionAnalysisResponse.ImprovementOpportunity> opportunities) {
+        if (opportunities == null || opportunities.isEmpty()) {
+            return "";
+        }
+        return String.join("\n", opportunities.stream()
+                .filter(item -> item != null)
+                .map(item -> safeJoin(item.getStudentMessage(), item.getBenefit()))
+                .toList());
+    }
+
+    private String nextLearningActionText(SubmissionAnalysisResponse.NextLearningAction action) {
+        if (action == null) {
+            return "";
+        }
+        return safeJoin(action.getAction(), action.getTask(), action.getCheckQuestion());
+    }
+
+    private String safeJoin(String... values) {
+        if (values == null || values.length == 0) {
+            return "";
+        }
+        return String.join("\n", java.util.Arrays.stream(values)
+                .filter(value -> value != null && !value.isBlank())
+                .toList());
+    }
+
+    private List<ExternalModelStagePayloads.EducationIssueNote> normalizeEducationIssueNotes(
+            List<ExternalModelStagePayloads.EducationIssueNote> notes,
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (notes == null || notes.isEmpty()) {
+            return notes;
+        }
+        ModelDiagnosisBrief brief = runtimePlan == null ? null : runtimePlan.getBrief();
+        StandardLibraryPack standardLibraryPack = runtimePlan == null ? null : runtimePlan.getStandardLibraryPack();
+        return notes.stream()
+                .map(note -> {
+                    if (note == null) {
+                        return null;
+                    }
+                    note.setIssueTag(resolveTag(note.getIssueTag(),
+                            standardLibraryPack == null ? null : standardLibraryPack.getIssueTags()));
+                    note.setFineGrainedTag(resolveTag(note.getFineGrainedTag(),
+                            standardLibraryPack == null ? null : standardLibraryPack.getFineGrainedTags()));
+                    note.setEvidenceRefs(normalizeEvidenceRefs(note.getEvidenceRefs(), brief));
+                    return note;
+                })
+                .toList();
+    }
+
+    private List<SubmissionAnalysisResponse.ImprovementOpportunity> normalizeImprovementOpportunities(
+            List<SubmissionAnalysisResponse.ImprovementOpportunity> opportunities,
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (opportunities == null || opportunities.isEmpty()) {
+            return opportunities;
+        }
+        ModelDiagnosisBrief brief = runtimePlan == null ? null : runtimePlan.getBrief();
+        StandardLibraryPack standardLibraryPack = runtimePlan == null ? null : runtimePlan.getStandardLibraryPack();
+        Set<String> improvementTags = improvementTagLookup(
+                standardLibraryPack == null ? null : standardLibraryPack.getImprovementTags());
+        return opportunities.stream()
+                .map(item -> {
+                    if (item == null) {
+                        return null;
+                    }
+                    item.setCategory(resolveImprovementTag(item.getCategory(), improvementTags));
+                    item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), brief));
+                    return item;
+                })
+                .toList();
     }
 
     private String resolveTag(String rawValue, List<StandardLibraryPack.TagOption> options) {
@@ -220,15 +346,8 @@ public class ExternalModelOutputNormalizer {
                 .orElse(rawValue);
     }
 
-    private String normalizeRisk(String rawValue) {
-        if (rawValue == null || rawValue.isBlank()) {
-            return rawValue;
-        }
-        return rawValue.trim().toUpperCase(Locale.ROOT);
-    }
-
     private String normalizeKey(String value) {
-        return normalizeText(value).toUpperCase(Locale.ROOT);
+        return normalizeText(value).toUpperCase(java.util.Locale.ROOT);
     }
 
     private String normalizeText(String value) {

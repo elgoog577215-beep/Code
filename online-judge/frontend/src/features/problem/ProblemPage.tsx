@@ -544,6 +544,11 @@ export default function ProblemPage() {
                     <StatusPill tone={latest.verdict === "ACCEPTED" ? "success" : "warning"}>{verdictLabel(latest.verdict)}</StatusPill>
                   </div>
                   {studentFeedback?.summary && studentFeedback.summary !== focusText && <p>{studentFeedback.summary}</p>}
+                  <div className="problem-primary-action__summary" aria-label="本次结果摘要">
+                    <span>{testCaseSummary}</span>
+                    <span>{feedbackSummary}</span>
+                    <span>反馈{analysisStateLabel}</span>
+                  </div>
                   {firstFailedCase && !firstFailedCase.hidden ? (
                     <div className="problem-primary-action__evidence">
                       <span>公开失败点</span>
@@ -627,20 +632,6 @@ export default function ProblemPage() {
                     {coachQuestionBlock}
                   </section>
                 </section>
-                <div className="problem-result-compact problem-result-compact--quiet" aria-label="本次结果摘要">
-                  <div>
-                    <span>评测</span>
-                    <strong>{testCaseSummary}</strong>
-                  </div>
-                  <div>
-                    <span>反馈</span>
-                    <strong>{feedbackSummary}</strong>
-                  </div>
-                  <div>
-                    <span>分析</span>
-                    <strong>{analysisStateLabel}</strong>
-                  </div>
-                </div>
                 <details className="problem-compact-details problem-submission-drawer">
                   <summary>
                     <span>本次提交明细</span>

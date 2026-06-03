@@ -503,11 +503,13 @@ const scenarios = [
     ],
     afterChecks: async page => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      record("entry top nav has learning routes", navLabels.join("|") === "题库|学生|教师|邀请码", navLabels.join("|"));
+      record("entry top nav has role routes", navLabels.join("|") === "学生|教师|题库", navLabels.join("|"));
       const entryText = ((await page.locator(".role-entry-grid--primary").textContent()) || "").replace(/\s+/g, "");
       record("entry grid has student column", entryText.includes("学生"), entryText);
       record("entry grid has teacher column", entryText.includes("教师"), entryText);
       record("entry grid omits separate management column", !entryText.includes("教师管理"), entryText);
+      const panelCount = await page.locator(".role-entry-grid--primary > .panel").count();
+      record("entry choices are direct cards", panelCount === 0, `panel children: ${panelCount}`);
     }
   },
   {
@@ -530,15 +532,21 @@ const scenarios = [
     name: "student",
     path: "/app/student",
     afterChecks: async page => {
+      const navLabels = await page.locator(".top-nav__link span").allTextContents();
+      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
       const inviteCode = await page.evaluate(() => window.localStorage.getItem("wzai:lastInviteCode"));
       const inviteFormCount = await page.locator("text=输入邀请码").count();
+      const learningDrawerOpen = await page.locator(".student-learning-drawer").first().evaluate(element => element.open);
+      record("student nav is student-first", navLabels.join("|") === "当前作业|题库|邀请码", navLabels.join("|"));
+      record("student nav marks current assignment", activeNav.includes("当前作业"), activeNav.join("|"));
+      record("student learning record default collapsed", !learningDrawerOpen, `open=${learningDrawerOpen}`);
       record("student default invite is remembered", inviteCode === "WZAI01", inviteCode || "");
       record("student default invite enters assignment", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
     },
     selectors: [
       [".student-assignment-grid.is-ready", "student assignment shell"],
       [".student-task-panel", "student task panel"],
-      [".student-side-flow", "student status side flow"],
+      [".student-learning-drawer", "student learning drawer"],
       [".student-task-card .ui-button", "student problem action"]
     ]
   },
@@ -550,8 +558,12 @@ const scenarios = [
       await page.locator(".problem-primary-action").first().waitFor({ state: "visible", timeout: 10000 });
     },
     afterChecks: async page => {
+      const navLabels = await page.locator(".top-nav__link span").allTextContents();
+      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
       const drawer = page.locator(".problem-submission-drawer").first();
       const isOpen = await drawer.evaluate(element => element.open);
+      record("problem nav stays in student flow", navLabels.join("|") === "当前作业|题库|邀请码", navLabels.join("|"));
+      record("problem nav marks current assignment", activeNav.includes("当前作业"), activeNav.join("|"));
       record("problem submission details default collapsed", !isOpen, `open=${isOpen}`);
       await drawer.locator("summary").click();
       await checkVisible(page, ".testcase-compact-list", "problem expanded testcase result list");
@@ -562,8 +574,9 @@ const scenarios = [
       [".problem-layout", "problem main layout"],
       [".panel--ai", "problem AI result panel"],
       [".problem-primary-action", "problem primary action"],
-      [".problem-result-compact", "problem result summary"],
+      [".problem-primary-action__summary", "problem result summary"],
       [".problem-submission-drawer", "problem submission drawer"],
+      [".problem-feedback-coach", "problem feedback coach"],
       [".coach-next-question", "coach next question"]
     ]
   },
@@ -574,8 +587,8 @@ const scenarios = [
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
       const tabs = ((await page.locator(".teacher-mode-tabs").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher global nav includes learning routes", navLabels.join("|") === "题库|学生|教师|邀请码", navLabels.join("|"));
-      record("teacher nav is active", activeNav.includes("教师"), activeNav.join("|"));
+      record("teacher global nav is classroom-first", navLabels.join("|") === "课堂|管理|题库", navLabels.join("|"));
+      record("teacher nav is active", activeNav.includes("课堂"), activeNav.join("|"));
       record("teacher page has internal management tab", tabs.includes("课堂过程") && tabs.includes("管理"), tabs);
     },
     selectors: [
@@ -595,7 +608,7 @@ const scenarios = [
     afterChecks: async page => {
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
       const commandText = ((await page.locator(".assignment-detail-command").first().textContent()) || "").replace(/\s+/g, "");
-      record("assignment detail belongs to teacher nav", activeNav.includes("教师"), activeNav.join("|"));
+      record("assignment detail belongs to classroom nav", activeNav.includes("课堂"), activeNav.join("|"));
       record("assignment detail shows invite code", commandText.includes("WZAI01"), commandText);
     },
     selectors: [
@@ -620,7 +633,8 @@ const scenarios = [
     afterChecks: async page => {
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
       const tabs = ((await page.locator(".teacher-mode-tabs").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher management belongs to teacher nav", activeNav.includes("教师"), activeNav.join("|"));
+      record("teacher management belongs to management nav", activeNav.includes("管理"), activeNav.join("|"));
+      record("teacher management does not also mark classroom", !activeNav.includes("课堂"), activeNav.join("|"));
       record("teacher management has internal process tab", tabs.includes("课堂过程") && tabs.includes("管理"), tabs);
     },
     selectors: [

@@ -660,6 +660,16 @@ class AssistantLiveEvalQualityGateTest {
                                 "intelligenceMetric:distractorResistance",
                                 "intelligenceMetric:evidenceGroundedReasoning",
                                 "intelligenceMetric:modelSafetyAndBoundary"))
+                        .modelTraceEvaluated(true)
+                        .modelTraceQualityPassed(true)
+                        .modelTraceMetricPassedCount(5)
+                        .modelTraceMetricTotalCount(5)
+                        .modelTracePassedMetrics(List.of(
+                                "modelTraceMetric:nativePrimaryReasoningGrounded",
+                                "modelTraceMetric:nativeTeachingPriorityClear",
+                                "modelTraceMetric:nativeSecondarySignalsBalanced",
+                                "modelTraceMetric:nativeNextActionObservable",
+                                "modelTraceMetric:nativeSafetyBoundary"))
                         .actualIssueTags(List.of("IO_FORMAT"))
                         .actualFineGrainedTags(List.of("INPUT_PARSING"))
                         .actualEvidenceRefs(List.of("generator:multi-query-prefix:input_parsing"))
@@ -677,16 +687,57 @@ class AssistantLiveEvalQualityGateTest {
                             "complexMetric:noFullSolutionLeak",
                             "intelligenceQualityPassed",
                             "intelligenceMetric:autonomousRootCauseDiscovery",
-                            "intelligenceMetric:modelSafetyAndBoundary"
+                            "intelligenceMetric:modelSafetyAndBoundary",
+                            "modelTraceQualityPassed",
+                            "modelTraceMetric:nativePrimaryReasoningGrounded",
+                            "modelTraceMetric:nativeSafetyBoundary"
                     );
                     assertThat(draft.getMustKeep()).contains(
                             "complexQualityPassed",
                             "complexMetric:primaryRootCauseHit",
                             "complexMetric:evidenceGrounded",
                             "intelligenceQualityPassed",
-                            "intelligenceMetric:evidenceGroundedReasoning"
+                            "intelligenceMetric:evidenceGroundedReasoning",
+                            "modelTraceQualityPassed",
+                            "modelTraceMetric:nativePrimaryReasoningGrounded"
                     );
                 });
+    }
+
+    @Test
+    void qualityBaselineFactorySkipsComplexModelEntriesWithWeakNativeTraceWhenTraceWasEvaluated() {
+        List<com.onlinejudge.submission.application.LiveModelEvalReport.Entry> entries = List.of(
+                com.onlinejudge.submission.application.LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-weak-trace")
+                        .model("deepseek-ai/DeepSeek-V4-Pro")
+                        .promptVersion("diagnosis-and-teaching-v3")
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .latencyBudgetExceeded(false)
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .modelIssueTagHit(true)
+                        .modelFineTagHit(true)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .complexCase(true)
+                        .complexQualityPassed(true)
+                        .intelligenceEvaluated(true)
+                        .intelligenceQualityPassed(true)
+                        .modelTraceEvaluated(true)
+                        .modelTraceQualityPassed(false)
+                        .modelTraceMetricPassedCount(3)
+                        .modelTraceMetricTotalCount(5)
+                        .actualIssueTags(List.of("IO_FORMAT"))
+                        .actualFineGrainedTags(List.of("INPUT_PARSING"))
+                        .actualEvidenceRefs(List.of("generator:multi-query-prefix:input_parsing"))
+                        .build()
+        );
+
+        List<LiveEvalQualityBaselineDraft> baselines =
+                new LiveEvalQualityBaselineDraftFactory().fromModelEntries(entries);
+
+        assertThat(baselines).isEmpty();
     }
 
     @Test
@@ -1017,6 +1068,43 @@ class AssistantLiveEvalQualityGateTest {
                 "complex-live-good: missing mustKeep complexMetric:evidenceGrounded",
                 "complex-live-good: missing mustKeep intelligenceQualityPassed",
                 "complex-live-good: missing mustKeep intelligenceMetric:evidenceGroundedReasoning"
+        );
+    }
+
+    @Test
+    void modelBaselineRegressionGateRejectsNativeTraceRegression() {
+        LiveEvalQualityBaselineDraft baseline = LiveEvalQualityBaselineDraft.builder()
+                .caseId("complex-live-good")
+                .mustKeep(List.of(
+                        "modelTraceQualityPassed",
+                        "modelTraceMetric:nativePrimaryReasoningGrounded",
+                        "modelTraceMetric:nativeSafetyBoundary"))
+                .build();
+        com.onlinejudge.submission.application.LiveModelEvalReport current =
+                com.onlinejudge.submission.application.LiveModelEvalReport.builder()
+                        .entries(List.of(com.onlinejudge.submission.application.LiveModelEvalReport.Entry.builder()
+                                .caseId("complex-live-good")
+                                .fallbackUsed(false)
+                                .jsonValid(true)
+                                .modelIssueTagHit(true)
+                                .modelFineTagHit(true)
+                                .evidenceValid(true)
+                                .safetyPassed(true)
+                                .modelTraceQualityPassed(false)
+                                .modelTracePassedMetrics(List.of("modelTraceMetric:nativeTeachingPriorityClear"))
+                                .modelTraceFailedMetrics(List.of(
+                                        "nativePrimaryReasoningGrounded",
+                                        "nativeSafetyBoundary"))
+                                .build()))
+                        .build();
+
+        List<String> violations = LiveEvalBaselineRegressionGate.evaluateModel(current, List.of(baseline));
+
+        assertThat(violations).contains(
+                "complex-live-good: external model native trace regression",
+                "complex-live-good: missing mustKeep modelTraceQualityPassed",
+                "complex-live-good: missing mustKeep modelTraceMetric:nativePrimaryReasoningGrounded",
+                "complex-live-good: missing mustKeep modelTraceMetric:nativeSafetyBoundary"
         );
     }
 

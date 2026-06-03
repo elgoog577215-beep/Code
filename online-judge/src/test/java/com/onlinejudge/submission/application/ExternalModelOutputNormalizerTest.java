@@ -55,6 +55,81 @@ class ExternalModelOutputNormalizerTest {
     }
 
     @Test
+    void normalizesEducationAgentJudgmentFields() {
+        Fixture fixture = fixture();
+        ExternalModelStagePayloads.DiagnosisJudgeOutput output = ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
+                .primaryIssueTag("循环边界")
+                .fineGrainedTag("差 一 位 错误")
+                .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
+                .primaryReasoning("先看循环边界。")
+                .secondaryIssues(List.of(ExternalModelStagePayloads.EducationIssueNote.builder()
+                        .title("次要信号")
+                        .message("自测习惯可后续处理。")
+                        .issueTag("循环边界")
+                        .fineGrainedTag("差 一 位 错误")
+                        .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
+                        .build()))
+                .improvementOpportunities(List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                        .category(" testing_habit ")
+                        .studentMessage("补一个最小样例。")
+                        .benefit("发现边界遗漏。")
+                        .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
+                        .build()))
+                .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                        .task("列出 range 产生的 i。")
+                        .checkQuestion("n=1 时循环几次？")
+                        .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
+                        .answerLeakRisk(" low ")
+                        .build())
+                .answerLeakRisk("low")
+                .build();
+
+        ExternalModelStagePayloads.DiagnosisJudgeOutput normalized =
+                normalizer.normalizeDiagnosisDecision(output, fixture.runtimePlan());
+
+        assertThat(normalized.getSecondaryIssues()).singleElement()
+                .satisfies(note -> {
+                    assertThat(note.getIssueTag()).isEqualTo("LOOP_BOUNDARY");
+                    assertThat(note.getFineGrainedTag()).isEqualTo("OFF_BY_ONE");
+                    assertThat(note.getEvidenceRefs()).containsExactly("code:range_excludes_n");
+                });
+        assertThat(normalized.getImprovementOpportunities()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getCategory()).isEqualTo("TESTING_HABIT");
+                    assertThat(item.getEvidenceRefs()).containsExactly("code:range_excludes_n");
+                });
+        assertThat(normalized.getNextLearningAction().getEvidenceRefs()).containsExactly("code:range_excludes_n");
+        assertThat(normalized.getNextLearningAction().getAnswerLeakRisk()).isEqualTo("LOW");
+        assertThat(validator.validateDiagnosisJudgeOutput(normalized, fixture.brief(), fixture.pack()).isValid()).isTrue();
+    }
+
+    @Test
+    void calibratesModelReportedHighRiskWhenVisibleTextIsSafe() {
+        Fixture fixture = fixture();
+        ExternalModelStagePayloads.DiagnosisJudgeOutput output = ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
+                .primaryIssueTag("LOOP_BOUNDARY")
+                .fineGrainedTag("OFF_BY_ONE")
+                .evidenceRefs(List.of("code:range_excludes_n"))
+                .primaryReasoning("第一个失败证据显示循环边界需要先手推确认。")
+                .teachingPriority("先列出最小样例里的循环取值，再和题目要求对齐。")
+                .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                        .task("列出最小样例里循环实际经过的值。")
+                        .checkQuestion("第一次和期望不一致的位置在哪里？")
+                        .evidenceRefs(List.of("code:range_excludes_n"))
+                        .answerLeakRisk("HIGH")
+                        .build())
+                .answerLeakRisk("HIGH")
+                .build();
+
+        ExternalModelStagePayloads.DiagnosisJudgeOutput normalized =
+                normalizer.normalizeDiagnosisDecision(output, fixture.runtimePlan());
+
+        assertThat(normalized.getAnswerLeakRisk()).isEqualTo("MEDIUM");
+        assertThat(normalized.getNextLearningAction().getAnswerLeakRisk()).isEqualTo("MEDIUM");
+        assertThat(validator.validateDiagnosisJudgeOutput(normalized, fixture.brief(), fixture.pack()).isValid()).isTrue();
+    }
+
+    @Test
     void normalizesTeachingActionAndEvidenceButDoesNotHideSafetyRisk() {
         Fixture fixture = fixture();
         ExternalModelStagePayloads.TeachingHintOutput output = ExternalModelStagePayloads.TeachingHintOutput.builder()

@@ -30,11 +30,26 @@ public class OfflineRuntimeProfileEvalReportFactory {
         int reducedCount = (int) entries.stream()
                 .filter(entry -> Boolean.TRUE.equals(entry.getRequestBytesReduced()))
                 .count();
+        int autoReducedCount = (int) entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getAutoRequestBytesReduced()))
+                .count();
+        int autoCompactCount = (int) entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getAutoRequestCompact()))
+                .count();
         int qualityCount = (int) entries.stream()
                 .filter(entry -> Boolean.TRUE.equals(entry.getQualityPreserved()))
                 .count();
+        int autoQualityCount = (int) entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getAutoQualityPreserved()))
+                .count();
         double averageRatio = entries.stream()
                 .map(OfflineRuntimeProfileEvalReport.Entry::getCompressionRatio)
+                .filter(value -> value != null && !value.isNaN())
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(0.0);
+        double averageAutoRatio = entries.stream()
+                .map(OfflineRuntimeProfileEvalReport.Entry::getAutoCompressionRatio)
                 .filter(value -> value != null && !value.isNaN())
                 .mapToDouble(Double::doubleValue)
                 .average()
@@ -43,8 +58,12 @@ public class OfflineRuntimeProfileEvalReportFactory {
                 .reportType("offline-runtime-profile-eval")
                 .totalCount(entries.size())
                 .reducedCount(reducedCount)
+                .autoReducedCount(autoReducedCount)
+                .autoCompactCount(autoCompactCount)
                 .qualityPreservedCount(qualityCount)
+                .autoQualityPreservedCount(autoQualityCount)
                 .averageCompressionRatio(round(averageRatio))
+                .averageAutoCompressionRatio(round(averageAutoRatio))
                 .entries(entries)
                 .build();
     }
@@ -62,9 +81,17 @@ public class OfflineRuntimeProfileEvalReportFactory {
                 evalCase.baseline(),
                 ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY
         );
+        ExternalModelAgentRuntime.RuntimePlan autoPlan = runtime.prepare(
+                evalCase.evidencePackage(),
+                evalCase.ruleSignals(),
+                evalCase.baseline(),
+                ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO
+        );
         int standardBytes = requestBytes(standardPlan);
         int lowLatencyBytes = requestBytes(lowLatencyPlan);
+        int autoBytes = requestBytes(autoPlan);
         boolean reduced = lowLatencyBytes > 0 && standardBytes > 0 && lowLatencyBytes < standardBytes;
+        boolean autoReduced = autoBytes > 0 && standardBytes > 0 && autoBytes < standardBytes;
         ModelDiagnosisBrief brief = lowLatencyPlan.getBrief();
         StandardLibraryPack pack = lowLatencyPlan.getStandardLibraryPack();
         int candidateSignalCount = size(brief == null ? null : brief.getCandidateSignals());
@@ -81,23 +108,53 @@ public class OfflineRuntimeProfileEvalReportFactory {
                 teachingActionCount,
                 hiddenBoundaryPresent
         );
+        ModelDiagnosisBrief autoBrief = autoPlan.getBrief();
+        StandardLibraryPack autoPack = autoPlan.getStandardLibraryPack();
+        int autoCandidateSignalCount = size(autoBrief == null ? null : autoBrief.getCandidateSignals());
+        int autoEvidenceRefCount = size(autoBrief == null ? null : autoBrief.getEvidenceRefs());
+        int autoIssueTagCount = size(autoPack == null ? null : autoPack.getIssueTags());
+        int autoFineTagCount = size(autoPack == null ? null : autoPack.getFineGrainedTags());
+        int autoTeachingActionCount = size(autoPack == null ? null : autoPack.getTeachingActions());
+        boolean autoHiddenBoundaryPresent = autoBrief != null && autoBrief.getHiddenDataBoundary() != null;
+        List<String> autoFailureReasons = autoFailureReasons(
+                autoPlan.isRequestCompact(),
+                autoReduced,
+                autoCandidateSignalCount,
+                autoEvidenceRefCount,
+                autoIssueTagCount,
+                autoTeachingActionCount,
+                autoHiddenBoundaryPresent
+        );
         return OfflineRuntimeProfileEvalReport.Entry.builder()
                 .caseId(evalCase.caseId())
                 .promptVersion(lowLatencyPlan.getSingleCallPrompt().getVersion())
                 .standardRequestBytes(standardBytes)
                 .lowLatencyRequestBytes(lowLatencyBytes)
+                .autoRequestBytes(autoBytes)
                 .requestBytesReduced(reduced)
+                .autoRequestBytesReduced(autoReduced)
                 .compressionRatio(ratio(lowLatencyBytes, standardBytes))
+                .autoCompressionRatio(ratio(autoBytes, standardBytes))
                 .lowLatencyRuntimeProfile(lowLatencyPlan.getRuntimeProfile())
                 .lowLatencyRequestCompact(lowLatencyPlan.isRequestCompact())
+                .autoRuntimeProfile(autoPlan.getRuntimeProfile())
+                .autoRequestCompact(autoPlan.isRequestCompact())
                 .candidateSignalCount(candidateSignalCount)
                 .evidenceRefCount(evidenceRefCount)
                 .issueTagCount(issueTagCount)
                 .fineTagCount(fineTagCount)
                 .teachingActionCount(teachingActionCount)
                 .hiddenBoundaryPresent(hiddenBoundaryPresent)
+                .autoCandidateSignalCount(autoCandidateSignalCount)
+                .autoEvidenceRefCount(autoEvidenceRefCount)
+                .autoIssueTagCount(autoIssueTagCount)
+                .autoFineTagCount(autoFineTagCount)
+                .autoTeachingActionCount(autoTeachingActionCount)
+                .autoHiddenBoundaryPresent(autoHiddenBoundaryPresent)
                 .qualityPreserved(failureReasons.isEmpty())
+                .autoQualityPreserved(autoFailureReasons.isEmpty())
                 .failureReasons(failureReasons)
+                .autoFailureReasons(autoFailureReasons)
                 .build();
     }
 
@@ -149,6 +206,35 @@ public class OfflineRuntimeProfileEvalReportFactory {
         }
         if (!hiddenBoundaryPresent) {
             reasons.add("MISSING_HIDDEN_BOUNDARY");
+        }
+        return reasons;
+    }
+
+    private List<String> autoFailureReasons(boolean autoCompact,
+                                            boolean autoReduced,
+                                            int candidateSignalCount,
+                                            int evidenceRefCount,
+                                            int issueTagCount,
+                                            int teachingActionCount,
+                                            boolean hiddenBoundaryPresent) {
+        List<String> reasons = new ArrayList<>();
+        if (autoCompact && !autoReduced) {
+            reasons.add("AUTO_REQUEST_NOT_SMALLER");
+        }
+        if (candidateSignalCount <= 0) {
+            reasons.add("AUTO_MISSING_CANDIDATE_SIGNALS");
+        }
+        if (evidenceRefCount <= 0) {
+            reasons.add("AUTO_MISSING_EVIDENCE_REFS");
+        }
+        if (issueTagCount <= 0) {
+            reasons.add("AUTO_MISSING_ISSUE_TAGS");
+        }
+        if (teachingActionCount <= 0) {
+            reasons.add("AUTO_MISSING_TEACHING_ACTIONS");
+        }
+        if (!hiddenBoundaryPresent) {
+            reasons.add("AUTO_MISSING_HIDDEN_BOUNDARY");
         }
         return reasons;
     }

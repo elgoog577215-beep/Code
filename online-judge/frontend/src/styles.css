@@ -25,8 +25,11 @@
   --wash: rgba(255, 255, 255, 0.58);
   --shadow: 0 22px 60px rgba(23, 47, 48, 0.1);
   --shadow-soft: 0 10px 28px rgba(23, 47, 48, 0.065);
+  --shadow-card: 0 12px 30px rgba(23, 47, 48, 0.075);
+  --shadow-lift: 0 18px 44px rgba(13, 95, 89, 0.14);
   --radius: 8px;
   --radius-lg: 12px;
+  --radius-sm: 6px;
   --focus: 0 0 0 3px rgba(15, 118, 110, 0.16);
 }
 
@@ -56,8 +59,11 @@
   --wash: rgba(16, 23, 34, 0.72);
   --shadow: none;
   --shadow-soft: none;
+  --shadow-card: none;
+  --shadow-lift: none;
   --radius: 7px;
   --radius-lg: 8px;
+  --radius-sm: 5px;
   --focus: 0 0 0 3px rgba(45, 212, 191, 0.18);
 }
 
@@ -80,7 +86,10 @@ body {
   min-width: 320px;
   min-height: 100vh;
   overflow-x: hidden;
-  background: linear-gradient(180deg, var(--bg-plain), var(--bg));
+  background:
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--brand) 7%, transparent), transparent 30rem),
+    radial-gradient(circle at 88% 14%, color-mix(in srgb, var(--blue) 6%, transparent), transparent 24rem),
+    linear-gradient(180deg, var(--bg-plain), var(--bg));
   color: var(--ink);
   text-rendering: optimizeLegibility;
 }
@@ -88,6 +97,10 @@ body {
 :root[data-theme="dark"] body {
   background-color: var(--bg);
   background-image: none;
+}
+
+:root[data-theme="dark"] .app-shell::before {
+  display: none;
 }
 
 button,
@@ -106,7 +119,20 @@ a {
 }
 
 .app-shell {
+  position: relative;
   min-height: 100vh;
+}
+
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--ink) 2.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--ink) 2.5%, transparent) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.32), transparent 58%);
 }
 
 .app-header {
@@ -118,9 +144,9 @@ a {
   gap: 0.72rem;
   align-items: center;
   padding: 0.56rem clamp(0.8rem, 2.4vw, 1.7rem);
-  background: color-mix(in srgb, var(--bg-plain) 82%, transparent);
+  background: color-mix(in srgb, var(--bg-plain) 90%, transparent);
   border-bottom: 1px solid var(--line);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(18px) saturate(1.08);
   box-shadow: 0 1px 0 color-mix(in srgb, white 45%, transparent);
 }
 
@@ -305,8 +331,10 @@ a {
   padding: 0.82rem 0.95rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: none;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 24%, transparent), transparent 48%),
+    var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
 .role-entry h1,
@@ -333,33 +361,77 @@ a {
 }
 
 .role-entry-card {
+  position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.85rem;
-  align-items: center;
-  min-height: 116px;
-}
-
-.role-entry-card > svg {
-  color: var(--brand-strong);
-}
-
-.role-entry-card--primary {
   grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.95rem;
+  align-items: center;
+  min-height: 156px;
+  padding: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 94%, var(--surface-strong));
+  box-shadow: var(--shadow-card);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
-.role-entry-card--primary strong,
-.role-entry-card--primary span {
-  display: block;
+.role-entry-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--brand), var(--blue));
+  opacity: 0.82;
 }
 
-.role-entry-card--primary strong {
-  margin-bottom: 0.18rem;
+.role-entry-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+  box-shadow: var(--shadow-lift);
 }
 
-.role-entry-card--primary span {
+.role-entry-card__icon {
+  display: inline-grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
+  border-radius: var(--radius);
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 68%, var(--surface-strong));
+}
+
+.role-entry-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.role-entry-card h2 {
+  margin: 0;
+  font-size: clamp(1.26rem, 1.9vw, 1.7rem);
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.role-entry-card p {
+  max-width: 48ch;
+  margin: 0.45rem 0 0;
   color: var(--ink-soft);
-  line-height: 1.45;
+  line-height: 1.5;
+}
+
+.role-entry-card--student {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 42%, transparent), transparent 54%),
+    var(--surface);
+}
+
+.role-entry-card--teacher::before {
+  opacity: 0.38;
 }
 
 .role-entry-card > .actions,
@@ -386,16 +458,30 @@ a {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: none;
+  box-shadow: var(--shadow-card);
 }
 
 .catalog-command,
 .assignment-detail-command {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
   align-items: end;
   padding: 0.95rem 1.05rem;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 26%, transparent), transparent 46%),
+    var(--surface);
+}
+
+.catalog-command::before,
+.assignment-detail-command::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--brand), var(--blue));
 }
 
 .catalog-command h1,
@@ -416,6 +502,7 @@ a {
   gap: 0.8rem;
   align-items: center;
   padding: 0.75rem;
+  box-shadow: var(--shadow-soft);
 }
 
 .catalog-search {
@@ -427,7 +514,8 @@ a {
   padding: 0.18rem 0.55rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface-strong);
+  background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 58%, transparent);
 }
 
 .catalog-search svg {
@@ -456,10 +544,12 @@ a {
   color: var(--ink-soft);
   cursor: pointer;
   font-weight: 850;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
 
 .catalog-tabs button:hover,
 .catalog-tabs button.is-active {
+  transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
   color: var(--brand-strong);
   background: color-mix(in srgb, var(--brand-soft) 62%, var(--surface-strong));
@@ -472,6 +562,7 @@ a {
 }
 
 .catalog-card {
+  position: relative;
   min-width: 0;
   display: grid;
   align-content: start;
@@ -480,7 +571,30 @@ a {
   padding: 0.9rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 94%, var(--surface-strong));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 54%, transparent);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.catalog-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: var(--radius) 0 0 var(--radius);
+  background: linear-gradient(180deg, var(--brand), var(--blue));
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.catalog-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand) 32%, var(--line));
+  box-shadow: var(--shadow-soft);
+}
+
+.catalog-card:hover::before {
+  opacity: 1;
 }
 
 .catalog-card h2 {
@@ -574,9 +688,9 @@ a {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  box-shadow: none;
+  box-shadow: var(--shadow-card);
   overflow: clip;
-  backdrop-filter: none;
+  backdrop-filter: blur(10px) saturate(1.04);
 }
 
 .panel--statement {
@@ -585,12 +699,14 @@ a {
 
 .panel--editor {
   border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
-  box-shadow: none;
+  box-shadow: var(--shadow-card);
 }
 
 .panel--ai {
   border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
-  background: var(--surface);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--brand-soft) 28%, transparent), transparent 10rem),
+    var(--surface);
 }
 
 :root[data-theme="dark"] .panel,
@@ -637,6 +753,29 @@ a {
   background: var(--surface);
 }
 
+:root[data-theme="dark"] .practice-command,
+:root[data-theme="dark"] .student-current-action,
+:root[data-theme="dark"] .problem-primary-action,
+:root[data-theme="dark"] .catalog-command,
+:root[data-theme="dark"] .assignment-detail-command,
+:root[data-theme="dark"] .editor-command,
+:root[data-theme="dark"] .overview-command,
+:root[data-theme="dark"] .management-console,
+:root[data-theme="dark"] .catalog-card,
+:root[data-theme="dark"] .overview-insight-item,
+:root[data-theme="dark"] .editor-side .editor-compact-details {
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .practice-command::before,
+:root[data-theme="dark"] .student-current-action::before,
+:root[data-theme="dark"] .catalog-command::before,
+:root[data-theme="dark"] .assignment-detail-command::before,
+:root[data-theme="dark"] .editor-command::before,
+:root[data-theme="dark"] .overview-command::before {
+  opacity: 0.72;
+}
+
 :root[data-theme="dark"] .panel__header,
 :root[data-theme="dark"] .student-entry-panel__head,
 :root[data-theme="dark"] .teacher-command__head,
@@ -657,6 +796,7 @@ a {
   align-items: flex-start;
   padding: 0.82rem 0.95rem 0.74rem;
   border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-strong) 62%, transparent);
 }
 
 .panel__header h2 {
@@ -749,6 +889,7 @@ a {
 
 .student-page {
   gap: 1rem;
+  padding-top: clamp(0.1rem, 1.2vw, 0.7rem);
 }
 
 .student-start {
@@ -795,8 +936,19 @@ a {
   align-items: start;
 }
 
+.student-assignment-grid--linear {
+  width: min(100%, 1120px);
+  max-width: none;
+  margin-inline: auto;
+  grid-template-columns: 1fr;
+}
+
 .student-assignment-grid.needs-identity {
   grid-template-columns: minmax(280px, 0.42fr) minmax(0, 1fr);
+}
+
+.student-assignment-grid--linear.needs-identity {
+  grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
 }
 
 .student-assignment-grid.needs-identity .student-side-flow--identity {
@@ -807,7 +959,21 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+}
+
+.student-assignment-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.58rem 0.8rem;
+  align-items: center;
   margin-bottom: 0.9rem;
+  padding-bottom: 0.82rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.student-assignment-bar__hint {
+  color: var(--ink-soft);
+  font-weight: 850;
 }
 
 .student-assignment-meta span {
@@ -817,21 +983,35 @@ a {
   padding: 0.28rem 0.55rem;
   border-radius: 999px;
   color: var(--brand-strong);
-  background: var(--brand-soft);
+  background: color-mix(in srgb, var(--brand-soft) 82%, var(--surface-strong));
   font-size: 0.8rem;
   font-weight: 800;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 60%, transparent);
 }
 
 .student-current-action {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.85rem;
   align-items: center;
   margin-bottom: 1rem;
-  padding: 0.92rem 1rem;
+  padding: 1rem 1.05rem 1rem 1.18rem;
   border: 1px solid color-mix(in srgb, var(--brand) 26%, var(--line));
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--brand-soft) 36%, var(--surface-strong));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 58%, transparent), color-mix(in srgb, var(--blue-soft) 22%, transparent)),
+    var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.student-current-action::before {
+  content: "";
+  position: absolute;
+  inset: 0.78rem auto 0.78rem 0.68rem;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--brand), var(--blue));
 }
 
 .student-current-action span,
@@ -848,7 +1028,7 @@ a {
 .student-current-action strong {
   display: block;
   margin-top: 0.16rem;
-  font-size: clamp(1.05rem, 1.6vw, 1.28rem);
+  font-size: clamp(1.12rem, 1.6vw, 1.36rem);
   line-height: 1.25;
 }
 
@@ -861,7 +1041,6 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 0.42rem;
-  margin-bottom: 0.7rem;
 }
 
 .student-identity-strip span {
@@ -884,7 +1063,7 @@ a {
 
 .student-task-list {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.46rem;
 }
 
 .student-task-meta-line {
@@ -900,10 +1079,11 @@ a {
   grid-template-columns: 2.4rem minmax(0, 1fr) auto;
   gap: 0.78rem;
   align-items: center;
-  min-height: 76px;
-  padding-block: 0.76rem;
+  min-height: 68px;
+  padding: 0.62rem 0.72rem;
   border-radius: var(--radius);
-  box-shadow: none;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 54%, transparent);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
 
 .task-card.student-task-card {
@@ -913,8 +1093,9 @@ a {
 .student-task-card.is-next {
   border-color: color-mix(in srgb, var(--brand) 44%, var(--line));
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--brand-soft) 48%, transparent), transparent 46%),
+    linear-gradient(90deg, color-mix(in srgb, var(--brand-soft) 54%, transparent), transparent 48%),
     var(--surface-strong);
+  box-shadow: var(--shadow-soft);
 }
 
 .student-task-card.is-passed {
@@ -922,7 +1103,7 @@ a {
 }
 
 .student-task-card h3 {
-  margin: 0.24rem 0 0;
+  margin: 0.16rem 0 0;
 }
 
 .student-task-index {
@@ -939,6 +1120,12 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+.student-task-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  box-shadow: var(--shadow-soft);
+}
+
 .student-task-main {
   min-width: 0;
 }
@@ -948,10 +1135,39 @@ a {
 }
 
 .student-task-action-note {
-  margin: 0.28rem 0 0;
+  margin: 0.2rem 0 0;
   color: var(--ink-soft);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
   line-height: 1.42;
+}
+
+.student-learning-drawer {
+  margin-top: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  overflow: clip;
+}
+
+.student-learning-drawer > summary {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.72rem 0.84rem;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 900;
+}
+
+.student-learning-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.student-learning-drawer > .stack,
+.student-learning-drawer > .empty-state {
+  margin: 0 0.84rem 0.84rem;
 }
 
 .student-task-card .ui-button {
@@ -2915,6 +3131,8 @@ a {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 52%, transparent);
+  overflow: hidden;
 }
 
 .teacher-compact-details > summary {
@@ -2927,6 +3145,12 @@ a {
   cursor: pointer;
   font-weight: 900;
   list-style: none;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.teacher-compact-details > summary:hover {
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 58%, transparent);
 }
 
 .teacher-compact-details > summary::-webkit-details-marker {
@@ -2936,7 +3160,8 @@ a {
 .teacher-compact-details__body {
   display: grid;
   gap: 0.6rem;
-  padding: 0 0.68rem 0.68rem;
+  padding: 0.68rem;
+  border-top: 1px solid var(--line);
 }
 
 .teacher-student-row {
@@ -3535,12 +3760,15 @@ a {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(10px) saturate(1.04);
 }
 
 .management-console__nav {
   min-width: 0;
-  background: color-mix(in srgb, var(--surface-strong) 58%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--brand-soft) 28%, transparent), transparent 14rem),
+    color-mix(in srgb, var(--surface-strong) 64%, transparent);
 }
 
 .management-console__nav {
@@ -3593,10 +3821,12 @@ a {
   background: transparent;
   text-align: left;
   cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 }
 
 .management-section-list button:hover,
 .management-section-list button.is-active {
+  transform: translateX(2px);
   border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
   background: var(--surface);
   box-shadow: var(--shadow-soft);
@@ -3617,7 +3847,9 @@ a {
 
 .management-workspace {
   min-width: 0;
-  background: var(--surface);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 56%, transparent), transparent 16rem),
+    var(--surface);
 }
 
 .management-task-grid {
@@ -3637,7 +3869,8 @@ a {
   padding: 0.9rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 56%, transparent);
 }
 
 .management-task-card .field,
@@ -3657,7 +3890,8 @@ a {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 84%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 52%, transparent);
 }
 
 .management-compact-details > summary {
@@ -3669,6 +3903,12 @@ a {
   cursor: pointer;
   list-style: none;
   font-weight: 900;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.management-compact-details > summary:hover {
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 58%, transparent);
 }
 
 .management-compact-details > summary::-webkit-details-marker {
@@ -3778,7 +4018,8 @@ a {
   padding: 0.82rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 58%, transparent);
 }
 
 .management-status-item svg {
@@ -3840,7 +4081,7 @@ a {
   padding: 0.72rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
 }
 
 .management-identity-groups > div > div:first-child {
@@ -3871,6 +4112,20 @@ a {
 
 .editor-command {
   align-items: center;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 24%, transparent), transparent 46%),
+    var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.editor-command::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--brand), var(--blue));
 }
 
 .editor-command__actions {
@@ -3917,6 +4172,7 @@ a {
 .editor-side .editor-compact-details {
   background: var(--surface);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
 }
 
 .editor-quality-list {
@@ -3932,7 +4188,8 @@ a {
   padding: 0.68rem 0.72rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 58%, transparent);
 }
 
 .editor-quality-list > div > span {
@@ -3965,7 +4222,8 @@ a {
 .editor-compact-details {
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface-strong);
+  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 56%, transparent);
 }
 
 .editor-compact-details > summary {
@@ -3978,6 +4236,12 @@ a {
   cursor: pointer;
   font-weight: 900;
   list-style: none;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.editor-compact-details > summary:hover {
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 58%, transparent);
 }
 
 .editor-compact-details > summary::-webkit-details-marker {
@@ -3987,12 +4251,14 @@ a {
 .editor-compact-details__body {
   display: grid;
   gap: 0.8rem;
-  padding: 0 0.75rem 0.75rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--line);
 }
 
 .editor-compact-details--side > .editor-quality-list,
 .editor-compact-details--side > .editor-problem-list {
-  padding: 0 0.75rem 0.75rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--line);
 }
 
 .editor-test-row {
@@ -4046,9 +4312,9 @@ a {
   gap: 0.16rem;
   padding: 0.9rem;
   border-radius: var(--radius);
-  background: var(--surface-strong);
+  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
   border: 1px solid var(--line);
-  box-shadow: none;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 58%, transparent);
 }
 
 .metric span,
@@ -4077,7 +4343,7 @@ a {
   background: var(--surface-strong);
   font-weight: 800;
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
 .ui-button:hover {
@@ -4088,6 +4354,11 @@ a {
 
 .ui-button svg {
   flex: 0 0 auto;
+  color: currentColor;
+}
+
+.ui-button > span {
+  color: currentColor;
 }
 
 .ui-button.is-loading svg {
@@ -4107,6 +4378,10 @@ a {
   background: linear-gradient(145deg, var(--brand-strong), #0f667d 58%, #155e75);
   border-color: transparent;
   box-shadow: 0 10px 22px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+
+.ui-button--primary:hover {
+  box-shadow: var(--shadow-lift);
 }
 
 .ui-button--ghost {
@@ -4214,9 +4489,21 @@ a {
   color: var(--ink);
 }
 
+.field > span:first-child {
+  color: var(--ink);
+  font-size: 0.86rem;
+  line-height: 1.25;
+  transition: color 0.16s ease;
+}
+
+.field:focus-within > span:first-child {
+  color: var(--brand-strong);
+}
+
 .field small {
   color: var(--ink-soft);
   font-weight: 500;
+  line-height: 1.35;
 }
 
 .control {
@@ -4227,6 +4514,26 @@ a {
   background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
   border: 1px solid var(--line);
   border-radius: 7px;
+  line-height: 1.35;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 62%, transparent);
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+select.control {
+  appearance: none;
+  padding-right: 2.15rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%),
+    linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.05rem) 1.08rem,
+    calc(100% - 0.78rem) 1.08rem;
+  background-repeat: no-repeat;
+  background-size: 0.32rem 0.32rem, 0.32rem 0.32rem;
+}
+
+.control::placeholder {
+  color: color-mix(in srgb, var(--ink-faint) 74%, transparent);
 }
 
 .control[type="file"] {
@@ -4236,11 +4543,24 @@ a {
 
 .control--textarea {
   min-height: 150px;
+  line-height: 1.5;
   resize: vertical;
 }
 
 .control:hover {
   border-color: color-mix(in srgb, var(--brand) 24%, var(--line));
+}
+
+.control:focus {
+  border-color: color-mix(in srgb, var(--brand) 46%, var(--line));
+  background: var(--surface-strong);
+}
+
+.control:disabled {
+  color: var(--ink-faint);
+  background: var(--surface-soft);
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .form-grid {
@@ -4333,6 +4653,7 @@ a {
   font-weight: 850;
   line-height: 1.15;
   overflow-wrap: anywhere;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 50%, transparent);
 }
 
 .meta-badge--success {
@@ -4366,6 +4687,7 @@ a {
 }
 
 .empty-state {
+  position: relative;
   display: grid;
   gap: 0.36rem;
   min-height: 54px;
@@ -4375,6 +4697,17 @@ a {
   color: var(--ink-soft);
   background: color-mix(in srgb, var(--surface-strong) 94%, var(--bg-plain));
   border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 56%, transparent);
+  overflow: hidden;
+}
+
+.empty-state::before {
+  content: "";
+  position: absolute;
+  inset: 0.78rem auto 0.78rem 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: color-mix(in srgb, var(--brand) 58%, var(--line));
 }
 
 .empty-state strong {
@@ -4384,6 +4717,7 @@ a {
 
 .empty-state p {
   margin: 0;
+  max-width: 64ch;
   color: var(--ink-soft);
   font-size: 0.9rem;
   line-height: 1.45;
@@ -4550,7 +4884,8 @@ button.list-row:hover {
 .overview-compact-details {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-strong) 90%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 52%, transparent);
   overflow: clip;
 }
 
@@ -4565,6 +4900,13 @@ button.list-row:hover {
   cursor: pointer;
   font-weight: 900;
   list-style: none;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.problem-compact-details > summary:hover,
+.overview-compact-details > summary:hover {
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 58%, transparent);
 }
 
 .problem-compact-details > summary::-webkit-details-marker,
@@ -4577,7 +4919,7 @@ button.list-row:hover {
 .problem-compact-details > .coach-next-question,
 .overview-compact-details > .table-wrap,
 .overview-compact-details > .empty-state {
-  margin: 0 0.88rem 0.88rem;
+  margin: 0.88rem;
 }
 
 .problem-page {
@@ -4585,6 +4927,7 @@ button.list-row:hover {
 }
 
 .practice-command {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.38fr);
   gap: 1.15rem;
@@ -4593,8 +4936,18 @@ button.list-row:hover {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: var(--surface);
-  box-shadow: var(--shadow-soft);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 32%, transparent), transparent 45%),
+    var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.practice-command::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--brand), var(--blue));
 }
 
 .practice-command__main {
@@ -4633,7 +4986,8 @@ button.list-row:hover {
   padding: 0.62rem 0.72rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 90%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 58%, transparent);
 }
 
 .practice-command__status svg {
@@ -4797,10 +5151,12 @@ button.list-row:hover {
 
 .editor-shell {
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--brand) 26%, var(--line));
   border-radius: var(--radius);
   background: #0f172a;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow:
+    0 12px 26px rgba(15, 23, 42, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .practice-submit-strip {
@@ -4815,7 +5171,8 @@ button.list-row:hover {
   padding: 0.7rem 0.78rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 58%, transparent);
 }
 
 .coach-focus-card {
@@ -4835,14 +5192,16 @@ button.list-row:hover {
 }
 
 .problem-primary-action {
+  position: relative;
   display: grid;
   gap: 0.72rem;
-  padding: 0.92rem 1rem;
+  padding: 1rem 1.05rem 1.05rem;
   border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
   border-radius: var(--radius);
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 52%, transparent), color-mix(in srgb, var(--blue-soft) 24%, transparent)),
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 60%, transparent), color-mix(in srgb, var(--blue-soft) 28%, transparent)),
     var(--surface-strong);
+  box-shadow: var(--shadow-soft);
 }
 
 .problem-sample-drawer {
@@ -4892,7 +5251,28 @@ button.list-row:hover {
   padding: 0.62rem 0.68rem;
   border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--line));
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 48%, transparent);
+}
+
+.problem-primary-action__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.36rem;
+}
+
+.problem-primary-action__summary span {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.52rem;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--line);
+  font-size: 0.78rem;
+  font-weight: 850;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 58%, transparent);
 }
 
 .student-feedback-channel,
@@ -5296,6 +5676,7 @@ button.list-row:hover {
 }
 
 .overview-command {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, auto);
   gap: 1rem;
@@ -5304,8 +5685,19 @@ button.list-row:hover {
   padding: clamp(1.05rem, 2vw, 1.45rem);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 24%, transparent), transparent 46%),
+    var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.overview-command::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--brand), var(--blue));
 }
 
 .overview-command > *,
@@ -5336,7 +5728,8 @@ button.list-row:hover {
   padding: 0.78rem 0.9rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 58%, transparent);
 }
 
 .overview-action-plan {
@@ -5355,7 +5748,8 @@ button.list-row:hover {
   padding: 0.74rem 0.82rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-strong) 90%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 54%, transparent);
 }
 
 .overview-action-card span {
@@ -5428,6 +5822,14 @@ button.list-row:hover {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface-strong) 93%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 56%, transparent);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.overview-insight-item:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand) 26%, var(--line));
+  box-shadow: var(--shadow-soft);
 }
 
 .overview-insight-item h3 {
@@ -5477,6 +5879,8 @@ button.list-row:hover {
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 56%, transparent);
 }
 
 table {
@@ -5491,12 +5895,24 @@ td {
   border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
+  line-height: 1.4;
 }
 
 th {
   color: var(--ink-soft);
-  background: var(--surface-soft);
+  background: color-mix(in srgb, var(--surface-soft) 82%, var(--surface-strong));
   font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+tbody tr {
+  transition: background 0.14s ease;
+}
+
+tbody tr:hover {
+  background: color-mix(in srgb, var(--brand-soft) 32%, transparent);
 }
 
 tr:last-child td {
@@ -5511,14 +5927,21 @@ tr:last-child td {
 }
 
 .tab-button {
-  min-height: 36px;
-  padding: 0.45rem 0.7rem;
+  min-height: 40px;
+  padding: 0.5rem 0.78rem;
   border-radius: 999px;
   background: var(--surface-strong);
   border: 1px solid var(--line);
   color: var(--ink-soft);
   cursor: pointer;
   font-weight: 800;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.tab-button:hover {
+  color: var(--ink);
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
 }
 
 .tab-button.is-active {
@@ -5559,11 +5982,24 @@ tr:last-child td {
   box-shadow: none;
 }
 
+:root[data-theme="dark"] .management-console__nav,
+:root[data-theme="dark"] .management-workspace {
+  background: var(--surface);
+}
+
+:root[data-theme="dark"] .catalog-card:hover,
+:root[data-theme="dark"] .overview-insight-item:hover,
+:root[data-theme="dark"] .management-section-list button:hover,
+:root[data-theme="dark"] .management-section-list button.is-active {
+  box-shadow: none;
+}
+
 :root[data-theme="dark"] .meta-badge,
 :root[data-theme="dark"] .code-label {
   color: var(--ink-soft);
   background: #0f171a;
   border-color: var(--line);
+  box-shadow: none;
 }
 
 :root[data-theme="dark"] .meta-badge--success {
@@ -5621,11 +6057,30 @@ tr:last-child td {
 :root[data-theme="dark"] .table-wrap {
   border-color: var(--line);
   background: var(--surface);
+  box-shadow: none;
 }
 
 :root[data-theme="dark"] th {
   color: var(--ink-soft);
   background: #151922;
+}
+
+:root[data-theme="dark"] tbody tr:hover {
+  background: #171d25;
+}
+
+:root[data-theme="dark"] .field:focus-within > span:first-child {
+  color: var(--brand-strong);
+}
+
+:root[data-theme="dark"] .control {
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] select.control {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%),
+    linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%);
 }
 
 :root[data-theme="dark"] .student-guide > div.is-done span {
@@ -5690,6 +6145,7 @@ tr:last-child td {
 }
 
 :root[data-theme="dark"] .role-entry,
+:root[data-theme="dark"] .role-entry-card,
 :root[data-theme="dark"] .management-command,
 :root[data-theme="dark"] .student-entry-panel,
 :root[data-theme="dark"] .student-context-panel,
@@ -5710,6 +6166,23 @@ tr:last-child td {
   backdrop-filter: none;
 }
 
+:root[data-theme="dark"] .role-entry-card {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+:root[data-theme="dark"] .role-entry-card:hover {
+  transform: none;
+  border-color: var(--line-strong);
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .role-entry-card__icon {
+  color: var(--brand-strong);
+  background: #101f20;
+  border-color: #2f4d50;
+}
+
 :root[data-theme="dark"] .teacher-rail,
 :root[data-theme="dark"] .management-console__nav,
 :root[data-theme="dark"] .management-context {
@@ -5724,7 +6197,12 @@ tr:last-child td {
 :root[data-theme="dark"] .teacher-assignment-item:hover,
 :root[data-theme="dark"] .teacher-assignment-item.is-active,
 :root[data-theme="dark"] button.list-row:hover,
-:root[data-theme="dark"] .task-card--learning:hover {
+:root[data-theme="dark"] .task-card--learning:hover,
+:root[data-theme="dark"] .teacher-compact-details > summary:hover,
+:root[data-theme="dark"] .management-compact-details > summary:hover,
+:root[data-theme="dark"] .editor-compact-details > summary:hover,
+:root[data-theme="dark"] .problem-compact-details > summary:hover,
+:root[data-theme="dark"] .overview-compact-details > summary:hover {
   transform: none;
   box-shadow: none;
   border-color: var(--line-strong);
@@ -5908,6 +6386,11 @@ tr:last-child td {
   background: #141820;
   border-color: #343b49;
   border-style: solid;
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .empty-state::before {
+  background: color-mix(in srgb, var(--brand) 50%, #343b49);
 }
 
 :root[data-theme="dark"] .empty-state strong {
@@ -6003,6 +6486,11 @@ tr:last-child td {
 :root[data-theme="dark"] .task-card,
 :root[data-theme="dark"] .list-row,
 :root[data-theme="dark"] .issue-row,
+:root[data-theme="dark"] .teacher-compact-details,
+:root[data-theme="dark"] .management-compact-details,
+:root[data-theme="dark"] .editor-compact-details,
+:root[data-theme="dark"] .problem-compact-details,
+:root[data-theme="dark"] .overview-compact-details,
 :root[data-theme="dark"] .student-current-action,
 :root[data-theme="dark"] .student-identity-strip span,
 :root[data-theme="dark"] .student-next-action,
@@ -6255,6 +6743,11 @@ tr:last-child td {
   .assignment-issue-panel {
     position: static;
   }
+
+  .student-assignment-bar {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
 }
 
 @media (max-width: 760px) {
@@ -6336,6 +6829,8 @@ tr:last-child td {
   .student-entry-card,
   .student-entry-grid.has-assignment .student-entry-card,
   .student-entry-grid.has-assignment .student-entry-card--invite,
+  .role-entry-card,
+  .role-entry-card--primary,
   .teacher-assignment-item,
   .overview-insight-item {
     grid-template-columns: 1fr;
@@ -6350,8 +6845,6 @@ tr:last-child td {
   .role-entry,
   .role-entry-grid,
   .role-entry-grid--primary,
-  .role-entry-card,
-  .role-entry-card--primary,
   .catalog-command,
   .catalog-tools,
   .catalog-grid,
@@ -7271,6 +7764,11 @@ tr:last-child td {
     grid-template-columns: minmax(0, 1fr) minmax(300px, 0.38fr);
   }
 
+  .student-assignment-grid--linear.is-ready,
+  .student-assignment-grid--linear.needs-identity {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .student-side-flow {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -7734,6 +8232,7 @@ tr:last-child td {
 
   .student-page {
     gap: 0.68rem;
+    padding-top: 0;
   }
 
   .student-start {
@@ -7754,14 +8253,37 @@ tr:last-child td {
 
   .student-start__form,
   .student-assignment-grid,
+  .student-assignment-grid--linear,
   .student-assignment-grid.needs-identity,
+  .student-assignment-grid--linear.needs-identity,
   .student-side-flow,
   .student-record-summary {
     grid-template-columns: 1fr;
   }
 
+  .student-assignment-bar,
+  .student-current-action,
+  .task-card.student-task-card {
+    grid-template-columns: 1fr;
+  }
+
+  .student-current-action .ui-button,
+  .student-task-status,
+  .student-task-status .ui-button {
+    width: 100%;
+    justify-self: stretch;
+  }
+
   .student-assignment-grid {
     gap: 0.68rem;
+  }
+
+  .student-task-card:hover,
+  .catalog-card:hover,
+  .overview-insight-item:hover,
+  .ui-button:hover,
+  .tab-button:hover {
+    transform: none;
   }
 
   .student-assignment-grid.needs-identity .student-side-flow--identity {

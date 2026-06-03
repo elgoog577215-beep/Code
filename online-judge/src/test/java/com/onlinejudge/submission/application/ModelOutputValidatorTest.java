@@ -73,6 +73,90 @@ class ModelOutputValidatorTest {
     }
 
     @Test
+    void acceptsEducationAgentJudgmentWhenEvidenceAndSafetyAreValid() {
+        Fixture fixture = fixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateDiagnosisJudgeOutput(
+                validDecision().toBuilder()
+                        .primaryReasoning("第一个失败证据显示循环没有覆盖题目要求的末端。")
+                        .secondaryIssues(List.of(ExternalModelStagePayloads.EducationIssueNote.builder()
+                                .title("自测习惯")
+                                .message("可以补最小样例，但它不是当前第一失败的主因。")
+                                .issueTag("LOOP_BOUNDARY")
+                                .fineGrainedTag("OFF_BY_ONE")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .build()))
+                        .teachingPriority("先验证循环边界是否覆盖闭区间。")
+                        .improvementOpportunities(List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                                .category("TESTING_HABIT")
+                                .studentMessage("通过后补一个最小边界自测。")
+                                .benefit("能提前发现边界遗漏。")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .build()))
+                        .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                                .hintLevel("L2")
+                                .action("TRACE_VARIABLES")
+                                .task("列出 range 产生的 i。")
+                                .checkQuestion("当 n=1 时循环执行几次？")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .answerLeakRisk("LOW")
+                                .build())
+                        .build(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.NONE);
+    }
+
+    @Test
+    void rejectsUnsafeEducationAgentJudgment() {
+        Fixture fixture = fixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateDiagnosisJudgeOutput(
+                validDecision().toBuilder()
+                        .primaryReasoning("直接改成 range(1, n + 1) 就能过。")
+                        .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                                .task("复制完整代码")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .answerLeakRisk("LOW")
+                                .build())
+                        .build(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
+    void reportsInvalidEducationEvidenceRefWithFieldPath() {
+        Fixture fixture = fixture();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateDiagnosisJudgeOutput(
+                validDecision().toBuilder()
+                        .secondaryIssues(List.of(ExternalModelStagePayloads.EducationIssueNote.builder()
+                                .title("次要信号")
+                                .message("这是次要问题，不是主因。")
+                                .issueTag("LOOP_BOUNDARY")
+                                .fineGrainedTag("OFF_BY_ONE")
+                                .evidenceRefs(List.of("invented:secondary_ref"))
+                                .build()))
+                        .build(),
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_EVIDENCE_REF);
+        assertThat(result.getMessage())
+                .contains("diagnosisDecision.secondaryIssues[0].evidenceRefs")
+                .contains("invented:secondary_ref");
+    }
+
+    @Test
     void rejectsUnsafeTeachingHintOutput() {
         Fixture fixture = fixture();
 
@@ -227,6 +311,38 @@ class ModelOutputValidatorTest {
         assertThat(plan.getDiagnosisPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_JUDGE_V2);
         assertThat(plan.getTeachingPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.TEACHING_HINT_V1);
         assertThat(plan.getSingleCallPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
+        assertThat(plan.getRuntimeProfile()).isEqualTo("standard");
+        assertThat(plan.isRequestCompact()).isFalse();
+    }
+
+    @Test
+    void autoRuntimeProfileCompactsLargeSubmissionsOnly() {
+        ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
+                new ModelDiagnosisBriefBuilder(),
+                new StandardLibraryPackBuilder(new DiagnosisTaxonomy()),
+                new PromptTemplateRegistry(),
+                validator
+        );
+
+        ExternalModelAgentRuntime.RuntimePlan smallPlan = runtime.prepare(
+                fixture().evidencePackage(),
+                fixture().ruleSignals(),
+                null,
+                ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO
+        );
+        ExternalModelAgentRuntime.RuntimePlan largePlan = runtime.prepare(
+                largeFixture().evidencePackage(),
+                largeFixture().ruleSignals(),
+                null,
+                ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO
+        );
+
+        assertThat(smallPlan.getRuntimeProfile()).isEqualTo("auto");
+        assertThat(smallPlan.isRequestCompact()).isFalse();
+        assertThat(largePlan.getRuntimeProfile()).isEqualTo("auto");
+        assertThat(largePlan.isRequestCompact()).isTrue();
+        assertThat(largePlan.getBrief().getCandidateSignals()).hasSize(3);
+        assertThat(largePlan.getBrief().getKeyCodeExcerpt()).contains("truncated for model");
     }
 
     private ExternalModelStagePayloads.DiagnosisJudgeOutput validDecision() {
@@ -294,6 +410,66 @@ class ModelOutputValidatorTest {
                         .confidence(0.9)
                         .message("range excludes n")
                         .build()))
+                .build();
+        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, ruleSignals, null);
+        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals);
+        return new Fixture(evidencePackage, ruleSignals, brief, pack);
+    }
+
+    private Fixture largeFixture() {
+        String source = """
+                n = int(input())
+                total = 0
+                for i in range(1, n):
+                    total += i
+                print(total)
+                """.repeat(80);
+        DiagnosisEvidencePackage evidencePackage = DiagnosisEvidencePackage.builder()
+                .problem(DiagnosisEvidencePackage.ProblemEvidence.builder()
+                        .title("Sum 1 to n")
+                        .description("Input n and output the sum from 1 to n.".repeat(50))
+                        .build())
+                .submission(DiagnosisEvidencePackage.SubmissionEvidence.builder()
+                        .language("Python 3")
+                        .verdict("WRONG_ANSWER")
+                        .sourceCode(source)
+                        .sourceCodeWithLineNumbers(source)
+                        .sourceCodeLineCount(source.split("\\n", -1).length)
+                        .build())
+                .build();
+        RuleSignalAnalyzer.RuleSignalResult ruleSignals = RuleSignalAnalyzer.RuleSignalResult.builder()
+                .candidateIssueTags(List.of("LOOP_BOUNDARY", "BOUNDARY_CONDITION", "SAMPLE_ONLY"))
+                .candidateFineGrainedTags(List.of("OFF_BY_ONE", "EMPTY_INPUT", "SAMPLE_OVERFIT"))
+                .evidenceRefs(List.of("code:range_excludes_n", "judge:first_failed_case"))
+                .signals(List.of(
+                        RuleSignalAnalyzer.Signal.builder()
+                                .evidenceRef("code:range_excludes_n")
+                                .coarseTag("LOOP_BOUNDARY")
+                                .fineTag("OFF_BY_ONE")
+                                .confidence(0.95)
+                                .message("range excludes n".repeat(20))
+                                .build(),
+                        RuleSignalAnalyzer.Signal.builder()
+                                .evidenceRef("judge:first_failed_case")
+                                .coarseTag("BOUNDARY_CONDITION")
+                                .fineTag("EMPTY_INPUT")
+                                .confidence(0.5)
+                                .message("minimum case failed".repeat(20))
+                                .build(),
+                        RuleSignalAnalyzer.Signal.builder()
+                                .evidenceRef("problem:sample")
+                                .coarseTag("SAMPLE_ONLY")
+                                .fineTag("SAMPLE_OVERFIT")
+                                .confidence(0.4)
+                                .message("sample-like branch".repeat(20))
+                                .build(),
+                        RuleSignalAnalyzer.Signal.builder()
+                                .evidenceRef("code:debug_branch")
+                                .coarseTag("CODE_READABILITY")
+                                .fineTag(null)
+                                .confidence(0.2)
+                                .message("debug branch".repeat(20))
+                                .build()))
                 .build();
         ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, ruleSignals, null);
         StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals);

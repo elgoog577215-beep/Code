@@ -14,6 +14,13 @@ const TaskEditorPage = lazy(() => import("./features/task-editor/TaskEditorPage"
 const ClassOverviewPage = lazy(() => import("./features/insights/ClassOverviewPage"));
 
 type Theme = "light" | "dark";
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof BookOpen;
+  activeWhen?: (pathname: string) => boolean;
+  noActive?: boolean;
+};
 
 function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -60,39 +67,77 @@ function Header() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const isProblemPage = location.pathname.startsWith("/app/problem") || location.pathname.startsWith("/problem/");
-  const navItems = useMemo(
-    () => [
-      {
+  const isStudentContext = location.pathname.startsWith("/app/student") || isProblemPage || location.pathname.startsWith("/student");
+  const isTeacherContext =
+    location.pathname.startsWith("/app/teacher") ||
+    location.pathname.startsWith("/teacher") ||
+    location.pathname.startsWith("/app/teacher-management") ||
+    location.pathname.startsWith("/teacher-management") ||
+    location.pathname.startsWith("/app/task-editor") ||
+    location.pathname.startsWith("/task-editor") ||
+    location.pathname.startsWith("/app/class-overview") ||
+    location.pathname.startsWith("/class-overview");
+  const isCatalogContext = location.pathname.startsWith("/app/problems") || location.pathname === "/problems";
+  const navItems = useMemo<NavItem[]>(
+    () => {
+      const catalogItem: NavItem = {
         to: "/app/problems",
         label: "题库",
         icon: BookOpen,
         activeWhen: (pathname: string) => pathname.startsWith("/app/problems") || pathname === "/problems"
-      },
-      {
+      };
+      const studentItem: NavItem = {
         to: "/app/student",
-        label: "学生",
+        label: "当前作业",
         icon: GraduationCap,
-        activeWhen: (pathname: string) => pathname.startsWith("/app/student") || pathname.startsWith("/app/problem")
-      },
-      {
-        to: "/app/teacher",
-        label: "教师",
-        icon: UsersRound,
         activeWhen: (pathname: string) =>
-          pathname.startsWith("/app/teacher-management") ||
-          pathname.startsWith("/app/teacher/assignment") ||
-          pathname.startsWith("/app/task-editor") ||
-          pathname.startsWith("/app/class-overview")
-      },
-      {
+          pathname.startsWith("/app/student") || pathname.startsWith("/app/problem") || pathname.startsWith("/student") || pathname.startsWith("/problem/")
+      };
+      const inviteItem: NavItem = {
         to: "/app/student",
         label: "邀请码",
         icon: KeyRound,
         noActive: true,
         activeWhen: () => false
+      };
+      const teacherItem: NavItem = {
+        to: "/app/teacher",
+        label: "课堂",
+        icon: UsersRound,
+        activeWhen: (pathname: string) =>
+          pathname === "/app/teacher" ||
+          pathname.startsWith("/app/teacher/assignment") ||
+          pathname === "/teacher" ||
+          pathname.startsWith("/teacher/assignment") ||
+          pathname.startsWith("/app/class-overview") ||
+          pathname.startsWith("/class-overview")
+      };
+      const managementItem: NavItem = {
+        to: "/app/teacher-management",
+        label: "管理",
+        icon: UsersRound,
+        activeWhen: (pathname: string) =>
+          pathname.startsWith("/app/teacher-management") ||
+          pathname.startsWith("/teacher-management") ||
+          pathname.startsWith("/app/task-editor") ||
+          pathname.startsWith("/task-editor")
+      };
+      if (isStudentContext) {
+        return [studentItem, catalogItem, inviteItem];
       }
-    ],
-    []
+      if (isTeacherContext) {
+        return [teacherItem, managementItem, catalogItem];
+      }
+      if (isCatalogContext) {
+        return [catalogItem, studentItem, teacherItem];
+      }
+      return [
+        { ...studentItem, label: "学生" },
+        { ...teacherItem, label: "教师" },
+        catalogItem
+      ];
+    },
+    [isCatalogContext, isStudentContext, isTeacherContext]
   );
 
   useEffect(() => {

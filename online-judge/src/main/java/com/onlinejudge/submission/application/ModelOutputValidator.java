@@ -5,7 +5,6 @@ import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 @Component
@@ -18,7 +17,7 @@ public class ModelOutputValidator {
         if (output == null) {
             return invalid(ModelStageFailureReason.EMPTY_RESPONSE, "Diagnosis judge output is empty.");
         }
-        if (isHighRisk(output.getAnswerLeakRisk())) {
+        if (ModelOutputSafetyPolicy.isHighRisk(output.getAnswerLeakRisk())) {
             return invalid(ModelStageFailureReason.SAFETY_RISK,
                     "Diagnosis judge output has high answer leak risk: answerLeakRisk=HIGH.");
         }
@@ -32,8 +31,18 @@ public class ModelOutputValidator {
                 return invalid(ModelStageFailureReason.INVALID_TAG, "Fine-grained tag is not in standard library pack.");
             }
         }
-        if (!evidenceRefsValid(output.getEvidenceRefs(), brief)) {
-            return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, "Evidence refs are missing or not present in brief evidence.");
+        String invalidEvidence = invalidRefSummary(
+                "diagnosisDecision.evidenceRefs",
+                output.getEvidenceRefs(),
+                validEvidenceRefs(brief)
+        );
+        if (!invalidEvidence.isBlank()) {
+            return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
+        }
+        ExternalModelStagePayloads.StageValidationResult educationValidation =
+                validateEducationAgentJudgment(output, brief, standardLibraryPack);
+        if (!educationValidation.isValid()) {
+            return educationValidation;
         }
         return valid();
     }
@@ -65,9 +74,19 @@ public class ModelOutputValidator {
         if (decision != null && decision.getEvidenceRefs() != null) {
             validRefs.addAll(decision.getEvidenceRefs());
         }
-        if (!refsSubset(output.getStudentHintPlan().getEvidenceRefs(), validRefs)
-                || !refsSubset(output.getLearningInterventionPlan().getEvidenceRefs(), validRefs)) {
-            return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, "Teaching output references evidence outside the brief or decision.");
+        String invalidStudentHintRef = invalidRefSummary(
+                "teachingHint.studentHintPlan.evidenceRefs",
+                output.getStudentHintPlan().getEvidenceRefs(),
+                validRefs
+        );
+        String invalidInterventionRef = invalidRefSummary(
+                "teachingHint.learningInterventionPlan.evidenceRefs",
+                output.getLearningInterventionPlan().getEvidenceRefs(),
+                validRefs
+        );
+        if (!invalidStudentHintRef.isBlank() || !invalidInterventionRef.isBlank()) {
+            return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
+                    !invalidStudentHintRef.isBlank() ? invalidStudentHintRef : invalidInterventionRef);
         }
         return valid();
     }
@@ -99,16 +118,26 @@ public class ModelOutputValidator {
                     || issue.getNextAction() == null || issue.getNextAction().isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "Blocking issue is missing student message or next action.");
             }
-            if (!refsSubset(issue.getEvidenceRefs(), validRefs)) {
+            String invalidIssueRef = invalidRefSummary(
+                    "studentFeedback.blockingIssues[" + indexOf(feedback.getBlockingIssues(), issue) + "].evidenceRefs",
+                    issue.getEvidenceRefs(),
+                    validRefs
+            );
+            if (!invalidIssueRef.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
-                        "Blocking issue references evidence outside the brief or decision.");
+                        invalidIssueRef);
             }
         }
-        if (!refsSubset(feedback.getNextLearningAction().getEvidenceRefs(), validRefs)) {
+        String invalidNextActionRef = invalidRefSummary(
+                "studentFeedback.nextLearningAction.evidenceRefs",
+                feedback.getNextLearningAction().getEvidenceRefs(),
+                validRefs
+        );
+        if (!invalidNextActionRef.isBlank()) {
             return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
-                    "Next learning action references evidence outside the brief or decision.");
+                    invalidNextActionRef);
         }
-        if (isHighRisk(feedback.getNextLearningAction().getAnswerLeakRisk())) {
+        if (ModelOutputSafetyPolicy.isHighRisk(feedback.getNextLearningAction().getAnswerLeakRisk())) {
             return invalid(ModelStageFailureReason.SAFETY_RISK, "nextLearningAction.answerLeakRisk=HIGH");
         }
         Set<String> allowedImprovementTags = improvementTagIds(
@@ -128,14 +157,126 @@ public class ModelOutputValidator {
                     return invalid(ModelStageFailureReason.INVALID_JSON,
                             "Improvement opportunity is missing message or benefit.");
                 }
-                if (item.getEvidenceRefs() != null && !item.getEvidenceRefs().isEmpty()
-                        && !refsSubset(item.getEvidenceRefs(), validRefs)) {
+                String invalidImprovementRef = item.getEvidenceRefs() == null || item.getEvidenceRefs().isEmpty()
+                        ? ""
+                        : invalidRefSummary(
+                        "studentFeedback.improvementOpportunities[" + indexOf(feedback.getImprovementOpportunities(), item) + "].evidenceRefs",
+                        item.getEvidenceRefs(),
+                        validRefs
+                );
+                if (!invalidImprovementRef.isBlank()) {
                     return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
-                            "Improvement opportunity references evidence outside the brief or decision.");
+                            invalidImprovementRef);
                 }
             }
         }
         return valid();
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult validateEducationAgentJudgment(
+            ExternalModelStagePayloads.DiagnosisJudgeOutput output,
+            ModelDiagnosisBrief brief,
+            StandardLibraryPack standardLibraryPack) {
+        if (ModelOutputSafetyPolicy.isHighRisk(output.getNextLearningAction() == null ? null : output.getNextLearningAction().getAnswerLeakRisk())) {
+            return invalid(ModelStageFailureReason.SAFETY_RISK, "Education nextLearningAction.answerLeakRisk=HIGH");
+        }
+        String safetyTrigger = firstEducationSafetyTrigger(output);
+        if (!safetyTrigger.isBlank()) {
+            return invalid(ModelStageFailureReason.SAFETY_RISK,
+                    "Education agent judgment has high answer leak risk: " + safetyTrigger);
+        }
+        Set<String> validRefs = validEvidenceRefs(brief);
+        if (output.getEvidenceRefs() != null) {
+            validRefs.addAll(output.getEvidenceRefs());
+        }
+        String invalidSecondaryNote = invalidEducationNotesMessage(
+                output.getSecondaryIssues(),
+                "diagnosisDecision.secondaryIssues",
+                validRefs,
+                standardLibraryPack
+        );
+        String invalidDistractorNote = invalidEducationNotesMessage(
+                output.getDistractorNotes(),
+                "diagnosisDecision.distractorNotes",
+                validRefs,
+                standardLibraryPack
+        );
+        if (!invalidSecondaryNote.isBlank() || !invalidDistractorNote.isBlank()) {
+            return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
+                    !invalidSecondaryNote.isBlank() ? invalidSecondaryNote : invalidDistractorNote);
+        }
+        if (output.getImprovementOpportunities() != null
+                && !improvementOpportunitiesValid(output.getImprovementOpportunities(), validRefs, standardLibraryPack)) {
+            return invalid(ModelStageFailureReason.INVALID_TAG,
+                    "Education improvement opportunities are invalid.");
+        }
+        String invalidEducationNextActionRef = output.getNextLearningAction() == null
+                ? ""
+                : invalidRefSummary(
+                "diagnosisDecision.nextLearningAction.evidenceRefs",
+                output.getNextLearningAction().getEvidenceRefs(),
+                validRefs
+        );
+        if (!invalidEducationNextActionRef.isBlank()) {
+            return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
+                    invalidEducationNextActionRef);
+        }
+        return valid();
+    }
+
+    private String invalidEducationNotesMessage(List<ExternalModelStagePayloads.EducationIssueNote> notes,
+                                                String fieldName,
+                                                Set<String> validRefs,
+                                                StandardLibraryPack standardLibraryPack) {
+        if (notes == null || notes.isEmpty()) {
+            return "";
+        }
+        Set<String> allowedIssueTags = tagIds(standardLibraryPack == null ? null : standardLibraryPack.getIssueTags());
+        Set<String> allowedFineTags = tagIds(standardLibraryPack == null ? null : standardLibraryPack.getFineGrainedTags());
+        for (int index = 0; index < notes.size(); index++) {
+            ExternalModelStagePayloads.EducationIssueNote note = notes.get(index);
+            if (note == null) {
+                continue;
+            }
+            if (note.getIssueTag() != null && !note.getIssueTag().isBlank()
+                    && !allowedIssueTags.isEmpty()
+                    && !allowedIssueTags.contains(normalize(note.getIssueTag()))) {
+                return fieldName + "[" + index + "].issueTag invalid tag=" + note.getIssueTag();
+            }
+            if (note.getFineGrainedTag() != null && !note.getFineGrainedTag().isBlank()
+                    && !allowedFineTags.isEmpty()
+                    && !allowedFineTags.contains(normalize(note.getFineGrainedTag()))) {
+                return fieldName + "[" + index + "].fineGrainedTag invalid tag=" + note.getFineGrainedTag();
+            }
+            String invalidRef = note.getEvidenceRefs() == null || note.getEvidenceRefs().isEmpty()
+                    ? ""
+                    : invalidRefSummary(fieldName + "[" + index + "].evidenceRefs", note.getEvidenceRefs(), validRefs);
+            if (!invalidRef.isBlank()) {
+                return invalidRef;
+            }
+        }
+        return "";
+    }
+
+    private boolean improvementOpportunitiesValid(List<SubmissionAnalysisResponse.ImprovementOpportunity> opportunities,
+                                                  Set<String> validRefs,
+                                                  StandardLibraryPack standardLibraryPack) {
+        Set<String> allowedImprovementTags = improvementTagIds(
+                standardLibraryPack == null ? null : standardLibraryPack.getImprovementTags());
+        for (SubmissionAnalysisResponse.ImprovementOpportunity item : opportunities) {
+            if (item == null) {
+                continue;
+            }
+            if (!allowedImprovementTags.isEmpty()
+                    && !allowedImprovementTags.contains(normalize(item.getCategory()))) {
+                return false;
+            }
+            if (item.getEvidenceRefs() != null && !item.getEvidenceRefs().isEmpty()
+                    && !refsSubset(item.getEvidenceRefs(), validRefs)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean evidenceRefsValid(List<String> refs, ModelDiagnosisBrief brief) {
@@ -165,6 +306,25 @@ public class ModelOutputValidator {
             return false;
         }
         return refs.stream().allMatch(validRefs::contains);
+    }
+
+    private String invalidRefSummary(String fieldName, List<String> refs, Set<String> validRefs) {
+        if (refs == null || refs.isEmpty()) {
+            return fieldName + " missing evidenceRefs.";
+        }
+        for (String ref : refs) {
+            if (ref == null || ref.isBlank()) {
+                return fieldName + " contains blank evidenceRef.";
+            }
+            if (validRefs == null || !validRefs.contains(ref)) {
+                return fieldName + " invalid evidenceRef=" + ref;
+            }
+        }
+        return "";
+    }
+
+    private int indexOf(List<?> values, Object value) {
+        return values == null ? -1 : values.indexOf(value);
     }
 
     private Set<String> tagIds(List<StandardLibraryPack.TagOption> tags) {
@@ -200,55 +360,107 @@ public class ModelOutputValidator {
         return ids;
     }
 
-    private boolean isHighRisk(String risk) {
-        return "HIGH".equalsIgnoreCase(risk == null ? "" : risk.trim());
-    }
-
     private boolean containsUnsafeLeak(String text) {
-        return !unsafeLeakTrigger(text).isBlank();
+        return !ModelOutputSafetyPolicy.unsafeLeakTrigger(text).isBlank();
     }
 
     private String firstSafetyTrigger(ExternalModelStagePayloads.TeachingHintOutput output) {
-        if (isHighRisk(output.getAnswerLeakRisk())) {
+        if (ModelOutputSafetyPolicy.isHighRisk(output.getAnswerLeakRisk())) {
             return "answerLeakRisk=HIGH";
         }
-        if (isHighRisk(output.getStudentHintPlan().getAnswerLeakRisk())) {
+        if (ModelOutputSafetyPolicy.isHighRisk(output.getStudentHintPlan().getAnswerLeakRisk())) {
             return "studentHintPlan.answerLeakRisk=HIGH";
         }
-        if (isHighRisk(output.getLearningInterventionPlan().getAnswerLeakRisk())) {
+        if (ModelOutputSafetyPolicy.isHighRisk(output.getLearningInterventionPlan().getAnswerLeakRisk())) {
             return "learningInterventionPlan.answerLeakRisk=HIGH";
         }
-        String trigger = unsafeLeakTrigger(output.getStudentHint());
+        String trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(output.getStudentHint());
         if (!trigger.isBlank()) {
             return "studentHint contains " + trigger;
         }
-        trigger = unsafeLeakTrigger(output.getStudentHintPlan().getNextAction());
+        trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(output.getStudentHintPlan().getNextAction());
         if (!trigger.isBlank()) {
             return "studentHintPlan.nextAction contains " + trigger;
         }
-        trigger = unsafeLeakTrigger(output.getStudentHintPlan().getCoachQuestion());
+        trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(output.getStudentHintPlan().getCoachQuestion());
         if (!trigger.isBlank()) {
             return "studentHintPlan.coachQuestion contains " + trigger;
         }
-        trigger = unsafeLeakTrigger(output.getLearningInterventionPlan().getStudentTask());
+        trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(output.getLearningInterventionPlan().getStudentTask());
         if (!trigger.isBlank()) {
             return "learningInterventionPlan.studentTask contains " + trigger;
         }
         return "";
     }
 
+    private String firstEducationSafetyTrigger(ExternalModelStagePayloads.DiagnosisJudgeOutput output) {
+        String trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(output.getPrimaryReasoning());
+        if (!trigger.isBlank()) {
+            return "primaryReasoning contains " + trigger;
+        }
+        trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(output.getTeachingPriority());
+        if (!trigger.isBlank()) {
+            return "teachingPriority contains " + trigger;
+        }
+        trigger = firstEducationIssueSafetyTrigger(output.getSecondaryIssues(), "secondaryIssues");
+        if (!trigger.isBlank()) {
+            return trigger;
+        }
+        trigger = firstEducationIssueSafetyTrigger(output.getDistractorNotes(), "distractorNotes");
+        if (!trigger.isBlank()) {
+            return trigger;
+        }
+        if (output.getImprovementOpportunities() != null) {
+            for (SubmissionAnalysisResponse.ImprovementOpportunity item : output.getImprovementOpportunities()) {
+                trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(item == null ? null : item.getStudentMessage());
+                if (!trigger.isBlank()) {
+                    return "education improvement contains " + trigger;
+                }
+            }
+        }
+        if (output.getNextLearningAction() != null) {
+            trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(output.getNextLearningAction().getAction());
+            if (!trigger.isBlank()) {
+                return "education nextLearningAction.action contains " + trigger;
+            }
+            trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(output.getNextLearningAction().getTask());
+            if (!trigger.isBlank()) {
+                return "education nextLearningAction.task contains " + trigger;
+            }
+            trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(output.getNextLearningAction().getCheckQuestion());
+            if (!trigger.isBlank()) {
+                return "education nextLearningAction.checkQuestion contains " + trigger;
+            }
+        }
+        return "";
+    }
+
+    private String firstEducationIssueSafetyTrigger(List<ExternalModelStagePayloads.EducationIssueNote> notes,
+                                                    String fieldName) {
+        if (notes == null) {
+            return "";
+        }
+        for (ExternalModelStagePayloads.EducationIssueNote note : notes) {
+            String trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(note == null ? null : note.getMessage());
+            if (!trigger.isBlank()) {
+                return fieldName + " contains " + trigger;
+            }
+        }
+        return "";
+    }
+
     private String firstFeedbackSafetyTrigger(SubmissionAnalysisResponse.StudentFeedback feedback) {
-        String trigger = unsafeLeakTrigger(feedback.getSummary());
+        String trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(feedback.getSummary());
         if (!trigger.isBlank()) {
             return "summary contains " + trigger;
         }
         if (feedback.getBlockingIssues() != null) {
             for (SubmissionAnalysisResponse.FeedbackIssue issue : feedback.getBlockingIssues()) {
-                trigger = unsafeLeakTrigger(issue == null ? null : issue.getStudentMessage());
+                trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(issue == null ? null : issue.getStudentMessage());
                 if (!trigger.isBlank()) {
                     return "blockingIssue.studentMessage contains " + trigger;
                 }
-                trigger = unsafeLeakTrigger(issue == null ? null : issue.getNextAction());
+                trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(issue == null ? null : issue.getNextAction());
                 if (!trigger.isBlank()) {
                     return "blockingIssue.nextAction contains " + trigger;
                 }
@@ -256,18 +468,18 @@ public class ModelOutputValidator {
         }
         if (feedback.getImprovementOpportunities() != null) {
             for (SubmissionAnalysisResponse.ImprovementOpportunity item : feedback.getImprovementOpportunities()) {
-                trigger = unsafeLeakTrigger(item == null ? null : item.getStudentMessage());
+                trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(item == null ? null : item.getStudentMessage());
                 if (!trigger.isBlank()) {
                     return "improvement.studentMessage contains " + trigger;
                 }
             }
         }
         if (feedback.getNextLearningAction() != null) {
-            trigger = unsafeLeakTrigger(feedback.getNextLearningAction().getTask());
+            trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(feedback.getNextLearningAction().getTask());
             if (!trigger.isBlank()) {
                 return "nextLearningAction.task contains " + trigger;
             }
-            trigger = unsafeLeakTrigger(feedback.getNextLearningAction().getCheckQuestion());
+            trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(feedback.getNextLearningAction().getCheckQuestion());
             if (!trigger.isBlank()) {
                 return "nextLearningAction.checkQuestion contains " + trigger;
             }
@@ -275,43 +487,8 @@ public class ModelOutputValidator {
         return "";
     }
 
-    private String unsafeLeakTrigger(String text) {
-        String normalized = text == null ? "" : text.toLowerCase(Locale.ROOT);
-        for (String marker : List.of(
-                "完整代码",
-                "参考代码",
-                "最终答案",
-                "参考答案",
-                "答案如下",
-                "直接改成",
-                "改成",
-                "改为",
-                "替换为",
-                "hidden test",
-                "for _ in range",
-                "while q",
-                "while used < steps",
-                "while used<steps",
-                "while nums",
-                "range(1, n + 1)",
-                "range(1,n+1)",
-                "sqrt",
-                "dp[i - 2] +",
-                "dp[i-2]+",
-                "```",
-                "def ",
-                "#include",
-                "int main"
-        )) {
-            if (normalized.contains(marker)) {
-                return marker;
-            }
-        }
-        return "";
-    }
-
     private String normalize(String value) {
-        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        return value == null ? "" : value.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     private ExternalModelStagePayloads.StageValidationResult valid() {

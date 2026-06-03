@@ -14,17 +14,35 @@ public final class ExternalModelStagePayloads {
     }
 
     @Data
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class DiagnosisJudgeOutput {
         private String primaryIssueTag;
         private String fineGrainedTag;
         private List<String> evidenceRefs;
+        private String primaryReasoning;
+        private List<EducationIssueNote> secondaryIssues;
+        private List<EducationIssueNote> distractorNotes;
+        private String teachingPriority;
+        private List<SubmissionAnalysisResponse.ImprovementOpportunity> improvementOpportunities;
+        private SubmissionAnalysisResponse.NextLearningAction nextLearningAction;
         private Double confidence;
         private String uncertainty;
         private Boolean needsMoreEvidence;
         private String answerLeakRisk;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class EducationIssueNote {
+        private String title;
+        private String message;
+        private String issueTag;
+        private String fineGrainedTag;
+        private List<String> evidenceRefs;
     }
 
     @Data

@@ -67,13 +67,18 @@ public class StandardLibraryPackBuilder {
                 .improvementTags(buildImprovementTags())
                 .teachingActions(teachingActions)
                 .decisionProtocol(buildDecisionProtocol())
+                .educationAgentProtocol(buildEducationAgentProtocol())
+                .judgmentCalibrationExamples(buildJudgmentCalibrationExamples())
                 .studentFeedbackRules(buildStudentFeedbackRules())
                 .safetyRules(List.of(
                         "Do not provide complete code.",
                         "Do not provide direct final answers.",
                         "Do not guess or reveal hidden test data.",
                         "Do not provide replacement loop headers, transition formulas, or executable control structures.",
+                        "For multi-case or multi-query input issues, never write phrases such as for _ in range(q), while q, or directly add a loop.",
                         "For input-format issues, ask the student to compare required input lines with actual read operations instead of naming the exact loop to add.",
+                        "Mark answerLeakRisk=HIGH only when the response itself exposes complete code, direct replacement structure, hidden data, or a final answer.",
+                        "Counting required input groups, comparing read operations, or naming q as a problem variable is safe and should be LOW or MEDIUM, not HIGH.",
                         "Prefer evidence-grounded hints and one verifiable next action.",
                         "Student-facing improvement opportunities must not include direct code replacements or hidden test guesses."
                 ))
@@ -81,6 +86,113 @@ public class StandardLibraryPackBuilder {
                         "NEEDS_MORE_EVIDENCE",
                         "LOW_CONFIDENCE",
                         "HIDDEN_TEST_DATA_UNAVAILABLE"
+                ))
+                .build();
+    }
+
+    private List<StandardLibraryPack.JudgmentCalibrationExample> buildJudgmentCalibrationExamples() {
+        return List.of(
+                calibrationExample(
+                        "multi-query-input-primary",
+                        "Visible output has fewer lines than expected, and evidence points to repeated queries or multi-case input.",
+                        "IO_FORMAT / INPUT_PARSING when it best explains the earliest failed case.",
+                        "DEBUG_CLEANUP, CODE_CLARITY, or generic BOUNDARY_CONDITION unless they directly explain the missing output.",
+                        "先说明第一失败证据显示处理次数与题面输入结构不一致，再把调试输出或代码结构作为次要信号。",
+                        "让学生数一数题面要求的输入组数与代码实际读取/输出的次数。",
+                        List.of("TESTING_HABIT", "CODE_CLARITY")
+                ),
+                calibrationExample(
+                        "sample-overfit-hidden-primary",
+                        "Public samples pass but hidden failures remain, with code containing sample-specific branches or hard-coded outputs.",
+                        "ALGORITHM_STRATEGY / SAMPLE_OVERFIT when sample-specific behavior explains the risk.",
+                        "NEEDS_MORE_EVIDENCE or OUTPUT_FORMAT unless evidence shows only formatting; never guess hidden test data.",
+                        "先承认隐藏数据不可见，再指出样例结构依赖是当前最该验证的根因。",
+                        "让学生构造一个不同于样例结构的最小反例，而不是猜隐藏用例。",
+                        List.of("TESTING_HABIT", "ROBUSTNESS")
+                ),
+                calibrationExample(
+                        "large-bound-scale-primary",
+                        "Problem constraints are large and the submission simulates or nests loops over the full range, especially with TLE.",
+                        "TIME_COMPLEXITY / OVER_SIMULATION or BRUTE_FORCE_LIMIT when scale evidence explains the verdict.",
+                        "GREEDY_ASSUMPTION or CODE_CLARITY before the student estimates maximum-scale operations.",
+                        "先把最大规模操作次数作为主因证据，再把策略选择留作后续提升。",
+                        "让学生估算上限输入下核心循环执行多少次，不给替代算法或公式。",
+                        List.of("COMPLEXITY", "BOUNDARY_AWARENESS")
+                )
+        );
+    }
+
+    private StandardLibraryPack.JudgmentCalibrationExample calibrationExample(String id,
+                                                                              String when,
+                                                                              String choosePrimary,
+                                                                              String doNotChoosePrimary,
+                                                                              String reasoningPattern,
+                                                                              String nextActionPattern,
+                                                                              List<String> safeImprovementCategories) {
+        return StandardLibraryPack.JudgmentCalibrationExample.builder()
+                .id(id)
+                .when(when)
+                .choosePrimary(choosePrimary)
+                .doNotChoosePrimary(doNotChoosePrimary)
+                .reasoningPattern(reasoningPattern)
+                .nextActionPattern(nextActionPattern)
+                .safeImprovementCategories(safeImprovementCategories)
+                .build();
+    }
+
+    private StandardLibraryPack.EducationAgentProtocol buildEducationAgentProtocol() {
+        return StandardLibraryPack.EducationAgentProtocol.builder()
+                .roleRules(List.of(
+                        "Act as the external education AI agent, not as a local rule engine.",
+                        "Use the problem, code, judge evidence and standard library to make a teaching judgment.",
+                        "Prefer concise educational reasoning over long reports or mechanical field filling."
+                ))
+                .rootCauseDecisionChecklist(List.of(
+                        "1. Locate the earliest concrete failure evidence: first failed case, compiler/runtime message, visible output mismatch, or strongest candidate signal.",
+                        "2. Connect that evidence to the student's code behavior: what the code read, computed, skipped, repeated, printed, or failed to guard.",
+                        "3. Compare candidate root causes and choose the one that most directly explains the failed behavior, not the most severe or familiar label.",
+                        "4. Demote distractors such as helper names, debug branches, sample-specific branches, style, or broad complexity unless they directly explain the same evidence.",
+                        "5. Turn the chosen root cause into one observable next action that lets the student verify the diagnosis without seeing the full fix."
+                ))
+                .primaryRootCauseRules(List.of(
+                        "First identify the current blocking root cause that best explains the earliest concrete failure.",
+                        "Prioritize visible failed case, compile/runtime messages and code behavior over broad topic guesses.",
+                        "Choose the issue the student should investigate first, even when several secondary issues exist."
+                ))
+                .evidenceGroundingRules(List.of(
+                        "Every primary judgment must cite evidenceRefs from the brief or candidate signals.",
+                        "When brief.evidenceRefs includes generator:* or a candidate signal evidenceRef, cite that most specific ref together with the readable judge/problem ref.",
+                        "Describe what the evidence shows in student-readable language.",
+                        "Hidden tests justify uncertainty, not guesses about hidden data."
+                ))
+                .secondarySignalRules(List.of(
+                        "Mention secondary issues only when they help the student avoid over-fixing.",
+                        "Explain why a secondary or distracting signal is not the first teaching priority.",
+                        "Do not let helper names, debug branches, style issues or surface complexity outrank failed evidence."
+                ))
+                .improvementOpportunityRules(List.of(
+                        "Improvement opportunities are follow-up learning value, not the current blocking fix.",
+                        "Prefer complexity awareness, testing habit, code clarity, boundary awareness, robustness and debug cleanup.",
+                        "Each improvement should include a benefit and avoid replacement code."
+                ))
+                .studentActionRules(List.of(
+                        "Give one observable next action: compare, trace, estimate, build a counterexample or check an invariant.",
+                        "The next action must be verifiable by the student without revealing the full solution.",
+                        "Keep student-facing text short and in Simplified Chinese."
+                ))
+                .safetyBoundaryRules(List.of(
+                        "Do not provide complete code, final answers, hidden test data or executable replacement structures.",
+                        "Do not name the exact loop header, transition formula, data structure trick or full algorithm replacement.",
+                        "For repeated input, say count and compare read operations; do not say for _ in range(q), while q, or directly add a loop.",
+                        "Set HIGH risk only for actual solution leakage; safe evidence-collection tasks should be LOW or MEDIUM.",
+                        "If the safest useful answer is evidence collection, ask for a minimal observable artifact."
+                ))
+                .nativeTraceQualityChecklist(List.of(
+                        "nativePrimaryReasoningGrounded: primaryReasoning must name the selected root cause, cite the strongest evidenceRefs, and mention the concrete failed behavior.",
+                        "nativeTeachingPriorityClear: teachingPriority must say why this is the first learning focus before secondary improvements.",
+                        "nativeSecondarySignalsBalanced: secondaryIssues and distractorNotes must explain why non-primary signals do not outrank the current failure.",
+                        "nativeNextActionObservable: nextLearningAction must be one observable comparison, trace, estimate, counterexample, or checklist task with evidenceRefs.",
+                        "nativeSafetyBoundary: no complete code, direct replacement structure, hidden test guess, transition formula, or phrase such as directly change to / 直接改成."
                 ))
                 .build();
     }

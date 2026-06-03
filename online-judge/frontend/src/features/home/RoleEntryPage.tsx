@@ -1,6 +1,5 @@
-import { BookOpen, GraduationCap, KeyRound, UsersRound } from "lucide-react";
+import { ArrowRight, BookOpen, GraduationCap, KeyRound, UsersRound } from "lucide-react";
 import { ButtonLink } from "../../shared/ui/Button";
-import { Panel } from "../../shared/ui/Panel";
 import { StatusPill } from "../../shared/ui/StatusPill";
 
 export default function RoleEntryPage() {
@@ -18,39 +17,39 @@ export default function RoleEntryPage() {
       </section>
 
       <section className="role-entry-grid role-entry-grid--primary" aria-label="使用入口">
-        <Panel
-          title="学生"
-          description="输入老师的邀请码，确认身份后继续当前作业。"
-          action={<StatusPill tone="info">课堂作业</StatusPill>}
-        >
-          <div className="role-entry-card role-entry-card--primary">
+        <article className="role-entry-card role-entry-card--primary role-entry-card--student">
+          <span className="role-entry-card__icon">
             <GraduationCap size={28} />
-            <div>
-              <strong>下一步最清楚</strong>
-              <span>邀请码、身份、当前要做的题集中在一页。</span>
+          </span>
+          <div>
+            <div className="role-entry-card__head">
+              <span className="eyebrow">学生</span>
+              <StatusPill tone="info">课堂作业</StatusPill>
             </div>
-            <ButtonLink to="/app/student" variant="primary" icon={<KeyRound size={16} />}>
-              进入学生端
-            </ButtonLink>
+            <h2>输入邀请码，继续当前作业</h2>
+            <p>身份确认、下一题、题目状态放在同一页，先做最该做的题。</p>
           </div>
-        </Panel>
+          <ButtonLink to="/app/student" variant="primary" icon={<KeyRound size={16} />}>
+            进入学生端
+          </ButtonLink>
+        </article>
 
-        <Panel
-          title="教师"
-          description="查看作业、课堂状态、共性问题和需要关注的学生。"
-          action={<StatusPill tone="success">工作台</StatusPill>}
-        >
-          <div className="role-entry-card role-entry-card--primary">
+        <article className="role-entry-card role-entry-card--primary role-entry-card--teacher">
+          <span className="role-entry-card__icon">
             <UsersRound size={28} />
-            <div>
-              <strong>先看课堂过程</strong>
-              <span>总览看趋势，单作业页处理细节。</span>
+          </span>
+          <div>
+            <div className="role-entry-card__head">
+              <span className="eyebrow">教师</span>
+              <StatusPill tone="success">工作台</StatusPill>
             </div>
-            <ButtonLink to="/app/teacher" variant="primary">
-              进入教师端
-            </ButtonLink>
+            <h2>先看课堂过程，再处理细节</h2>
+            <p>作业选择、课堂状态、需关注学生和高频问题集中在首屏。</p>
           </div>
-        </Panel>
+          <ButtonLink to="/app/teacher" variant="secondary" icon={<ArrowRight size={16} />}>
+            进入教师端
+          </ButtonLink>
+        </article>
       </section>
 
       <section className="role-entry-secondary">

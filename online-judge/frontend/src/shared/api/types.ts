@@ -480,6 +480,32 @@ export interface StudentFeedback {
   nextLearningAction?: StudentFeedbackNextLearningAction | null;
 }
 
+export interface ModelEducationIssueNote {
+  title?: string | null;
+  message?: string | null;
+  issueTag?: string | null;
+  fineGrainedTag?: string | null;
+  evidenceRefs?: string[];
+}
+
+export interface ModelEducationTrace {
+  source?: string | null;
+  primaryIssueTag?: string | null;
+  fineGrainedTag?: string | null;
+  evidenceRefs?: string[];
+  primaryReasoning?: string | null;
+  secondaryIssues?: ModelEducationIssueNote[];
+  distractorNotes?: ModelEducationIssueNote[];
+  teachingPriority?: string | null;
+  improvementCategories?: string[];
+  nextLearningAction?: string | null;
+  nextLearningActionEvidenceRefs?: string[];
+  confidence?: number | null;
+  uncertainty?: string | null;
+  needsMoreEvidence?: boolean | null;
+  answerLeakRisk?: string | null;
+}
+
 export interface SubmissionAnalysis {
   submissionId: number;
   sourceType?: string;
@@ -503,6 +529,7 @@ export interface SubmissionAnalysis {
   evidenceRefs?: string[];
   uncertainty?: string;
   diagnosticTrace?: string;
+  modelEducationTrace?: ModelEducationTrace | null;
   aiInvocation?: {
     provider?: string | null;
     model?: string | null;

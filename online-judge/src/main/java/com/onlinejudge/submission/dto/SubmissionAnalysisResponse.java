@@ -39,6 +39,7 @@ public class SubmissionAnalysisResponse {
     private TeacherCalibrationSignal teacherCalibrationSignal;
     private String uncertainty;
     private String diagnosticTrace;
+    private ModelEducationTrace modelEducationTrace;
     private AiInvocation aiInvocation;
     private String answerLeakRisk;
     private String wrongSolution;
@@ -205,6 +206,40 @@ public class SubmissionAnalysisResponse {
         private List<String> evidenceRefs;
         private String recommendedAction;
         private boolean needsTeacherReview;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ModelEducationTrace {
+        private String source;
+        private String primaryIssueTag;
+        private String fineGrainedTag;
+        private List<String> evidenceRefs;
+        private String primaryReasoning;
+        private List<ModelEducationIssueNote> secondaryIssues;
+        private List<ModelEducationIssueNote> distractorNotes;
+        private String teachingPriority;
+        private List<String> improvementCategories;
+        private String nextLearningAction;
+        private List<String> nextLearningActionEvidenceRefs;
+        private Double confidence;
+        private String uncertainty;
+        private Boolean needsMoreEvidence;
+        private String answerLeakRisk;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ModelEducationIssueNote {
+        private String title;
+        private String message;
+        private String issueTag;
+        private String fineGrainedTag;
+        private List<String> evidenceRefs;
     }
 
     @Data

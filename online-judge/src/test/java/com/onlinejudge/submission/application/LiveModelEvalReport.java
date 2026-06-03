@@ -34,6 +34,7 @@ public class LiveModelEvalReport {
     private Integer fallbackIssueTagHitCount;
     private Integer fallbackFineTagHitCount;
     private Integer safetyPassedCount;
+    private Map<String, Integer> safetyCategoryCounts;
     private Integer complexCaseCount;
     private Integer complexQualityPassedCount;
     private Integer complexMetricPassedCount;
@@ -42,6 +43,8 @@ public class LiveModelEvalReport {
     private String provider;
     private String baseUrl;
     private String runtimeProfile;
+    private Long timeoutSeconds;
+    private Integer maxOutputTokens;
     private Integer intelligenceCaseCount;
     private Integer intelligenceCompletedCount;
     private Integer intelligenceFallbackExcludedCount;
@@ -51,6 +54,25 @@ public class LiveModelEvalReport {
     private Double intelligenceQualityAverageScore;
     private Map<String, Integer> intelligenceMetricPassCounts;
     private Map<String, Integer> intelligenceMetricFailCounts;
+    private Integer educationAgentCaseCount;
+    private Integer educationAgentCompletedCount;
+    private Integer educationAgentFallbackExcludedCount;
+    private Integer educationAgentJudgmentCompleteCount;
+    private Integer educationAgentQualityPassedCount;
+    private Integer educationAgentMetricPassedCount;
+    private Integer educationAgentMetricTotalCount;
+    private Double educationAgentQualityAverageScore;
+    private Map<String, Integer> educationAgentMetricPassCounts;
+    private Map<String, Integer> educationAgentMetricFailCounts;
+    private Integer modelTraceCaseCount;
+    private Integer modelTraceCompletedCount;
+    private Integer modelTraceFallbackExcludedCount;
+    private Integer modelTraceQualityPassedCount;
+    private Integer modelTraceMetricPassedCount;
+    private Integer modelTraceMetricTotalCount;
+    private Double modelTraceQualityAverageScore;
+    private Map<String, Integer> modelTraceMetricPassCounts;
+    private Map<String, Integer> modelTraceMetricFailCounts;
     private Integer studentFeedbackCaseCount;
     private Integer studentFeedbackCompletedCount;
     private Integer studentFeedbackQualityPassedCount;
@@ -106,6 +128,7 @@ public class LiveModelEvalReport {
         private Boolean fallbackFineTagHit;
         private Boolean evidenceValid;
         private Boolean safetyPassed;
+        private List<String> safetyCategories;
         private Boolean complexCase;
         private Boolean complexQualityPassed;
         private Integer complexMetricPassedCount;
@@ -120,6 +143,26 @@ public class LiveModelEvalReport {
         private Double intelligenceQualityScore;
         private List<String> intelligencePassedMetrics;
         private List<String> intelligenceFailedMetrics;
+        private Boolean educationAgentEvaluated;
+        private Boolean educationAgentJudgmentComplete;
+        private Boolean educationAgentHasPrimaryReasoning;
+        private Boolean educationAgentHasNextAction;
+        private Boolean educationAgentHasImprovementOpportunity;
+        private Boolean educationAgentHasSecondarySignal;
+        private Boolean educationAgentQualityEvaluated;
+        private Boolean educationAgentQualityPassed;
+        private Integer educationAgentMetricPassedCount;
+        private Integer educationAgentMetricTotalCount;
+        private Double educationAgentQualityScore;
+        private List<String> educationAgentPassedMetrics;
+        private List<String> educationAgentFailedMetrics;
+        private Boolean modelTraceEvaluated;
+        private Boolean modelTraceQualityPassed;
+        private Integer modelTraceMetricPassedCount;
+        private Integer modelTraceMetricTotalCount;
+        private Double modelTraceQualityScore;
+        private List<String> modelTracePassedMetrics;
+        private List<String> modelTraceFailedMetrics;
         private Boolean studentFeedbackEvaluated;
         private Boolean studentFeedbackQualityPassed;
         private Integer studentFeedbackMetricPassedCount;
@@ -167,6 +210,13 @@ public class LiveModelEvalReport {
         private List<String> evidenceRefs;
         private String answerLeakRisk;
         private String summary;
+        private String educationJudgmentSource;
+        private String educationPrimaryReasoning;
+        private String educationTeachingPriority;
+        private List<String> educationSecondarySignals;
+        private List<String> educationImprovementCategories;
+        private String educationNextAction;
+        private List<String> educationEvidenceRefs;
     }
 
     @Data
@@ -216,9 +266,13 @@ public class LiveModelEvalReport {
     public static class QualityScore {
         private Double complexQualityScore;
         private Double intelligenceQualityScore;
+        private Double educationAgentQualityScore;
+        private Double modelTraceQualityScore;
         private Double studentFeedbackQualityScore;
         private Map<String, Boolean> complexMetrics;
         private Map<String, Boolean> intelligenceMetrics;
+        private Map<String, Boolean> educationAgentMetrics;
+        private Map<String, Boolean> modelTraceMetrics;
         private Map<String, Boolean> studentFeedbackMetrics;
     }
 }

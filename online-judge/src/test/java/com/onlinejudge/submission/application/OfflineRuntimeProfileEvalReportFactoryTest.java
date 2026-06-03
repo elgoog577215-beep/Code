@@ -28,7 +28,10 @@ class OfflineRuntimeProfileEvalReportFactoryTest {
         assertThat(report.getEntries()).singleElement()
                 .satisfies(entry -> {
                     assertThat(entry.getRequestBytesReduced()).isFalse();
+                    assertThat(entry.getAutoRequestBytesReduced()).isFalse();
+                    assertThat(entry.getAutoRequestCompact()).isFalse();
                     assertThat(entry.getQualityPreserved()).isFalse();
+                    assertThat(entry.getAutoQualityPreserved()).isFalse();
                     assertThat(entry.getFailureReasons()).contains(
                             "LOW_LATENCY_REQUEST_NOT_SMALLER",
                             "MISSING_CANDIDATE_SIGNALS",
@@ -36,6 +39,13 @@ class OfflineRuntimeProfileEvalReportFactoryTest {
                             "MISSING_ISSUE_TAGS",
                             "MISSING_TEACHING_ACTIONS",
                             "MISSING_HIDDEN_BOUNDARY"
+                    );
+                    assertThat(entry.getAutoFailureReasons()).contains(
+                            "AUTO_MISSING_CANDIDATE_SIGNALS",
+                            "AUTO_MISSING_EVIDENCE_REFS",
+                            "AUTO_MISSING_ISSUE_TAGS",
+                            "AUTO_MISSING_TEACHING_ACTIONS",
+                            "AUTO_MISSING_HIDDEN_BOUNDARY"
                     );
                 });
     }

@@ -161,6 +161,9 @@ public class LiveEvalBaselineRegressionGate {
         if (requiresIntelligenceQuality(mustKeep) && !Boolean.TRUE.equals(entry.getIntelligenceQualityPassed())) {
             violations.add(caseId + ": external model intelligence regression");
         }
+        if (requiresModelTraceQuality(mustKeep) && !Boolean.TRUE.equals(entry.getModelTraceQualityPassed())) {
+            violations.add(caseId + ": external model native trace regression");
+        }
         for (String token : mustKeep) {
             if (token == null || token.isBlank() || liveEvalCaseToken(token) || !modelRegressionToken(token)) {
                 continue;
@@ -200,6 +203,9 @@ public class LiveEvalBaselineRegressionGate {
         if (token.startsWith("intelligenceMetric:")) {
             return containsValue(entry.getIntelligencePassedMetrics(), token);
         }
+        if (token.startsWith("modelTraceMetric:")) {
+            return containsValue(entry.getModelTracePassedMetrics(), token);
+        }
         return switch (token) {
             case "modelIssueTagHit", "expectedIssueTagHit" -> Boolean.TRUE.equals(entry.getModelIssueTagHit());
             case "modelFineTagHit", "expectedFineTagHit" -> Boolean.TRUE.equals(entry.getModelFineTagHit());
@@ -208,6 +214,7 @@ public class LiveEvalBaselineRegressionGate {
             case "latencyBudgetHealthy" -> !Boolean.TRUE.equals(entry.getLatencyBudgetExceeded());
             case "complexQualityPassed" -> Boolean.TRUE.equals(entry.getComplexQualityPassed());
             case "intelligenceQualityPassed" -> Boolean.TRUE.equals(entry.getIntelligenceQualityPassed());
+            case "modelTraceQualityPassed" -> Boolean.TRUE.equals(entry.getModelTraceQualityPassed());
             default -> false;
         };
     }
@@ -222,6 +229,12 @@ public class LiveEvalBaselineRegressionGate {
         return mustKeep != null
                 && mustKeep.stream().anyMatch(token -> "intelligenceQualityPassed".equals(token)
                 || (token != null && token.startsWith("intelligenceMetric:")));
+    }
+
+    private static boolean requiresModelTraceQuality(List<String> mustKeep) {
+        return mustKeep != null
+                && mustKeep.stream().anyMatch(token -> "modelTraceQualityPassed".equals(token)
+                || (token != null && token.startsWith("modelTraceMetric:")));
     }
 
     private static boolean containsValue(List<String> values, String expected) {
@@ -249,7 +262,9 @@ public class LiveEvalBaselineRegressionGate {
                 || "complexQualityPassed".equals(token)
                 || token.startsWith("complexMetric:")
                 || "intelligenceQualityPassed".equals(token)
-                || token.startsWith("intelligenceMetric:");
+                || token.startsWith("intelligenceMetric:")
+                || "modelTraceQualityPassed".equals(token)
+                || token.startsWith("modelTraceMetric:");
     }
 
     private static String safe(String value) {

@@ -203,7 +203,7 @@ export default function StudentPage() {
     <div className="stack student-page">
       {alert?.type === "error" && <div className="alert alert--error">{alert.message}</div>}
 
-      <section className={`student-assignment-grid ${student ? "is-ready" : "needs-identity"}`}>
+      <section className={`student-assignment-grid student-assignment-grid--linear ${student ? "is-ready" : "needs-identity"}`}>
         {!student && (
           <aside className="student-side-flow student-side-flow--identity">
             <Panel title="确认身份" action={<StatusPill tone="neutral">待确认</StatusPill>}>
@@ -238,19 +238,23 @@ export default function StudentPage() {
           title={assignmentTitle}
           action={<StatusPill tone={student ? "success" : "neutral"}>{student ? "身份已确认" : "先确认身份"}</StatusPill>}
         >
-          {student && (
-            <div className="student-identity-strip">
-              <span>
-                <CheckCircle2 size={15} /> {student.displayName}
-              </span>
-              <span>{className || student.className || "未填写班级"}</span>
-              <span>{student.studentNo ? `座号 ${student.studentNo}` : "座号未填写"}</span>
+          <div className="student-assignment-bar">
+            {student ? (
+              <div className="student-identity-strip">
+                <span>
+                  <CheckCircle2 size={15} /> {student.displayName}
+                </span>
+                <span>{className || student.className || "未填写班级"}</span>
+                <span>{student.studentNo ? `座号 ${student.studentNo}` : "座号未填写"}</span>
+              </div>
+            ) : (
+              <span className="student-assignment-bar__hint">确认身份后开始作业</span>
+            )}
+            <div className="student-assignment-meta">
+              <span>{assignment.tasks.length} 题</span>
+              <span>邀请码 {assignment.inviteCode}</span>
+              {trajectory && <span>完成 {trajectory.completedTasks}/{trajectory.totalTasks}</span>}
             </div>
-          )}
-
-          <div className="student-assignment-meta">
-            <span>{assignment.tasks.length} 个题目</span>
-            <span>邀请码 {assignment.inviteCode}</span>
           </div>
 
           {student && nextTask && (
@@ -333,18 +337,15 @@ export default function StudentPage() {
               })}
             </div>
           )}
-        </Panel>
 
-        {student && (
-        <aside className="student-side-flow">
-          <Panel
-            title="提交状态"
-            action={<StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? `${trajectory.completedTasks}/${trajectory.totalTasks}` : "等待提交"}</StatusPill>}
-          >
+          {student && (
+            <details className="student-learning-drawer">
+              <summary>
+                <span>学习记录</span>
+                <StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? `${trajectory.completedTasks}/${trajectory.totalTasks}` : "等待提交"}</StatusPill>
+              </summary>
               {!trajectory ? (
-                <div className="stack">
-                  <EmptyState title="还没有提交记录" />
-                </div>
+                <EmptyState title="还没有提交记录" />
               ) : (
                 <div className="stack">
                   {trajectory.postAcTransferSignal &&
@@ -382,8 +383,8 @@ export default function StudentPage() {
                     <strong>
                       {trajectory.repeatedFineGrainedTag
                         ? issueLabel(trajectory.repeatedFineGrainedTag)
-                          : trajectory.repeatedIssueTag
-                            ? issueLabel(trajectory.repeatedIssueTag)
+                        : trajectory.repeatedIssueTag
+                          ? issueLabel(trajectory.repeatedIssueTag)
                           : trajectory.nextStep
                             ? learningStageLabel(trajectory.nextStep)
                             : "待提交"}
@@ -422,10 +423,9 @@ export default function StudentPage() {
                   </details>
                 </div>
               )}
-            </Panel>
-
-        </aside>
-        )}
+            </details>
+          )}
+        </Panel>
       </section>
     </div>
   );

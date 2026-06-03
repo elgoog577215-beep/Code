@@ -15,6 +15,7 @@ public class PromptTemplateRegistry {
     public static final String DIAGNOSIS_AND_TEACHING_V1 = "diagnosis-and-teaching-v1";
     public static final String DIAGNOSIS_AND_TEACHING_V2 = "diagnosis-and-teaching-v2";
     public static final String DIAGNOSIS_AND_TEACHING_V3 = "diagnosis-and-teaching-v3";
+    public static final String DIAGNOSIS_AND_TEACHING_V4_LITE = "diagnosis-and-teaching-v4-lite";
 
     private final Map<String, PromptTemplate> templates = Map.of(
             DIAGNOSIS_JUDGE_V1, PromptTemplate.builder()
@@ -46,6 +47,11 @@ public class PromptTemplateRegistry {
                     .version(DIAGNOSIS_AND_TEACHING_V3)
                     .stage("DIAGNOSIS_AND_TEACHING")
                     .systemPrompt(diagnosisAndTeachingV3SystemPrompt())
+                    .build(),
+            DIAGNOSIS_AND_TEACHING_V4_LITE, PromptTemplate.builder()
+                    .version(DIAGNOSIS_AND_TEACHING_V4_LITE)
+                    .stage("DIAGNOSIS_AND_TEACHING")
+                    .systemPrompt(diagnosisAndTeachingV4LiteSystemPrompt())
                     .build()
     );
 
@@ -123,6 +129,36 @@ public class PromptTemplateRegistry {
                     "primaryIssueTag": string,
                     "fineGrainedTag": string|null,
                     "evidenceRefs": string[],
+                    "primaryReasoning": string,
+                    "secondaryIssues": [{
+                      "title": string,
+                      "message": string,
+                      "issueTag": string|null,
+                      "fineGrainedTag": string|null,
+                      "evidenceRefs": string[]
+                    }],
+                    "distractorNotes": [{
+                      "title": string,
+                      "message": string,
+                      "issueTag": string|null,
+                      "fineGrainedTag": string|null,
+                      "evidenceRefs": string[]
+                    }],
+                    "teachingPriority": string,
+                    "improvementOpportunities": [{
+                      "category": string,
+                      "studentMessage": string,
+                      "benefit": string,
+                      "evidenceRefs": string[]
+                    }],
+                    "nextLearningAction": {
+                      "hintLevel": "L1"|"L2"|"L3"|"L4",
+                      "action": string,
+                      "task": string,
+                      "checkQuestion": string,
+                      "evidenceRefs": string[],
+                      "answerLeakRisk": "LOW"|"MEDIUM"|"HIGH"
+                    },
                     "confidence": number,
                     "uncertainty": string,
                     "needsMoreEvidence": boolean,
@@ -207,34 +243,39 @@ public class PromptTemplateRegistry {
                     "primaryIssueTag": string,
                     "fineGrainedTag": string|null,
                     "evidenceRefs": string[],
+                    "primaryReasoning": string,
+                    "secondaryIssues": [{
+                      "title": string,
+                      "message": string,
+                      "issueTag": string|null,
+                      "fineGrainedTag": string|null,
+                      "evidenceRefs": string[]
+                    }],
+                    "distractorNotes": [{
+                      "title": string,
+                      "message": string,
+                      "issueTag": string|null,
+                      "fineGrainedTag": string|null,
+                      "evidenceRefs": string[]
+                    }],
+                    "teachingPriority": string,
+                    "improvementOpportunities": [{
+                      "category": string,
+                      "studentMessage": string,
+                      "benefit": string,
+                      "evidenceRefs": string[]
+                    }],
+                    "nextLearningAction": {
+                      "hintLevel": "L1"|"L2"|"L3"|"L4",
+                      "action": string,
+                      "task": string,
+                      "checkQuestion": string,
+                      "evidenceRefs": string[],
+                      "answerLeakRisk": "LOW"|"MEDIUM"|"HIGH"
+                    },
                     "confidence": number,
                     "uncertainty": string,
                     "needsMoreEvidence": boolean,
-                    "answerLeakRisk": "LOW"|"MEDIUM"|"HIGH"
-                  },
-                  "teachingHint": {
-                    "studentHint": string,
-                    "studentHintPlan": {
-                      "hintLevel": "L1"|"L2"|"L3"|"L4",
-                      "problemType": string,
-                      "evidenceAnchor": string,
-                      "nextAction": string,
-                      "coachQuestion": string,
-                      "teachingAction": string,
-                      "evidenceRefs": string[],
-                      "answerLeakRisk": "LOW"|"MEDIUM"|"HIGH"
-                    },
-                    "learningInterventionPlan": {
-                      "interventionType": string,
-                      "goal": string,
-                      "studentTask": string,
-                      "checkQuestion": string,
-                      "completionSignal": string,
-                      "evidenceRefs": string[],
-                      "estimatedMinutes": number,
-                      "answerLeakRisk": "LOW"|"MEDIUM"|"HIGH"
-                    },
-                    "teacherNote": string,
                     "answerLeakRisk": "LOW"|"MEDIUM"|"HIGH"
                   },
                   "studentFeedback": {
@@ -270,30 +311,162 @@ public class PromptTemplateRegistry {
                       "evidenceRefs": string[],
                       "answerLeakRisk": "LOW"|"MEDIUM"|"HIGH"
                     }
-                  }
+                  },
+                  "teachingHint": TeachingHintOutput|null
                 }
 
                 Rules:
                 1. diagnosisDecision.primaryIssueTag MUST come from standardLibrary.issueTags.
                 2. diagnosisDecision.fineGrainedTag MUST be null or come from standardLibrary.fineGrainedTags.
                 3. All evidenceRefs MUST cite brief.evidenceRefs or brief.candidateSignals evidenceRef values.
-                4. Follow standardLibrary.decisionProtocol and standardLibrary.studentFeedbackRules.
-                5. First choose the current blocking root cause that best explains firstFailedCase, compile error, runtime error, or visible judge evidence.
-                6. studentFeedback.blockingIssues[0] MUST match diagnosisDecision and explain the current failed evidence.
-                7. Secondary issues may be mentioned only when they do not outrank the first blocking issue.
-                8. studentFeedback.improvementOpportunities MUST use standardLibrary.improvementTags ids only.
-                9. Improvement opportunities are follow-up learning value, not the primary reason for the current failure.
-                10. The next action must be one observable comparison, trace, estimate, counterexample, or checklist task.
-                11. teachingHint.studentHintPlan.teachingAction MUST come from standardLibrary.teachingActions.
-                12. Keep all student-facing content scaffolded: one small, verifiable next action, not the final fix.
-                13. For input-format issues, ask the student to compare required input lines with actual read operations instead of naming the exact loop to add.
-                14. For output-format issues, ask for character-level output comparison before discussing algorithms.
-                15. For large-bound complexity issues, ask for maximum-scale operation counting without naming the optimized method or formula.
-                16. For hidden failures, state that hidden data is unavailable and ask for a self-made counterexample instead of guessing the hidden case.
-                17. For complex submissions with several error signals, the first blocking issue MUST choose the teachable root cause before secondary issues or improvements.
-                18. Do not promote distracting signals such as helper names, dead code, debug branches, sample-specific branches, or cosmetic formatting to the primary cause unless they directly explain the failed case with evidence refs.
-                19. answerLeakRisk MUST be HIGH only if any part exposes a full solution, complete code, hidden data, replacement loop header, transition formula, or executable control structure; otherwise use LOW or MEDIUM.
-                20. Do not include replacement loop headers, transition formulas, executable control structures, complete code, final answers, or hidden test data.
+                4. If brief.evidenceRefs contains generator:* or candidateSignal refs for the chosen root cause, include at least one of those most-specific refs plus a readable judge/problem ref.
+                5. Omit teachingHint or set it to null unless you have spare output budget; studentFeedback is the primary student-facing output.
+                6. Follow standardLibrary.educationAgentProtocol first, then decisionProtocol and studentFeedbackRules.
+                7. Use standardLibrary.judgmentCalibrationExamples as decision-shape calibration for similar cases, but do not copy them when evidence differs.
+                8. Act as the external education AI agent: make the teaching judgment a programming teacher would make after reading the evidence.
+                9. Apply standardLibrary.educationAgentProtocol.rootCauseDecisionChecklist before writing diagnosisDecision: locate evidence, connect code behavior, compare causes, demote distractors, then choose one observable next action.
+                10. First choose the current blocking root cause that best explains firstFailedCase, compile error, runtime error, or visible judge evidence.
+                11. Before returning, self-check diagnosisDecision against standardLibrary.educationAgentProtocol.nativeTraceQualityChecklist; every item should be satisfied when evidence is available.
+                12. diagnosisDecision.primaryReasoning MUST explain why this is the first teaching priority in one short sentence, using the selected root cause and concrete evidenceRefs.
+                13. diagnosisDecision.teachingPriority MUST name the first learning focus and why it outranks secondary issues, not a full fix.
+                14. diagnosisDecision.secondaryIssues and distractorNotes MUST be short; each one should say why it is secondary or distracting when mentioned.
+                15. diagnosisDecision.nextLearningAction MUST be one observable comparison, trace, estimate, counterexample, or checklist task with evidenceRefs.
+                16. diagnosisDecision.improvementOpportunities and studentFeedback.improvementOpportunities MUST use standardLibrary.improvementTags ids only.
+                17. studentFeedback.blockingIssues[0] MUST match diagnosisDecision and explain the current failed evidence.
+                18. Secondary issues may be mentioned only when they do not outrank the first blocking issue.
+                19. Keep every student-facing string under 40 Chinese characters where possible.
+                20. Keep all student-facing content scaffolded: one small, verifiable next action, not the final fix.
+                21. For input-format issues, ask the student to count required input groups and actual read operations; never name the loop header to add.
+                22. For output-format issues, ask for character-level output comparison before discussing algorithms.
+                23. For large-bound complexity issues, ask for maximum-scale operation counting without naming the optimized method or formula.
+                24. For hidden failures, state that hidden data is unavailable and ask for a self-made counterexample instead of guessing the hidden case.
+                25. For complex submissions with several error signals, the first blocking issue MUST choose the teachable root cause before secondary issues or improvements.
+                26. Do not promote distracting signals such as helper names, dead code, debug branches, sample-specific branches, or cosmetic formatting to the primary cause unless they directly explain the failed case with evidence refs.
+                27. answerLeakRisk MUST be HIGH only if any part exposes a full solution, complete code, hidden data, replacement loop header, transition formula, or executable control structure; otherwise use LOW or MEDIUM.
+                28. Do not include replacement loop headers, transition formulas, executable control structures, complete code, final answers, or hidden test data.
+                29. Do not output phrases such as "for _ in range(q)", "while q", "直接加循环", or "直接改成".
+                30. Counting required input groups, comparing actual read operations, or asking the student to inspect q is evidence collection and SHOULD be LOW or MEDIUM, not HIGH.
+                """;
+    }
+
+    private String diagnosisAndTeachingV4LiteSystemPrompt() {
+        return """
+                You are a low-latency single-call runtime for an external education coding agent.
+                Return one strict minified JSON object only. Do not output markdown fences, XML, chain-of-thought, or extra text.
+                Use only the provided ModelDiagnosisBrief and StandardLibraryPack.
+                All user-facing strings MUST be Simplified Chinese.
+                Do not provide complete code, final answers, hidden test data, replacement loop headers, transition formulas, executable control structures, or a step-by-step full solution.
+
+                Input schema:
+                {
+                  "brief": ModelDiagnosisBrief,
+                  "standardLibrary": StandardLibraryPack
+                }
+
+                Output schema:
+                {
+                  "diagnosisDecision": {
+                    "primaryIssueTag": string,
+                    "fineGrainedTag": string|null,
+                    "evidenceRefs": string[],
+                    "primaryReasoning": string,
+                    "secondaryIssues": [{
+                      "title": string,
+                      "message": string,
+                      "issueTag": string|null,
+                      "fineGrainedTag": string|null,
+                      "evidenceRefs": string[]
+                    }],
+                    "distractorNotes": [{
+                      "title": string,
+                      "message": string,
+                      "issueTag": string|null,
+                      "fineGrainedTag": string|null,
+                      "evidenceRefs": string[]
+                    }],
+                    "teachingPriority": string,
+                    "improvementOpportunities": [{
+                      "category": string,
+                      "studentMessage": string,
+                      "benefit": string,
+                      "evidenceRefs": string[]
+                    }],
+                    "nextLearningAction": {
+                      "hintLevel": "L1"|"L2"|"L3"|"L4",
+                      "action": string,
+                      "task": string,
+                      "checkQuestion": string,
+                      "evidenceRefs": string[],
+                      "answerLeakRisk": "LOW"|"MEDIUM"|"HIGH"
+                    },
+                    "confidence": number,
+                    "uncertainty": string,
+                    "needsMoreEvidence": boolean,
+                    "answerLeakRisk": "LOW"|"MEDIUM"|"HIGH"
+                  },
+                  "studentFeedback": {
+                    "summary": string,
+                    "blockingIssues": [{
+                      "priority": number,
+                      "title": string,
+                      "studentMessage": string,
+                      "evidence": string,
+                      "nextAction": string,
+                      "issueTag": string,
+                      "fineGrainedTag": string|null,
+                      "evidenceRefs": string[]
+                    }],
+                    "secondaryIssues": [{
+                      "title": string,
+                      "studentMessage": string,
+                      "whyNotPrimary": string,
+                      "issueTag": string,
+                      "evidenceRefs": string[]
+                    }],
+                    "improvementOpportunities": [{
+                      "category": string,
+                      "studentMessage": string,
+                      "benefit": string,
+                      "evidenceRefs": string[]
+                    }],
+                    "nextLearningAction": {
+                      "hintLevel": "L1"|"L2"|"L3"|"L4",
+                      "action": string,
+                      "task": string,
+                      "checkQuestion": string,
+                      "evidenceRefs": string[],
+                      "answerLeakRisk": "LOW"|"MEDIUM"|"HIGH"
+                    }
+                  },
+                  "teachingHint": null
+                }
+
+                Lite budget:
+                1. Prefer short JSON over polished wording; every sentence should be under 28 Chinese characters where possible.
+                2. diagnosisDecision.evidenceRefs MUST contain 2-3 refs: the most specific generator/candidate ref if available, plus one readable judge/problem/code ref.
+                3. diagnosisDecision.secondaryIssues max 1 item; distractorNotes max 1 item; studentFeedback.blockingIssues exactly 1 item; improvementOpportunities exactly 1 item.
+                4. All secondaryIssues, distractorNotes, improvementOpportunities and studentFeedback evidenceRefs MUST reuse values from diagnosisDecision.evidenceRefs. Do not invent new evidenceRefs in nested fields.
+                5. Set teachingHint to null. Do not duplicate teachingHint fields.
+                6. Do not repeat long reasoning inside studentFeedback; summarize the same judgment in one short sentence.
+                7. Keep output under 900 tokens. No paragraph explanations. No pretty printing is needed.
+                8. studentFeedback.secondaryIssues SHOULD be [] unless it adds clear teaching value.
+                9. Use the same short nextLearningAction object in diagnosisDecision and studentFeedback.
+                10. studentFeedback.summary and blockingIssues[0].studentMessage MUST include "当前先" or "优先".
+
+                Teacher judgment rules:
+                1. Choose the current blocking root cause that best explains firstFailedCase, compile/runtime error, or visible judge evidence.
+                2. diagnosisDecision.primaryIssueTag MUST come from standardLibrary.issueTags.
+                3. diagnosisDecision.fineGrainedTag MUST be null or come from standardLibrary.fineGrainedTags.
+                4. All evidenceRefs MUST cite brief.evidenceRefs or brief.candidateSignals evidenceRef values.
+                5. Apply standardLibrary.educationAgentProtocol.rootCauseDecisionChecklist before writing diagnosisDecision.
+                6. primaryReasoning MUST use this short shape: evidence shows code behavior, so root cause is the first priority.
+                7. teachingPriority MUST say why the chosen focus outranks secondary issues.
+                8. If secondaryIssues or distractorNotes is non-empty, message MUST include one literal phrase: "次要信号，不是主因" or "干扰信号，不能解释当前失败".
+                9. nextLearningAction.task MUST be one observable action containing one of: 对比, 追踪, 数一数, 估算, 构造, 检查, 核对, 验证.
+                10. studentFeedback.blockingIssues[0] MUST match diagnosisDecision tags and evidence.
+                11. improvementOpportunities MUST use standardLibrary.improvementTags ids only and must not restate the blocking fix as an improvement.
+                12. answerLeakRisk MUST be HIGH only for actual solution leakage; safe evidence collection should be LOW or MEDIUM.
+                13. Do not output phrases such as "for _ in range(q)", "while q", "直接加循环", or "直接改成".
                 """;
     }
 

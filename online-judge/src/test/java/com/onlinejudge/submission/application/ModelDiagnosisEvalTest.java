@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -115,6 +116,14 @@ class ModelDiagnosisEvalTest {
         assertThat(report.getEntries()).hasSize(cases.size());
         assertThat(reportPath).exists();
         assertModelBaselineRegressionGateIfEnabled(report, reportPath);
+    }
+
+    @Test
+    void liveServiceDefaultsRuntimeProfileToAutoWithoutEnvOverride() {
+        DiagnosticAgentService service = newLiveService("");
+        Object aiReportService = ReflectionTestUtils.getField(service, "aiReportService");
+
+        assertThat(ReflectionTestUtils.getField(aiReportService, "externalRuntimeProfile")).isEqualTo("auto");
     }
 
     @Test
@@ -320,6 +329,132 @@ class ModelDiagnosisEvalTest {
                 "caseDelayMs=0",
                 "delayedCases=0"
         );
+    }
+
+    @Test
+    void liveModelReportSummarizesSinglePromptVersionWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-01")
+                        .model(model)
+                        .promptVersion("diagnosis-and-teaching-v2")
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .build(),
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-02")
+                        .model(model)
+                        .promptVersion("diagnosis-and-teaching-v2")
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .build()
+        ));
+
+        assertThat(report.getPromptVersion()).isEqualTo("diagnosis-and-teaching-v2");
+    }
+
+    @Test
+    void liveModelReportKeepsMixedPromptVersionForMultiPromptRunsWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-01")
+                        .model(model)
+                        .promptVersion("diagnosis-and-teaching-v2")
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .build(),
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-02")
+                        .model(model)
+                        .promptVersion("diagnosis-and-teaching-v3")
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .build()
+        ));
+
+        assertThat(report.getPromptVersion()).isEqualTo("mixed");
+    }
+
+    @Test
+    void liveModelReportSummarizesSingleRuntimeProfileWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-01")
+                        .model(model)
+                        .runtimeProfile("low-latency")
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .build(),
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-02")
+                        .model(model)
+                        .runtimeProfile("low-latency")
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .build()
+        ));
+
+        assertThat(report.getRuntimeProfile()).isEqualTo("low-latency");
+    }
+
+    @Test
+    void liveModelReportKeepsMixedRuntimeProfileForMultiProfileRunsWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-01")
+                        .model(model)
+                        .runtimeProfile("auto")
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .build(),
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-02")
+                        .model(model)
+                        .runtimeProfile("low-latency")
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .build()
+        ));
+
+        assertThat(report.getRuntimeProfile()).isEqualTo("mixed");
+    }
+
+    @Test
+    void liveModelReportRecordsRuntimeBudgetMetadataWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-01")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .build()
+        ));
+
+        assertThat(report.getTimeoutSeconds()).isEqualTo(35L);
+        assertThat(report.getMaxOutputTokens()).isEqualTo(900);
     }
 
     @Test
@@ -553,6 +688,37 @@ class ModelDiagnosisEvalTest {
                                 "intelligenceMetric:evidenceGroundedReasoning",
                                 "intelligenceMetric:modelSafetyAndBoundary"))
                         .intelligenceFailedMetrics(List.of())
+                        .educationAgentEvaluated(true)
+                        .educationAgentJudgmentComplete(true)
+                        .educationAgentHasPrimaryReasoning(true)
+                        .educationAgentHasNextAction(true)
+                        .educationAgentHasImprovementOpportunity(true)
+                        .educationAgentHasSecondarySignal(true)
+                        .educationAgentQualityEvaluated(true)
+                        .educationAgentQualityPassed(true)
+                        .educationAgentMetricPassedCount(5)
+                        .educationAgentMetricTotalCount(5)
+                        .educationAgentQualityScore(1.0)
+                        .educationAgentPassedMetrics(List.of(
+                                "educationAgentMetric:primaryReasoningGrounded",
+                                "educationAgentMetric:blockingPriorityClear",
+                                "educationAgentMetric:secondarySignalsBalanced",
+                                "educationAgentMetric:nextActionObservable",
+                                "educationAgentMetric:safeTeachingBoundary"))
+                        .educationAgentFailedMetrics(List.of())
+                        .modelTraceEvaluated(true)
+                        .modelTraceQualityPassed(true)
+                        .modelTraceMetricPassedCount(6)
+                        .modelTraceMetricTotalCount(6)
+                        .modelTraceQualityScore(1.0)
+                        .modelTracePassedMetrics(List.of(
+                                "modelTraceMetric:nativeRootCauseDecisionChecklistApplied",
+                                "modelTraceMetric:nativePrimaryReasoningGrounded",
+                                "modelTraceMetric:nativeTeachingPriorityClear",
+                                "modelTraceMetric:nativeSecondarySignalsBalanced",
+                                "modelTraceMetric:nativeNextActionObservable",
+                                "modelTraceMetric:nativeSafetyBoundary"))
+                        .modelTraceFailedMetrics(List.of())
                         .actualIssueTags(List.of("IO_FORMAT"))
                         .actualFineGrainedTags(List.of("INPUT_PARSING"))
                         .actualEvidenceRefs(List.of("generator:multi-query-prefix:input_parsing"))
@@ -588,6 +754,37 @@ class ModelDiagnosisEvalTest {
                                 "teachingDecisionQuality",
                                 "evidenceGroundedReasoning",
                                 "distractorResistance"))
+                        .educationAgentEvaluated(true)
+                        .educationAgentJudgmentComplete(false)
+                        .educationAgentHasPrimaryReasoning(true)
+                        .educationAgentHasNextAction(true)
+                        .educationAgentHasImprovementOpportunity(false)
+                        .educationAgentHasSecondarySignal(false)
+                        .educationAgentQualityEvaluated(true)
+                        .educationAgentQualityPassed(false)
+                        .educationAgentMetricPassedCount(3)
+                        .educationAgentMetricTotalCount(5)
+                        .educationAgentQualityScore(0.6)
+                        .educationAgentPassedMetrics(List.of(
+                                "educationAgentMetric:primaryReasoningGrounded",
+                                "educationAgentMetric:nextActionObservable",
+                                "educationAgentMetric:safeTeachingBoundary"))
+                        .educationAgentFailedMetrics(List.of(
+                                "blockingPriorityClear",
+                                "secondarySignalsBalanced"))
+                        .modelTraceEvaluated(true)
+                        .modelTraceQualityPassed(false)
+                        .modelTraceMetricPassedCount(3)
+                        .modelTraceMetricTotalCount(6)
+                        .modelTraceQualityScore(0.5)
+                        .modelTracePassedMetrics(List.of(
+                                "modelTraceMetric:nativePrimaryReasoningGrounded",
+                                "modelTraceMetric:nativeNextActionObservable",
+                                "modelTraceMetric:nativeSafetyBoundary"))
+                        .modelTraceFailedMetrics(List.of(
+                                "nativeRootCauseDecisionChecklistApplied",
+                                "nativeTeachingPriorityClear",
+                                "nativeSecondarySignalsBalanced"))
                         .build()
         ));
 
@@ -605,12 +802,39 @@ class ModelDiagnosisEvalTest {
         assertThat(report.getIntelligenceQualityAverageScore()).isEqualTo(0.75);
         assertThat(report.getIntelligenceMetricPassCounts()).containsEntry("autonomousRootCauseDiscovery", 2);
         assertThat(report.getIntelligenceMetricFailCounts()).containsEntry("evidenceGroundedReasoning", 1);
+        assertThat(report.getEducationAgentCaseCount()).isEqualTo(2);
+        assertThat(report.getEducationAgentCompletedCount()).isEqualTo(2);
+        assertThat(report.getEducationAgentFallbackExcludedCount()).isZero();
+        assertThat(report.getEducationAgentJudgmentCompleteCount()).isEqualTo(1);
+        assertThat(report.getEducationAgentQualityPassedCount()).isEqualTo(1);
+        assertThat(report.getEducationAgentMetricPassedCount()).isEqualTo(8);
+        assertThat(report.getEducationAgentMetricTotalCount()).isEqualTo(10);
+        assertThat(report.getEducationAgentQualityAverageScore()).isEqualTo(0.8);
+        assertThat(report.getEducationAgentMetricPassCounts()).containsEntry("primaryReasoningGrounded", 2);
+        assertThat(report.getEducationAgentMetricFailCounts()).containsEntry("blockingPriorityClear", 1);
+        assertThat(report.getModelTraceCaseCount()).isEqualTo(2);
+        assertThat(report.getModelTraceCompletedCount()).isEqualTo(2);
+        assertThat(report.getModelTraceFallbackExcludedCount()).isZero();
+        assertThat(report.getModelTraceQualityPassedCount()).isEqualTo(1);
+        assertThat(report.getModelTraceMetricPassedCount()).isEqualTo(9);
+        assertThat(report.getModelTraceMetricTotalCount()).isEqualTo(12);
+        assertThat(report.getModelTraceQualityAverageScore()).isEqualTo(0.75);
+        assertThat(report.getModelTraceMetricPassCounts()).containsEntry("nativePrimaryReasoningGrounded", 2);
+        assertThat(report.getModelTraceMetricFailCounts()).containsEntry("nativeRootCauseDecisionChecklistApplied", 1);
+        assertThat(report.getModelTraceMetricFailCounts()).containsEntry("nativeTeachingPriorityClear", 1);
         assertThat(liveModelSummaryLine(report)).contains(
                 "complexQuality=1/2",
                 "complexMetrics=9/12",
                 "intelligenceCompleted=2/2",
                 "intelligenceQuality=1/2",
                 "intelligenceMetrics=9/12",
+                "educationAgentCompleted=2/2",
+                "educationAgentJudgmentComplete=1/2",
+                "educationAgentQuality=1/2",
+                "educationAgentMetrics=8/10",
+                "modelTraceCompleted=2/2",
+                "modelTraceQuality=1/2",
+                "modelTraceMetrics=9/12",
                 "evidenceGroundedReasoning:1"
         );
         assertThat(report.getQualityBaselineDrafts()).singleElement()
@@ -622,6 +846,123 @@ class ModelDiagnosisEvalTest {
                         "intelligenceMetric:autonomousRootCauseDiscovery",
                         "intelligenceMetric:modelSafetyAndBoundary"
                 ));
+    }
+
+    @Test
+    void modelOutputSurfacesObservedEducationJudgmentFromStudentFeedback() {
+        SubmissionAnalysisResponse analysis = SubmissionAnalysisResponse.builder()
+                .issueTags(List.of("IO_FORMAT"))
+                .fineGrainedTags(List.of("INPUT_PARSING"))
+                .evidenceRefs(List.of("generator:multi-query-prefix:input_parsing"))
+                .answerLeakRisk("LOW")
+                .studentFeedback(SubmissionAnalysisResponse.StudentFeedback.builder()
+                        .summary("先处理输入读取与多组查询数量。")
+                        .blockingIssues(List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
+                                .priority(1)
+                                .title("当前最需要先处理的问题")
+                                .studentMessage("先核对 q 行查询是否都被读取。")
+                                .evidence("first failed case")
+                                .nextAction("数一数代码实际处理了几组查询。")
+                                .issueTag("IO_FORMAT")
+                                .fineGrainedTag("INPUT_PARSING")
+                                .evidenceRefs(List.of("generator:multi-query-prefix:input_parsing"))
+                                .build()))
+                        .secondaryIssues(List.of(SubmissionAnalysisResponse.SecondaryIssue.builder()
+                                .title("次要信号")
+                                .studentMessage("debug 输出也要清理。")
+                                .whyNotPrimary("它不是 first failed case 最早暴露的根因。")
+                                .issueTag("OUTPUT_FORMAT")
+                                .evidenceRefs(List.of("judge:first_failed_case:1"))
+                                .build()))
+                        .improvementOpportunities(List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                                .category("TESTING_HABIT")
+                                .studentMessage("通过后补一个 q>1 的自测。")
+                                .benefit("能验证修复没有只覆盖样例。")
+                                .evidenceRefs(List.of("generator:multi-query-prefix:self_test"))
+                                .build()))
+                        .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                                .hintLevel("L2")
+                                .action("COMPARE_INPUT_SPEC")
+                                .task("数一数题目要求的查询组数和代码实际处理的组数。")
+                                .checkQuestion("题目要求几组，代码处理几组？")
+                                .evidenceRefs(List.of("generator:multi-query-prefix:input_parsing"))
+                                .answerLeakRisk("LOW")
+                                .build())
+                        .build())
+                .build();
+
+        LiveModelEvalReport.ModelOutput output = modelOutput(analysis, "headline | summary");
+
+        assertThat(output.getEducationJudgmentSource()).isEqualTo("studentFeedback");
+        assertThat(output.getEducationPrimaryReasoning()).contains("q 行查询");
+        assertThat(output.getEducationTeachingPriority()).contains("输入读取");
+        assertThat(output.getEducationSecondarySignals()).singleElement()
+                .satisfies(signal -> assertThat(signal).contains("debug 输出", "不是 first failed case"));
+        assertThat(output.getEducationImprovementCategories()).containsExactly("TESTING_HABIT");
+        assertThat(output.getEducationNextAction()).contains("题目要求的查询组数");
+        assertThat(output.getEducationEvidenceRefs()).containsExactly(
+                "generator:multi-query-prefix:input_parsing",
+                "judge:first_failed_case:1",
+                "generator:multi-query-prefix:self_test"
+        );
+    }
+
+    @Test
+    void modelOutputPrefersNativeDiagnosisDecisionTraceWhenPresent() {
+        SubmissionAnalysisResponse analysis = SubmissionAnalysisResponse.builder()
+                .issueTags(List.of("IO_FORMAT"))
+                .fineGrainedTags(List.of("INPUT_PARSING"))
+                .evidenceRefs(List.of("analysis:final"))
+                .answerLeakRisk("LOW")
+                .modelEducationTrace(SubmissionAnalysisResponse.ModelEducationTrace.builder()
+                        .source("diagnosisDecision")
+                        .primaryIssueTag("IO_FORMAT")
+                        .fineGrainedTag("INPUT_PARSING")
+                        .evidenceRefs(List.of("model:evidence"))
+                        .primaryReasoning("模型原生判断：first failed case 少处理了一组输入。")
+                        .secondaryIssues(List.of(SubmissionAnalysisResponse.ModelEducationIssueNote.builder()
+                                .message("debug 输出是次要信号。")
+                                .issueTag("OUTPUT_FORMAT")
+                                .evidenceRefs(List.of("model:secondary"))
+                                .build()))
+                        .distractorNotes(List.of(SubmissionAnalysisResponse.ModelEducationIssueNote.builder()
+                                .message("变量名不是主因。")
+                                .evidenceRefs(List.of("model:distractor"))
+                                .build()))
+                        .teachingPriority("先核对输入读取次数。")
+                        .improvementCategories(List.of("TESTING_HABIT"))
+                        .nextLearningAction("用 q=2 手推代码读了几行查询。")
+                        .nextLearningActionEvidenceRefs(List.of("model:next_action"))
+                        .answerLeakRisk("LOW")
+                        .build())
+                .studentFeedback(SubmissionAnalysisResponse.StudentFeedback.builder()
+                        .summary("最终反馈里的不同表述")
+                        .blockingIssues(List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
+                                .studentMessage("学生反馈里另一句主因说明。")
+                                .evidenceRefs(List.of("feedback:evidence"))
+                                .build()))
+                        .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                                .task("学生反馈里的下一步。")
+                                .evidenceRefs(List.of("feedback:next_action"))
+                                .build())
+                        .build())
+                .build();
+
+        LiveModelEvalReport.ModelOutput output = modelOutput(analysis, "headline | summary");
+
+        assertThat(output.getEducationJudgmentSource()).isEqualTo("diagnosisDecision");
+        assertThat(output.getEducationPrimaryReasoning()).contains("模型原生判断");
+        assertThat(output.getEducationTeachingPriority()).contains("输入读取次数");
+        assertThat(output.getEducationSecondarySignals()).singleElement()
+                .satisfies(signal -> assertThat(signal).contains("debug 输出", "OUTPUT_FORMAT"));
+        assertThat(output.getEducationImprovementCategories()).containsExactly("TESTING_HABIT");
+        assertThat(output.getEducationNextAction()).contains("q=2");
+        assertThat(output.getEducationEvidenceRefs()).containsExactly(
+                "model:evidence",
+                "model:secondary",
+                "model:distractor",
+                "model:next_action"
+        );
     }
 
     @Test
@@ -656,6 +997,26 @@ class ModelDiagnosisEvalTest {
                         .intelligenceQualityScore(0.0)
                         .intelligencePassedMetrics(List.of())
                         .intelligenceFailedMetrics(List.of())
+                        .educationAgentEvaluated(false)
+                        .educationAgentJudgmentComplete(false)
+                        .educationAgentHasPrimaryReasoning(false)
+                        .educationAgentHasNextAction(false)
+                        .educationAgentHasImprovementOpportunity(false)
+                        .educationAgentHasSecondarySignal(false)
+                        .educationAgentQualityEvaluated(false)
+                        .educationAgentQualityPassed(false)
+                        .educationAgentMetricPassedCount(0)
+                        .educationAgentMetricTotalCount(0)
+                        .educationAgentQualityScore(0.0)
+                        .educationAgentPassedMetrics(List.of())
+                        .educationAgentFailedMetrics(List.of())
+                        .modelTraceEvaluated(false)
+                        .modelTraceQualityPassed(false)
+                        .modelTraceMetricPassedCount(0)
+                        .modelTraceMetricTotalCount(0)
+                        .modelTraceQualityScore(0.0)
+                        .modelTracePassedMetrics(List.of())
+                        .modelTraceFailedMetrics(List.of())
                         .build()
         ));
 
@@ -664,6 +1025,21 @@ class ModelDiagnosisEvalTest {
         assertThat(report.getIntelligenceFallbackExcludedCount()).isEqualTo(1);
         assertThat(report.getIntelligenceMetricPassedCount()).isZero();
         assertThat(report.getIntelligenceMetricTotalCount()).isZero();
+        assertThat(report.getEducationAgentCaseCount()).isEqualTo(1);
+        assertThat(report.getEducationAgentCompletedCount()).isZero();
+        assertThat(report.getEducationAgentFallbackExcludedCount()).isEqualTo(1);
+        assertThat(report.getEducationAgentJudgmentCompleteCount()).isZero();
+        assertThat(report.getEducationAgentQualityPassedCount()).isZero();
+        assertThat(report.getEducationAgentMetricPassedCount()).isZero();
+        assertThat(report.getEducationAgentMetricTotalCount()).isZero();
+        assertThat(report.getEducationAgentQualityAverageScore()).isZero();
+        assertThat(report.getModelTraceCaseCount()).isEqualTo(1);
+        assertThat(report.getModelTraceCompletedCount()).isZero();
+        assertThat(report.getModelTraceFallbackExcludedCount()).isEqualTo(1);
+        assertThat(report.getModelTraceQualityPassedCount()).isZero();
+        assertThat(report.getModelTraceMetricPassedCount()).isZero();
+        assertThat(report.getModelTraceMetricTotalCount()).isZero();
+        assertThat(report.getModelTraceQualityAverageScore()).isZero();
         assertThat(report.getQualityBaselineDrafts()).isEmpty();
     }
 
@@ -745,30 +1121,99 @@ class ModelDiagnosisEvalTest {
     }
 
     @Test
+    void liveModelReportSummarizesSafetyCategoryDistributionWithoutLiveModel() {
+        String model = "deepseek-ai/DeepSeek-V4-Pro";
+        LiveModelEvalReport.Entry unsafe = LiveModelEvalReport.Entry.builder()
+                .caseId("complex-live-unsafe")
+                .model(model)
+                .stage("DIAGNOSIS_AGENT")
+                .status("MODEL_COMPLETED")
+                .runtimeProfile("auto")
+                .fallbackUsed(false)
+                .modelCompleted(true)
+                .evidenceValid(true)
+                .safetyPassed(false)
+                .modelOutput(LiveModelEvalReport.ModelOutput.builder()
+                        .answerLeakRisk("HIGH")
+                        .summary("完整代码如下：def solve(): pass。隐藏测试输入应该是 q=3。")
+                        .educationNextAction("直接改成 for _ in range(q)，不要再手推。")
+                        .build())
+                .failureReason("MODEL_COMPLETED:DIAGNOSIS_AND_TEACHING:SAFETY_RISK")
+                .outputSummary("完整代码如下：def solve(): pass。隐藏测试输入应该是 q=3。")
+                .build();
+        unsafe.setSafetyCategories(LiveModelEvalSafetyCategoryClassifier.classify(unsafe));
+
+        LiveModelEvalReport report = summarizeReport(model, List.of(
+                unsafe,
+                LiveModelEvalReport.Entry.builder()
+                        .caseId("complex-live-safe")
+                        .model(model)
+                        .stage("DIAGNOSIS_AGENT")
+                        .status("MODEL_COMPLETED")
+                        .runtimeProfile("auto")
+                        .fallbackUsed(false)
+                        .modelCompleted(true)
+                        .evidenceValid(true)
+                        .safetyPassed(true)
+                        .failureReason("NONE")
+                        .outputSummary("只建议构造最小反例。")
+                        .build()
+        ));
+
+        assertThat(report.getSafetyPassedCount()).isEqualTo(1);
+        assertThat(report.getEntries().get(0).getSafetyCategories()).containsExactly(
+                "COMPLETE_CODE_LEAK",
+                "DIRECT_FIX_LEAK",
+                "HIDDEN_TEST_GUESS",
+                "FORMULA_OR_STRUCTURE_LEAK"
+        );
+        assertThat(report.getSafetyCategoryCounts()).containsOnly(
+                Map.entry("COMPLETE_CODE_LEAK", 1),
+                Map.entry("DIRECT_FIX_LEAK", 1),
+                Map.entry("HIDDEN_TEST_GUESS", 1),
+                Map.entry("FORMULA_OR_STRUCTURE_LEAK", 1)
+        );
+    }
+
+    @Test
     void offlineRuntimeProfileEvalComparesRequestSizeWithoutRawPrompt() throws IOException {
-        OfflineRuntimeProfileEvalReport report = runOfflineRuntimeProfileEval(allEvalCases().stream()
-                .limit(3)
-                .toList());
+        OfflineRuntimeProfileEvalReport report = runOfflineRuntimeProfileEval(representativeComplexLiveEvalCases());
         Path reportPath = writeOfflineRuntimeProfileEvalReport(report);
         String reportJson = Files.readString(reportPath);
 
-        assertThat(report.getTotalCount()).isEqualTo(3);
-        assertThat(report.getReducedCount()).isEqualTo(3);
-        assertThat(report.getQualityPreservedCount()).isEqualTo(3);
+        assertThat(report.getTotalCount()).isEqualTo(14);
+        assertThat(report.getReducedCount()).isEqualTo(14);
+        assertThat(report.getAutoReducedCount()).isEqualTo(14);
+        assertThat(report.getAutoCompactCount()).isEqualTo(14);
+        assertThat(report.getQualityPreservedCount()).isEqualTo(14);
+        assertThat(report.getAutoQualityPreservedCount()).isEqualTo(14);
         assertThat(report.getAverageCompressionRatio()).isBetween(0.0, 1.0);
+        assertThat(report.getAverageAutoCompressionRatio()).isBetween(0.0, 1.0);
         assertThat(report.getEntries())
                 .allSatisfy(entry -> {
                     assertThat(entry.getLowLatencyRuntimeProfile()).isEqualTo("low-latency");
                     assertThat(entry.getLowLatencyRequestCompact()).isTrue();
                     assertThat(entry.getLowLatencyRequestBytes()).isLessThan(entry.getStandardRequestBytes());
                     assertThat(entry.getCompressionRatio()).isBetween(0.0, 1.0);
+                    assertThat(entry.getAutoRuntimeProfile()).isEqualTo("auto");
+                    assertThat(entry.getAutoRequestCompact()).isTrue();
+                    assertThat(entry.getAutoRequestBytes()).isLessThan(entry.getStandardRequestBytes());
+                    assertThat(entry.getAutoRequestBytes()).isEqualTo(entry.getLowLatencyRequestBytes());
+                    assertThat(entry.getAutoCompressionRatio()).isBetween(0.0, 1.0);
                     assertThat(entry.getCandidateSignalCount()).isPositive();
                     assertThat(entry.getEvidenceRefCount()).isPositive();
                     assertThat(entry.getIssueTagCount()).isPositive();
                     assertThat(entry.getTeachingActionCount()).isPositive();
                     assertThat(entry.getHiddenBoundaryPresent()).isTrue();
+                    assertThat(entry.getAutoCandidateSignalCount()).isPositive();
+                    assertThat(entry.getAutoEvidenceRefCount()).isPositive();
+                    assertThat(entry.getAutoIssueTagCount()).isPositive();
+                    assertThat(entry.getAutoTeachingActionCount()).isPositive();
+                    assertThat(entry.getAutoHiddenBoundaryPresent()).isTrue();
                     assertThat(entry.getQualityPreserved()).isTrue();
+                    assertThat(entry.getAutoQualityPreserved()).isTrue();
                     assertThat(entry.getFailureReasons()).isEmpty();
+                    assertThat(entry.getAutoFailureReasons()).isEmpty();
                 });
         assertThat(reportPath).exists();
         assertThat(reportJson)
@@ -780,6 +1225,26 @@ class ModelDiagnosisEvalTest {
                 .doesNotContain("Authorization")
                 .doesNotContain("Bearer")
                 .doesNotContain("ms-");
+    }
+
+    @Test
+    void offlineRuntimeProfileEvalKeepsSmallAutoRequestsUncompacted() {
+        OfflineRuntimeProfileEvalReport report = runOfflineRuntimeProfileEval(List.of(offByOneCase()));
+
+        assertThat(report.getTotalCount()).isEqualTo(1);
+        assertThat(report.getReducedCount()).isEqualTo(1);
+        assertThat(report.getAutoCompactCount()).isZero();
+        assertThat(report.getAutoReducedCount()).isZero();
+        assertThat(report.getAutoQualityPreservedCount()).isEqualTo(1);
+        assertThat(report.getEntries()).singleElement()
+                .satisfies(entry -> {
+                    assertThat(entry.getAutoRuntimeProfile()).isEqualTo("auto");
+                    assertThat(entry.getAutoRequestCompact()).isFalse();
+                    assertThat(entry.getAutoRequestBytes()).isEqualTo(entry.getStandardRequestBytes());
+                    assertThat(entry.getAutoCompressionRatio()).isEqualTo(1.0);
+                    assertThat(entry.getAutoQualityPreserved()).isTrue();
+                    assertThat(entry.getAutoFailureReasons()).isEmpty();
+                });
     }
 
     @Test
@@ -960,7 +1425,9 @@ class ModelDiagnosisEvalTest {
         ReflectionTestUtils.setField(aiReportService, "externalRuntimeMode",
                 valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_MODE"), "single-call"));
         ReflectionTestUtils.setField(aiReportService, "externalRuntimeProfile",
-                valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "standard"));
+                valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "auto"));
+        ReflectionTestUtils.setField(aiReportService, "externalSingleCallPromptVersion",
+                valueOrDefault(System.getenv("AI_EVAL_SINGLE_CALL_PROMPT_VERSION"), ""));
         ReflectionTestUtils.setField(aiReportService, "maxOutputTokens", (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
         ReflectionTestUtils.setField(aiReportService, "streamEnabled",
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_ENABLED"), "true")));
@@ -1276,6 +1743,12 @@ class ModelDiagnosisEvalTest {
                         complexQualityScorer.intelligence(complexQuality, modelCompleted, fallbackUsed);
                 ComplexDiagnosisQualityScorer.StudentFeedbackResult studentFeedbackQuality =
                         complexQualityScorer.studentFeedback(evalCase.complexFixture(), analysis, modelCompleted, fallbackUsed);
+                ComplexDiagnosisQualityScorer.EducationAgentQualityResult educationAgentQuality =
+                        complexQualityScorer.educationAgentQuality(evalCase.complexFixture(), analysis, modelCompleted, fallbackUsed);
+                ComplexDiagnosisQualityScorer.ModelTraceQualityResult modelTraceQuality =
+                        complexQualityScorer.modelEducationTrace(evalCase.complexFixture(), analysis, modelCompleted, fallbackUsed);
+                EducationAgentEval educationAgentEval = educationAgentEval(analysis, modelCompleted, fallbackUsed,
+                        evalCase.complexFixture() != null);
                 Integer requestBytes = invocation == null || invocation.getRequestBytes() == null
                         ? 0
                         : invocation.getRequestBytes();
@@ -1283,7 +1756,7 @@ class ModelDiagnosisEvalTest {
                         ? failureReasonFromInvocation(invocation, result.traceSummary(), analysis.getUncertainty())
                         : "NONE";
                 String outputSummary = safe(analysis.getHeadline()) + " | " + safe(analysis.getSummary());
-                entries.add(LiveModelEvalReport.Entry.builder()
+                LiveModelEvalReport.Entry entry = LiveModelEvalReport.Entry.builder()
                         .caseId(evalCase.name())
                         .model(model)
                         .promptVersion(invocation == null ? "unknown" : invocation.getPromptVersion())
@@ -1294,7 +1767,7 @@ class ModelDiagnosisEvalTest {
                         .status(invocation == null ? "UNKNOWN" : invocation.getStatus())
                         .failureStage(failureStageFromInvocation(invocation, analysis.getUncertainty()))
                         .fallbackUsed(fallbackUsed)
-                        .runtimeProfile(invocation == null ? "standard" : invocation.getRuntimeProfile())
+                        .runtimeProfile(invocation == null ? "auto" : invocation.getRuntimeProfile())
                         .requestBytes(requestBytes)
                         .requestCompact(invocation != null && Boolean.TRUE.equals(invocation.getRequestCompact()))
                         .transportMode(invocation == null ? "" : invocation.getTransportMode())
@@ -1328,6 +1801,26 @@ class ModelDiagnosisEvalTest {
                         .intelligenceQualityScore(intelligenceQuality.score())
                         .intelligencePassedMetrics(intelligenceQuality.passedMetricSignals())
                         .intelligenceFailedMetrics(intelligenceQuality.failedMetrics())
+                        .educationAgentEvaluated(educationAgentEval.evaluated())
+                        .educationAgentJudgmentComplete(educationAgentEval.judgmentComplete())
+                        .educationAgentHasPrimaryReasoning(educationAgentEval.hasPrimaryReasoning())
+                        .educationAgentHasNextAction(educationAgentEval.hasNextAction())
+                        .educationAgentHasImprovementOpportunity(educationAgentEval.hasImprovementOpportunity())
+                        .educationAgentHasSecondarySignal(educationAgentEval.hasSecondarySignal())
+                        .educationAgentQualityEvaluated(educationAgentQuality.evaluated())
+                        .educationAgentQualityPassed(educationAgentQuality.passed())
+                        .educationAgentMetricPassedCount(educationAgentQuality.passedMetricCount())
+                        .educationAgentMetricTotalCount(educationAgentQuality.totalMetricCount())
+                        .educationAgentQualityScore(educationAgentQuality.score())
+                        .educationAgentPassedMetrics(educationAgentQuality.passedMetricSignals())
+                        .educationAgentFailedMetrics(educationAgentQuality.failedMetrics())
+                        .modelTraceEvaluated(modelTraceQuality.evaluated())
+                        .modelTraceQualityPassed(modelTraceQuality.passed())
+                        .modelTraceMetricPassedCount(modelTraceQuality.passedMetricCount())
+                        .modelTraceMetricTotalCount(modelTraceQuality.totalMetricCount())
+                        .modelTraceQualityScore(modelTraceQuality.score())
+                        .modelTracePassedMetrics(modelTraceQuality.passedMetricSignals())
+                        .modelTraceFailedMetrics(modelTraceQuality.failedMetrics())
                         .studentFeedbackEvaluated(studentFeedbackQuality.evaluated())
                         .studentFeedbackQualityPassed(studentFeedbackQuality.passed())
                         .studentFeedbackMetricPassedCount(studentFeedbackQuality.passedMetricCount())
@@ -1340,21 +1833,28 @@ class ModelDiagnosisEvalTest {
                         .studentFeedback(studentFeedbackOutput(analysis.getStudentFeedback()))
                         .modelJudgment(modelJudgment(model, invocation, modelCompleted, fallbackUsed,
                                 intelligenceQuality.evaluated(), failureReason))
-                        .qualityScore(qualityScore(complexQuality, intelligenceQuality, studentFeedbackQuality))
+                        .qualityScore(qualityScore(complexQuality, intelligenceQuality, educationAgentQuality, modelTraceQuality,
+                                studentFeedbackQuality))
                         .actualIssueTags(analysis.getIssueTags())
                         .actualFineGrainedTags(analysis.getFineGrainedTags())
                         .actualEvidenceRefs(analysis.getEvidenceRefs())
                         .failureReason(failureReason)
                         .outputSummary(outputSummary)
-                        .build());
+                        .build();
+                entry.setSafetyCategories(safetyCategoriesForReport(entry));
+                entries.add(entry);
             } catch (Exception exception) {
                 long latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
                 ComplexDiagnosisQualityScorer.IntelligenceResult intelligenceQuality =
                         ComplexDiagnosisQualityScorer.IntelligenceResult.empty(evalCase.complexFixture() != null);
+                ComplexDiagnosisQualityScorer.EducationAgentQualityResult educationAgentQuality =
+                        ComplexDiagnosisQualityScorer.EducationAgentQualityResult.empty(evalCase.complexFixture() != null);
+                ComplexDiagnosisQualityScorer.ModelTraceQualityResult modelTraceQuality =
+                        ComplexDiagnosisQualityScorer.ModelTraceQualityResult.empty(evalCase.complexFixture() != null);
                 ComplexDiagnosisQualityScorer.StudentFeedbackResult studentFeedbackQuality =
                         ComplexDiagnosisQualityScorer.StudentFeedbackResult.empty(evalCase.complexFixture() != null, false);
                 String failureReason = classifyException(exception);
-                entries.add(LiveModelEvalReport.Entry.builder()
+                LiveModelEvalReport.Entry entry = LiveModelEvalReport.Entry.builder()
                         .caseId(evalCase.name())
                         .model(model)
                         .promptVersion("unknown")
@@ -1364,7 +1864,7 @@ class ModelDiagnosisEvalTest {
                         .latencyBudgetExceeded(latencyMs > latencyBudgetMs)
                         .status("EXCEPTION")
                         .fallbackUsed(true)
-                        .runtimeProfile(valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "standard"))
+                        .runtimeProfile(valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "auto"))
                         .requestBytes(0)
                         .requestCompact(false)
                         .jsonValid(false)
@@ -1391,6 +1891,26 @@ class ModelDiagnosisEvalTest {
                         .intelligenceQualityScore(0.0)
                         .intelligencePassedMetrics(List.of())
                         .intelligenceFailedMetrics(List.of())
+                        .educationAgentEvaluated(false)
+                        .educationAgentJudgmentComplete(false)
+                        .educationAgentHasPrimaryReasoning(false)
+                        .educationAgentHasNextAction(false)
+                        .educationAgentHasImprovementOpportunity(false)
+                        .educationAgentHasSecondarySignal(false)
+                        .educationAgentQualityEvaluated(false)
+                        .educationAgentQualityPassed(false)
+                        .educationAgentMetricPassedCount(0)
+                        .educationAgentMetricTotalCount(0)
+                        .educationAgentQualityScore(0.0)
+                        .educationAgentPassedMetrics(List.of())
+                        .educationAgentFailedMetrics(List.of())
+                        .modelTraceEvaluated(false)
+                        .modelTraceQualityPassed(false)
+                        .modelTraceMetricPassedCount(0)
+                        .modelTraceMetricTotalCount(0)
+                        .modelTraceQualityScore(0.0)
+                        .modelTracePassedMetrics(List.of())
+                        .modelTraceFailedMetrics(List.of())
                         .studentFeedbackEvaluated(false)
                         .studentFeedbackQualityPassed(false)
                         .studentFeedbackMetricPassedCount(0)
@@ -1411,12 +1931,15 @@ class ModelDiagnosisEvalTest {
                                 .provider("ModelScope")
                                 .model(model)
                                 .baseUrl(valueOrDefault(System.getenv("AI_EVAL_BASE_URL"), "https://api-inference.modelscope.cn/v1"))
-                                .runtimeProfile(valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "standard"))
+                                .runtimeProfile(valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "auto"))
                                 .build())
-                        .qualityScore(qualityScore(null, intelligenceQuality, studentFeedbackQuality))
+                        .qualityScore(qualityScore(null, intelligenceQuality, educationAgentQuality, modelTraceQuality,
+                                studentFeedbackQuality))
                         .failureReason(failureReason)
                         .outputSummary(exception.getClass().getSimpleName() + ": " + exception.getMessage())
-                        .build());
+                        .build();
+                entry.setSafetyCategories(safetyCategoriesForReport(entry));
+                entries.add(entry);
             }
         }
         return summarizeReport(model, entries, caseDelayMs);
@@ -1465,17 +1988,6 @@ class ModelDiagnosisEvalTest {
         if (feedback == null) {
             return null;
         }
-        List<String> refs = new ArrayList<>();
-        if (feedback.getBlockingIssues() != null) {
-            feedback.getBlockingIssues().forEach(issue -> {
-                if (issue != null && issue.getEvidenceRefs() != null) {
-                    refs.addAll(issue.getEvidenceRefs());
-                }
-            });
-        }
-        if (feedback.getNextLearningAction() != null && feedback.getNextLearningAction().getEvidenceRefs() != null) {
-            refs.addAll(feedback.getNextLearningAction().getEvidenceRefs());
-        }
         return LiveModelEvalReport.StudentFeedbackOutput.builder()
                 .summary(feedback.getSummary())
                 .blockingMessages(feedback.getBlockingIssues() == null ? List.of() : feedback.getBlockingIssues().stream()
@@ -1491,21 +2003,231 @@ class ModelDiagnosisEvalTest {
                         .map(SubmissionAnalysisResponse.ImprovementOpportunity::getStudentMessage)
                         .toList())
                 .nextAction(feedback.getNextLearningAction() == null ? "" : feedback.getNextLearningAction().getTask())
-                .evidenceRefs(refs.stream().distinct().toList())
+                .evidenceRefs(studentFeedbackEvidenceRefs(feedback))
                 .build();
+    }
+
+    private EducationAgentEval educationAgentEval(SubmissionAnalysisResponse analysis,
+                                                  boolean modelCompleted,
+                                                  boolean fallbackUsed,
+                                                  boolean complexCase) {
+        boolean evaluated = complexCase && modelCompleted && !fallbackUsed;
+        SubmissionAnalysisResponse.StudentFeedback feedback = analysis == null ? null : analysis.getStudentFeedback();
+        boolean hasPrimaryReasoning = feedback != null
+                && feedback.getBlockingIssues() != null
+                && feedback.getBlockingIssues().stream()
+                .anyMatch(issue -> issue != null && !safe(issue.getStudentMessage()).isBlank());
+        boolean hasNextAction = feedback != null
+                && feedback.getNextLearningAction() != null
+                && !safe(feedback.getNextLearningAction().getTask()).isBlank();
+        boolean hasImprovement = feedback != null
+                && feedback.getImprovementOpportunities() != null
+                && feedback.getImprovementOpportunities().stream()
+                .anyMatch(item -> item != null && !safe(item.getCategory()).isBlank()
+                        && !safe(item.getBenefit()).isBlank());
+        boolean hasSecondarySignal = feedback != null
+                && feedback.getSecondaryIssues() != null
+                && feedback.getSecondaryIssues().stream()
+                .anyMatch(issue -> issue != null
+                        && (!safe(issue.getStudentMessage()).isBlank() || !safe(issue.getWhyNotPrimary()).isBlank()));
+        boolean judgmentComplete = evaluated && hasPrimaryReasoning && hasNextAction && hasImprovement;
+        return new EducationAgentEval(evaluated, judgmentComplete, hasPrimaryReasoning, hasNextAction,
+                hasImprovement, hasSecondarySignal);
+    }
+
+    private record EducationAgentEval(boolean evaluated,
+                                      boolean judgmentComplete,
+                                      boolean hasPrimaryReasoning,
+                                      boolean hasNextAction,
+                                      boolean hasImprovementOpportunity,
+                                      boolean hasSecondarySignal) {
     }
 
     private LiveModelEvalReport.ModelOutput modelOutput(SubmissionAnalysisResponse analysis, String outputSummary) {
         if (analysis == null) {
             return null;
         }
+        SubmissionAnalysisResponse.StudentFeedback feedback = analysis.getStudentFeedback();
+        SubmissionAnalysisResponse.ModelEducationTrace educationTrace = analysis.getModelEducationTrace();
+        boolean hasEducationTrace = educationTrace != null;
         return LiveModelEvalReport.ModelOutput.builder()
                 .issueTags(analysis.getIssueTags())
                 .fineGrainedTags(analysis.getFineGrainedTags())
                 .evidenceRefs(analysis.getEvidenceRefs())
                 .answerLeakRisk(analysis.getAnswerLeakRisk())
                 .summary(outputSummary)
+                .educationJudgmentSource(hasEducationTrace ? safe(educationTrace.getSource())
+                        : feedback == null ? "" : "studentFeedback")
+                .educationPrimaryReasoning(hasEducationTrace ? safe(educationTrace.getPrimaryReasoning()) : firstBlockingMessage(feedback))
+                .educationTeachingPriority(hasEducationTrace ? safe(educationTrace.getTeachingPriority())
+                        : feedback == null ? "" : safe(feedback.getSummary()))
+                .educationSecondarySignals(hasEducationTrace ? modelEducationSecondarySignals(educationTrace)
+                        : secondarySignalTexts(feedback))
+                .educationImprovementCategories(hasEducationTrace ? safeList(educationTrace.getImprovementCategories())
+                        : improvementCategories(feedback))
+                .educationNextAction(hasEducationTrace ? safe(educationTrace.getNextLearningAction()) : feedbackNextAction(feedback))
+                .educationEvidenceRefs(hasEducationTrace ? modelEducationEvidenceRefs(educationTrace)
+                        : studentFeedbackEvidenceRefs(feedback))
                 .build();
+    }
+
+    private List<String> modelEducationSecondarySignals(SubmissionAnalysisResponse.ModelEducationTrace trace) {
+        if (trace == null || trace.getSecondaryIssues() == null) {
+            return List.of();
+        }
+        return trace.getSecondaryIssues().stream()
+                .map(note -> {
+                    if (note == null) {
+                        return "";
+                    }
+                    String message = safe(note.getMessage());
+                    String tag = safe(note.getIssueTag());
+                    if (message.isBlank()) {
+                        return tag;
+                    }
+                    if (tag.isBlank()) {
+                        return message;
+                    }
+                    return message + " | " + tag;
+                })
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private List<String> modelEducationEvidenceRefs(SubmissionAnalysisResponse.ModelEducationTrace trace) {
+        if (trace == null) {
+            return List.of();
+        }
+        List<String> refs = new ArrayList<>();
+        addEvidenceRefs(refs, trace.getEvidenceRefs());
+        if (trace.getSecondaryIssues() != null) {
+            trace.getSecondaryIssues().forEach(note -> {
+                if (note != null) {
+                    addEvidenceRefs(refs, note.getEvidenceRefs());
+                }
+            });
+        }
+        if (trace.getDistractorNotes() != null) {
+            trace.getDistractorNotes().forEach(note -> {
+                if (note != null) {
+                    addEvidenceRefs(refs, note.getEvidenceRefs());
+                }
+            });
+        }
+        addEvidenceRefs(refs, trace.getNextLearningActionEvidenceRefs());
+        return refs.stream()
+                .filter(ref -> !safe(ref).isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private List<String> safeList(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(value -> !safe(value).isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private String firstBlockingMessage(SubmissionAnalysisResponse.StudentFeedback feedback) {
+        if (feedback == null || feedback.getBlockingIssues() == null) {
+            return "";
+        }
+        for (SubmissionAnalysisResponse.FeedbackIssue issue : feedback.getBlockingIssues()) {
+            if (issue == null) {
+                continue;
+            }
+            String message = safe(issue.getStudentMessage());
+            if (!message.isBlank()) {
+                return message;
+            }
+        }
+        return "";
+    }
+
+    private List<String> secondarySignalTexts(SubmissionAnalysisResponse.StudentFeedback feedback) {
+        if (feedback == null || feedback.getSecondaryIssues() == null) {
+            return List.of();
+        }
+        return feedback.getSecondaryIssues().stream()
+                .map(issue -> {
+                    if (issue == null) {
+                        return "";
+                    }
+                    String message = safe(issue.getStudentMessage());
+                    String whyNotPrimary = safe(issue.getWhyNotPrimary());
+                    if (message.isBlank()) {
+                        return whyNotPrimary;
+                    }
+                    if (whyNotPrimary.isBlank()) {
+                        return message;
+                    }
+                    return message + " | " + whyNotPrimary;
+                })
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private List<String> improvementCategories(SubmissionAnalysisResponse.StudentFeedback feedback) {
+        if (feedback == null || feedback.getImprovementOpportunities() == null) {
+            return List.of();
+        }
+        return feedback.getImprovementOpportunities().stream()
+                .map(item -> item == null ? "" : safe(item.getCategory()))
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private String feedbackNextAction(SubmissionAnalysisResponse.StudentFeedback feedback) {
+        return feedback == null || feedback.getNextLearningAction() == null
+                ? ""
+                : safe(feedback.getNextLearningAction().getTask());
+    }
+
+    private List<String> studentFeedbackEvidenceRefs(SubmissionAnalysisResponse.StudentFeedback feedback) {
+        if (feedback == null) {
+            return List.of();
+        }
+        List<String> refs = new ArrayList<>();
+        if (feedback.getBlockingIssues() != null) {
+            feedback.getBlockingIssues().forEach(issue -> {
+                if (issue != null) {
+                    addEvidenceRefs(refs, issue.getEvidenceRefs());
+                }
+            });
+        }
+        if (feedback.getSecondaryIssues() != null) {
+            feedback.getSecondaryIssues().forEach(issue -> {
+                if (issue != null) {
+                    addEvidenceRefs(refs, issue.getEvidenceRefs());
+                }
+            });
+        }
+        if (feedback.getImprovementOpportunities() != null) {
+            feedback.getImprovementOpportunities().forEach(item -> {
+                if (item != null) {
+                    addEvidenceRefs(refs, item.getEvidenceRefs());
+                }
+            });
+        }
+        if (feedback.getNextLearningAction() != null) {
+            addEvidenceRefs(refs, feedback.getNextLearningAction().getEvidenceRefs());
+        }
+        return refs.stream()
+                .filter(ref -> !safe(ref).isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private void addEvidenceRefs(List<String> refs, List<String> evidenceRefs) {
+        if (evidenceRefs != null) {
+            refs.addAll(evidenceRefs);
+        }
     }
 
     private LiveModelEvalReport.ModelJudgment modelJudgment(String model,
@@ -1523,20 +2245,26 @@ class ModelDiagnosisEvalTest {
                 .provider("ModelScope")
                 .model(model)
                 .baseUrl(valueOrDefault(System.getenv("AI_EVAL_BASE_URL"), "https://api-inference.modelscope.cn/v1"))
-                .runtimeProfile(invocation == null ? valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "standard")
+                .runtimeProfile(invocation == null ? valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "auto")
                         : invocation.getRuntimeProfile())
                 .build();
     }
 
     private LiveModelEvalReport.QualityScore qualityScore(ComplexDiagnosisQualityScorer.Result complexQuality,
                                                           ComplexDiagnosisQualityScorer.IntelligenceResult intelligenceQuality,
+                                                          ComplexDiagnosisQualityScorer.EducationAgentQualityResult educationAgentQuality,
+                                                          ComplexDiagnosisQualityScorer.ModelTraceQualityResult modelTraceQuality,
                                                           ComplexDiagnosisQualityScorer.StudentFeedbackResult studentFeedbackQuality) {
         return LiveModelEvalReport.QualityScore.builder()
                 .complexQualityScore(complexQuality == null ? 0.0 : complexQuality.score())
                 .intelligenceQualityScore(intelligenceQuality == null ? 0.0 : intelligenceQuality.score())
+                .educationAgentQualityScore(educationAgentQuality == null ? 0.0 : educationAgentQuality.score())
+                .modelTraceQualityScore(modelTraceQuality == null ? 0.0 : modelTraceQuality.score())
                 .studentFeedbackQualityScore(studentFeedbackQuality == null ? 0.0 : studentFeedbackQuality.score())
                 .complexMetrics(complexQuality == null ? Map.of() : complexQuality.metrics())
                 .intelligenceMetrics(intelligenceQuality == null ? Map.of() : intelligenceQuality.metrics())
+                .educationAgentMetrics(educationAgentQuality == null ? Map.of() : educationAgentQuality.metrics())
+                .modelTraceMetrics(modelTraceQuality == null ? Map.of() : modelTraceQuality.metrics())
                 .studentFeedbackMetrics(studentFeedbackQuality == null ? Map.of() : studentFeedbackQuality.metrics())
                 .build();
     }
@@ -1590,8 +2318,13 @@ class ModelDiagnosisEvalTest {
                 "live-model-eval-baseline-regression",
                 regressionReport
         );
+        LiveModelEvalComparisonReport comparisonReport =
+                new LiveModelEvalComparisonReportFactory().compare(baseline, report);
+        Path comparisonReportPath = writeLiveModelEvalComparisonReport(comparisonReport);
         System.out.println("Live model eval baseline regression report saved to: " + regressionReportPath);
         System.out.println("Live model eval baseline regression summary: " + regressionReport.consoleSummary());
+        System.out.println("Live model eval comparison report saved to: " + comparisonReportPath);
+        System.out.println("Live model eval comparison summary: " + comparisonReport.consoleSummary());
         assertThat(violations)
                 .as("live model eval baseline regression violations against " + baselinePath)
                 .isEmpty();
@@ -1610,10 +2343,12 @@ class ModelDiagnosisEvalTest {
         long safeCaseDelayMs = Math.max(0, caseDelayMs);
         return LiveModelEvalReport.builder()
                 .model(model)
-                .promptVersion("mixed")
+                .promptVersion(summarizePromptVersion(entries))
                 .provider("ModelScope")
                 .baseUrl(valueOrDefault(System.getenv("AI_EVAL_BASE_URL"), "https://api-inference.modelscope.cn/v1"))
-                .runtimeProfile(valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "standard"))
+                .runtimeProfile(summarizeRuntimeProfile(entries))
+                .timeoutSeconds(longValueOrDefault(System.getenv("AI_EVAL_TIMEOUT_SECONDS"), 35L))
+                .maxOutputTokens((int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L))
                 .totalCount(entries.size())
                 .completedCount((int) entries.stream()
                         .filter(entry -> "MODEL_COMPLETED".equalsIgnoreCase(safe(entry.getStatus())))
@@ -1642,6 +2377,7 @@ class ModelDiagnosisEvalTest {
                 .fallbackIssueTagHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getFallbackIssueTagHit())).count())
                 .fallbackFineTagHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getFallbackFineTagHit())).count())
                 .safetyPassedCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getSafetyPassed())).count())
+                .safetyCategoryCounts(safetyCategoryCounts(entries))
                 .complexCaseCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getComplexCase())).count())
                 .complexQualityPassedCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getComplexQualityPassed())).count())
                 .complexMetricPassedCount(entries.stream().mapToInt(entry -> intValue(entry.getComplexMetricPassedCount())).sum())
@@ -1665,6 +2401,53 @@ class ModelDiagnosisEvalTest {
                 .intelligenceQualityAverageScore(intelligenceQualityAverageScore(entries))
                 .intelligenceMetricPassCounts(intelligenceMetricCounts(entries, true))
                 .intelligenceMetricFailCounts(intelligenceMetricCounts(entries, false))
+                .educationAgentCaseCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getComplexCase()))
+                        .count())
+                .educationAgentCompletedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getEducationAgentEvaluated()))
+                        .count())
+                .educationAgentFallbackExcludedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getComplexCase())
+                                && !Boolean.TRUE.equals(entry.getEducationAgentEvaluated()))
+                        .count())
+                .educationAgentJudgmentCompleteCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getEducationAgentJudgmentComplete()))
+                        .count())
+                .educationAgentQualityPassedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getEducationAgentQualityPassed()))
+                        .count())
+                .educationAgentMetricPassedCount(entries.stream()
+                        .mapToInt(entry -> intValue(entry.getEducationAgentMetricPassedCount()))
+                        .sum())
+                .educationAgentMetricTotalCount(entries.stream()
+                        .mapToInt(entry -> intValue(entry.getEducationAgentMetricTotalCount()))
+                        .sum())
+                .educationAgentQualityAverageScore(educationAgentQualityAverageScore(entries))
+                .educationAgentMetricPassCounts(educationAgentMetricCounts(entries, true))
+                .educationAgentMetricFailCounts(educationAgentMetricCounts(entries, false))
+                .modelTraceCaseCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getComplexCase()))
+                        .count())
+                .modelTraceCompletedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getModelTraceEvaluated()))
+                        .count())
+                .modelTraceFallbackExcludedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getComplexCase())
+                                && !Boolean.TRUE.equals(entry.getModelTraceEvaluated()))
+                        .count())
+                .modelTraceQualityPassedCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getModelTraceQualityPassed()))
+                        .count())
+                .modelTraceMetricPassedCount(entries.stream()
+                        .mapToInt(entry -> intValue(entry.getModelTraceMetricPassedCount()))
+                        .sum())
+                .modelTraceMetricTotalCount(entries.stream()
+                        .mapToInt(entry -> intValue(entry.getModelTraceMetricTotalCount()))
+                        .sum())
+                .modelTraceQualityAverageScore(modelTraceQualityAverageScore(entries))
+                .modelTraceMetricPassCounts(modelTraceMetricCounts(entries, true))
+                .modelTraceMetricFailCounts(modelTraceMetricCounts(entries, false))
                 .studentFeedbackCaseCount((int) entries.stream()
                         .filter(entry -> Boolean.TRUE.equals(entry.getComplexCase()))
                         .count())
@@ -1695,6 +2478,65 @@ class ModelDiagnosisEvalTest {
                 .runtimeFixtureDrafts(runtimeDrafts)
                 .qualityBaselineDrafts(qualityBaselines)
                 .build();
+    }
+
+    private Map<String, Integer> safetyCategoryCounts(List<LiveModelEvalReport.Entry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return Map.of();
+        }
+        return entries.stream()
+                .flatMap(entry -> safeList(entry.getSafetyCategories()).stream())
+                .filter(category -> category != null && !category.isBlank())
+                .collect(java.util.stream.Collectors.toMap(
+                        Function.identity(),
+                        ignored -> 1,
+                        Integer::sum,
+                        java.util.LinkedHashMap::new
+                ));
+    }
+
+    private List<String> safetyCategoriesForReport(LiveModelEvalReport.Entry entry) {
+        if (entry == null) {
+            return List.of();
+        }
+        String answerLeakRisk = entry.getModelOutput() == null ? "" : safe(entry.getModelOutput().getAnswerLeakRisk());
+        boolean safetyRisk = Boolean.FALSE.equals(entry.getSafetyPassed())
+                || "HIGH".equalsIgnoreCase(answerLeakRisk)
+                || safe(entry.getFailureReason()).contains("SAFETY_RISK")
+                || safe(entry.getFailureStage()).contains("SAFETY_RISK");
+        return safetyRisk ? LiveModelEvalSafetyCategoryClassifier.classify(entry) : List.of();
+    }
+
+    private String summarizePromptVersion(List<LiveModelEvalReport.Entry> entries) {
+        List<String> promptVersions = entries == null ? List.of() : entries.stream()
+                .map(LiveModelEvalReport.Entry::getPromptVersion)
+                .map(this::safe)
+                .filter(version -> !version.isBlank())
+                .distinct()
+                .toList();
+        if (promptVersions.isEmpty()) {
+            return "unknown";
+        }
+        if (promptVersions.size() == 1) {
+            return promptVersions.get(0);
+        }
+        return "mixed";
+    }
+
+    private String summarizeRuntimeProfile(List<LiveModelEvalReport.Entry> entries) {
+        List<String> runtimeProfiles = entries == null ? List.of() : entries.stream()
+                .map(LiveModelEvalReport.Entry::getRuntimeProfile)
+                .map(this::safe)
+                .filter(profile -> !profile.isBlank())
+                .distinct()
+                .toList();
+        if (runtimeProfiles.isEmpty()) {
+            return valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "auto");
+        }
+        if (runtimeProfiles.size() == 1) {
+            return runtimeProfiles.get(0);
+        }
+        return "mixed";
     }
 
     private RecoverySummary summarizeRecovery(List<LiveModelEvalReport.Entry> entries,
@@ -1841,6 +2683,13 @@ class ModelDiagnosisEvalTest {
                 + ", intelligenceCompleted=" + count(report.getIntelligenceCompletedCount()) + "/" + count(report.getIntelligenceCaseCount())
                 + ", intelligenceQuality=" + count(report.getIntelligenceQualityPassedCount()) + "/" + count(report.getIntelligenceCompletedCount())
                 + ", intelligenceMetrics=" + count(report.getIntelligenceMetricPassedCount()) + "/" + count(report.getIntelligenceMetricTotalCount())
+                + ", educationAgentCompleted=" + count(report.getEducationAgentCompletedCount()) + "/" + count(report.getEducationAgentCaseCount())
+                + ", educationAgentJudgmentComplete=" + count(report.getEducationAgentJudgmentCompleteCount()) + "/" + count(report.getEducationAgentCompletedCount())
+                + ", educationAgentQuality=" + count(report.getEducationAgentQualityPassedCount()) + "/" + count(report.getEducationAgentCompletedCount())
+                + ", educationAgentMetrics=" + count(report.getEducationAgentMetricPassedCount()) + "/" + count(report.getEducationAgentMetricTotalCount())
+                + ", modelTraceCompleted=" + count(report.getModelTraceCompletedCount()) + "/" + count(report.getModelTraceCaseCount())
+                + ", modelTraceQuality=" + count(report.getModelTraceQualityPassedCount()) + "/" + count(report.getModelTraceCompletedCount())
+                + ", modelTraceMetrics=" + count(report.getModelTraceMetricPassedCount()) + "/" + count(report.getModelTraceMetricTotalCount())
                 + ", studentFeedbackCompleted=" + count(report.getStudentFeedbackCompletedCount()) + "/" + count(report.getStudentFeedbackCaseCount())
                 + ", studentFeedbackQuality=" + count(report.getStudentFeedbackQualityPassedCount()) + "/" + count(report.getStudentFeedbackCompletedCount())
                 + ", studentFeedbackMetrics=" + count(report.getStudentFeedbackMetricPassedCount()) + "/" + count(report.getStudentFeedbackMetricTotalCount())
@@ -1895,6 +2744,82 @@ class ModelDiagnosisEvalTest {
                     }
                     metrics.stream()
                             .map(metric -> metric.replace("intelligenceMetric:", ""))
+                            .filter(counts::containsKey)
+                            .forEach(metric -> counts.merge(metric, 1, Integer::sum));
+                });
+        return counts;
+    }
+
+    private double educationAgentQualityAverageScore(List<LiveModelEvalReport.Entry> entries) {
+        List<LiveModelEvalReport.Entry> evaluatedEntries = entries == null ? List.of() : entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getEducationAgentQualityEvaluated()))
+                .toList();
+        if (evaluatedEntries.isEmpty()) {
+            return 0.0;
+        }
+        double total = evaluatedEntries.stream()
+                .map(LiveModelEvalReport.Entry::getEducationAgentQualityScore)
+                .filter(value -> value != null)
+                .mapToDouble(Double::doubleValue)
+                .sum();
+        return total / evaluatedEntries.size();
+    }
+
+    private Map<String, Integer> educationAgentMetricCounts(List<LiveModelEvalReport.Entry> entries, boolean passed) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        ComplexDiagnosisQualityScorer.EDUCATION_AGENT_METRICS.forEach(metric -> counts.put(metric, 0));
+        if (entries == null) {
+            return counts;
+        }
+        entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getEducationAgentQualityEvaluated()))
+                .forEach(entry -> {
+                    List<String> metrics = passed
+                            ? entry.getEducationAgentPassedMetrics()
+                            : entry.getEducationAgentFailedMetrics();
+                    if (metrics == null) {
+                        return;
+                    }
+                    metrics.stream()
+                            .map(metric -> metric.replace("educationAgentMetric:", ""))
+                            .filter(counts::containsKey)
+                            .forEach(metric -> counts.merge(metric, 1, Integer::sum));
+                });
+        return counts;
+    }
+
+    private double modelTraceQualityAverageScore(List<LiveModelEvalReport.Entry> entries) {
+        List<LiveModelEvalReport.Entry> evaluatedEntries = entries == null ? List.of() : entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getModelTraceEvaluated()))
+                .toList();
+        if (evaluatedEntries.isEmpty()) {
+            return 0.0;
+        }
+        double total = evaluatedEntries.stream()
+                .map(LiveModelEvalReport.Entry::getModelTraceQualityScore)
+                .filter(value -> value != null)
+                .mapToDouble(Double::doubleValue)
+                .sum();
+        return total / evaluatedEntries.size();
+    }
+
+    private Map<String, Integer> modelTraceMetricCounts(List<LiveModelEvalReport.Entry> entries, boolean passed) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        ComplexDiagnosisQualityScorer.MODEL_TRACE_METRICS.forEach(metric -> counts.put(metric, 0));
+        if (entries == null) {
+            return counts;
+        }
+        entries.stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getModelTraceEvaluated()))
+                .forEach(entry -> {
+                    List<String> metrics = passed
+                            ? entry.getModelTracePassedMetrics()
+                            : entry.getModelTraceFailedMetrics();
+                    if (metrics == null) {
+                        return;
+                    }
+                    metrics.stream()
+                            .map(metric -> metric.replace("modelTraceMetric:", ""))
                             .filter(counts::containsKey)
                             .forEach(metric -> counts.merge(metric, 1, Integer::sum));
                 });
@@ -1986,6 +2911,15 @@ class ModelDiagnosisEvalTest {
         Files.createDirectories(reportDir);
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         Path reportPath = reportDir.resolve(prefix + "-" + timestamp + ".json");
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(reportPath.toFile(), report);
+        return reportPath;
+    }
+
+    private Path writeLiveModelEvalComparisonReport(LiveModelEvalComparisonReport report) throws IOException {
+        Path reportDir = Path.of("target", "ai-eval-reports");
+        Files.createDirectories(reportDir);
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path reportPath = reportDir.resolve("live-model-eval-comparison-" + timestamp + ".json");
         objectMapper.writerWithDefaultPrettyPrinter().writeValue(reportPath.toFile(), report);
         return reportPath;
     }

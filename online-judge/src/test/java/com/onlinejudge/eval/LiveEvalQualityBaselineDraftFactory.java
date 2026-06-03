@@ -59,7 +59,9 @@ public class LiveEvalQualityBaselineDraftFactory {
                 && tagHit
                 && Boolean.TRUE.equals(entry.getEvidenceValid())
                 && Boolean.TRUE.equals(entry.getSafetyPassed())
-                && (!Boolean.TRUE.equals(entry.getComplexCase()) || Boolean.TRUE.equals(entry.getIntelligenceQualityPassed()));
+                && (!Boolean.TRUE.equals(entry.getComplexCase()) || Boolean.TRUE.equals(entry.getIntelligenceQualityPassed()))
+                && (!Boolean.TRUE.equals(entry.getComplexCase()) || !Boolean.TRUE.equals(entry.getModelTraceEvaluated())
+                || Boolean.TRUE.equals(entry.getModelTraceQualityPassed()));
     }
 
     private LiveEvalQualityBaselineDraft fromAssistantEntry(AssistantLiveEvalReport.Entry entry) {
@@ -176,6 +178,14 @@ public class LiveEvalQualityBaselineDraftFactory {
         }
         if (entry.getIntelligencePassedMetrics() != null) {
             signals.addAll(entry.getIntelligencePassedMetrics().stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .toList());
+        }
+        if (Boolean.TRUE.equals(entry.getModelTraceQualityPassed())) {
+            signals.add("modelTraceQualityPassed");
+        }
+        if (entry.getModelTracePassedMetrics() != null) {
+            signals.addAll(entry.getModelTracePassedMetrics().stream()
                     .filter(value -> value != null && !value.isBlank())
                     .toList());
         }
