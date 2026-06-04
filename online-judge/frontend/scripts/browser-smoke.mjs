@@ -502,20 +502,22 @@ const scenarios = [
       [".app-header", "application header"]
     ],
     afterChecks: async page => {
-      const navLabels = await page.locator(".top-nav__link span").allTextContents();
+      const navCount = await page.locator(".top-nav__link").count();
       record("root redirects to student URL", page.url().includes("/app/student"), page.url());
-      record("default entry is student nav", navLabels.join("|") === "我的学习|公共题库|我的作业", navLabels.join("|"));
+      record("student entry has no business top nav", navCount === 0, `nav count ${navCount}`);
     }
   },
   {
     name: "public-assignment",
     path: "/app/student/assignments/public",
     afterChecks: async (page, viewport) => {
-      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
+      const navCount = await page.locator(".top-nav__link").count();
       const workbenchText = ((await page.locator(".problem-workbench").first().textContent()) || "").replace(/\s+/g, "");
-      record("catalog nav is active", activeNav.includes("公共题库"), activeNav.join("|"));
+      const taskItemHeight = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().height);
+      record("public assignment has no business top nav", navCount === 0, `nav count ${navCount}`);
       record("public assignment uses catalog task list", workbenchText.includes("求和边界") && workbenchText.includes("循环边界"), workbenchText);
       record("public assignment opens workbench", page.url().includes("/app/student/assignments/public/problems/101"), page.url());
+      record("public assignment task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
       if (viewport.name === "mobile") {
         await checkVisible(page, ".problem-mobile-jump", "public mobile code jump");
       }
@@ -529,32 +531,41 @@ const scenarios = [
   {
     name: "student",
     path: "/app/student",
-    afterChecks: async page => {
-      const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
+    afterChecks: async (page, viewport) => {
+      const navCount = await page.locator(".top-nav__link").count();
       const inviteFormCount = await page.locator("text=输入邀请码").count();
       const homeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
-      record("student nav is student-first", navLabels.join("|") === "我的学习|公共题库|我的作业", navLabels.join("|"));
-      record("student nav marks student home", activeNav.includes("我的学习"), activeNav.join("|"));
-      record("student home shows assignments and public catalog", homeText.includes("公共题库") && homeText.includes("课堂编程作业"), homeText);
+      const entryCount = await page.locator(".student-entry-link").count();
+      const studentWidth = await page.locator(".student-home").first().evaluate(element => element.getBoundingClientRect().width);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      const noiseTextPattern = /公开|登录后查看|进入|\d+道题|班级作业|老师布置的作业/;
+      record("student home has no business top nav", navCount === 0, `nav count ${navCount}`);
+      record("student home shows public catalog entry", homeText.includes("公共题库"), homeText);
+      record("student home keeps entries minimal", !noiseTextPattern.test(homeText), homeText);
+      record("student home uses clickable entry rows", entryCount >= 1, `entry count ${entryCount}`);
+      if (viewport.name !== "mobile") {
+        record("student home is centered on wider screens", studentWidth <= 860, `student width ${studentWidth}`);
+      }
+      record("student home has no horizontal overflow", overflow <= 1, `overflow ${overflow}`);
       record("student no longer starts with invite", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
     },
     selectors: [
-      [".student-home-command", "student command"],
       [".student-user-menu", "student user menu"],
-      [".student-assignment-catalog", "student assignment catalog"],
-      [".student-assignment-row", "student assignment row"]
+      [".student-entry-list", "student entry list"],
+      [".student-entry-link", "student entry row"]
     ]
   },
   {
     name: "student-assignment",
     path: "/app/student/assignments/7",
     afterChecks: async (page, viewport) => {
-      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
+      const navCount = await page.locator(".top-nav__link").count();
       const workbenchText = ((await page.locator(".problem-workbench").first().textContent()) || "").replace(/\s+/g, "");
-      record("student assignment stays in learning nav", activeNav.includes("我的学习"), activeNav.join("|"));
+      const taskItemHeight = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().height);
+      record("student assignment has no business top nav", navCount === 0, `nav count ${navCount}`);
       record("student assignment redirects to workbench", page.url().includes("/app/student/assignments/7/problems/101"), page.url());
       record("student assignment workbench has task list", workbenchText.includes("求和边界") && workbenchText.includes("循环边界"), workbenchText);
+      record("student assignment task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
       if (viewport.name === "mobile") {
         await checkVisible(page, ".problem-mobile-jump", "student assignment mobile code jump");
       }
@@ -574,10 +585,15 @@ const scenarios = [
     },
     afterChecks: async (page, viewport) => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
+      const navCount = await page.locator(".top-nav__link").count();
       const modalText = ((await page.locator(".problem-result-modal").first().textContent()) || "").replace(/\s+/g, "");
-      record("problem nav stays in student flow", navLabels.join("|") === "我的学习|公共题库|我的作业", navLabels.join("|"));
-      record("problem nav marks current assignment", activeNav.includes("我的学习"), activeNav.join("|"));
+      const commandCount = await page.locator(".practice-command--workbench").count();
+      const statementTitle = ((await page.locator(".panel--statement .panel__header h2").first().textContent()) || "").trim();
+      const taskItemHeight = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().height);
+      record("problem has no business top nav", navCount === 0, navLabels.join("|"));
+      record("problem removes duplicate command banner", commandCount === 0, `command banner count ${commandCount}`);
+      record("problem statement title is the current problem", statementTitle.includes("求和边界"), statementTitle);
+      record("problem task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
       record("problem modal has testcase and AI hint sections", modalText.includes("测试点情况") && modalText.includes("错误提示") && modalText.includes("优化提示"), modalText);
       await page.locator(".problem-result-modal__footer button").filter({ hasText: "关闭" }).click();
       await checkVisible(page, ".problem-last-result", "problem last result entry after modal close");
@@ -586,9 +602,9 @@ const scenarios = [
       }
     },
     selectors: [
-      [".practice-command", "problem command area"],
       [".problem-layout", "problem main layout"],
       [".problem-task-sidebar", "problem task sidebar"],
+      [".problem-back-link", "problem back link"],
       [".panel--statement", "problem statement panel"],
       [".panel--editor", "problem editor panel"],
       [".problem-result-modal", "problem result modal"],

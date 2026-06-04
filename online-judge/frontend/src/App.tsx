@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { BookOpen, BookOpenCheck, ClipboardList, GraduationCap, Menu, Moon, PenLine, Sun, UsersRound, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { BookOpenCheck, Menu, Moon, PenLine, Sun, UsersRound, X } from "lucide-react";
 import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherManagementPage from "./features/teacher/TeacherManagementPage";
 import { EmptyState } from "./shared/ui/EmptyState";
@@ -18,7 +19,7 @@ type Theme = "light" | "dark";
 type NavItem = {
   to: string;
   label: string;
-  icon: typeof BookOpen;
+  icon: LucideIcon;
   activeWhen?: (pathname: string) => boolean;
   noActive?: boolean;
 };
@@ -88,32 +89,6 @@ function Header() {
     location.pathname === "/problems";
   const navItems = useMemo<NavItem[]>(
     () => {
-      const catalogItem: NavItem = {
-        to: "/app/student/assignments/public",
-        label: "公共题库",
-        icon: BookOpen,
-        activeWhen: (pathname: string) =>
-          pathname.startsWith("/app/student/problems") ||
-          pathname.startsWith("/app/student/assignments/public") ||
-          pathname.startsWith("/app/problems") ||
-          pathname === "/problems"
-      };
-      const studentItem: NavItem = {
-        to: "/app/student",
-        label: "我的学习",
-        icon: GraduationCap,
-        activeWhen: (pathname: string) =>
-          !pathname.startsWith("/app/student/problems") &&
-          !pathname.startsWith("/app/student/assignments/public") &&
-          (pathname.startsWith("/app/student") || pathname.startsWith("/app/problem") || pathname.startsWith("/student") || pathname.startsWith("/problem/"))
-      };
-      const assignmentItem: NavItem = {
-        to: "/app/student#assignments",
-        label: "我的作业",
-        icon: ClipboardList,
-        noActive: true,
-        activeWhen: () => false
-      };
       const teacherItem: NavItem = {
         to: "/app/teacher",
         label: "课堂",
@@ -142,19 +117,15 @@ function Header() {
         icon: PenLine,
         activeWhen: (pathname: string) => pathname.startsWith("/app/task-editor") || pathname.startsWith("/task-editor")
       };
-      if (isStudentContext) {
-        return [studentItem, catalogItem, assignmentItem];
+      if (isStudentContext || isCatalogContext) {
+        return [];
       }
       if (isTeacherContext) {
         return [teacherItem, managementItem, taskItem];
       }
-      if (isCatalogContext) {
-        return [studentItem, catalogItem, assignmentItem];
-      }
       return [
-        { ...studentItem, label: "学生端" },
-        { ...teacherItem, label: "教师端" },
-        catalogItem
+        { to: "/app/student", label: "学生端", icon: BookOpenCheck },
+        { ...teacherItem, label: "教师端" }
       ];
     },
     [isCatalogContext, isStudentContext, isTeacherContext]
@@ -164,7 +135,15 @@ function Header() {
     setOpen(false);
   }, [location.pathname]);
 
-  const headerClassName = ["app-header", open ? "is-open" : "", isProblemPage ? "app-header--practice" : ""].filter(Boolean).join(" ");
+  const hasNav = navItems.length > 0;
+  const headerClassName = [
+    "app-header",
+    open && hasNav ? "is-open" : "",
+    isProblemPage ? "app-header--practice" : "",
+    hasNav ? "" : "app-header--no-nav"
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <header className={headerClassName}>
@@ -176,23 +155,27 @@ function Header() {
           <strong>温中编程学习平台</strong>
         </span>
       </NavLink>
-      <button type="button" className="nav-toggle" aria-label={open ? "收起导航" : "展开导航"} onClick={() => setOpen(value => !value)}>
-        {open ? <X size={19} /> : <Menu size={19} />}
-      </button>
-      <nav className="top-nav" aria-label="主导航">
-        {navItems.map(item => (
-          <NavLink
-            key={`${item.label}-${item.to}`}
-            to={item.to}
-            className={({ isActive }) =>
-              !item.noActive && (isActive || item.activeWhen?.(location.pathname)) ? "top-nav__link is-active" : "top-nav__link"
-            }
-          >
-            <item.icon size={17} />
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      {hasNav ? (
+        <>
+          <button type="button" className="nav-toggle" aria-label={open ? "收起导航" : "展开导航"} onClick={() => setOpen(value => !value)}>
+            {open ? <X size={19} /> : <Menu size={19} />}
+          </button>
+          <nav className="top-nav" aria-label="主导航">
+            {navItems.map(item => (
+              <NavLink
+                key={`${item.label}-${item.to}`}
+                to={item.to}
+                className={({ isActive }) =>
+                  !item.noActive && (isActive || item.activeWhen?.(location.pathname)) ? "top-nav__link is-active" : "top-nav__link"
+                }
+              >
+                <item.icon size={17} />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+        </>
+      ) : null}
       <button
         type="button"
         className="theme-toggle"

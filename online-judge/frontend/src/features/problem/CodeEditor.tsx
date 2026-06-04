@@ -17,7 +17,8 @@ export default function CodeEditor({ languageId, sourceCode, onChange }: CodeEdi
   return (
     <CodeMirror
       value={sourceCode}
-      minHeight="440px"
+      height="100%"
+      minHeight="300px"
       extensions={extensions}
       theme={theme}
       onChange={onChange}

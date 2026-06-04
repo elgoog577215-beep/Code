@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Clock3, FileText, Lightbulb, Play, RotateCcw, Target, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Lightbulb, Play, RotateCcw, X } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   Assignment,
@@ -164,7 +164,6 @@ export default function ProblemPage() {
   const studentProfileId = normalizeNumber(searchParams.get("studentProfileId")) ?? studentFromAssignment?.id ?? studentFromAny?.id ?? null;
   const recommendationToken = searchParams.get("recommendationToken");
   const backTo = "/app/student";
-  const backLabel = "返回作业";
 
   const [problem, setProblem] = useState<Problem | null>(null);
   const [languageId, setLanguageId] = useState(71);
@@ -323,7 +322,6 @@ export default function ProblemPage() {
   );
 
   const currentTaskIndex = taskRows.findIndex(task => task.problemId === problemId);
-  const currentTask = currentTaskIndex >= 0 ? taskRows[currentTaskIndex] : null;
   const nextTask = currentTaskIndex >= 0 ? taskRows[currentTaskIndex + 1] || null : taskRows.find(task => task.problemId !== problemId) || null;
 
   function buildTaskLink(nextProblemId: number) {
@@ -446,10 +444,8 @@ export default function ProblemPage() {
     latest?.analysis?.studentHint ||
     latest?.analysis?.fixDirections?.[0] ||
     (trajectory?.nextStep ? learningStageLabel(trajectory.nextStep) : "") ||
-    (latest ? "修改一处问题。" : "先提交。");
+    (latest ? "修改一处问题。" : "");
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
-  const analysisStateLabel = latest?.analysis ? "已生成" : latest ? latest.analysisStatus || "生成中" : "未提交";
-  const currentStage = latest ? verdictLabel(latest.verdict) : "尚未提交";
   const feedbackReady = Boolean(latest);
   const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;
   const coachQuestionBlock = (
@@ -488,11 +484,9 @@ export default function ProblemPage() {
             )}
           </>
         ) : (
-          <strong>生成一个定位问题。</strong>
+          null
         )
-      ) : (
-        <p>提交后会根据本次反馈生成追问。</p>
-      )}
+      ) : null}
       {latest?.analysis && (
         <Button
           type="button"
@@ -509,37 +503,15 @@ export default function ProblemPage() {
 
   return (
     <div className="stack problem-page problem-workbench">
-      <section className="practice-command practice-command--workbench">
-        <div className="practice-command__main">
-          <Link to={backTo} className="eyebrow">
-            <ArrowLeft size={14} /> {backLabel}
-          </Link>
-          <h1>{assignmentTitle}</h1>
-          <p>{problem.title}</p>
-        </div>
-        <div className="practice-command__status" aria-label="练习状态">
-          <div>
-            <FileText size={18} />
-            <strong>{problem.difficulty ? difficultyLabel(problem.difficulty) : "-"}</strong>
-          </div>
-          <div>
-            <Clock3 size={18} />
-            <strong>{problem.timeLimit} ms / {Math.round(problem.memoryLimit / 1024)} MB</strong>
-          </div>
-          <div>
-            <Target size={18} />
-            <strong>{currentStage}</strong>
-          </div>
-        </div>
-      </section>
-
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
       <section className="problem-layout problem-layout--workbench">
         <aside className="problem-task-sidebar" aria-label="题目列表">
+          <Link to={backTo} className="problem-back-link">
+            <ArrowLeft size={14} /> 返回作业
+          </Link>
           <div className="problem-task-sidebar__head">
             <div>
-              <span>题目列表</span>
               <strong>{assignmentTitle}</strong>
             </div>
             <StatusPill tone={trajectory ? "success" : "neutral"}>
@@ -548,9 +520,7 @@ export default function ProblemPage() {
           </div>
           <div className="problem-task-list">
             {tasksLoading ? (
-              <EmptyState title="正在加载题单" />
-            ) : taskRows.length === 0 ? (
-              <EmptyState title="暂无题目" />
+              <EmptyState title="加载中" />
             ) : (
               taskRows.map((task, index) => (
                 <Link
@@ -571,15 +541,22 @@ export default function ProblemPage() {
         </aside>
 
         <Panel
-          title="题目"
+          title={problem.title}
           className="panel--statement"
           action={<DifficultyPill difficulty={problem.difficulty} />}
+          description={
+            <span className="problem-statement-meta">
+              <span>{assignmentTitle}</span>
+              <span>{problem.timeLimit} ms</span>
+              <span>{Math.round(problem.memoryLimit / 1024)} MB</span>
+            </span>
+          }
         >
           <div className="statement">{renderMarkdownLike(problem.description)}</div>
           <details className="problem-compact-details problem-sample-drawer" open={problem.sampleTestCases.length <= 1}>
             <summary>
               <span>公开样例</span>
-              <span className="meta-badge">{problem.sampleTestCases.length || "暂无"}</span>
+              {problem.sampleTestCases.length ? <span className="meta-badge">{problem.sampleTestCases.length}</span> : null}
             </summary>
             <div className="problem-sample-drawer__body">
               {problem.sampleTestCases.length ? (
@@ -595,9 +572,7 @@ export default function ProblemPage() {
                     </div>
                   </div>
                 ))
-              ) : (
-                <EmptyState title="暂无公开样例" />
-              )}
+              ) : null}
             </div>
           </details>
           <a href="#code-workbench" className="problem-mobile-jump ui-button ui-button--primary">
@@ -622,21 +597,10 @@ export default function ProblemPage() {
             <div className="editor-shell">
               <div className="editor-toolbar" aria-label="编辑器状态">
                 <span>{languageId === 54 ? "main.cpp" : "main.py"}</span>
-                <strong>{languageId === 54 ? "C++17" : "Python 3"}</strong>
               </div>
               <Suspense fallback={<div className="editor-loading">正在准备代码编辑器</div>}>
                 <CodeEditor languageId={languageId} sourceCode={sourceCode} onChange={updateCode} />
               </Suspense>
-            </div>
-            <div className="practice-submit-strip">
-              <div>
-                <span>当前题</span>
-                <strong>{currentTask ? `第 ${currentTaskIndex + 1} 题` : `#${problem.id}`}</strong>
-              </div>
-              <div>
-                <span>提交</span>
-                <strong>{latest ? `${testCaseSummary}` : "未提交"}</strong>
-              </div>
             </div>
             {latest && (
               <button type="button" className="problem-last-result" onClick={() => setResultOpen(true)}>
@@ -687,7 +651,6 @@ export default function ProblemPage() {
                 <section className="problem-result-section">
                   <div className="problem-result-section__head">
                     <h3>测试点情况</h3>
-                    <StatusPill tone="neutral">反馈{analysisStateLabel}</StatusPill>
                   </div>
                   <div className="metric-grid">
                     <Metric label="测试点" value={total ? `${passed}/${total}` : "-"} />
@@ -714,9 +677,7 @@ export default function ProblemPage() {
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <EmptyState title="暂无测试点明细" />
-                  )}
+                  ) : null}
                   {firstFailedCase && !firstFailedCase.hidden ? (
                     <div className="failed-case-card">
                       <span>第一个公开失败点</span>
@@ -768,9 +729,7 @@ export default function ProblemPage() {
                         </article>
                       ))}
                     </div>
-                  ) : (
-                    <EmptyState title={latest.verdict === "ACCEPTED" ? "本次没有错误提示" : "反馈生成中"} />
-                  )}
+                  ) : null}
 
                   {nextLearningAction ? (
                     <section className="student-feedback-next" aria-label="下一步">
@@ -796,9 +755,7 @@ export default function ProblemPage() {
                         </article>
                       ))}
                     </div>
-                  ) : (
-                    <EmptyState title="暂无额外优化提示" />
-                  )}
+                  ) : null}
 
                   <details className="problem-compact-details problem-submission-drawer">
                     <summary>
@@ -817,9 +774,7 @@ export default function ProblemPage() {
                             <p>{item.analysisSummary || `${item.passedTestCases || 0}/${item.totalTestCases || 0} 个测试点通过`}</p>
                           </div>
                         ))
-                      ) : (
-                        <EmptyState title="暂无历史记录" />
-                      )}
+                      ) : null}
                     </div>
                   </details>
                 </section>
@@ -828,7 +783,6 @@ export default function ProblemPage() {
               <section className="problem-feedback-coach" aria-label="下一问">
                 <div className="problem-feedback-coach__head">
                   <h3>下一问</h3>
-                  <StatusPill tone={coachPrompt ? "info" : "neutral"}>{coachPrompt ? "已生成" : "可生成"}</StatusPill>
                 </div>
                 {coachQuestionBlock}
               </section>

@@ -238,11 +238,11 @@ export default function AssignmentDetailPage() {
         </article>
         <article>
           <span>高频问题</span>
-          <strong>{overview.topIssues[0] ? issueLabel(overview.topIssues[0].label) : "暂无高频问题"}</strong>
+          <strong>{overview.topIssues[0] ? issueLabel(overview.topIssues[0].label) : "无"}</strong>
         </article>
         <article>
           <span>优先查看</span>
-          <strong>{attentionStudents[0]?.displayName || "暂无重点"}</strong>
+          <strong>{attentionStudents[0]?.displayName || "无"}</strong>
         </article>
       </section>
 
@@ -262,9 +262,7 @@ export default function AssignmentDetailPage() {
                 <strong>{issue.count}</strong>
               </div>
             ))
-          ) : (
-            <EmptyState title="暂无问题分类" />
-          )}
+          ) : null}
         </div>
 
         <div className="teacher-block assignment-student-panel">
@@ -325,9 +323,7 @@ export default function AssignmentDetailPage() {
                 </div>
               </div>
             ))
-          ) : (
-            <EmptyState title="暂无学生提交" />
-          )}
+          ) : null}
         </div>
       </section>
 

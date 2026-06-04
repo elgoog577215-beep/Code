@@ -36,7 +36,7 @@ export default function ClassOverviewPage() {
         </div>
         <div className="overview-command__note">
           <StatusPill tone={reviewEntries.length ? "warning" : "success"}>{reviewEntries.length ? "需要关注" : "正常"}</StatusPill>
-          <strong>{reviewEntries.length ? `${reviewEntries.length} 个任务待讲评` : "暂无需讲评"}</strong>
+          <strong>{reviewEntries.length ? `${reviewEntries.length} 个任务待讲评` : "正常"}</strong>
         </div>
       </section>
 
@@ -51,7 +51,7 @@ export default function ClassOverviewPage() {
 
       <section className="overview-insight-grid" aria-label="班级数据">
         <Panel title="需讲评" action={<span className="meta-badge meta-badge--warning">{reviewEntries.length} 个</span>}>
-          <InsightList entries={reviewEntries} emptyTitle="暂无需讲评任务" tone="warning" />
+          <InsightList entries={reviewEntries} emptyTitle="正常" tone="warning" />
         </Panel>
         <Panel title="正常推进" action={<span className="meta-badge meta-badge--success">{stableEntries.length} 个</span>}>
           <InsightList entries={stableEntries} emptyTitle="还没有稳定任务" tone="success" />
@@ -71,9 +71,7 @@ export default function ClassOverviewPage() {
           <span>任务表现</span>
           <StatusPill tone="neutral">{entries.length} 个任务</StatusPill>
         </summary>
-        {!entries.length ? (
-          <EmptyState title="暂无学习数据" />
-        ) : (
+        {!entries.length ? null : (
           <div className="table-wrap">
             <table>
               <thead>

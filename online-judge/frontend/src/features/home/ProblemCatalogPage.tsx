@@ -71,8 +71,7 @@ export default function ProblemCatalogPage() {
     <div className="stack catalog-page">
       <section className="catalog-command">
         <div>
-          <p className="eyebrow">公共题库</p>
-          <h1>题库</h1>
+          <h1>公共题库</h1>
         </div>
         <ButtonLink to="/app/student" variant="secondary">
           我的学习
