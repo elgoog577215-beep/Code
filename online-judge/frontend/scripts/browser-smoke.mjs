@@ -495,37 +495,35 @@ const executorStatus = {
 
 const scenarios = [
   {
-    name: "entry",
-    path: "/app/",
+    name: "app-redirect",
+    path: "/",
     selectors: [
-      [".role-entry-grid--primary", "role entry grid"],
+      [".student-home-command", "student default entry"],
       [".app-header", "application header"]
     ],
     afterChecks: async page => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      record("entry top nav has role routes", navLabels.join("|") === "学生|教师|题库", navLabels.join("|"));
-      const entryText = ((await page.locator(".role-entry-grid--primary").textContent()) || "").replace(/\s+/g, "");
-      record("entry grid has student column", entryText.includes("学生"), entryText);
-      record("entry grid has teacher column", entryText.includes("教师"), entryText);
-      record("entry grid omits separate management column", !entryText.includes("教师管理"), entryText);
-      const panelCount = await page.locator(".role-entry-grid--primary > .panel").count();
-      record("entry choices are direct cards", panelCount === 0, `panel children: ${panelCount}`);
+      record("root redirects to student URL", page.url().includes("/app/student"), page.url());
+      record("default entry is student nav", navLabels.join("|") === "我的学习|公共题库|我的作业", navLabels.join("|"));
     }
   },
   {
-    name: "catalog",
-    path: "/app/problems",
-    afterChecks: async page => {
+    name: "public-assignment",
+    path: "/app/student/assignments/public",
+    afterChecks: async (page, viewport) => {
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
-      const catalogText = ((await page.locator(".catalog-grid").first().textContent()) || "").replace(/\s+/g, "");
-      record("catalog nav is active", activeNav.includes("题库"), activeNav.join("|"));
-      record("catalog uses real problem catalog data", catalogText.includes("求和边界") && catalogText.includes("循环边界"), catalogText);
-      record("catalog formats memory as MB", catalogText.includes("64MB"), catalogText);
+      const workbenchText = ((await page.locator(".problem-workbench").first().textContent()) || "").replace(/\s+/g, "");
+      record("catalog nav is active", activeNav.includes("公共题库"), activeNav.join("|"));
+      record("public assignment uses catalog task list", workbenchText.includes("求和边界") && workbenchText.includes("循环边界"), workbenchText);
+      record("public assignment opens workbench", page.url().includes("/app/student/assignments/public/problems/101"), page.url());
+      if (viewport.name === "mobile") {
+        await checkVisible(page, ".problem-mobile-jump", "public mobile code jump");
+      }
     },
     selectors: [
-      [".catalog-command", "catalog command"],
-      [".catalog-tools", "catalog filters"],
-      [".catalog-card", "catalog problem card"]
+      [".problem-task-sidebar", "public task sidebar"],
+      [".panel--statement", "public statement panel"],
+      [".panel--editor", "public editor panel"]
     ]
   },
   {
@@ -534,50 +532,67 @@ const scenarios = [
     afterChecks: async page => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
-      const inviteCode = await page.evaluate(() => window.localStorage.getItem("wzai:lastInviteCode"));
       const inviteFormCount = await page.locator("text=输入邀请码").count();
-      const learningDrawerOpen = await page.locator(".student-learning-drawer").first().evaluate(element => element.open);
-      record("student nav is student-first", navLabels.join("|") === "当前作业|题库|邀请码", navLabels.join("|"));
-      record("student nav marks current assignment", activeNav.includes("当前作业"), activeNav.join("|"));
-      record("student learning record default collapsed", !learningDrawerOpen, `open=${learningDrawerOpen}`);
-      record("student default invite is remembered", inviteCode === "WZAI01", inviteCode || "");
-      record("student default invite enters assignment", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
+      const homeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
+      record("student nav is student-first", navLabels.join("|") === "我的学习|公共题库|我的作业", navLabels.join("|"));
+      record("student nav marks student home", activeNav.includes("我的学习"), activeNav.join("|"));
+      record("student home shows assignments and public catalog", homeText.includes("公共题库") && homeText.includes("课堂编程作业"), homeText);
+      record("student no longer starts with invite", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
     },
     selectors: [
-      [".student-assignment-grid.is-ready", "student assignment shell"],
-      [".student-task-panel", "student task panel"],
-      [".student-learning-drawer", "student learning drawer"],
-      [".student-task-card .ui-button", "student problem action"]
+      [".student-home-command", "student command"],
+      [".student-user-menu", "student user menu"],
+      [".student-assignment-catalog", "student assignment catalog"],
+      [".student-assignment-row", "student assignment row"]
+    ]
+  },
+  {
+    name: "student-assignment",
+    path: "/app/student/assignments/7",
+    afterChecks: async (page, viewport) => {
+      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
+      const workbenchText = ((await page.locator(".problem-workbench").first().textContent()) || "").replace(/\s+/g, "");
+      record("student assignment stays in learning nav", activeNav.includes("我的学习"), activeNav.join("|"));
+      record("student assignment redirects to workbench", page.url().includes("/app/student/assignments/7/problems/101"), page.url());
+      record("student assignment workbench has task list", workbenchText.includes("求和边界") && workbenchText.includes("循环边界"), workbenchText);
+      if (viewport.name === "mobile") {
+        await checkVisible(page, ".problem-mobile-jump", "student assignment mobile code jump");
+      }
+    },
+    selectors: [
+      [".problem-task-sidebar", "student assignment task sidebar"],
+      [".panel--statement", "student assignment statement"],
+      [".panel--editor", "student assignment editor"]
     ]
   },
   {
     name: "problem",
-    path: "/app/problem/101?assignmentId=7&studentProfileId=41&recommendationToken=rec-next-101",
+    path: "/app/student/assignments/7/problems/101?studentProfileId=41&recommendationToken=rec-next-101",
     beforeChecks: async page => {
       await page.locator(".panel--editor button.ui-button--primary").first().click();
-      await page.locator(".problem-primary-action").first().waitFor({ state: "visible", timeout: 10000 });
+      await page.locator(".problem-result-modal").first().waitFor({ state: "visible", timeout: 10000 });
     },
-    afterChecks: async page => {
+    afterChecks: async (page, viewport) => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
-      const drawer = page.locator(".problem-submission-drawer").first();
-      const isOpen = await drawer.evaluate(element => element.open);
-      record("problem nav stays in student flow", navLabels.join("|") === "当前作业|题库|邀请码", navLabels.join("|"));
-      record("problem nav marks current assignment", activeNav.includes("当前作业"), activeNav.join("|"));
-      record("problem submission details default collapsed", !isOpen, `open=${isOpen}`);
-      await drawer.locator("summary").click();
-      await checkVisible(page, ".testcase-compact-list", "problem expanded testcase result list");
-      await drawer.locator("summary").click();
+      const modalText = ((await page.locator(".problem-result-modal").first().textContent()) || "").replace(/\s+/g, "");
+      record("problem nav stays in student flow", navLabels.join("|") === "我的学习|公共题库|我的作业", navLabels.join("|"));
+      record("problem nav marks current assignment", activeNav.includes("我的学习"), activeNav.join("|"));
+      record("problem modal has testcase and AI hint sections", modalText.includes("测试点情况") && modalText.includes("错误提示") && modalText.includes("优化提示"), modalText);
+      await page.locator(".problem-result-modal__footer button").filter({ hasText: "关闭" }).click();
+      await checkVisible(page, ".problem-last-result", "problem last result entry after modal close");
+      if (viewport.name === "mobile") {
+        await checkVisible(page, ".problem-mobile-jump", "problem mobile code jump");
+      }
     },
     selectors: [
       [".practice-command", "problem command area"],
       [".problem-layout", "problem main layout"],
-      [".panel--ai", "problem AI result panel"],
-      [".problem-primary-action", "problem primary action"],
-      [".problem-primary-action__summary", "problem result summary"],
-      [".problem-submission-drawer", "problem submission drawer"],
-      [".problem-feedback-coach", "problem feedback coach"],
-      [".coach-next-question", "coach next question"]
+      [".problem-task-sidebar", "problem task sidebar"],
+      [".panel--statement", "problem statement panel"],
+      [".panel--editor", "problem editor panel"],
+      [".problem-result-modal", "problem result modal"],
+      [".problem-feedback-coach", "problem feedback coach"]
     ]
   },
   {
@@ -587,9 +602,9 @@ const scenarios = [
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
       const tabs = ((await page.locator(".teacher-mode-tabs").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher global nav is classroom-first", navLabels.join("|") === "课堂|管理|题库", navLabels.join("|"));
+      record("teacher global nav is classroom-first", navLabels.join("|") === "课堂|管理|题目", navLabels.join("|"));
       record("teacher nav is active", activeNav.includes("课堂"), activeNav.join("|"));
-      record("teacher page has internal management tab", tabs.includes("课堂过程") && tabs.includes("管理"), tabs);
+      record("teacher page has internal management tab", tabs.includes("课堂") && tabs.includes("管理"), tabs);
     },
     selectors: [
       [".teacher-mode-tabs", "teacher mode tabs"],
@@ -635,7 +650,7 @@ const scenarios = [
       const tabs = ((await page.locator(".teacher-mode-tabs").first().textContent()) || "").replace(/\s+/g, "");
       record("teacher management belongs to management nav", activeNav.includes("管理"), activeNav.join("|"));
       record("teacher management does not also mark classroom", !activeNav.includes("课堂"), activeNav.join("|"));
-      record("teacher management has internal process tab", tabs.includes("课堂过程") && tabs.includes("管理"), tabs);
+      record("teacher management has internal process tab", tabs.includes("课堂") && tabs.includes("管理"), tabs);
     },
     selectors: [
       [".teacher-mode-tabs", "teacher management mode tabs"],
@@ -742,6 +757,8 @@ async function routeApi(route) {
 
   if (path === "/api/invites/resolve" && method === "POST") return json(route, assignment);
   if (path === "/api/student/identity" && method === "POST") return json(route, student);
+  if (path === "/api/student/login" && method === "POST") return json(route, student);
+  if (path === "/api/student/profile/41/assignments") return json(route, [assignment]);
   if (path === "/api/student/assignments/7/profile/41/trajectory") return json(route, trajectory);
   if (path === "/api/student/profile/41/ability-profile") return json(route, abilityProfile);
   if (path === "/api/student/profile/41/recommendations") return json(route, recommendation);
@@ -796,6 +813,7 @@ async function routeApi(route) {
   if (path === "/api/teacher/classes/3/identity-merge" && method === "POST") return json(route, { ...identityAudit, manualIdentityCount: 2, duplicateGroupCount: 0, duplicateGroups: [] });
   if (path === "/api/teacher/classes/3/identity-split" && method === "POST") return json(route, { ...identityAudit, manualIdentityCount: 2, duplicateGroupCount: 0, duplicateGroups: [] });
   if (path === "/api/teacher/assignments") return json(route, [assignment]);
+  if (path === "/api/teacher/assignments/7") return json(route, assignment);
   if (path === "/api/teacher/assignments/7/overview") return json(route, assignmentOverview);
   if (path === "/api/teacher/assignments/7/ai-quality") return json(route, aiQualityOverview);
   if (path === "/api/teacher/ai-quality/trend") return json(route, aiQualityTrend);
@@ -919,7 +937,7 @@ async function runScenario(baseUrl, browser, viewport, scenario) {
     await checkVisible(page, selector, `${label} ${selectorLabel}`);
   }
   if (scenario.afterChecks) {
-    await scenario.afterChecks(page);
+    await scenario.afterChecks(page, viewport);
   }
   await checkNoHorizontalOverflow(page, label);
   await checkImportantControlsVisible(page, label);

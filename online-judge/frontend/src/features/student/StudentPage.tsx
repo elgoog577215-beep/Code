@@ -1,430 +1,195 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, CheckCircle2, KeyRound, UserRound } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { ArrowRight, BookOpen, LogIn, LogOut, UserRound } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { Assignment, StudentProfile, StudentTrajectory } from "../../shared/api/types";
-import { difficultyLabel, issueLabel, learningStageLabel, postAcTransferPhaseLabel, verdictLabel } from "../../shared/format";
-import { loadInviteCode, loadStudent, saveInviteCode, saveStudent } from "../../shared/storage";
+import type { Assignment, ProblemCatalogItem, StudentProfile } from "../../shared/api/types";
+import { assignmentStatusLabel } from "../../shared/format";
+import { clearActiveStudent, loadStudent } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
-import { Field, TextInput } from "../../shared/ui/Field";
 import { Panel } from "../../shared/ui/Panel";
-import { StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
+import { StatusPill } from "../../shared/ui/StatusPill";
+
+function visibleAssignmentTitle(assignment: Assignment) {
+  return assignment.title.includes("试点任务") ? "课堂编程作业" : assignment.title;
+}
+
+function assignmentSubtitle(assignment: Assignment, student: StudentProfile) {
+  return assignment.className || student.className || "老师布置";
+}
+
+function latestTeacherAssignments(assignments: Assignment[]) {
+  return assignments.filter(item => item.status !== "DRAFT");
+}
 
 export default function StudentPage() {
-  const [searchParams] = useSearchParams();
-  const [inviteCode, setInviteCode] = useState(() => searchParams.get("code") || loadInviteCode() || "WZAI01");
-  const [assignment, setAssignment] = useState<Assignment | null>(null);
-  const [student, setStudent] = useState<StudentProfile | null>(null);
-  const [trajectory, setTrajectory] = useState<StudentTrajectory | null>(null);
-  const [className, setClassName] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [studentNo, setStudentNo] = useState("");
-  const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [student, setStudent] = useState<StudentProfile | null>(() => loadStudent());
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [problemLoading, setProblemLoading] = useState(true);
+  const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => {
-    const code = searchParams.get("code");
-    if (code) {
-      void resolveInvite(code);
-      return;
-    }
-    void resolveInvite(inviteCode);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let ignore = false;
+    setProblemLoading(true);
+    api.problemCatalog()
+      .then(result => {
+        if (!ignore) {
+          setProblems(result);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setFailed("公共题库暂时不可用。");
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setProblemLoading(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   useEffect(() => {
-    if (!assignment) {
-      return;
-    }
-    const restored = loadStudent(assignment.id);
-    if (restored) {
-      setStudent(restored);
-      setDisplayName(restored.displayName || "");
-      setStudentNo(restored.studentNo || "");
-      void loadTrajectory(assignment.id, restored.id);
-    }
-    if (assignment.className) {
-      setClassName(assignment.className);
-    }
-  }, [assignment]);
-
-  const completion = useMemo(() => {
-    if (!trajectory || trajectory.totalTasks === 0) {
-      return 0;
-    }
-    return Math.round((trajectory.completedTasks / trajectory.totalTasks) * 100);
-  }, [trajectory]);
-
-  const assignmentTitle = useMemo(() => {
-    if (!assignment) {
-      return "";
-    }
-    return assignment.title.includes("试点任务") ? "课堂编程作业" : assignment.title;
-  }, [assignment]);
-
-  const trajectoryTaskByProblemId = useMemo(() => {
-    const tasks = new Map<number, StudentTrajectory["tasks"][number]>();
-    trajectory?.tasks.forEach(task => tasks.set(task.problemId, task));
-    return tasks;
-  }, [trajectory]);
-
-  const nextTask = useMemo(() => {
-    if (!assignment?.tasks.length) {
-      return null;
-    }
-    const pendingTrajectoryTask = trajectory?.tasks.find(task => !task.passed) || trajectory?.tasks[0] || null;
-    if (!pendingTrajectoryTask) {
-      return assignment.tasks[0];
-    }
-    return assignment.tasks.find(task => task.problemId === pendingTrajectoryTask.problemId) || assignment.tasks[0];
-  }, [assignment, trajectory]);
-
-  const postAcTransferTask = useMemo(() => {
-    if (!trajectory?.postAcTransferSignal?.problemId) {
-      return nextTask;
-    }
-    return assignment?.tasks.find(task => task.problemId === trajectory.postAcTransferSignal?.problemId) || nextTask;
-  }, [assignment, nextTask, trajectory]);
-
-  const primaryActionText = useMemo(() => {
-    if (!nextTask) {
-      return "";
-    }
     if (!student) {
-      return "先确认身份后开始作业。";
-    }
-    if (!trajectory) {
-      return "从第一题开始，完成一次提交。";
-    }
-    if (trajectory.repeatedFineGrainedTag) {
-      return `先处理 ${issueLabel(trajectory.repeatedFineGrainedTag)}。`;
-    }
-    if (trajectory.repeatedIssueTag) {
-      return `先处理 ${issueLabel(trajectory.repeatedIssueTag)}。`;
-    }
-    if (trajectory.nextStep) {
-      return learningStageLabel(trajectory.nextStep);
-    }
-    return trajectory.completedTasks >= trajectory.totalTasks ? "作业已完成，可以复盘通过题。" : "继续下一题。";
-  }, [nextTask, student, trajectory]);
-
-  async function resolveInvite(rawCode = inviteCode) {
-    const code = rawCode.trim();
-    if (!code) {
-      setAlert({ type: "error", message: "请输入老师提供的邀请码。" });
+      setAssignments([]);
       return;
     }
-    setBusy(true);
-    try {
-      const result = await api.resolveInvite(code);
-      setAssignment(result);
-      setInviteCode(code.toUpperCase());
-      saveInviteCode(code);
-      setAlert(null);
-    } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "邀请码无效。" });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function bindIdentity() {
-    if (!assignment) {
-      setAlert({ type: "error", message: "请先输入邀请码进入作业。" });
-      return;
-    }
-    if (!displayName.trim()) {
-      setAlert({ type: "error", message: "请填写姓名。" });
-      return;
-    }
-    setBusy(true);
-    try {
-      const result = await api.bindStudent({
-        assignmentId: assignment.id,
-        classGroupId: assignment.classGroupId,
-        className: className.trim(),
-        displayName: displayName.trim(),
-        studentNo: studentNo.trim()
+    let ignore = false;
+    setAssignmentLoading(true);
+    api.studentAssignments(student.id)
+      .then(result => {
+        if (!ignore) {
+          setAssignments(result);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setFailed("老师作业加载失败。");
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setAssignmentLoading(false);
+        }
       });
-      saveStudent(assignment.id, result);
-      setStudent(result);
-      await loadTrajectory(assignment.id, result.id);
-      setAlert(null);
-    } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "身份确认失败。" });
-    } finally {
-      setBusy(false);
-    }
-  }
+    return () => {
+      ignore = true;
+    };
+  }, [student]);
 
-  async function loadTrajectory(assignmentId: number, studentProfileId: number) {
-    try {
-      setTrajectory(await api.studentTrajectory(assignmentId, studentProfileId));
-    } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "提交记录加载失败。" });
-    }
-  }
+  const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
+  const publicSummary = problemLoading ? "正在加载" : problems.length ? `${problems.length} 道题` : "暂无题目";
 
-  if (!assignment) {
-    return (
-      <div className="stack student-page">
-        {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
-
-        <section className="student-start">
-          <div className="student-start__panel student-start__panel--compact">
-            <h1>输入邀请码</h1>
-            <form
-              className="student-start__form"
-              onSubmit={event => {
-                event.preventDefault();
-                void resolveInvite();
-              }}
-            >
-              <Field label="邀请码">
-                <TextInput
-                  value={inviteCode}
-                  onChange={event => setInviteCode(event.target.value)}
-                  placeholder="例如 WZAI01"
-                  autoComplete="off"
-                />
-              </Field>
-              <Button type="submit" variant="primary" disabled={busy} icon={<KeyRound size={18} />}>
-                进入作业
-              </Button>
-            </form>
-          </div>
-        </section>
-      </div>
-    );
+  function signOut() {
+    clearActiveStudent();
+    setStudent(null);
+    setAssignments([]);
   }
 
   return (
-    <div className="stack student-page">
-      {alert?.type === "error" && <div className="alert alert--error">{alert.message}</div>}
+    <div className="stack student-page student-home student-home--assignments">
+      {failed && <div className="alert alert--error">{failed}</div>}
 
-      <section className={`student-assignment-grid student-assignment-grid--linear ${student ? "is-ready" : "needs-identity"}`}>
-        {!student && (
-          <aside className="student-side-flow student-side-flow--identity">
-            <Panel title="确认身份" action={<StatusPill tone="neutral">待确认</StatusPill>}>
-              <form
-                className="stack student-identity-form"
-                onSubmit={event => {
-                  event.preventDefault();
-                  void bindIdentity();
-                }}
-              >
-                <div className="form-grid form-grid--single">
-                  <Field label="班级">
-                    <TextInput value={className} onChange={event => setClassName(event.target.value)} placeholder="例如 高一1班" />
-                  </Field>
-                  <Field label="姓名">
-                    <TextInput value={displayName} onChange={event => setDisplayName(event.target.value)} placeholder="请输入姓名" />
-                  </Field>
-                  <Field label="学号/座号">
-                    <TextInput value={studentNo} onChange={event => setStudentNo(event.target.value)} placeholder="例如 12" />
-                  </Field>
-                </div>
-                <Button type="submit" variant="primary" disabled={busy} icon={<UserRound size={18} />}>
-                  确认身份
-                </Button>
-              </form>
-            </Panel>
-          </aside>
-        )}
-
-        <Panel
-          className="student-task-panel"
-          title={assignmentTitle}
-          action={<StatusPill tone={student ? "success" : "neutral"}>{student ? "身份已确认" : "先确认身份"}</StatusPill>}
-        >
-          <div className="student-assignment-bar">
-            {student ? (
-              <div className="student-identity-strip">
+      <section className="student-home-command student-home-command--compact">
+        <div>
+          <p className="eyebrow">学生端</p>
+          <h1>作业</h1>
+        </div>
+        <div className="student-user-menu" aria-label="学生身份">
+          {student ? (
+            <>
+              <div className="student-user-chip">
+                <UserRound size={17} />
                 <span>
-                  <CheckCircle2 size={15} /> {student.displayName}
+                  <strong>{student.displayName}</strong>
+                  <small>{student.className || "未设置班级"}</small>
                 </span>
-                <span>{className || student.className || "未填写班级"}</span>
-                <span>{student.studentNo ? `座号 ${student.studentNo}` : "座号未填写"}</span>
               </div>
-            ) : (
-              <span className="student-assignment-bar__hint">确认身份后开始作业</span>
-            )}
-            <div className="student-assignment-meta">
-              <span>{assignment.tasks.length} 题</span>
-              <span>邀请码 {assignment.inviteCode}</span>
-              {trajectory && <span>完成 {trajectory.completedTasks}/{trajectory.totalTasks}</span>}
-            </div>
-          </div>
-
-          {student && nextTask && (
-            <section className="student-current-action" aria-label="当前要做">
-              <div>
-                <span>当前要做</span>
-                <strong>{nextTask.title}</strong>
-                <p>{primaryActionText}</p>
-              </div>
-              <ButtonLink
-                to={`/app/problem/${nextTask.problemId}?assignmentId=${assignment.id}&studentProfileId=${student.id}`}
-                variant="primary"
-                icon={<ArrowRight size={18} />}
-              >
-                {trajectory?.tasks.find(task => task.problemId === nextTask.problemId)?.attemptCount ? "继续处理" : "开始"}
+              <ButtonLink to="/app/student/login" variant="ghost">
+                切换
               </ButtonLink>
-            </section>
-          )}
-
-          {assignment.tasks.length === 0 ? (
-            <EmptyState title="当前作业还没有题目" />
+              <Button type="button" variant="ghost" icon={<LogOut size={17} />} onClick={signOut}>
+                退出
+              </Button>
+            </>
           ) : (
-            <div className="student-task-list">
-              {assignment.tasks.map((task, index) => {
-                const taskState = trajectoryTaskByProblemId.get(task.problemId);
-                const isNextTask = nextTask?.problemId === task.problemId;
-                const isPassed = Boolean(taskState?.passed || taskState?.latestVerdict === "ACCEPTED");
-                const query = new URLSearchParams();
-                query.set("assignmentId", String(assignment.id));
-                if (student) {
-                  query.set("studentProfileId", String(student.id));
-                }
-                const actionLabel = !student
-                  ? "先确认身份"
-                  : isPassed
-                    ? "复盘"
-                    : isNextTask && taskState?.attemptCount
-                      ? "继续处理"
-                      : taskState?.attemptCount
-                        ? "继续"
-                        : "开始";
-                const actionNote = isNextTask && !isPassed
-                  ? trajectory?.nextStep
-                    ? learningStageLabel(trajectory.nextStep)
-                    : taskState?.latestHint
-                      ? learningStageLabel(taskState.latestHint)
-                      : "先完成这题的下一次提交。"
-                  : isPassed
-                    ? taskState?.latestProgressSignal || "已通过，可复盘保留思路。"
-                    : taskState?.latestHint
-                      ? learningStageLabel(taskState.latestHint)
-                      : "还未开始。";
-                return (
-                  <article
-                    className={`task-card task-card--learning student-task-card ${isNextTask && !isPassed ? "is-next" : ""} ${isPassed ? "is-passed" : ""}`}
-                    key={task.problemId}
-                  >
-                    <span className="student-task-index">{index + 1}</span>
-                    <div className="student-task-main">
-                      <div className="student-task-meta-line">
-                        <span>{difficultyLabel(task.difficulty)}</span>
-                        {isNextTask && !isPassed && <StatusPill tone="info">下一步</StatusPill>}
-                        {taskState?.latestVerdict && <VerdictPill verdict={taskState.latestVerdict} />}
-                      </div>
-                      <h3>{task.title}</h3>
-                      <p className="student-task-action-note">{actionNote}</p>
-                    </div>
-                    <div className="student-task-status">
-                      <ButtonLink
-                        to={`/app/problem/${task.problemId}?${query.toString()}`}
-                        variant={isNextTask && !isPassed ? "primary" : "secondary"}
-                        disabled={!student}
-                        icon={<ArrowRight size={18} />}
-                      >
-                        {actionLabel}
-                      </ButtonLink>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+            <ButtonLink to="/app/student/login" variant="primary" icon={<LogIn size={17} />}>
+              登录
+            </ButtonLink>
           )}
+        </div>
+      </section>
 
-          {student && (
-            <details className="student-learning-drawer">
-              <summary>
-                <span>学习记录</span>
-                <StatusPill tone={trajectory ? "success" : "neutral"}>{trajectory ? `${trajectory.completedTasks}/${trajectory.totalTasks}` : "等待提交"}</StatusPill>
-              </summary>
-              {!trajectory ? (
-                <EmptyState title="还没有提交记录" />
-              ) : (
-                <div className="stack">
-                  {trajectory.postAcTransferSignal &&
-                    ["JUST_ACCEPTED", "REFLECTION_NEEDED"].includes((trajectory.postAcTransferSignal.phase || "").toUpperCase()) && (
-                      <div className="student-transfer-action">
-                        <span>{postAcTransferPhaseLabel(trajectory.postAcTransferSignal.phase)}</span>
-                        <strong>{trajectory.postAcTransferSignal.problemTitle || postAcTransferTask?.title || "通过后复盘"}</strong>
-                        <p>{trajectory.postAcTransferSignal.recommendedAction || trajectory.postAcTransferSignal.summary}</p>
-                        {postAcTransferTask && (
-                          <ButtonLink
-                            to={`/app/problem/${postAcTransferTask.problemId}?assignmentId=${assignment.id}&studentProfileId=${student.id}`}
-                            variant="secondary"
-                            icon={<ArrowRight size={16} />}
-                          >
-                            复盘
-                          </ButtonLink>
-                        )}
-                      </div>
-                    )}
-                  <div className="student-record-summary">
-                    <div>
-                      <span>任务完成</span>
-                      <strong>{trajectory.completedTasks}/{trajectory.totalTasks}</strong>
-                    </div>
-                    <div>
-                      <span>提交次数</span>
-                      <strong>{trajectory.totalAttempts}</strong>
-                    </div>
-                  </div>
-                  <div className="progress-bar" aria-label="任务完成度">
-                    <span style={{ "--progress": `${completion}%` } as React.CSSProperties} />
-                  </div>
-                  <div className="student-record-note">
-                    <span>当前阶段</span>
-                    <strong>
-                      {trajectory.repeatedFineGrainedTag
-                        ? issueLabel(trajectory.repeatedFineGrainedTag)
-                        : trajectory.repeatedIssueTag
-                          ? issueLabel(trajectory.repeatedIssueTag)
-                          : trajectory.nextStep
-                            ? learningStageLabel(trajectory.nextStep)
-                            : "待提交"}
-                    </strong>
-                  </div>
-                  {trajectory.latestCoachInteraction?.prompted && (
-                    <div className="student-coach-summary">
-                      <span>
-                        {trajectory.latestCoachInteraction.statusLabel
-                          ? learningStageLabel(trajectory.latestCoachInteraction.statusLabel)
-                          : "追问"}
-                      </span>
-                      <strong>{trajectory.latestCoachInteraction.answered ? "已回答" : "待回答"}</strong>
-                    </div>
-                  )}
-                  <details className="student-latest-status">
-                    <summary>
-                      <span>每题状态</span>
-                      <StatusPill tone="neutral">{trajectory.tasks.length} 题</StatusPill>
-                    </summary>
-                    {trajectory.tasks.map(task => (
-                      <div className="list-row" key={task.problemId}>
-                        <div className="actions">
-                          <span className="meta-badge">{difficultyLabel(task.difficulty)}</span>
-                          <VerdictPill verdict={task.latestVerdict} />
-                        </div>
-                        <h3>{task.title}</h3>
-                        <p>
-                          {task.attemptCount} 次尝试 · {task.latestHint ? learningStageLabel(task.latestHint) : verdictLabel(task.latestVerdict)}
-                        </p>
-                        {task.postAcTransferSignal && task.postAcTransferSignal.phase !== "NOT_ACCEPTED" && (
-                          <small>{postAcTransferPhaseLabel(task.postAcTransferSignal.phase)}</small>
-                        )}
-                      </div>
-                    ))}
-                  </details>
+      <section id="assignments" className="student-assignment-anchor">
+        <Panel
+          className="student-assignment-catalog"
+          eyebrow="作业列表"
+          title="选择一组题开始"
+          action={student ? <StatusPill tone="success">已登录</StatusPill> : <StatusPill tone="neutral">公共题库可用</StatusPill>}
+        >
+          <div className="student-assignment-list student-assignment-list--entry">
+            <article className="student-assignment-row student-assignment-row--public">
+              <div className="student-assignment-row__icon">
+                <BookOpen size={22} />
+              </div>
+              <div className="student-assignment-row__main">
+                <div className="student-task-meta-line">
+                  <StatusPill tone="info">公开</StatusPill>
+                  <span>{publicSummary}</span>
                 </div>
-              )}
-            </details>
-          )}
+                <h3>公共题库</h3>
+                <p>自由练习，不需要登录。</p>
+              </div>
+              <ButtonLink to="/app/student/assignments/public" variant="primary" icon={<ArrowRight size={16} />}>
+                进入
+              </ButtonLink>
+            </article>
+
+            {!student ? (
+              <article className="student-assignment-row student-assignment-row--locked">
+                <div className="student-assignment-row__icon">
+                  <UserRound size={22} />
+                </div>
+                <div className="student-assignment-row__main">
+                  <div className="student-task-meta-line">
+                    <StatusPill tone="neutral">班级作业</StatusPill>
+                    <span>登录后查看</span>
+                  </div>
+                  <h3>老师布置的作业</h3>
+                  <p>输入班级与姓名后，只显示本班作业。</p>
+                </div>
+                <ButtonLink to="/app/student/login" variant="secondary" icon={<LogIn size={16} />}>
+                  登录
+                </ButtonLink>
+              </article>
+            ) : assignmentLoading ? (
+              <EmptyState title="正在加载老师作业" />
+            ) : visibleAssignments.length === 0 ? (
+              <EmptyState title="暂无老师作业" />
+            ) : (
+              visibleAssignments.map(assignment => (
+                <article className="student-assignment-row" key={assignment.id}>
+                  <div className="student-assignment-row__main">
+                    <div className="student-task-meta-line">
+                      <StatusPill tone={assignment.status === "ACTIVE" ? "success" : "neutral"}>
+                        {assignmentStatusLabel(assignment.status)}
+                      </StatusPill>
+                      <span>{assignment.tasks.length} 题</span>
+                    </div>
+                    <h3>{visibleAssignmentTitle(assignment)}</h3>
+                    <p>{assignmentSubtitle(assignment, student)}</p>
+                  </div>
+                  <ButtonLink to={`/app/student/assignments/${assignment.id}`} variant="primary" icon={<ArrowRight size={16} />}>
+                    进入
+                  </ButtonLink>
+                </article>
+              ))
+            )}
+          </div>
         </Panel>
       </section>
     </div>

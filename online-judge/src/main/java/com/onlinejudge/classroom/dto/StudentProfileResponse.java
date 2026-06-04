@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 public class StudentProfileResponse {
     private Long id;
     private Long classGroupId;
+    private String className;
     private String displayName;
     private String studentNo;
     private String note;
@@ -22,6 +23,7 @@ public class StudentProfileResponse {
         return StudentProfileResponse.builder()
                 .id(student.getId())
                 .classGroupId(student.getClassGroupId())
+                .className(null)
                 .displayName(student.getDisplayName())
                 .studentNo(student.getStudentNo())
                 .note(student.getNote())
@@ -29,5 +31,11 @@ public class StudentProfileResponse {
                 .createdAt(student.getCreatedAt())
                 .lastSeenAt(student.getLastSeenAt())
                 .build();
+    }
+
+    public static StudentProfileResponse from(StudentProfile student, String className) {
+        StudentProfileResponse response = from(student);
+        response.setClassName(className);
+        return response;
     }
 }

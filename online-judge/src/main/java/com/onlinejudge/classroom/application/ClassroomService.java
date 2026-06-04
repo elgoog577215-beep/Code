@@ -202,7 +202,57 @@ public class ClassroomService {
         student.setStudentNo(normalizeNullable(request.getStudentNo()));
         student.setNote(normalizeNullable(request.getNote()));
 
-        return StudentProfileResponse.from(studentProfileRepository.save(student));
+        StudentProfile saved = studentProfileRepository.save(student);
+        String responseClassName = classGroupId == null
+                ? normalizeNullable(request.getClassName())
+                : classGroupRepository.findById(classGroupId).map(ClassGroup::getName).orElse(normalizeNullable(request.getClassName()));
+        return StudentProfileResponse.from(saved, responseClassName);
+    }
+
+    @Transactional
+    public StudentProfileResponse loginStudent(StudentLoginRequest request) {
+        ClassGroup classGroup = classGroupRepository.findById(request.getClassGroupId())
+                .orElseThrow(() -> new IllegalArgumentException("班级不存在: " + request.getClassGroupId()));
+        String displayName = normalizeRequired(request.getDisplayName(), "姓名不能为空");
+        String identityKey = studentIdentityService.buildStableIdentityKey(
+                classGroup.getId(),
+                classGroup.getName(),
+                displayName,
+                request.getStudentNo()
+        );
+        if (identityKey.isBlank()) {
+            throw new IllegalArgumentException("学生身份信息不完整");
+        }
+
+        StudentProfile student = studentProfileRepository.findByIdentityKeyOrderByCreatedAtDesc(identityKey)
+                .stream()
+                .findFirst()
+                .orElse(StudentProfile.builder()
+                        .identityKey(identityKey)
+                        .build());
+        student.setIdentityKey(identityKey);
+        student.setClassGroupId(classGroup.getId());
+        student.setDisplayName(displayName);
+        student.setStudentNo(normalizeNullable(request.getStudentNo()));
+        student.setNote(normalizeNullable(request.getNote()));
+
+        return StudentProfileResponse.from(studentProfileRepository.save(student), classGroup.getName());
+    }
+
+    public List<AssignmentResponse> getStudentAssignments(Long studentProfileId) {
+        StudentProfile student = studentProfileRepository.findById(studentProfileId)
+                .orElseThrow(() -> new IllegalArgumentException("学生不存在: " + studentProfileId));
+        if (student.getClassGroupId() == null) {
+            return List.of();
+        }
+        LocalDateTime now = LocalDateTime.now();
+        return assignmentRepository.findByClassGroupIdOrderByCreatedAtDesc(student.getClassGroupId())
+                .stream()
+                .filter(assignment -> assignment.getStatus() == Assignment.AssignmentStatus.ACTIVE)
+                .filter(assignment -> assignment.getStartsAt() == null || !assignment.getStartsAt().isAfter(now))
+                .filter(assignment -> assignment.getEndsAt() == null || !assignment.getEndsAt().isBefore(now))
+                .map(this::toAssignmentResponse)
+                .toList();
     }
 
     public AssignmentOverviewResponse getAssignmentOverview(Long assignmentId) {

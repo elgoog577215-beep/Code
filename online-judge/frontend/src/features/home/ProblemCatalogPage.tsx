@@ -3,6 +3,7 @@ import { ArrowRight, Search } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { Difficulty, ProblemCatalogItem } from "../../shared/api/types";
 import { difficultyLabel } from "../../shared/format";
+import { loadStudent } from "../../shared/storage";
 import { ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { TextInput } from "../../shared/ui/Field";
@@ -26,6 +27,7 @@ export default function ProblemCatalogPage() {
   const [difficulty, setDifficulty] = useState<DifficultyFilter>("ALL");
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [student] = useState(() => loadStudent());
 
   useEffect(() => {
     let ignore = false;
@@ -70,18 +72,17 @@ export default function ProblemCatalogPage() {
       <section className="catalog-command">
         <div>
           <p className="eyebrow">公共题库</p>
-          <h1>先找一题，再开始练习</h1>
-          <p>这里适合自由练习和课后补题；课堂作业仍从学生端邀请码进入。</p>
+          <h1>题库</h1>
         </div>
         <ButtonLink to="/app/student" variant="secondary">
-          去输入邀请码
+          我的学习
         </ButtonLink>
       </section>
 
       <section className="catalog-tools" aria-label="题库筛选">
         <label className="catalog-search">
           <Search size={18} />
-          <TextInput value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="搜索题目标题或摘要" />
+        <TextInput value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="搜索题目" />
         </label>
         <div className="catalog-tabs" role="tablist" aria-label="难度筛选">
           {DIFFICULTY_FILTERS.map(item => (
@@ -108,9 +109,9 @@ export default function ProblemCatalogPage() {
           ))}
         </section>
       ) : failed ? (
-        <EmptyState title="题库暂时不可用" description="请稍后刷新，或从课堂邀请码进入当前作业。" />
+        <EmptyState title="题库暂时不可用" />
       ) : filteredProblems.length === 0 ? (
-        <EmptyState title={problems.length ? "没有匹配的题目" : "题库为空"} description="换一个关键词或难度试试。" />
+        <EmptyState title={problems.length ? "没有匹配的题目" : "题库为空"} />
       ) : (
         <section className="catalog-grid" aria-label="公共题目列表">
           {filteredProblems.map(problem => (
@@ -123,8 +124,11 @@ export default function ProblemCatalogPage() {
                 </span>
               </div>
               <h2>{problem.title}</h2>
-              {problem.summary && <p>{problem.summary}</p>}
-              <ButtonLink to={`/app/problem/${problem.id}`} variant="secondary" icon={<ArrowRight size={16} />}>
+              <ButtonLink
+                to={`/app/problem/${problem.id}${student ? `?studentProfileId=${student.id}` : ""}`}
+                variant="secondary"
+                icon={<ArrowRight size={16} />}
+              >
                 开始练习
               </ButtonLink>
             </article>

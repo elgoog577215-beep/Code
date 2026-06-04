@@ -1,13 +1,14 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { BookOpen, BookOpenCheck, GraduationCap, KeyRound, Menu, Moon, Sun, UsersRound, X } from "lucide-react";
+import { BookOpen, BookOpenCheck, ClipboardList, GraduationCap, Menu, Moon, PenLine, Sun, UsersRound, X } from "lucide-react";
 import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherManagementPage from "./features/teacher/TeacherManagementPage";
 import { EmptyState } from "./shared/ui/EmptyState";
 
-const RoleEntryPage = lazy(() => import("./features/home/RoleEntryPage"));
 const ProblemCatalogPage = lazy(() => import("./features/home/ProblemCatalogPage"));
 const StudentPage = lazy(() => import("./features/student/StudentPage"));
+const StudentLoginPage = lazy(() => import("./features/student/StudentLoginPage"));
+const StudentAssignmentPage = lazy(() => import("./features/student/StudentAssignmentPage"));
 const ProblemPage = lazy(() => import("./features/problem/ProblemPage"));
 const AssignmentDetailPage = lazy(() => import("./features/teacher/AssignmentDetailPage"));
 const TaskEditorPage = lazy(() => import("./features/task-editor/TaskEditorPage"));
@@ -66,7 +67,10 @@ function Header() {
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const location = useLocation();
-  const isProblemPage = location.pathname.startsWith("/app/problem") || location.pathname.startsWith("/problem/");
+  const isProblemPage =
+    location.pathname.startsWith("/app/problem") ||
+    location.pathname.startsWith("/problem/") ||
+    /^\/app\/student\/assignments\/[^/]+\/problems\//.test(location.pathname);
   const isStudentContext = location.pathname.startsWith("/app/student") || isProblemPage || location.pathname.startsWith("/student");
   const isTeacherContext =
     location.pathname.startsWith("/app/teacher") ||
@@ -77,26 +81,36 @@ function Header() {
     location.pathname.startsWith("/task-editor") ||
     location.pathname.startsWith("/app/class-overview") ||
     location.pathname.startsWith("/class-overview");
-  const isCatalogContext = location.pathname.startsWith("/app/problems") || location.pathname === "/problems";
+  const isCatalogContext =
+    location.pathname.startsWith("/app/student/problems") ||
+    location.pathname.startsWith("/app/student/assignments/public") ||
+    location.pathname.startsWith("/app/problems") ||
+    location.pathname === "/problems";
   const navItems = useMemo<NavItem[]>(
     () => {
       const catalogItem: NavItem = {
-        to: "/app/problems",
-        label: "题库",
+        to: "/app/student/assignments/public",
+        label: "公共题库",
         icon: BookOpen,
-        activeWhen: (pathname: string) => pathname.startsWith("/app/problems") || pathname === "/problems"
+        activeWhen: (pathname: string) =>
+          pathname.startsWith("/app/student/problems") ||
+          pathname.startsWith("/app/student/assignments/public") ||
+          pathname.startsWith("/app/problems") ||
+          pathname === "/problems"
       };
       const studentItem: NavItem = {
         to: "/app/student",
-        label: "当前作业",
+        label: "我的学习",
         icon: GraduationCap,
         activeWhen: (pathname: string) =>
-          pathname.startsWith("/app/student") || pathname.startsWith("/app/problem") || pathname.startsWith("/student") || pathname.startsWith("/problem/")
+          !pathname.startsWith("/app/student/problems") &&
+          !pathname.startsWith("/app/student/assignments/public") &&
+          (pathname.startsWith("/app/student") || pathname.startsWith("/app/problem") || pathname.startsWith("/student") || pathname.startsWith("/problem/"))
       };
-      const inviteItem: NavItem = {
-        to: "/app/student",
-        label: "邀请码",
-        icon: KeyRound,
+      const assignmentItem: NavItem = {
+        to: "/app/student#assignments",
+        label: "我的作业",
+        icon: ClipboardList,
         noActive: true,
         activeWhen: () => false
       };
@@ -122,18 +136,24 @@ function Header() {
           pathname.startsWith("/app/task-editor") ||
           pathname.startsWith("/task-editor")
       };
+      const taskItem: NavItem = {
+        to: "/app/task-editor",
+        label: "题目",
+        icon: PenLine,
+        activeWhen: (pathname: string) => pathname.startsWith("/app/task-editor") || pathname.startsWith("/task-editor")
+      };
       if (isStudentContext) {
-        return [studentItem, catalogItem, inviteItem];
+        return [studentItem, catalogItem, assignmentItem];
       }
       if (isTeacherContext) {
-        return [teacherItem, managementItem, catalogItem];
+        return [teacherItem, managementItem, taskItem];
       }
       if (isCatalogContext) {
-        return [catalogItem, studentItem, teacherItem];
+        return [studentItem, catalogItem, assignmentItem];
       }
       return [
-        { ...studentItem, label: "学生" },
-        { ...teacherItem, label: "教师" },
+        { ...studentItem, label: "学生端" },
+        { ...teacherItem, label: "教师端" },
         catalogItem
       ];
     },
@@ -148,7 +168,7 @@ function Header() {
 
   return (
     <header className={headerClassName}>
-      <NavLink to="/app" className="brand" aria-label="温中编程学习平台">
+      <NavLink to="/app/student" className="brand" aria-label="温中编程学习平台">
         <span className="brand__mark">
           <BookOpenCheck size={24} />
         </span>
@@ -193,17 +213,21 @@ export default function App() {
       <main className="main-shell">
         <Suspense fallback={<EmptyState title="正在加载页面" />}>
           <Routes>
-            <Route path="/" element={<RoleEntryPage />} />
-            <Route path="/app" element={<RoleEntryPage />} />
-            <Route path="/app/problems" element={<ProblemCatalogPage />} />
+            <Route path="/" element={<Navigate to="/app/student" replace />} />
+            <Route path="/app" element={<Navigate to="/app/student" replace />} />
+            <Route path="/app/problems" element={<Navigate to="/app/student/assignments/public" replace />} />
+            <Route path="/app/student/problems" element={<Navigate to="/app/student/assignments/public" replace />} />
             <Route path="/app/student" element={<StudentPage />} />
+            <Route path="/app/student/login" element={<StudentLoginPage />} />
+            <Route path="/app/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
+            <Route path="/app/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
             <Route path="/app/teacher" element={<TeacherPage />} />
             <Route path="/app/teacher/assignment/:assignmentId" element={<AssignmentDetailPage />} />
             <Route path="/app/teacher-management" element={<TeacherManagementPage />} />
             <Route path="/app/task-editor" element={<TaskEditorPage />} />
             <Route path="/app/class-overview" element={<ClassOverviewPage />} />
             <Route path="/app/problem/:problemId" element={<ProblemPage />} />
-            <Route path="/problems" element={<Navigate to="/app/problems" replace />} />
+            <Route path="/problems" element={<Navigate to="/app/student/assignments/public" replace />} />
             <Route path="/student" element={<StudentPage />} />
             <Route path="/problem/:problemId" element={<ProblemPage />} />
             <Route path="/teacher" element={<TeacherPage />} />

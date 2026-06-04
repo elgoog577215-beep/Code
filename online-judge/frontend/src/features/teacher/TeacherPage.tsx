@@ -191,7 +191,7 @@ function evalReadinessLabel(value?: string | null) {
     case "NO_SAMPLE":
       return "无样本";
     case "INSUFFICIENT_SIGNAL":
-      return "继续观察";
+      return "观察";
     default:
       return value || "待判断";
   }
@@ -798,7 +798,7 @@ export default function TeacherPage() {
     ? `${attentionStudents.length} 名学生需关注`
     : overview?.topIssues?.length
       ? `${overview.topIssues.length} 个共性问题`
-      : "课堂过程稳定";
+      : "稳定";
   const classroomFocusLabel = firstTopIssue
     ? `${issueLabel(firstTopIssue.label)}${firstTopIssue.abilityPoint ? ` · ${abilityLabel(firstTopIssue.abilityPoint)}` : ""}`
     : attentionStudents[0]?.attentionReason || "暂无高频问题";
@@ -810,7 +810,7 @@ export default function TeacherPage() {
             ? issueLabel(attentionStudents[0].latestIssue)
             : verdictLabel(attentionStudents[0].latestVerdict)
       }`
-    : reviewSuggestions[0]?.title || "继续观察提交变化";
+    : reviewSuggestions[0]?.title || "暂无重点";
   const stageStateTone: PillTone = overviewLoading
     ? "info"
     : !overview
@@ -1159,7 +1159,7 @@ export default function TeacherPage() {
         <div className="teacher-ai-quality__head">
           <div>
             <h3>AI 质量信号</h3>
-            <p>{aiQuality?.qualityRiskSummary || aiQuality?.summary || "按作业读取诊断、Coach 和推荐闭环的质量状态。"}</p>
+            <p>{aiQuality?.qualityRiskSummary || aiQuality?.summary || "暂无质量告警。"}</p>
           </div>
           <StatusPill tone={aiQualityTone}>{aiQualityStateLabel}</StatusPill>
         </div>
@@ -1172,7 +1172,7 @@ export default function TeacherPage() {
         ) : aiQualityLoading ? (
           <div className="teacher-ai-quality__empty">
             <strong>正在读取 AI 质量信号</strong>
-            <span>课堂过程数据已可用，质量维度会单独加载。</span>
+            <span>读取中。</span>
           </div>
         ) : aiQuality ? (
           <>
@@ -1214,9 +1214,9 @@ export default function TeacherPage() {
                   (aiQuality.runtimeAttributionSignal.modelRuntimeFailureCount > 0 ||
                     aiQuality.runtimeAttributionSignal.modelPartialCount > 0) && (
                     <div>
-                      <span>系统可用性</span>
+                      <span>运行状态</span>
                       <strong>{runtimeAttributionLabel(aiQuality.runtimeAttributionSignal.primaryFailureType)}</strong>
-                      <p>{aiQuality.runtimeAttributionSignal.summary || "继续观察外部模型运行状态。"}</p>
+                      <p>{aiQuality.runtimeAttributionSignal.summary || "暂无异常。"}</p>
                       {(runtimeTransportChips.length > 0 || runtimeRecoveryChips.length > 0 || runtimeComparabilityLabel) && (
                         <details className="teacher-compact-details teacher-runtime-details">
                           <summary>
@@ -1295,7 +1295,7 @@ export default function TeacherPage() {
                 <div>
                   <span>评测沉淀</span>
                   <strong>{evalReadinessLabel(aiQuality.evalReadiness?.status)}</strong>
-                  <p>{aiQuality.evalReadiness?.summary || "继续积累可复核样本。"}</p>
+                  <p>{aiQuality.evalReadiness?.summary || "暂无样本。"}</p>
                   {(aiQuality.evalReadiness?.interventionCandidateCount || 0) > 0 && (
                     <small>课堂介入候选 {aiQuality.evalReadiness?.interventionCandidateCount}</small>
                   )}
@@ -1335,7 +1335,7 @@ export default function TeacherPage() {
                       ? "正在读取长期 AI 质量信号。"
                       : aiQualityTrendError
                         ? aiQualityTrendError
-                        : aiQualityTrend?.summary || "观察长期校正、评测沉淀和课堂介入成效。"}
+                        : aiQualityTrend?.summary || "暂无趋势。"}
                   </p>
                 </div>
                 <StatusPill
@@ -1377,8 +1377,8 @@ export default function TeacherPage() {
                   <span>
                     {aiQualityTrendError ||
                       (aiQualityTrendLoading
-                        ? "当前作业 AI 质量仍可继续查看。"
-                        : "产生更多作业诊断、教师校正和课堂反馈后，这里会显示长期信号。")}
+                        ? "读取中。"
+                        : "暂无。")}
                   </span>
                 </div>
               ) : (
@@ -1598,10 +1598,10 @@ export default function TeacherPage() {
                   <strong>推荐学习闭环</strong>
                   <p>
                     {recommendationEffectivenessLoading
-                      ? "正在读取推荐后的学习动作证据。"
+                      ? "读取中。"
                       : recommendationEffectivenessError
                         ? recommendationEffectivenessError
-                        : recommendationEffectiveness?.summary || "观察推荐是否带来点击、提交和错因改善。"}
+                        : recommendationEffectiveness?.summary || "暂无推荐反馈。"}
                   </p>
                 </div>
                 <StatusPill
@@ -1641,8 +1641,8 @@ export default function TeacherPage() {
                   <span>
                     {recommendationEffectivenessError ||
                       (recommendationEffectivenessLoading
-                        ? "当前作业 AI 质量和跨作业趋势仍可继续查看。"
-                        : "学生看到并点击推荐后，这里会显示推荐是否带来后续学习动作。")}
+                        ? "读取中。"
+                        : "暂无数据。")}
                   </span>
                 </div>
               ) : (
@@ -1687,7 +1687,7 @@ export default function TeacherPage() {
                               <div className="teacher-recommendation-signal__main">
                                 <div>
                                   <strong>{signal.summary || signal.signal}</strong>
-                                  <span>{signal.recommendedAction || "继续观察推荐后的学习动作。"}</span>
+                                  <span>{signal.recommendedAction || "暂无处理项。"}</span>
                                 </div>
                                 <StatusPill tone={recommendationSeverityTone(signal.severity)}>
                                   {signal.severity || "观察"}
@@ -1702,7 +1702,7 @@ export default function TeacherPage() {
                       ) : (
                         <div className="teacher-ai-quality__empty">
                           <strong>暂无反馈告警</strong>
-                          <span>还没有推荐后仍卡同类错因或点击无提交的聚合信号。</span>
+                          <span>暂无。</span>
                         </div>
                       )}
                     </div>
@@ -1731,7 +1731,7 @@ export default function TeacherPage() {
                       ) : (
                         <div className="teacher-ai-quality__empty">
                           <strong>暂无策略片段</strong>
-                          <span>推荐策略和焦点标签积累后会显示在这里。</span>
+                          <span>暂无。</span>
                         </div>
                       )}
                     </div>
@@ -1768,7 +1768,7 @@ export default function TeacherPage() {
                         <article className="teacher-ai-dimension" key={dimension.dimension}>
                           <div>
                             <strong>{dimensionLabel(dimension)}</strong>
-                            <span>{dimension.summary || dimension.recommendedAction || "继续观察该质量维度。"}</span>
+                            <span>{dimension.summary || dimension.recommendedAction || "暂无告警。"}</span>
                           </div>
                           <div className="teacher-ai-dimension__score">
                             <StatusPill tone={aiQualityStatusTone(dimension.status)}>
@@ -1777,7 +1777,7 @@ export default function TeacherPage() {
                             <b>{aiQualityScore(dimension.score)}</b>
                           </div>
                           <small>
-                            {dimension.recommendedAction || "继续观察"}
+                            {dimension.recommendedAction || "暂无处理项"}
                             {dimension.evidenceRefs?.length ? ` · 证据 ${dimension.evidenceRefs.length} 条` : ""}
                           </small>
                         </article>
@@ -1785,7 +1785,7 @@ export default function TeacherPage() {
                     ) : (
                       <div className="teacher-ai-quality__empty">
                         <strong>暂无维度告警</strong>
-                        <span>继续收集教师校正、Coach 回答和推荐闭环证据。</span>
+                        <span>暂无。</span>
                       </div>
                     )}
                   </div>
@@ -1857,7 +1857,7 @@ export default function TeacherPage() {
                   ) : (
                     <div className="teacher-ai-quality__empty">
                       <strong>暂无候选样本</strong>
-                      <span>保存教师校正并保留 eval candidate 后，这里会出现可沉淀样本。</span>
+                      <span>暂无。</span>
                     </div>
                   )}
 
@@ -1974,7 +1974,7 @@ export default function TeacherPage() {
         ) : (
           <div className="teacher-ai-quality__empty">
             <strong>暂无 AI 质量样本</strong>
-            <span>学生提交并产生 AI 诊断后，这里会显示质量维度。</span>
+            <span>暂无。</span>
           </div>
         )}
       </section>
@@ -1990,7 +1990,7 @@ export default function TeacherPage() {
           <div className="teacher-mode-heading">
             <h1>教师</h1>
             <nav className="teacher-mode-tabs" aria-label="教师功能">
-              <span className="teacher-mode-tab is-active">课堂过程</span>
+              <span className="teacher-mode-tab is-active">课堂</span>
               <ButtonLink to="/app/teacher-management" variant="ghost" icon={<Settings size={16} />}>
                 管理
               </ButtonLink>
@@ -2138,8 +2138,8 @@ export default function TeacherPage() {
                 <details className="teacher-system-drawer">
                   <summary>
                     <div>
-                      <span>系统信号</span>
-                      <strong>AI 质量、Coach 成效和长期学习信号</strong>
+                      <span>辅助信息</span>
+                      <strong>AI、Coach、长期信号</strong>
                     </div>
                     <div className="teacher-system-drawer__chips">
                       {overview.classTeachingStrategySignal && <StatusPill tone="info">课堂策略</StatusPill>}
@@ -2181,7 +2181,7 @@ export default function TeacherPage() {
                     <div className="teacher-coach-quality__head">
                       <div>
                         <span>Coach 回答质量</span>
-                        <strong>{overview.coachAnswerQualitySummary.summary || "观察学生是否把追问转成可验证证据。"}</strong>
+                        <strong>{overview.coachAnswerQualitySummary.summary || "暂无告警。"}</strong>
                       </div>
                       <StatusPill tone={coachAnswerQualityTone(overview.coachAnswerQualitySummary.dominantGap)}>
                         {coachAnswerQualityLabel(overview.coachAnswerQualitySummary.dominantGap)}
@@ -2239,7 +2239,7 @@ export default function TeacherPage() {
                     <div className="teacher-coach-quality__head">
                       <div>
                         <span>Coach 后续成效</span>
-                        <strong>{overview.coachFollowupImpactSummary.summary || "观察追问后下一次同题提交是否改善。"}</strong>
+                        <strong>{overview.coachFollowupImpactSummary.summary || "暂无告警。"}</strong>
                       </div>
                       <StatusPill tone={coachFollowupImpactTone(overview.coachFollowupImpactSummary.dominantOutcome)}>
                         {coachFollowupImpactLabel(overview.coachFollowupImpactSummary.dominantOutcome)}
@@ -2313,7 +2313,7 @@ export default function TeacherPage() {
                       <strong>
                         {displayText(
                           overview.classTeachingStrategySignal.title,
-                          overview.classTeachingStrategySignal.statusLabel || "继续观察"
+                          overview.classTeachingStrategySignal.statusLabel || "观察"
                         )}
                       </strong>
                       {overview.classTeachingStrategySignal.summary && <p>{overview.classTeachingStrategySignal.summary}</p>}

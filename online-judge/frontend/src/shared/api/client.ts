@@ -92,6 +92,14 @@ export const api = {
       body: jsonBody(payload)
     }),
 
+  loginStudent: (payload: { classGroupId: number; displayName: string; studentNo?: string; note?: string }) =>
+    request<StudentProfile>("/api/student/login", {
+      method: "POST",
+      body: jsonBody(payload)
+    }),
+
+  studentAssignments: (studentProfileId: number) => request<Assignment[]>(`/api/student/profile/${studentProfileId}/assignments`),
+
   studentTrajectory: (assignmentId: number, studentProfileId: number) =>
     request<StudentTrajectory>(`/api/student/assignments/${assignmentId}/profile/${studentProfileId}/trajectory`),
   studentAbilityProfile: (studentProfileId: number) =>

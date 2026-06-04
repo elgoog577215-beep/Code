@@ -240,7 +240,7 @@ export default function TeacherManagementPage() {
               <h1>教师</h1>
               <nav className="teacher-mode-tabs" aria-label="教师功能">
                 <ButtonLink to="/app/teacher" variant="ghost">
-                  课堂过程
+                  课堂
                 </ButtonLink>
                 <span className="teacher-mode-tab is-active">管理</span>
               </nav>

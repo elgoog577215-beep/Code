@@ -177,6 +177,16 @@ public class ClassroomController {
         return ResponseEntity.ok(classroomService.bindStudentIdentity(request));
     }
 
+    @PostMapping("/api/student/login")
+    public ResponseEntity<StudentProfileResponse> loginStudent(@Valid @RequestBody StudentLoginRequest request) {
+        return ResponseEntity.ok(classroomService.loginStudent(request));
+    }
+
+    @GetMapping("/api/student/profile/{studentProfileId}/assignments")
+    public ResponseEntity<List<AssignmentResponse>> getStudentAssignments(@PathVariable Long studentProfileId) {
+        return ResponseEntity.ok(classroomService.getStudentAssignments(studentProfileId));
+    }
+
     @GetMapping("/api/student/assignments/{assignmentId}/profile/{studentProfileId}/trajectory")
     public ResponseEntity<StudentTrajectoryResponse> getStudentTrajectory(@PathVariable Long assignmentId,
                                                                           @PathVariable Long studentProfileId) {

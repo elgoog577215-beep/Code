@@ -58,7 +58,7 @@ export default function AssignmentDetailPage() {
     return [...students].sort((left, right) => Number(Boolean(right.needsAttention)) - Number(Boolean(left.needsAttention)));
   }, [overview]);
   const passRate = overview?.attemptCount ? Math.round((overview.passedAttemptCount / overview.attemptCount) * 100) : 0;
-  const classroomStateLabel = attentionStudents.length ? `${attentionStudents.length} 人需关注` : "课堂过程稳定";
+  const classroomStateLabel = attentionStudents.length ? `${attentionStudents.length} 人需关注` : "稳定";
 
   useEffect(() => {
     if (!Number.isFinite(id)) {
@@ -242,7 +242,7 @@ export default function AssignmentDetailPage() {
         </article>
         <article>
           <span>优先查看</span>
-          <strong>{attentionStudents[0]?.displayName || "继续观察提交变化"}</strong>
+          <strong>{attentionStudents[0]?.displayName || "暂无重点"}</strong>
         </article>
       </section>
 

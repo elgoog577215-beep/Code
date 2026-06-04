@@ -87,7 +87,7 @@ export function issueLabel(value?: string | null): string {
     PARTIAL_FIX_REGRESSION: "局部修复回退"
   };
   const key = (value || "").toUpperCase();
-  return map[key] || value || "待观察";
+  return map[key] || value || "待定";
 }
 
 export function hintPolicyLabel(value?: string | null): string {
@@ -165,7 +165,7 @@ export function answerLeakRiskLabel(value?: string | null): string {
 export function learningStageLabel(value?: string | null): string {
   const text = (value || "").trim();
   if (!text) {
-    return "观察中";
+    return "待定";
   }
   const normalized = text.toUpperCase();
   const map: Record<string, string> = {
@@ -235,7 +235,7 @@ export function selfExplanationStatusLabel(value?: string | null): string {
 export function aiDependencyStatusLabel(value?: string | null): string {
   switch ((value || "").toUpperCase()) {
     case "NO_SIGNAL":
-      return "支架待观察";
+      return "待定";
     case "INDEPENDENT_PROGRESS":
       return "独立推进";
     case "SCAFFOLD_EFFECTIVE":
@@ -254,7 +254,7 @@ export function aiDependencyStatusLabel(value?: string | null): string {
 export function masteryGrowthStatusLabel(value?: string | null): string {
   switch ((value || "").toUpperCase()) {
     case "NO_SIGNAL":
-      return "成长待观察";
+      return "待定";
     case "GROWING":
       return "正在增长";
     case "TRANSFER_CONFIRMED":

@@ -3,8 +3,16 @@ import type { StudentProfile } from "./api/types";
 const GLOBAL_STUDENT_KEY = "wzai:student";
 const LAST_INVITE_CODE_KEY = "wzai:lastInviteCode";
 
-export function saveStudent(assignmentId: number, student: StudentProfile): void {
+export function saveActiveStudent(student: StudentProfile): void {
   sessionStorage.setItem(GLOBAL_STUDENT_KEY, JSON.stringify(student));
+}
+
+export function clearActiveStudent(): void {
+  sessionStorage.removeItem(GLOBAL_STUDENT_KEY);
+}
+
+export function saveStudent(assignmentId: number, student: StudentProfile): void {
+  saveActiveStudent(student);
   sessionStorage.setItem(`wzai:student:${assignmentId}`, JSON.stringify(student));
 }
 

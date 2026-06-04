@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
     List<Assignment> findAllByOrderByCreatedAtDesc();
+    List<Assignment> findByClassGroupIdOrderByCreatedAtDesc(Long classGroupId);
 }
