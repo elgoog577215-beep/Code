@@ -17,7 +17,6 @@ import { loadDraft, loadStudent, saveDraft } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea } from "../../shared/ui/Field";
-import { Metric } from "../../shared/ui/Metric";
 import { Panel } from "../../shared/ui/Panel";
 import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
 
@@ -122,6 +121,28 @@ function visibleAssignmentTitle(assignment?: Assignment | null) {
     return "课堂作业";
   }
   return assignment.title.includes("试点任务") ? "课堂编程作业" : assignment.title;
+}
+
+function isDiagnosticOutput(value?: string | null) {
+  const text = (value || "").trim();
+  if (!text) {
+    return false;
+  }
+  return (
+    text.length > 180 ||
+    /(Traceback \(most recent call last\)|ValueError|TypeError|IndexError|RuntimeError|Exception|Segmentation fault|AddressSanitizer|NullPointerException|NumberFormatException|line \d+, in|error:)/i.test(text)
+  );
+}
+
+function outputPreview(value?: string | null) {
+  const text = (value || "").trim();
+  if (!text) {
+    return "(空输出)";
+  }
+  if (isDiagnosticOutput(text)) {
+    return "程序运行时异常，展开原始错误查看细节。";
+  }
+  return text;
 }
 
 function taskFromAssignment(task: AssignmentTask): WorkbenchTask {
@@ -436,6 +457,8 @@ export default function ProblemPage() {
   const studentFeedback = latest?.analysis?.studentFeedback || null;
   const primaryBlockingIssue = studentFeedback?.blockingIssues?.[0] || null;
   const nextLearningAction = studentFeedback?.nextLearningAction || null;
+  const blockingIssues = studentFeedback?.blockingIssues?.length ? studentFeedback.blockingIssues : [];
+  const improvementOpportunities = studentFeedback?.improvementOpportunities?.length ? studentFeedback.improvementOpportunities : [];
   const focusText =
     nextLearningAction?.task ||
     primaryBlockingIssue?.nextAction ||
@@ -444,10 +467,28 @@ export default function ProblemPage() {
     latest?.analysis?.studentHint ||
     latest?.analysis?.fixDirections?.[0] ||
     (trajectory?.nextStep ? learningStageLabel(trajectory.nextStep) : "") ||
-    (latest ? "修改一处问题。" : "");
+    "";
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
   const feedbackReady = Boolean(latest);
   const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;
+  const lastResultText = focusText || testCaseSummary;
+  const repairFallbacks = [
+    latest?.analysis?.studentHint,
+    ...(latest?.analysis?.fixDirections?.slice(0, 2) || [])
+  ].filter((item): item is string => Boolean(item));
+  const hasRepairGuidance = Boolean(blockingIssues.length || repairFallbacks.length || nextLearningAction || latest?.analysis);
+  const rawJudgeOutputs = Array.from(
+    new Set(
+      [
+        latest?.errorMessage,
+        latest?.compileOutput,
+        firstFailedCase && isDiagnosticOutput(firstFailedCase.actualOutput) ? firstFailedCase.actualOutput : null
+      ]
+        .map(item => (item || "").trim())
+        .filter(Boolean)
+    )
+  );
+  const hasRawJudgeOutput = rawJudgeOutputs.length > 0;
   const coachQuestionBlock = (
     <div className="coach-next-question">
       {latest?.analysis ? (
@@ -606,7 +647,7 @@ export default function ProblemPage() {
               <button type="button" className="problem-last-result" onClick={() => setResultOpen(true)}>
                 <span>
                   <VerdictPill verdict={latest.verdict} />
-                  <span>{focusText}</span>
+                  <span>{lastResultText}</span>
                 </span>
                 <strong>查看结果</strong>
               </button>
@@ -633,12 +674,10 @@ export default function ProblemPage() {
           <section className="problem-result-modal" role="dialog" aria-modal="true" aria-labelledby="problem-result-title">
             <div className="problem-result-modal__header">
               <div>
-                <span className="eyebrow">提交结果</span>
                 <h2 id="problem-result-title">{verdictLabel(latest.verdict)}</h2>
-                <p>{focusText}</p>
+                {focusText && <p>{focusText}</p>}
               </div>
               <div className="problem-result-modal__status">
-                <VerdictPill verdict={latest.verdict} />
                 <StatusPill tone={latest.verdict === "ACCEPTED" ? "success" : "warning"}>{testCaseSummary}</StatusPill>
                 <button type="button" aria-label="关闭结果" onClick={() => setResultOpen(false)}>
                   <X size={18} />
@@ -648,18 +687,24 @@ export default function ProblemPage() {
 
             <div className="problem-result-modal__body">
               <div className="problem-result-modal__grid">
-                <section className="problem-result-section">
+                <section className="problem-result-section problem-result-section--tests">
                   <div className="problem-result-section__head">
-                    <h3>测试点情况</h3>
+                    <h3>评测点</h3>
                   </div>
-                  <div className="metric-grid">
-                    <Metric label="测试点" value={total ? `${passed}/${total}` : "-"} />
-                    <Metric label="耗时" value={latest.executionTime ? `${latest.executionTime} ms` : "-"} />
-                    <Metric label="内存" value={latest.memoryUsed ? `${latest.memoryUsed} KB` : "-"} />
-                    <Metric label="提交时间" value={formatDateTime(latest.submittedAt)} />
+                  <div className="problem-result-evidence">
+                    <div>
+                      <span>通过</span>
+                      <strong>{total ? `${passed}/${total}` : "-"}</strong>
+                    </div>
+                    <div>
+                      <span>耗时</span>
+                      <strong>{latest.executionTime ? `${latest.executionTime} ms` : "-"}</strong>
+                    </div>
+                    <div>
+                      <span>内存</span>
+                      <strong>{latest.memoryUsed ? `${latest.memoryUsed} KB` : "-"}</strong>
+                    </div>
                   </div>
-                  {latest.errorMessage && <div className="alert alert--error">{latest.errorMessage}</div>}
-                  {latest.compileOutput && <pre className="code-block">{latest.compileOutput}</pre>}
                   {latest.testCaseResults?.length ? (
                     <div className="testcase-compact-list">
                       {latest.testCaseResults.map(item => (
@@ -672,7 +717,7 @@ export default function ProblemPage() {
                             </small>
                           </div>
                           <span className={`meta-badge ${item.passed ? "meta-badge--success" : "meta-badge--warning"}`}>
-                            {item.passed ? "通过" : "需修改"}
+                            {item.passed ? "通过" : "未过"}
                           </span>
                         </div>
                       ))}
@@ -684,85 +729,37 @@ export default function ProblemPage() {
                       <div className="two-column">
                         <div>
                           <strong>期望输出</strong>
-                          <pre className="code-block">{firstFailedCase.expectedOutput || "(空输出)"}</pre>
+                          <pre className="code-block">{outputPreview(firstFailedCase.expectedOutput)}</pre>
                         </div>
                         <div>
                           <strong>你的输出</strong>
-                          <pre className="code-block">{firstFailedCase.actualOutput || "(空输出)"}</pre>
+                          <pre className="code-block">{outputPreview(firstFailedCase.actualOutput)}</pre>
                         </div>
                       </div>
                     </div>
                   ) : firstFailedCase?.hidden ? (
                     <div className="alert">隐藏测试点未通过。先检查边界条件。</div>
                   ) : null}
-                </section>
-
-                <section className="problem-result-section">
-                  <div className="problem-result-section__head">
-                    <h3>错误提示</h3>
-                    <StatusPill tone="warning">{studentFeedback?.blockingIssues?.length || (latest.analysis?.studentHint ? 1 : 0)} 条</StatusPill>
-                  </div>
-                  {studentFeedback?.blockingIssues?.length ? (
-                    <div className="student-feedback-list">
-                      {studentFeedback.blockingIssues.slice(0, 3).map((issue, index) => (
-                        <article className="student-feedback-item" key={`${issue.title || issue.issueTag || "blocking"}-${index}`}>
-                          <span>{issue.priority ? `优先级 ${issue.priority}` : "先处理"}</span>
-                          <strong>{issue.title || issueLabel(issue.issueTag) || "当前失败原因"}</strong>
-                          {issue.studentMessage && <p>{issue.studentMessage}</p>}
-                          {issue.evidence && <small>{issue.evidence}</small>}
-                          {issue.nextAction && <em>{issue.nextAction}</em>}
-                        </article>
-                      ))}
-                    </div>
-                  ) : latest.analysis?.studentHint || latest.analysis?.fixDirections?.length ? (
-                    <div className="student-feedback-list">
-                      {latest.analysis?.studentHint && (
-                        <article className="student-feedback-item">
-                          <span>先看这里</span>
-                          <strong>{latest.analysis.studentHint}</strong>
-                        </article>
-                      )}
-                      {latest.analysis?.fixDirections?.slice(0, 3).map(item => (
-                        <article className="student-feedback-item" key={item}>
-                          <span>修改方向</span>
-                          <strong>{item}</strong>
-                        </article>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {nextLearningAction ? (
-                    <section className="student-feedback-next" aria-label="下一步">
-                      <span>下一步</span>
-                      <strong>{nextLearningAction.task || focusText}</strong>
-                      {nextLearningAction.checkQuestion && <p>{nextLearningAction.checkQuestion}</p>}
-                    </section>
-                  ) : null}
-                </section>
-
-                <section className="problem-result-section">
-                  <div className="problem-result-section__head">
-                    <h3>优化提示</h3>
-                    <StatusPill tone="info">{studentFeedback?.improvementOpportunities?.length || 0} 条</StatusPill>
-                  </div>
-                  {studentFeedback?.improvementOpportunities?.length ? (
-                    <div className="student-feedback-list">
-                      {studentFeedback.improvementOpportunities.slice(0, 3).map((item, index) => (
-                        <article className="student-feedback-item" key={`${item.category || "improvement"}-${index}`}>
-                          <span>{improvementLabel(item.category)}</span>
-                          {item.studentMessage && <strong>{item.studentMessage}</strong>}
-                          {item.benefit && <p>{item.benefit}</p>}
-                        </article>
-                      ))}
-                    </div>
-                  ) : null}
-
+                  {hasRawJudgeOutput && (
+                    <details className="problem-compact-details problem-raw-output-drawer">
+                      <summary>
+                      <span>原始错误</span>
+                      </summary>
+                      <div className="problem-raw-output-drawer__body">
+                        {rawJudgeOutputs.map((item, index) => (
+                          <pre className="code-block" key={`${item.slice(0, 24)}-${index}`}>
+                            {item}
+                          </pre>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                   <details className="problem-compact-details problem-submission-drawer">
                     <summary>
                       <span>尝试记录</span>
-                      <span className="meta-badge">{history.length} 次</span>
+                      <span className="meta-badge">{history.length}</span>
                     </summary>
-                    <div className="stack">
+                    <div className="problem-submission-drawer__body">
                       {history.length ? (
                         history.slice(0, 4).map(item => (
                           <div className="list-row" key={item.id}>
@@ -778,14 +775,77 @@ export default function ProblemPage() {
                     </div>
                   </details>
                 </section>
-              </div>
 
-              <section className="problem-feedback-coach" aria-label="下一问">
-                <div className="problem-feedback-coach__head">
-                  <h3>下一问</h3>
-                </div>
-                {coachQuestionBlock}
-              </section>
+                <section className="problem-result-section problem-result-section--repair">
+                  <div className="problem-result-section__head">
+                    <h3>AI错误指导</h3>
+                  </div>
+                  {blockingIssues.length ? (
+                    <div className="student-feedback-list">
+                      {blockingIssues.slice(0, 3).map((issue, index) => (
+                        <article className="student-feedback-item" key={`${issue.title || issue.issueTag || "blocking"}-${index}`}>
+                          <span>{index === 0 ? "先改这里" : "再检查"}</span>
+                          <strong>{issue.title || issueLabel(issue.issueTag) || "当前失败原因"}</strong>
+                          {issue.studentMessage && <p>{issue.studentMessage}</p>}
+                          {issue.evidence && <small>{issue.evidence}</small>}
+                          {issue.nextAction && <em>{issue.nextAction}</em>}
+                        </article>
+                      ))}
+                    </div>
+                  ) : repairFallbacks.length ? (
+                    <div className="student-feedback-list">
+                      {repairFallbacks.map((item, index) => (
+                        <article className="student-feedback-item" key={item}>
+                          <span>{index === 0 ? "先改这里" : "再检查"}</span>
+                          <strong>{item}</strong>
+                        </article>
+                      ))}
+                    </div>
+                  ) : latest.analysis ? (
+                    <div className="student-feedback-empty">先看左侧失败点。</div>
+                  ) : (
+                    <div className="student-feedback-empty">生成中</div>
+                  )}
+
+                  {nextLearningAction ? (
+                    <section className="student-feedback-next" aria-label="下一步">
+                      <span>下一步</span>
+                      <strong>{nextLearningAction.task || focusText}</strong>
+                      {nextLearningAction.checkQuestion && <p>{nextLearningAction.checkQuestion}</p>}
+                    </section>
+                  ) : null}
+
+                  {hasRepairGuidance ? (
+                    <section className="problem-feedback-coach" aria-label="AI追问">
+                      <div className="problem-feedback-coach__head">
+                        <h3>AI追问</h3>
+                      </div>
+                      {coachQuestionBlock}
+                    </section>
+                  ) : null}
+                </section>
+
+                <section className="problem-result-section problem-result-section--growth">
+                  <div className="problem-result-section__head">
+                    <h3>AI提升指导</h3>
+                  </div>
+                  {improvementOpportunities.length ? (
+                    <div className="student-feedback-list">
+                      {improvementOpportunities.slice(0, 3).map((item, index) => (
+                        <article className="student-feedback-item" key={`${item.category || "improvement"}-${index}`}>
+                          <span>{improvementLabel(item.category)}</span>
+                          {item.studentMessage && <strong>{item.studentMessage}</strong>}
+                          {item.benefit && <p>{item.benefit}</p>}
+                        </article>
+                      ))}
+                    </div>
+                  ) : latest.verdict === "ACCEPTED" ? (
+                    <div className="student-feedback-empty">可复盘复杂度、边界和可读性。</div>
+                  ) : (
+                    <div className="student-feedback-empty">先通过，再优化。</div>
+                  )}
+                </section>
+              </div>
             </div>
 
             <div className="problem-result-modal__footer">

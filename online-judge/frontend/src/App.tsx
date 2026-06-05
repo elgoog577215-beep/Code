@@ -1,9 +1,11 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { BookOpenCheck, Menu, Moon, PenLine, Sun, UsersRound, X } from "lucide-react";
+import { BookOpenCheck, LogIn, Menu, Moon, PenLine, Sun, UserRound, UsersRound, X } from "lucide-react";
 import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherManagementPage from "./features/teacher/TeacherManagementPage";
+import { clearActiveStudent, loadStudent } from "./shared/storage";
+import { Button } from "./shared/ui/Button";
 import { EmptyState } from "./shared/ui/EmptyState";
 
 const ProblemCatalogPage = lazy(() => import("./features/home/ProblemCatalogPage"));
@@ -67,6 +69,7 @@ function LegacyRedirect() {
 function Header() {
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
+  const [student, setStudent] = useState(() => loadStudent());
   const location = useLocation();
   const isProblemPage =
     location.pathname.startsWith("/app/problem") ||
@@ -133,7 +136,13 @@ function Header() {
 
   useEffect(() => {
     setOpen(false);
+    setStudent(loadStudent());
   }, [location.pathname]);
+
+  function signOut() {
+    clearActiveStudent();
+    setStudent(null);
+  }
 
   const hasNav = navItems.length > 0;
   const headerClassName = [
@@ -176,15 +185,35 @@ function Header() {
           </nav>
         </>
       ) : null}
-      <button
-        type="button"
-        className="theme-toggle"
-        aria-label="切换主题"
-        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      >
-        {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-        <span>{theme === "dark" ? "白天" : "夜间"}</span>
-      </button>
+      <div className="header-actions">
+        {isStudentContext ? (
+          student ? (
+            <div className="header-student-menu" aria-label="学生身份">
+              <NavLink to="/app/student/login" className="header-student-chip">
+                <UserRound size={16} />
+                <span>{student.displayName}</span>
+              </NavLink>
+              <Button type="button" variant="ghost" className="header-signout-button" onClick={signOut}>
+                退出
+              </Button>
+            </div>
+          ) : (
+            <NavLink to="/app/student/login" className="header-login-link">
+              <LogIn size={17} />
+              <span>登录</span>
+            </NavLink>
+          )
+        ) : null}
+        <button
+          type="button"
+          className="theme-toggle"
+          aria-label="切换主题"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          <span>{theme === "dark" ? "白天" : "夜间"}</span>
+        </button>
+      </div>
     </header>
   );
 }

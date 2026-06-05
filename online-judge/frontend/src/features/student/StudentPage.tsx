@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, LogIn, LogOut, UserRound } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { Assignment, StudentProfile } from "../../shared/api/types";
-import { clearActiveStudent, loadStudent } from "../../shared/storage";
-import { Button, ButtonLink } from "../../shared/ui/Button";
+import type { Assignment, ClassGroup, StudentProfile } from "../../shared/api/types";
+import { loadStudent } from "../../shared/storage";
 
 function visibleAssignmentTitle(assignment: Assignment) {
   return assignment.title.includes("试点任务") ? "课堂编程作业" : assignment.title;
@@ -17,18 +16,38 @@ function latestTeacherAssignments(assignments: Assignment[]) {
 export default function StudentPage() {
   const [student, setStudent] = useState<StudentProfile | null>(() => loadStudent());
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [problemCount, setProblemCount] = useState<number | null>(null);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
     api.problemCatalog()
-      .then(() => undefined)
+      .then(result => {
+        if (!ignore) {
+          setProblemCount(result.length);
+        }
+      })
       .catch(() => {
         if (!ignore) {
           setFailed("公共题库暂时不可用。");
         }
       });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    api.classes()
+      .then(result => {
+        if (!ignore) {
+          setClasses(result);
+        }
+      })
+      .catch(() => undefined);
     return () => {
       ignore = true;
     };
@@ -63,53 +82,44 @@ export default function StudentPage() {
   }, [student]);
 
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
+  const teacherByClassId = useMemo(() => {
+    const lookup = new Map<number, string>();
+    classes.forEach(item => {
+      if (item.teacherName) {
+        lookup.set(item.id, item.teacherName);
+      }
+    });
+    return lookup;
+  }, [classes]);
 
-  function signOut() {
-    clearActiveStudent();
-    setStudent(null);
-    setAssignments([]);
+  function assignmentDetails(assignment: Assignment) {
+    return [
+      assignment.className,
+      `${assignment.tasks.length} 题`,
+      assignment.classGroupId ? teacherByClassId.get(assignment.classGroupId) : null
+    ].filter(Boolean);
   }
 
   return (
     <div className="student-page student-home student-home--assignments">
       {failed && <div className="alert alert--error">{failed}</div>}
 
-      <section className="student-home-command student-home-command--minimal">
-        <div className="student-user-menu" aria-label="学生身份">
-          {student ? (
-            <>
-              <div className="student-user-chip">
-                <UserRound size={17} />
-                <span>
-                  <strong>{student.displayName}</strong>
-                  <small>{student.className || "未设置班级"}</small>
-                </span>
-              </div>
-              <ButtonLink to="/app/student/login" variant="ghost">
-                切换
-              </ButtonLink>
-              <Button type="button" variant="ghost" icon={<LogOut size={17} />} onClick={signOut}>
-                退出
-              </Button>
-            </>
-          ) : (
-            <ButtonLink to="/app/student/login" variant="primary" icon={<LogIn size={17} />}>
-              登录
-            </ButtonLink>
-          )}
-        </div>
-      </section>
-
       <nav id="assignments" className="student-entry-list" aria-label="学生入口">
         <Link className="student-entry-link" to="/app/student/assignments/public">
-          <span>公共题库</span>
+          <span className="student-entry-link__main">
+            <strong>公共题库</strong>
+            {problemCount !== null ? <small>{problemCount} 题</small> : null}
+          </span>
           <ArrowRight size={18} aria-hidden="true" />
         </Link>
 
         {student && !assignmentLoading
           ? visibleAssignments.map(assignment => (
               <Link className="student-entry-link" to={`/app/student/assignments/${assignment.id}`} key={assignment.id}>
-                <span>{visibleAssignmentTitle(assignment)}</span>
+                <span className="student-entry-link__main">
+                  <strong>{visibleAssignmentTitle(assignment)}</strong>
+                  <small>{assignmentDetails(assignment).join(" · ")}</small>
+                </span>
                 <ArrowRight size={18} aria-hidden="true" />
               </Link>
             ))

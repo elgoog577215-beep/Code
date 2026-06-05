@@ -498,7 +498,7 @@ const scenarios = [
     name: "app-redirect",
     path: "/",
     selectors: [
-      [".student-home-command", "student default entry"],
+      [".student-entry-list", "student default entry"],
       [".app-header", "application header"]
     ],
     afterChecks: async page => {
@@ -536,12 +536,15 @@ const scenarios = [
       const inviteFormCount = await page.locator("text=输入邀请码").count();
       const homeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
       const entryCount = await page.locator(".student-entry-link").count();
+      const headerLoginCount = await page.locator(".header-login-link, .header-student-chip").count();
       const studentWidth = await page.locator(".student-home").first().evaluate(element => element.getBoundingClientRect().width);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-      const noiseTextPattern = /公开|登录后查看|进入|\d+道题|班级作业|老师布置的作业/;
+      const noiseTextPattern = /公开|登录后查看|进入|班级作业|老师布置的作业/;
       record("student home has no business top nav", navCount === 0, `nav count ${navCount}`);
+      record("student identity lives in header", headerLoginCount >= 1, `header identity count ${headerLoginCount}`);
       record("student home shows public catalog entry", homeText.includes("公共题库"), homeText);
-      record("student home keeps entries minimal", !noiseTextPattern.test(homeText), homeText);
+      record("student home shows assignment details", homeText.includes("课堂编程作业") && homeText.includes("高一1班") && homeText.includes("2题"), homeText);
+      record("student home keeps action copy minimal", !noiseTextPattern.test(homeText), homeText);
       record("student home uses clickable entry rows", entryCount >= 1, `entry count ${entryCount}`);
       if (viewport.name !== "mobile") {
         record("student home is centered on wider screens", studentWidth <= 860, `student width ${studentWidth}`);
@@ -550,7 +553,7 @@ const scenarios = [
       record("student no longer starts with invite", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
     },
     selectors: [
-      [".student-user-menu", "student user menu"],
+      [".header-login-link, .header-student-chip", "student header identity"],
       [".student-entry-list", "student entry list"],
       [".student-entry-link", "student entry row"]
     ]
@@ -594,7 +597,12 @@ const scenarios = [
       record("problem removes duplicate command banner", commandCount === 0, `command banner count ${commandCount}`);
       record("problem statement title is the current problem", statementTitle.includes("求和边界"), statementTitle);
       record("problem task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
-      record("problem modal has testcase and AI hint sections", modalText.includes("测试点情况") && modalText.includes("错误提示") && modalText.includes("优化提示"), modalText);
+      record(
+        "problem modal has teaching columns",
+        modalText.includes("评测点") && modalText.includes("AI错误指导") && modalText.includes("AI提升指导"),
+        modalText
+      );
+      record("problem modal removes empty count noise", !modalText.includes("0条"), modalText);
       await page.locator(".problem-result-modal__footer button").filter({ hasText: "关闭" }).click();
       await checkVisible(page, ".problem-last-result", "problem last result entry after modal close");
       if (viewport.name === "mobile") {
@@ -608,7 +616,9 @@ const scenarios = [
       [".panel--statement", "problem statement panel"],
       [".panel--editor", "problem editor panel"],
       [".problem-result-modal", "problem result modal"],
-      [".problem-feedback-coach", "problem feedback coach"]
+      [".problem-result-section--tests", "problem result testcase column"],
+      [".problem-result-section--repair", "problem result repair column"],
+      [".problem-result-section--growth", "problem result growth column"]
     ]
   },
   {
