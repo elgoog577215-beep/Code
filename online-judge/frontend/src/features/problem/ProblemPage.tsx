@@ -20,9 +20,8 @@ import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea } from "../../shared/ui/Field";
 import { Panel } from "../../shared/ui/Panel";
 import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
+import { CONTEST_LANGUAGES, DEFAULT_CONTEST_LANGUAGE_ID, contestLanguageById } from "./languages";
 
-const PYTHON_TEMPLATE = "n = int(input())\nprint(n)\n";
-const CPP_TEMPLATE = "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    int n;\n    cin >> n;\n    cout << n << '\\n';\n    return 0;\n}\n";
 const CodeEditor = lazy(() => import("./CodeEditor"));
 
 type WorkbenchTask = {
@@ -157,6 +156,36 @@ function terminalFeedbackStatus(status?: string | null) {
   return ["READY", "TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(String(status || "").toUpperCase());
 }
 
+function feedbackTextWeight(items: Array<{ body?: string | null; title?: string | null }>) {
+  return items.reduce((total, item) => total + (item.title?.length || 0) + (item.body?.length || 0), 0);
+}
+
+function FeedbackLoadingPanel({ mode }: { mode: "repair" | "growth" }) {
+  const steps =
+    mode === "repair"
+      ? ["读取评测点", "定位错误方向", "生成修正建议"]
+      : ["分析代码结构", "寻找提升空间", "生成进阶建议"];
+
+  return (
+    <div className="student-feedback-loading" aria-live="polite">
+      <div className="student-feedback-loading__head">
+        <span className="student-feedback-loading__spinner" aria-hidden="true" />
+        <strong>正在分析</strong>
+      </div>
+      <div className="student-feedback-loading__steps">
+        {steps.map((step, index) => (
+          <span className={`is-step-${index + 1}`} key={step}>
+            {step}
+          </span>
+        ))}
+      </div>
+      <div className="student-feedback-loading__bar" aria-hidden="true">
+        <span />
+      </div>
+    </div>
+  );
+}
+
 export default function ProblemPage() {
   const params = useParams();
   const [searchParams] = useSearchParams();
@@ -173,8 +202,8 @@ export default function ProblemPage() {
   const backTo = "/app/student";
 
   const [problem, setProblem] = useState<Problem | null>(null);
-  const [languageId, setLanguageId] = useState(71);
-  const [sourceCode, setSourceCode] = useState(PYTHON_TEMPLATE);
+  const [languageId, setLanguageId] = useState(DEFAULT_CONTEST_LANGUAGE_ID);
+  const [sourceCode, setSourceCode] = useState(() => contestLanguageById(DEFAULT_CONTEST_LANGUAGE_ID).template);
   const [latest, setLatest] = useState<SubmissionResult | null>(null);
   const [history, setHistory] = useState<SubmissionHistorySummary[]>([]);
   const [trajectory, setTrajectory] = useState<StudentTrajectory | null>(null);
@@ -206,7 +235,7 @@ export default function ProblemPage() {
         setProblem(problemResult);
         setHistory(historyResult);
         const draft = loadDraft(problemId, languageId);
-        setSourceCode(draft || (languageId === 54 ? CPP_TEMPLATE : PYTHON_TEMPLATE));
+        setSourceCode(draft || contestLanguageById(languageId).template);
       } catch (error) {
         setAlert({ type: "error", message: error instanceof Error ? error.message : "题目加载失败。" });
       }
@@ -219,7 +248,7 @@ export default function ProblemPage() {
 
   useEffect(() => {
     const draft = loadDraft(problemId, languageId);
-    setSourceCode(draft || (languageId === 54 ? CPP_TEMPLATE : PYTHON_TEMPLATE));
+    setSourceCode(draft || contestLanguageById(languageId).template);
   }, [languageId, problemId]);
 
   useEffect(() => {
@@ -502,6 +531,7 @@ export default function ProblemPage() {
   const feedbackReady = Boolean(latest);
   const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;
   const lastResultText = isFeedbackWaiting ? "AI 分析中" : testCaseSummary;
+  const selectedLanguage = contestLanguageById(languageId);
   const repairCheckQuestion = modelFeedbackReady ? studentAiFeedback.nextQuestion || "" : "";
   const showRepairSection = isFeedbackWaiting || feedbackFailed || repairViewItems.length > 0 || Boolean(repairCheckQuestion) || Boolean(coachPrompt);
   const showGrowthSection = isFeedbackWaiting || feedbackFailed || improvementViewItems.length > 0;
@@ -517,6 +547,23 @@ export default function ProblemPage() {
     )
   );
   const hasRawJudgeOutput = rawJudgeOutputs.length > 0;
+  const judgeTextWeight =
+    total * 36 +
+    rawJudgeOutputs.reduce((sum, item) => sum + item.length, 0) +
+    (firstFailedCase && !firstFailedCase.hidden
+      ? (firstFailedCase.expectedOutput?.length || 0) + (firstFailedCase.actualOutput?.length || 0) + 90
+      : 0);
+  const repairTextWeight = feedbackTextWeight(repairViewItems) + repairCheckQuestion.length + (coachPrompt?.question?.length || 0);
+  const growthTextWeight = feedbackTextWeight(improvementViewItems);
+  const resultLayoutMode = isFeedbackWaiting
+    ? "waiting"
+    : judgeTextWeight > Math.max(520, repairTextWeight + growthTextWeight)
+      ? "judge-heavy"
+      : repairTextWeight > Math.max(420, growthTextWeight * 1.35)
+        ? "repair-heavy"
+        : repairTextWeight + growthTextWeight > Math.max(520, judgeTextWeight * 1.18)
+          ? "ai-heavy"
+          : "balanced";
   const coachQuestionBlock = (
     <div className="coach-next-question">
       {modelFeedbackReady ? (
@@ -656,8 +703,11 @@ export default function ProblemPage() {
           action={
             <Field label="语言">
               <Select value={languageId} onChange={event => setLanguageId(Number(event.target.value))}>
-                <option value={71}>Python 3</option>
-                <option value={54}>C++17</option>
+                {CONTEST_LANGUAGES.map(language => (
+                  <option value={language.id} key={language.id}>
+                    {language.label}
+                  </option>
+                ))}
               </Select>
             </Field>
           }
@@ -665,7 +715,7 @@ export default function ProblemPage() {
           <div className="stack" id="code-workbench">
             <div className="editor-shell">
               <div className="editor-toolbar" aria-label="编辑器状态">
-                <span>{languageId === 54 ? "main.cpp" : "main.py"}</span>
+                <span>{selectedLanguage.sourceFileName}</span>
               </div>
               <Suspense fallback={<div className="editor-loading">正在准备代码编辑器</div>}>
                 <CodeEditor languageId={languageId} sourceCode={sourceCode} onChange={updateCode} />
@@ -687,7 +737,7 @@ export default function ProblemPage() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => updateCode(languageId === 54 ? CPP_TEMPLATE : PYTHON_TEMPLATE)}
+                onClick={() => updateCode(selectedLanguage.template)}
                 icon={<RotateCcw size={18} />}
               >
                 恢复模板
@@ -714,7 +764,7 @@ export default function ProblemPage() {
             </div>
 
             <div className="problem-result-modal__body">
-              <div className="problem-result-modal__grid">
+              <div className={`problem-result-modal__grid problem-result-modal__grid--${resultLayoutMode}`}>
                 <section className="problem-result-section problem-result-section--tests">
                   <div className="problem-result-section__head">
                     <h3>评测</h3>
@@ -773,7 +823,7 @@ export default function ProblemPage() {
                       <h3>修正建议</h3>
                     </div>
                     {isFeedbackWaiting ? (
-                      <div className="student-feedback-empty student-feedback-empty--waiting">AI 分析中</div>
+                      <FeedbackLoadingPanel mode="repair" />
                     ) : feedbackFailed ? (
                       <div className="student-feedback-empty">AI 暂未生成</div>
                     ) : repairViewItems.length ? (
@@ -807,7 +857,7 @@ export default function ProblemPage() {
                       <h3>提升建议</h3>
                     </div>
                     {isFeedbackWaiting ? (
-                      <div className="student-feedback-empty student-feedback-empty--waiting">AI 分析中</div>
+                      <FeedbackLoadingPanel mode="growth" />
                     ) : feedbackFailed ? (
                       <div className="student-feedback-empty">AI 暂未生成</div>
                     ) : improvementViewItems.length ? (

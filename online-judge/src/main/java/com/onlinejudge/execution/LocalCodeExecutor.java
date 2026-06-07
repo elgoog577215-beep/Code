@@ -27,11 +27,18 @@ public class LocalCodeExecutor implements CodeExecutor {
     private static final String TEMP_DIR = System.getProperty("java.io.tmpdir") + File.separator + "onlinejudge";
     private static final boolean IS_WINDOWS = System.getProperty("os.name").toLowerCase().contains("win");
 
-    // Language ID to configuration mapping
+    // Language ID to configuration mapping. Submission languages come from ContestLanguageRegistry;
+    // legacy local-only configs remain here for development compatibility.
     private static final Map<Integer, LanguageConfig> LANGUAGES = Map.of(
-            71, new LanguageConfig("python", "py", null, getPythonCommand() + " {file}"),
+            ContestLanguageRegistry.PYTHON3_ID, new LanguageConfig("python", "py", null, getPythonCommand() + " {file}"),
             62, new LanguageConfig("java", "java", "javac {file}", "java -cp {dir} Main"),
-            54, new LanguageConfig("cpp", "cpp", getGppCommand() + " -o {exe} {file}", "{exe}"),
+            ContestLanguageRegistry.CPP17_ID, new LanguageConfig(
+                    "cpp",
+                    "cpp",
+                    ContestLanguageRegistry.findSubmissionLanguage(ContestLanguageRegistry.CPP17_ID)
+                            .orElseThrow()
+                            .localCompileCommand(),
+                    "{exe}"),
             63, new LanguageConfig("javascript", "js", null, "node {file}"),
             50, new LanguageConfig("c", "c", getGccCommand() + " -o {exe} {file}", "{exe}")
     );
@@ -86,6 +93,7 @@ public class LocalCodeExecutor implements CodeExecutor {
             // Compile if needed
             if (config.compileCommand != null) {
                 String compileCmd = config.compileCommand
+                        .replace("{compiler}", Cpp17Toolchain.compilerCommandOrDefault())
                         .replace("{file}", sourceFile.toString())
                         .replace("{dir}", workDir.toString())
                         .replace("{exe}", exePath.toString());
@@ -209,4 +217,3 @@ public class LocalCodeExecutor implements CodeExecutor {
 
     private record LanguageConfig(String language, String extension, String compileCommand, String runCommand) {}
 }
-

@@ -3,6 +3,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { cpp } from "@codemirror/lang-cpp";
 import { python } from "@codemirror/lang-python";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { contestLanguageById } from "./languages";
 
 type CodeEditorProps = {
   languageId: number;
@@ -11,7 +12,7 @@ type CodeEditorProps = {
 };
 
 export default function CodeEditor({ languageId, sourceCode, onChange }: CodeEditorProps) {
-  const extensions = useMemo(() => (languageId === 54 ? [cpp()] : [python()]), [languageId]);
+  const extensions = useMemo(() => (contestLanguageById(languageId).editorKind === "cpp" ? [cpp()] : [python()]), [languageId]);
   const theme = document.documentElement.dataset.theme === "dark" ? oneDark : undefined;
 
   return (

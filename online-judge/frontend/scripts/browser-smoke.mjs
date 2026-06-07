@@ -207,9 +207,9 @@ const submissionResult = {
   assignmentId: 7,
   studentProfileId: 41,
   problemTitle: "求和边界",
-  languageId: 71,
-  languageName: "Python 3",
-  sourceCode: "n = int(input())\nprint(n)\n",
+  languageId: 54,
+  languageName: "C++17",
+  sourceCode: "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    int n;\n    cin >> n;\n    cout << n << '\\n';\n    return 0;\n}\n",
   verdict: "WRONG_ANSWER",
   executionTime: 28,
   memoryUsed: 8192,
@@ -320,8 +320,8 @@ const history = [
     id: 9001,
     problemId: 101,
     problemTitle: "求和边界",
-    languageId: 71,
-    languageName: "Python 3",
+    languageId: 54,
+    languageName: "C++17",
     verdict: "WRONG_ANSWER",
     executionTime: 28,
     memoryUsed: 8192,
@@ -560,6 +560,7 @@ const executorStatus = {
   dockerAvailable: false,
   pythonAvailable: true,
   cppAvailable: true,
+  cpp17Available: true,
   message: "验证执行环境可用。"
 };
 

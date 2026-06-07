@@ -11,6 +11,7 @@ public class ExecutorStatusResponse {
     private boolean dockerAvailable;
     private boolean pythonAvailable;
     private boolean cppAvailable;
+    private boolean cpp17Available;
     private String message;
     private String projectOwner;
     private String ownershipSignature;

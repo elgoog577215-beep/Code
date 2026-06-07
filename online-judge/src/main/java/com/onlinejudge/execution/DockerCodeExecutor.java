@@ -31,12 +31,8 @@ public class DockerCodeExecutor implements CodeExecutor {
 
     private static final Path TEMP_ROOT = Path.of(System.getProperty("java.io.tmpdir"), "wenzhong-docker-judge");
     private static final Map<Integer, DockerLanguage> LANGUAGES = Map.of(
-            71, new DockerLanguage("Python 3", "py", "python:3.12-slim",
-                    null,
-                    "python3 /workspace/solution.py"),
-            54, new DockerLanguage("C++17", "cpp", "gcc:13",
-                    "g++ -std=c++17 -O2 -pipe -o /workspace/solution /workspace/solution.cpp",
-                    "/workspace/solution")
+            ContestLanguageRegistry.PYTHON3_ID, dockerLanguage(ContestLanguageRegistry.PYTHON3_ID),
+            ContestLanguageRegistry.CPP17_ID, dockerLanguage(ContestLanguageRegistry.CPP17_ID)
     );
 
     @Override
@@ -57,7 +53,7 @@ public class DockerCodeExecutor implements CodeExecutor {
                                    int memoryLimitKb) {
         DockerLanguage language = LANGUAGES.get(languageId);
         if (language == null) {
-            return ExecutionResult.error("容器沙箱暂只开放 Python 3 和 C++17");
+            return ExecutionResult.error("容器沙箱暂只开放 " + ContestLanguageRegistry.supportedLanguageNames());
         }
         if (!isAvailable()) {
             return ExecutionResult.error("容器沙箱未就绪：当前系统未检测到 Docker，请先在部署环境安装并启动 Docker。");
@@ -170,6 +166,18 @@ public class DockerCodeExecutor implements CodeExecutor {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private static DockerLanguage dockerLanguage(int languageId) {
+        ContestLanguageRegistry.ContestLanguage language = ContestLanguageRegistry.findSubmissionLanguage(languageId)
+                .orElseThrow(() -> new IllegalArgumentException("Unsupported docker language: " + languageId));
+        return new DockerLanguage(
+                language.displayName(),
+                language.extension(),
+                language.dockerImage(),
+                language.dockerCompileCommand(),
+                language.dockerRunCommand()
+        );
     }
 
     private String readStream(InputStream inputStream) throws IOException {

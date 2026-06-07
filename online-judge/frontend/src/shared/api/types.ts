@@ -1528,6 +1528,7 @@ export interface ExecutorStatus {
   dockerAvailable: boolean;
   pythonAvailable: boolean;
   cppAvailable: boolean;
+  cpp17Available?: boolean;
   message: string;
   projectOwner?: string;
   ownershipSignature?: string;

@@ -1,6 +1,7 @@
 package com.onlinejudge.submission.application;
 
 import com.onlinejudge.execution.CodeExecutor;
+import com.onlinejudge.execution.ContestLanguageRegistry;
 import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.system.application.ExecutorStatusService;
 import com.onlinejudge.submission.dto.SubmissionRequest;
@@ -19,17 +20,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class JudgeService {
-
-    private static final Map<Integer, String> LANGUAGE_NAMES = Map.of(
-            71, "Python 3",
-            54, "C++17"
-    );
 
     private final CodeExecutor codeExecutor;
     private final ProblemRepository problemRepository;
@@ -50,26 +46,29 @@ public class JudgeService {
         Problem problem = problemRepository.findById(request.getProblemId())
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + request.getProblemId()));
 
+        Optional<ContestLanguageRegistry.ContestLanguage> language =
+                ContestLanguageRegistry.findSubmissionLanguage(request.getLanguageId());
+
         Submission submission = submissionRepository.save(Submission.builder()
                 .problemId(problem.getId())
                 .assignmentId(request.getAssignmentId())
                 .studentProfileId(request.getStudentProfileId())
                 .languageId(request.getLanguageId())
-                .languageName(LANGUAGE_NAMES.getOrDefault(request.getLanguageId(), "未知语言"))
+                .languageName(language.map(ContestLanguageRegistry.ContestLanguage::displayName).orElse("未知语言"))
                 .sourceCode(request.getSourceCode())
                 .verdict(Submission.Verdict.PENDING)
                 .memoryUsed(0)
                 .build());
 
-        if (!LANGUAGE_NAMES.containsKey(request.getLanguageId())) {
+        if (language.isEmpty()) {
             submission.setVerdict(Submission.Verdict.INTERNAL_ERROR);
-            submission.setErrorMessage("暂不支持该语言，当前课堂试点开放：Python 3、C++17");
+            submission.setErrorMessage("暂不支持该语言，当前信息竞赛试点开放：" + ContestLanguageRegistry.supportedLanguageNames());
             return finalizeAndQueue(problem, submission, List.of(), request.getRecommendationToken());
         }
 
-        if (request.getLanguageId() == 54 && !executorStatusService.getStatus().isCppAvailable()) {
+        if (ContestLanguageRegistry.isCpp17(request.getLanguageId()) && !executorStatusService.getStatus().isCpp17Available()) {
             submission.setVerdict(Submission.Verdict.INTERNAL_ERROR);
-            submission.setErrorMessage("C++ 执行环境未就绪：当前系统未检测到可用的 g++ 或 Docker 沙箱，请联系老师完成部署配置。");
+            submission.setErrorMessage("C++17 执行环境未就绪：当前系统未检测到可编译 bits/stdc++.h 的 GNU g++ 或 Docker 沙箱，请联系老师完成部署配置。");
             return finalizeAndQueue(problem, submission, List.of(), request.getRecommendationToken());
         }
 

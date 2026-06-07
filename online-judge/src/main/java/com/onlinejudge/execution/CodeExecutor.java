@@ -10,7 +10,7 @@ public interface CodeExecutor {
      * Execute code and return the result.
      * 
      * @param sourceCode The source code to execute
-     * @param languageId Language identifier (71=Python, 62=Java, etc.)
+     * @param languageId Language identifier (71=Python 3, 54=C++17)
      * @param stdin Input to provide to the program
      * @param timeLimitMs Maximum execution time in milliseconds
      * @param memoryLimitKb Maximum memory usage in KB
@@ -85,4 +85,3 @@ public interface CodeExecutor {
         }
     }
 }
-

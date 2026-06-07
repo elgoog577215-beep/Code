@@ -49,7 +49,8 @@ export default function TeacherManagementPage() {
 
   const classCountText = loadFailed ? "读取失败" : dataReady ? `${cleanClasses.length} 个班级` : "读取中";
   const problemCountText = loadFailed ? "读取失败" : dataReady ? `${problems.length} 个题目` : "读取中";
-  const systemStateText = loadFailed ? "读取失败" : !dataReady ? "读取中" : executor?.cppAvailable ? "评测可用" : "需要检查";
+  const cpp17Ready = executor?.cpp17Available ?? executor?.cppAvailable ?? false;
+  const systemStateText = loadFailed ? "读取失败" : !dataReady ? "读取中" : cpp17Ready ? "评测可用" : "需要检查";
 
   const sections = [
     {
@@ -453,8 +454,8 @@ export default function TeacherManagementPage() {
                   <StatusItem label="模式" value={executor.mode} />
                   <StatusItem label="Docker" value={executor.dockerAvailable ? "可用" : "未配置"} ready={executor.dockerAvailable} />
                   <StatusItem label="Python" value={executor.pythonAvailable ? "可用" : "未就绪"} ready={executor.pythonAvailable} />
-                  <StatusItem label="C++" value={executor.cppAvailable ? "可用" : "未就绪"} ready={executor.cppAvailable} />
-                  <StatusPill tone={executor.cppAvailable ? "success" : "warning"}>{executor.message}</StatusPill>
+                  <StatusItem label="C++17" value={cpp17Ready ? "可用" : "未就绪"} ready={cpp17Ready} />
+                  <StatusPill tone={cpp17Ready ? "success" : "warning"}>{executor.message}</StatusPill>
                 </div>
               )}
             </section>
