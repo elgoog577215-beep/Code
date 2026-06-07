@@ -38,9 +38,11 @@ ai:
   external-runtime-enabled: ${AI_EXTERNAL_RUNTIME_ENABLED:true}
   external-runtime-mode: ${AI_EXTERNAL_RUNTIME_MODE:single-call}
   external-runtime-profile: ${AI_EXTERNAL_RUNTIME_PROFILE:standard}
-  max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:900}
+  max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1800}
   stream-enabled: ${AI_STREAM_ENABLED:true}
   stream-fallback-enabled: ${AI_STREAM_FALLBACK_ENABLED:true}
+  structured-retry-enabled: ${AI_STRUCTURED_RETRY_ENABLED:true}
+  structured-retry-output-tokens: ${AI_STRUCTURED_RETRY_OUTPUT_TOKENS:2600}
 
 logging:
   file:

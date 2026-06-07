@@ -30,6 +30,7 @@ public class SubmissionAnalysisResponse {
     private String studentHint;
     private StudentHintPlan studentHintPlan;
     private StudentFeedback studentFeedback;
+    private StudentFeedbackView studentFeedbackView;
     private LearningInterventionPlan learningInterventionPlan;
     private String teacherNote;
     private String progressSignal;
@@ -147,6 +148,30 @@ public class SubmissionAnalysisResponse {
         private String checkQuestion;
         private List<String> evidenceRefs;
         private String answerLeakRisk;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StudentFeedbackView {
+        private String status;
+        private String primaryAction;
+        private List<FeedbackViewItem> repairItems;
+        private List<FeedbackViewItem> improvementItems;
+        private String nextQuestion;
+        private List<String> evidenceRefs;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FeedbackViewItem {
+        private String title;
+        private String body;
+        private String kind;
+        private List<String> evidenceRefs;
     }
 
     @Data

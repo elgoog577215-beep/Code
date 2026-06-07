@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
+import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,7 @@ public class AiReportService {
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
     private static final String RUNTIME_PROMPT_VERSION = "diagnosis-judge-v2+teaching-hint-v1";
     private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = "diagnosis-and-teaching-v3";
+    private static final String STUDENT_FAST_FEEDBACK_PROMPT_VERSION = "student-fast-feedback-v1";
     private static final String RUNTIME_MODE_SINGLE_CALL = "single-call";
     private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^(\\d+):\\s?(.*)$", Pattern.MULTILINE);
     private static final Pattern REPORT_LINE_ISSUE_PATTERN = Pattern.compile(
@@ -52,6 +54,8 @@ public class AiReportService {
     private final ExternalModelFailureClassifier failureClassifier;
     private final ExternalModelBudgetGuard budgetGuard;
     private final ThreadLocal<ExternalModelCallTelemetry> lastCallTelemetry = ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
+    private final ThreadLocal<ExternalModelCallTelemetry> lastStructuredRetrySourceTelemetry =
+            ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
     private final ThreadLocal<ExternalModelRequestContext> nextRequestContext =
             ThreadLocal.withInitial(ExternalModelRequestContext::standard);
     private final ThreadLocal<String> lastModelStageRawContent = ThreadLocal.withInitial(() -> "");
@@ -109,14 +113,20 @@ public class AiReportService {
     @Value("${ai.external-single-call-prompt-version:}")
     private String externalSingleCallPromptVersion = "";
 
-    @Value("${ai.max-output-tokens:900}")
-    private int maxOutputTokens;
+    @Value("${ai.max-output-tokens:1800}")
+    private int maxOutputTokens = 1800;
+
+    @Value("${ai.structured-retry-output-tokens:2600}")
+    private int structuredRetryOutputTokens = 2600;
 
     @Value("${ai.stream-enabled:true}")
     private boolean streamEnabled;
 
     @Value("${ai.stream-fallback-enabled:true}")
-    private boolean streamFallbackEnabled;
+    private boolean streamFallbackEnabled = true;
+
+    @Value("${ai.structured-retry-enabled:true}")
+    private boolean structuredRetryEnabled = true;
 
     @Value("${ai.retry.max-attempts:2}")
     private int retryMaxAttempts;
@@ -380,6 +390,87 @@ public class AiReportService {
         }
     }
 
+    public StudentAiFeedbackResponse generateStudentAiFeedback(Problem problem,
+                                                               Submission submission,
+                                                               DiagnosisEvidencePackage evidencePackage,
+                                                               RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        long startedAt = System.nanoTime();
+        if (!canCallAi()) {
+            return feedbackFailure(submission, "FAILED", "AI_UNAVAILABLE", startedAt);
+        }
+
+        try {
+            Map<String, Object> context = new LinkedHashMap<>();
+            context.put("problem", compactProblemContext(problem));
+            context.put("submission", compactSubmissionContext(submission, evidencePackage));
+            context.put("judgeFacts", evidencePackage == null ? null : evidencePackage.getJudgeFacts());
+            context.put("candidateSignals", compactRuleSignals(ruleSignals));
+            context.put("safetyRules", List.of(
+                    "只能给修正方向、观察动作、验证动作，不得给完整代码或完整答案。",
+                    "不得猜测隐藏测试数据。",
+                    "repairItems 最多 1 条，improvementItems 最多 2 条。",
+                    "每条建议必须引用 evidenceRefs 中已有证据。"
+            ));
+
+            String systemPrompt = """
+                    You are a student-facing programming coach for an online judge.
+                    Return strict JSON only. Do not use markdown fences. Do not output chain-of-thought.
+                    All visible strings must be Simplified Chinese.
+
+                    Required JSON shape:
+                    {
+                      "repairItems": [
+                        {
+                          "title": "short title",
+                          "body": "one actionable debugging direction without giving the answer",
+                          "kind": "ISSUE_OR_FINE_TAG",
+                          "evidenceRefs": ["existing:evidence"],
+                          "qualitySignals": ["evidence_grounded", "actionable", "no_answer_leak"]
+                        }
+                      ],
+                      "improvementItems": [
+                        {
+                          "title": "复杂度|边界意识|测试习惯|代码结构",
+                          "body": "one optional improvement direction",
+                          "kind": "IMPROVEMENT",
+                          "evidenceRefs": ["existing:evidence"],
+                          "qualitySignals": ["transfer"]
+                        }
+                      ],
+                      "nextQuestion": "one short self-check question",
+                      "safety": {
+                        "answerLeakRisk": "LOW|MEDIUM|HIGH",
+                        "blockedReasons": []
+                      },
+                      "evidenceRefs": ["existing:evidence"]
+                    }
+
+                    Educational rules:
+                    1. repairItems must teach the student how to locate or verify the first fix, not what final code to write.
+                    2. improvementItems should only be about deeper learning: complexity, boundary awareness, testing habit, or code clarity.
+                    3. If evidence is insufficient, return empty repairItems and explain insufficiency in blockedReasons.
+                    4. If the answer leak risk is HIGH, return empty repairItems and empty improvementItems.
+                    5. Never include complete code, final algorithm steps that solve the whole problem, hidden test data, or direct replacement text.
+                    """;
+            String userPrompt = "Generate StudentAiFeedback from this context: " + objectMapper.writeValueAsString(context);
+            int fastFeedbackOutputTokens = Math.min(Math.max(512, maxOutputTokens), 900);
+            String content = chatCompletionForStudentFeedback(systemPrompt, userPrompt, fastFeedbackOutputTokens);
+            StudentFastFeedbackPayload payload = parseModelStagePayload(content, StudentFastFeedbackPayload.class);
+            StudentAiFeedbackResponse response = normalizeStudentFastFeedback(payload, submission, startedAt);
+            if (!"READY".equals(response.getStatus())) {
+                return response;
+            }
+            return response;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return feedbackFailure(submission, "TIMEOUT", "INTERRUPTED", startedAt);
+        } catch (IOException exception) {
+            return feedbackFailure(submission, classifyFeedbackFailure(exception), exception.getMessage(), startedAt);
+        } catch (Exception exception) {
+            return feedbackFailure(submission, "FAILED", exception.getMessage(), startedAt);
+        }
+    }
+
     private boolean shouldUseExternalRuntime(DiagnosisEvidencePackage evidencePackage,
                                              RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
         return externalRuntimeEnabled
@@ -602,11 +693,21 @@ public class AiReportService {
         request.put("brief", runtimePlan.getBrief());
         request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
         activateRuntimePlan(runtimePlan);
-        String content = chatCompletion(
-                runtimePlan.getSingleCallPrompt().getSystemPrompt(),
-                objectMapper.writeValueAsString(request)
+        String systemPrompt = runtimePlan.getSingleCallPrompt().getSystemPrompt();
+        String userPrompt = objectMapper.writeValueAsString(request);
+        String content = chatCompletion(systemPrompt, userPrompt);
+        lastStructuredRetrySourceTelemetry.set(ExternalModelCallTelemetry.empty());
+        ExternalModelStagePayloads.CombinedOutput output =
+                parseModelStagePayload(content, ExternalModelStagePayloads.CombinedOutput.class);
+        if (output != null) {
+            return output;
+        }
+        return retryStructuredModelStagePayload(
+                systemPrompt,
+                userPrompt,
+                runtimePlan,
+                ExternalModelStagePayloads.CombinedOutput.class
         );
-        return parseModelStagePayload(content, ExternalModelStagePayloads.CombinedOutput.class);
     }
 
     private ExternalModelStagePayloads.DiagnosisJudgeOutput retainDiagnosisDecisionFromTruncatedSingleCall(
@@ -653,6 +754,53 @@ public class AiReportService {
                 objectMapper.writeValueAsString(request)
         );
         return parseModelStagePayload(content, ExternalModelStagePayloads.TeachingHintOutput.class);
+    }
+
+    private <T> T retryStructuredModelStagePayload(String systemPrompt,
+                                                   String userPrompt,
+                                                   ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+                                                   Class<T> payloadType)
+            throws IOException, InterruptedException {
+        ExternalModelCallTelemetry firstTelemetry = lastCallTelemetry.get();
+        String firstRawContent = lastModelStageRawContent.get();
+        if (!shouldRetryStructuredPayload(payloadType, firstTelemetry, firstRawContent)) {
+            return null;
+        }
+        try {
+            int retryMaxTokens = Math.max(Math.max(128, maxOutputTokens), Math.max(128, structuredRetryOutputTokens));
+            activateRuntimePlan(runtimePlan);
+            log.warn("Retrying structured AI payload after unusable {} output. streamFinishReason={}, retryMaxTokens={}",
+                    payloadType.getSimpleName(),
+                    firstTelemetry.streamFinishReason(),
+                    retryMaxTokens);
+            String retryContent = chatCompletionWithOverrides(systemPrompt, userPrompt, false, retryMaxTokens);
+            T retryOutput = parseModelStagePayload(retryContent, payloadType);
+            if (retryOutput != null) {
+                lastCallTelemetry.set(lastCallTelemetry.get().withFallbackRetryUsed(true));
+                lastStructuredRetrySourceTelemetry.set(firstTelemetry);
+                return retryOutput;
+            }
+            lastCallTelemetry.set(firstTelemetry);
+            lastModelStageRawContent.set(firstRawContent);
+            return null;
+        } catch (IOException | InterruptedException exception) {
+            lastCallTelemetry.set(firstTelemetry);
+            lastModelStageRawContent.set(firstRawContent);
+            throw exception;
+        }
+    }
+
+    private boolean shouldRetryStructuredPayload(Class<?> payloadType,
+                                                 ExternalModelCallTelemetry telemetry,
+                                                 String rawContent) {
+        if (payloadType != ExternalModelStagePayloads.CombinedOutput.class) {
+            return false;
+        }
+        if (!structuredRetryEnabled) {
+            return false;
+        }
+        String finishReason = telemetry == null ? "" : defaultIfBlank(telemetry.streamFinishReason(), "");
+        return "length".equalsIgnoreCase(finishReason) || cleanupAiText(rawContent).contains("\"diagnosisDecision\"");
     }
 
     private SubmissionAnalysisResponse buildRuntimeAnalysisResponse(
@@ -1417,7 +1565,7 @@ public class AiReportService {
             return null;
         }
         if (!"length".equalsIgnoreCase(defaultIfBlank(lastCallTelemetry.get().streamFinishReason(), ""))) {
-            return result;
+            return withStructuredRetrySourceAttribution(result);
         }
         ModelStageFailureReason reason = result.getFailureReason();
         if (reason != ModelStageFailureReason.EMPTY_RESPONSE
@@ -1430,6 +1578,27 @@ public class AiReportService {
                 .stage(result.getStage())
                 .failureReason(ModelStageFailureReason.OUTPUT_TRUNCATED)
                 .message(defaultIfBlank(result.getMessage(), "External model output ended with finish_reason=length."))
+                .build();
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult withStructuredRetrySourceAttribution(
+            ExternalModelStagePayloads.StageValidationResult result) {
+        ExternalModelCallTelemetry sourceTelemetry = lastStructuredRetrySourceTelemetry.get();
+        if (!"length".equalsIgnoreCase(defaultIfBlank(sourceTelemetry.streamFinishReason(), ""))) {
+            return result;
+        }
+        ModelStageFailureReason reason = result.getFailureReason();
+        if (reason != ModelStageFailureReason.EMPTY_RESPONSE
+                && reason != ModelStageFailureReason.INVALID_JSON
+                && reason != ModelStageFailureReason.UNKNOWN_ERROR) {
+            return result;
+        }
+        lastCallTelemetry.set(sourceTelemetry.withFallbackRetryUsed(true));
+        return ExternalModelStagePayloads.StageValidationResult.builder()
+                .valid(false)
+                .stage(result.getStage())
+                .failureReason(ModelStageFailureReason.OUTPUT_TRUNCATED)
+                .message(defaultIfBlank(result.getMessage(), "External model structured retry did not recover truncated output."))
                 .build();
     }
 
@@ -1546,15 +1715,54 @@ public class AiReportService {
         }
     }
 
+    protected String chatCompletionForStudentFeedback(String systemPrompt,
+                                                      String userPrompt,
+                                                      int outputTokens) throws IOException, InterruptedException {
+        return chatCompletionWithOverrides(systemPrompt, userPrompt, streamEnabled, outputTokens);
+    }
+
+    private String chatCompletionWithOverrides(String systemPrompt,
+                                               String userPrompt,
+                                               boolean stream,
+                                               int outputTokens) throws IOException, InterruptedException {
+        ExternalModelRequestContext requestContext = nextRequestContext.get();
+        nextRequestContext.set(ExternalModelRequestContext.standard());
+        lastCallTelemetry.set(ExternalModelCallTelemetry.request(
+                requestContext.runtimeProfile(),
+                requestContext.requestCompact(),
+                0
+        ));
+        ExternalModelBudgetGuard.Decision decision = budgetGuard.check(PROVIDER, model);
+        if (!decision.allowed()) {
+            throw new IOException(decision.message());
+        }
+        try {
+            String content = doChatCompletionWithRetry(systemPrompt, userPrompt, stream, requestContext, outputTokens);
+            budgetGuard.recordSuccess(PROVIDER, model);
+            return content;
+        } catch (IOException exception) {
+            recordBudgetFailure(exception);
+            throw exception;
+        }
+    }
+
     private String doChatCompletionWithRetry(String systemPrompt,
                                              String userPrompt,
                                              boolean stream,
                                              ExternalModelRequestContext requestContext) throws IOException, InterruptedException {
+        return doChatCompletionWithRetry(systemPrompt, userPrompt, stream, requestContext, maxOutputTokens);
+    }
+
+    private String doChatCompletionWithRetry(String systemPrompt,
+                                             String userPrompt,
+                                             boolean stream,
+                                             ExternalModelRequestContext requestContext,
+                                             int outputTokens) throws IOException, InterruptedException {
         int attempts = Math.max(1, retryMaxAttempts);
         IOException lastException = null;
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
-                return doChatCompletion(systemPrompt, userPrompt, stream, requestContext);
+                return doChatCompletion(systemPrompt, userPrompt, stream, requestContext, outputTokens);
             } catch (IOException exception) {
                 lastException = exception;
                 if (attempt >= attempts || !isRetryableCallFailure(exception)) {
@@ -1577,6 +1785,14 @@ public class AiReportService {
                                     String userPrompt,
                                     boolean stream,
                                     ExternalModelRequestContext requestContext) throws IOException, InterruptedException {
+        return doChatCompletion(systemPrompt, userPrompt, stream, requestContext, maxOutputTokens);
+    }
+
+    private String doChatCompletion(String systemPrompt,
+                                    String userPrompt,
+                                    boolean stream,
+                                    ExternalModelRequestContext requestContext,
+                                    int outputTokens) throws IOException, InterruptedException {
         Map<String, Object> requestBody = new LinkedHashMap<>();
         requestBody.put("model", model);
         requestBody.put("messages", List.of(
@@ -1585,7 +1801,7 @@ public class AiReportService {
         ));
         requestBody.put("temperature", 0.2);
         requestBody.put("stream", stream);
-        requestBody.put("max_tokens", Math.max(128, maxOutputTokens));
+        requestBody.put("max_tokens", Math.max(128, outputTokens));
         String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
         log.info("Calling AI chat completion. model={}, timeoutSeconds={}, stream={}, endpoint={}",
                 model,
@@ -2280,6 +2496,9 @@ public class AiReportService {
 
     private String runtimeModeForPrompt(String promptVersion) {
         String version = cleanupAiText(promptVersion);
+        if (STUDENT_FAST_FEEDBACK_PROMPT_VERSION.equals(version)) {
+            return "student-fast-feedback";
+        }
         if (version.startsWith("diagnosis-and-teaching-")) {
             return RUNTIME_MODE_SINGLE_CALL;
         }
@@ -2406,6 +2625,251 @@ public class AiReportService {
         }
     }
 
+    private Map<String, Object> compactProblemContext(Problem problem) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        if (problem == null) {
+            return context;
+        }
+        context.put("id", problem.getId());
+        context.put("title", problem.getTitle());
+        context.put("description", problem.getDescription());
+        context.put("difficulty", problem.getDifficulty() == null ? "" : problem.getDifficulty().name());
+        context.put("timeLimit", problem.getTimeLimit());
+        context.put("memoryLimit", problem.getMemoryLimit());
+        context.put("knowledgePoints", problem.getKnowledgePoints());
+        context.put("algorithmStrategies", problem.getAlgorithmStrategies());
+        context.put("commonMistakes", problem.getCommonMistakes());
+        context.put("boundaryTypes", problem.getBoundaryTypes());
+        return context;
+    }
+
+    private Map<String, Object> compactSubmissionContext(Submission submission,
+                                                         DiagnosisEvidencePackage evidencePackage) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        if (submission == null) {
+            return context;
+        }
+        context.put("id", submission.getId());
+        context.put("language", submission.getLanguageName());
+        context.put("verdict", submission.getVerdict() == null ? "UNKNOWN" : submission.getVerdict().name());
+        context.put("compileOutput", defaultIfBlank(submission.getCompileOutput(), ""));
+        context.put("runtimeErrorMessage", defaultIfBlank(submission.getErrorMessage(), ""));
+        context.put("sourceCodeWithLineNumbers", evidencePackage == null || evidencePackage.getSubmission() == null
+                ? buildLineAwareSourceCode(submission.getSourceCode())
+                : evidencePackage.getSubmission().getSourceCodeWithLineNumbers());
+        context.put("sourceCodeLineCount", evidencePackage == null || evidencePackage.getSubmission() == null
+                ? countSourceLines(submission.getSourceCode())
+                : evidencePackage.getSubmission().getSourceCodeLineCount());
+        return context;
+    }
+
+    private Map<String, Object> compactRuleSignals(RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        if (ruleSignals == null) {
+            context.put("signals", List.of());
+            context.put("candidateIssueTags", List.of());
+            context.put("candidateFineGrainedTags", List.of());
+            context.put("evidenceRefs", List.of());
+            return context;
+        }
+        context.put("signals", ruleSignals.getSignals() == null ? List.of() : ruleSignals.getSignals().stream()
+                .limit(8)
+                .map(signal -> Map.of(
+                        "evidenceRef", defaultIfBlank(signal.getEvidenceRef(), ""),
+                        "coarseTag", defaultIfBlank(signal.getCoarseTag(), ""),
+                        "fineTag", defaultIfBlank(signal.getFineTag(), ""),
+                        "message", defaultIfBlank(signal.getMessage(), ""),
+                        "confidence", signal.getConfidence() == null ? 0 : signal.getConfidence()
+                ))
+                .toList());
+        context.put("candidateIssueTags", cleanList(ruleSignals.getCandidateIssueTags(), List.of()).stream().limit(6).toList());
+        context.put("candidateFineGrainedTags", cleanList(ruleSignals.getCandidateFineGrainedTags(), List.of()).stream().limit(6).toList());
+        context.put("evidenceRefs", cleanList(ruleSignals.getEvidenceRefs(), List.of()).stream().limit(10).toList());
+        return context;
+    }
+
+    private StudentAiFeedbackResponse normalizeStudentFastFeedback(StudentFastFeedbackPayload payload,
+                                                                   Submission submission,
+                                                                   long startedAt) {
+        if (payload == null) {
+            return feedbackFailure(submission, "FAILED", "STRUCTURED_OUTPUT_INVALID", startedAt);
+        }
+        StudentAiFeedbackResponse.Safety safety = StudentAiFeedbackResponse.Safety.builder()
+                .answerLeakRisk(normalizeLeakRisk(payload.safety == null ? null : payload.safety.answerLeakRisk))
+                .blockedReasons(cleanList(payload.safety == null ? null : payload.safety.blockedReasons, List.of()))
+                .build();
+        if ("HIGH".equals(safety.getAnswerLeakRisk())) {
+            return StudentAiFeedbackResponse.builder()
+                    .submissionId(submission == null ? null : submission.getId())
+                    .status("SAFETY_REJECTED")
+                    .source("MODEL")
+                    .latencyMs(elapsedMs(startedAt))
+                    .repairItems(List.of())
+                    .improvementItems(List.of())
+                    .nextQuestion(null)
+                    .safety(StudentAiFeedbackResponse.Safety.builder()
+                            .answerLeakRisk("HIGH")
+                    .blockedReasons(mergeStringLists(safety.getBlockedReasons(), List.of("ANSWER_LEAK_RISK")))
+                            .build())
+                    .evidenceRefs(cleanList(payload.evidenceRefs, List.of()))
+                    .build();
+        }
+        List<StudentAiFeedbackResponse.FeedbackItem> repairItems = normalizeFeedbackItems(payload.repairItems, 1);
+        List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = normalizeFeedbackItems(payload.improvementItems, 2);
+        String nextQuestion = cleanStudentFeedbackText(payload.nextQuestion);
+        List<String> evidenceRefs = mergeStringLists(
+                payload.evidenceRefs,
+                mergeItemRefs(repairItems, improvementItems)
+        );
+        if (repairItems.isEmpty() && improvementItems.isEmpty() && nextQuestion.isBlank()) {
+            return feedbackFailure(submission, "FAILED", "EMPTY_MODEL_FEEDBACK", startedAt);
+        }
+        return StudentAiFeedbackResponse.builder()
+                .submissionId(submission == null ? null : submission.getId())
+                .status("READY")
+                .source("MODEL")
+                .latencyMs(elapsedMs(startedAt))
+                .repairItems(repairItems)
+                .improvementItems(improvementItems)
+                .nextQuestion(nextQuestion.isBlank() ? null : nextQuestion)
+                .safety(safety)
+                .evidenceRefs(evidenceRefs)
+                .build();
+    }
+
+    private List<StudentAiFeedbackResponse.FeedbackItem> normalizeFeedbackItems(List<StudentFeedbackItemPayload> payloadItems,
+                                                                                int maxItems) {
+        if (payloadItems == null || payloadItems.isEmpty()) {
+            return List.of();
+        }
+        List<StudentAiFeedbackResponse.FeedbackItem> items = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (StudentFeedbackItemPayload payload : payloadItems) {
+            if (payload == null || items.size() >= maxItems) {
+                continue;
+            }
+            String title = cleanStudentFeedbackText(payload.title);
+            String body = cleanStudentFeedbackText(payload.body);
+            if (body.isBlank() || leaksAnswer(body) || leaksAnswer(title)) {
+                continue;
+            }
+            String dedupeKey = (title + "|" + body).replaceAll("\\s+", "");
+            if (!seen.add(dedupeKey)) {
+                continue;
+            }
+            items.add(StudentAiFeedbackResponse.FeedbackItem.builder()
+                    .title(title.isBlank() ? null : title)
+                    .body(body)
+                    .kind(defaultIfBlank(cleanupAiText(payload.kind).toUpperCase(), "GUIDANCE"))
+                    .evidenceRefs(cleanList(payload.evidenceRefs, List.of()).stream().limit(4).toList())
+                    .qualitySignals(cleanList(payload.qualitySignals, List.of()).stream().limit(5).toList())
+                    .build());
+        }
+        return items;
+    }
+
+    private List<String> mergeItemRefs(List<StudentAiFeedbackResponse.FeedbackItem> repairItems,
+                                       List<StudentAiFeedbackResponse.FeedbackItem> improvementItems) {
+        List<String> refs = List.of();
+        List<StudentAiFeedbackResponse.FeedbackItem> items = new ArrayList<>();
+        if (repairItems != null) {
+            items.addAll(repairItems);
+        }
+        if (improvementItems != null) {
+            items.addAll(improvementItems);
+        }
+        for (StudentAiFeedbackResponse.FeedbackItem item : items) {
+            refs = mergeStringLists(refs, item.getEvidenceRefs());
+        }
+        return refs;
+    }
+
+    private List<String> mergeStringLists(List<String> left, List<String> right) {
+        Set<String> unique = new LinkedHashSet<>();
+        for (String item : left == null ? List.<String>of() : left) {
+            String normalized = cleanupAiText(item);
+            if (!normalized.isBlank()) {
+                unique.add(normalized);
+            }
+        }
+        for (String item : right == null ? List.<String>of() : right) {
+            String normalized = cleanupAiText(item);
+            if (!normalized.isBlank()) {
+                unique.add(normalized);
+            }
+        }
+        return new ArrayList<>(unique);
+    }
+
+    private StudentAiFeedbackResponse feedbackFailure(Submission submission,
+                                                      String status,
+                                                      String reason,
+                                                      long startedAt) {
+        String normalizedStatus = defaultIfBlank(status, "FAILED").toUpperCase();
+        return StudentAiFeedbackResponse.builder()
+                .submissionId(submission == null ? null : submission.getId())
+                .status(normalizedStatus)
+                .source("MODEL")
+                .latencyMs(elapsedMs(startedAt))
+                .repairItems(List.of())
+                .improvementItems(List.of())
+                .nextQuestion(null)
+                .safety(StudentAiFeedbackResponse.Safety.builder()
+                        .answerLeakRisk("LOW")
+                        .blockedReasons(reason == null || reason.isBlank() ? List.of() : List.of(reason))
+                        .build())
+                .evidenceRefs(List.of())
+                .build();
+    }
+
+    private String classifyFeedbackFailure(IOException exception) {
+        String message = exception == null ? "" : defaultIfBlank(exception.getMessage(), "").toLowerCase();
+        if (message.contains("timeout") || message.contains("timed out")) {
+            return "TIMEOUT";
+        }
+        if (message.contains("budget")) {
+            return "FAILED";
+        }
+        return "FAILED";
+    }
+
+    private long elapsedMs(long startedAt) {
+        if (startedAt <= 0) {
+            return 0L;
+        }
+        return Math.max(0L, Duration.ofNanos(System.nanoTime() - startedAt).toMillis());
+    }
+
+    private String cleanStudentFeedbackText(String value) {
+        String text = cleanupAiText(value)
+                .replaceFirst("^当前最需要先处理的问题[是：:]?\\s*", "")
+                .replaceFirst("^先改这里[：:]?\\s*", "")
+                .trim();
+        if (text.length() > 180) {
+            text = text.substring(0, 180).trim();
+        }
+        return text;
+    }
+
+    private boolean leaksAnswer(String text) {
+        String compact = defaultIfBlank(text, "").replaceAll("\\s+", "");
+        return compact.contains("完整代码")
+                || compact.contains("参考代码")
+                || compact.contains("答案如下")
+                || compact.contains("直接改成")
+                || compact.contains("替换为")
+                || compact.contains("最终代码")
+                || compact.contains("隐藏测试");
+    }
+
+    private String normalizeLeakRisk(String value) {
+        String normalized = cleanupAiText(value).toUpperCase();
+        if ("LOW".equals(normalized) || "MEDIUM".equals(normalized) || "HIGH".equals(normalized)) {
+            return normalized;
+        }
+        return "LOW";
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     private static class AiAnalysisPayload {
         public String analysisSchemaVersion;
@@ -2462,5 +2926,29 @@ public class AiReportService {
         public Integer lineNumber;
         public String error;
         public String suggestion;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class StudentFastFeedbackPayload {
+        public List<StudentFeedbackItemPayload> repairItems;
+        public List<StudentFeedbackItemPayload> improvementItems;
+        public String nextQuestion;
+        public StudentFeedbackSafetyPayload safety;
+        public List<String> evidenceRefs;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class StudentFeedbackItemPayload {
+        public String title;
+        public String body;
+        public String kind;
+        public List<String> evidenceRefs;
+        public List<String> qualitySignals;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class StudentFeedbackSafetyPayload {
+        public String answerLeakRisk;
+        public List<String> blockedReasons;
     }
 }

@@ -65,6 +65,7 @@ export interface StudentTrajectoryPoint {
   learningInterventionPlan?: LearningInterventionPlan | null;
   learningInterventionImpact?: LearningInterventionImpact | null;
   learningActionEvidence?: LearningActionEvidence | null;
+  aiFeedbackImpact?: AiFeedbackImpact | null;
   improvementSignal?: string | null;
   coachInteraction?: CoachInteractionSummary | null;
   coachImpact?: CoachImpact | null;
@@ -82,6 +83,7 @@ export interface StudentTrajectoryTask {
   latestLearningInterventionPlan?: LearningInterventionPlan | null;
   latestLearningInterventionImpact?: LearningInterventionImpact | null;
   latestLearningActionEvidence?: LearningActionEvidence | null;
+  latestAiFeedbackImpact?: AiFeedbackImpact | null;
   postAcTransferSignal?: PostAcTransferSignal | null;
   latestHint?: string | null;
   latestImprovementSignal?: string | null;
@@ -168,6 +170,7 @@ export interface StudentTrajectory {
   latestLearningInterventionPlan?: LearningInterventionPlan | null;
   latestLearningInterventionImpact?: LearningInterventionImpact | null;
   latestLearningActionEvidence?: LearningActionEvidence | null;
+  latestAiFeedbackImpact?: AiFeedbackImpact | null;
   postAcTransferSignal?: PostAcTransferSignal | null;
   selfExplanationMasterySignal?: SelfExplanationMasterySignal | null;
   aiDependencySignal?: AiDependencySignal | null;
@@ -340,6 +343,25 @@ export interface LearningActionEvidence {
   nextAdjustment?: string | null;
 }
 
+export interface AiFeedbackImpact {
+  feedbackSubmissionId?: number | null;
+  followupSubmissionId?: number | null;
+  problemId?: number | null;
+  status?: string | null;
+  statusLabel?: string | null;
+  summary?: string | null;
+  feedbackStatus?: string | null;
+  feedbackViewedAt?: string | null;
+  previousVerdict?: string | null;
+  followupVerdict?: string | null;
+  previousIssueTag?: string | null;
+  previousFineGrainedTag?: string | null;
+  followupIssueTag?: string | null;
+  followupFineGrainedTag?: string | null;
+  evidenceRefs?: string[];
+  needsTeacherAttention?: boolean;
+}
+
 export interface PostAcTransferSignal {
   phase?: string | null;
   label?: string | null;
@@ -480,6 +502,60 @@ export interface StudentFeedback {
   nextLearningAction?: StudentFeedbackNextLearningAction | null;
 }
 
+export interface StudentFeedbackViewItem {
+  title?: string | null;
+  body?: string | null;
+  kind?: string | null;
+  evidenceRefs?: string[];
+}
+
+export interface StudentFeedbackView {
+  status?: string | null;
+  primaryAction?: string | null;
+  repairItems?: StudentFeedbackViewItem[];
+  improvementItems?: StudentFeedbackViewItem[];
+  nextQuestion?: string | null;
+  evidenceRefs?: string[];
+}
+
+export type StudentAiFeedbackStatus =
+  | "NOT_REQUESTED"
+  | "GENERATING"
+  | "READY"
+  | "TIMEOUT"
+  | "FAILED"
+  | "SAFETY_REJECTED"
+  | string;
+
+export interface StudentAiFeedbackItem {
+  title?: string | null;
+  body?: string | null;
+  kind?: string | null;
+  evidenceRefs?: string[];
+  qualitySignals?: string[];
+}
+
+export interface StudentAiFeedback {
+  submissionId?: number | null;
+  status: StudentAiFeedbackStatus;
+  source?: "MODEL" | string;
+  generatedAt?: string | null;
+  latencyMs?: number | null;
+  repairItems?: StudentAiFeedbackItem[];
+  improvementItems?: StudentAiFeedbackItem[];
+  nextQuestion?: string | null;
+  safety?: {
+    answerLeakRisk?: "LOW" | "MEDIUM" | "HIGH" | string | null;
+    blockedReasons?: string[];
+  } | null;
+  evidenceRefs?: string[];
+}
+
+export interface StudentAiFeedbackLookup {
+  status: StudentAiFeedbackStatus;
+  feedback?: StudentAiFeedback | null;
+}
+
 export interface ModelEducationIssueNote {
   title?: string | null;
   message?: string | null;
@@ -519,6 +595,7 @@ export interface SubmissionAnalysis {
   studentHint?: string;
   studentHintPlan?: StudentHintPlan | null;
   studentFeedback?: StudentFeedback | null;
+  studentFeedbackView?: StudentFeedbackView | null;
   learningInterventionPlan?: LearningInterventionPlan | null;
   teacherNote?: string;
   progressSignal?: string;
@@ -623,6 +700,11 @@ export interface SubmissionResult {
     memoryUsed?: number | null;
     hidden: boolean;
   }>;
+}
+
+export interface SubmissionAnalysisLookup {
+  status?: "READY" | "PENDING" | string;
+  analysis?: SubmissionAnalysis | null;
 }
 
 export interface SubmissionHistorySummary {
@@ -858,6 +940,34 @@ export interface AiQualityOverview {
     correctedLabel?: string | null;
     count: number;
   }>;
+}
+
+export interface StudentAiFeedbackObservability {
+  assignmentId: number;
+  submissionCount: number;
+  failedSubmissionCount: number;
+  feedbackRecordCount: number;
+  modelReadyCount: number;
+  feedbackFailedCount: number;
+  timeoutCount: number;
+  safetyRejectedCount: number;
+  viewedCount: number;
+  modelReadyRate: number;
+  viewRate: number;
+  p50LatencyMs?: number | null;
+  p95LatencyMs?: number | null;
+  latencySampleCount: number;
+  failureReasons: Array<{
+    reason: string;
+    count: number;
+  }>;
+  impactStats: Array<{
+    status: string;
+    label?: string | null;
+    count: number;
+  }>;
+  summary?: string | null;
+  recommendedAction?: string | null;
 }
 
 export interface AiQualityDimension {

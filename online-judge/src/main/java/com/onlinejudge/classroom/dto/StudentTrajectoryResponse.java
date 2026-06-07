@@ -25,6 +25,7 @@ public class StudentTrajectoryResponse {
     private LearningInterventionPlan latestLearningInterventionPlan;
     private LearningInterventionImpact latestLearningInterventionImpact;
     private LearningActionEvidence latestLearningActionEvidence;
+    private AiFeedbackImpact latestAiFeedbackImpact;
     private PostAcTransferSignal postAcTransferSignal;
     private StudentAbilityProfileResponse.SelfExplanationMasterySignal selfExplanationMasterySignal;
     private StudentAbilityProfileResponse.AiDependencySignal aiDependencySignal;
@@ -69,6 +70,7 @@ public class StudentTrajectoryResponse {
         private LearningInterventionPlan latestLearningInterventionPlan;
         private LearningInterventionImpact latestLearningInterventionImpact;
         private LearningActionEvidence latestLearningActionEvidence;
+        private AiFeedbackImpact latestAiFeedbackImpact;
         private PostAcTransferSignal postAcTransferSignal;
         private String latestHint;
         private String latestImprovementSignal;
@@ -90,6 +92,7 @@ public class StudentTrajectoryResponse {
         private LearningInterventionPlan learningInterventionPlan;
         private LearningInterventionImpact learningInterventionImpact;
         private LearningActionEvidence learningActionEvidence;
+        private AiFeedbackImpact aiFeedbackImpact;
         private String improvementSignal;
         private CoachInteractionSummaryResponse coachInteraction;
         private CoachImpactResponse coachImpact;
@@ -149,6 +152,27 @@ public class StudentTrajectoryResponse {
         private Double confidence;
         private List<String> evidenceRefs;
         private String nextAdjustment;
+    }
+
+    @Data
+    @Builder
+    public static class AiFeedbackImpact {
+        private Long feedbackSubmissionId;
+        private Long followupSubmissionId;
+        private Long problemId;
+        private String status;
+        private String statusLabel;
+        private String summary;
+        private String feedbackStatus;
+        private LocalDateTime feedbackViewedAt;
+        private String previousVerdict;
+        private String followupVerdict;
+        private String previousIssueTag;
+        private String previousFineGrainedTag;
+        private String followupIssueTag;
+        private String followupFineGrainedTag;
+        private List<String> evidenceRefs;
+        private boolean needsTeacherAttention;
     }
 
     @Data

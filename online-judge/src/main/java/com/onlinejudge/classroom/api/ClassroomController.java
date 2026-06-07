@@ -10,6 +10,7 @@ import com.onlinejudge.classroom.application.StudentIdentityAdminService;
 import com.onlinejudge.classroom.application.StudentIdentityAuditService;
 import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.classroom.application.StudentRecommendationService;
+import com.onlinejudge.classroom.application.StudentAiFeedbackObservabilityService;
 import com.onlinejudge.classroom.application.StudentTrajectoryService;
 import com.onlinejudge.classroom.dto.*;
 import com.onlinejudge.classroom.importing.ClassroomImportService;
@@ -30,6 +31,7 @@ public class ClassroomController {
     private final AiQualityTrendService aiQualityTrendService;
     private final ClassReviewFeedbackService classReviewFeedbackService;
     private final RecommendationEffectivenessService recommendationEffectivenessService;
+    private final StudentAiFeedbackObservabilityService studentAiFeedbackObservabilityService;
     private final ClassroomImportService classroomImportService;
     private final StudentTrajectoryService studentTrajectoryService;
     private final StudentAbilityProfileService studentAbilityProfileService;
@@ -117,9 +119,18 @@ public class ClassroomController {
         return ResponseEntity.ok(classroomService.getAssignmentOverview(assignmentId));
     }
 
+    /*
+     * AI quality, feedback observability, and diagnosis eval endpoints are system-detail support.
+     * They should not drive the teacher's primary classroom workflow or expose engineering terms in main UI copy.
+     */
     @GetMapping("/api/teacher/assignments/{assignmentId}/ai-quality")
     public ResponseEntity<AiQualityOverviewResponse> getAiQualityOverview(@PathVariable Long assignmentId) {
         return ResponseEntity.ok(aiQualityOverviewService.buildOverview(assignmentId));
+    }
+
+    @GetMapping("/api/teacher/assignments/{assignmentId}/student-ai-feedback-observability")
+    public ResponseEntity<StudentAiFeedbackObservabilityResponse> getStudentAiFeedbackObservability(@PathVariable Long assignmentId) {
+        return ResponseEntity.ok(studentAiFeedbackObservabilityService.buildForAssignment(assignmentId));
     }
 
     @GetMapping("/api/teacher/ai-quality/trend")

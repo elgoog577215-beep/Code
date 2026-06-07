@@ -227,8 +227,6 @@ const submissionResult = {
     issueTags: ["BOUNDARY"],
     abilityPoints: ["循环与边界"],
     focusPoints: ["n 等于 1", "循环体"],
-    fixDirections: ["手推公开样例。", "写一个正好处理每个数一次的循环。"],
-    studentHint: "从 n = 1 开始，检查代码下一步读取了哪一行。",
     teacherNote: "适合用输入格式追问。",
     progressSignal: "问题集中在输入处理。",
     confidence: 0.68,
@@ -248,6 +246,57 @@ const submissionResult = {
     { testCaseNumber: 1, passed: false, actualOutput: "3\n", expectedOutput: "6\n", executionTime: 28, memoryUsed: 8192, hidden: false },
     { testCaseNumber: 2, passed: true, actualOutput: "1\n", expectedOutput: "1\n", executionTime: 19, memoryUsed: 8192, hidden: true }
   ]
+};
+
+const submissionPendingResult = {
+  ...submissionResult,
+  analysisStatus: "PROCESSING",
+  analysis: null
+};
+
+const studentAiFeedbackGenerating = {
+  status: "GENERATING",
+  feedback: {
+    submissionId: 9001,
+    status: "GENERATING",
+    source: "MODEL",
+    repairItems: [],
+    improvementItems: [],
+    safety: { answerLeakRisk: "LOW", blockedReasons: [] },
+    evidenceRefs: []
+  }
+};
+
+const studentAiFeedbackReady = {
+  status: "READY",
+  feedback: {
+    submissionId: 9001,
+    status: "READY",
+    source: "MODEL",
+    generatedAt: "2026-05-19T09:03:02",
+    latencyMs: 820,
+    repairItems: [
+      {
+        title: "输入没有完整读取",
+        body: "先把公开样例的每一行 input 手推清楚。",
+        kind: "INPUT_FORMAT",
+        evidenceRefs: ["public-case-1"],
+        qualitySignals: ["evidence_grounded", "actionable"]
+      }
+    ],
+    improvementItems: [
+      {
+        title: "测试习惯",
+        body: "提交前先跑最小公开样例。能更早发现输入格式问题。",
+        kind: "TESTING_HABIT",
+        evidenceRefs: ["public-case-1"],
+        qualitySignals: ["transfer"]
+      }
+    ],
+    nextQuestion: "第二次读取时应该拿到 1 2 3，还是已经没有读取？",
+    safety: { answerLeakRisk: "LOW", blockedReasons: [] },
+    evidenceRefs: ["public-case-1"]
+  }
 };
 
 const coachPrompt = {
@@ -409,6 +458,27 @@ const aiQualityOverview = {
   correctedTags: [{ originalTag: "LOGIC", originalLabel: "逻辑问题", correctedTag: "BOUNDARY", correctedLabel: "边界条件", count: 2 }]
 };
 
+const studentAiFeedbackObservability = {
+  assignmentId: 7,
+  submissionCount: 32,
+  failedSubmissionCount: 17,
+  feedbackRecordCount: 12,
+  modelReadyCount: 10,
+  feedbackFailedCount: 2,
+  timeoutCount: 1,
+  safetyRejectedCount: 1,
+  viewedCount: 7,
+  modelReadyRate: 58.82,
+  viewRate: 70,
+  p50LatencyMs: 820,
+  p95LatencyMs: 1450,
+  latencySampleCount: 10,
+  failureReasons: [{ reason: "TIMEOUT", count: 1 }],
+  impactStats: [{ status: "IMPROVED_AFTER_AI", label: "查看后改善", count: 3 }],
+  summary: "学生 AI 快反馈已有查看和后续改善证据。",
+  recommendedAction: "持续比较查看后改善、仍卡住和等待后续提交的比例。"
+};
+
 const aiQualityTrend = {
   assignmentCount: 3,
   analyzedSubmissionCount: 72,
@@ -495,15 +565,15 @@ const executorStatus = {
 
 const scenarios = [
   {
-    name: "app-redirect",
-    path: "/",
+    name: "student-default",
+    path: "/app/student",
     selectors: [
       [".student-entry-list", "student default entry"],
       [".app-header", "application header"]
     ],
     afterChecks: async page => {
       const navCount = await page.locator(".top-nav__link").count();
-      record("root redirects to student URL", page.url().includes("/app/student"), page.url());
+      record("student direct URL opens entry", page.url().includes("/app/student"), page.url());
       record("student entry has no business top nav", navCount === 0, `nav count ${navCount}`);
     }
   },
@@ -532,6 +602,7 @@ const scenarios = [
     name: "student",
     path: "/app/student",
     afterChecks: async (page, viewport) => {
+      await page.locator(".student-entry-list").first().waitFor({ state: "visible", timeout: 10000 });
       const navCount = await page.locator(".top-nav__link").count();
       const inviteFormCount = await page.locator("text=输入邀请码").count();
       const homeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
@@ -590,6 +661,10 @@ const scenarios = [
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const navCount = await page.locator(".top-nav__link").count();
       const modalText = ((await page.locator(".problem-result-modal").first().textContent()) || "").replace(/\s+/g, "");
+      const modalHeaderText = ((await page.locator(".problem-result-modal__header").first().textContent()) || "").replace(/\s+/g, "");
+      const modalFooterText = ((await page.locator(".problem-result-modal__footer").first().textContent()) || "").replace(/\s+/g, "");
+      const repairText = ((await page.locator(".problem-result-section--repair").first().textContent()) || "").replace(/\s+/g, "");
+      const growthText = ((await page.locator(".problem-result-section--growth").first().textContent()) || "").replace(/\s+/g, "");
       const commandCount = await page.locator(".practice-command--workbench").count();
       const statementTitle = ((await page.locator(".panel--statement .panel__header h2").first().textContent()) || "").trim();
       const taskItemHeight = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().height);
@@ -597,13 +672,70 @@ const scenarios = [
       record("problem removes duplicate command banner", commandCount === 0, `command banner count ${commandCount}`);
       record("problem statement title is the current problem", statementTitle.includes("求和边界"), statementTitle);
       record("problem task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
+      record("problem modal shows pending AI feedback state first", modalText.includes("AI分析中"), modalText);
       record(
-        "problem modal has teaching columns",
-        modalText.includes("评测点") && modalText.includes("AI错误指导") && modalText.includes("AI提升指导"),
+        "problem modal does not invent guidance while analysis pending",
+        !modalText.includes("先看测试点") &&
+          !modalText.includes("先把当前错误修掉") &&
+          !modalText.includes("先看左侧失败点") &&
+          !modalText.includes("暂无提升建议"),
         modalText
       );
-      record("problem modal removes empty count noise", !modalText.includes("0条"), modalText);
-      await page.locator(".problem-result-modal__footer button").filter({ hasText: "关闭" }).click();
+      await page.waitForFunction(() => !document.body.innerText.includes("AI 分析中"), null, { timeout: 10000 });
+      const readyModalText = ((await page.locator(".problem-result-modal").first().textContent()) || "").replace(/\s+/g, "");
+      const readyTestText = ((await page.locator(".problem-result-section--tests").first().textContent()) || "").replace(/\s+/g, "");
+      const readyRepairText = ((await page.locator(".problem-result-section--repair").first().textContent()) || "").replace(/\s+/g, "");
+      const readyGrowthText = ((await page.locator(".problem-result-section--growth").first().textContent()) || "").replace(/\s+/g, "");
+      record(
+        "problem modal has teaching columns",
+        readyTestText.includes("评测") && readyRepairText.includes("修正建议") && readyGrowthText.includes("提升建议"),
+        readyModalText
+      );
+      record(
+        "problem modal keeps testcase column minimal",
+        !readyTestText.includes("通过耗时内存") &&
+          !readyTestText.includes("公开测试点") &&
+          !readyTestText.includes("第一个公开失败点") &&
+          readyTestText.includes("1公开28ms错"),
+        readyTestText
+      );
+      record("problem modal removes empty count noise", !readyModalText.includes("0条"), readyModalText);
+      record(
+        "problem modal removes system-like labels",
+        !readyModalText.includes("AI错误指导") &&
+          !readyModalText.includes("AI提升指导") &&
+          !readyModalText.includes("怎么改") &&
+          !readyModalText.includes("验证一下") &&
+          !readyModalText.includes("收益：") &&
+          !readyModalText.includes("生成下一问") &&
+          !readyModalText.includes("再生成一问"),
+        readyModalText
+      );
+      record(
+        "problem modal ignores noisy legacy feedback fields",
+        !readyModalText.includes("本地可验证反馈") &&
+          !readyModalText.includes("当前代码存在运行稳定性风险") &&
+          !readyModalText.includes("先保证程序稳定运行") &&
+          !readyModalText.includes("先看左侧失败点") &&
+          !readyModalText.includes("先把当前错误修掉") &&
+          !readyModalText.includes("暂无提升建议") &&
+          !readyModalText.includes("当前最需要先处理的问题"),
+        readyModalText
+      );
+      record("problem modal keeps header compact", !modalHeaderText.includes("先改这里") && !modalHeaderText.includes("先检查"), modalHeaderText);
+      record("problem modal footer has no duplicate close copy", !modalFooterText.includes("关闭"), modalFooterText);
+      record(
+        "problem modal maps repair fields structurally",
+        readyRepairText.includes("修正建议") &&
+          readyRepairText.includes("输入没有完整读取") &&
+          readyRepairText.includes("先把公开样例的每一行input手推清楚") &&
+          readyRepairText.includes("第二次读取时应该拿到123"),
+        readyRepairText
+      );
+      record("problem modal maps growth fields structurally", readyGrowthText.includes("提升建议") && readyGrowthText.includes("测试习惯") && readyGrowthText.includes("能更早发现输入格式问题"), readyGrowthText);
+      record("problem modal uses student AI feedback endpoint", studentFeedbackLookupCount >= 2, `student feedback lookup count ${studentFeedbackLookupCount}`);
+      record("problem modal records model feedback view", studentFeedbackViewCount === 1, `student feedback view count ${studentFeedbackViewCount}`);
+      await page.locator(".problem-result-modal__footer button").filter({ hasText: "继续修改" }).click();
       await checkVisible(page, ".problem-last-result", "problem last result entry after modal close");
       if (viewport.name === "mobile") {
         await checkVisible(page, ".problem-mobile-jump", "problem mobile code jump");
@@ -628,9 +760,26 @@ const scenarios = [
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
       const tabs = ((await page.locator(".teacher-mode-tabs").first().textContent()) || "").replace(/\s+/g, "");
+      const inspectionText = ((await page.locator(".teacher-inspection-strip").first().textContent()) || "").replace(/\s+/g, "");
+      const teacherText = ((await page.locator(".teacher-page").first().textContent()) || "").replace(/\s+/g, "");
+      await page.locator(".teacher-system-drawer > summary").first().click();
+      await checkVisible(page, ".teacher-student-feedback-observability", "teacher student AI feedback observability");
+      const systemText = ((await page.locator(".teacher-system-drawer").first().textContent()) || "").replace(/\s+/g, "");
       record("teacher global nav is classroom-first", navLabels.join("|") === "课堂|管理|题目", navLabels.join("|"));
       record("teacher nav is active", activeNav.includes("课堂"), activeNav.join("|"));
       record("teacher page has internal management tab", tabs.includes("课堂") && tabs.includes("管理"), tabs);
+      record("teacher first screen keeps AI quality auxiliary", !inspectionText.includes("AI质量"), inspectionText);
+      record("teacher shows student feedback observability in auxiliary drawer", systemText.includes("学生反馈") && systemText.includes("生成10/17") && systemText.includes("查看后改善3"), systemText);
+      record(
+        "teacher main copy hides engineering tokens",
+        !/BLOCKED|RECOVERED|NOT_COMPARABLE|fallback|smoke|profile/i.test(teacherText),
+        teacherText.slice(0, 800)
+      );
+      record(
+        "teacher student feedback observability uses teacher language",
+        !/READY|FAILED|MODEL|TIMEOUT|SAFETY_REJECTED/.test(systemText) && systemText.includes("生成超时"),
+        systemText
+      );
     },
     selectors: [
       [".teacher-mode-tabs", "teacher mode tabs"],
@@ -717,6 +866,9 @@ const viewports = [
 
 const checks = [];
 const unmockedApis = [];
+let analysisLookupCount = 0;
+let studentFeedbackLookupCount = 0;
+let studentFeedbackViewCount = 0;
 
 function record(name, passed, detail = "") {
   checks.push({ name, passed, detail });
@@ -811,9 +963,35 @@ async function routeApi(route) {
     ]);
   }
 
-  if (path === "/api/submissions" && method === "POST") return json(route, submissionResult);
+  if (path === "/api/submissions" && method === "POST") {
+    analysisLookupCount = 0;
+    studentFeedbackLookupCount = 0;
+    studentFeedbackViewCount = 0;
+    return json(route, submissionPendingResult);
+  }
   if (path === "/api/submissions/9001") return json(route, submissionResult);
-  if (path === "/api/submissions/9001/analysis") return json(route, { analysis: submissionResult.analysis });
+  if (path === "/api/submissions/9001/student-ai-feedback/view" && method === "POST") {
+    studentFeedbackViewCount += 1;
+    return empty(route);
+  }
+  if (path === "/api/submissions/9001/student-ai-feedback") {
+    if (method === "POST") {
+      studentFeedbackLookupCount = 0;
+      return json(route, studentAiFeedbackGenerating, 202);
+    }
+    studentFeedbackLookupCount += 1;
+    if (studentFeedbackLookupCount === 1) {
+      return json(route, studentAiFeedbackGenerating, 202);
+    }
+    return json(route, studentAiFeedbackReady);
+  }
+  if (path === "/api/submissions/9001/analysis") {
+    analysisLookupCount += 1;
+    if (analysisLookupCount === 1) {
+      return json(route, { status: "PENDING", analysis: null }, 202);
+    }
+    return json(route, { status: "READY", analysis: submissionResult.analysis });
+  }
   if (path === "/api/submissions/9001/coach-prompt") return json(route, coachPrompt);
   if (path === "/api/submissions/9001/coach-turns" && method === "POST") {
     return json(route, {
@@ -842,6 +1020,7 @@ async function routeApi(route) {
   if (path === "/api/teacher/assignments/7") return json(route, assignment);
   if (path === "/api/teacher/assignments/7/overview") return json(route, assignmentOverview);
   if (path === "/api/teacher/assignments/7/ai-quality") return json(route, aiQualityOverview);
+  if (path === "/api/teacher/assignments/7/student-ai-feedback-observability") return json(route, studentAiFeedbackObservability);
   if (path === "/api/teacher/ai-quality/trend") return json(route, aiQualityTrend);
   if (path === "/api/teacher/recommendations/effectiveness") return json(route, recommendationEffectiveness);
   if (path === "/api/teacher/assignments/7/class-review-feedback" && method === "POST") return json(route, { ok: true });
@@ -896,47 +1075,54 @@ async function checkImportantControlsVisible(page, label) {
 }
 
 async function checkDarkReadable(page, selector, label) {
-  const sample = await page.locator(selector).first().evaluate(element => {
-    function parseRgb(value) {
-      const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/);
-      if (!match) return null;
-      return {
-        r: Number(match[1]) / 255,
-        g: Number(match[2]) / 255,
-        b: Number(match[3]) / 255,
-        a: match[4] === undefined ? 1 : Number(match[4])
-      };
-    }
-    function channel(value) {
-      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-    }
-    function luminance(color) {
-      return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b);
-    }
-    function contrast(a, b) {
-      const l1 = luminance(a);
-      const l2 = luminance(b);
-      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-    }
-    const textElement = element.querySelector("h1,h2,h3,h4,strong,p,span,button,a") || element;
-    const textStyle = window.getComputedStyle(textElement);
-    let background = null;
-    let current = textElement;
-    while (current && !background) {
-      const bg = parseRgb(window.getComputedStyle(current).backgroundColor);
-      if (bg && bg.a > 0.05) {
-        background = bg;
+  try {
+    const locator = page.locator(selector).first();
+    await locator.waitFor({ state: "visible", timeout: 10000 });
+    const sample = await locator.evaluate(element => {
+      function parseRgb(value) {
+        const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/);
+        if (!match) return null;
+        return {
+          r: Number(match[1]) / 255,
+          g: Number(match[2]) / 255,
+          b: Number(match[3]) / 255,
+          a: match[4] === undefined ? 1 : Number(match[4])
+        };
       }
-      current = current.parentElement;
-    }
-    background ||= parseRgb(window.getComputedStyle(document.body).backgroundColor) || { r: 0, g: 0, b: 0, a: 1 };
-    const foreground = parseRgb(textStyle.color);
-    if (!foreground) {
-      return { contrastRatio: 0 };
-    }
-    return { contrastRatio: contrast(foreground, background) };
-  });
-  record(`${label} dark readable sample`, sample.contrastRatio >= 2.8, JSON.stringify(sample));
+      function channel(value) {
+        return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+      }
+      function luminance(color) {
+        return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b);
+      }
+      function contrast(a, b) {
+        const l1 = luminance(a);
+        const l2 = luminance(b);
+        return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      }
+      const textElement = element.querySelector("h1,h2,h3,h4,strong,p,span,button,a") || element;
+      const textStyle = window.getComputedStyle(textElement);
+      let background = null;
+      let current = textElement;
+      while (current && !background) {
+        const bg = parseRgb(window.getComputedStyle(current).backgroundColor);
+        if (bg && bg.a > 0.05) {
+          background = bg;
+        }
+        current = current.parentElement;
+      }
+      background ||= parseRgb(window.getComputedStyle(document.body).backgroundColor) || { r: 0, g: 0, b: 0, a: 1 };
+      const foreground = parseRgb(textStyle.color);
+      if (!foreground) {
+        return { contrastRatio: 0 };
+      }
+      return { contrastRatio: contrast(foreground, background) };
+    });
+    record(`${label} dark readable sample`, sample.contrastRatio >= 2.8, JSON.stringify(sample));
+  } catch (error) {
+    const text = ((await page.locator("body").textContent().catch(() => "")) || "").replace(/\s+/g, "").slice(0, 500);
+    record(`${label} dark readable sample`, false, `${selector}: ${error.message}; body=${text}`);
+  }
 }
 
 async function runScenario(baseUrl, browser, viewport, scenario) {

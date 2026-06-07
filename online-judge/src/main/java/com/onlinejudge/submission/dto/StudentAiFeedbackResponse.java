@@ -1,0 +1,47 @@
+package com.onlinejudge.submission.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class StudentAiFeedbackResponse {
+    private Long submissionId;
+    private String status;
+    private String source;
+    private LocalDateTime generatedAt;
+    private Long latencyMs;
+    private List<FeedbackItem> repairItems;
+    private List<FeedbackItem> improvementItems;
+    private String nextQuestion;
+    private Safety safety;
+    private List<String> evidenceRefs;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FeedbackItem {
+        private String title;
+        private String body;
+        private String kind;
+        private List<String> evidenceRefs;
+        private List<String> qualitySignals;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Safety {
+        private String answerLeakRisk;
+        private List<String> blockedReasons;
+    }
+}

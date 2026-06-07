@@ -37,6 +37,7 @@ public class JudgeService {
     private final SubmissionRepository submissionRepository;
     private final SubmissionAnalysisService submissionAnalysisService;
     private final SubmissionAnalysisAsyncService submissionAnalysisAsyncService;
+    private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
     private final ExecutorStatusService executorStatusService;
     private final StudentRecommendationEventService recommendationEventService;
 
@@ -209,6 +210,7 @@ public class JudgeService {
                                                 String recommendationToken) {
         SubmissionResponse response = submissionAnalysisService.finalizeSubmission(problem, submission, caseResults);
         recommendationEventService.recordSubmission(submission, recommendationToken);
+        studentAiFeedbackAsyncService.enqueue(response.getId());
         submissionAnalysisAsyncService.enqueue(response.getId());
         return response;
     }

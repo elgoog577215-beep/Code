@@ -13,7 +13,8 @@ import type {
   DiagnosisEvalFixtureDraft,
   DiagnosisTag,
   ProblemCatalogItem,
-  RecommendationEffectiveness
+  RecommendationEffectiveness,
+  StudentAiFeedbackObservability
 } from "../../shared/api/types";
 import {
   assignmentStatusLabel,
@@ -353,6 +354,65 @@ function aiQualityScore(value?: number | null) {
   return `${Math.round(value)}`;
 }
 
+function percentText(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "--";
+  }
+  return `${Math.round(value)}%`;
+}
+
+function latencyText(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "样本不足";
+  }
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}s`;
+  }
+  return `${Math.round(value)}ms`;
+}
+
+function studentFeedbackFailureReasonLabel(value?: string | null) {
+  switch ((value || "").toUpperCase()) {
+    case "TIMEOUT":
+      return "生成超时";
+    case "SAFETY_REJECTED":
+      return "安全拦截";
+    case "MODEL_PARSE_ERROR":
+    case "VALIDATION_FAILED":
+      return "结构解析";
+    case "PROVIDER_ERROR":
+      return "服务异常";
+    case "MODEL_UNAVAILABLE":
+    case "NO_MODEL_RUNTIME":
+      return "模型不可用";
+    case "UNKNOWN":
+      return "未知失败";
+    default:
+      return displayText(value, "未知失败");
+  }
+}
+
+function studentFeedbackImpactLabel(value?: string | null, fallback?: string | null) {
+  switch ((value || "").toUpperCase()) {
+    case "IMPROVED_AFTER_AI":
+      return "查看后改善";
+    case "SAME_ISSUE_AFTER_AI":
+      return "仍卡同类";
+    case "SHIFTED_AFTER_AI":
+      return "进入新阶段";
+    case "REGRESSED_AFTER_AI":
+      return "出现回退";
+    case "VERDICT_CHANGED_AFTER_AI":
+      return "阶段变化";
+    case "NO_CLEAR_CHANGE_AFTER_AI":
+      return "暂无变化";
+    case "AWAITING_FOLLOWUP":
+      return "等后续";
+    default:
+      return displayText(fallback || value, "待观察");
+  }
+}
+
 function runtimeAttributionLabel(value?: string | null) {
   switch ((value || "").toUpperCase()) {
     case "QUOTA_LIMIT":
@@ -512,7 +572,7 @@ function recoveryStatusChips(value?: RuntimeRecoverySignal | null) {
     chips.push(`验证用例 ${value.recoverySmokeCaseId}`);
   }
   if (value.recoverySmokeRuntimeProfile) {
-    chips.push(`运行配置 ${value.recoverySmokeRuntimeProfile}`);
+    chips.push(`运行环境 ${value.recoverySmokeRuntimeProfile}`);
   }
   const checkCount = value.recoveryCheckCount || value.recoverySmokeRequiredChecks?.length || 0;
   const passedCount = value.recoveryPassedCheckCount || 0;
@@ -623,6 +683,7 @@ function TeacherOverviewSkeleton() {
 
 export default function TeacherPage() {
   const aiQualityRequestSeq = useRef(0);
+  const studentFeedbackObservabilityRequestSeq = useRef(0);
   const evalCandidatesRequestSeq = useRef(0);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -631,6 +692,8 @@ export default function TeacherPage() {
   const [overview, setOverview] = useState<AssignmentOverview | null>(null);
   const [aiQuality, setAiQuality] = useState<AiQualityOverview | null>(null);
   const [aiQualityError, setAiQualityError] = useState<string | null>(null);
+  const [studentFeedbackObservability, setStudentFeedbackObservability] = useState<StudentAiFeedbackObservability | null>(null);
+  const [studentFeedbackObservabilityError, setStudentFeedbackObservabilityError] = useState<string | null>(null);
   const [aiQualityTrend, setAiQualityTrend] = useState<AiQualityTrend | null>(null);
   const [aiQualityTrendError, setAiQualityTrendError] = useState<string | null>(null);
   const [recommendationEffectiveness, setRecommendationEffectiveness] = useState<RecommendationEffectiveness | null>(null);
@@ -646,6 +709,7 @@ export default function TeacherPage() {
   const [busy, setBusy] = useState(false);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [aiQualityLoading, setAiQualityLoading] = useState(false);
+  const [studentFeedbackObservabilityLoading, setStudentFeedbackObservabilityLoading] = useState(false);
   const [aiQualityTrendLoading, setAiQualityTrendLoading] = useState(false);
   const [recommendationEffectivenessLoading, setRecommendationEffectivenessLoading] = useState(false);
   const [evalCandidatesLoading, setEvalCandidatesLoading] = useState(false);
@@ -898,6 +962,9 @@ export default function TeacherPage() {
     setAiQuality(null);
     setAiQualityError(null);
     setAiQualityLoading(true);
+    setStudentFeedbackObservability(null);
+    setStudentFeedbackObservabilityError(null);
+    setStudentFeedbackObservabilityLoading(true);
     setEvalCandidates(null);
     setEvalCandidatesError(null);
     setEvalCandidatesLoading(false);
@@ -917,6 +984,7 @@ export default function TeacherPage() {
       setOverviewLoading(false);
     }
     void loadAiQuality(id);
+    void loadStudentFeedbackObservability(id);
   }
 
   async function loadAiQuality(id: number) {
@@ -941,6 +1009,28 @@ export default function TeacherPage() {
     }
   }
 
+  async function loadStudentFeedbackObservability(id: number) {
+    const requestSeq = studentFeedbackObservabilityRequestSeq.current + 1;
+    studentFeedbackObservabilityRequestSeq.current = requestSeq;
+    setStudentFeedbackObservabilityLoading(true);
+    setStudentFeedbackObservabilityError(null);
+    try {
+      const result = await api.studentAiFeedbackObservability(id);
+      if (studentFeedbackObservabilityRequestSeq.current === requestSeq) {
+        setStudentFeedbackObservability(result);
+      }
+    } catch (error) {
+      if (studentFeedbackObservabilityRequestSeq.current === requestSeq) {
+        setStudentFeedbackObservability(null);
+        setStudentFeedbackObservabilityError(teacherErrorMessage(error, "学生反馈观测读取失败。"));
+      }
+    } finally {
+      if (studentFeedbackObservabilityRequestSeq.current === requestSeq) {
+        setStudentFeedbackObservabilityLoading(false);
+      }
+    }
+  }
+
   async function loadEvalCandidates(id: number) {
     const requestSeq = evalCandidatesRequestSeq.current + 1;
     evalCandidatesRequestSeq.current = requestSeq;
@@ -954,7 +1044,7 @@ export default function TeacherPage() {
     } catch (error) {
       if (evalCandidatesRequestSeq.current === requestSeq) {
         setEvalCandidates(null);
-        setEvalCandidatesError(teacherErrorMessage(error, "Eval 候选样本读取失败。"));
+        setEvalCandidatesError(teacherErrorMessage(error, "校验样本读取失败。"));
       }
     } finally {
       if (evalCandidatesRequestSeq.current === requestSeq) {
@@ -973,7 +1063,7 @@ export default function TeacherPage() {
       setFixtureDraft(await api.diagnosisEvalFixtureDraft(activeAssignmentId));
     } catch (error) {
       setFixtureDraft(null);
-      setFixtureDraftError(teacherErrorMessage(error, "Fixture 草稿读取失败。"));
+      setFixtureDraftError(teacherErrorMessage(error, "草稿样本读取失败。"));
     } finally {
       setFixtureDraftLoading(false);
     }
@@ -1091,7 +1181,7 @@ export default function TeacherPage() {
         evalCandidate: true,
         correctedBy: "teacher"
       });
-      setAlert({ type: "success", message: "教师校正已保存，并会作为后续 eval 候选样例。" });
+      setAlert({ type: "success", message: "教师校正已保存，并会作为后续校验样本。" });
       setCorrectionDraft(null);
       await loadOverview(activeAssignmentId);
     } catch (error) {
@@ -1158,6 +1248,88 @@ export default function TeacherPage() {
     }
   }
 
+  function renderStudentFeedbackObservabilitySection() {
+    const data = studentFeedbackObservability;
+    const topImpact = data?.impactStats?.[0] || null;
+    const topFailure = data?.failureReasons?.[0] || null;
+    const stateTone: PillTone = studentFeedbackObservabilityError
+      ? "danger"
+      : studentFeedbackObservabilityLoading
+        ? "info"
+        : data && data.modelReadyCount > 0
+          ? "success"
+          : data && data.failedSubmissionCount > 0
+            ? "warning"
+            : "neutral";
+    const stateLabel = studentFeedbackObservabilityError
+      ? "暂不可用"
+      : studentFeedbackObservabilityLoading
+        ? "读取中"
+        : data && data.modelReadyCount > 0
+          ? "有样本"
+          : data && data.failedSubmissionCount > 0
+            ? "待生成"
+            : "无样本";
+
+    return (
+      <section className="teacher-student-feedback-observability" aria-label="学生 AI 反馈观测">
+        <div className="teacher-student-feedback-observability__head">
+          <div>
+            <h3>学生反馈</h3>
+            {data?.summary && <p>{data.summary}</p>}
+          </div>
+          <StatusPill tone={stateTone}>{stateLabel}</StatusPill>
+        </div>
+
+        {studentFeedbackObservabilityError ? (
+          <div className="teacher-student-feedback-observability__empty">{studentFeedbackObservabilityError}</div>
+        ) : studentFeedbackObservabilityLoading ? (
+          <div className="teacher-student-feedback-observability__empty">读取中</div>
+        ) : data ? (
+          <>
+            <div className="teacher-student-feedback-observability__metrics">
+              <div>
+                <span>生成</span>
+                <strong>{data.modelReadyCount}/{data.failedSubmissionCount}</strong>
+                <small>{percentText(data.modelReadyRate)}</small>
+              </div>
+              <div>
+                <span>查看</span>
+                <strong>{data.viewedCount}</strong>
+                <small>{percentText(data.viewRate)}</small>
+              </div>
+              <div>
+                <span>耗时</span>
+                <strong>{latencyText(data.p95LatencyMs)}</strong>
+                <small>p95</small>
+              </div>
+              <div>
+                <span>安全拦截</span>
+                <strong>{data.safetyRejectedCount}</strong>
+                <small>{data.timeoutCount ? `超时 ${data.timeoutCount}` : " "}</small>
+              </div>
+            </div>
+            <div className="teacher-student-feedback-observability__signals">
+              {topImpact && (
+                <span>
+                  {studentFeedbackImpactLabel(topImpact.status, topImpact.label)} {topImpact.count}
+                </span>
+              )}
+              {topFailure && (
+                <span>
+                  {studentFeedbackFailureReasonLabel(topFailure.reason)} {topFailure.count}
+                </span>
+              )}
+              {data.recommendedAction && <span>{data.recommendedAction}</span>}
+            </div>
+          </>
+        ) : (
+          <div className="teacher-student-feedback-observability__empty">暂无样本</div>
+        )}
+      </section>
+    );
+  }
+
   function renderAiQualitySection() {
     return (
       <section className="teacher-ai-quality" aria-label="AI 质量信号">
@@ -1193,7 +1365,7 @@ export default function TeacherPage() {
                   <strong>{aiQuality.correctionCount}</strong>
                 </div>
                 <div>
-                  <span>Eval 候选</span>
+                  <span>校验样本</span>
                   <strong>{aiQuality.evalCandidateCount}</strong>
                 </div>
                 <div>
@@ -1224,7 +1396,7 @@ export default function TeacherPage() {
                       {(runtimeTransportChips.length > 0 || runtimeRecoveryChips.length > 0 || runtimeComparabilityLabel) && (
                         <details className="teacher-compact-details teacher-runtime-details">
                           <summary>
-                            <span>运行细节</span>
+                            <span>运行证据</span>
                             <StatusPill tone="neutral">已折叠</StatusPill>
                           </summary>
                           <div className="teacher-compact-details__body">
@@ -1388,7 +1560,7 @@ export default function TeacherPage() {
                       <strong>{aiQualityTrend.analyzedSubmissionCount}</strong>
                     </div>
                     <div>
-                      <span>诊断 Eval</span>
+                      <span>诊断校验</span>
                       <strong>{aiQualityTrend.evalCandidateCount}</strong>
                     </div>
                     <div>
@@ -1512,7 +1684,7 @@ export default function TeacherPage() {
                                 {(transportChips.length > 0 || recoveryChips.length > 0 || comparabilityLabel) && (
                                   <details className="teacher-compact-details teacher-runtime-details teacher-runtime-details--source">
                                     <summary>
-                                      <span>来源细节</span>
+                                      <span>来源证据</span>
                                       <StatusPill tone={comparabilityTone === "blocked" ? "warning" : comparabilityTone === "comparable" ? "success" : "neutral"}>
                                         {comparabilityLabel || "查看"}
                                       </StatusPill>
@@ -1756,10 +1928,10 @@ export default function TeacherPage() {
                   </div>
                 </div>
 
-                <div className="teacher-eval-candidates" aria-label="诊断 eval 候选样本">
+                <div className="teacher-eval-candidates" aria-label="诊断校验样本">
                   <div className="teacher-eval-candidates__head">
                     <div>
-                      <strong>诊断 Eval 候选样本</strong>
+                      <strong>诊断校验样本</strong>
                     </div>
                     <div className="teacher-eval-candidates__tools">
                       <StatusPill tone={evalCandidatesError ? "danger" : visibleEvalCandidates.length ? "info" : "neutral"}>
@@ -1775,7 +1947,7 @@ export default function TeacherPage() {
                         onClick={() => void loadFixtureDraft()}
                         disabled={fixtureDraftLoading || evalCandidatesLoading}
                       >
-                        {fixtureDraftLoading ? "生成中" : "预览草稿"}
+                        {fixtureDraftLoading ? "生成中" : "预览样本"}
                       </Button>
                     </div>
                   </div>
@@ -1822,14 +1994,14 @@ export default function TeacherPage() {
                   {(fixtureDraft || fixtureDraftError) && (
                     <details className="teacher-fixture-draft-preview">
                       <summary>
-                        <span>Fixture 草稿预览</span>
+                        <span>草稿样本预览</span>
                         <StatusPill tone={fixtureDraftError ? "danger" : fixtureDraftTotalCount ? "info" : "neutral"}>
                           {fixtureDraftError ? "失败" : `${fixtureDraftTotalCount} 条`}
                         </StatusPill>
                       </summary>
                       {fixtureDraftError ? (
                         <div className="teacher-ai-quality__empty">
-                          <strong>Fixture 草稿暂不可用</strong>
+                          <strong>草稿样本暂不可用</strong>
                           <span>{fixtureDraftError}</span>
                         </div>
                       ) : fixtureDraft ? (
@@ -2085,10 +2257,6 @@ export default function TeacherPage() {
                     <span>先看谁</span>
                     <strong>{nextInspectionLabel}</strong>
                   </article>
-                  <article className="teacher-inspection-strip__ai">
-                    <span>AI 质量</span>
-                    <strong>{aiQualityStateLabel}</strong>
-                  </article>
                 </section>
                 <details className="teacher-system-drawer">
                   <summary>
@@ -2109,10 +2277,24 @@ export default function TeacherPage() {
                         </span>
                       )}
                       <StatusPill tone={aiQualityTone}>AI {aiQualityStateLabel}</StatusPill>
+                      <StatusPill
+                        tone={
+                          studentFeedbackObservabilityError
+                            ? "danger"
+                            : studentFeedbackObservabilityLoading
+                              ? "info"
+                              : studentFeedbackObservability?.modelReadyCount
+                                ? "success"
+                                : "neutral"
+                        }
+                      >
+                        反馈 {studentFeedbackObservability?.modelReadyCount || 0}
+                      </StatusPill>
                       <span className="teacher-system-signal-chip teacher-compact-details">详情</span>
                     </div>
                   </summary>
                   <div className="teacher-system-drawer__body">
+                {renderStudentFeedbackObservabilitySection()}
                 {overview.postAcTransferSummary && (
                   <div className="teacher-transfer-summary">
                     <span>AC 后迁移</span>

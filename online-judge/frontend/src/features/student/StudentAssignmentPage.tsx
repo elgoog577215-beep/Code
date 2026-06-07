@@ -116,34 +116,20 @@ export default function StudentAssignmentPage() {
   }
 
   if (!student && !isPublic) {
-    return (
-      <div className="stack student-page">
-        <section className="student-home-command">
-          <div>
-            <p className="eyebrow">我的作业</p>
-            <h1>请先登录</h1>
-          </div>
-          <ButtonLink to="/app/student" variant="ghost" icon={<ArrowLeft size={17} />}>
-            返回
-          </ButtonLink>
-        </section>
-        <EmptyState title="登录班级后查看老师作业" />
-      </div>
-    );
+    return <Navigate to="/app/student/login" replace />;
   }
 
   return (
     <div className="stack student-page">
       <section className="student-home-command">
         <div>
-          <p className="eyebrow">{isPublic ? "公共题库" : "我的作业"}</p>
-          <h1>无法进入</h1>
+          <h1>{isPublic ? "公共题库" : "课堂作业"}</h1>
         </div>
         <ButtonLink to="/app/student" variant="secondary" icon={<ArrowLeft size={17} />}>
-          返回作业
+          返回
         </ButtonLink>
       </section>
-      <EmptyState title={failed || (isPublic ? "公共题库暂无题目" : "没有可进入的题目")} />
+      <EmptyState title={failed || "暂无题目"} />
     </div>
   );
 }

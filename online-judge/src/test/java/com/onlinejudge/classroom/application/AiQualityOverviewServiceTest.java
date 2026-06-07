@@ -1225,6 +1225,14 @@ class AiQualityOverviewServiceTest {
         public List<Assignment> findAllByOrderByCreatedAtDesc() {
             return List.copyOf(items.values());
         }
+
+        @Override
+        public List<Assignment> findByClassGroupIdOrderByCreatedAtDesc(Long classGroupId) {
+            return items.values()
+                    .stream()
+                    .filter(item -> Objects.equals(item.getClassGroupId(), classGroupId))
+                    .toList();
+        }
     }
 
     private static class FakeSubmissionRepository extends UnsupportedJpaRepository<Submission, Long> implements SubmissionRepository {

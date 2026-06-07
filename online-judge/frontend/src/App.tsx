@@ -8,7 +8,6 @@ import { clearActiveStudent, loadStudent } from "./shared/storage";
 import { Button } from "./shared/ui/Button";
 import { EmptyState } from "./shared/ui/EmptyState";
 
-const ProblemCatalogPage = lazy(() => import("./features/home/ProblemCatalogPage"));
 const StudentPage = lazy(() => import("./features/student/StudentPage"));
 const StudentLoginPage = lazy(() => import("./features/student/StudentLoginPage"));
 const StudentAssignmentPage = lazy(() => import("./features/student/StudentAssignmentPage"));

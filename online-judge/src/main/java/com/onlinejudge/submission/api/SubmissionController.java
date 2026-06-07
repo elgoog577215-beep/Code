@@ -5,6 +5,7 @@ import com.onlinejudge.submission.dto.SubmissionComparisonResponse;
 import com.onlinejudge.submission.dto.SubmissionHistorySummaryResponse;
 import com.onlinejudge.submission.dto.SubmissionRequest;
 import com.onlinejudge.submission.dto.SubmissionResponse;
+import com.onlinejudge.submission.dto.StudentAiFeedbackLookupResponse;
 import com.onlinejudge.classroom.application.CoachPromptService;
 import com.onlinejudge.classroom.dto.CoachPromptResponse;
 import com.onlinejudge.classroom.dto.CoachReplyRequest;
@@ -12,6 +13,8 @@ import com.onlinejudge.submission.application.JudgeService;
 import com.onlinejudge.submission.application.SubmissionAnalysisService;
 import com.onlinejudge.submission.application.SubmissionAnalysisAsyncService;
 import com.onlinejudge.submission.application.SubmissionComparisonService;
+import com.onlinejudge.submission.application.StudentAiFeedbackAsyncService;
+import com.onlinejudge.submission.application.StudentAiFeedbackService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +31,8 @@ public class SubmissionController {
     private final SubmissionAnalysisService submissionAnalysisService;
     private final SubmissionAnalysisAsyncService submissionAnalysisAsyncService;
     private final SubmissionComparisonService submissionComparisonService;
+    private final StudentAiFeedbackService studentAiFeedbackService;
+    private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
     private final CoachPromptService coachPromptService;
 
     @PostMapping
@@ -58,6 +63,32 @@ public class SubmissionController {
             return ResponseEntity.accepted().body(lookup);
         }
         return ResponseEntity.ok(lookup);
+    }
+
+    @GetMapping("/{id}/student-ai-feedback")
+    public ResponseEntity<StudentAiFeedbackLookupResponse> getStudentAiFeedback(@PathVariable Long id) {
+        StudentAiFeedbackLookupResponse lookup = studentAiFeedbackService.getLookup(id);
+        if ("NOT_REQUESTED".equals(lookup.getStatus())) {
+            studentAiFeedbackAsyncService.enqueue(id);
+            return ResponseEntity.accepted().body(studentAiFeedbackService.getLookup(id));
+        }
+        return ResponseEntity.ok(lookup);
+    }
+
+    @PostMapping("/{id}/student-ai-feedback")
+    public ResponseEntity<StudentAiFeedbackLookupResponse> triggerStudentAiFeedback(@PathVariable Long id) {
+        StudentAiFeedbackLookupResponse lookup = studentAiFeedbackService.getLookup(id);
+        if (!"READY".equals(lookup.getStatus()) && !"GENERATING".equals(lookup.getStatus())) {
+            studentAiFeedbackAsyncService.enqueue(id);
+            return ResponseEntity.accepted().body(studentAiFeedbackService.getLookup(id));
+        }
+        return ResponseEntity.ok(lookup);
+    }
+
+    @PostMapping("/{id}/student-ai-feedback/view")
+    public ResponseEntity<Void> recordStudentAiFeedbackView(@PathVariable Long id) {
+        studentAiFeedbackService.recordViewed(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}/coach-prompt")

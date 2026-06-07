@@ -21,8 +21,11 @@ import type {
   StudentRecommendation,
   StudentProfile,
   StudentTrajectory,
+  StudentAiFeedbackObservability,
+  SubmissionAnalysisLookup,
   SubmissionHistorySummary,
   SubmissionResult,
+  StudentAiFeedbackLookup,
   TeacherDiagnosisCorrection
 } from "./types";
 import { YINGQI_SIGNATURE } from "../identity/yingqiSignature";
@@ -135,9 +138,14 @@ export const api = {
     }),
 
   submission: (id: number) => request<SubmissionResult>(`/api/submissions/${id}`),
-  submissionAnalysis: (id: number) => request<{ analysis: SubmissionResult["analysis"] }>(`/api/submissions/${id}/analysis`),
+  submissionAnalysis: (id: number) => request<SubmissionAnalysisLookup>(`/api/submissions/${id}/analysis`),
   triggerAnalysis: (id: number) =>
-    request<{ analysis: SubmissionResult["analysis"] }>(`/api/submissions/${id}/analysis`, { method: "POST" }),
+    request<SubmissionAnalysisLookup>(`/api/submissions/${id}/analysis`, { method: "POST" }),
+  studentAiFeedback: (id: number) => request<StudentAiFeedbackLookup>(`/api/submissions/${id}/student-ai-feedback`),
+  triggerStudentAiFeedback: (id: number) =>
+    request<StudentAiFeedbackLookup>(`/api/submissions/${id}/student-ai-feedback`, { method: "POST" }),
+  recordStudentAiFeedbackView: (id: number) =>
+    request<void>(`/api/submissions/${id}/student-ai-feedback/view`, { method: "POST" }),
   coachPrompt: (id: number) => request<CoachPrompt | null>(`/api/submissions/${id}/coach-prompt`),
   generateCoachPrompt: (id: number) =>
     request<CoachPrompt>(`/api/submissions/${id}/coach-prompt`, { method: "POST" }),
@@ -175,6 +183,8 @@ export const api = {
     request<Assignment>(`/api/teacher/assignments/${id}/invite`, { method: "POST" }),
   assignmentOverview: (id: number) => request<AssignmentOverview>(`/api/teacher/assignments/${id}/overview`),
   aiQualityOverview: (id: number) => request<AiQualityOverview>(`/api/teacher/assignments/${id}/ai-quality`),
+  studentAiFeedbackObservability: (id: number) =>
+    request<StudentAiFeedbackObservability>(`/api/teacher/assignments/${id}/student-ai-feedback-observability`),
   diagnosisEvalCandidates: (id: number) =>
     request<DiagnosisEvalCandidates>(`/api/teacher/assignments/${id}/diagnosis-eval-candidates`),
   diagnosisEvalFixtureDraft: (id: number) =>

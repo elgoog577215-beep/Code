@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Lightbulb, Play, RotateCcw, X } from "lucide-react";
 import { api } from "../../shared/api/client";
@@ -8,11 +8,12 @@ import type {
   CoachPrompt,
   Problem,
   ProblemCatalogItem,
+  StudentAiFeedback,
   StudentTrajectory,
   SubmissionHistorySummary,
   SubmissionResult
 } from "../../shared/api/types";
-import { difficultyLabel, formatDateTime, issueLabel, learningStageLabel, verdictLabel } from "../../shared/format";
+import { difficultyLabel, verdictLabel } from "../../shared/format";
 import { loadDraft, loadStudent, saveDraft } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -97,25 +98,6 @@ function renderMarkdownLike(text: string) {
   return nodes;
 }
 
-function improvementLabel(category?: string | null) {
-  switch ((category || "").toUpperCase()) {
-    case "COMPLEXITY":
-      return "复杂度";
-    case "TESTING_HABIT":
-      return "测试习惯";
-    case "CODE_CLARITY":
-      return "代码清晰度";
-    case "BOUNDARY_AWARENESS":
-      return "边界意识";
-    case "ROBUSTNESS":
-      return "鲁棒性";
-    case "DEBUG_CLEANUP":
-      return "调试清理";
-    default:
-      return "继续提升";
-  }
-}
-
 function visibleAssignmentTitle(assignment?: Assignment | null) {
   if (!assignment) {
     return "课堂作业";
@@ -171,6 +153,10 @@ function normalizeNumber(value: string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function terminalFeedbackStatus(status?: string | null) {
+  return ["READY", "TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(String(status || "").toUpperCase());
+}
+
 export default function ProblemPage() {
   const params = useParams();
   const [searchParams] = useSearchParams();
@@ -200,8 +186,11 @@ export default function ProblemPage() {
   const [coachAnswer, setCoachAnswer] = useState("");
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [studentAiFeedback, setStudentAiFeedback] = useState<StudentAiFeedback | null>(null);
+  const [feedbackPending, setFeedbackPending] = useState(false);
   const [coachBusy, setCoachBusy] = useState(false);
   const [coachReplyBusy, setCoachReplyBusy] = useState(false);
+  const viewedFeedbackIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     async function load() {
@@ -211,6 +200,8 @@ export default function ProblemPage() {
         setCoachPrompt(null);
         setCoachAnswer("");
         setAlert(null);
+        setFeedbackPending(false);
+        setStudentAiFeedback(null);
         const [problemResult, historyResult] = await Promise.all([api.problem(problemId), api.history(problemId)]);
         setProblem(problemResult);
         setHistory(historyResult);
@@ -266,15 +257,17 @@ export default function ProblemPage() {
       };
     }
 
+    const currentAssignmentId = assignmentId;
+
     async function loadAssignmentTasks() {
       try {
         let assignment: Assignment | null = null;
         if (studentProfileId) {
           const assignments = await api.studentAssignments(studentProfileId);
-          assignment = assignments.find(item => item.id === assignmentId) || null;
+          assignment = assignments.find(item => item.id === currentAssignmentId) || null;
         }
         if (!assignment) {
-          assignment = await api.assignment(assignmentId);
+          assignment = await api.assignment(currentAssignmentId);
         }
         if (!ignore) {
           setAssignmentTitle(visibleAssignmentTitle(assignment));
@@ -315,11 +308,22 @@ export default function ProblemPage() {
   useEffect(() => {
     setCoachPrompt(null);
     setCoachAnswer("");
-    if (!latest?.id || !latest.analysis) {
+    if (!latest?.id || studentAiFeedback?.status !== "READY" || studentAiFeedback.source !== "MODEL") {
       return;
     }
     void api.coachPrompt(latest.id).then(result => setCoachPrompt(result || null)).catch(() => undefined);
-  }, [latest?.id, latest?.analysis]);
+  }, [latest?.id, studentAiFeedback?.status, studentAiFeedback?.source]);
+
+  useEffect(() => {
+    if (!resultOpen || !latest?.id || studentAiFeedback?.status !== "READY" || studentAiFeedback.source !== "MODEL") {
+      return;
+    }
+    if (viewedFeedbackIdsRef.current.has(latest.id)) {
+      return;
+    }
+    viewedFeedbackIdsRef.current.add(latest.id);
+    void api.recordStudentAiFeedbackView(latest.id).catch(() => undefined);
+  }, [resultOpen, latest?.id, studentAiFeedback?.status, studentAiFeedback?.source]);
 
   const trajectoryTaskByProblemId = useMemo(() => {
     const tasks = new Map<number, StudentTrajectory["tasks"][number]>();
@@ -381,14 +385,17 @@ export default function ProblemPage() {
       setLatest(result);
       setResultOpen(true);
       setCoachPrompt(null);
+      setStudentAiFeedback(null);
+      setFeedbackPending(Boolean(result.id));
       setHistory(await api.history(problem.id));
       setAlert(
         result.verdict === "INTERNAL_ERROR"
           ? { type: "error", message: result.errorMessage || "执行环境未就绪。" }
           : null
       );
-      if (!result.analysis && result.id) {
-        void api.triggerAnalysis(result.id).then(() => pollSubmission(result.id)).catch(() => undefined);
+      if (result.id) {
+        void api.triggerStudentAiFeedback(result.id).catch(() => undefined);
+        pollStudentAiFeedback(result.id);
       }
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "提交失败。" });
@@ -397,24 +404,51 @@ export default function ProblemPage() {
     }
   }
 
-  async function pollSubmission(id: number) {
+  function pollStudentAiFeedback(id: number, attempt = 0) {
+    const maxAttempts = 18;
+    const delay = attempt === 0 ? 350 : Math.min(900 + attempt * 180, 2200);
     window.setTimeout(async () => {
       try {
-        const refreshed = await api.submission(id);
-        setLatest(refreshed);
-        setResultOpen(true);
+        const lookup = await api.studentAiFeedback(id);
+        const feedback = lookup.feedback || null;
+        if (feedback) {
+          setStudentAiFeedback(feedback);
+        }
+        if (feedback && terminalFeedbackStatus(feedback.status)) {
+          setFeedbackPending(false);
+          setResultOpen(true);
+          return;
+        }
       } catch {
-        // 反馈生成失败不阻塞学生继续练习。
+        // AI 快反馈失败不阻塞学生继续修改代码。
       }
-    }, 1800);
+      if (attempt + 1 < maxAttempts) {
+        pollStudentAiFeedback(id, attempt + 1);
+      } else {
+        setFeedbackPending(false);
+        setStudentAiFeedback(current =>
+          current && current.status !== "GENERATING"
+            ? current
+            : {
+                submissionId: id,
+                status: "TIMEOUT",
+                source: "MODEL",
+                repairItems: [],
+                improvementItems: [],
+                safety: { answerLeakRisk: "LOW", blockedReasons: ["TIMEOUT"] },
+                evidenceRefs: []
+              }
+        );
+      }
+    }, delay);
   }
 
   async function generateCoachPrompt() {
     if (!latest?.id) {
       return;
     }
-    if (!latest.analysis) {
-      setAlert({ type: "error", message: "请先等待本次反馈生成后再追问。" });
+    if (studentAiFeedback?.status !== "READY" || studentAiFeedback.source !== "MODEL") {
+      setAlert({ type: "error", message: "AI 反馈生成后才能追问。" });
       return;
     }
     setCoachBusy(true);
@@ -453,30 +487,24 @@ export default function ProblemPage() {
 
   const passed = latest?.testCaseResults?.filter(item => item.passed).length || 0;
   const total = latest?.testCaseResults?.length || 0;
-  const firstFailedCase = latest?.testCaseResults?.find(item => !item.passed) || latest?.analysis?.firstFailedCase || null;
-  const studentFeedback = latest?.analysis?.studentFeedback || null;
-  const primaryBlockingIssue = studentFeedback?.blockingIssues?.[0] || null;
-  const nextLearningAction = studentFeedback?.nextLearningAction || null;
-  const blockingIssues = studentFeedback?.blockingIssues?.length ? studentFeedback.blockingIssues : [];
-  const improvementOpportunities = studentFeedback?.improvementOpportunities?.length ? studentFeedback.improvementOpportunities : [];
-  const focusText =
-    nextLearningAction?.task ||
-    primaryBlockingIssue?.nextAction ||
-    primaryBlockingIssue?.studentMessage ||
-    studentFeedback?.summary ||
-    latest?.analysis?.studentHint ||
-    latest?.analysis?.fixDirections?.[0] ||
-    (trajectory?.nextStep ? learningStageLabel(trajectory.nextStep) : "") ||
-    "";
+  const firstFailedCase = latest?.testCaseResults?.find(item => !item.passed) || null;
+  const modelFeedbackReady = studentAiFeedback?.status === "READY" && studentAiFeedback.source === "MODEL";
+  const repairViewItems = modelFeedbackReady ? studentAiFeedback.repairItems?.filter(item => item.body || item.title) || [] : [];
+  const improvementViewItems = modelFeedbackReady ? studentAiFeedback.improvementItems?.filter(item => item.body || item.title) || [] : [];
+  const isFeedbackWaiting = Boolean(latest && feedbackPending && (!studentAiFeedback || studentAiFeedback.status === "GENERATING" || studentAiFeedback.status === "NOT_REQUESTED"));
+  const feedbackFailed = Boolean(
+    latest &&
+      studentAiFeedback &&
+      studentAiFeedback.source === "MODEL" &&
+      ["TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(String(studentAiFeedback.status))
+  );
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
   const feedbackReady = Boolean(latest);
   const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;
-  const lastResultText = focusText || testCaseSummary;
-  const repairFallbacks = [
-    latest?.analysis?.studentHint,
-    ...(latest?.analysis?.fixDirections?.slice(0, 2) || [])
-  ].filter((item): item is string => Boolean(item));
-  const hasRepairGuidance = Boolean(blockingIssues.length || repairFallbacks.length || nextLearningAction || latest?.analysis);
+  const lastResultText = isFeedbackWaiting ? "AI 分析中" : testCaseSummary;
+  const repairCheckQuestion = modelFeedbackReady ? studentAiFeedback.nextQuestion || "" : "";
+  const showRepairSection = isFeedbackWaiting || feedbackFailed || repairViewItems.length > 0 || Boolean(repairCheckQuestion) || Boolean(coachPrompt);
+  const showGrowthSection = isFeedbackWaiting || feedbackFailed || improvementViewItems.length > 0;
   const rawJudgeOutputs = Array.from(
     new Set(
       [
@@ -491,7 +519,7 @@ export default function ProblemPage() {
   const hasRawJudgeOutput = rawJudgeOutputs.length > 0;
   const coachQuestionBlock = (
     <div className="coach-next-question">
-      {latest?.analysis ? (
+      {modelFeedbackReady ? (
         coachPrompt ? (
           <>
             <strong>{coachPrompt.question}</strong>
@@ -528,7 +556,7 @@ export default function ProblemPage() {
           null
         )
       ) : null}
-      {latest?.analysis && (
+      {modelFeedbackReady && (
         <Button
           type="button"
           variant="secondary"
@@ -536,7 +564,7 @@ export default function ProblemPage() {
           disabled={coachBusy}
           icon={<Lightbulb size={16} />}
         >
-          {coachBusy ? "生成中" : coachPrompt ? "再生成一问" : "生成下一问"}
+          {coachBusy ? "稍等" : coachPrompt ? "换一问" : "给我一问"}
         </Button>
       )}
     </div>
@@ -675,10 +703,10 @@ export default function ProblemPage() {
             <div className="problem-result-modal__header">
               <div>
                 <h2 id="problem-result-title">{verdictLabel(latest.verdict)}</h2>
-                {focusText && <p>{focusText}</p>}
               </div>
               <div className="problem-result-modal__status">
                 <StatusPill tone={latest.verdict === "ACCEPTED" ? "success" : "warning"}>{testCaseSummary}</StatusPill>
+                {isFeedbackWaiting && <StatusPill tone="neutral">AI 分析中</StatusPill>}
                 <button type="button" aria-label="关闭结果" onClick={() => setResultOpen(false)}>
                   <X size={18} />
                 </button>
@@ -689,56 +717,39 @@ export default function ProblemPage() {
               <div className="problem-result-modal__grid">
                 <section className="problem-result-section problem-result-section--tests">
                   <div className="problem-result-section__head">
-                    <h3>评测点</h3>
-                  </div>
-                  <div className="problem-result-evidence">
-                    <div>
-                      <span>通过</span>
-                      <strong>{total ? `${passed}/${total}` : "-"}</strong>
-                    </div>
-                    <div>
-                      <span>耗时</span>
-                      <strong>{latest.executionTime ? `${latest.executionTime} ms` : "-"}</strong>
-                    </div>
-                    <div>
-                      <span>内存</span>
-                      <strong>{latest.memoryUsed ? `${latest.memoryUsed} KB` : "-"}</strong>
-                    </div>
+                    <h3>评测</h3>
+                    <strong>{total ? `${passed}/${total}` : "-"}</strong>
                   </div>
                   {latest.testCaseResults?.length ? (
                     <div className="testcase-compact-list">
                       {latest.testCaseResults.map(item => (
                         <div className={item.passed ? "is-passed" : ""} key={item.testCaseNumber}>
-                          <span>#{item.testCaseNumber}</span>
-                          <div>
-                            <strong>{item.hidden ? "隐藏测试点" : "公开测试点"}</strong>
-                            <small>
-                              {item.passed ? "已通过" : "未通过"} · {item.executionTime ?? "-"} ms · {item.memoryUsed ?? "-"} KB
-                            </small>
-                          </div>
-                          <span className={`meta-badge ${item.passed ? "meta-badge--success" : "meta-badge--warning"}`}>
-                            {item.passed ? "通过" : "未过"}
-                          </span>
+                          <span>{item.testCaseNumber}</span>
+                          <strong>{item.hidden ? "隐藏" : "公开"}</strong>
+                          <small>{item.executionTime ?? "-"} ms</small>
+                          <em>{item.passed ? "过" : "错"}</em>
                         </div>
                       ))}
                     </div>
                   ) : null}
                   {firstFailedCase && !firstFailedCase.hidden ? (
-                    <div className="failed-case-card">
-                      <span>第一个公开失败点</span>
-                      <div className="two-column">
+                    <details className="problem-compact-details failed-case-card">
+                      <summary>
+                        <span>首个失败点</span>
+                      </summary>
+                      <div className="failed-case-card__body">
                         <div>
-                          <strong>期望输出</strong>
+                          <strong>期望</strong>
                           <pre className="code-block">{outputPreview(firstFailedCase.expectedOutput)}</pre>
                         </div>
                         <div>
-                          <strong>你的输出</strong>
+                          <strong>实际</strong>
                           <pre className="code-block">{outputPreview(firstFailedCase.actualOutput)}</pre>
                         </div>
                       </div>
-                    </div>
+                    </details>
                   ) : firstFailedCase?.hidden ? (
-                    <div className="alert">隐藏测试点未通过。先检查边界条件。</div>
+                    <div className="problem-test-note">隐藏点未过</div>
                   ) : null}
                   {hasRawJudgeOutput && (
                     <details className="problem-compact-details problem-raw-output-drawer">
@@ -754,97 +765,63 @@ export default function ProblemPage() {
                       </div>
                     </details>
                   )}
-                  <details className="problem-compact-details problem-submission-drawer">
-                    <summary>
-                      <span>尝试记录</span>
-                      <span className="meta-badge">{history.length}</span>
-                    </summary>
-                    <div className="problem-submission-drawer__body">
-                      {history.length ? (
-                        history.slice(0, 4).map(item => (
-                          <div className="list-row" key={item.id}>
-                            <div className="actions">
-                              <VerdictPill verdict={item.verdict} />
-                              <span className="meta-badge">{formatDateTime(item.submittedAt)}</span>
-                            </div>
-                            <h3>{item.analysisHeadline || verdictLabel(item.verdict)}</h3>
-                            <p>{item.analysisSummary || `${item.passedTestCases || 0}/${item.totalTestCases || 0} 个测试点通过`}</p>
-                          </div>
-                        ))
-                      ) : null}
-                    </div>
-                  </details>
                 </section>
 
-                <section className="problem-result-section problem-result-section--repair">
-                  <div className="problem-result-section__head">
-                    <h3>AI错误指导</h3>
-                  </div>
-                  {blockingIssues.length ? (
-                    <div className="student-feedback-list">
-                      {blockingIssues.slice(0, 3).map((issue, index) => (
-                        <article className="student-feedback-item" key={`${issue.title || issue.issueTag || "blocking"}-${index}`}>
-                          <span>{index === 0 ? "先改这里" : "再检查"}</span>
-                          <strong>{issue.title || issueLabel(issue.issueTag) || "当前失败原因"}</strong>
-                          {issue.studentMessage && <p>{issue.studentMessage}</p>}
-                          {issue.evidence && <small>{issue.evidence}</small>}
-                          {issue.nextAction && <em>{issue.nextAction}</em>}
-                        </article>
-                      ))}
+                {showRepairSection ? (
+                  <section className="problem-result-section problem-result-section--repair">
+                    <div className="problem-result-section__head">
+                      <h3>修正建议</h3>
                     </div>
-                  ) : repairFallbacks.length ? (
-                    <div className="student-feedback-list">
-                      {repairFallbacks.map((item, index) => (
-                        <article className="student-feedback-item" key={item}>
-                          <span>{index === 0 ? "先改这里" : "再检查"}</span>
-                          <strong>{item}</strong>
-                        </article>
-                      ))}
-                    </div>
-                  ) : latest.analysis ? (
-                    <div className="student-feedback-empty">先看左侧失败点。</div>
-                  ) : (
-                    <div className="student-feedback-empty">生成中</div>
-                  )}
-
-                  {nextLearningAction ? (
-                    <section className="student-feedback-next" aria-label="下一步">
-                      <span>下一步</span>
-                      <strong>{nextLearningAction.task || focusText}</strong>
-                      {nextLearningAction.checkQuestion && <p>{nextLearningAction.checkQuestion}</p>}
-                    </section>
-                  ) : null}
-
-                  {hasRepairGuidance ? (
-                    <section className="problem-feedback-coach" aria-label="AI追问">
-                      <div className="problem-feedback-coach__head">
-                        <h3>AI追问</h3>
+                    {isFeedbackWaiting ? (
+                      <div className="student-feedback-empty student-feedback-empty--waiting">AI 分析中</div>
+                    ) : feedbackFailed ? (
+                      <div className="student-feedback-empty">AI 暂未生成</div>
+                    ) : repairViewItems.length ? (
+                      <div className="student-feedback-list">
+                        {repairViewItems.slice(0, 1).map((item, index) => (
+                          <article className="student-feedback-item student-feedback-item--primary" key={`${item.kind || "repair"}-${index}`}>
+                            {item.title && <strong>{item.title}</strong>}
+                            {item.body && <p>{item.body}</p>}
+                          </article>
+                        ))}
                       </div>
-                      {coachQuestionBlock}
-                    </section>
-                  ) : null}
-                </section>
+                    ) : null}
 
-                <section className="problem-result-section problem-result-section--growth">
-                  <div className="problem-result-section__head">
-                    <h3>AI提升指导</h3>
-                  </div>
-                  {improvementOpportunities.length ? (
-                    <div className="student-feedback-list">
-                      {improvementOpportunities.slice(0, 3).map((item, index) => (
-                        <article className="student-feedback-item" key={`${item.category || "improvement"}-${index}`}>
-                          <span>{improvementLabel(item.category)}</span>
-                          {item.studentMessage && <strong>{item.studentMessage}</strong>}
-                          {item.benefit && <p>{item.benefit}</p>}
-                        </article>
-                      ))}
+                    {modelFeedbackReady && repairCheckQuestion ? (
+                      <section className="student-feedback-next" aria-label="下一步">
+                        <p>{repairCheckQuestion}</p>
+                      </section>
+                    ) : null}
+
+                    {modelFeedbackReady && coachPrompt ? (
+                      <section className="problem-feedback-coach" aria-label="追问">
+                        {coachQuestionBlock}
+                      </section>
+                    ) : null}
+                  </section>
+                ) : null}
+
+                {showGrowthSection ? (
+                  <section className="problem-result-section problem-result-section--growth">
+                    <div className="problem-result-section__head">
+                      <h3>提升建议</h3>
                     </div>
-                  ) : latest.verdict === "ACCEPTED" ? (
-                    <div className="student-feedback-empty">可复盘复杂度、边界和可读性。</div>
-                  ) : (
-                    <div className="student-feedback-empty">先通过，再优化。</div>
-                  )}
-                </section>
+                    {isFeedbackWaiting ? (
+                      <div className="student-feedback-empty student-feedback-empty--waiting">AI 分析中</div>
+                    ) : feedbackFailed ? (
+                      <div className="student-feedback-empty">AI 暂未生成</div>
+                    ) : improvementViewItems.length ? (
+                      <div className="student-feedback-list">
+                        {improvementViewItems.slice(0, 3).map((item, index) => (
+                          <article className="student-feedback-item student-feedback-item--growth" key={`${item.kind || "improvement"}-${index}`}>
+                            {item.title && <span>{item.title}</span>}
+                            {item.body && <strong>{item.body}</strong>}
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
               </div>
             </div>
 
@@ -857,9 +834,6 @@ export default function ProblemPage() {
                   下一题
                 </ButtonLink>
               )}
-              <Button type="button" variant="ghost" onClick={() => setResultOpen(false)}>
-                关闭
-              </Button>
             </div>
           </section>
         </div>

@@ -12,6 +12,8 @@ import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
+import com.onlinejudge.submission.domain.StudentAiFeedbackEvent;
+import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
@@ -45,10 +47,12 @@ public class StudentTrajectoryService {
     private final CoachImpactAnalyzer coachImpactAnalyzer;
     private final LearningInterventionImpactAnalyzer learningInterventionImpactAnalyzer;
     private final LearningActionEvidenceAnalyzer learningActionEvidenceAnalyzer;
+    private final StudentAiFeedbackImpactAnalyzer studentAiFeedbackImpactAnalyzer;
     private final PostAcTransferAnalyzer postAcTransferAnalyzer;
     private final RecurringMisconceptionAnalyzer recurringMisconceptionAnalyzer;
     private final SelfExplanationMasteryAnalyzer selfExplanationMasteryAnalyzer;
     private final StudentRecommendationEventRepository recommendationEventRepository;
+    private final StudentAiFeedbackEventRepository studentAiFeedbackEventRepository;
     private final AiDependencyAnalyzer aiDependencyAnalyzer;
     private final MasteryGrowthAnalyzer masteryGrowthAnalyzer;
     private final TeachingActionOrchestrator teachingActionOrchestrator;
@@ -73,6 +77,10 @@ public class StudentTrajectoryService {
                 learningInterventionImpactAnalyzer.summarizeByInterventionSubmission(submissions, analyses);
         Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence =
                 learningActionEvidenceAnalyzer.summarizeByInterventionSubmission(submissions, analyses, interventionImpacts);
+        List<StudentAiFeedbackEvent> aiFeedbackEvents =
+                studentAiFeedbackEventRepository.findByStudentProfileIdAndAssignmentIdOrderByCreatedAtDesc(studentProfileId, assignmentId);
+        Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts =
+                studentAiFeedbackImpactAnalyzer.summarizeByFeedbackSubmission(submissions, analyses, aiFeedbackEvents);
 
         Map<Long, Problem> problems = problemRepository.findAllById(assignment.getTasks().stream()
                         .map(AssignmentResponse.TaskSummary::getProblemId)
@@ -107,6 +115,7 @@ public class StudentTrajectoryService {
                         coachImpacts,
                         interventionImpacts,
                         actionEvidence,
+                        aiFeedbackImpacts,
                         postAcTransferSignals.get(task.getProblemId())
                 ))
                 .toList();
@@ -148,6 +157,8 @@ public class StudentTrajectoryService {
                 learningInterventionImpactAnalyzer.latestForOrderedSubmissions(submissionIds, interventionImpacts);
         StudentTrajectoryResponse.LearningActionEvidence latestLearningActionEvidence =
                 learningActionEvidenceAnalyzer.latestForOrderedSubmissions(submissionIds, actionEvidence);
+        StudentTrajectoryResponse.AiFeedbackImpact latestAiFeedbackImpact =
+                studentAiFeedbackImpactAnalyzer.latestForOrderedSubmissions(submissionIds, aiFeedbackImpacts);
         StudentTrajectoryResponse.PostAcTransferSignal postAcTransferSignal =
                 postAcTransferAnalyzer.summarize(taskTrajectories.stream()
                         .map(StudentTrajectoryResponse.TaskTrajectory::getPostAcTransferSignal)
@@ -165,6 +176,10 @@ public class StudentTrajectoryService {
             nextStep = learningTrajectoryPolicy.nextStep(latestLearningActionEvidence, nextStep);
             attentionReason = learningTrajectoryPolicy.attentionReason(latestLearningActionEvidence, attentionReason);
             improvementSignal = learningTrajectoryPolicy.improvementSignal(latestLearningActionEvidence, improvementSignal);
+        }
+        if (latestAiFeedbackImpact != null && latestAiFeedbackImpact.isNeedsTeacherAttention()) {
+            attentionReason = firstNonBlank(latestAiFeedbackImpact.getSummary(), attentionReason);
+            improvementSignal = firstNonBlank(latestAiFeedbackImpact.getSummary(), improvementSignal);
         }
         if (postAcTransferSignal != null && postAcTransferAnalyzer.isPending(postAcTransferSignal)) {
             nextStep = postAcTransferSignal.getRecommendedAction();
@@ -227,6 +242,7 @@ public class StudentTrajectoryService {
                 .latestLearningInterventionPlan(latestLearningInterventionPlan)
                 .latestLearningInterventionImpact(latestLearningInterventionImpact)
                 .latestLearningActionEvidence(latestLearningActionEvidence)
+                .latestAiFeedbackImpact(latestAiFeedbackImpact)
                 .postAcTransferSignal(postAcTransferSignal)
                 .selfExplanationMasterySignal(selfExplanationMasterySignal)
                 .aiDependencySignal(aiDependencySignal)
@@ -267,7 +283,7 @@ public class StudentTrajectoryService {
                                                                          Problem problem,
                                                                          List<Submission> allSubmissions,
                                                                          Map<Long, SubmissionAnalysis> analyses) {
-        return buildTaskTrajectory(task, problem, allSubmissions, analyses, Map.of(), Map.of(), Map.of(), Map.of(), null);
+        return buildTaskTrajectory(task, problem, allSubmissions, analyses, Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), null);
     }
 
     private StudentTrajectoryResponse.TaskTrajectory buildTaskTrajectory(AssignmentResponse.TaskSummary task,
@@ -278,6 +294,7 @@ public class StudentTrajectoryService {
                                                                          Map<Long, com.onlinejudge.classroom.dto.CoachImpactResponse> coachImpacts,
                                                                          Map<Long, StudentTrajectoryResponse.LearningInterventionImpact> interventionImpacts,
                                                                          Map<Long, StudentTrajectoryResponse.LearningActionEvidence> actionEvidence,
+                                                                         Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts,
                                                                          StudentTrajectoryResponse.PostAcTransferSignal postAcTransferSignal) {
         List<Submission> submissions = allSubmissions.stream()
                 .filter(submission -> Objects.equals(submission.getProblemId(), task.getProblemId()))
@@ -300,6 +317,11 @@ public class StudentTrajectoryService {
                         submissions.stream().map(Submission::getId).toList(),
                         actionEvidence
                 );
+        StudentTrajectoryResponse.AiFeedbackImpact latestAiFeedbackImpact =
+                studentAiFeedbackImpactAnalyzer.latestForOrderedSubmissions(
+                        submissions.stream().map(Submission::getId).toList(),
+                        aiFeedbackImpacts
+                );
 
         return StudentTrajectoryResponse.TaskTrajectory.builder()
                 .problemId(task.getProblemId())
@@ -313,6 +335,7 @@ public class StudentTrajectoryService {
                 .latestLearningInterventionPlan(latestLearningInterventionPlan)
                 .latestLearningInterventionImpact(latestLearningInterventionImpact)
                 .latestLearningActionEvidence(latestLearningActionEvidence)
+                .latestAiFeedbackImpact(latestAiFeedbackImpact)
                 .postAcTransferSignal(postAcTransferSignal)
                 .latestHint(extractStudentHint(latestAnalysis))
                 .latestImprovementSignal(latestImprovementSignal)
@@ -338,6 +361,7 @@ public class StudentTrajectoryService {
                                 ))
                                 .learningInterventionImpact(interventionImpacts.get(submission.getId()))
                                 .learningActionEvidence(actionEvidence.get(submission.getId()))
+                                .aiFeedbackImpact(aiFeedbackImpacts.get(submission.getId()))
                                 .improvementSignal(buildPointImprovementSignal(submission, submissions))
                                 .coachInteraction(withImpact(coachInteractions.get(submission.getId()), coachImpacts))
                                 .coachImpact(coachImpacts.get(submission.getId()))

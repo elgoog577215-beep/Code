@@ -76,6 +76,7 @@ export function issueLabel(value?: string | null): string {
     MAX_BOUNDARY: "最大规模边界",
     DUPLICATE_CASE: "重复元素场景",
     OUTPUT_FORMAT_DETAIL: "输出格式细节",
+    INPUT_FORMAT: "输入格式",
     INPUT_PARSING: "输入读取理解",
     INITIAL_STATE: "初始状态",
     STATE_RESET: "状态重置",

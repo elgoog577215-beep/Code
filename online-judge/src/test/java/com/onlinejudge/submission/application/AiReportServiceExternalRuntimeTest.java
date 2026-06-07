@@ -1330,8 +1330,40 @@ class AiReportServiceExternalRuntimeTest {
     }
 
     @Test
-    void singleCallRuntimeClassifiesLengthFinishAsOutputTruncated() {
+    void singleCallRuntimeRetriesTruncatedStructuredPayloadWithNonStream() {
         LengthTruncatedAiReportService service = new LengthTruncatedAiReportService(objectMapper);
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://example.test/v1");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+        ReflectionTestUtils.setField(service, "timeoutSeconds", 5L);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 384);
+        ReflectionTestUtils.setField(service, "streamEnabled", true);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", true);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
+        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getStudentFeedback().getBlockingIssues()).singleElement()
+                .satisfies(issue -> assertThat(issue.getStudentMessage()).contains("循环边界"));
+        assertThat(analysis.getAiInvocation().getTransportMode()).isEqualTo("non-stream");
+        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
+        assertThat(service.streamFlags()).containsExactly(true, false);
+    }
+
+    @Test
+    void singleCallRuntimeKeepsTruncatedAttributionWhenStructuredRetryFails() {
+        LengthTruncatedAiReportService service = new LengthTruncatedAiReportService(objectMapper, "{}");
         ReflectionTestUtils.setField(service, "enabled", true);
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
         ReflectionTestUtils.setField(service, "baseUrl", "https://example.test/v1");
@@ -1359,6 +1391,7 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getAiInvocation().getStreamContentChunkCount()).isEqualTo(1);
         assertThat(analysis.getAiInvocation().getStreamFinishReason()).isEqualTo("length");
         assertThat(analysis.getUncertainty()).contains("OUTPUT_TRUNCATED");
+        assertThat(service.streamFlags()).containsExactly(true, false);
     }
 
     @Test
@@ -1373,6 +1406,8 @@ class AiReportServiceExternalRuntimeTest {
         ReflectionTestUtils.setField(service, "timeoutSeconds", 5L);
         ReflectionTestUtils.setField(service, "maxOutputTokens", 384);
         ReflectionTestUtils.setField(service, "streamEnabled", true);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", false);
+        ReflectionTestUtils.setField(service, "structuredRetryEnabled", false);
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -1410,6 +1445,8 @@ class AiReportServiceExternalRuntimeTest {
         ReflectionTestUtils.setField(service, "timeoutSeconds", 5L);
         ReflectionTestUtils.setField(service, "maxOutputTokens", 384);
         ReflectionTestUtils.setField(service, "streamEnabled", true);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", false);
+        ReflectionTestUtils.setField(service, "structuredRetryEnabled", false);
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -2093,23 +2130,130 @@ class AiReportServiceExternalRuntimeTest {
     }
 
     private static class LengthTruncatedAiReportService extends AiReportService {
-        LengthTruncatedAiReportService(ObjectMapper objectMapper) {
+        private final List<Boolean> streamFlags = new ArrayList<>();
+        private final Queue<String> retryResponses = new ArrayDeque<>();
+
+        LengthTruncatedAiReportService(ObjectMapper objectMapper, String... retryResponses) {
             super(objectMapper, new AiCodeAssistSupport(), new ExternalModelAgentRuntime(
                     new ModelDiagnosisBriefBuilder(),
                     new StandardLibraryPackBuilder(new DiagnosisTaxonomy()),
                     new PromptTemplateRegistry(),
                     new ModelOutputValidator()
             ));
+            if (retryResponses == null || retryResponses.length == 0) {
+                this.retryResponses.add(defaultSingleCallCombinedJson());
+            } else {
+                this.retryResponses.addAll(List.of(retryResponses));
+            }
         }
 
         @Override
-        protected String sendChatCompletionRequest(String requestBody, boolean stream) {
+        protected String sendChatCompletionRequest(String requestBody, boolean stream) throws IOException {
+            streamFlags.add(stream);
+            if (!stream) {
+                String response = retryResponses.poll();
+                if (response == null) {
+                    throw new IOException("No retry response configured.");
+                }
+                return """
+                        {"choices":[{"message":{"content":%s},"finish_reason":"stop"}]}
+                        """.formatted(quoteJson(response));
+            }
             return """
                     data: {"choices":[{"delta":{"reasoning_content":"先判断边界。","content":""}}]}
 
                     data: {"choices":[{"delta":{"reasoning_content":"","content":"{\\"diagnosisDecision\\":{\\"primaryIssueTag\\":\\"LOOP_BOUNDARY\\""},"finish_reason":"length"}]}
 
                     data: [DONE]
+                    """;
+        }
+
+        List<Boolean> streamFlags() {
+            return streamFlags;
+        }
+
+        private static String defaultSingleCallCombinedJson() {
+            return """
+                    {
+                      "diagnosisDecision": {
+                        "primaryIssueTag": "LOOP_BOUNDARY",
+                        "fineGrainedTag": "OFF_BY_ONE",
+                        "evidenceRefs": ["code:range_excludes_n"],
+                        "primaryReasoning": "第一个失败证据显示循环没有覆盖到题目要求的末端。",
+                        "teachingPriority": "先验证循环边界是否覆盖闭区间。",
+                        "improvementOpportunities": [{
+                          "category": "TESTING_HABIT",
+                          "studentMessage": "通过后补一个最小边界自测。",
+                          "benefit": "能提前发现边界遗漏。",
+                          "evidenceRefs": ["code:range_excludes_n"]
+                        }],
+                        "nextLearningAction": {
+                          "hintLevel": "L2",
+                          "action": "TRACE_VARIABLES",
+                          "task": "列出 range 产生的 i。",
+                          "checkQuestion": "当 n=1 时循环执行几次？",
+                          "evidenceRefs": ["code:range_excludes_n"],
+                          "answerLeakRisk": "LOW"
+                        },
+                        "confidence": 0.9,
+                        "uncertainty": "range 右边界证据明确。",
+                        "needsMoreEvidence": false,
+                        "answerLeakRisk": "LOW"
+                      },
+                      "teachingHint": {
+                        "studentHint": "先用 n=1 手推循环会不会执行。",
+                        "studentHintPlan": {
+                          "hintLevel": "L2",
+                          "problemType": "循环边界",
+                          "evidenceAnchor": "code:range_excludes_n",
+                          "nextAction": "列出 range 产生的 i。",
+                          "coachQuestion": "当 n=1 时循环执行几次？",
+                          "teachingAction": "TRACE_VARIABLES",
+                          "evidenceRefs": ["code:range_excludes_n"],
+                          "answerLeakRisk": "LOW"
+                        },
+                        "learningInterventionPlan": {
+                          "interventionType": "VARIABLE_TRACE",
+                          "goal": "确认循环是否覆盖 n。",
+                          "studentTask": "手推 n=1 和 n=2。",
+                          "checkQuestion": "最后一次循环是否处理到 n？",
+                          "completionSignal": "能写出 i 的取值表。",
+                          "evidenceRefs": ["code:range_excludes_n"],
+                          "estimatedMinutes": 6,
+                          "answerLeakRisk": "LOW"
+                        },
+                        "teacherNote": "结构化重试已补全教学提示。",
+                        "answerLeakRisk": "LOW"
+                      },
+                      "studentFeedback": {
+                        "summary": "当前先核对循环边界。",
+                        "blockingIssues": [{
+                          "priority": 1,
+                          "title": "循环边界",
+                          "studentMessage": "循环边界和题目要求的闭区间不一致。",
+                          "evidence": "code:range_excludes_n",
+                          "nextAction": "列出 range 产生的 i。",
+                          "issueTag": "LOOP_BOUNDARY",
+                          "fineGrainedTag": "OFF_BY_ONE",
+                          "evidenceRefs": ["code:range_excludes_n"]
+                        }],
+                        "secondaryIssues": [],
+                        "improvementOpportunities": [{
+                          "category": "TESTING_HABIT",
+                          "studentMessage": "通过后补一个 n=1 的最小自测。",
+                          "benefit": "减少边界遗漏。",
+                          "evidenceRefs": ["code:range_excludes_n"]
+                        }],
+                        "nextLearningAction": {
+                          "hintLevel": "L2",
+                          "action": "TRACE_VARIABLES",
+                          "task": "列出 range 产生的 i。",
+                          "checkQuestion": "当 n=1 时循环执行几次？",
+                          "evidenceRefs": ["code:range_excludes_n"],
+                          "answerLeakRisk": "LOW"
+                        }
+                      }
+                    }
                     """;
         }
     }
@@ -2182,13 +2326,13 @@ class AiReportServiceExternalRuntimeTest {
                     data: [DONE]
                     """.formatted(quoteJson(content));
         }
+    }
 
-        private String quoteJson(String value) {
-            try {
-                return new ObjectMapper().writeValueAsString(value);
-            } catch (IOException exception) {
-                throw new IllegalStateException(exception);
-            }
+    private static String quoteJson(String value) {
+        try {
+            return new ObjectMapper().writeValueAsString(value);
+        } catch (IOException exception) {
+            throw new IllegalStateException(exception);
         }
     }
 }

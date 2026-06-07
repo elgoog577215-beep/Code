@@ -7,13 +7,12 @@ import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class DiagnosticAgentService {
 
     private static final String AGENT_VERSION = "diagnostic-agent-v2";
@@ -25,6 +24,37 @@ public class DiagnosticAgentService {
     private final AiReportService aiReportService;
     private final HintSafetyService hintSafetyService;
     private final DiagnosisTaxonomy diagnosisTaxonomy;
+    private final StudentFeedbackViewAssembler studentFeedbackViewAssembler;
+
+    @Autowired
+    public DiagnosticAgentService(DiagnosisEvidencePackageBuilder evidencePackageBuilder,
+                                  RuleSignalAnalyzer ruleSignalAnalyzer,
+                                  AiReportService aiReportService,
+                                  HintSafetyService hintSafetyService,
+                                  DiagnosisTaxonomy diagnosisTaxonomy,
+                                  StudentFeedbackViewAssembler studentFeedbackViewAssembler) {
+        this.evidencePackageBuilder = evidencePackageBuilder;
+        this.ruleSignalAnalyzer = ruleSignalAnalyzer;
+        this.aiReportService = aiReportService;
+        this.hintSafetyService = hintSafetyService;
+        this.diagnosisTaxonomy = diagnosisTaxonomy;
+        this.studentFeedbackViewAssembler = studentFeedbackViewAssembler;
+    }
+
+    public DiagnosticAgentService(DiagnosisEvidencePackageBuilder evidencePackageBuilder,
+                                  RuleSignalAnalyzer ruleSignalAnalyzer,
+                                  AiReportService aiReportService,
+                                  HintSafetyService hintSafetyService,
+                                  DiagnosisTaxonomy diagnosisTaxonomy) {
+        this(
+                evidencePackageBuilder,
+                ruleSignalAnalyzer,
+                aiReportService,
+                hintSafetyService,
+                diagnosisTaxonomy,
+                new StudentFeedbackViewAssembler()
+        );
+    }
 
     public AgentResult diagnose(Problem problem,
                                 Submission submission,
@@ -91,6 +121,7 @@ public class DiagnosticAgentService {
         String traceSummary = buildTraceSummary(ruleSignals, enhanced, modelStage.fallbackUsed());
         enhanced.setDiagnosticTrace(traceSummary);
         enhanced.setAiInvocation(resolveInvocation(enhanced, modelStage.fallbackUsed()));
+        enhanced.setStudentFeedbackView(studentFeedbackViewAssembler.assemble(enhanced));
         return new AgentResult(enhanced, evidencePackage, ruleSignals, traceSummary);
     }
 
