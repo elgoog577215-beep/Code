@@ -25,6 +25,7 @@ class ContestLanguageRegistryTest {
                 ContestLanguageRegistry.findSubmissionLanguage(ContestLanguageRegistry.CPP17_ID).orElseThrow();
 
         assertThat(cpp17.localCompileCommand()).contains("{compiler}", "-std=c++17", "-O2", "-pipe", "-o {exe}", "{file}");
+        assertThat(cpp17.dockerImage()).isEqualTo("wenzhong-oj-cpp17-runner:13");
         assertThat(cpp17.dockerCompileCommand()).contains("g++", "-std=c++17", "-O2", "-pipe", "/workspace/solution.cpp");
         assertThat(ContestLanguageRegistry.cpp17CompileFlags()).containsExactly("-std=c++17", "-O2", "-pipe");
     }

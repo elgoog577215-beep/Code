@@ -68,7 +68,7 @@ public class JudgeService {
 
         if (ContestLanguageRegistry.isCpp17(request.getLanguageId()) && !executorStatusService.getStatus().isCpp17Available()) {
             submission.setVerdict(Submission.Verdict.INTERNAL_ERROR);
-            submission.setErrorMessage("C++17 执行环境未就绪：当前系统未检测到可编译 bits/stdc++.h 的 GNU g++ 或 Docker 沙箱，请联系老师完成部署配置。");
+            submission.setErrorMessage("C++17 执行环境未就绪：需要在网站后端服务器配置 C++17 runner 镜像或可编译 bits/stdc++.h 的 GNU g++，学生 Windows 电脑无需安装编译器，请联系老师完成部署配置。");
             return finalizeAndQueue(problem, submission, List.of(), request.getRecommendationToken());
         }
 

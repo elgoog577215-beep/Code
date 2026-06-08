@@ -37,7 +37,7 @@ public final class ContestLanguageRegistry {
                     "cpp",
                     true,
                     "{compiler} " + CPP17_COMPILE_FLAGS + " -o {exe} {file}",
-                    "gcc:13",
+                    "wenzhong-oj-cpp17-runner:13",
                     "g++ " + CPP17_COMPILE_FLAGS + " -o /workspace/solution /workspace/solution.cpp",
                     "/workspace/solution"
             )

@@ -45,10 +45,24 @@
 #### Scenario: Docker 沙箱编译 C++17
 
 - **WHEN** Docker 执行器运行 C++17 提交
-- **THEN** 系统 SHALL 使用 C++17 编译命令
+- **THEN** 系统 SHALL 使用项目配置的 C++17 runner 镜像
+- **AND** 系统 SHALL 使用 C++17 编译命令
 - **AND** 编译命令 SHALL include `-std=c++17`
 - **AND** 编译命令 SHALL include `-O2`
 - **AND** 编译命令 SHALL include `-pipe`
+
+#### Scenario: Windows 学生电脑通过网站提交 C++17
+
+- **WHEN** 学生使用 Windows 电脑浏览器打开网站并提交 C++17
+- **THEN** 系统 SHALL 在后端服务器 C++17 runner 中编译运行代码
+- **AND** 系统 SHALL NOT 要求学生 Windows 电脑安装 C++ 编译器
+
+#### Scenario: 项目提供 C++17 runner 部署资产
+
+- **WHEN** 部署者准备课堂或竞赛试点环境
+- **THEN** 项目 SHALL provide C++17 runner Dockerfile
+- **AND** 项目 SHALL provide macOS/Linux 构建烟测脚本
+- **AND** 项目 SHALL provide Windows PowerShell 构建烟测脚本
 
 ### Requirement: C++17 执行环境状态必须可解释
 
@@ -56,9 +70,17 @@
 
 #### Scenario: C++17 编译器可用
 
-- **WHEN** 系统检测到 Docker 沙箱可用或本机 `g++` 可用
+- **WHEN** 系统检测到 Docker 沙箱和项目 C++17 runner 镜像可用，或本机 `g++` 可用
 - **THEN** 执行环境状态 SHALL 标记 C++17 可用
 - **AND** 教师端 SHALL 展示 C++17 已就绪
+
+#### Scenario: Docker 已启动但 C++17 runner 未构建
+
+- **WHEN** 系统处于 Docker 执行模式
+- **AND** Docker daemon 可用
+- **AND** 项目 C++17 runner 镜像不存在
+- **THEN** 执行环境状态 SHALL 标记 C++17 未就绪
+- **AND** 错误信息 SHALL 提醒运行项目内构建脚本
 
 #### Scenario: C++17 编译器不可用
 

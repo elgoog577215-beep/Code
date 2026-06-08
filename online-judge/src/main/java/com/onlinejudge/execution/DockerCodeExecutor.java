@@ -1,6 +1,7 @@
 package com.onlinejudge.execution;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -12,11 +13,13 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,10 +33,12 @@ import java.util.concurrent.TimeoutException;
 public class DockerCodeExecutor implements CodeExecutor {
 
     private static final Path TEMP_ROOT = Path.of(System.getProperty("java.io.tmpdir"), "wenzhong-docker-judge");
-    private static final Map<Integer, DockerLanguage> LANGUAGES = Map.of(
-            ContestLanguageRegistry.PYTHON3_ID, dockerLanguage(ContestLanguageRegistry.PYTHON3_ID),
-            ContestLanguageRegistry.CPP17_ID, dockerLanguage(ContestLanguageRegistry.CPP17_ID)
-    );
+
+    @Value("${executor.docker.cpp17-image:wenzhong-oj-cpp17-runner:13}")
+    private String cpp17Image;
+
+    @Value("${executor.docker.python3-image:python:3.12-slim}")
+    private String python3Image;
 
     @Override
     public String getExecutorType() {
@@ -51,7 +56,7 @@ public class DockerCodeExecutor implements CodeExecutor {
                                    String stdin,
                                    int timeLimitMs,
                                    int memoryLimitKb) {
-        DockerLanguage language = LANGUAGES.get(languageId);
+        DockerLanguage language = dockerLanguage(languageId);
         if (language == null) {
             return ExecutionResult.error("容器沙箱暂只开放 " + ContestLanguageRegistry.supportedLanguageNames());
         }
@@ -62,6 +67,7 @@ public class DockerCodeExecutor implements CodeExecutor {
         Path workDir = TEMP_ROOT.resolve(UUID.randomUUID().toString());
         try {
             Files.createDirectories(workDir);
+            makeContainerWorkspaceWritable(workDir);
             Path sourceFile = workDir.resolve("solution." + language.extension());
             Files.writeString(sourceFile, sourceCode == null ? "" : sourceCode, StandardCharsets.UTF_8);
 
@@ -168,16 +174,29 @@ public class DockerCodeExecutor implements CodeExecutor {
         }
     }
 
-    private static DockerLanguage dockerLanguage(int languageId) {
+    private DockerLanguage dockerLanguage(int languageId) {
         ContestLanguageRegistry.ContestLanguage language = ContestLanguageRegistry.findSubmissionLanguage(languageId)
-                .orElseThrow(() -> new IllegalArgumentException("Unsupported docker language: " + languageId));
+                .orElse(null);
+        if (language == null) {
+            return null;
+        }
         return new DockerLanguage(
                 language.displayName(),
                 language.extension(),
-                language.dockerImage(),
+                configuredDockerImage(language),
                 language.dockerCompileCommand(),
                 language.dockerRunCommand()
         );
+    }
+
+    private String configuredDockerImage(ContestLanguageRegistry.ContestLanguage language) {
+        if (language.id() == ContestLanguageRegistry.CPP17_ID) {
+            return firstNonBlank(cpp17Image, language.dockerImage());
+        }
+        if (language.id() == ContestLanguageRegistry.PYTHON3_ID) {
+            return firstNonBlank(python3Image, language.dockerImage());
+        }
+        return language.dockerImage();
     }
 
     private String readStream(InputStream inputStream) throws IOException {
@@ -199,6 +218,27 @@ public class DockerCodeExecutor implements CodeExecutor {
             return primary;
         }
         return fallback == null ? "" : fallback;
+    }
+
+    private void makeContainerWorkspaceWritable(Path workDir) {
+        try {
+            if (Files.getFileAttributeView(workDir, PosixFileAttributeView.class) == null) {
+                return;
+            }
+            Files.setPosixFilePermissions(workDir, Set.of(
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_WRITE,
+                    PosixFilePermission.OWNER_EXECUTE,
+                    PosixFilePermission.GROUP_READ,
+                    PosixFilePermission.GROUP_WRITE,
+                    PosixFilePermission.GROUP_EXECUTE,
+                    PosixFilePermission.OTHERS_READ,
+                    PosixFilePermission.OTHERS_WRITE,
+                    PosixFilePermission.OTHERS_EXECUTE
+            ));
+        } catch (IOException exception) {
+            log.warn("Failed to make docker judge workspace writable: {}", workDir, exception);
+        }
     }
 
     private void cleanup(Path workDir) {

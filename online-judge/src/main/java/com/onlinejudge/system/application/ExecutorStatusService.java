@@ -22,21 +22,27 @@ public class ExecutorStatusService {
     @Value("${executor.mode:local}")
     private String mode;
 
+    @Value("${executor.docker.cpp17-image:wenzhong-oj-cpp17-runner:13}")
+    private String cpp17DockerImage;
+
     public ExecutorStatusResponse getStatus() {
         String normalizedMode = mode == null ? "local" : mode.trim().toLowerCase(Locale.ROOT);
         boolean dockerAvailable = commandAvailable("docker", "version", "--format", "{{.Server.Version}}");
+        boolean cpp17DockerImageAvailable = dockerAvailable && dockerImageAvailable(cpp17DockerImage);
         boolean pythonAvailable = "docker".equals(normalizedMode)
                 ? dockerAvailable
                 : commandAvailable(isWindows() ? "python" : "python3", "--version");
         boolean cpp17Available = "docker".equals(normalizedMode)
-                ? dockerAvailable
+                ? cpp17DockerImageAvailable
                 : Cpp17Toolchain.findUsableCompiler().isPresent();
 
         String message;
         if ("docker".equals(normalizedMode) && !dockerAvailable) {
             message = "容器沙箱未就绪：未检测到 Docker，Python 3/C++17 容器评测暂不可用。";
+        } else if ("docker".equals(normalizedMode) && !cpp17DockerImageAvailable) {
+            message = "容器沙箱未就绪：未检测到 C++17 runner 镜像 " + cpp17DockerImage + "，请先运行项目内构建脚本。";
         } else if ("docker".equals(normalizedMode)) {
-            message = "容器沙箱已就绪，Python 3/C++17 可通过 Docker 执行。";
+            message = "容器沙箱已就绪，Python 3/C++17 可通过 Docker 执行；C++17 runner 镜像为 " + cpp17DockerImage + "。";
         } else if (!cpp17Available) {
             message = "当前为本机执行模式：Python 可用性已检测，未检测到可编译 bits/stdc++.h 的 GNU C++17 编译器。";
         } else {
@@ -69,6 +75,13 @@ public class ExecutorStatusService {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private boolean dockerImageAvailable(String image) {
+        if (image == null || image.isBlank()) {
+            return false;
+        }
+        return commandAvailable("docker", "image", "inspect", image.trim());
     }
 
     private boolean isWindows() {
