@@ -13,6 +13,8 @@
 - [x] 2.5 更新执行环境状态服务与 DTO，使教师端能明确看到 C++17 可用性。
 - [x] 2.6 增加项目自带 C++17 runner 镜像配置，并让 Docker 模式检查 runner 镜像是否存在。
 - [x] 2.7 增加 macOS/Linux 与 Windows 的 runner 构建烟测脚本。
+- [x] 2.8 增加应用 Dockerfile、docker-compose、环境变量样例、学校一键启动脚本和部署预检脚本。
+- [x] 2.9 将 Docker 判题源码/输入传输改为 tar 流，避免应用容器内路径与宿主机路径不一致。
 
 ## 3. 前端 C++17 入口
 
@@ -25,6 +27,8 @@
 
 - [x] 4.1 新增后端测试覆盖 C++17 语言配置和环境状态语义。
 - [x] 4.2 新增或更新后端判题测试，覆盖 C++17 AC、编译错误、环境不可用。
-- [ ] 4.3 运行相关 Maven 测试。（本机暂无 Java Runtime，`java_home` 无法发现 JDK，待安装 JDK 17 后补跑）
+- [x] 4.3 运行相关 Maven 测试。
 - [x] 4.4 运行 frontend typecheck。
 - [x] 4.5 运行 `git diff --check` 并确认无无关改动。
+- [x] 4.6 验证本机 JDK 17、Node/npm、Docker daemon 可用。
+- [x] 4.7 构建 C++17 runner 镜像并完成 Docker smoke。（Docker Hub 当前不可达，本机已用 `public.ecr.aws/docker/library/gcc:13-bookworm` 完成构建和 smoke）

@@ -2,8 +2,9 @@ $ErrorActionPreference = "Stop"
 
 $RootDir = Resolve-Path (Join-Path $PSScriptRoot "..")
 $ImageName = if ($env:OJ_CPP17_DOCKER_IMAGE) { $env:OJ_CPP17_DOCKER_IMAGE } else { "wenzhong-oj-cpp17-runner:13" }
+$BaseImage = if ($env:OJ_CPP17_BASE_IMAGE) { $env:OJ_CPP17_BASE_IMAGE } else { "gcc:13-bookworm" }
 
-docker build -t $ImageName (Join-Path $RootDir "docker/cpp17-runner")
+docker build --build-arg "CPP17_BASE_IMAGE=$BaseImage" -t $ImageName (Join-Path $RootDir "docker/cpp17-runner")
 
 $WorkDir = Join-Path ([System.IO.Path]::GetTempPath()) ("oj-cpp17-runner-" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $WorkDir | Out-Null

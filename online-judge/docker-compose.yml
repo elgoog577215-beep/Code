@@ -1,0 +1,41 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_BASE_IMAGE: "${OJ_NODE_BASE_IMAGE:-node:24-bookworm-slim}"
+        MAVEN_BASE_IMAGE: "${OJ_MAVEN_BASE_IMAGE:-maven:3.9.9-eclipse-temurin-17}"
+        JRE_BASE_IMAGE: "${OJ_JRE_BASE_IMAGE:-eclipse-temurin:17-jre}"
+        DOCKER_CLI_IMAGE: "${OJ_DOCKER_CLI_IMAGE:-docker:29-cli}"
+    image: "${OJ_APP_IMAGE:-wenzhong-oj-app:latest}"
+    container_name: wenzhong-oj-app
+    environment:
+      SERVER_PORT: "8081"
+      EXECUTOR_MODE: docker
+      OJ_CPP17_DOCKER_IMAGE: "${OJ_CPP17_DOCKER_IMAGE:-wenzhong-oj-cpp17-runner:13}"
+      OJ_PYTHON3_DOCKER_IMAGE: "${OJ_PYTHON3_DOCKER_IMAGE:-python:3.12-slim}"
+      AI_ENABLED: "${AI_ENABLED:-false}"
+      MODELSCOPE_API_KEY: "${OJ_MODELSCOPE_API_KEY:-}"
+      AI_BASE_URL: "${OJ_AI_BASE_URL:-https://api-inference.modelscope.cn/v1}"
+      AI_MODEL: "${OJ_AI_MODEL:-deepseek-ai/DeepSeek-V4-Pro}"
+    ports:
+      - "${SERVER_PORT:-8081}:8081"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      cpp17-runner:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  cpp17-runner:
+    build:
+      context: ./docker/cpp17-runner
+      dockerfile: Dockerfile
+      args:
+        CPP17_BASE_IMAGE: "${OJ_CPP17_BASE_IMAGE:-gcc:13-bookworm}"
+    image: "${OJ_CPP17_DOCKER_IMAGE:-wenzhong-oj-cpp17-runner:13}"
+    command: ["sh", "-lc", "g++ --version >/dev/null && echo C++17 runner image is ready"]
+    restart: "no"

@@ -72,6 +72,7 @@ Docker 沙箱仍是正式课堂推荐执行方式；项目内提供 `docker/cpp1
 - C/C++ 是不可信代码执行风险较高的语言，本机执行不适合作为正式开放环境。
 - 当前 Docker 执行器已有无网络、内存、进程数和超时控制，适合作为第一阶段沙箱。
 - 把 runner 镜像定义放进项目后，Windows 学生电脑只需要浏览器，服务器部署者按项目脚本构建镜像即可。
+- 应用容器通过 Docker socket 调用 runner，源码和输入以 Java 内置 tar 流传入 runner，避免容器内路径和宿主机路径不一致导致挂载失败，也避免应用运行环境额外依赖系统 `tar` 命令。
 - 本机模式保留可降低开发调试门槛，但必须优先寻找 `OJ_CPP17_COMPILER`、`g++-14/g++-13/g++-12/g++-11/g++` 中能通过 GNU 竞赛模板烟测的编译器。
 
 替代方案：只支持 Docker C++17。暂不采用，因为当前开发和演示环境可能还依赖本机模式。
@@ -93,6 +94,9 @@ Docker 沙箱仍是正式课堂推荐执行方式；项目内提供 `docker/cpp1
 - [Risk] Docker 镜像首次构建或基础镜像拉取慢。
   → Mitigation: 提供项目内 `scripts/build-cpp17-runner.sh` 和 `scripts/build-cpp17-runner.ps1`；课堂部署前构建 `wenzhong-oj-cpp17-runner:13`。
 
+- [Risk] 学校网络或本机网络暂时无法访问 Docker Hub。
+  → Mitigation: `OJ_CPP17_BASE_IMAGE`、`OJ_NODE_BASE_IMAGE`、`OJ_MAVEN_BASE_IMAGE`、`OJ_JRE_BASE_IMAGE`、`OJ_DOCKER_CLI_IMAGE` 均可切换为学校内网镜像仓库里的兼容镜像；compose 和构建脚本读取这些变量，并提供 `doctor-school` 预检脚本。
+
 - [Risk] Docker 已启动但 C++17 runner 镜像未构建。
   → Mitigation: Docker 模式下系统状态检查 `wenzhong-oj-cpp17-runner:13` 镜像是否存在，不只检查 Docker daemon。
 
@@ -108,11 +112,12 @@ Docker 沙箱仍是正式课堂推荐执行方式；项目内提供 `docker/cpp1
 2. 新增或收敛后端语言配置模型，保留现有语言 ID。
 3. 更新本机与 Docker C++17 编译参数和错误文案。
 4. 增加项目自带 C++17 runner Dockerfile、构建烟测脚本和部署说明。
-5. 更新判题服务和执行环境状态逻辑。
-6. 更新学生端语言模板、文件名和编辑器模式。
-7. 更新教师端环境展示文案。
-8. 添加后端 C++17 判题测试和前端 typecheck。
-9. 运行 OpenSpec strict validation、相关后端测试、前端 typecheck、`git diff --check`。
+5. 增加应用 Dockerfile、docker-compose、环境变量样例、学校一键启动脚本和学校部署预检脚本。
+6. 更新判题服务和执行环境状态逻辑。
+7. 更新学生端语言模板、文件名和编辑器模式。
+8. 更新教师端环境展示文案。
+9. 添加后端 C++17 判题测试和前端 typecheck。
+10. 运行 OpenSpec strict validation、相关后端测试、前端 typecheck、`git diff --check`。
 
 ## Open Questions
 

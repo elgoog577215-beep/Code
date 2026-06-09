@@ -64,6 +64,23 @@
 - **AND** 项目 SHALL provide macOS/Linux 构建烟测脚本
 - **AND** 项目 SHALL provide Windows PowerShell 构建烟测脚本
 
+#### Scenario: 项目提供学校开箱部署资产
+
+- **WHEN** 部署者准备学校服务器
+- **THEN** 项目 SHALL provide application Dockerfile
+- **AND** 项目 SHALL provide docker-compose configuration
+- **AND** 项目 SHALL provide environment variable example file
+- **AND** 项目 SHALL provide macOS/Linux and Windows one-click startup scripts
+- **AND** 项目 SHALL provide macOS/Linux and Windows deployment preflight scripts
+- **AND** 项目 SHALL allow application and runner base images to be overridden by environment variables
+
+#### Scenario: 应用容器内运行 Docker 判题
+
+- **WHEN** 后端应用运行在容器内
+- **THEN** 系统 SHALL send source code and stdin to runner without relying on host temp directory path mounts
+- **AND** 系统 SHALL NOT require a system `tar` command in the application runtime
+- **AND** runner SHALL compile and run in an isolated Docker container
+
 ### Requirement: C++17 执行环境状态必须可解释
 
 系统 SHALL 检测 C++17 执行环境是否可用，并向教师端和提交链路输出可理解的课堂提示。

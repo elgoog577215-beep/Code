@@ -3,8 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE_NAME="${OJ_CPP17_DOCKER_IMAGE:-wenzhong-oj-cpp17-runner:13}"
+BASE_IMAGE="${OJ_CPP17_BASE_IMAGE:-gcc:13-bookworm}"
 
-docker build -t "${IMAGE_NAME}" "${ROOT_DIR}/docker/cpp17-runner"
+docker build --build-arg "CPP17_BASE_IMAGE=${BASE_IMAGE}" -t "${IMAGE_NAME}" "${ROOT_DIR}/docker/cpp17-runner"
 
 WORK_DIR="$(mktemp -d)"
 chmod 777 "${WORK_DIR}"

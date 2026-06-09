@@ -20,6 +20,7 @@
     <properties>
         <java.version>17</java.version>
         <lombok.version>1.18.46</lombok.version>
+        <skip.frontend>false</skip.frontend>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
@@ -112,10 +113,11 @@
                             <goal>exec</goal>
                         </goals>
                         <configuration>
+                            <skip>${skip.frontend}</skip>
                             <workingDirectory>${project.basedir}/frontend</workingDirectory>
-                            <executable>npm</executable>
+                            <executable>${npm.executable}</executable>
                             <arguments>
-                                <argument>install</argument>
+                                <argument>ci</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -126,8 +128,9 @@
                             <goal>exec</goal>
                         </goals>
                         <configuration>
+                            <skip>${skip.frontend}</skip>
                             <workingDirectory>${project.basedir}/frontend</workingDirectory>
-                            <executable>npm</executable>
+                            <executable>${npm.executable}</executable>
                             <arguments>
                                 <argument>run</argument>
                                 <argument>build</argument>
@@ -138,4 +141,29 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>unix</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                </os>
+            </activation>
+            <properties>
+                <npm.executable>npm</npm.executable>
+            </properties>
+        </profile>
+        <profile>
+            <id>windows</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                </os>
+            </activation>
+            <properties>
+                <npm.executable>npm.cmd</npm.executable>
+            </properties>
+        </profile>
+    </profiles>
 </project>
