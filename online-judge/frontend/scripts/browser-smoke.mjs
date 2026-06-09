@@ -760,37 +760,25 @@ const scenarios = [
     afterChecks: async page => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
-      const tabs = ((await page.locator(".teacher-mode-tabs").first().textContent()) || "").replace(/\s+/g, "");
-      const inspectionText = ((await page.locator(".teacher-inspection-strip").first().textContent()) || "").replace(/\s+/g, "");
       const teacherText = ((await page.locator(".teacher-page").first().textContent()) || "").replace(/\s+/g, "");
-      await page.locator(".teacher-system-drawer > summary").first().click();
-      await checkVisible(page, ".teacher-student-feedback-observability", "teacher student AI feedback observability");
-      const systemText = ((await page.locator(".teacher-system-drawer").first().textContent()) || "").replace(/\s+/g, "");
       record("teacher global nav is classroom-first", navLabels.join("|") === "课堂|管理|题目", navLabels.join("|"));
       record("teacher nav is active", activeNav.includes("课堂"), activeNav.join("|"));
-      record("teacher page has internal management tab", tabs.includes("课堂") && tabs.includes("管理"), tabs);
-      record("teacher first screen keeps AI quality auxiliary", !inspectionText.includes("AI质量"), inspectionText);
-      record("teacher shows student feedback observability in auxiliary drawer", systemText.includes("学生反馈") && systemText.includes("生成10/17") && systemText.includes("查看后改善3"), systemText);
+      record("teacher home is assignment-centered", teacherText.includes("作业中心") && teacherText.includes("进入作业"), teacherText.slice(0, 800));
+      record("teacher home hides invite code", !teacherText.includes("邀请码") && !teacherText.includes("WZAI01"), teacherText.slice(0, 800));
+      record("teacher home shows class and task summary", teacherText.includes("高一1班") && teacherText.includes("2题") && teacherText.includes("通过率"), teacherText.slice(0, 800));
+      record("teacher home keeps management and overview links", teacherText.includes("管理班级与题目") && teacherText.includes("总体统计"), teacherText.slice(0, 800));
       record(
         "teacher main copy hides engineering tokens",
         !/BLOCKED|RECOVERED|NOT_COMPARABLE|fallback|smoke|profile/i.test(teacherText),
         teacherText.slice(0, 800)
       );
-      record(
-        "teacher student feedback observability uses teacher language",
-        !/READY|FAILED|MODEL|TIMEOUT|SAFETY_REJECTED/.test(systemText) && systemText.includes("生成超时"),
-        systemText
-      );
     },
     selectors: [
-      [".teacher-mode-tabs", "teacher mode tabs"],
-      [".teacher-rail", "teacher assignment rail"],
-      [".teacher-stage", "teacher classroom stage"],
-      [".teacher-coach-quality", "teacher coach answer quality summary"],
-      [".teacher-coach-impact", "teacher coach followup impact summary"],
-      [".teacher-main-grid", "teacher classroom grid"],
-      [".teacher-compact-details", "teacher compact details"],
-      [".teacher-student-row", "teacher student row"]
+      [".teacher-home-command", "teacher assignment center command"],
+      [".teacher-home-summary", "teacher assignment center summary"],
+      [".teacher-assignment-list", "teacher assignment list"],
+      [".teacher-assignment-card", "teacher assignment card"],
+      [".teacher-assignment-composer", "teacher assignment composer"]
     ]
   },
   {
@@ -798,17 +786,20 @@ const scenarios = [
     path: "/app/teacher/assignment/7",
     afterChecks: async page => {
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
-      const commandText = ((await page.locator(".assignment-detail-command").first().textContent()) || "").replace(/\s+/g, "");
+      const assignmentText = ((await page.locator(".assignment-detail-page").first().textContent()) || "").replace(/\s+/g, "");
       record("assignment detail belongs to classroom nav", activeNav.includes("课堂"), activeNav.join("|"));
-      record("assignment detail shows invite code", commandText.includes("WZAI01"), commandText);
+      record("assignment detail hides invite code", !assignmentText.includes("邀请码") && !assignmentText.includes("WZAI01"), assignmentText.slice(0, 900));
+      record("assignment detail shows core teacher sections", assignmentText.includes("整体统计") && assignmentText.includes("学生情况") && assignmentText.includes("作业题目"), assignmentText.slice(0, 900));
+      record("assignment detail keeps student report feedback", assignmentText.includes("最近反馈") && assignmentText.includes("校正错因"), assignmentText.slice(0, 900));
     },
     selectors: [
       [".assignment-detail-command", "assignment detail command"],
       [".assignment-kpi-strip", "assignment kpi strip"],
-      [".assignment-focus-strip", "assignment focus strip"],
-      [".assignment-detail-grid", "assignment detail grid"],
-      [".assignment-student-panel", "assignment student panel"],
-      [".teacher-student-row", "assignment student row"]
+      [".assignment-overall-panel", "assignment overall statistics"],
+      [".assignment-student-workspace", "assignment student workspace"],
+      [".assignment-student-report", "assignment student report"],
+      [".assignment-task-panel", "assignment task panel"],
+      [".assignment-advanced-analysis", "assignment advanced analysis"]
     ]
   },
   {
