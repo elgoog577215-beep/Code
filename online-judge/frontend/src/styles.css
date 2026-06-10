@@ -648,7 +648,6 @@ a {
 :root[data-theme="dark"] .teacher-config-drawer,
 :root[data-theme="dark"] .management-console,
 :root[data-theme="dark"] .management-task-card,
-:root[data-theme="dark"] .management-identity-groups > div,
 :root[data-theme="dark"] .editor-command,
 :root[data-theme="dark"] .editor-compact-details,
 :root[data-theme="dark"] .problem-compact-details,
@@ -3732,37 +3731,24 @@ a {
 }
 
 .management-console {
-  max-width: 1540px;
+  max-width: 980px;
   width: 100%;
-  min-height: clamp(520px, 66vh, 720px);
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(210px, 0.24fr) minmax(0, 1fr);
   margin-inline: auto;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(10px) saturate(1.04);
-}
-
-.management-console__nav {
-  min-width: 0;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--brand-soft) 28%, transparent), transparent 14rem),
-    color-mix(in srgb, var(--surface-strong) 64%, transparent);
-}
-
-.management-console__nav {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  border-right: 1px solid var(--line);
 }
 
 .management-console__brand {
-  display: grid;
-  gap: 0.65rem;
-  padding: 0.92rem 0.95rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.82rem 0.95rem;
   border-bottom: 1px solid var(--line);
 }
 
@@ -3771,67 +3757,14 @@ a {
 }
 
 .management-console__brand h1 {
-  margin: 0.32rem 0 0;
+  margin: 0.2rem 0 0;
   font-size: clamp(1.45rem, 2.2vw, 1.9rem);
   line-height: 1.05;
 }
 
-.management-console__brand .ui-button {
-  justify-content: flex-start;
-  width: 100%;
-  min-height: 38px;
-  box-shadow: none;
-}
-
-.management-section-list {
-  display: grid;
-  align-content: start;
-  gap: 0.38rem;
-  padding: 0.65rem;
-}
-
-.management-section-list button {
-  width: 100%;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.65rem;
-  align-items: center;
-  padding: 0.7rem 0.72rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  color: inherit;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
-}
-
-.management-section-list button:hover,
-.management-section-list button.is-active {
-  transform: translateX(2px);
-  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
-  background: var(--surface);
-  box-shadow: var(--shadow-soft);
-}
-
-.management-section-list svg {
-  color: var(--brand-strong);
-}
-
-.management-section-list strong,
-.management-section-list .status-pill {
-  display: block;
-}
-
-.management-section-list .status-pill {
-  margin-top: 0.34rem;
-}
-
 .management-workspace {
   min-width: 0;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 56%, transparent), transparent 16rem),
-    var(--surface);
+  background: var(--surface);
 }
 
 .management-task-grid {
@@ -3861,7 +3794,7 @@ a {
 }
 
 .management-task-card--large {
-  margin: 0.85rem;
+  margin: 0;
 }
 
 .management-task-grid .management-task-card--large {
@@ -3982,43 +3915,6 @@ a {
   font-weight: 600;
 }
 
-.management-status-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.management-status-item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-areas:
-    "icon label"
-    "icon value";
-  gap: 0.1rem 0.62rem;
-  align-items: center;
-  min-height: 82px;
-  padding: 0.82rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 58%, transparent);
-}
-
-.management-status-item svg {
-  grid-area: icon;
-  color: var(--brand-strong);
-}
-
-.management-status-item span {
-  grid-area: label;
-  color: var(--ink-soft);
-  font-size: 0.82rem;
-}
-
-.management-status-item strong {
-  grid-area: value;
-}
-
 .management-system-message,
 .management-import-result {
   grid-column: 1 / -1;
@@ -4032,60 +3928,6 @@ a {
 
 .management-import-result h3 {
   margin: 0 0 0.45rem;
-}
-
-.management-identity-audit__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.85rem;
-}
-
-.management-identity-audit__head h3 {
-  margin: 0.35rem 0 0;
-  font-size: 1.1rem;
-}
-
-.management-identity-audit__metrics {
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
-}
-
-.management-identity-groups {
-  display: grid;
-  gap: 0.62rem;
-}
-
-.management-identity-groups > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  align-items: center;
-  padding: 0.72rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
-}
-
-.management-identity-groups > div > div:first-child {
-  min-width: 0;
-}
-
-.management-identity-groups strong,
-.management-identity-groups small {
-  display: block;
-}
-
-.management-identity-groups strong {
-  overflow-wrap: break-word;
-}
-
-.management-identity-groups small {
-  margin-top: 0.18rem;
-  color: var(--ink-soft);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .task-editor-page {
@@ -6597,7 +6439,6 @@ tr:last-child td {
 :root[data-theme="dark"] .teacher-class-review article,
 :root[data-theme="dark"] .teacher-next-card,
 :root[data-theme="dark"] .teacher-assignment-item,
-:root[data-theme="dark"] .management-status-item,
 :root[data-theme="dark"] .overview-insight-item,
 :root[data-theme="dark"] .testcase-row,
 :root[data-theme="dark"] .issue-row,
@@ -6617,14 +6458,11 @@ tr:last-child td {
   box-shadow: none;
 }
 
-:root[data-theme="dark"] .management-console__nav,
 :root[data-theme="dark"] .management-workspace {
   background: var(--surface);
 }
 
-:root[data-theme="dark"] .overview-insight-item:hover,
-:root[data-theme="dark"] .management-section-list button:hover,
-:root[data-theme="dark"] .management-section-list button.is-active {
+:root[data-theme="dark"] .overview-insight-item:hover {
   box-shadow: none;
 }
 
@@ -6771,13 +6609,6 @@ tr:last-child td {
   box-shadow: none;
 }
 
-:root[data-theme="dark"] .management-section-list button:hover,
-:root[data-theme="dark"] .management-section-list button.is-active {
-  background: var(--surface-soft);
-  border-color: var(--line-strong);
-  box-shadow: none;
-}
-
 :root[data-theme="dark"] .role-entry,
 :root[data-theme="dark"] .role-entry-card,
 :root[data-theme="dark"] .management-command,
@@ -6818,7 +6649,6 @@ tr:last-child td {
 }
 
 :root[data-theme="dark"] .teacher-rail,
-:root[data-theme="dark"] .management-console__nav,
 :root[data-theme="dark"] .management-context {
   background: #0d0f14;
 }
@@ -7392,18 +7222,6 @@ tr:last-child td {
     min-height: auto;
   }
 
-  .management-console__nav {
-    border: 0;
-  }
-
-  .management-console__nav {
-    border-bottom: 1px solid var(--line);
-  }
-
-  .management-section-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .teacher-rail__list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -7552,9 +7370,7 @@ tr:last-child td {
   .assignment-focus-strip,
   .assignment-detail-grid,
   .management-command,
-  .management-section-list,
   .management-form-row,
-  .management-status-grid,
   .student-entry-grid.has-assignment .student-entry-card--identity .form-grid,
   .teacher-command__metrics,
   .teacher-kpi-strip,
@@ -7991,10 +7807,6 @@ tr:last-child td {
     padding-inline: 1rem;
   }
 
-  .management-console__nav {
-    grid-template-rows: auto auto;
-  }
-
   .management-console__brand {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
@@ -8006,17 +7818,6 @@ tr:last-child td {
     width: auto;
     min-height: 44px;
     justify-content: center;
-  }
-
-  .management-section-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: 0.62rem 0.72rem 0.78rem;
-  }
-
-  .management-section-list button {
-    min-height: 72px;
-    align-items: start;
-    padding: 0.7rem;
   }
 
   .management-task-grid {
@@ -8304,23 +8105,8 @@ tr:last-child td {
     white-space: normal;
   }
 
-  .management-console__nav {
-    grid-template-rows: auto auto;
-  }
-
   .management-console__brand {
     padding: 0.78rem;
-  }
-
-  .management-section-list {
-    grid-template-columns: 1fr;
-    gap: 0.45rem;
-    padding: 0.62rem 0.72rem 0.78rem;
-  }
-
-  .management-section-list button {
-    min-height: 58px;
-    padding: 0.65rem;
   }
 
   .management-task-grid {
@@ -8335,8 +8121,7 @@ tr:last-child td {
     margin: 0;
   }
 
-  .management-form-row,
-  .management-status-grid {
+  .management-form-row {
     grid-template-columns: 1fr;
   }
 
@@ -8361,21 +8146,6 @@ tr:last-child td {
     display: grid;
     grid-template-columns: 1fr;
     gap: 0.5rem;
-  }
-
-  .management-identity-groups > div {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .management-identity-groups > div > .actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    width: 100%;
-  }
-
-  .management-identity-groups small {
-    white-space: normal;
-    overflow-wrap: break-word;
   }
 
   .management-compact-details > summary,
@@ -8461,10 +8231,6 @@ tr:last-child td {
   .management-console__brand {
     align-items: center;
     padding-block: 0.68rem;
-  }
-
-  .management-section-list button {
-    min-height: 64px;
   }
 
   .student-assignment-grid.needs-identity {
@@ -8903,55 +8669,8 @@ tr:last-child td {
     padding-inline: 0.62rem;
   }
 
-  .management-section-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.36rem;
-    padding: 0.48rem 0.56rem 0.6rem;
-  }
-
-  .management-section-list button {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    gap: 0.3rem;
-    min-height: 76px;
-    padding: 0.52rem 0.4rem;
-    text-align: center;
-  }
-
-  .management-section-list button svg {
-    width: 17px;
-    height: 17px;
-  }
-
-  .management-section-list strong {
-    font-size: 0.82rem;
-    line-height: 1.15;
-  }
-
-  .management-section-list .status-pill {
-    margin-top: 0.22rem;
-    min-height: 24px;
-    padding: 0.16rem 0.34rem;
-    font-size: 0.68rem;
-  }
-
   .management-task-grid {
     padding: 0.62rem;
-  }
-
-  .management-identity-groups > div {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .management-identity-groups > div > .actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    width: 100%;
-  }
-
-  .management-identity-groups small {
-    white-space: normal;
-    overflow-wrap: break-word;
   }
 
   .student-page {
@@ -9331,36 +9050,26 @@ tr:last-child td {
 .teacher-assignment-center {
   width: min(100%, 980px);
   margin-inline: auto;
-  gap: 0.78rem;
-  padding-block: clamp(0.4rem, 3vh, 2.4rem);
+  gap: 0.58rem;
+  padding-block: clamp(0.25rem, 2vh, 1.5rem);
 }
 
 .teacher-home-command {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 1rem;
-  padding: clamp(1rem, 2vw, 1.28rem);
+  align-items: center;
+  gap: 0.82rem;
+  padding: 0.78rem 0.92rem;
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 54%, transparent), transparent 58%),
-    var(--surface);
-  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
 .teacher-home-command h1 {
-  margin: 0.22rem 0 0;
-  font-size: clamp(2rem, 4vw, 3.05rem);
-  line-height: 1.04;
-}
-
-.teacher-home-command p:not(.eyebrow) {
-  max-width: 620px;
-  margin: 0.48rem 0 0;
-  color: var(--ink-soft);
-  font-size: 0.95rem;
-  line-height: 1.6;
+  margin: 0.12rem 0 0;
+  font-size: clamp(1.42rem, 3vw, 2.08rem);
+  line-height: 1.08;
 }
 
 .teacher-home-actions {
@@ -9375,33 +9084,9 @@ tr:last-child td {
   box-shadow: none;
 }
 
-.teacher-home-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
-}
-
-.teacher-home-summary > div {
-  min-height: 78px;
-  display: grid;
-  align-content: center;
-  gap: 0.16rem;
-  padding: 0.78rem 0.92rem;
-  border-right: 1px solid var(--line);
-}
-
-.teacher-home-summary > div:last-child {
-  border-right: 0;
-}
-
-.teacher-home-summary span,
 .teacher-assignment-card__stats span,
 .assignment-detail-state span,
-.assignment-next-card span,
+.assignment-priority-strip span,
 .assignment-student-report__metrics span,
 .assignment-advanced-analysis span {
   color: var(--ink-soft);
@@ -9409,35 +9094,29 @@ tr:last-child td {
   font-weight: 850;
 }
 
-.teacher-home-summary strong {
-  font-size: clamp(1.38rem, 3vw, 2rem);
-  line-height: 1;
-}
-
 .teacher-assignment-list {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.42rem;
 }
 
 .teacher-assignment-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.68fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(276px, 0.58fr) auto;
   align-items: center;
-  gap: 0.88rem;
-  padding: 0.88rem 0.96rem;
+  gap: 0.72rem;
+  padding: 0.72rem 0.82rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
   transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
 }
 
 .teacher-assignment-card:hover {
-  transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
   background: color-mix(in srgb, var(--brand-soft) 24%, var(--surface));
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-card);
 }
 
 .teacher-assignment-card__main,
@@ -9486,17 +9165,17 @@ tr:last-child td {
 .teacher-assignment-card__stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(58px, 1fr));
-  gap: 0.4rem;
+  gap: 0.28rem;
 }
 
 .teacher-assignment-card__stats > div {
   min-width: 0;
   display: grid;
   gap: 0.1rem;
-  padding: 0.46rem 0.52rem;
-  border: 1px solid var(--line);
+  padding: 0.32rem 0.42rem;
+  border-left: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  background: transparent;
 }
 
 .teacher-assignment-card__stats > div.is-warning {
@@ -9515,35 +9194,11 @@ tr:last-child td {
 }
 
 .teacher-assignment-card__actions .ui-button {
-  min-height: 42px;
+  min-height: 38px;
   white-space: nowrap;
   box-shadow: none;
 }
 
-.teacher-home-note,
-.teacher-assignment-composer {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
-}
-
-.teacher-home-note {
-  display: grid;
-  gap: 0.16rem;
-  padding: 0.82rem 0.92rem;
-}
-
-.teacher-home-note span {
-  color: var(--ink-soft);
-  font-size: 0.86rem;
-}
-
-.teacher-assignment-composer {
-  overflow: hidden;
-}
-
-.teacher-assignment-composer > summary,
 .assignment-advanced-analysis > summary {
   min-height: 58px;
   display: grid;
@@ -9555,34 +9210,53 @@ tr:last-child td {
   list-style: none;
 }
 
-.teacher-assignment-composer > summary::-webkit-details-marker,
 .assignment-advanced-analysis > summary::-webkit-details-marker {
   display: none;
 }
 
-.teacher-assignment-composer > summary span:not(.status-pill),
 .assignment-advanced-analysis > summary span:not(.status-pill) {
   color: var(--ink);
   font-weight: 900;
 }
 
-.teacher-assignment-composer > summary .status-pill {
-  min-height: 32px;
-  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
-  color: var(--brand-strong);
-  background: color-mix(in srgb, var(--brand-soft) 58%, var(--surface));
-}
-
-.teacher-assignment-composer__body {
-  display: grid;
-  gap: 0.82rem;
-  padding: 0.9rem;
-  border-top: 1px solid var(--line);
-  background: color-mix(in srgb, var(--surface-soft) 42%, transparent);
-}
-
 .teacher-problem-pick-list--simple {
   max-height: 280px;
+}
+
+.assignment-create-page {
+  max-width: 980px;
+}
+
+.assignment-create-command {
+  margin-bottom: 0.1rem;
+}
+
+.assignment-create-form {
+  gap: 1rem;
+}
+
+.assignment-create-count {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 54%, var(--surface));
+  font-size: 0.82rem;
+  font-weight: 880;
+  white-space: nowrap;
+}
+
+.assignment-create-problem-list {
+  max-height: min(440px, 48vh);
+  overflow: auto;
+}
+
+.assignment-create-actions {
+  justify-content: flex-end;
 }
 
 .assignment-workspace {
@@ -9593,13 +9267,11 @@ tr:last-child td {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
-  padding: clamp(1rem, 2vw, 1.3rem);
+  padding: 0.9rem 1rem;
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 48%, transparent), transparent 52%),
-    var(--surface);
-  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
 .assignment-detail-state {
@@ -9643,9 +9315,9 @@ tr:last-child td {
 .assignment-section,
 .assignment-advanced-analysis {
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .assignment-section {
@@ -9667,40 +9339,40 @@ tr:last-child td {
   line-height: 1.18;
 }
 
-.assignment-overall-grid {
+.assignment-priority-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.62rem;
-}
-
-.assignment-next-card {
-  min-width: 0;
-  display: grid;
-  gap: 0.28rem;
-  padding: 0.82rem 0.9rem;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
 }
 
-.assignment-next-card strong {
+.assignment-priority-strip > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.24rem;
+  padding: 0.7rem 0.78rem;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-strong) 58%, transparent);
+}
+
+.assignment-priority-strip > div:last-child {
+  border-right: 0;
+}
+
+.assignment-priority-strip strong {
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: 1rem;
 }
 
-.assignment-next-card p,
+.assignment-priority-strip p,
 .assignment-student-report__body p,
 .assignment-task-row p,
 .assignment-advanced-analysis p {
   margin: 0;
   color: var(--ink-soft);
   line-height: 1.55;
-}
-
-.assignment-issue-list {
-  display: grid;
-  gap: 0.46rem;
 }
 
 .assignment-student-grid {
@@ -9770,6 +9442,7 @@ tr:last-child td {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
+  box-shadow: none;
 }
 
 .assignment-student-report__head {
@@ -9879,9 +9552,6 @@ tr:last-child td {
 }
 
 :root[data-theme="dark"] .teacher-assignment-card,
-:root[data-theme="dark"] .teacher-home-summary,
-:root[data-theme="dark"] .teacher-home-note,
-:root[data-theme="dark"] .teacher-assignment-composer,
 :root[data-theme="dark"] .assignment-section,
 :root[data-theme="dark"] .assignment-advanced-analysis,
 :root[data-theme="dark"] .assignment-student-report {
@@ -9892,16 +9562,14 @@ tr:last-child td {
 
 :root[data-theme="dark"] .teacher-home-command,
 :root[data-theme="dark"] .assignment-detail-command--school {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 52%, transparent), transparent 56%),
-    #12161d;
+  background: #12161d;
 }
 
 @media (max-width: 1180px) {
   .teacher-home-command,
   .teacher-assignment-card,
   .assignment-detail-command--school,
-  .assignment-overall-grid,
+  .assignment-priority-strip,
   .assignment-student-grid {
     grid-template-columns: 1fr;
   }
@@ -9915,15 +9583,22 @@ tr:last-child td {
   }
 
   .teacher-assignment-card__stats,
-  .teacher-home-summary,
   .assignment-kpi-strip--simple {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .teacher-home-summary > div:nth-child(2n),
   .teacher-assignment-card__stats > div:nth-child(2n),
   .assignment-kpi-strip--simple > div:nth-child(2n) {
     border-right: 0;
+  }
+
+  .assignment-priority-strip > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .assignment-priority-strip > div:last-child {
+    border-bottom: 0;
   }
 }
 
@@ -9945,7 +9620,7 @@ tr:last-child td {
 
   .teacher-home-actions,
   .teacher-assignment-card__actions,
-  .teacher-assignment-composer__body .actions,
+  .assignment-create-actions,
   .assignment-student-report .actions {
     display: grid;
     grid-template-columns: 1fr;
@@ -9954,13 +9629,12 @@ tr:last-child td {
 
   .teacher-home-actions .ui-button,
   .teacher-assignment-card__actions .ui-button,
-  .teacher-assignment-composer__body .ui-button,
+  .assignment-create-actions .ui-button,
   .assignment-student-report .ui-button {
     width: 100%;
     justify-content: center;
   }
 
-  .teacher-home-summary,
   .teacher-assignment-card__stats,
   .assignment-kpi-strip--simple,
   .assignment-student-report__metrics {
@@ -10006,8 +9680,171 @@ tr:last-child td {
     border-top: 1px solid var(--line);
   }
 
-  .teacher-assignment-composer > summary,
   .assignment-advanced-analysis > summary {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Teacher responsive workbench density */
+.teacher-assignment-center {
+  width: min(100%, 1240px);
+}
+
+.management-console {
+  max-width: min(100%, 1280px);
+}
+
+.management-task-grid {
+  grid-template-columns: minmax(240px, 0.72fr) minmax(320px, 1fr) minmax(320px, 1fr);
+}
+
+.management-form-row .field:only-child {
+  max-width: none;
+}
+
+.assignment-workspace {
+  width: min(100%, 1320px);
+  max-width: 1320px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.72fr);
+  gap: 0.82rem;
+  align-items: start;
+}
+
+.assignment-workspace > .assignment-detail-command--school,
+.assignment-workspace > .assignment-kpi-strip--simple,
+.assignment-workspace > .assignment-overall-panel,
+.assignment-workspace > .assignment-advanced-analysis,
+.assignment-workspace > .assignment-correction-panel {
+  grid-column: 1 / -1;
+}
+
+.assignment-workspace > .assignment-student-workspace {
+  grid-column: 1;
+}
+
+.assignment-workspace > .assignment-task-panel {
+  grid-column: 2;
+  align-self: start;
+}
+
+.assignment-student-grid {
+  grid-template-columns: minmax(250px, 0.44fr) minmax(0, 1fr);
+}
+
+.assignment-task-list {
+  align-content: start;
+}
+
+@media (min-width: 1440px) {
+  .teacher-assignment-center {
+    width: min(100%, 1280px);
+  }
+
+  .management-console {
+    max-width: min(100%, 1360px);
+  }
+
+  .assignment-workspace {
+    width: min(100%, 1380px);
+    max-width: 1380px;
+    grid-template-columns: minmax(0, 1.18fr) minmax(380px, 0.72fr);
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  .teacher-assignment-center {
+    width: min(100%, 1040px);
+  }
+
+  .management-console {
+    max-width: min(100%, 1040px);
+  }
+
+  .management-task-grid {
+    grid-template-columns: minmax(240px, 0.76fr) minmax(0, 1fr);
+  }
+
+  .management-task-card:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .assignment-workspace {
+    width: min(100%, 1040px);
+    max-width: 1040px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assignment-workspace > .assignment-detail-command--school,
+  .assignment-workspace > .assignment-kpi-strip--simple,
+  .assignment-workspace > .assignment-overall-panel,
+  .assignment-workspace > .assignment-student-workspace,
+  .assignment-workspace > .assignment-task-panel,
+  .assignment-workspace > .assignment-advanced-analysis,
+  .assignment-workspace > .assignment-correction-panel {
+    grid-column: 1;
+  }
+
+  .assignment-student-grid {
+    grid-template-columns: minmax(250px, 0.42fr) minmax(0, 1fr);
+  }
+
+  .assignment-priority-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .assignment-priority-strip > div {
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
+  }
+
+  .assignment-priority-strip > div:last-child {
+    border-right: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .teacher-assignment-center,
+  .assignment-workspace,
+  .management-console {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .management-task-grid,
+  .management-form-row,
+  .assignment-workspace,
+  .assignment-student-grid,
+  .assignment-priority-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assignment-workspace > .assignment-detail-command--school,
+  .assignment-workspace > .assignment-kpi-strip--simple,
+  .assignment-workspace > .assignment-overall-panel,
+  .assignment-workspace > .assignment-student-workspace,
+  .assignment-workspace > .assignment-task-panel,
+  .assignment-workspace > .assignment-advanced-analysis,
+  .assignment-workspace > .assignment-correction-panel,
+  .management-task-card:nth-child(3) {
+    grid-column: 1;
+  }
+
+  .assignment-priority-strip > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .assignment-priority-strip > div:last-child {
+    border-bottom: 0;
+  }
+
+  .management-task-card .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .management-task-card .actions .ui-button {
+    width: 100%;
   }
 }

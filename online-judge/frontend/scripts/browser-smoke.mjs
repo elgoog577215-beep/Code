@@ -757,7 +757,7 @@ const scenarios = [
   {
     name: "teacher",
     path: "/app/teacher",
-    afterChecks: async page => {
+    afterChecks: async (page, viewport) => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
       const teacherText = ((await page.locator(".teacher-page").first().textContent()) || "").replace(/\s+/g, "");
@@ -765,37 +765,57 @@ const scenarios = [
       record("teacher nav is active", activeNav.includes("课堂"), activeNav.join("|"));
       record("teacher home is assignment-centered", teacherText.includes("作业中心") && teacherText.includes("进入作业"), teacherText.slice(0, 800));
       record("teacher home hides invite code", !teacherText.includes("邀请码") && !teacherText.includes("WZAI01"), teacherText.slice(0, 800));
-      record("teacher home shows class and task summary", teacherText.includes("高一1班") && teacherText.includes("2题") && teacherText.includes("通过率"), teacherText.slice(0, 800));
-      record("teacher home keeps management and overview links", teacherText.includes("管理班级与题目") && teacherText.includes("总体统计"), teacherText.slice(0, 800));
+      record("teacher home shows assignment row essentials", teacherText.includes("高一1班") && teacherText.includes("2题") && teacherText.includes("通过率"), teacherText.slice(0, 800));
+      record("teacher home removes duplicate nav actions", !teacherText.includes("管理班级与题目") && !teacherText.includes("总体统计") && !teacherText.includes("刷新") && !teacherText.includes("编辑题目"), teacherText.slice(0, 800));
+      record("teacher assignment rows keep one primary action", !teacherText.includes("编辑作业") && !teacherText.includes("编辑进入作业"), teacherText.slice(0, 800));
+      record("teacher create action goes to dedicated page", await page.locator('a[href="/app/teacher/assignment/new"]').first().isVisible(), teacherText.slice(0, 800));
       record(
         "teacher main copy hides engineering tokens",
         !/BLOCKED|RECOVERED|NOT_COMPARABLE|fallback|smoke|profile/i.test(teacherText),
         teacherText.slice(0, 800)
       );
+      if (viewport.name === "desktop") {
+        await checkElementMaxWidth(page, ".teacher-assignment-center", 1290, "teacher desktop workbench width");
+        await checkSameRow(page, ".teacher-assignment-card__main", ".teacher-assignment-card__stats", "teacher desktop assignment row keeps stats beside title");
+      }
+      if (viewport.name === "mobile") {
+        await checkMinControlHeight(page, ".teacher-home-actions .ui-button", 44, "teacher mobile primary action");
+      }
     },
     selectors: [
       [".teacher-home-command", "teacher assignment center command"],
-      [".teacher-home-summary", "teacher assignment center summary"],
       [".teacher-assignment-list", "teacher assignment list"],
-      [".teacher-assignment-card", "teacher assignment card"],
-      [".teacher-assignment-composer", "teacher assignment composer"]
+      [".teacher-assignment-card", "teacher assignment card"]
     ]
   },
   {
     name: "assignment-detail",
     path: "/app/teacher/assignment/7",
-    afterChecks: async page => {
+    afterChecks: async (page, viewport) => {
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
       const assignmentText = ((await page.locator(".assignment-detail-page").first().textContent()) || "").replace(/\s+/g, "");
       record("assignment detail belongs to classroom nav", activeNav.includes("课堂"), activeNav.join("|"));
       record("assignment detail hides invite code", !assignmentText.includes("邀请码") && !assignmentText.includes("WZAI01"), assignmentText.slice(0, 900));
       record("assignment detail shows core teacher sections", assignmentText.includes("整体统计") && assignmentText.includes("学生情况") && assignmentText.includes("作业题目"), assignmentText.slice(0, 900));
       record("assignment detail keeps student report feedback", assignmentText.includes("最近反馈") && assignmentText.includes("校正错因"), assignmentText.slice(0, 900));
+      record("assignment detail keeps advanced analysis folded", assignmentText.includes("高级分析") && assignmentText.includes("AI/Coach/教师校正"), assignmentText.slice(0, 900));
+      if (viewport.name === "desktop") {
+        await checkSameRow(page, ".assignment-student-workspace", ".assignment-task-panel", "assignment desktop student and task workbench columns");
+        await checkSameRow(page, ".assignment-student-list", ".assignment-student-report", "assignment desktop student list and report columns");
+      }
+      if (viewport.name === "tablet") {
+        await checkSameRow(page, ".assignment-student-list", ".assignment-student-report", "assignment tablet keeps student report beside list");
+      }
+      if (viewport.name === "mobile") {
+        await checkStacked(page, ".assignment-overall-panel", ".assignment-student-workspace", "assignment mobile overall before students");
+        await checkStacked(page, ".assignment-student-workspace", ".assignment-task-panel", "assignment mobile students before tasks");
+      }
     },
     selectors: [
       [".assignment-detail-command", "assignment detail command"],
       [".assignment-kpi-strip", "assignment kpi strip"],
       [".assignment-overall-panel", "assignment overall statistics"],
+      [".assignment-priority-strip", "assignment priority strip"],
       [".assignment-student-workspace", "assignment student workspace"],
       [".assignment-student-report", "assignment student report"],
       [".assignment-task-panel", "assignment task panel"],
@@ -803,28 +823,50 @@ const scenarios = [
     ]
   },
   {
-    name: "teacher-management",
-    path: "/app/teacher-management",
-    beforeChecks: async page => {
-      const identityDetails = page.locator("details.management-compact-details", { hasText: "身份审计" }).first();
-      await identityDetails.waitFor({ state: "attached", timeout: 10000 });
-      await identityDetails.evaluate(element => {
-        element.open = true;
-      });
-    },
+    name: "assignment-create",
+    path: "/app/teacher/assignment/new",
     afterChecks: async page => {
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
-      const tabs = ((await page.locator(".teacher-mode-tabs").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher management belongs to management nav", activeNav.includes("管理"), activeNav.join("|"));
-      record("teacher management does not also mark classroom", !activeNav.includes("课堂"), activeNav.join("|"));
-      record("teacher management has internal process tab", tabs.includes("课堂") && tabs.includes("管理"), tabs);
+      const createText = ((await page.locator(".assignment-create-page").first().textContent()) || "").replace(/\s+/g, "");
+      record("assignment create belongs to classroom nav", activeNav.includes("课堂"), activeNav.join("|"));
+      record("assignment create keeps only creation fields", createText.includes("新建作业") && createText.includes("作业名称") && createText.includes("选择班级") && createText.includes("选择题目"), createText.slice(0, 900));
+      record("assignment create hides duplicate management links", !createText.includes("管理班级与题目") && !createText.includes("总体统计") && !createText.includes("编辑题目"), createText.slice(0, 900));
     },
     selectors: [
-      [".teacher-mode-tabs", "teacher management mode tabs"],
+      [".assignment-create-page", "assignment create page"],
+      [".assignment-create-command", "assignment create command"],
+      [".assignment-create-form", "assignment create form"],
+      [".assignment-create-problem-list", "assignment create problem list"]
+    ]
+  },
+  {
+    name: "teacher-management",
+    path: "/app/teacher-management",
+    afterChecks: async (page, viewport) => {
+      const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
+      const managementText = ((await page.locator(".teacher-management-page").first().textContent()) || "").replace(/\s+/g, "");
+      record("teacher management belongs to management nav", activeNav.includes("管理"), activeNav.join("|"));
+      record("teacher management does not also mark classroom", !activeNav.includes("课堂"), activeNav.join("|"));
+      record("teacher management removes internal classroom tab", !managementText.includes("课堂") && !managementText.includes("系统状态") && !managementText.includes("身份审计"), managementText.slice(0, 900));
+      record("teacher management keeps basic actions", managementText.includes("创建班级") && managementText.includes("导入名单") && managementText.includes("导入题目"), managementText.slice(0, 900));
+      if (viewport.name === "desktop") {
+        await checkSameRow(page, ".management-task-card:nth-child(1)", ".management-task-card:nth-child(2)", "teacher management desktop first two tasks share row");
+        await checkSameRow(page, ".management-task-card:nth-child(2)", ".management-task-card:nth-child(3)", "teacher management desktop import tasks share row");
+      }
+      if (viewport.name === "tablet") {
+        await checkSameRow(page, ".management-task-card:nth-child(1)", ".management-task-card:nth-child(2)", "teacher management tablet first two tasks share row");
+        await checkStacked(page, ".management-task-card:nth-child(2)", ".management-task-card:nth-child(3)", "teacher management tablet problem import wraps");
+      }
+      if (viewport.name === "mobile") {
+        await checkStacked(page, ".management-task-card:nth-child(1)", ".management-task-card:nth-child(2)", "teacher management mobile class before roster");
+        await checkStacked(page, ".management-task-card:nth-child(2)", ".management-task-card:nth-child(3)", "teacher management mobile roster before problems");
+        await checkMinControlHeight(page, ".management-task-card .ui-button", 44, "teacher management mobile actions");
+      }
+    },
+    selectors: [
       [".management-console", "management console"],
-      [".management-identity-audit", "identity audit panel"],
-      [".management-identity-audit__metrics", "identity audit metrics"],
-      [".management-identity-groups", "identity duplicate groups"]
+      [".management-task-card", "management task card"],
+      [".management-file-picker", "file picker"]
     ]
   },
   {
@@ -1064,6 +1106,52 @@ async function checkImportantControlsVisible(page, label) {
   });
   record(`${label} controls visible`, result.visible > 0, JSON.stringify(result));
   record(`${label} controls not clipped`, result.clipped === 0, JSON.stringify(result));
+}
+
+async function rectFor(page, selector) {
+  return page.locator(selector).first().evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return {
+      top: rect.top,
+      left: rect.left,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height
+    };
+  });
+}
+
+async function checkSameRow(page, leftSelector, rightSelector, label) {
+  const [left, right] = await Promise.all([rectFor(page, leftSelector), rectFor(page, rightSelector)]);
+  const verticalOverlap = Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top);
+  const passed = verticalOverlap > Math.min(left.height, right.height) * 0.35 && Math.abs(left.left - right.left) > 12;
+  record(label, passed, JSON.stringify({ left, right, verticalOverlap }));
+}
+
+async function checkStacked(page, firstSelector, secondSelector, label) {
+  const [first, second] = await Promise.all([rectFor(page, firstSelector), rectFor(page, secondSelector)]);
+  const passed = first.bottom <= second.top + 4;
+  record(label, passed, JSON.stringify({ first, second }));
+}
+
+async function checkElementMaxWidth(page, selector, maxWidth, label) {
+  const rect = await rectFor(page, selector);
+  record(label, rect.width <= maxWidth, JSON.stringify(rect));
+}
+
+async function checkMinControlHeight(page, selector, minHeight, label) {
+  const result = await page.locator(selector).evaluateAll((elements, expectedHeight) => {
+    const visible = elements
+      .map(element => element.getBoundingClientRect())
+      .filter(rect => rect.width > 0 && rect.height > 0);
+    return {
+      visible: visible.length,
+      tooSmall: visible.filter(rect => rect.height + 0.5 < expectedHeight).length,
+      heights: visible.map(rect => Math.round(rect.height * 10) / 10)
+    };
+  }, minHeight);
+  record(label, result.visible > 0 && result.tooSmall === 0, JSON.stringify(result));
 }
 
 async function checkDarkReadable(page, selector, label) {

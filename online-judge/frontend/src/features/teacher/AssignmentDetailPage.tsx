@@ -7,7 +7,6 @@ import {
   assignmentStatusLabel,
   displayText,
   formatDateTime,
-  hintPolicyLabel,
   issueLabel,
   learningStageLabel,
   percent,
@@ -204,7 +203,6 @@ export default function AssignmentDetailPage() {
           <div className="teacher-stage__meta">
             <span>{displayText(assignment.className, "未绑定班级")}</span>
             <span>{assignment.tasks?.length || 0} 题</span>
-            <span>{hintPolicyLabel(assignment.hintPolicy)}</span>
             <span>{assignmentStatusLabel(assignment.status)}</span>
           </div>
         </div>
@@ -238,39 +236,28 @@ export default function AssignmentDetailPage() {
         <div className="assignment-section__head">
           <div>
             <p className="eyebrow">整体统计</p>
-            <h2>老师下一步先看什么</h2>
+            <h2>先看什么</h2>
           </div>
           <StatusPill tone={overview.topIssues.length ? "warning" : "success"}>
             {overview.topIssues.length ? `${overview.topIssues.length} 类问题` : "暂无集中问题"}
           </StatusPill>
         </div>
-        <div className="assignment-overall-grid">
-          <article className="assignment-next-card">
+        <div className="assignment-priority-strip">
+          <div>
             <span>课堂状态</span>
             <strong>{classroomStateLabel}</strong>
-            <p>{attentionStudents[0]?.attentionReason || overview.classTeachingStrategySignal?.summary || "当前作业推进稳定，可以按题目表现安排讲评。"}</p>
-          </article>
-          <article className="assignment-next-card">
+            <p>{attentionStudents[0]?.attentionReason || overview.classTeachingStrategySignal?.summary || "当前作业推进稳定。"}</p>
+          </div>
+          <div>
             <span>高频错因</span>
             <strong>{overview.topIssues[0] ? issueLabel(overview.topIssues[0].label) : "暂无"}</strong>
             <p>{overview.topIssues[0]?.interventionSuggestion || overview.topIssues[0]?.explanation || "暂时没有明显集中错因。"}</p>
-          </article>
-          <article className="assignment-next-card">
+          </div>
+          <div>
             <span>讲评建议</span>
             <strong>{reviewItems[0]?.title || "按学生情况复盘"}</strong>
-            <p>{reviewItems[0]?.guidingQuestion || reviewItems[0]?.action || "优先查看需关注学生的最近提交证据。"}</p>
-          </article>
-        </div>
-        <div className="assignment-issue-list">
-          {overview.topIssues.slice(0, 5).map(issue => (
-            <div className="issue-row" key={issue.label}>
-              <span>
-                {issueLabel(issue.label)}
-                {issue.explanation ? <small>{issue.explanation}</small> : null}
-              </span>
-              <strong>{issue.count}</strong>
-            </div>
-          ))}
+            <p>{reviewItems[0]?.guidingQuestion || reviewItems[0]?.action || "优先查看需关注学生的最近提交。"}</p>
+          </div>
         </div>
       </section>
 
@@ -278,7 +265,7 @@ export default function AssignmentDetailPage() {
         <div className="assignment-section__head">
           <div>
             <p className="eyebrow">学生情况</p>
-            <h2>每个学生的细致情况</h2>
+            <h2>学生列表</h2>
           </div>
           <StatusPill tone={attentionStudents.length ? "warning" : "success"}>
             {attentionStudents.length ? `${attentionStudents.length} 人需关注` : "整体稳定"}
@@ -362,7 +349,7 @@ export default function AssignmentDetailPage() {
                 )}
                 {selectedStudentReport.attentionEvidence?.length ? (
                   <div className="teacher-attention-evidence">
-                    {selectedStudentReport.attentionEvidence.slice(0, 2).map(evidence => (
+                    {selectedStudentReport.attentionEvidence.slice(0, 1).map(evidence => (
                       <div key={evidence.submissionId}>
                         <span>{formatDateTime(evidence.submittedAt)}</span>
                         <strong>
