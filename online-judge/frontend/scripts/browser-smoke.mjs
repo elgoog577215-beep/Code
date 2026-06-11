@@ -566,6 +566,22 @@ const executorStatus = {
 
 const scenarios = [
   {
+    name: "app-entry",
+    path: "/app/",
+    selectors: [
+      [".route-hub-page", "route hub page"],
+      [".route-hub-card", "route hub cards"]
+    ],
+    afterChecks: async page => {
+      const navLabels = await page.locator(".top-nav__link span").allTextContents();
+      const hubText = ((await page.locator(".route-hub-page").first().textContent()) || "").replace(/\s+/g, "");
+      record("app root is explicit route hub", page.url().endsWith("/app") || page.url().endsWith("/app/"), page.url());
+      record("app root lists clear workspaces", hubText.includes("学生练习") && hubText.includes("作业中心") && hubText.includes("题库与班级"), hubText.slice(0, 700));
+      record("app root exposes canonical paths", hubText.includes("/app/student") && hubText.includes("/app/teacher") && hubText.includes("/app/teacher-management"), hubText.slice(0, 700));
+      record("app root keeps top nav simple", navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
+    }
+  },
+  {
     name: "student-default",
     path: "/app/student",
     selectors: [

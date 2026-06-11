@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { BookOpenCheck, LogIn, Menu, Moon, PenLine, Sun, UserRound, UsersRound, X } from "lucide-react";
+import { BookOpenCheck, LayoutDashboard, LogIn, Menu, Moon, PenLine, Sun, UserRound, UsersRound, X } from "lucide-react";
 import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherManagementPage from "./features/teacher/TeacherManagementPage";
 import { clearActiveStudent, loadStudent } from "./shared/storage";
@@ -63,7 +63,75 @@ function LegacyRedirect() {
   if (location.pathname.endsWith("leaderboard.html")) {
     return <Navigate to="/app/class-overview" replace />;
   }
-  return <Navigate to="/app/student" replace />;
+  return <Navigate to="/app" replace />;
+}
+
+function RouteHubPage() {
+  return (
+    <div className="role-entry-page route-hub-page">
+      <section className="role-entry route-hub-hero">
+        <div>
+          <p className="eyebrow">入口导航</p>
+          <h1>选择要进入的工作区</h1>
+          <p>学生练习、教师作业和题库管理分开进入，路径更清楚，也方便把链接发给不同角色。</p>
+        </div>
+      </section>
+
+      <section className="role-entry-grid route-hub-grid" aria-label="系统入口">
+        <NavLink to="/app/student" className="role-entry-card route-hub-card route-hub-card--student">
+          <span className="role-entry-card__icon">
+            <BookOpenCheck size={24} />
+          </span>
+          <span>
+            <span className="role-entry-card__head">
+              <span className="eyebrow">学生</span>
+            </span>
+            <h2>学生练习</h2>
+            <p>进入课堂作业、公共题库和个人提交记录。</p>
+            <small>/app/student</small>
+          </span>
+        </NavLink>
+
+        <NavLink to="/app/teacher" className="role-entry-card route-hub-card route-hub-card--teacher">
+          <span className="role-entry-card__icon">
+            <UsersRound size={24} />
+          </span>
+          <span>
+            <span className="role-entry-card__head">
+              <span className="eyebrow">教师</span>
+            </span>
+            <h2>作业中心</h2>
+            <p>管理作业列表、新建作业，并进入作业详情。</p>
+            <small>/app/teacher</small>
+          </span>
+        </NavLink>
+
+        <NavLink to="/app/teacher-management" className="role-entry-card route-hub-card route-hub-card--management">
+          <span className="role-entry-card__icon">
+            <LayoutDashboard size={24} />
+          </span>
+          <span>
+            <span className="role-entry-card__head">
+              <span className="eyebrow">管理</span>
+            </span>
+            <h2>题库与班级</h2>
+            <p>维护班级名单、导入题目，并进入题目编辑。</p>
+            <small>/app/teacher-management</small>
+          </span>
+        </NavLink>
+      </section>
+    </div>
+  );
+}
+
+function LegacyProblemRedirect() {
+  const { problemId } = useParams();
+  return <Navigate to={`/app/problem/${problemId}`} replace />;
+}
+
+function LegacyAssignmentRedirect() {
+  const { assignmentId } = useParams();
+  return <Navigate to={`/app/teacher/assignment/${assignmentId}`} replace />;
 }
 
 function Header() {
@@ -156,7 +224,7 @@ function Header() {
 
   return (
     <header className={headerClassName}>
-      <NavLink to="/app/student" className="brand" aria-label="温中编程学习平台">
+      <NavLink to="/app" className="brand" aria-label="温中编程学习平台">
         <span className="brand__mark">
           <BookOpenCheck size={24} />
         </span>
@@ -225,8 +293,9 @@ export default function App() {
       <main className="main-shell">
         <Suspense fallback={<EmptyState title="正在加载页面" />}>
           <Routes>
-            <Route path="/" element={<Navigate to="/app/student" replace />} />
-            <Route path="/app" element={<Navigate to="/app/student" replace />} />
+            <Route path="/" element={<Navigate to="/app" replace />} />
+            <Route path="/app" element={<RouteHubPage />} />
+            <Route path="/app/" element={<RouteHubPage />} />
             <Route path="/app/problems" element={<Navigate to="/app/student/assignments/public" replace />} />
             <Route path="/app/student/problems" element={<Navigate to="/app/student/assignments/public" replace />} />
             <Route path="/app/student" element={<StudentPage />} />
@@ -241,14 +310,14 @@ export default function App() {
             <Route path="/app/class-overview" element={<ClassOverviewPage />} />
             <Route path="/app/problem/:problemId" element={<ProblemPage />} />
             <Route path="/problems" element={<Navigate to="/app/student/assignments/public" replace />} />
-            <Route path="/student" element={<StudentPage />} />
-            <Route path="/problem/:problemId" element={<ProblemPage />} />
-            <Route path="/teacher" element={<TeacherPage />} />
-            <Route path="/teacher/assignment/new" element={<AssignmentCreatePage />} />
-            <Route path="/teacher/assignment/:assignmentId" element={<AssignmentDetailPage />} />
-            <Route path="/teacher-management" element={<TeacherManagementPage />} />
-            <Route path="/task-editor" element={<TaskEditorPage />} />
-            <Route path="/class-overview" element={<ClassOverviewPage />} />
+            <Route path="/student" element={<Navigate to="/app/student" replace />} />
+            <Route path="/problem/:problemId" element={<LegacyProblemRedirect />} />
+            <Route path="/teacher" element={<Navigate to="/app/teacher" replace />} />
+            <Route path="/teacher/assignment/new" element={<Navigate to="/app/teacher/assignment/new" replace />} />
+            <Route path="/teacher/assignment/:assignmentId" element={<LegacyAssignmentRedirect />} />
+            <Route path="/teacher-management" element={<Navigate to="/app/teacher-management" replace />} />
+            <Route path="/task-editor" element={<Navigate to="/app/task-editor" replace />} />
+            <Route path="/class-overview" element={<Navigate to="/app/class-overview" replace />} />
             <Route path="/student.html" element={<LegacyRedirect />} />
             <Route path="/teacher.html" element={<LegacyRedirect />} />
             <Route path="/problem.html" element={<LegacyRedirect />} />

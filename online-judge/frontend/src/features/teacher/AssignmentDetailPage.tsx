@@ -21,10 +21,10 @@ type CorrectionDraft = {
 };
 
 const DETAIL_TABS: Array<{ id: DetailTab; label: string; icon: LucideIcon }> = [
-  { id: "overview", label: "概览", icon: BarChart3 },
+  { id: "overview", label: "总览", icon: BarChart3 },
   { id: "students", label: "学生", icon: UsersRound },
-  { id: "problems", label: "题目", icon: BookOpenCheck },
-  { id: "diagnosis", label: "诊断", icon: Brain }
+  { id: "problems", label: "讲题", icon: BookOpenCheck },
+  { id: "diagnosis", label: "校正", icon: Brain }
 ];
 
 function cleanAssignmentTitle(value?: string | null, fallback = "课堂作业") {
@@ -92,11 +92,15 @@ export default function AssignmentDetailPage() {
       return attentionDiff || right.attemptCount - left.attemptCount;
     });
   }, [overview]);
+  const focusStudents = useMemo(
+    () => (attentionStudents.length ? visibleStudents.filter(student => student.needsAttention) : visibleStudents),
+    [attentionStudents.length, visibleStudents]
+  );
   const passRate = overview?.attemptCount ? Math.round((overview.passedAttemptCount / overview.attemptCount) * 100) : 0;
-  const selectedStudent = visibleStudents.find(student => student.studentProfileId === selectedStudentId) || visibleStudents[0] || null;
+  const selectedStudent = focusStudents.find(student => student.studentProfileId === selectedStudentId) || focusStudents[0] || null;
   const taskStats = assignment && overview ? problemStats(assignment, overview) : [];
-  const topTask = taskStats.find(task => task.issueHits) || taskStats[0] || null;
-  const reviewItem = overview?.classReviewSuggestions?.[0] || null;
+  const sortedTaskStats = [...taskStats].sort((left, right) => right.issueHits - left.issueHits || right.latestAttempts - left.latestAttempts);
+  const topTask = sortedTaskStats.find(task => task.issueHits) || sortedTaskStats[0] || null;
 
   useEffect(() => {
     if (!Number.isFinite(id)) {
@@ -108,10 +112,10 @@ export default function AssignmentDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    if (!selectedStudentId && visibleStudents[0]) {
-      setSelectedStudentId(visibleStudents[0].studentProfileId);
+    if (!selectedStudentId && focusStudents[0]) {
+      setSelectedStudentId(focusStudents[0].studentProfileId);
     }
-  }, [selectedStudentId, visibleStudents]);
+  }, [focusStudents, selectedStudentId]);
 
   async function loadAssignmentDetail(targetId: number) {
     setLoading(true);
@@ -205,7 +209,6 @@ export default function AssignmentDetailPage() {
           <Link to="/app/teacher" className="back-link">
             <ArrowLeft size={16} /> 返回作业中心
           </Link>
-          <p className="eyebrow">作业详情</p>
           <h1>{cleanAssignmentTitle(assignment.title)}</h1>
           <div className="assignment-detail-meta">
             <span>{displayText(assignment.className, "未绑定班级")}</span>
@@ -234,38 +237,19 @@ export default function AssignmentDetailPage() {
 
       {activeTab === "overview" && (
         <section className="assignment-tab-panel assignment-overview-tab" aria-label="概览">
-          <div className="teacher-workflow-summary">
-            <div>
-              <span>参与学生</span>
-              <strong>{overview.participantCount}</strong>
-            </div>
-            <div>
-              <span>提交次数</span>
-              <strong>{overview.attemptCount}</strong>
-            </div>
-            <div>
-              <span>通过率</span>
-              <strong>{passRate}%</strong>
-            </div>
-            <div>
-              <span>需关注</span>
-              <strong>{attentionStudents.length}</strong>
-            </div>
-          </div>
-
           <div className="assignment-overview-grid">
             <article>
-              <span>完成情况</span>
+              <span>现在</span>
               <strong>{stateLabel}</strong>
               <p>{attentionStudents[0]?.attentionReason || overview.classTeachingStrategySignal?.summary || "当前作业推进稳定。"}</p>
             </article>
             <article>
-              <span>优先看谁</span>
+              <span>先看</span>
               <strong>{displayText(attentionStudents[0]?.displayName, attentionStudents.length ? "需关注学生" : "暂无需关注")}</strong>
               <p>{attentionStudents[0]?.latestProgressSignal || attentionStudents[0]?.crossProblemSummary || "学生整体暂未出现集中卡点。"}</p>
             </article>
             <article>
-              <span>优先讲哪题</span>
+              <span>先讲</span>
               <strong>{topTask?.task.title || "等待提交"}</strong>
               <p>{topTask?.issueHits ? `${topTask.issueHits} 人在这道题出现需关注信号。` : "暂无明显题目集中问题。"}</p>
             </article>
@@ -273,13 +257,13 @@ export default function AssignmentDetailPage() {
 
           <div className="assignment-next-actions">
             <Button type="button" variant="secondary" onClick={() => setActiveTab("students")} icon={<UsersRound size={16} />}>
-              查看学生
+              看学生
             </Button>
             <Button type="button" variant="secondary" onClick={() => setActiveTab("problems")} icon={<BookOpenCheck size={16} />}>
-              查看题目
+              看题目
             </Button>
             <Button type="button" variant="ghost" onClick={() => setActiveTab("diagnosis")} icon={<Brain size={16} />}>
-              进入诊断
+              校正错因
             </Button>
           </div>
         </section>
@@ -289,14 +273,13 @@ export default function AssignmentDetailPage() {
         <section className="assignment-tab-panel assignment-students-tab" aria-label="学生">
           <div className="assignment-tab-head">
             <div>
-              <p className="eyebrow">学生</p>
-              <h2>按需关注优先查看</h2>
+              <h2>{attentionStudents.length ? "先看这些学生" : "学生提交"}</h2>
             </div>
             <StatusPill tone={attentionStudents.length ? "warning" : "success"}>{stateLabel}</StatusPill>
           </div>
           <div className="assignment-students-workflow">
             <div className="assignment-student-list">
-              {visibleStudents.map(student => (
+              {focusStudents.map(student => (
                 <button
                   type="button"
                   className={`assignment-student-card ${student.studentProfileId === selectedStudent?.studentProfileId ? "is-active" : ""}`}
@@ -306,10 +289,10 @@ export default function AssignmentDetailPage() {
                   <span>
                     <strong>{displayText(student.displayName, `学生 #${student.studentProfileId}`)}</strong>
                     <small>
-                      {student.attemptCount} 次尝试 · {studentPassRate(student)}% 通过
+                      {student.attemptCount} 次 · {studentPassRate(student)}%
                     </small>
                   </span>
-                  {student.needsAttention ? <StatusPill tone="warning">需关注</StatusPill> : <StatusPill tone="success">稳定</StatusPill>}
+                  {student.needsAttention ? <StatusPill tone="warning">关注</StatusPill> : <StatusPill tone="success">稳定</StatusPill>}
                 </button>
               ))}
             </div>
@@ -357,7 +340,7 @@ export default function AssignmentDetailPage() {
                     onClick={() => openCorrection(selectedStudent)}
                     disabled={!selectedStudent.latestSubmissionId}
                   >
-                    在诊断中校正错因
+                    校正错因
                   </Button>
                 </div>
               </article>
@@ -372,13 +355,12 @@ export default function AssignmentDetailPage() {
         <section className="assignment-tab-panel assignment-problems-tab" aria-label="题目">
           <div className="assignment-tab-head">
             <div>
-              <p className="eyebrow">题目</p>
-              <h2>看题目表现与讲评优先级</h2>
+              <h2>先讲问题最多的题</h2>
             </div>
             <StatusPill tone="neutral">{assignment.tasks.length} 题</StatusPill>
           </div>
           <div className="assignment-task-list">
-            {taskStats.map(item => (
+            {sortedTaskStats.map(item => (
               <article className="assignment-task-row" key={item.task.problemId}>
                 <div>
                   <DifficultyPill difficulty={item.task.difficulty} />
@@ -401,33 +383,9 @@ export default function AssignmentDetailPage() {
         <section className="assignment-tab-panel assignment-diagnosis-tab" aria-label="诊断">
           <div className="assignment-tab-head">
             <div>
-              <p className="eyebrow">诊断</p>
-              <h2>AI / Coach / 教师校正</h2>
+              <h2>证据和校正</h2>
             </div>
-            <StatusPill tone="info">二级诊断</StatusPill>
-          </div>
-
-          <div className="assignment-diagnosis-grid">
-            <article>
-              <span>课堂策略</span>
-              <strong>{overview.classTeachingStrategySignal?.title || overview.classTeachingStrategySignal?.statusLabel || reviewItem?.title || "按学生情况复盘"}</strong>
-              <p>
-                {overview.classTeachingStrategySignal?.summary ||
-                  overview.classTeachingStrategySignal?.teacherAction ||
-                  reviewItem?.guidingQuestion ||
-                  "优先查看需关注学生的最近提交。"}
-              </p>
-            </article>
-            <article>
-              <span>Coach 回答质量</span>
-              <strong>{overview.coachAnswerQualitySummary?.summary || "等待更多追问样本"}</strong>
-              <p>{overview.coachAnswerQualitySummary?.recommendedAction || "用于观察学生是否真正理解反馈。"}</p>
-            </article>
-            <article>
-              <span>Coach 后续成效</span>
-              <strong>{overview.coachFollowupImpactSummary?.summary || "等待后续提交样本"}</strong>
-              <p>{overview.coachFollowupImpactSummary?.recommendedAction || "用于判断反馈是否改善下一次提交。"}</p>
-            </article>
+            <StatusPill tone="info">可选</StatusPill>
           </div>
 
           {selectedStudent ? (

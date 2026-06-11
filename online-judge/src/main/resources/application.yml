@@ -8,6 +8,8 @@ server:
     mime-types: application/json,application/javascript,text/html,text/xml,text/plain,text/css,application/xml,image/svg+xml,text/javascript
 
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: nboj
   datasource:
@@ -34,9 +36,9 @@ executor:
 
 ai:
   enabled: ${AI_ENABLED:true}
-  base-url: ${AI_BASE_URL:https://api-inference.modelscope.cn/v1}
-  api-key: ${MODELSCOPE_API_KEY:}
-  model: ${AI_MODEL:deepseek-ai/DeepSeek-V4-Pro}
+  base-url: ${OJ_AI_BASE_URL:${AI_BASE_URL:https://api-inference.modelscope.cn/v1}}
+  api-key: ${OJ_MODELSCOPE_API_KEY:${MODELSCOPE_API_KEY:}}
+  model: ${OJ_AI_MODEL:${AI_MODEL:deepseek-ai/DeepSeek-V4-Pro}}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:25}
   external-runtime-enabled: ${AI_EXTERNAL_RUNTIME_ENABLED:true}
   external-runtime-mode: ${AI_EXTERNAL_RUNTIME_MODE:single-call}

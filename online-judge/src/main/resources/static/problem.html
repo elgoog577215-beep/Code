@@ -9,7 +9,7 @@
         const id = params.get("id");
         params.delete("id");
         const query = params.toString();
-        window.location.replace(id ? "/problem/" + id + (query ? "?" + query : "") + window.location.hash : "/student");
+        window.location.replace(id ? "/app/problem/" + id + (query ? "?" + query : "") + window.location.hash : "/app/student");
     </script>
 </head>
 <body>

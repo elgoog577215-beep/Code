@@ -126,10 +126,10 @@ export default function TeacherPage() {
     <div className="teacher-page teacher-workflow teacher-workflow-home">
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
-      <section className="teacher-workflow-header">
+      <section className="teacher-workflow-header teacher-workflow-header--simple">
         <div>
           <p className="eyebrow">教师端</p>
-          <h1>作业中心</h1>
+          <h1>作业</h1>
         </div>
         <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
           新建作业
@@ -157,10 +157,7 @@ export default function TeacherPage() {
 
       <section className="teacher-workflow-panel" aria-label="作业列表">
         <div className="teacher-workflow-panel__head">
-          <div>
-            <p className="eyebrow">管理作业</p>
-            <h2>课堂作业</h2>
-          </div>
+          <h2>课堂作业</h2>
           <div className="teacher-workflow-filters" aria-label="作业状态筛选">
             {STATUS_FILTERS.map(filter => (
               <button
@@ -178,13 +175,9 @@ export default function TeacherPage() {
         {loading && !filteredAssignments.length ? (
           <EmptyState title="正在读取作业" />
         ) : filteredAssignments.length ? (
-          <div className="teacher-assignment-table" role="table" aria-label="教师作业入口">
+          <div className="teacher-assignment-table teacher-assignment-table--simple" role="table" aria-label="教师作业入口">
             <div className="teacher-assignment-table__head" role="row">
               <span role="columnheader">作业</span>
-              <span role="columnheader">课堂</span>
-              <span role="columnheader">题数</span>
-              <span role="columnheader">参与</span>
-              <span role="columnheader">提交</span>
               <span role="columnheader">通过率</span>
               <span role="columnheader">需关注</span>
               <span role="columnheader">操作</span>
@@ -198,18 +191,17 @@ export default function TeacherPage() {
                   <div className="teacher-assignment-row__title" role="cell">
                     <StatusPill tone={statusTone(assignment.status)}>{assignmentStatusLabel(assignment.status)}</StatusPill>
                     <strong>{assignment.title}</strong>
+                    <small className="teacher-assignment-row__meta">
+                      {assignment.className} · {taskCount} 题
+                    </small>
                   </div>
-                  <span role="cell">{assignment.className}</span>
-                  <span role="cell">{taskCount} 题</span>
-                  <span role="cell">{overview?.participantCount ?? "-"}</span>
-                  <span role="cell">{overview?.attemptCount ?? "-"}</span>
                   <span role="cell">{overview ? `${passRate(overview)}%` : "-"}</span>
                   <span role="cell" className={count ? "is-warning" : ""}>
                     {overview ? count : "-"}
                   </span>
                   <div role="cell" className="teacher-assignment-row__action">
                     <ButtonLink to={`/app/teacher/assignment/${assignment.id}`} variant="primary" icon={<ArrowRight size={17} />}>
-                      进入作业
+                      查看
                     </ButtonLink>
                   </div>
                 </article>

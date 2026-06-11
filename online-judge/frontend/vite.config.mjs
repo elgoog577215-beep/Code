@@ -12,9 +12,25 @@ export default defineConfig({
       name: "app-root-redirect",
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
-          if (req.url === "/app") {
+          const requestUrl = req.url || "";
+          const [pathname, suffix = ""] = requestUrl.split(/(?=[?#])/);
+          const redirectMap = new Map([
+            ["/", "/app/"],
+            ["/app", "/app/"],
+            ["/student", "/app/student"],
+            ["/teacher", "/app/teacher"],
+            ["/teacher-management", "/app/teacher-management"],
+            ["/task-editor", "/app/task-editor"],
+            ["/class-overview", "/app/class-overview"],
+            ["/problems", "/app/student/assignments/public"]
+          ]);
+          let target = redirectMap.get(pathname);
+          target ||= pathname.startsWith("/teacher/assignment/") ? `/app${pathname}` : undefined;
+          target ||= pathname.startsWith("/problem/") ? `/app${pathname}` : undefined;
+
+          if (target) {
             res.statusCode = 302;
-            res.setHeader("Location", "/app/");
+            res.setHeader("Location", `${target}${suffix}`);
             res.end();
             return;
           }
