@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, CheckCircle2, Search, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
-import type { ClassGroup, ProblemCatalogItem } from "../../shared/api/types";
-import { displayText } from "../../shared/format";
+import type { ClassGroup, Difficulty, ProblemCatalogItem } from "../../shared/api/types";
+import { difficultyLabel, displayText } from "../../shared/format";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea, TextInput } from "../../shared/ui/Field";
-import { DifficultyPill } from "../../shared/ui/StatusPill";
+import { DifficultyPill, StatusPill } from "../../shared/ui/StatusPill";
 
 type Alert = { type: "success" | "error"; message: string };
 type AssignmentForm = {
@@ -18,6 +18,7 @@ type AssignmentForm = {
   status: string;
   problemIds: number[];
 };
+type DifficultyFilter = "ALL" | Difficulty;
 
 const EMPTY_ASSIGNMENT: AssignmentForm = {
   title: "",
@@ -27,6 +28,13 @@ const EMPTY_ASSIGNMENT: AssignmentForm = {
   status: "ACTIVE",
   problemIds: []
 };
+
+const DIFFICULTY_FILTERS: Array<{ value: DifficultyFilter; label: string }> = [
+  { value: "ALL", label: "全部难度" },
+  { value: "EASY", label: "基础" },
+  { value: "MEDIUM", label: "提高" },
+  { value: "HARD", label: "挑战" }
+];
 
 function cleanAssignmentTitle(value?: string | null, fallback = "课堂作业") {
   const title = displayText(value, fallback);
@@ -53,6 +61,8 @@ export default function AssignmentCreatePage() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
   const [form, setForm] = useState<AssignmentForm>(EMPTY_ASSIGNMENT);
+  const [query, setQuery] = useState("");
+  const [difficulty, setDifficulty] = useState<DifficultyFilter>("ALL");
   const [alert, setAlert] = useState<Alert | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,6 +70,23 @@ export default function AssignmentCreatePage() {
   useEffect(() => {
     void loadCreateContext();
   }, []);
+
+  const selectedProblems = useMemo(
+    () => form.problemIds.map(id => problems.find(problem => problem.id === id)).filter(Boolean) as ProblemCatalogItem[],
+    [form.problemIds, problems]
+  );
+
+  const filteredProblems = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return problems.filter(problem => {
+      const matchesDifficulty = difficulty === "ALL" || String(problem.difficulty).toUpperCase() === difficulty;
+      const matchesQuery =
+        !normalizedQuery ||
+        problem.title.toLowerCase().includes(normalizedQuery) ||
+        displayText(problem.summary, "").toLowerCase().includes(normalizedQuery);
+      return matchesDifficulty && matchesQuery;
+    });
+  }, [difficulty, problems, query]);
 
   async function loadCreateContext() {
     setLoading(true);
@@ -117,94 +144,180 @@ export default function AssignmentCreatePage() {
     }
   }
 
-  const selectedProblemCount = form.problemIds.length;
+  const selectedClass = classes.find(item => String(item.id) === form.classGroupId);
 
   return (
-    <div className="teacher-page teacher-assignment-center assignment-create-page">
+    <div className="teacher-page teacher-workflow assignment-builder-page">
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
-      <section className="teacher-home-command assignment-create-command">
+      <section className="teacher-workflow-header">
         <div>
-          <p className="eyebrow">教师端</p>
-          <h1>新建作业</h1>
-        </div>
-        <div className="teacher-home-actions">
           <ButtonLink to="/app/teacher" variant="ghost" icon={<ArrowLeft size={17} />}>
             返回作业中心
           </ButtonLink>
+          <p className="eyebrow">新建作业</p>
+          <h1>布置课堂练习</h1>
         </div>
+        <Button type="button" variant="primary" onClick={() => void saveAssignment()} disabled={saving} icon={<CheckCircle2 size={17} />}>
+          {saving ? "保存中" : "发布作业"}
+        </Button>
       </section>
 
       {loading ? (
         <EmptyState title="正在准备新建作业" />
       ) : (
-        <section className="assignment-section assignment-create-form" aria-label="新建作业表单">
-          <div className="assignment-section__head">
-            <div>
-              <p className="eyebrow">作业信息</p>
-              <h2>设置课堂作业</h2>
+        <div className="assignment-builder">
+          <section className="assignment-builder-section" aria-label="基本信息">
+            <div className="assignment-builder-section__head">
+              <span>1</span>
+              <div>
+                <p className="eyebrow">基本信息</p>
+                <h2>先确定这份作业给谁</h2>
+              </div>
             </div>
-            <span className="assignment-create-count">{selectedProblemCount} 题已选</span>
-          </div>
-
-          <div className="form-grid">
-            <Field label="作业名称">
-              <TextInput
-                value={form.title}
-                onChange={event => setForm({ ...form, title: event.target.value })}
-                placeholder="例如：循环边界练习"
+            <div className="form-grid">
+              <Field label="作业名称">
+                <TextInput
+                  value={form.title}
+                  onChange={event => setForm({ ...form, title: event.target.value })}
+                  placeholder="例如：循环边界练习"
+                />
+              </Field>
+              <Field label="选择班级">
+                <Select value={form.classGroupId} onChange={event => setForm({ ...form, classGroupId: event.target.value })}>
+                  <option value="">请选择班级</option>
+                  {classes.map(item => (
+                    <option value={item.id} key={item.id}>
+                      {displayText(item.name, `班级 #${item.id}`)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="发布状态">
+                <Select value={form.status} onChange={event => setForm({ ...form, status: event.target.value })}>
+                  <option value="ACTIVE">进行中</option>
+                  <option value="DRAFT">草稿</option>
+                  <option value="CLOSED">已结束</option>
+                </Select>
+              </Field>
+            </div>
+            <Field label="作业说明">
+              <TextArea
+                value={form.description}
+                onChange={event => setForm({ ...form, description: event.target.value })}
+                placeholder="写给学生看的简短说明。"
               />
             </Field>
-            <Field label="选择班级">
-              <Select value={form.classGroupId} onChange={event => setForm({ ...form, classGroupId: event.target.value })}>
-                <option value="">请选择班级</option>
-                {classes.map(item => (
-                  <option value={item.id} key={item.id}>
-                    {displayText(item.name, `班级 #${item.id}`)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="发布状态">
-              <Select value={form.status} onChange={event => setForm({ ...form, status: event.target.value })}>
-                <option value="ACTIVE">进行中</option>
-                <option value="DRAFT">草稿</option>
-                <option value="CLOSED">已结束</option>
-              </Select>
-            </Field>
-          </div>
+          </section>
 
-          <Field label="作业说明">
-            <TextArea
-              value={form.description}
-              onChange={event => setForm({ ...form, description: event.target.value })}
-              placeholder="写给学生看的简短说明。"
-            />
-          </Field>
-
-          <Field label="选择题目">
-            <div className="teacher-problem-pick-list teacher-problem-pick-list--simple assignment-create-problem-list">
-              {problems.map(problem => (
-                <label className="list-row" key={problem.id}>
-                  <div className="actions">
-                    <input type="checkbox" checked={form.problemIds.includes(problem.id)} onChange={() => toggleProblem(problem.id)} />
-                    <DifficultyPill difficulty={problem.difficulty} />
-                  </div>
-                  <h3>{problem.title}</h3>
-                </label>
-              ))}
+          <section className="assignment-builder-section" aria-label="选择题目">
+            <div className="assignment-builder-section__head">
+              <span>2</span>
+              <div>
+                <p className="eyebrow">选择题目</p>
+                <h2>从题库挑选练习内容</h2>
+              </div>
             </div>
-          </Field>
+            <div className="assignment-builder-picker">
+              <div className="assignment-problem-bank">
+                <div className="assignment-problem-bank__tools">
+                  <label className="assignment-search">
+                    <Search size={16} />
+                    <input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索题目" />
+                  </label>
+                  <Select value={difficulty} onChange={event => setDifficulty(event.target.value as DifficultyFilter)} aria-label="按难度筛选">
+                    {DIFFICULTY_FILTERS.map(filter => (
+                      <option value={filter.value} key={filter.value}>
+                        {filter.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="assignment-problem-list">
+                  {filteredProblems.length ? (
+                    filteredProblems.map(problem => {
+                      const checked = form.problemIds.includes(problem.id);
+                      return (
+                        <label className={`assignment-problem-row ${checked ? "is-selected" : ""}`} key={problem.id}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleProblem(problem.id)} />
+                          <span className="assignment-problem-row__info">
+                            <span>
+                              <strong>{problem.title}</strong>
+                              <small>{displayText(problem.summary, "暂无题目说明")}</small>
+                            </span>
+                            <DifficultyPill difficulty={problem.difficulty} />
+                          </span>
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <EmptyState title="没有匹配的题目" description="换一个关键词或难度筛选。" />
+                  )}
+                </div>
+              </div>
 
-          <div className="actions assignment-create-actions">
-            <Button type="button" variant="primary" onClick={() => void saveAssignment()} disabled={saving} icon={<CheckCircle2 size={17} />}>
-              {saving ? "保存中" : "发布作业"}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setForm(EMPTY_ASSIGNMENT)} disabled={saving}>
-              清空
-            </Button>
-          </div>
-        </section>
+              <aside className="assignment-selected-panel" aria-label="已选题目">
+                <div>
+                  <p className="eyebrow">已选题目</p>
+                  <strong>{selectedProblems.length} 题</strong>
+                </div>
+                {selectedProblems.length ? (
+                  <div className="assignment-selected-list">
+                    {selectedProblems.map(problem => (
+                      <button type="button" key={problem.id} onClick={() => toggleProblem(problem.id)}>
+                        <span>
+                          <strong>{problem.title}</strong>
+                          <small>{difficultyLabel(problem.difficulty)}</small>
+                        </span>
+                        <X size={15} />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p>从左侧题库勾选题目，老师发布前可以在这里复查。</p>
+                )}
+              </aside>
+            </div>
+          </section>
+
+          <section className="assignment-builder-section" aria-label="确认发布">
+            <div className="assignment-builder-section__head">
+              <span>3</span>
+              <div>
+                <p className="eyebrow">确认发布</p>
+                <h2>发布前快速复查</h2>
+              </div>
+            </div>
+            <div className="assignment-publish-review">
+              <div>
+                <span>作业名称</span>
+                <strong>{form.title.trim() || "未填写"}</strong>
+              </div>
+              <div>
+                <span>班级</span>
+                <strong>{displayText(selectedClass?.name, "未选择")}</strong>
+              </div>
+              <div>
+                <span>题目</span>
+                <strong>{selectedProblems.length} 题</strong>
+              </div>
+              <div>
+                <span>状态</span>
+                <StatusPill tone={form.status === "ACTIVE" ? "success" : form.status === "DRAFT" ? "neutral" : "info"}>
+                  {form.status === "ACTIVE" ? "进行中" : form.status === "DRAFT" ? "草稿" : "已结束"}
+                </StatusPill>
+              </div>
+            </div>
+            <div className="actions assignment-builder-actions">
+              <Button type="button" variant="primary" onClick={() => void saveAssignment()} disabled={saving} icon={<CheckCircle2 size={17} />}>
+                {saving ? "保存中" : "发布作业"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setForm(EMPTY_ASSIGNMENT)} disabled={saving}>
+                清空
+              </Button>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );

@@ -763,9 +763,10 @@ const scenarios = [
       const teacherText = ((await page.locator(".teacher-page").first().textContent()) || "").replace(/\s+/g, "");
       record("teacher global nav is classroom-first", navLabels.join("|") === "课堂|管理|题目", navLabels.join("|"));
       record("teacher nav is active", activeNav.includes("课堂"), activeNav.join("|"));
-      record("teacher home is assignment-centered", teacherText.includes("作业中心") && teacherText.includes("进入作业"), teacherText.slice(0, 800));
+      record("teacher home is assignment workflow", teacherText.includes("作业中心") && teacherText.includes("管理作业") && teacherText.includes("进入作业"), teacherText.slice(0, 800));
       record("teacher home hides invite code", !teacherText.includes("邀请码") && !teacherText.includes("WZAI01"), teacherText.slice(0, 800));
-      record("teacher home shows assignment row essentials", teacherText.includes("高一1班") && teacherText.includes("2题") && teacherText.includes("通过率"), teacherText.slice(0, 800));
+      record("teacher home shows assignment row essentials", teacherText.includes("高一1班") && teacherText.includes("2题") && teacherText.includes("通过率") && teacherText.includes("需关注"), teacherText.slice(0, 800));
+      record("teacher home keeps diagnostics out of main flow", !teacherText.includes("Coach") && !teacherText.includes("教师校正") && !teacherText.includes("错因证据"), teacherText.slice(0, 800));
       record("teacher home removes duplicate nav actions", !teacherText.includes("管理班级与题目") && !teacherText.includes("总体统计") && !teacherText.includes("刷新") && !teacherText.includes("编辑题目"), teacherText.slice(0, 800));
       record("teacher assignment rows keep one primary action", !teacherText.includes("编辑作业") && !teacherText.includes("编辑进入作业"), teacherText.slice(0, 800));
       record("teacher create action goes to dedicated page", await page.locator('a[href="/app/teacher/assignment/new"]').first().isVisible(), teacherText.slice(0, 800));
@@ -775,17 +776,18 @@ const scenarios = [
         teacherText.slice(0, 800)
       );
       if (viewport.name === "desktop") {
-        await checkElementMaxWidth(page, ".teacher-assignment-center", 1290, "teacher desktop workbench width");
-        await checkSameRow(page, ".teacher-assignment-card__main", ".teacher-assignment-card__stats", "teacher desktop assignment row keeps stats beside title");
+        await checkElementMaxWidth(page, ".teacher-workflow", 1370, "teacher desktop workbench width");
+        await checkSameRow(page, ".teacher-workflow-panel__head", ".teacher-workflow-filters", "teacher desktop filters stay beside heading");
       }
       if (viewport.name === "mobile") {
-        await checkMinControlHeight(page, ".teacher-home-actions .ui-button", 44, "teacher mobile primary action");
+        await checkMinControlHeight(page, ".teacher-workflow-header .ui-button", 44, "teacher mobile primary action");
       }
     },
     selectors: [
-      [".teacher-home-command", "teacher assignment center command"],
-      [".teacher-assignment-list", "teacher assignment list"],
-      [".teacher-assignment-card", "teacher assignment card"]
+      [".teacher-workflow-header", "teacher assignment workflow header"],
+      [".teacher-workflow-summary", "teacher assignment workflow summary"],
+      [".teacher-workflow-panel", "teacher assignment workflow panel"],
+      [".teacher-assignment-table", "teacher assignment table"]
     ]
   },
   {
@@ -796,30 +798,24 @@ const scenarios = [
       const assignmentText = ((await page.locator(".assignment-detail-page").first().textContent()) || "").replace(/\s+/g, "");
       record("assignment detail belongs to classroom nav", activeNav.includes("课堂"), activeNav.join("|"));
       record("assignment detail hides invite code", !assignmentText.includes("邀请码") && !assignmentText.includes("WZAI01"), assignmentText.slice(0, 900));
-      record("assignment detail shows core teacher sections", assignmentText.includes("整体统计") && assignmentText.includes("学生情况") && assignmentText.includes("作业题目"), assignmentText.slice(0, 900));
-      record("assignment detail keeps student report feedback", assignmentText.includes("最近反馈") && assignmentText.includes("校正错因"), assignmentText.slice(0, 900));
-      record("assignment detail keeps advanced analysis folded", assignmentText.includes("高级分析") && assignmentText.includes("AI/Coach/教师校正"), assignmentText.slice(0, 900));
+      record("assignment detail exposes workflow tabs", assignmentText.includes("概览") && assignmentText.includes("学生") && assignmentText.includes("题目") && assignmentText.includes("诊断"), assignmentText.slice(0, 900));
+      record("assignment detail defaults to overview", assignmentText.includes("完成情况") && assignmentText.includes("优先看谁") && assignmentText.includes("优先讲哪题"), assignmentText.slice(0, 900));
+      record("assignment detail keeps diagnostics out of overview", !assignmentText.includes("AI/Coach/教师校正") && !assignmentText.includes("教师校正已保存"), assignmentText.slice(0, 900));
+      await page.locator(".assignment-detail-tabs").getByRole("button", { name: "诊断", exact: true }).click();
+      const diagnosisText = ((await page.locator(".assignment-diagnosis-tab").first().textContent()) || "").replace(/\s+/g, "");
+      record("assignment diagnosis tab owns AI and correction", diagnosisText.includes("AI/Coach/教师校正") && diagnosisText.includes("校正错因"), diagnosisText.slice(0, 900));
       if (viewport.name === "desktop") {
-        await checkSameRow(page, ".assignment-student-workspace", ".assignment-task-panel", "assignment desktop student and task workbench columns");
-        await checkSameRow(page, ".assignment-student-list", ".assignment-student-report", "assignment desktop student list and report columns");
-      }
-      if (viewport.name === "tablet") {
-        await checkSameRow(page, ".assignment-student-list", ".assignment-student-report", "assignment tablet keeps student report beside list");
+        await checkSameRow(page, ".assignment-detail-header > div:first-child", ".assignment-detail-score", "assignment desktop summary score beside title");
       }
       if (viewport.name === "mobile") {
-        await checkStacked(page, ".assignment-overall-panel", ".assignment-student-workspace", "assignment mobile overall before students");
-        await checkStacked(page, ".assignment-student-workspace", ".assignment-task-panel", "assignment mobile students before tasks");
+        await checkMinControlHeight(page, ".assignment-detail-tabs button", 42, "assignment mobile tabs stay tappable");
       }
     },
     selectors: [
-      [".assignment-detail-command", "assignment detail command"],
-      [".assignment-kpi-strip", "assignment kpi strip"],
-      [".assignment-overall-panel", "assignment overall statistics"],
-      [".assignment-priority-strip", "assignment priority strip"],
-      [".assignment-student-workspace", "assignment student workspace"],
-      [".assignment-student-report", "assignment student report"],
-      [".assignment-task-panel", "assignment task panel"],
-      [".assignment-advanced-analysis", "assignment advanced analysis"]
+      [".assignment-detail-header", "assignment detail header"],
+      [".assignment-detail-tabs", "assignment detail tabs"],
+      [".assignment-overview-tab", "assignment overview tab"],
+      [".assignment-overview-grid", "assignment overview decision cards"]
     ]
   },
   {
@@ -827,16 +823,19 @@ const scenarios = [
     path: "/app/teacher/assignment/new",
     afterChecks: async page => {
       const activeNav = await page.locator(".top-nav__link.is-active span").allTextContents();
-      const createText = ((await page.locator(".assignment-create-page").first().textContent()) || "").replace(/\s+/g, "");
+      const createText = ((await page.locator(".assignment-builder-page").first().textContent()) || "").replace(/\s+/g, "");
       record("assignment create belongs to classroom nav", activeNav.includes("课堂"), activeNav.join("|"));
-      record("assignment create keeps only creation fields", createText.includes("新建作业") && createText.includes("作业名称") && createText.includes("选择班级") && createText.includes("选择题目"), createText.slice(0, 900));
+      record("assignment create uses three-step workflow", createText.includes("基本信息") && createText.includes("选择题目") && createText.includes("确认发布"), createText.slice(0, 900));
+      const hasProblemSearch = await page.getByPlaceholder("搜索题目").count() === 1;
+      record("assignment create has problem bank controls", hasProblemSearch && createText.includes("全部难度") && createText.includes("已选题目"), createText.slice(0, 900));
       record("assignment create hides duplicate management links", !createText.includes("管理班级与题目") && !createText.includes("总体统计") && !createText.includes("编辑题目"), createText.slice(0, 900));
     },
     selectors: [
-      [".assignment-create-page", "assignment create page"],
-      [".assignment-create-command", "assignment create command"],
-      [".assignment-create-form", "assignment create form"],
-      [".assignment-create-problem-list", "assignment create problem list"]
+      [".assignment-builder-page", "assignment create page"],
+      [".assignment-builder", "assignment builder workflow"],
+      [".assignment-problem-bank", "assignment problem bank"],
+      [".assignment-selected-panel", "assignment selected summary"],
+      [".assignment-publish-review", "assignment publish review"]
     ]
   },
   {
