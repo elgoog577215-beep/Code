@@ -214,12 +214,9 @@ export default function AssignmentDetailPage() {
             <span>{displayText(assignment.className, "未绑定班级")}</span>
             <span>{assignment.tasks?.length || 0} 题</span>
             <span>{assignmentStatusLabel(assignment.status)}</span>
+            <span>{stateLabel}</span>
+            <span>{passRate}% 通过</span>
           </div>
-        </div>
-        <div className="assignment-detail-score">
-          <StatusPill tone={attentionStudents.length ? "warning" : "success"}>{stateLabel}</StatusPill>
-          <strong>{passRate}%</strong>
-          <span>提交通过率</span>
         </div>
       </section>
 
@@ -272,10 +269,7 @@ export default function AssignmentDetailPage() {
       {activeTab === "students" && (
         <section className="assignment-tab-panel assignment-students-tab" aria-label="学生">
           <div className="assignment-tab-head">
-            <div>
-              <h2>{attentionStudents.length ? "先看这些学生" : "学生提交"}</h2>
-            </div>
-            <StatusPill tone={attentionStudents.length ? "warning" : "success"}>{stateLabel}</StatusPill>
+            <h2>{attentionStudents.length ? "先看这些学生" : "学生提交"}</h2>
           </div>
           <div className="assignment-students-workflow">
             <div className="assignment-student-list">
@@ -354,10 +348,7 @@ export default function AssignmentDetailPage() {
       {activeTab === "problems" && (
         <section className="assignment-tab-panel assignment-problems-tab" aria-label="题目">
           <div className="assignment-tab-head">
-            <div>
-              <h2>先讲问题最多的题</h2>
-            </div>
-            <StatusPill tone="neutral">{assignment.tasks.length} 题</StatusPill>
+            <h2>先讲问题最多的题</h2>
           </div>
           <div className="assignment-task-list">
             {sortedTaskStats.map(item => (
@@ -382,10 +373,7 @@ export default function AssignmentDetailPage() {
       {activeTab === "diagnosis" && (
         <section className="assignment-tab-panel assignment-diagnosis-tab" aria-label="诊断">
           <div className="assignment-tab-head">
-            <div>
-              <h2>证据和校正</h2>
-            </div>
-            <StatusPill tone="info">可选</StatusPill>
+            <h2>证据和校正</h2>
           </div>
 
           {selectedStudent ? (

@@ -9890,11 +9890,11 @@ tr:last-child td {
 
 /* Teacher assignment workflow rebuild */
 .teacher-workflow {
-  width: min(100%, 1120px);
+  width: min(100%, 960px);
   margin-inline: auto;
   display: grid;
-  gap: 0.72rem;
-  padding-block: clamp(0.35rem, 2.2vh, 1.4rem);
+  gap: 0.62rem;
+  padding-block: clamp(0.25rem, 1.6vh, 1rem);
 }
 
 .teacher-workflow-header {
@@ -9902,7 +9902,7 @@ tr:last-child td {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 1rem;
-  padding: 0.82rem 0.92rem;
+  padding: 0.7rem 0.78rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -9920,34 +9920,10 @@ tr:last-child td {
 }
 
 .teacher-workflow-header .ui-button {
-  min-height: 44px;
+  min-height: 40px;
   box-shadow: none;
 }
 
-.teacher-workflow-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.teacher-workflow-summary > div {
-  min-height: 64px;
-  display: grid;
-  align-content: center;
-  gap: 0.14rem;
-  padding: 0.62rem 0.78rem;
-  border-right: 1px solid var(--line);
-}
-
-.teacher-workflow-summary > div:last-child {
-  border-right: 0;
-}
-
-.teacher-workflow-summary span,
-.teacher-assignment-table__head span,
 .assignment-detail-score span,
 .assignment-detail-meta span,
 .assignment-overview-grid span,
@@ -9959,8 +9935,6 @@ tr:last-child td {
   color: var(--ink-soft);
 }
 
-.teacher-workflow-summary span,
-.teacher-assignment-table__head span,
 .assignment-detail-score span,
 .assignment-overview-grid span,
 .assignment-diagnosis-grid span,
@@ -9969,17 +9943,12 @@ tr:last-child td {
   font-weight: 850;
 }
 
-.teacher-workflow-summary strong {
-  font-size: clamp(1.18rem, 2.1vw, 1.55rem);
-  line-height: 1;
-}
-
 .teacher-workflow-panel,
 .assignment-builder-section,
 .assignment-tab-panel {
   display: grid;
-  gap: 0.72rem;
-  padding: clamp(0.78rem, 1.5vw, 0.95rem);
+  gap: 0.58rem;
+  padding: clamp(0.68rem, 1.25vw, 0.82rem);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -9990,8 +9959,8 @@ tr:last-child td {
 .assignment-tab-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .teacher-workflow-panel__head h2,
@@ -10002,14 +9971,6 @@ tr:last-child td {
   line-height: 1.18;
 }
 
-.teacher-workflow-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  justify-content: flex-end;
-}
-
-.teacher-workflow-filters button,
 .assignment-detail-tabs button {
   min-height: 36px;
   display: inline-flex;
@@ -10025,28 +9986,21 @@ tr:last-child td {
   cursor: pointer;
 }
 
-.teacher-workflow-filters button.is-active,
 .assignment-detail-tabs button.is-active {
   border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
   color: var(--brand-strong);
   background: color-mix(in srgb, var(--brand-soft) 48%, var(--surface));
 }
 
-.teacher-assignment-table {
+.teacher-assignment-list {
   display: grid;
   gap: 0.34rem;
 }
 
-.teacher-assignment-table__head,
 .teacher-assignment-row {
   display: grid;
-  grid-template-columns: minmax(210px, 1.3fr) minmax(120px, 0.74fr) 76px 76px 76px 86px 86px auto;
   align-items: center;
   gap: 0.65rem;
-}
-
-.teacher-assignment-table__head {
-  padding: 0 0.78rem;
 }
 
 .teacher-assignment-row {
@@ -10057,9 +10011,10 @@ tr:last-child td {
   background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
 }
 
-.teacher-assignment-table--simple .teacher-assignment-table__head,
-.teacher-assignment-table--simple .teacher-assignment-row {
-  grid-template-columns: minmax(260px, 1fr) 92px 92px auto;
+.teacher-assignment-row--simple {
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 62px;
+  gap: 0.58rem;
 }
 
 .teacher-assignment-row > span,
@@ -10095,7 +10050,7 @@ tr:last-child td {
 }
 
 .teacher-assignment-row__action .ui-button {
-  min-height: 38px;
+  min-height: 36px;
   white-space: nowrap;
   box-shadow: none;
 }
@@ -10293,15 +10248,15 @@ tr:last-child td {
 .assignment-detail-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.36rem;
-  margin-top: 0.55rem;
+  gap: 0.3rem;
+  margin-top: 0.44rem;
 }
 
 .assignment-detail-meta span {
   display: inline-flex;
-  min-height: 28px;
+  min-height: 26px;
   align-items: center;
-  padding: 0.18rem 0.52rem;
+  padding: 0.15rem 0.46rem;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
@@ -10325,15 +10280,15 @@ tr:last-child td {
 .assignment-detail-tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.32rem;
-  padding: 0.32rem;
+  gap: 0.24rem;
+  padding: 0.26rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
 .assignment-detail-tabs button {
-  min-height: 42px;
+  min-height: 38px;
 }
 
 .assignment-overview-grid,
@@ -10350,7 +10305,7 @@ tr:last-child td {
   min-width: 0;
   display: grid;
   gap: 0.22rem;
-  padding: 0.68rem 0.76rem;
+  padding: 0.62rem 0.68rem;
   border-right: 1px solid var(--line);
   background: color-mix(in srgb, var(--surface-strong) 58%, transparent);
 }
@@ -10369,7 +10324,7 @@ tr:last-child td {
 .assignment-next-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.46rem;
+  gap: 0.38rem;
 }
 
 .assignment-students-workflow {
@@ -10422,7 +10377,6 @@ tr:last-child td {
 
 :root[data-theme="dark"] .teacher-workflow-header,
 :root[data-theme="dark"] .teacher-workflow-panel,
-:root[data-theme="dark"] .teacher-workflow-summary,
 :root[data-theme="dark"] .teacher-assignment-row,
 :root[data-theme="dark"] .assignment-builder-section,
 :root[data-theme="dark"] .assignment-tab-panel,
@@ -10440,24 +10394,16 @@ tr:last-child td {
 }
 
 @media (max-width: 1180px) {
-  .teacher-assignment-table__head {
-    display: none;
-  }
-
   .teacher-assignment-row {
     grid-template-columns: minmax(0, 1fr) repeat(4, minmax(72px, auto)) auto;
   }
 
-  .teacher-assignment-table--simple .teacher-assignment-row {
-    grid-template-columns: minmax(0, 1fr) minmax(64px, auto) minmax(64px, auto) auto;
+  .teacher-assignment-row--simple {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .teacher-assignment-row > span:nth-of-type(1) {
     display: none;
-  }
-
-  .teacher-assignment-table--simple .teacher-assignment-row > span:nth-of-type(1) {
-    display: inline;
   }
 
   .assignment-builder-picker,
@@ -10495,18 +10441,15 @@ tr:last-child td {
     justify-content: center;
   }
 
-  .teacher-workflow-summary,
   .assignment-publish-review,
   .assignment-detail-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .teacher-workflow-summary > div:nth-child(2n),
   .assignment-publish-review > div:nth-child(2n) {
     border-right: 0;
   }
 
-  .teacher-workflow-summary > div:nth-last-child(-n + 2),
   .assignment-publish-review > div:nth-last-child(-n + 2) {
     border-top: 1px solid var(--line);
   }
@@ -10517,6 +10460,10 @@ tr:last-child td {
   .assignment-overview-grid,
   .assignment-diagnosis-grid,
   .assignment-students-workflow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-assignment-row--simple {
     grid-template-columns: minmax(0, 1fr);
   }
 

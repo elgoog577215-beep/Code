@@ -1,21 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Plus } from "lucide-react";
 import { ApiError, api } from "../../shared/api/client";
-import type { Assignment, AssignmentOverview, AssignmentStatus } from "../../shared/api/types";
+import type { Assignment, AssignmentOverview } from "../../shared/api/types";
 import { assignmentStatusLabel, displayText, looksCorruptText } from "../../shared/format";
 import { ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
-import { StatusPill } from "../../shared/ui/StatusPill";
 
 type Alert = { type: "success" | "error"; message: string };
-type StatusFilter = "ALL" | AssignmentStatus;
-
-const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
-  { value: "ALL", label: "全部" },
-  { value: "ACTIVE", label: "进行中" },
-  { value: "DRAFT", label: "草稿" },
-  { value: "CLOSED", label: "已结束" }
-];
 
 function cleanAssignmentTitle(value?: string | null, fallback = "课堂作业") {
   const title = displayText(value, fallback);
@@ -45,20 +36,9 @@ function attentionCount(overview?: AssignmentOverview | null) {
   return overview?.students.filter(student => student.needsAttention).length || 0;
 }
 
-function statusTone(status?: string | null) {
-  if (status === "ACTIVE") {
-    return "success";
-  }
-  if (status === "DRAFT") {
-    return "neutral";
-  }
-  return "info";
-}
-
 export default function TeacherPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [overviewByAssignment, setOverviewByAssignment] = useState<Record<number, AssignmentOverview | null>>({});
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [alert, setAlert] = useState<Alert | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -77,23 +57,6 @@ export default function TeacherPage() {
         })),
     [assignments]
   );
-
-  const filteredAssignments = useMemo(
-    () => cleanAssignments.filter(item => statusFilter === "ALL" || item.status === statusFilter),
-    [cleanAssignments, statusFilter]
-  );
-
-  const summary = useMemo(() => {
-    const overviews = Object.values(overviewByAssignment).filter(Boolean) as AssignmentOverview[];
-    const attemptCount = overviews.reduce((sum, overview) => sum + overview.attemptCount, 0);
-    const passedCount = overviews.reduce((sum, overview) => sum + overview.passedAttemptCount, 0);
-    return {
-      total: cleanAssignments.length,
-      active: cleanAssignments.filter(item => item.status === "ACTIVE").length,
-      attention: overviews.reduce((sum, overview) => sum + attentionCount(overview), 0),
-      passRate: attemptCount ? Math.round((passedCount / attemptCount) * 100) : 0
-    };
-  }, [cleanAssignments, overviewByAssignment]);
 
   async function loadTeacherHome() {
     setLoading(true);
@@ -136,70 +99,25 @@ export default function TeacherPage() {
         </ButtonLink>
       </section>
 
-      <section className="teacher-workflow-summary" aria-label="作业概览">
-        <div>
-          <span>全部作业</span>
-          <strong>{summary.total}</strong>
-        </div>
-        <div>
-          <span>进行中</span>
-          <strong>{summary.active}</strong>
-        </div>
-        <div>
-          <span>平均通过率</span>
-          <strong>{summary.passRate}%</strong>
-        </div>
-        <div>
-          <span>需关注</span>
-          <strong>{summary.attention}</strong>
-        </div>
-      </section>
-
       <section className="teacher-workflow-panel" aria-label="作业列表">
-        <div className="teacher-workflow-panel__head">
-          <h2>课堂作业</h2>
-          <div className="teacher-workflow-filters" aria-label="作业状态筛选">
-            {STATUS_FILTERS.map(filter => (
-              <button
-                type="button"
-                className={statusFilter === filter.value ? "is-active" : ""}
-                key={filter.value}
-                onClick={() => setStatusFilter(filter.value)}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {loading && !filteredAssignments.length ? (
+        {loading && !cleanAssignments.length ? (
           <EmptyState title="正在读取作业" />
-        ) : filteredAssignments.length ? (
-          <div className="teacher-assignment-table teacher-assignment-table--simple" role="table" aria-label="教师作业入口">
-            <div className="teacher-assignment-table__head" role="row">
-              <span role="columnheader">作业</span>
-              <span role="columnheader">通过率</span>
-              <span role="columnheader">需关注</span>
-              <span role="columnheader">操作</span>
-            </div>
-            {filteredAssignments.map(assignment => {
+        ) : cleanAssignments.length ? (
+          <div className="teacher-assignment-list" aria-label="教师作业入口">
+            {cleanAssignments.map(assignment => {
               const overview = overviewByAssignment[assignment.id];
               const taskCount = assignment.tasks?.length || 0;
               const count = attentionCount(overview);
               return (
-                <article className="teacher-assignment-row" role="row" key={assignment.id}>
-                  <div className="teacher-assignment-row__title" role="cell">
-                    <StatusPill tone={statusTone(assignment.status)}>{assignmentStatusLabel(assignment.status)}</StatusPill>
+                <article className="teacher-assignment-row teacher-assignment-row--simple" key={assignment.id}>
+                  <div className="teacher-assignment-row__title">
                     <strong>{assignment.title}</strong>
                     <small className="teacher-assignment-row__meta">
-                      {assignment.className} · {taskCount} 题
+                      {assignment.className} · {taskCount} 题 · {assignmentStatusLabel(assignment.status)} · {overview ? `${passRate(overview)}% 通过` : "暂无提交"} ·{" "}
+                      {overview ? `${count} 关注` : "0 关注"}
                     </small>
                   </div>
-                  <span role="cell">{overview ? `${passRate(overview)}%` : "-"}</span>
-                  <span role="cell" className={count ? "is-warning" : ""}>
-                    {overview ? count : "-"}
-                  </span>
-                  <div role="cell" className="teacher-assignment-row__action">
+                  <div className="teacher-assignment-row__action">
                     <ButtonLink to={`/app/teacher/assignment/${assignment.id}`} variant="primary" icon={<ArrowRight size={17} />}>
                       查看
                     </ButtonLink>
@@ -209,7 +127,7 @@ export default function TeacherPage() {
             })}
           </div>
         ) : (
-          <EmptyState title="没有符合条件的作业" description="切换筛选条件，或新建一份课堂作业。" />
+          <EmptyState title="暂无作业" />
         )}
       </section>
     </div>
