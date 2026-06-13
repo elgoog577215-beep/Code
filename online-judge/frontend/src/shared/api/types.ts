@@ -40,6 +40,7 @@ export interface StudentProfile {
   className?: string | null;
   displayName: string;
   studentNo?: string | null;
+  studentAccessToken?: string | null;
 }
 
 export interface StudentTrajectoryIssue {
@@ -538,7 +539,7 @@ export interface StudentAiFeedbackItem {
 export interface StudentAiFeedback {
   submissionId?: number | null;
   status: StudentAiFeedbackStatus;
-  source?: "MODEL" | string;
+  source?: "MODEL" | "RULE_FALLBACK" | string;
   generatedAt?: string | null;
   latencyMs?: number | null;
   repairItems?: StudentAiFeedbackItem[];
@@ -1533,6 +1534,38 @@ export interface ExecutorStatus {
   projectOwner?: string;
   ownershipSignature?: string;
   ownershipClaim?: string;
+}
+
+export interface AuthSession {
+  authenticated: boolean;
+}
+
+export type ReadinessStatus = "READY" | "DEGRADED" | "BLOCKED" | string;
+export type ReadinessCheckStatus = "PASS" | "WARN" | "FAIL" | string;
+
+export interface ReadinessCheck {
+  id: string;
+  label: string;
+  status: ReadinessCheckStatus;
+  blocking: boolean;
+  message: string;
+  action: string;
+}
+
+export interface Readiness {
+  status: ReadinessStatus;
+  updatedAt?: string | null;
+  checks: ReadinessCheck[];
+}
+
+export interface AiSmoke {
+  status: string;
+  provider?: string | null;
+  model?: string | null;
+  failureReason?: string | null;
+  message?: string | null;
+  latencyMs?: number | null;
+  checkedAt?: string | null;
 }
 
 export interface ImportPreview {

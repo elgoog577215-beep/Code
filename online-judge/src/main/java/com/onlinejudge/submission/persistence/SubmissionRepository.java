@@ -36,6 +36,39 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
             """)
     List<SubmissionHistoryProjection> findHistorySummariesByProblemId(@Param("problemId") Long problemId);
 
+    @Query("""
+            select s.id as id,
+                   s.problemId as problemId,
+                   s.languageId as languageId,
+                   s.languageName as languageName,
+                   s.verdict as verdict,
+                   s.executionTime as executionTime,
+                   s.memoryUsed as memoryUsed,
+                   s.submittedAt as submittedAt
+            from Submission s
+            where s.problemId = :problemId
+              and s.studentProfileId = :studentProfileId
+            order by s.submittedAt desc
+            """)
+    List<SubmissionHistoryProjection> findHistorySummariesByProblemIdAndStudentProfileId(@Param("problemId") Long problemId,
+                                                                                         @Param("studentProfileId") Long studentProfileId);
+
+    @Query("""
+            select s.id as id,
+                   s.problemId as problemId,
+                   s.languageId as languageId,
+                   s.languageName as languageName,
+                   s.verdict as verdict,
+                   s.executionTime as executionTime,
+                   s.memoryUsed as memoryUsed,
+                   s.submittedAt as submittedAt
+            from Submission s
+            where s.problemId = :problemId
+              and s.studentProfileId is null
+            order by s.submittedAt desc
+            """)
+    List<SubmissionHistoryProjection> findAnonymousHistorySummariesByProblemId(@Param("problemId") Long problemId);
+
     @Query(value = """
             select
                 problem_id as problemId,

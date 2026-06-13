@@ -15,6 +15,8 @@ import com.onlinejudge.classroom.application.StudentTrajectoryService;
 import com.onlinejudge.classroom.dto.*;
 import com.onlinejudge.classroom.importing.ClassroomImportService;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
+import com.onlinejudge.shared.security.StudentAccessTokenService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -40,9 +42,15 @@ public class ClassroomController {
     private final StudentRecommendationService studentRecommendationService;
     private final StudentRecommendationEventService studentRecommendationEventService;
     private final DiagnosisTaxonomy diagnosisTaxonomy;
+    private final StudentAccessTokenService studentAccessTokenService;
 
     @GetMapping("/api/teacher/classes")
     public ResponseEntity<List<ClassGroupResponse>> getClasses() {
+        return ResponseEntity.ok(classroomService.getClassGroups());
+    }
+
+    @GetMapping("/api/student/classes")
+    public ResponseEntity<List<ClassGroupResponse>> getStudentClasses() {
         return ResponseEntity.ok(classroomService.getClassGroups());
     }
 
@@ -194,33 +202,43 @@ public class ClassroomController {
     }
 
     @GetMapping("/api/student/profile/{studentProfileId}/assignments")
-    public ResponseEntity<List<AssignmentResponse>> getStudentAssignments(@PathVariable Long studentProfileId) {
+    public ResponseEntity<List<AssignmentResponse>> getStudentAssignments(@PathVariable Long studentProfileId,
+                                                                          HttpServletRequest request) {
+        studentAccessTokenService.requireStudent(request, studentProfileId);
         return ResponseEntity.ok(classroomService.getStudentAssignments(studentProfileId));
     }
 
     @GetMapping("/api/student/assignments/{assignmentId}/profile/{studentProfileId}/trajectory")
     public ResponseEntity<StudentTrajectoryResponse> getStudentTrajectory(@PathVariable Long assignmentId,
-                                                                          @PathVariable Long studentProfileId) {
+                                                                          @PathVariable Long studentProfileId,
+                                                                          HttpServletRequest request) {
+        studentAccessTokenService.requireStudent(request, studentProfileId);
         return ResponseEntity.ok(studentTrajectoryService.buildTrajectory(assignmentId, studentProfileId));
     }
 
     @GetMapping("/api/student/profile/{studentProfileId}/ability-profile")
-    public ResponseEntity<StudentAbilityProfileResponse> getStudentAbilityProfile(@PathVariable Long studentProfileId) {
+    public ResponseEntity<StudentAbilityProfileResponse> getStudentAbilityProfile(@PathVariable Long studentProfileId,
+                                                                                  HttpServletRequest request) {
+        studentAccessTokenService.requireStudent(request, studentProfileId);
         return ResponseEntity.ok(studentAbilityProfileService.buildProfile(studentProfileId));
     }
 
     @GetMapping("/api/student/profile/{studentProfileId}/recommendations")
-    public ResponseEntity<StudentRecommendationResponse> getStudentRecommendations(@PathVariable Long studentProfileId) {
+    public ResponseEntity<StudentRecommendationResponse> getStudentRecommendations(@PathVariable Long studentProfileId,
+                                                                                  HttpServletRequest request) {
+        studentAccessTokenService.requireStudent(request, studentProfileId);
         return ResponseEntity.ok(studentRecommendationService.recommend(studentProfileId));
     }
 
     @PostMapping("/api/student/profile/{studentProfileId}/recommendation-clicks")
     public ResponseEntity<Void> recordRecommendationClick(@PathVariable Long studentProfileId,
-                                                          @Valid @RequestBody RecommendationEventRequest request) {
-        if (StudentRecommendationEventService.EVENT_ENTERED_PROBLEM.equals(request.getEventType())) {
-            studentRecommendationEventService.recordEnteredProblem(studentProfileId, request.getRecommendationToken());
+                                                          @Valid @RequestBody RecommendationEventRequest recommendationRequest,
+                                                          HttpServletRequest request) {
+        studentAccessTokenService.requireStudent(request, studentProfileId);
+        if (StudentRecommendationEventService.EVENT_ENTERED_PROBLEM.equals(recommendationRequest.getEventType())) {
+            studentRecommendationEventService.recordEnteredProblem(studentProfileId, recommendationRequest.getRecommendationToken());
         } else {
-            studentRecommendationEventService.recordClick(studentProfileId, request.getRecommendationToken());
+            studentRecommendationEventService.recordClick(studentProfileId, recommendationRequest.getRecommendationToken());
         }
         return ResponseEntity.noContent().build();
     }

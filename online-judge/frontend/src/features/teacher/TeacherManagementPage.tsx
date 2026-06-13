@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { UploadCloud } from "lucide-react";
+import { ShieldCheck, UploadCloud } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { ClassGroup, ImportCommit, ImportPreview, ProblemCatalogItem } from "../../shared/api/types";
+import type { ClassGroup, ImportCommit, ImportPreview, ProblemCatalogItem, Readiness } from "../../shared/api/types";
 import { displayText } from "../../shared/format";
 import { Button } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -26,9 +26,12 @@ export default function TeacherManagementPage() {
   const [busy, setBusy] = useState(true);
   const [dataReady, setDataReady] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [aiSmokeBusy, setAiSmokeBusy] = useState(false);
 
   useEffect(() => {
     void loadData();
+    void loadReadiness();
   }, []);
 
   const cleanClasses = useMemo(
@@ -61,6 +64,27 @@ export default function TeacherManagementPage() {
       setDataReady(true);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function loadReadiness() {
+    try {
+      setReadiness(await api.readiness());
+    } catch {
+      setReadiness(null);
+    }
+  }
+
+  async function runAiSmoke() {
+    setAiSmokeBusy(true);
+    try {
+      const result = await api.aiSmoke();
+      setAlert({ type: result.status === "READY" ? "success" : "error", message: result.message || "AI smoke 已完成。" });
+      await loadReadiness();
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "AI smoke 失败。" });
+    } finally {
+      setAiSmokeBusy(false);
     }
   }
 
@@ -158,6 +182,8 @@ export default function TeacherManagementPage() {
           {loadFailed ? <StatusPill tone="warning">读取失败</StatusPill> : dataReady ? <StatusPill tone="neutral">{cleanClasses.length} 个班级 · {problems.length} 个题目</StatusPill> : <StatusPill tone="neutral">读取中</StatusPill>}
         </header>
 
+        <ReadinessPanel readiness={readiness} busy={aiSmokeBusy} onRefresh={loadReadiness} onAiSmoke={runAiSmoke} />
+
         <main className="management-workspace">
           <section className="management-task-grid">
             <section className="management-task-card">
@@ -251,6 +277,59 @@ export default function TeacherManagementPage() {
         </main>
       </section>
     </div>
+  );
+}
+
+function ReadinessPanel({
+  readiness,
+  busy,
+  onRefresh,
+  onAiSmoke
+}: {
+  readiness: Readiness | null;
+  busy: boolean;
+  onRefresh: () => void;
+  onAiSmoke: () => void;
+}) {
+  const status = readiness?.status || "UNKNOWN";
+  const tone = status === "READY" ? "success" : status === "BLOCKED" ? "danger" : "warning";
+  const blocking = readiness?.checks.filter(item => item.blocking && item.status !== "PASS") || [];
+  const warnings = readiness?.checks.filter(item => item.status !== "PASS" && !(item.blocking && item.status !== "PASS")) || [];
+  return (
+    <section className="management-readiness">
+      <div className="management-readiness__head">
+        <span className="management-readiness__icon">
+          <ShieldCheck size={20} />
+        </span>
+        <div>
+          <h2>开课状态</h2>
+          <p>{status === "READY" ? "可以开课" : status === "BLOCKED" ? "暂不能正式开课" : "可试用，需关注降级项"}</p>
+        </div>
+        <StatusPill tone={tone}>{status}</StatusPill>
+      </div>
+      {readiness ? (
+        <div className="management-readiness__checks">
+          {[...blocking, ...warnings].slice(0, 5).map(item => (
+            <article key={item.id}>
+              <strong>{item.label}</strong>
+              <p>{item.message}</p>
+              <small>{item.action}</small>
+            </article>
+          ))}
+          {!blocking.length && !warnings.length ? <p className="management-readiness__ok">全部关键检查已通过。</p> : null}
+        </div>
+      ) : (
+        <p className="management-readiness__ok">正在读取系统状态。</p>
+      )}
+      <div className="actions">
+        <Button type="button" variant="secondary" onClick={() => void onRefresh()}>
+          刷新状态
+        </Button>
+        <Button type="button" variant="primary" onClick={() => void onAiSmoke()} disabled={busy}>
+          {busy ? "检测中" : "检测 AI"}
+        </Button>
+      </div>
+    </section>
   );
 }
 

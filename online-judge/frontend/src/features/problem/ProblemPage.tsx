@@ -339,12 +339,14 @@ export default function ProblemPage() {
           const assignments = await api.studentAssignments(studentProfileId);
           assignment = assignments.find(item => item.id === currentAssignmentId) || null;
         }
-        if (!assignment) {
-          assignment = await api.assignment(currentAssignmentId);
-        }
         if (!ignore) {
-          setAssignmentTitle(visibleAssignmentTitle(assignment));
-          setWorkbenchTasks(assignment.tasks.map(taskFromAssignment));
+          if (assignment) {
+            setAssignmentTitle(visibleAssignmentTitle(assignment));
+            setWorkbenchTasks(assignment.tasks.map(taskFromAssignment));
+          } else {
+            setAssignmentTitle("课堂作业");
+            setWorkbenchTasks([]);
+          }
         }
       } catch {
         if (!ignore) {
@@ -621,9 +623,11 @@ export default function ProblemPage() {
   const feedbackFailed = Boolean(
     latest &&
       studentAiFeedback &&
-      studentAiFeedback.source === "MODEL" &&
       ["TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(String(studentAiFeedback.status))
   );
+  const feedbackFallbackMessage = studentAiFeedback?.source === "RULE_FALLBACK"
+    ? "外部 AI 暂不可用，已使用规则诊断。"
+    : "AI 暂未生成";
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
   const feedbackReady = Boolean(latest);
   const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;
@@ -934,7 +938,7 @@ export default function ProblemPage() {
                     {isFeedbackWaiting || isFeedbackBackground ? (
                       <FeedbackLoadingPanel mode="repair" state={feedbackPollState} />
                     ) : feedbackFailed ? (
-                      <div className="student-feedback-empty">AI 暂未生成</div>
+                      <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
                     ) : repairViewItems.length ? (
                       <div className="student-feedback-list">
                         {repairViewItems.slice(0, 1).map((item, index) => (
@@ -968,7 +972,7 @@ export default function ProblemPage() {
                     {isFeedbackWaiting || isFeedbackBackground ? (
                       <FeedbackLoadingPanel mode="growth" state={feedbackPollState} />
                     ) : feedbackFailed ? (
-                      <div className="student-feedback-empty">AI 暂未生成</div>
+                      <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
                     ) : improvementViewItems.length ? (
                       <div className="student-feedback-list">
                         {improvementViewItems.slice(0, 3).map((item, index) => (

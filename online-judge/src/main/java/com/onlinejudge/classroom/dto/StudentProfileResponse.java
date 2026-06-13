@@ -16,6 +16,7 @@ public class StudentProfileResponse {
     private String studentNo;
     private String note;
     private String identityKey;
+    private String studentAccessToken;
     private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 
@@ -28,6 +29,7 @@ public class StudentProfileResponse {
                 .studentNo(student.getStudentNo())
                 .note(student.getNote())
                 .identityKey(student.getIdentityKey())
+                .studentAccessToken(null)
                 .createdAt(student.getCreatedAt())
                 .lastSeenAt(student.getLastSeenAt())
                 .build();
@@ -36,6 +38,12 @@ public class StudentProfileResponse {
     public static StudentProfileResponse from(StudentProfile student, String className) {
         StudentProfileResponse response = from(student);
         response.setClassName(className);
+        return response;
+    }
+
+    public static StudentProfileResponse from(StudentProfile student, String className, String studentAccessToken) {
+        StudentProfileResponse response = from(student, className);
+        response.setStudentAccessToken(studentAccessToken);
         return response;
     }
 }

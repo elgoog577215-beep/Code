@@ -35,6 +35,7 @@ build/
 ### Runtime ###
 .env
 data/
+backups/
 output/
 *.log
 tmp-*.md

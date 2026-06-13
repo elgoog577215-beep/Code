@@ -1312,6 +1312,43 @@ a {
   justify-self: start;
 }
 
+.teacher-auth-page {
+  min-height: min(640px, calc(100vh - 9rem));
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+}
+
+.teacher-auth-panel {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.teacher-auth-panel__icon {
+  width: 42px;
+  height: 42px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+}
+
+.teacher-auth-panel h1 {
+  margin: 0;
+  font-size: 1.45rem;
+}
+
+.teacher-auth-panel .ui-button {
+  justify-self: start;
+}
+
 .student-assignment-page .student-task-panel {
   width: 100%;
 }
@@ -3963,6 +4000,61 @@ a {
   color: var(--ink-soft);
   background: var(--surface);
   line-height: 1.5;
+}
+
+.management-readiness {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.management-readiness__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.management-readiness__head > .status-pill {
+  margin-left: auto;
+}
+
+.management-readiness__icon {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+}
+
+.management-readiness h2,
+.management-readiness p {
+  margin: 0;
+}
+
+.management-readiness__checks {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.management-readiness__checks article {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.68rem 0.72rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
+}
+
+.management-readiness__checks article p,
+.management-readiness__checks article small,
+.management-readiness__ok {
+  color: var(--ink-soft);
 }
 
 .management-import-result h3 {

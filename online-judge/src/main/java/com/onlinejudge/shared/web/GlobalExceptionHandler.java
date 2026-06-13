@@ -2,6 +2,8 @@ package com.onlinejudge.shared.web;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import com.onlinejudge.shared.security.AccessDeniedException;
+import com.onlinejudge.shared.security.AuthenticationRequiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -76,6 +78,28 @@ public class GlobalExceptionHandler {
                 exception.getMessage());
         return ResponseEntity.badRequest()
                 .body(Map.of("error", "请求体格式不正确，请检查 JSON 字段"));
+    }
+
+    @ExceptionHandler(AuthenticationRequiredException.class)
+    public ResponseEntity<Map<String, String>> handleAuthenticationRequired(AuthenticationRequiredException exception,
+                                                                           HttpServletRequest request) {
+        log.warn("Authentication required. method={}, uri={}, message={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                exception.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", exception.getMessage()));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException exception,
+                                                                  HttpServletRequest request) {
+        log.warn("Access denied. method={}, uri={}, message={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                exception.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", exception.getMessage()));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

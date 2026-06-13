@@ -15,10 +15,15 @@ import com.onlinejudge.submission.application.SubmissionAnalysisAsyncService;
 import com.onlinejudge.submission.application.SubmissionComparisonService;
 import com.onlinejudge.submission.application.StudentAiFeedbackAsyncService;
 import com.onlinejudge.submission.application.StudentAiFeedbackService;
+import com.onlinejudge.shared.security.AccessDeniedException;
+import com.onlinejudge.shared.security.StudentAccessTokenService;
+import com.onlinejudge.submission.domain.Submission;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.onlinejudge.submission.persistence.SubmissionRepository;
 
 import java.util.List;
 
@@ -34,19 +39,29 @@ public class SubmissionController {
     private final StudentAiFeedbackService studentAiFeedbackService;
     private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
     private final CoachPromptService coachPromptService;
+    private final StudentAccessTokenService studentAccessTokenService;
+    private final SubmissionRepository submissionRepository;
 
     @PostMapping
-    public ResponseEntity<SubmissionResponse> submitCode(@Valid @RequestBody SubmissionRequest request) {
+    public ResponseEntity<SubmissionResponse> submitCode(@Valid @RequestBody SubmissionRequest request,
+                                                         HttpServletRequest httpRequest) {
+        if (request.getStudentProfileId() != null) {
+            studentAccessTokenService.requireStudent(httpRequest, request.getStudentProfileId());
+        }
         return ResponseEntity.ok(judgeService.submitCode(request));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<SubmissionResponse> getSubmission(@PathVariable Long id) {
+    public ResponseEntity<SubmissionResponse> getSubmission(@PathVariable Long id,
+                                                            HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
         return ResponseEntity.ok(judgeService.getSubmission(id));
     }
 
     @GetMapping("/{id}/analysis")
-    public ResponseEntity<SubmissionAnalysisLookupResponse> getSubmissionAnalysis(@PathVariable Long id) {
+    public ResponseEntity<SubmissionAnalysisLookupResponse> getSubmissionAnalysis(@PathVariable Long id,
+                                                                                  HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
         SubmissionAnalysisLookupResponse lookup = submissionAnalysisService.getSubmissionAnalysisLookup(id);
         if (lookup.getAnalysis() == null) {
             submissionAnalysisAsyncService.enqueue(id);
@@ -56,7 +71,9 @@ public class SubmissionController {
     }
 
     @PostMapping("/{id}/analysis")
-    public ResponseEntity<SubmissionAnalysisLookupResponse> triggerSubmissionAnalysis(@PathVariable Long id) {
+    public ResponseEntity<SubmissionAnalysisLookupResponse> triggerSubmissionAnalysis(@PathVariable Long id,
+                                                                                      HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
         SubmissionAnalysisLookupResponse lookup = submissionAnalysisService.getSubmissionAnalysisLookup(id);
         if (lookup.getAnalysis() == null) {
             submissionAnalysisAsyncService.enqueue(id);
@@ -66,7 +83,9 @@ public class SubmissionController {
     }
 
     @GetMapping("/{id}/student-ai-feedback")
-    public ResponseEntity<StudentAiFeedbackLookupResponse> getStudentAiFeedback(@PathVariable Long id) {
+    public ResponseEntity<StudentAiFeedbackLookupResponse> getStudentAiFeedback(@PathVariable Long id,
+                                                                                HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
         StudentAiFeedbackLookupResponse lookup = studentAiFeedbackService.getLookup(id);
         if ("NOT_REQUESTED".equals(lookup.getStatus())) {
             studentAiFeedbackAsyncService.enqueue(id);
@@ -76,7 +95,9 @@ public class SubmissionController {
     }
 
     @PostMapping("/{id}/student-ai-feedback")
-    public ResponseEntity<StudentAiFeedbackLookupResponse> triggerStudentAiFeedback(@PathVariable Long id) {
+    public ResponseEntity<StudentAiFeedbackLookupResponse> triggerStudentAiFeedback(@PathVariable Long id,
+                                                                                    HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
         StudentAiFeedbackLookupResponse lookup = studentAiFeedbackService.getLookup(id);
         if (!"READY".equals(lookup.getStatus()) && !"GENERATING".equals(lookup.getStatus())) {
             studentAiFeedbackAsyncService.enqueue(id);
@@ -86,13 +107,17 @@ public class SubmissionController {
     }
 
     @PostMapping("/{id}/student-ai-feedback/view")
-    public ResponseEntity<Void> recordStudentAiFeedbackView(@PathVariable Long id) {
+    public ResponseEntity<Void> recordStudentAiFeedbackView(@PathVariable Long id,
+                                                            HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
         studentAiFeedbackService.recordViewed(id);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}/coach-prompt")
-    public ResponseEntity<CoachPromptResponse> getCoachPrompt(@PathVariable Long id) {
+    public ResponseEntity<CoachPromptResponse> getCoachPrompt(@PathVariable Long id,
+                                                              HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
         CoachPromptResponse prompt = coachPromptService.getLatestPrompt(id);
         if (prompt == null) {
             return ResponseEntity.noContent().build();
@@ -101,25 +126,56 @@ public class SubmissionController {
     }
 
     @PostMapping("/{id}/coach-prompt")
-    public ResponseEntity<CoachPromptResponse> generateCoachPrompt(@PathVariable Long id) {
+    public ResponseEntity<CoachPromptResponse> generateCoachPrompt(@PathVariable Long id,
+                                                                   HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
         return ResponseEntity.ok(coachPromptService.generateNextQuestion(id));
     }
 
     @PostMapping("/{id}/coach-turns")
     public ResponseEntity<CoachPromptResponse> replyCoachPrompt(@PathVariable Long id,
-                                                                @Valid @RequestBody CoachReplyRequest request) {
-        return ResponseEntity.ok(coachPromptService.replyAndGenerateNext(id, request));
+                                                                @Valid @RequestBody CoachReplyRequest coachRequest,
+                                                                HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
+        return ResponseEntity.ok(coachPromptService.replyAndGenerateNext(id, coachRequest));
     }
 
     @GetMapping("/problem/{problemId}/history-summary")
-    public ResponseEntity<List<SubmissionHistorySummaryResponse>> getSubmissionHistorySummary(@PathVariable Long problemId) {
-        return ResponseEntity.ok(submissionAnalysisService.getSubmissionHistorySummaries(problemId));
+    public ResponseEntity<List<SubmissionHistorySummaryResponse>> getSubmissionHistorySummary(@PathVariable Long problemId,
+                                                                                              HttpServletRequest request) {
+        Long studentProfileId = studentAccessTokenService.currentStudentId(request);
+        return ResponseEntity.ok(submissionAnalysisService.getSubmissionHistorySummaries(problemId, studentProfileId));
     }
 
     @GetMapping("/compare")
     public ResponseEntity<SubmissionComparisonResponse> compareSubmissions(@RequestParam Long leftId,
-                                                                           @RequestParam Long rightId) {
+                                                                           @RequestParam Long rightId,
+                                                                           HttpServletRequest request) {
+        requireComparisonAccess(request, leftId, rightId);
         return ResponseEntity.ok(submissionComparisonService.compare(leftId, rightId));
     }
 
+    private void requireSubmissionAccess(HttpServletRequest request, Long submissionId) {
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + submissionId));
+        if (submission.getStudentProfileId() != null) {
+            studentAccessTokenService.requireStudent(request, submission.getStudentProfileId());
+        }
+    }
+
+    private void requireComparisonAccess(HttpServletRequest request, Long leftId, Long rightId) {
+        Submission left = submissionRepository.findById(leftId)
+                .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + leftId));
+        Submission right = submissionRepository.findById(rightId)
+                .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + rightId));
+        Long leftStudent = left.getStudentProfileId();
+        Long rightStudent = right.getStudentProfileId();
+        if (leftStudent == null && rightStudent == null) {
+            return;
+        }
+        if (leftStudent == null || rightStudent == null || !leftStudent.equals(rightStudent)) {
+            throw new AccessDeniedException("只能对比自己的两次提交");
+        }
+        studentAccessTokenService.requireStudent(request, leftStudent);
+    }
 }

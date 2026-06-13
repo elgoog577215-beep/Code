@@ -18,6 +18,8 @@ import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultStatsProjection;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
+import com.onlinejudge.shared.security.SchoolSecurityProperties;
+import com.onlinejudge.shared.security.StudentAccessTokenService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.*;
 import org.springframework.data.repository.query.FluentQuery;
@@ -81,7 +83,8 @@ class ClassroomServiceCorrectionTest {
             new ClassTeachingStrategyAnalyzer(),
             new ClassTeachingStrategyImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy)),
             hintSafetyCheckRepository,
-            coachPromptRepository
+            coachPromptRepository,
+            new StudentAccessTokenService(new TestSchoolSecurityProperties())
     );
 
     @Test
@@ -2092,6 +2095,16 @@ class ClassroomServiceCorrectionTest {
         }
 
         @Override
+        public List<SubmissionHistoryProjection> findHistorySummariesByProblemIdAndStudentProfileId(Long problemId, Long studentProfileId) {
+            return List.of();
+        }
+
+        @Override
+        public List<SubmissionHistoryProjection> findAnonymousHistorySummariesByProblemId(Long problemId) {
+            return List.of();
+        }
+
+        @Override
         public List<ProblemSubmissionStatsProjection> summarizeByProblem() {
             return List.of();
         }
@@ -2099,6 +2112,18 @@ class ClassroomServiceCorrectionTest {
         @Override
         public long deleteByProblemId(Long problemId) {
             return 0;
+        }
+    }
+
+    private static class TestSchoolSecurityProperties extends SchoolSecurityProperties {
+        @Override
+        public String studentTokenSecret() {
+            return "test-student-token-secret-1234567890";
+        }
+
+        @Override
+        public long studentTokenTtlDays() {
+            return 30;
         }
     }
 

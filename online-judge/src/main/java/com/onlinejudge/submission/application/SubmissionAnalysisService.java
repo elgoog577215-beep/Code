@@ -101,6 +101,10 @@ public class SubmissionAnalysisService {
     }
 
     public List<SubmissionHistorySummaryResponse> getSubmissionHistorySummaries(Long problemId) {
+        return getSubmissionHistorySummaries(problemId, null);
+    }
+
+    public List<SubmissionHistorySummaryResponse> getSubmissionHistorySummaries(Long problemId, Long studentProfileId) {
         String problemTitle = problemRepository.findTitleById(problemId)
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + problemId));
 
@@ -108,7 +112,9 @@ public class SubmissionAnalysisService {
                 .title(problemTitle)
                 .build();
 
-        List<SubmissionHistoryProjection> submissions = submissionRepository.findHistorySummariesByProblemId(problemId);
+        List<SubmissionHistoryProjection> submissions = studentProfileId == null
+                ? submissionRepository.findAnonymousHistorySummariesByProblemId(problemId)
+                : submissionRepository.findHistorySummariesByProblemIdAndStudentProfileId(problemId, studentProfileId);
         if (submissions.isEmpty()) {
             return List.of();
         }

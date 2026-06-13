@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { BookOpenCheck, LayoutDashboard, LogIn, Menu, Moon, PenLine, Sun, UserRound, UsersRound, X } from "lucide-react";
 import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherManagementPage from "./features/teacher/TeacherManagementPage";
+import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
 import { clearActiveStudent, loadStudent } from "./shared/storage";
 import { Button } from "./shared/ui/Button";
 import { EmptyState } from "./shared/ui/EmptyState";
@@ -302,12 +303,12 @@ export default function App() {
             <Route path="/app/student/login" element={<StudentLoginPage />} />
             <Route path="/app/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
             <Route path="/app/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
-            <Route path="/app/teacher" element={<TeacherPage />} />
-            <Route path="/app/teacher/assignment/new" element={<AssignmentCreatePage />} />
-            <Route path="/app/teacher/assignment/:assignmentId" element={<AssignmentDetailPage />} />
-            <Route path="/app/teacher-management" element={<TeacherManagementPage />} />
-            <Route path="/app/task-editor" element={<TaskEditorPage />} />
-            <Route path="/app/class-overview" element={<ClassOverviewPage />} />
+            <Route path="/app/teacher" element={<TeacherAuthGate><TeacherPage /></TeacherAuthGate>} />
+            <Route path="/app/teacher/assignment/new" element={<TeacherAuthGate><AssignmentCreatePage /></TeacherAuthGate>} />
+            <Route path="/app/teacher/assignment/:assignmentId" element={<TeacherAuthGate><AssignmentDetailPage /></TeacherAuthGate>} />
+            <Route path="/app/teacher-management" element={<TeacherAuthGate><TeacherManagementPage /></TeacherAuthGate>} />
+            <Route path="/app/task-editor" element={<TeacherAuthGate><TaskEditorPage /></TeacherAuthGate>} />
+            <Route path="/app/class-overview" element={<TeacherAuthGate><ClassOverviewPage /></TeacherAuthGate>} />
             <Route path="/app/problem/:problemId" element={<ProblemPage />} />
             <Route path="/problems" element={<Navigate to="/app/student/assignments/public" replace />} />
             <Route path="/student" element={<Navigate to="/app/student" replace />} />

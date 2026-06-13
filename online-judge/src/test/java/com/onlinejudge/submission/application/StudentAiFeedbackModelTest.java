@@ -107,7 +107,7 @@ class StudentAiFeedbackModelTest {
         );
 
         assertThat(feedback.getStatus()).isEqualTo("FAILED");
-        assertThat(feedback.getSource()).isEqualTo("MODEL");
+        assertThat(feedback.getSource()).isEqualTo("RULE_FALLBACK");
         assertThat(feedback.getRepairItems()).isEmpty();
         assertThat(feedback.getImprovementItems()).isEmpty();
         assertThat(feedback.getSafety().getBlockedReasons()).contains("AI_UNAVAILABLE");

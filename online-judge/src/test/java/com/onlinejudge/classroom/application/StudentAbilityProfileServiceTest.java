@@ -545,6 +545,16 @@ class StudentAbilityProfileServiceTest {
         }
 
         @Override
+        public List<SubmissionHistoryProjection> findHistorySummariesByProblemIdAndStudentProfileId(Long problemId, Long studentProfileId) {
+            return List.of();
+        }
+
+        @Override
+        public List<SubmissionHistoryProjection> findAnonymousHistorySummariesByProblemId(Long problemId) {
+            return List.of();
+        }
+
+        @Override
         public List<ProblemSubmissionStatsProjection> summarizeByProblem() {
             return List.of();
         }

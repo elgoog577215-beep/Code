@@ -20,6 +20,17 @@ function Fail($Message) {
     exit 1
 }
 
+function Check-RequiredEnv($Name, $Label) {
+    $Value = Get-EnvValue $Name ""
+    if (-not $Value) {
+        Fail "$Label is not configured. Set $Name in .env before school deployment."
+    }
+    if ($Value.StartsWith("change-this") -or $Value.StartsWith("dev-")) {
+        Fail "$Label still uses a placeholder value. Replace $Name with a real secret."
+    }
+    Ok "$Label is configured"
+}
+
 function Get-EnvValue($Name, $DefaultValue) {
     $Value = [Environment]::GetEnvironmentVariable($Name)
     if (-not $Value -and (Test-Path ".env")) {
@@ -96,6 +107,23 @@ Check-Command "java" "java -version"
 Check-Command "node" "node --version"
 Check-Command "npm" "npm --version"
 
+$AppProfile = Get-EnvValue "APP_PROFILE" "school"
+if ($AppProfile -ne "school") {
+    Fail "APP_PROFILE must be school for classroom deployment."
+}
+Ok "APP_PROFILE=school"
+
+$ExecutorMode = Get-EnvValue "EXECUTOR_MODE" "docker"
+if ($ExecutorMode -ne "docker") {
+    Fail "EXECUTOR_MODE must be docker for classroom deployment."
+}
+Ok "EXECUTOR_MODE=docker"
+
+Check-RequiredEnv "POSTGRES_PASSWORD" "Postgres password"
+Check-RequiredEnv "TEACHER_PASSWORD" "Teacher password"
+Check-RequiredEnv "TEACHER_SESSION_SECRET" "Teacher session secret"
+Check-RequiredEnv "STUDENT_TOKEN_SECRET" "Student token secret"
+
 docker version --format "{{.Server.Version}}" *> $null
 if ($LASTEXITCODE -ne 0) {
     Fail "Docker daemon is not available. Start Docker Desktop, OrbStack, or Docker Engine first."
@@ -121,6 +149,7 @@ $NodeBaseImage = Get-EnvValue "OJ_NODE_BASE_IMAGE" "node:24-bookworm-slim"
 $MavenBaseImage = Get-EnvValue "OJ_MAVEN_BASE_IMAGE" "maven:3.9.9-eclipse-temurin-17"
 $JreBaseImage = Get-EnvValue "OJ_JRE_BASE_IMAGE" "eclipse-temurin:17-jre"
 $DockerCliImage = Get-EnvValue "OJ_DOCKER_CLI_IMAGE" "docker:29-cli"
+$PostgresImage = Get-EnvValue "OJ_POSTGRES_IMAGE" "postgres:16-alpine"
 
 docker image inspect $RunnerImage *> $null
 if ($LASTEXITCODE -eq 0) {
@@ -136,6 +165,7 @@ Check-ImageSource "frontend build base" $NodeBaseImage
 Check-ImageSource "backend build base" $MavenBaseImage
 Check-ImageSource "runtime JRE base" $JreBaseImage
 Check-ImageSource "Docker CLI base" $DockerCliImage
+Check-ImageSource "Postgres" $PostgresImage
 
 if ($Warnings -gt 0) {
     Write-Host ""

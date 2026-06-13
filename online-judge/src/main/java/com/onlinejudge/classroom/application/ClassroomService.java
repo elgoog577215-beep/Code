@@ -9,6 +9,7 @@ import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.persistence.ProblemRepository;
+import com.onlinejudge.shared.security.StudentAccessTokenService;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
@@ -65,6 +66,7 @@ public class ClassroomService {
     private final ClassTeachingStrategyImpactAnalyzer classTeachingStrategyImpactAnalyzer;
     private final HintSafetyCheckRepository hintSafetyCheckRepository;
     private final CoachPromptRepository coachPromptRepository;
+    private final StudentAccessTokenService studentAccessTokenService;
 
     public List<ClassGroupResponse> getClassGroups() {
         return classGroupRepository.findAllByOrderByCreatedAtDesc()
@@ -206,7 +208,7 @@ public class ClassroomService {
         String responseClassName = classGroupId == null
                 ? normalizeNullable(request.getClassName())
                 : classGroupRepository.findById(classGroupId).map(ClassGroup::getName).orElse(normalizeNullable(request.getClassName()));
-        return StudentProfileResponse.from(saved, responseClassName);
+        return StudentProfileResponse.from(saved, responseClassName, studentAccessTokenService.issue(saved));
     }
 
     @Transactional
@@ -236,7 +238,8 @@ public class ClassroomService {
         student.setStudentNo(normalizeNullable(request.getStudentNo()));
         student.setNote(normalizeNullable(request.getNote()));
 
-        return StudentProfileResponse.from(studentProfileRepository.save(student), classGroup.getName());
+        StudentProfile saved = studentProfileRepository.save(student);
+        return StudentProfileResponse.from(saved, classGroup.getName(), studentAccessTokenService.issue(saved));
     }
 
     public List<AssignmentResponse> getStudentAssignments(Long studentProfileId) {

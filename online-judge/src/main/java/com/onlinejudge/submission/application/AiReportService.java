@@ -1650,6 +1650,26 @@ public class AiReportService {
         return enabled && apiKey != null && !apiKey.isBlank();
     }
 
+    public String providerName() {
+        return PROVIDER;
+    }
+
+    public String modelName() {
+        return model;
+    }
+
+    public String smokeChatCompletion() throws IOException, InterruptedException {
+        if (!canCallAi()) {
+            throw new IOException("AI is disabled or API key is blank");
+        }
+        return chatCompletionWithOverrides(
+                "You are a production readiness smoke test. Reply with exactly OK.",
+                "Return OK.",
+                false,
+                128
+        );
+    }
+
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
         ExternalModelRequestContext requestContext = nextRequestContext.get();
         nextRequestContext.set(ExternalModelRequestContext.standard());
@@ -2933,7 +2953,7 @@ public class AiReportService {
         return StudentAiFeedbackResponse.builder()
                 .submissionId(submission == null ? null : submission.getId())
                 .status(normalizedStatus)
-                .source("MODEL")
+                .source("RULE_FALLBACK")
                 .latencyMs(elapsedMs(startedAt))
                 .repairItems(List.of())
                 .improvementItems(List.of())

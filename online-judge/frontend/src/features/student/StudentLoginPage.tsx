@@ -23,7 +23,7 @@ export default function StudentLoginPage() {
   useEffect(() => {
     let ignore = false;
     setLoading(true);
-    api.classes()
+    api.studentClasses()
       .then(result => {
         if (!ignore) {
           setClasses(result);

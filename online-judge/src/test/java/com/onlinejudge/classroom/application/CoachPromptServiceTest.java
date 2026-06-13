@@ -415,6 +415,16 @@ class CoachPromptServiceTest {
         }
 
         @Override
+        public List<com.onlinejudge.submission.persistence.SubmissionHistoryProjection> findHistorySummariesByProblemIdAndStudentProfileId(Long problemId, Long studentProfileId) {
+            return List.of();
+        }
+
+        @Override
+        public List<com.onlinejudge.submission.persistence.SubmissionHistoryProjection> findAnonymousHistorySummariesByProblemId(Long problemId) {
+            return List.of();
+        }
+
+        @Override
         public List<com.onlinejudge.leaderboard.persistence.ProblemSubmissionStatsProjection> summarizeByProblem() {
             return List.of();
         }

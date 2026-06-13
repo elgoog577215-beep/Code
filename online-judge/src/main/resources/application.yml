@@ -10,6 +10,8 @@ server:
 spring:
   config:
     import: optional:file:.env[.properties]
+  profiles:
+    active: ${APP_PROFILE:dev}
   application:
     name: nboj
   datasource:
@@ -19,7 +21,7 @@ spring:
     password:
   h2:
     console:
-      enabled: true
+      enabled: ${H2_CONSOLE_ENABLED:false}
       path: /h2-console
   jpa:
     hibernate:
@@ -48,6 +50,32 @@ ai:
   stream-fallback-enabled: ${AI_STREAM_FALLBACK_ENABLED:true}
   structured-retry-enabled: ${AI_STRUCTURED_RETRY_ENABLED:true}
   structured-retry-output-tokens: ${AI_STRUCTURED_RETRY_OUTPUT_TOKENS:2600}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: school
+  datasource:
+    url: ${POSTGRES_JDBC_URL:jdbc:postgresql://postgres:5432/onlinejudge}
+    driver-class-name: org.postgresql.Driver
+    username: ${POSTGRES_USER:onlinejudge}
+    password: ${POSTGRES_PASSWORD:}
+  h2:
+    console:
+      enabled: false
+
+app:
+  profile: school
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+app:
+  profile: dev
 
 logging:
   file:

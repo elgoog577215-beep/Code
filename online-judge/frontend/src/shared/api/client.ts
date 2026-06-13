@@ -1,8 +1,10 @@
 import type {
   Assignment,
   AssignmentOverview,
+  AiSmoke,
   AiQualityOverview,
   AiQualityTrend,
+  AuthSession,
   ClassGroup,
   CoachPrompt,
   DiagnosisEvalCandidates,
@@ -15,6 +17,7 @@ import type {
   Problem,
   ProblemCatalogItem,
   ProblemManage,
+  Readiness,
   RecommendationEffectiveness,
   StudentAbilityProfile,
   StudentIdentityAudit,
@@ -29,6 +32,7 @@ import type {
   TeacherDiagnosisCorrection
 } from "./types";
 import { YINGQI_SIGNATURE } from "../identity/yingqiSignature";
+import { loadStudentToken } from "../storage";
 
 export class ApiError extends Error {
   status: number;
@@ -68,7 +72,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   if (hasBody && !headers.has("Content-Type") && !(init?.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
-  const response = await fetch(url, { ...init, headers });
+  const studentToken = loadStudentToken();
+  if (studentToken && !headers.has("X-Student-Token")) {
+    headers.set("X-Student-Token", studentToken);
+  }
+  const response = await fetch(url, { ...init, headers, credentials: "same-origin" });
   return readJson<T>(response);
 }
 
@@ -77,6 +85,14 @@ function jsonBody(payload: unknown): string {
 }
 
 export const api = {
+  teacherSession: () => request<AuthSession>("/api/teacher/auth/session"),
+  teacherLogin: (password: string) =>
+    request<AuthSession>("/api/teacher/auth/login", {
+      method: "POST",
+      body: jsonBody({ password })
+    }),
+  teacherLogout: () => request<AuthSession>("/api/teacher/auth/logout", { method: "POST" }),
+
   resolveInvite: (code: string) =>
     request<Assignment>("/api/invites/resolve", {
       method: "POST",
@@ -101,6 +117,7 @@ export const api = {
       body: jsonBody(payload)
     }),
 
+  studentClasses: () => request<ClassGroup[]>("/api/student/classes"),
   studentAssignments: (studentProfileId: number) => request<Assignment[]>(`/api/student/profile/${studentProfileId}/assignments`),
 
   studentTrajectory: (assignmentId: number, studentProfileId: number) =>
@@ -234,5 +251,7 @@ export const api = {
     request<ImportCommit>("/api/teacher/problems/import-commit", { method: "POST", body: jsonBody(payload) }),
 
   executorStatus: () => request<ExecutorStatus>("/api/system/executor-status"),
+  readiness: () => request<Readiness>("/api/system/readiness"),
+  aiSmoke: () => request<AiSmoke>("/api/system/ai-smoke", { method: "POST" }),
   classOverview: () => request<LeaderboardEntry[]>("/api/leaderboard/problems")
 };

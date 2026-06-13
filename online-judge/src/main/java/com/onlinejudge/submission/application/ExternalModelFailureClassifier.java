@@ -31,6 +31,7 @@ public class ExternalModelFailureClassifier {
 
     public boolean isRetryable(ModelStageFailureReason reason, String text) {
         if (reason == ModelStageFailureReason.INSUFFICIENT_QUOTA
+                || reason == ModelStageFailureReason.AUTHENTICATION_FAILED
                 || reason == ModelStageFailureReason.MODEL_UNSUPPORTED
                 || reason == ModelStageFailureReason.BUDGET_GUARD_OPEN) {
             return false;
@@ -54,6 +55,12 @@ public class ExternalModelFailureClassifier {
                 || normalized.contains("current quota")
                 || normalized.contains("token-limit")) {
             return ModelStageFailureReason.INSUFFICIENT_QUOTA;
+        }
+        if (normalized.contains("status 401")
+                || normalized.contains("authentication failed")
+                || normalized.contains("invalid api key")
+                || normalized.contains("invalid token")) {
+            return ModelStageFailureReason.AUTHENTICATION_FAILED;
         }
         if (normalized.contains("status 429")
                 || normalized.contains("\"429\"")

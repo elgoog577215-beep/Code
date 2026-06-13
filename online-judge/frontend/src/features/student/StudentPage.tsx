@@ -41,7 +41,7 @@ export default function StudentPage() {
 
   useEffect(() => {
     let ignore = false;
-    api.classes()
+    api.studentClasses()
       .then(result => {
         if (!ignore) {
           setClasses(result);

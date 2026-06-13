@@ -31,6 +31,10 @@ export function loadStudent(assignmentId?: number | null): StudentProfile | null
   }
 }
 
+export function loadStudentToken(): string | null {
+  return loadStudent()?.studentAccessToken || null;
+}
+
 export function saveInviteCode(inviteCode: string): void {
   const normalized = inviteCode.trim().toUpperCase();
   if (normalized) {

@@ -21,6 +21,20 @@ fail() {
   exit 1
 }
 
+check_required_env() {
+  local key="$1"
+  local label="$2"
+  local value
+  value="$(env_value "${key}" "")"
+  if [[ -z "${value}" ]]; then
+    fail "${label} is not configured. Set ${key} in .env before school deployment."
+  fi
+  if [[ "${value}" == change-this* || "${value}" == dev-* ]]; then
+    fail "${label} still uses a placeholder value. Replace ${key} with a real secret."
+  fi
+  ok "${label} is configured"
+}
+
 env_value() {
   local key="$1"
   local default_value="$2"
@@ -87,6 +101,23 @@ check_command java "java -version"
 check_command node "node --version"
 check_command npm "npm --version"
 
+APP_PROFILE_VALUE="$(env_value APP_PROFILE school)"
+if [[ "${APP_PROFILE_VALUE}" != "school" ]]; then
+  fail "APP_PROFILE must be school for classroom deployment."
+fi
+ok "APP_PROFILE=school"
+
+EXECUTOR_MODE_VALUE="$(env_value EXECUTOR_MODE docker)"
+if [[ "${EXECUTOR_MODE_VALUE}" != "docker" ]]; then
+  fail "EXECUTOR_MODE must be docker for classroom deployment."
+fi
+ok "EXECUTOR_MODE=docker"
+
+check_required_env POSTGRES_PASSWORD "Postgres password"
+check_required_env TEACHER_PASSWORD "Teacher password"
+check_required_env TEACHER_SESSION_SECRET "Teacher session secret"
+check_required_env STUDENT_TOKEN_SECRET "Student token secret"
+
 if ! docker version --format '{{.Server.Version}}' >/dev/null 2>&1; then
   fail "Docker daemon is not available. Start Docker Desktop, OrbStack, or Docker Engine first."
 fi
@@ -110,6 +141,7 @@ NODE_BASE_IMAGE="$(env_value OJ_NODE_BASE_IMAGE node:24-bookworm-slim)"
 MAVEN_BASE_IMAGE="$(env_value OJ_MAVEN_BASE_IMAGE maven:3.9.9-eclipse-temurin-17)"
 JRE_BASE_IMAGE="$(env_value OJ_JRE_BASE_IMAGE eclipse-temurin:17-jre)"
 DOCKER_CLI_IMAGE="$(env_value OJ_DOCKER_CLI_IMAGE docker:29-cli)"
+POSTGRES_IMAGE="$(env_value OJ_POSTGRES_IMAGE postgres:16-alpine)"
 
 if docker image inspect "${RUNNER_IMAGE}" >/dev/null 2>&1; then
   ok "C++17 runner image exists locally: ${RUNNER_IMAGE}"
@@ -123,6 +155,7 @@ check_image_source "frontend build base" "${NODE_BASE_IMAGE}"
 check_image_source "backend build base" "${MAVEN_BASE_IMAGE}"
 check_image_source "runtime JRE base" "${JRE_BASE_IMAGE}"
 check_image_source "Docker CLI base" "${DOCKER_CLI_IMAGE}"
+check_image_source "Postgres" "${POSTGRES_IMAGE}"
 
 if (( WARNINGS > 0 )); then
   printf '\nFinished with %d warning(s). Fix image registry access before the first school deployment build.\n' "${WARNINGS}"

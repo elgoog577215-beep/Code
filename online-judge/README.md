@@ -6,6 +6,19 @@
 
 服务器需要安装 Docker Desktop、OrbStack 或兼容 Docker Engine。
 
+先复制配置并替换真实口令和密钥：
+
+```bash
+cp .env.example .env
+```
+
+必须修改：
+
+- `POSTGRES_PASSWORD`
+- `TEACHER_PASSWORD`
+- `TEACHER_SESSION_SECRET`
+- `STUDENT_TOKEN_SECRET`
+
 部署前可以先跑一次环境自检：
 
 ```bash
@@ -32,6 +45,8 @@ http://localhost:8081/app/
 
 如果要在局域网给学生访问，把 `localhost` 换成运行服务器的局域网 IP。
 
+教师端第一次进入会要求输入 `.env` 中的 `TEACHER_PASSWORD`。教师可在 `/app/teacher-management` 查看“开课状态”，包括 Docker、C++17 runner、数据库、教师口令、学生令牌密钥和 AI smoke 状态。
+
 如果学校网络无法访问 Docker Hub，请先让网管配置 Docker 镜像加速，或在 `.env` 中把基础镜像变量改成学校内网仓库里的兼容镜像。应用镜像构建使用的 Node、Maven、JRE、Docker CLI 镜像和 C++17 runner 的 GCC 镜像都可以替换。本机已验证 C++17 runner 可用备用源：
 
 ```env
@@ -44,6 +59,9 @@ OJ_CPP17_BASE_IMAGE=public.ecr.aws/docker/library/gcc:13-bookworm
 
 - 后端 Java 17。
 - 前端 React/Vite，Docker 构建阶段自动安装 Node 依赖并打包。
+- 学校部署默认使用 Postgres；H2 仅用于本机开发。
+- 教师端使用单校共享教师口令和 HttpOnly cookie 会话。
+- 学生端登录后使用访问令牌隔离个人轨迹、推荐和提交反馈。
 - C++17 runner 镜像：`wenzhong-oj-cpp17-runner:13`。
 - Python 3 runner 镜像：`python:3.12-slim`。
 - Docker 沙箱默认关闭网络，并限制 CPU、内存和进程数。
@@ -60,7 +78,12 @@ cp .env.example .env
 常用变量：
 
 - `SERVER_PORT`: 对外端口，默认 `8081`。
+- `APP_PROFILE`: 学校部署使用 `school`。
 - `EXECUTOR_MODE`: 学校部署建议保持 `docker`。
+- `POSTGRES_PASSWORD`: 学校部署数据库密码。
+- `TEACHER_PASSWORD`: 教师端共享口令。
+- `TEACHER_SESSION_SECRET`: 教师会话签名密钥。
+- `STUDENT_TOKEN_SECRET`: 学生访问令牌签名密钥。
 - `OJ_APP_IMAGE`: 应用 Docker 镜像名。
 - `OJ_CPP17_DOCKER_IMAGE`: C++17 runner 镜像名。
 - `OJ_CPP17_BASE_IMAGE`: 构建 C++17 runner 使用的基础镜像，默认 `gcc:13-bookworm`。
@@ -71,6 +94,9 @@ cp .env.example .env
 - `OJ_DOCKER_CLI_IMAGE`: 提供 Docker CLI 的基础镜像，应用容器会从该镜像复制 `docker` 命令。
 - `AI_ENABLED`: 是否启用模型反馈。
 - `OJ_MODELSCOPE_API_KEY`: 模型 API Key。
+- `AI_READINESS_BLOCKING`: 是否要求 AI smoke 通过才允许 readiness 为 `READY`。
+
+更多投用要求见 [高中单校内网投用清单](docs/school-readiness-checklist.md)。
 
 ## 本机开发
 
