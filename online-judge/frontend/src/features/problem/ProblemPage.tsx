@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Lightbulb, Play, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Lightbulb, Play, RefreshCw, RotateCcw, X } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   Assignment,
@@ -30,6 +30,11 @@ type WorkbenchTask = {
   difficulty?: string | null;
   orderIndex?: number;
 };
+
+type FeedbackPollState = "idle" | "checking" | "slow" | "background" | "refreshing";
+
+const FEEDBACK_SLOW_AFTER_MS = 30_000;
+const FEEDBACK_BACKGROUND_AFTER_MS = 95_000;
 
 function renderInline(text: string) {
   const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter(Boolean);
@@ -156,22 +161,45 @@ function terminalFeedbackStatus(status?: string | null) {
   return ["READY", "TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(String(status || "").toUpperCase());
 }
 
+function inFlightFeedbackStatus(status?: string | null) {
+  return ["GENERATING", "NOT_REQUESTED"].includes(String(status || "").toUpperCase());
+}
+
+function feedbackPollingDelay(elapsedMs: number) {
+  if (elapsedMs < 12_000) {
+    return 1_200;
+  }
+  if (elapsedMs < FEEDBACK_SLOW_AFTER_MS) {
+    return 2_200;
+  }
+  return 5_000;
+}
+
 function feedbackTextWeight(items: Array<{ body?: string | null; title?: string | null }>) {
   return items.reduce((total, item) => total + (item.title?.length || 0) + (item.body?.length || 0), 0);
 }
 
-function FeedbackLoadingPanel({ mode }: { mode: "repair" | "growth" }) {
+function FeedbackLoadingPanel({ mode, state }: { mode: "repair" | "growth"; state: FeedbackPollState }) {
   const steps =
     mode === "repair"
       ? ["读取评测点", "定位错误方向", "生成修正建议"]
       : ["分析代码结构", "寻找提升空间", "生成进阶建议"];
+  const isSlow = state === "slow";
+  const isBackground = state === "background";
+  const title = state === "refreshing" ? "正在刷新" : isBackground ? "后台生成中" : isSlow ? "还在分析" : "正在分析";
+  const note = isBackground
+    ? "可以先继续修改代码，稍后点刷新 AI 拿结果。"
+    : isSlow
+      ? "模型响应较慢，结果不会丢，可以先看评测点。"
+      : null;
 
   return (
     <div className="student-feedback-loading" aria-live="polite">
       <div className="student-feedback-loading__head">
         <span className="student-feedback-loading__spinner" aria-hidden="true" />
-        <strong>正在分析</strong>
+        <strong>{title}</strong>
       </div>
+      {note && <p className="student-feedback-loading__note">{note}</p>}
       <div className="student-feedback-loading__steps">
         {steps.map((step, index) => (
           <span className={`is-step-${index + 1}`} key={step}>
@@ -216,10 +244,24 @@ export default function ProblemPage() {
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [studentAiFeedback, setStudentAiFeedback] = useState<StudentAiFeedback | null>(null);
-  const [feedbackPending, setFeedbackPending] = useState(false);
+  const [feedbackPollState, setFeedbackPollState] = useState<FeedbackPollState>("idle");
   const [coachBusy, setCoachBusy] = useState(false);
   const [coachReplyBusy, setCoachReplyBusy] = useState(false);
   const viewedFeedbackIdsRef = useRef<Set<number>>(new Set());
+  const feedbackPollTokenRef = useRef(0);
+  const feedbackTimerRef = useRef<number | null>(null);
+  const resultOpenRef = useRef(false);
+
+  useEffect(() => {
+    resultOpenRef.current = resultOpen;
+  }, [resultOpen]);
+
+  useEffect(() => {
+    return () => {
+      feedbackPollTokenRef.current += 1;
+      clearFeedbackTimer();
+    };
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -229,7 +271,9 @@ export default function ProblemPage() {
         setCoachPrompt(null);
         setCoachAnswer("");
         setAlert(null);
-        setFeedbackPending(false);
+        feedbackPollTokenRef.current += 1;
+        clearFeedbackTimer();
+        setFeedbackPollState("idle");
         setStudentAiFeedback(null);
         const [problemResult, historyResult] = await Promise.all([api.problem(problemId), api.history(problemId)]);
         setProblem(problemResult);
@@ -415,7 +459,7 @@ export default function ProblemPage() {
       setResultOpen(true);
       setCoachPrompt(null);
       setStudentAiFeedback(null);
-      setFeedbackPending(Boolean(result.id));
+      const feedbackToken = startFeedbackPollingState(Boolean(result.id));
       setHistory(await api.history(problem.id));
       setAlert(
         result.verdict === "INTERNAL_ERROR"
@@ -423,8 +467,11 @@ export default function ProblemPage() {
           : null
       );
       if (result.id) {
-        void api.triggerStudentAiFeedback(result.id).catch(() => undefined);
-        pollStudentAiFeedback(result.id);
+        void api
+          .triggerStudentAiFeedback(result.id)
+          .then(lookup => handleFeedbackLookup(lookup.feedback || null, feedbackToken))
+          .catch(() => undefined);
+        pollStudentAiFeedback(result.id, feedbackToken);
       }
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "提交失败。" });
@@ -433,43 +480,87 @@ export default function ProblemPage() {
     }
   }
 
-  function pollStudentAiFeedback(id: number, attempt = 0) {
-    const maxAttempts = 18;
-    const delay = attempt === 0 ? 350 : Math.min(900 + attempt * 180, 2200);
-    window.setTimeout(async () => {
+  function clearFeedbackTimer() {
+    if (feedbackTimerRef.current !== null) {
+      window.clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
+    }
+  }
+
+  function startFeedbackPollingState(active: boolean) {
+    feedbackPollTokenRef.current += 1;
+    clearFeedbackTimer();
+    setFeedbackPollState(active ? "checking" : "idle");
+    return feedbackPollTokenRef.current;
+  }
+
+  function handleFeedbackLookup(feedback: StudentAiFeedback | null, token: number) {
+    if (token !== feedbackPollTokenRef.current) {
+      return true;
+    }
+    if (feedback) {
+      setStudentAiFeedback(feedback);
+    }
+    if (feedback && terminalFeedbackStatus(feedback.status)) {
+      setFeedbackPollState("idle");
+      if (feedback.status === "READY" && resultOpenRef.current) {
+        setResultOpen(true);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function pollStudentAiFeedback(id: number, token: number, startedAt = Date.now()) {
+    const elapsedMs = Date.now() - startedAt;
+    const delay = elapsedMs <= 0 ? 350 : feedbackPollingDelay(elapsedMs);
+    feedbackTimerRef.current = window.setTimeout(async () => {
+      if (token !== feedbackPollTokenRef.current) {
+        return;
+      }
       try {
         const lookup = await api.studentAiFeedback(id);
         const feedback = lookup.feedback || null;
-        if (feedback) {
-          setStudentAiFeedback(feedback);
-        }
-        if (feedback && terminalFeedbackStatus(feedback.status)) {
-          setFeedbackPending(false);
-          setResultOpen(true);
+        if (handleFeedbackLookup(feedback, token)) {
           return;
         }
       } catch {
         // AI 快反馈失败不阻塞学生继续修改代码。
       }
-      if (attempt + 1 < maxAttempts) {
-        pollStudentAiFeedback(id, attempt + 1);
-      } else {
-        setFeedbackPending(false);
-        setStudentAiFeedback(current =>
-          current && current.status !== "GENERATING"
-            ? current
-            : {
-                submissionId: id,
-                status: "TIMEOUT",
-                source: "MODEL",
-                repairItems: [],
-                improvementItems: [],
-                safety: { answerLeakRisk: "LOW", blockedReasons: ["TIMEOUT"] },
-                evidenceRefs: []
-              }
-        );
+      if (token !== feedbackPollTokenRef.current) {
+        return;
       }
+      const nextElapsedMs = Date.now() - startedAt;
+      if (nextElapsedMs >= FEEDBACK_BACKGROUND_AFTER_MS) {
+        setFeedbackPollState("background");
+        return;
+      }
+      setFeedbackPollState(nextElapsedMs >= FEEDBACK_SLOW_AFTER_MS ? "slow" : "checking");
+      pollStudentAiFeedback(id, token, startedAt);
     }, delay);
+  }
+
+  async function refreshStudentAiFeedback() {
+    if (!latest?.id) {
+      return;
+    }
+    const shouldRetry =
+      studentAiFeedback?.source === "MODEL" && terminalFeedbackStatus(studentAiFeedback.status) && studentAiFeedback.status !== "READY";
+    const feedbackToken = startFeedbackPollingState(true);
+    setFeedbackPollState("refreshing");
+    try {
+      const lookup = shouldRetry ? await api.triggerStudentAiFeedback(latest.id) : await api.studentAiFeedback(latest.id);
+      const feedback = lookup.feedback || null;
+      if (handleFeedbackLookup(feedback, feedbackToken)) {
+        return;
+      }
+      setFeedbackPollState(inFlightFeedbackStatus(feedback?.status) ? "checking" : "background");
+      pollStudentAiFeedback(latest.id, feedbackToken);
+    } catch {
+      if (feedbackToken === feedbackPollTokenRef.current) {
+        setFeedbackPollState("background");
+      }
+    }
   }
 
   async function generateCoachPrompt() {
@@ -520,7 +611,13 @@ export default function ProblemPage() {
   const modelFeedbackReady = studentAiFeedback?.status === "READY" && studentAiFeedback.source === "MODEL";
   const repairViewItems = modelFeedbackReady ? studentAiFeedback.repairItems?.filter(item => item.body || item.title) || [] : [];
   const improvementViewItems = modelFeedbackReady ? studentAiFeedback.improvementItems?.filter(item => item.body || item.title) || [] : [];
-  const isFeedbackWaiting = Boolean(latest && feedbackPending && (!studentAiFeedback || studentAiFeedback.status === "GENERATING" || studentAiFeedback.status === "NOT_REQUESTED"));
+  const feedbackStatus = String(studentAiFeedback?.status || "").toUpperCase();
+  const isFeedbackWaiting = Boolean(
+    latest &&
+      feedbackPollState !== "idle" &&
+      (!studentAiFeedback || inFlightFeedbackStatus(feedbackStatus))
+  );
+  const isFeedbackBackground = Boolean(latest && feedbackPollState === "background" && (!studentAiFeedback || inFlightFeedbackStatus(feedbackStatus)));
   const feedbackFailed = Boolean(
     latest &&
       studentAiFeedback &&
@@ -530,11 +627,21 @@ export default function ProblemPage() {
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
   const feedbackReady = Boolean(latest);
   const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;
-  const lastResultText = isFeedbackWaiting ? "AI 分析中" : testCaseSummary;
+  const lastResultText = modelFeedbackReady
+    ? "AI 已生成"
+    : isFeedbackBackground
+      ? "AI 后台生成中"
+      : isFeedbackWaiting
+        ? "AI 分析中"
+        : testCaseSummary;
   const selectedLanguage = contestLanguageById(languageId);
   const repairCheckQuestion = modelFeedbackReady ? studentAiFeedback.nextQuestion || "" : "";
-  const showRepairSection = isFeedbackWaiting || feedbackFailed || repairViewItems.length > 0 || Boolean(repairCheckQuestion) || Boolean(coachPrompt);
-  const showGrowthSection = isFeedbackWaiting || feedbackFailed || improvementViewItems.length > 0;
+  const showRepairSection = isFeedbackWaiting || isFeedbackBackground || feedbackFailed || repairViewItems.length > 0 || Boolean(repairCheckQuestion) || Boolean(coachPrompt);
+  const showGrowthSection = isFeedbackWaiting || isFeedbackBackground || feedbackFailed || improvementViewItems.length > 0;
+  const showFeedbackRefreshAction = Boolean(
+    latest && (isFeedbackBackground || feedbackFailed || feedbackPollState === "slow" || feedbackPollState === "refreshing")
+  );
+  const feedbackRefreshLabel = feedbackPollState === "refreshing" ? "刷新中" : feedbackFailed ? "重试 AI" : "刷新 AI";
   const rawJudgeOutputs = Array.from(
     new Set(
       [
@@ -756,7 +863,9 @@ export default function ProblemPage() {
               </div>
               <div className="problem-result-modal__status">
                 <StatusPill tone={latest.verdict === "ACCEPTED" ? "success" : "warning"}>{testCaseSummary}</StatusPill>
-                {isFeedbackWaiting && <StatusPill tone="neutral">AI 分析中</StatusPill>}
+                {(isFeedbackWaiting || isFeedbackBackground) && (
+                  <StatusPill tone="neutral">{isFeedbackBackground ? "后台生成中" : feedbackPollState === "slow" ? "AI 较慢" : "AI 分析中"}</StatusPill>
+                )}
                 <button type="button" aria-label="关闭结果" onClick={() => setResultOpen(false)}>
                   <X size={18} />
                 </button>
@@ -822,8 +931,8 @@ export default function ProblemPage() {
                     <div className="problem-result-section__head">
                       <h3>修正建议</h3>
                     </div>
-                    {isFeedbackWaiting ? (
-                      <FeedbackLoadingPanel mode="repair" />
+                    {isFeedbackWaiting || isFeedbackBackground ? (
+                      <FeedbackLoadingPanel mode="repair" state={feedbackPollState} />
                     ) : feedbackFailed ? (
                       <div className="student-feedback-empty">AI 暂未生成</div>
                     ) : repairViewItems.length ? (
@@ -856,8 +965,8 @@ export default function ProblemPage() {
                     <div className="problem-result-section__head">
                       <h3>提升建议</h3>
                     </div>
-                    {isFeedbackWaiting ? (
-                      <FeedbackLoadingPanel mode="growth" />
+                    {isFeedbackWaiting || isFeedbackBackground ? (
+                      <FeedbackLoadingPanel mode="growth" state={feedbackPollState} />
                     ) : feedbackFailed ? (
                       <div className="student-feedback-empty">AI 暂未生成</div>
                     ) : improvementViewItems.length ? (
@@ -876,6 +985,17 @@ export default function ProblemPage() {
             </div>
 
             <div className="problem-result-modal__footer">
+              {showFeedbackRefreshAction && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void refreshStudentAiFeedback()}
+                  disabled={feedbackPollState === "refreshing"}
+                  icon={<RefreshCw size={16} />}
+                >
+                  {feedbackRefreshLabel}
+                </Button>
+              )}
               <Button type="button" variant="primary" onClick={() => setResultOpen(false)}>
                 继续修改
               </Button>

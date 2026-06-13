@@ -40,7 +40,7 @@ public class AiReportService {
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
     private static final String RUNTIME_PROMPT_VERSION = "diagnosis-judge-v2+teaching-hint-v1";
     private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = "diagnosis-and-teaching-v3";
-    private static final String STUDENT_FAST_FEEDBACK_PROMPT_VERSION = "student-fast-feedback-v1";
+    private static final String STUDENT_FAST_FEEDBACK_PROMPT_VERSION = "student-fast-feedback-v2";
     private static final String RUNTIME_MODE_SINGLE_CALL = "single-call";
     private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^(\\d+):\\s?(.*)$", Pattern.MULTILINE);
     private static final Pattern REPORT_LINE_ISSUE_PATTERN = Pattern.compile(
@@ -400,60 +400,24 @@ public class AiReportService {
         }
 
         try {
-            Map<String, Object> context = new LinkedHashMap<>();
-            context.put("problem", compactProblemContext(problem));
-            context.put("submission", compactSubmissionContext(submission, evidencePackage));
-            context.put("judgeFacts", evidencePackage == null ? null : evidencePackage.getJudgeFacts());
-            context.put("candidateSignals", compactRuleSignals(ruleSignals));
-            context.put("safetyRules", List.of(
-                    "只能给修正方向、观察动作、验证动作，不得给完整代码或完整答案。",
-                    "不得猜测隐藏测试数据。",
-                    "repairItems 最多 1 条，improvementItems 最多 2 条。",
-                    "每条建议必须引用 evidenceRefs 中已有证据。"
-            ));
+            Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, ruleSignals);
 
             String systemPrompt = """
-                    You are a student-facing programming coach for an online judge.
-                    Return strict JSON only. Do not use markdown fences. Do not output chain-of-thought.
+                    You are a fast student-facing OJ coach. Return strict minified JSON only. No markdown. No chain-of-thought.
                     All visible strings must be Simplified Chinese.
 
-                    Required JSON shape:
-                    {
-                      "repairItems": [
-                        {
-                          "title": "short title",
-                          "body": "one actionable debugging direction without giving the answer",
-                          "kind": "ISSUE_OR_FINE_TAG",
-                          "evidenceRefs": ["existing:evidence"],
-                          "qualitySignals": ["evidence_grounded", "actionable", "no_answer_leak"]
-                        }
-                      ],
-                      "improvementItems": [
-                        {
-                          "title": "复杂度|边界意识|测试习惯|代码结构",
-                          "body": "one optional improvement direction",
-                          "kind": "IMPROVEMENT",
-                          "evidenceRefs": ["existing:evidence"],
-                          "qualitySignals": ["transfer"]
-                        }
-                      ],
-                      "nextQuestion": "one short self-check question",
-                      "safety": {
-                        "answerLeakRisk": "LOW|MEDIUM|HIGH",
-                        "blockedReasons": []
-                      },
-                      "evidenceRefs": ["existing:evidence"]
-                    }
+                    Shape:
+                    {"repairItems":[{"title":"","body":"","kind":"","evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
 
-                    Educational rules:
-                    1. repairItems must teach the student how to locate or verify the first fix, not what final code to write.
-                    2. improvementItems should only be about deeper learning: complexity, boundary awareness, testing habit, or code clarity.
-                    3. If evidence is insufficient, return empty repairItems and explain insufficiency in blockedReasons.
-                    4. If the answer leak risk is HIGH, return empty repairItems and empty improvementItems.
-                    5. Never include complete code, final algorithm steps that solve the whole problem, hidden test data, or direct replacement text.
+                    Rules:
+                    1. repairItems max 1, body <= 70 Chinese chars. Teach where/how to verify the first fix; never give final code or full answer.
+                    2. improvementItems max 1, body <= 60 Chinese chars. Prefer testing habit, boundary awareness, or code clarity.
+                    3. nextQuestion <= 35 Chinese chars and must be a self-check question.
+                    4. Use only evidenceRefs from input. Do not guess hidden tests.
+                    5. If evidence is insufficient or leak risk is HIGH, return empty items and explain in blockedReasons.
                     """;
             String userPrompt = "Generate StudentAiFeedback from this context: " + objectMapper.writeValueAsString(context);
-            int fastFeedbackOutputTokens = Math.min(Math.max(512, maxOutputTokens), 900);
+            int fastFeedbackOutputTokens = Math.min(Math.max(320, maxOutputTokens), 520);
             String content = chatCompletionForStudentFeedback(systemPrompt, userPrompt, fastFeedbackOutputTokens);
             StudentFastFeedbackPayload payload = parseModelStagePayload(content, StudentFastFeedbackPayload.class);
             StudentAiFeedbackResponse response = normalizeStudentFastFeedback(payload, submission, startedAt);
@@ -2229,6 +2193,41 @@ public class AiReportService {
         return sourceCode.substring(0, MAX_SOURCE_CODE_LENGTH) + "\n// ... truncated ...";
     }
 
+    private String truncateText(String value, int maxLength) {
+        String text = cleanupAiText(value);
+        int limit = Math.max(0, maxLength);
+        if (limit == 0 || text.length() <= limit) {
+            return text;
+        }
+        return text.substring(0, limit).trim() + "...";
+    }
+
+    private String compactLineAwareSourceExcerpt(String numberedSourceCode, int maxLines, int maxChars) {
+        String normalized = cleanupAiText(numberedSourceCode);
+        if (normalized.isBlank()) {
+            return "";
+        }
+        String[] lines = normalized.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
+        StringBuilder builder = new StringBuilder();
+        int lineLimit = Math.max(1, maxLines);
+        int charLimit = Math.max(80, maxChars);
+        for (int index = 0; index < lines.length && index < lineLimit; index++) {
+            String line = lines[index];
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            if (builder.length() + line.length() > charLimit) {
+                builder.append(line, 0, Math.max(0, charLimit - builder.length())).append("...");
+                break;
+            }
+            builder.append(line);
+        }
+        if (lines.length > lineLimit) {
+            builder.append("\n... truncated ").append(lines.length - lineLimit).append(" more lines ...");
+        }
+        return builder.toString();
+    }
+
     private String buildLineAwareSourceCode(String sourceCode) {
         if (sourceCode == null || sourceCode.isBlank()) {
             return "";
@@ -2685,6 +2684,131 @@ public class AiReportService {
         context.put("candidateIssueTags", cleanList(ruleSignals.getCandidateIssueTags(), List.of()).stream().limit(6).toList());
         context.put("candidateFineGrainedTags", cleanList(ruleSignals.getCandidateFineGrainedTags(), List.of()).stream().limit(6).toList());
         context.put("evidenceRefs", cleanList(ruleSignals.getEvidenceRefs(), List.of()).stream().limit(10).toList());
+        return context;
+    }
+
+    private Map<String, Object> compactStudentFastFeedbackContext(Problem problem,
+                                                                  Submission submission,
+                                                                  DiagnosisEvidencePackage evidencePackage,
+                                                                  RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("problem", compactStudentProblemContext(problem, evidencePackage));
+        context.put("submission", compactStudentSubmissionContext(submission, evidencePackage));
+        context.put("judgeFacts", compactStudentJudgeFacts(evidencePackage == null ? null : evidencePackage.getJudgeFacts()));
+        context.put("candidateSignals", compactStudentRuleSignals(ruleSignals));
+        context.put("safetyRules", List.of(
+                "只给定位和验证动作，不给完整代码或完整答案。",
+                "不猜隐藏测试数据。",
+                "每条建议必须引用输入 evidenceRefs。"
+        ));
+        return context;
+    }
+
+    private Map<String, Object> compactStudentProblemContext(Problem problem,
+                                                             DiagnosisEvidencePackage evidencePackage) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        DiagnosisEvidencePackage.ProblemEvidence evidence = evidencePackage == null ? null : evidencePackage.getProblem();
+        if (problem == null && evidence == null) {
+            return context;
+        }
+        context.put("id", problem == null ? evidence.getId() : problem.getId());
+        context.put("title", problem == null ? evidence.getTitle() : problem.getTitle());
+        context.put("difficulty", problem == null ? defaultIfBlank(evidence.getDifficulty(), "") : problem.getDifficulty() == null ? "" : problem.getDifficulty().name());
+        context.put("brief", truncateText(problem == null ? evidence.getDescription() : problem.getDescription(), 260));
+        context.put("knowledgePoints", problem == null ? cleanList(evidence.getKnowledgePoints(), List.of()).stream().limit(3).toList()
+                : cleanList(problem.getKnowledgePoints(), List.of()).stream().limit(3).toList());
+        context.put("commonMistakes", problem == null ? cleanList(evidence.getCommonMistakes(), List.of()).stream().limit(3).toList()
+                : cleanList(problem.getCommonMistakes(), List.of()).stream().limit(3).toList());
+        return context;
+    }
+
+    private Map<String, Object> compactStudentSubmissionContext(Submission submission,
+                                                                DiagnosisEvidencePackage evidencePackage) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        DiagnosisEvidencePackage.SubmissionEvidence evidence = evidencePackage == null ? null : evidencePackage.getSubmission();
+        if (submission == null && evidence == null) {
+            return context;
+        }
+        String sourceCode = evidence == null || evidence.getSourceCode() == null
+                ? submission == null ? "" : submission.getSourceCode()
+                : evidence.getSourceCode();
+        String numberedSource = evidence == null || evidence.getSourceCodeWithLineNumbers() == null
+                ? buildLineAwareSourceCode(sourceCode)
+                : evidence.getSourceCodeWithLineNumbers();
+        context.put("id", submission == null ? evidence.getId() : submission.getId());
+        context.put("language", submission == null ? evidence.getLanguage() : submission.getLanguageName());
+        context.put("verdict", submission == null ? defaultIfBlank(evidence.getVerdict(), "UNKNOWN") : submission.getVerdict() == null ? "UNKNOWN" : submission.getVerdict().name());
+        context.put("sourceCodeLineCount", evidence == null || evidence.getSourceCodeLineCount() == null
+                ? countSourceLines(sourceCode)
+                : evidence.getSourceCodeLineCount());
+        context.put("sourceExcerpt", compactLineAwareSourceExcerpt(numberedSource, 8, 520));
+        context.put("compileOutput", truncateText(submission == null ? "" : submission.getCompileOutput(), 220));
+        context.put("runtimeErrorMessage", truncateText(submission == null ? "" : submission.getErrorMessage(), 220));
+        return context;
+    }
+
+    private Map<String, Object> compactStudentJudgeFacts(DiagnosisEvidencePackage.JudgeFacts judgeFacts) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        if (judgeFacts == null) {
+            return context;
+        }
+        context.put("passedCount", judgeFacts.getPassedCount());
+        context.put("totalCount", judgeFacts.getTotalCount());
+        context.put("hiddenFailureObserved", Boolean.TRUE.equals(judgeFacts.getHiddenFailureObserved()));
+        context.put("runtimeErrorMessage", truncateText(judgeFacts.getRuntimeErrorMessage(), 220));
+        context.put("compileOutput", truncateText(judgeFacts.getCompileOutput(), 220));
+        context.put("firstFailedCase", compactFirstVisibleCase(judgeFacts));
+        context.put("caseResultsSummary", judgeFacts.getCaseResultsSummary() == null ? List.of() : judgeFacts.getCaseResultsSummary().stream()
+                .filter(item -> item != null)
+                .limit(2)
+                .map(item -> Map.of(
+                        "testCaseNumber", item.getTestCaseNumber() == null ? 0 : item.getTestCaseNumber(),
+                        "passed", Boolean.TRUE.equals(item.getPassed()),
+                        "hidden", Boolean.TRUE.equals(item.getHidden()),
+                        "actualOutputPreview", Boolean.TRUE.equals(item.getHidden()) ? "[隐藏]" : truncateText(item.getActualOutputPreview(), 120),
+                        "expectedOutputPreview", Boolean.TRUE.equals(item.getHidden()) ? "[隐藏]" : truncateText(item.getExpectedOutputPreview(), 120)
+                ))
+                .toList());
+        return context;
+    }
+
+    private Map<String, Object> compactFirstVisibleCase(DiagnosisEvidencePackage.JudgeFacts judgeFacts) {
+        if (judgeFacts == null || judgeFacts.getCaseResultsSummary() == null) {
+            return Map.of();
+        }
+        return judgeFacts.getCaseResultsSummary().stream()
+                .filter(item -> item != null && !Boolean.TRUE.equals(item.getPassed()) && !Boolean.TRUE.equals(item.getHidden()))
+                .findFirst()
+                .map(item -> Map.<String, Object>of(
+                        "testCaseNumber", item.getTestCaseNumber() == null ? 0 : item.getTestCaseNumber(),
+                        "actualOutputPreview", truncateText(item.getActualOutputPreview(), 120),
+                        "expectedOutputPreview", truncateText(item.getExpectedOutputPreview(), 120)
+                ))
+                .orElse(Map.of());
+    }
+
+    private Map<String, Object> compactStudentRuleSignals(RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        if (ruleSignals == null) {
+            context.put("signals", List.of());
+            context.put("candidateIssueTags", List.of());
+            context.put("candidateFineGrainedTags", List.of());
+            context.put("evidenceRefs", List.of());
+            return context;
+        }
+        context.put("signals", ruleSignals.getSignals() == null ? List.of() : ruleSignals.getSignals().stream()
+                .filter(signal -> signal != null)
+                .limit(3)
+                .map(signal -> Map.of(
+                        "evidenceRef", defaultIfBlank(signal.getEvidenceRef(), ""),
+                        "coarseTag", defaultIfBlank(signal.getCoarseTag(), ""),
+                        "fineTag", defaultIfBlank(signal.getFineTag(), ""),
+                        "message", truncateText(signal.getMessage(), 120)
+                ))
+                .toList());
+        context.put("candidateIssueTags", cleanList(ruleSignals.getCandidateIssueTags(), List.of()).stream().limit(3).toList());
+        context.put("candidateFineGrainedTags", cleanList(ruleSignals.getCandidateFineGrainedTags(), List.of()).stream().limit(3).toList());
+        context.put("evidenceRefs", cleanList(ruleSignals.getEvidenceRefs(), List.of()).stream().limit(6).toList());
         return context;
     }
 

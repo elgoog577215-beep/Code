@@ -57,8 +57,10 @@ class StudentAiFeedbackModelTest {
                 assertThat(item.getTitle()).isEqualTo("测试习惯"));
         assertThat(feedback.getNextQuestion()).contains("第二个整数");
         assertThat(feedback.getSafety().getAnswerLeakRisk()).isEqualTo("LOW");
-        assertThat(service.lastSystemPrompt()).contains("student-facing programming coach");
-        assertThat(service.lastUserPrompt()).contains("judgeFacts", "candidateSignals", "sourceCodeWithLineNumbers");
+        assertThat(service.lastSystemPrompt()).contains("fast student-facing OJ coach");
+        assertThat(service.lastUserPrompt()).contains("judgeFacts", "candidateSignals", "sourceExcerpt");
+        assertThat(service.lastUserPrompt()).doesNotContain("sourceCodeWithLineNumbers", "sourceCodeForLineAnalysis");
+        assertThat(service.lastOutputTokens()).isLessThanOrEqualTo(520);
     }
 
     @Test
@@ -191,6 +193,7 @@ class StudentAiFeedbackModelTest {
         private final String response;
         private String lastSystemPrompt;
         private String lastUserPrompt;
+        private int lastOutputTokens;
 
         StubStudentFeedbackAiReportService(ObjectMapper objectMapper, String response) {
             super(objectMapper, new AiCodeAssistSupport());
@@ -203,6 +206,7 @@ class StudentAiFeedbackModelTest {
                                                           int outputTokens) throws IOException {
             this.lastSystemPrompt = systemPrompt;
             this.lastUserPrompt = userPrompt;
+            this.lastOutputTokens = outputTokens;
             if (response == null) {
                 throw new IOException("No feedback response");
             }
@@ -215,6 +219,10 @@ class StudentAiFeedbackModelTest {
 
         String lastUserPrompt() {
             return lastUserPrompt;
+        }
+
+        int lastOutputTokens() {
+            return lastOutputTokens;
         }
     }
 }

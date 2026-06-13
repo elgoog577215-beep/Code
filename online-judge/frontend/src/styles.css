@@ -5518,6 +5518,14 @@ button.list-row:hover {
   color: var(--ink);
 }
 
+.student-feedback-loading__note {
+  position: relative;
+  margin: -0.18rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .student-feedback-loading__spinner {
   width: 16px;
   height: 16px;
