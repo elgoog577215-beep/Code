@@ -91,7 +91,7 @@ public class PromptTemplateRegistry {
                 1. primaryIssueTag MUST come from standardLibrary.issueTags.
                 2. fineGrainedTag MUST be null or come from standardLibrary.fineGrainedTags.
                 3. evidenceRefs MUST cite brief.evidenceRefs or brief.candidateSignals evidenceRef values.
-                4. Follow standardLibrary.decisionProtocol before choosing tags.
+                4. Use standardLibrary.basicCauses as the cause knowledge base and standardLibrary.improvementPoints as the improvement knowledge base.
                 5. Select the most evidence-supported tag, not the most common or most severe tag.
                 6. Use fineGrainedTag only when direct evidence distinguishes it from the parent issue.
                 7. Prefer the highest-confidence candidateSignals that directly explain firstFailedCase or concrete problem/source evidence.
@@ -195,7 +195,7 @@ public class PromptTemplateRegistry {
                 1. diagnosisDecision.primaryIssueTag MUST come from standardLibrary.issueTags.
                 2. diagnosisDecision.fineGrainedTag MUST be null or come from standardLibrary.fineGrainedTags.
                 3. All evidenceRefs MUST cite brief.evidenceRefs or brief.candidateSignals evidenceRef values.
-                4. Follow standardLibrary.decisionProtocol before choosing diagnosisDecision tags.
+                4. Use standardLibrary.basicCauses to ground blocking issues and standardLibrary.improvementPoints to ground follow-up suggestions.
                 5. Select the most evidence-supported tag, not the most common or most severe tag.
                 6. Use diagnosisDecision.fineGrainedTag only when direct evidence distinguishes it from the parent issue.
                 7. Prefer the highest-confidence candidateSignals that directly explain firstFailedCase or concrete problem/source evidence.
@@ -321,31 +321,30 @@ public class PromptTemplateRegistry {
                 3. All evidenceRefs MUST cite brief.evidenceRefs or brief.candidateSignals evidenceRef values.
                 4. If brief.evidenceRefs contains generator:* or candidateSignal refs for the chosen root cause, include at least one of those most-specific refs plus a readable judge/problem ref.
                 5. Omit teachingHint or set it to null unless you have spare output budget; studentFeedback is the primary student-facing output.
-                6. Follow standardLibrary.educationAgentProtocol first, then decisionProtocol and studentFeedbackRules.
-                7. Use standardLibrary.judgmentCalibrationExamples as decision-shape calibration for similar cases, but do not copy them when evidence differs.
-                8. Act as the external education AI agent: make the teaching judgment a programming teacher would make after reading the evidence.
-                9. Apply standardLibrary.educationAgentProtocol.rootCauseDecisionChecklist before writing diagnosisDecision: locate evidence, connect code behavior, compare causes, demote distractors, then choose one observable next action.
-                10. First choose the current blocking root cause that best explains firstFailedCase, compile error, runtime error, or visible judge evidence.
-                11. Before returning, self-check diagnosisDecision against standardLibrary.educationAgentProtocol.nativeTraceQualityChecklist; every item should be satisfied when evidence is available.
-                12. diagnosisDecision.primaryReasoning MUST explain why this is the first teaching priority in one short sentence, using the selected root cause and concrete evidenceRefs.
-                13. diagnosisDecision.teachingPriority MUST name the first learning focus and why it outranks secondary issues, not a full fix.
-                14. diagnosisDecision.secondaryIssues and distractorNotes MUST be short; each one should say why it is secondary or distracting when mentioned.
-                15. diagnosisDecision.nextLearningAction MUST be one observable comparison, trace, estimate, counterexample, or checklist task with evidenceRefs.
-                16. diagnosisDecision.improvementOpportunities and studentFeedback.improvementOpportunities MUST use standardLibrary.improvementTags ids only.
-                17. studentFeedback.blockingIssues[0] MUST match diagnosisDecision and explain the current failed evidence.
-                18. Secondary issues may be mentioned only when they do not outrank the first blocking issue.
-                19. Keep every student-facing string under 40 Chinese characters where possible.
-                20. Keep all student-facing content scaffolded: one small, verifiable next action, not the final fix.
-                21. For input-format issues, ask the student to count required input groups and actual read operations; never name the loop header to add.
-                22. For output-format issues, ask for character-level output comparison before discussing algorithms.
-                23. For large-bound complexity issues, ask for maximum-scale operation counting without naming the optimized method or formula.
-                24. For hidden failures, state that hidden data is unavailable and ask for a self-made counterexample instead of guessing the hidden case.
-                25. For complex submissions with several error signals, the first blocking issue MUST choose the teachable root cause before secondary issues or improvements.
-                26. Do not promote distracting signals such as helper names, dead code, debug branches, sample-specific branches, or cosmetic formatting to the primary cause unless they directly explain the failed case with evidence refs.
-                27. answerLeakRisk MUST be HIGH only if any part exposes a full solution, complete code, hidden data, replacement loop header, transition formula, or executable control structure; otherwise use LOW or MEDIUM.
-                28. Do not include replacement loop headers, transition formulas, executable control structures, complete code, final answers, or hidden test data.
-                29. Do not output phrases such as "for _ in range(q)", "while q", "直接加循环", or "直接改成".
-                30. Counting required input groups, comparing actual read operations, or asking the student to inspect q is evidence collection and SHOULD be LOW or MEDIUM, not HIGH.
+                6. Use standardLibrary.basicCauses as the granular cause library and standardLibrary.improvementPoints as the follow-up improvement library.
+                7. Act as the external education AI agent: make the teaching judgment a programming teacher would make after reading the evidence.
+                8. Before writing diagnosisDecision: locate evidence, connect code behavior, compare causes, demote distractors, then choose one observable next action.
+                9. First choose the current blocking root cause that best explains firstFailedCase, compile error, runtime error, or visible judge evidence.
+                10. Before returning, self-check that the primary reasoning is evidence-grounded, the teaching priority is clear, secondary signals are balanced, next action is observable, and no answer leakage appears.
+                11. diagnosisDecision.primaryReasoning MUST explain why this is the first teaching priority in one short sentence, using the selected root cause and concrete evidenceRefs.
+                12. diagnosisDecision.teachingPriority MUST name the first learning focus and why it outranks secondary issues, not a full fix.
+                13. diagnosisDecision.secondaryIssues and distractorNotes MUST be short; each one should say why it is secondary or distracting when mentioned.
+                14. diagnosisDecision.nextLearningAction MUST be one observable comparison, trace, estimate, counterexample, or checklist task with evidenceRefs.
+                15. diagnosisDecision.improvementOpportunities and studentFeedback.improvementOpportunities MUST use standardLibrary.improvementTags ids only.
+                16. studentFeedback.blockingIssues[0] MUST match diagnosisDecision and explain the current failed evidence.
+                17. Secondary issues may be mentioned only when they do not outrank the first blocking issue.
+                18. Keep every student-facing string under 40 Chinese characters where possible.
+                19. Keep all student-facing content scaffolded: one small, verifiable next action, not the final fix.
+                20. For input-format issues, ask the student to count required input groups and actual read operations; never name the loop header to add.
+                21. For output-format issues, ask for character-level output comparison before discussing algorithms.
+                22. For large-bound complexity issues, ask for maximum-scale operation counting without naming the optimized method or formula.
+                23. For hidden failures, state that hidden data is unavailable and ask for a self-made counterexample instead of guessing the hidden case.
+                24. For complex submissions with several error signals, the first blocking issue MUST choose the teachable root cause before secondary issues or improvements.
+                25. Do not promote distracting signals such as helper names, dead code, debug branches, sample-specific branches, or cosmetic formatting to the primary cause unless they directly explain the failed case with evidence refs.
+                26. answerLeakRisk MUST be HIGH only if any part exposes a full solution, complete code, hidden data, replacement loop header, transition formula, or executable control structure; otherwise use LOW or MEDIUM.
+                27. Do not include replacement loop headers, transition formulas, executable control structures, complete code, final answers, or hidden test data.
+                28. Do not output phrases such as "for _ in range(q)", "while q", "直接加循环", or "直接改成".
+                29. Counting required input groups, comparing actual read operations, or asking the student to inspect q is evidence collection and SHOULD be LOW or MEDIUM, not HIGH.
                 """;
     }
 
@@ -458,15 +457,16 @@ public class PromptTemplateRegistry {
                 2. diagnosisDecision.primaryIssueTag MUST come from standardLibrary.issueTags.
                 3. diagnosisDecision.fineGrainedTag MUST be null or come from standardLibrary.fineGrainedTags.
                 4. All evidenceRefs MUST cite brief.evidenceRefs or brief.candidateSignals evidenceRef values.
-                5. Apply standardLibrary.educationAgentProtocol.rootCauseDecisionChecklist before writing diagnosisDecision.
-                6. primaryReasoning MUST use this short shape: evidence shows code behavior, so root cause is the first priority.
-                7. teachingPriority MUST say why the chosen focus outranks secondary issues.
-                8. If secondaryIssues or distractorNotes is non-empty, message MUST include one literal phrase: "次要信号，不是主因" or "干扰信号，不能解释当前失败".
-                9. nextLearningAction.task MUST be one observable action containing one of: 对比, 追踪, 数一数, 估算, 构造, 检查, 核对, 验证.
-                10. studentFeedback.blockingIssues[0] MUST match diagnosisDecision tags and evidence.
-                11. improvementOpportunities MUST use standardLibrary.improvementTags ids only and must not restate the blocking fix as an improvement.
-                12. answerLeakRisk MUST be HIGH only for actual solution leakage; safe evidence collection should be LOW or MEDIUM.
-                13. Do not output phrases such as "for _ in range(q)", "while q", "直接加循环", or "直接改成".
+                5. Use standardLibrary.basicCauses for cause evidence and standardLibrary.improvementPoints for follow-up improvement evidence.
+                6. Before writing diagnosisDecision, locate evidence, connect code behavior, compare causes, demote distractors, then choose one observable next action.
+                7. primaryReasoning MUST use this short shape: evidence shows code behavior, so root cause is the first priority.
+                8. teachingPriority MUST say why the chosen focus outranks secondary issues.
+                9. If secondaryIssues or distractorNotes is non-empty, message MUST include one literal phrase: "次要信号，不是主因" or "干扰信号，不能解释当前失败".
+                10. nextLearningAction.task MUST be one observable action containing one of: 对比, 追踪, 数一数, 估算, 构造, 检查, 核对, 验证.
+                11. studentFeedback.blockingIssues[0] MUST match diagnosisDecision tags and evidence.
+                12. improvementOpportunities MUST use standardLibrary.improvementTags ids only and must not restate the blocking fix as an improvement.
+                13. answerLeakRisk MUST be HIGH only for actual solution leakage; safe evidence collection should be LOW or MEDIUM.
+                14. Do not output phrases such as "for _ in range(q)", "while q", "直接加循环", or "直接改成".
                 """;
     }
 

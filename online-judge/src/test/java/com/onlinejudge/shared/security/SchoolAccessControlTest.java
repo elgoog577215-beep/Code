@@ -15,9 +15,14 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -53,11 +58,69 @@ class SchoolAccessControlTest {
         mockMvc.perform(get("/api/teacher/assignments"))
                 .andExpect(status().isUnauthorized());
 
+        mockMvc.perform(get("/api/teacher/ai-standard-library/items"))
+                .andExpect(status().isUnauthorized());
+
         mockMvc.perform(post("/api/teacher/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"test-teacher-password\"}"))
                 .andExpect(status().isOk())
                 .andExpect(cookie().exists(TeacherSessionService.COOKIE_NAME));
+    }
+
+    @Test
+    void loggedTeacherCanQueryEditDisableAndEnableStandardLibraryItems() throws Exception {
+        String cookie = loginTeacherCookie();
+
+        MvcResult listResult = mockMvc.perform(get("/api/teacher/ai-standard-library/items")
+                        .param("query", "IO_FORMAT")
+                        .header("Cookie", cookie))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode first = objectMapper.readTree(listResult.getResponse().getContentAsString()).get(0);
+        long id = first.path("id").asLong();
+
+        Map<String, Object> updatePayload = new LinkedHashMap<>();
+        updatePayload.put("layer", "BASIC_CAUSE");
+        updatePayload.put("code", "IO_FORMAT");
+        updatePayload.put("category", "输入输出");
+        updatePayload.put("name", "输入输出格式测试更新");
+        updatePayload.put("description", "测试更新");
+        updatePayload.put("studentExplanation", "先核对读入和输出。");
+        updatePayload.put("teacherExplanation", "教师可要求学生逐行对照题面格式。");
+        updatePayload.put("evidenceSignals", List.of("visible mismatch"));
+        updatePayload.put("commonCodePatterns", List.of("输出调试内容"));
+        updatePayload.put("judgeSignals", List.of("WA"));
+        updatePayload.put("hintL1", "先看输入输出格式。");
+        updatePayload.put("hintL2", "把期望输出和实际输出按行对齐。");
+        updatePayload.put("hintL3", "删掉调试输出后重新提交。");
+        updatePayload.put("abilityPoint", "题意读取");
+        updatePayload.put("severity", "HIGH");
+        updatePayload.put("applicableLanguages", List.of("PYTHON", "CPP17"));
+        updatePayload.put("relatedItems", List.of("INPUT_PARSING"));
+        updatePayload.put("teachingAction", "COMPARE_INPUT_SPEC");
+        updatePayload.put("enabled", true);
+
+        mockMvc.perform(put("/api/teacher/ai-standard-library/items/" + id)
+                        .header("Cookie", cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updatePayload)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/teacher/ai-standard-library/items/" + id + "/disable")
+                        .header("Cookie", cookie))
+                .andExpect(status().isOk());
+
+        MvcResult disabledResult = mockMvc.perform(get("/api/teacher/ai-standard-library/items/" + id)
+                        .header("Cookie", cookie))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(objectMapper.readTree(disabledResult.getResponse().getContentAsString()).path("enabled").asBoolean())
+                .isFalse();
+
+        mockMvc.perform(post("/api/teacher/ai-standard-library/items/" + id + "/enable")
+                        .header("Cookie", cookie))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -106,5 +169,16 @@ class SchoolAccessControlTest {
 
         mockMvc.perform(get("/api/submissions/" + submission.getId()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    private String loginTeacherCookie() throws Exception {
+        MvcResult login = mockMvc.perform(post("/api/teacher/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"test-teacher-password\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String cookie = login.getResponse().getHeader("Set-Cookie");
+        assertThat(cookie).isNotBlank();
+        return cookie.split(";", 2)[0];
     }
 }

@@ -415,8 +415,8 @@ class LiveModelEvalComparisonReportFactoryTest {
         assertThat(report.getIterationAdvice().getStandardLibraryActions())
                 .extracting(LiveModelEvalComparisonReport.IterationAction::getTitle)
                 .contains(
-                        "调整主次优先级规则和校准样例",
-                        "补充干扰信号抵抗校准样例"
+                        "补充主错因证据条目",
+                        "补充干扰信号知识条目"
                 );
         assertThat(report.getIterationAdvice().getPromptActions())
                 .filteredOn(action -> action.getTitle().equals("要求 teachingPriority 先解释第一教学焦点"))
@@ -938,7 +938,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 );
         assertThat(report.getIterationAdvice().getStandardLibraryActions())
                 .extracting(LiveModelEvalComparisonReport.IterationAction::getTitle)
-                .contains("补充教育判断校准样例");
+                .contains("补充基础错因证据与提示条目");
     }
 
     @Test
@@ -1128,8 +1128,8 @@ class LiveModelEvalComparisonReportFactoryTest {
         assertThat(report.getIterationAdvice().getStandardLibraryActions())
                 .extracting(LiveModelEvalComparisonReport.IterationAction::getTitle)
                 .contains(
-                        "补充教育判断校准样例",
-                        "补充多信号主次取舍范式"
+                        "补充基础错因证据与提示条目",
+                        "补充多信号主次取舍知识"
                 );
         assertThat(report.getIterationAdvice().getPromptActions())
                 .flatExtracting(LiveModelEvalComparisonReport.IterationAction::getEvidenceSignals)
@@ -1229,7 +1229,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 );
         assertThat(report.getIterationAdvice().getStandardLibraryActions())
                 .extracting(LiveModelEvalComparisonReport.IterationAction::getTitle)
-                .contains("补充干扰抵抗样例");
+                .contains("补充干扰抵抗知识条目");
         assertThat(report.getIterationAdvice().getPromptActions())
                 .flatExtracting(LiveModelEvalComparisonReport.IterationAction::getEvidenceSignals)
                 .contains(

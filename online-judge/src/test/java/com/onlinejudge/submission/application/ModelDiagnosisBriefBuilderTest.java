@@ -87,7 +87,7 @@ class ModelDiagnosisBriefBuilderTest {
     }
 
     @Test
-    void standardLibraryPackKeepsCandidateTagsAndUncertaintyExit() {
+    void standardLibraryPackKeepsCandidateTagsAndLayeredKnowledge() {
         ModelDiagnosisBrief brief = briefBuilder.build(
                 DiagnosisEvidencePackage.builder()
                         .problem(problem())
@@ -105,8 +105,10 @@ class ModelDiagnosisBriefBuilderTest {
                 .contains("OFF_BY_ONE");
         assertThat(pack.getTeachingActions()).extracting(StandardLibraryPack.TeachingActionOption::getId)
                 .contains("TRACE_VARIABLES", "COLLECT_EVIDENCE");
-        assertThat(pack.getSafetyRules()).anyMatch(rule -> rule.contains("hidden test data"));
-        assertThat(pack.getUncertaintyOptions()).contains("NEEDS_MORE_EVIDENCE");
+        assertThat(pack.getBasicCauses()).extracting(StandardLibraryPack.BasicCauseOption::getId)
+                .contains("LOOP_BOUNDARY", "OFF_BY_ONE", "NEEDS_MORE_EVIDENCE");
+        assertThat(pack.getImprovementPoints()).extracting(StandardLibraryPack.ImprovementPointOption::getId)
+                .contains("TESTING_HABIT", "BOUNDARY_AWARENESS");
     }
 
     @Test

@@ -19,16 +19,58 @@ public class StandardLibraryPack {
 
     private String schemaVersion;
     private String taxonomyVersion;
+    private List<BasicCauseOption> basicCauses;
+    private List<ImprovementPointOption> improvementPoints;
     private List<TagOption> issueTags;
     private List<TagOption> fineGrainedTags;
     private List<ImprovementTagOption> improvementTags;
     private List<TeachingActionOption> teachingActions;
-    private DecisionProtocol decisionProtocol;
-    private EducationAgentProtocol educationAgentProtocol;
-    private List<JudgmentCalibrationExample> judgmentCalibrationExamples;
-    private StudentFeedbackRules studentFeedbackRules;
-    private List<String> safetyRules;
-    private List<String> uncertaintyOptions;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class BasicCauseOption {
+        private String id;
+        private String category;
+        private String name;
+        private String description;
+        private String studentExplanation;
+        private String teacherExplanation;
+        private List<String> evidenceSignals;
+        private List<String> commonCodePatterns;
+        private List<String> judgeSignals;
+        private String hintL1;
+        private String hintL2;
+        private String hintL3;
+        private String abilityPoint;
+        private String severity;
+        private List<String> applicableLanguages;
+        private List<String> relatedFineTags;
+        private String teachingAction;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ImprovementPointOption {
+        private String id;
+        private String category;
+        private String name;
+        private String description;
+        private String whenToUse;
+        private String studentBenefit;
+        private String teacherExplanation;
+        private List<String> requiredEvidence;
+        private String hintL1;
+        private String hintL2;
+        private String hintL3;
+        private String abilityPoint;
+        private List<String> relatedBasicCauses;
+    }
 
     @Data
     @Builder
@@ -67,62 +109,5 @@ public class StandardLibraryPack {
         private String label;
         private String whenToUse;
         private String studentBenefit;
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class DecisionProtocol {
-        private List<String> globalRules;
-        private List<String> evidencePriorityRules;
-        private List<String> tagSelectionRules;
-        private List<String> conflictRules;
-        private List<String> teachingActionRules;
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class StudentFeedbackRules {
-        private List<String> blockingIssueRules;
-        private List<String> secondaryIssueRules;
-        private List<String> improvementRules;
-        private List<String> nextActionRules;
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class EducationAgentProtocol {
-        private List<String> roleRules;
-        private List<String> rootCauseDecisionChecklist;
-        private List<String> primaryRootCauseRules;
-        private List<String> evidenceGroundingRules;
-        private List<String> secondarySignalRules;
-        private List<String> improvementOpportunityRules;
-        private List<String> studentActionRules;
-        private List<String> safetyBoundaryRules;
-        private List<String> nativeTraceQualityChecklist;
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class JudgmentCalibrationExample {
-        private String id;
-        private String when;
-        private String choosePrimary;
-        private String doNotChoosePrimary;
-        private String reasoningPattern;
-        private String nextActionPattern;
-        private List<String> safeImprovementCategories;
     }
 }

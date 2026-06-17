@@ -216,25 +216,60 @@ public class ExternalModelAgentRuntime {
         return StandardLibraryPack.builder()
                 .schemaVersion(source.getSchemaVersion())
                 .taxonomyVersion(source.getTaxonomyVersion())
+                .basicCauses(compactBasicCauses(source.getBasicCauses()))
+                .improvementPoints(compactImprovementPoints(source.getImprovementPoints()))
                 .issueTags(compactTags(source.getIssueTags()))
                 .fineGrainedTags(compactTags(source.getFineGrainedTags()))
                 .improvementTags(compactImprovementTags(source.getImprovementTags()))
                 .teachingActions(compactTeachingActions(source.getTeachingActions()))
-                .decisionProtocol(compactDecisionProtocol())
-                .educationAgentProtocol(compactEducationAgentProtocol())
-                .judgmentCalibrationExamples(compactJudgmentCalibrationExamples(source.getJudgmentCalibrationExamples()))
-                .studentFeedbackRules(compactStudentFeedbackRules())
-                .safetyRules(List.of(
-                        "Use only provided tags, evidenceRefs and teachingActions.",
-                        "Do not provide complete code, final answers or hidden test data.",
-                        "Do not name replacement loop headers, transition formulas or executable structures.",
-                        "For repeated input, ask students to count actual reads versus required reads.",
-                        "Use HIGH answerLeakRisk only for actual leakage; evidence-counting tasks are LOW or MEDIUM.",
-                        "Keep the student task diagnostic and evidence-grounded.",
-                        "Separate blocking issues from improvement opportunities."
-                ))
-                .uncertaintyOptions(source.getUncertaintyOptions())
                 .build();
+    }
+
+    private List<StandardLibraryPack.BasicCauseOption> compactBasicCauses(
+            List<StandardLibraryPack.BasicCauseOption> source) {
+        if (source == null || source.isEmpty()) {
+            return List.of();
+        }
+        return source.stream()
+                .map(cause -> StandardLibraryPack.BasicCauseOption.builder()
+                        .id(cause.getId())
+                        .category(cause.getCategory())
+                        .name(cause.getName())
+                        .description(truncate(cause.getDescription(), 90))
+                        .studentExplanation(truncate(cause.getStudentExplanation(), 80))
+                        .evidenceSignals(limit(cause.getEvidenceSignals(), 3))
+                        .judgeSignals(limit(cause.getJudgeSignals(), 3))
+                        .hintL1(truncate(cause.getHintL1(), 70))
+                        .hintL2(truncate(cause.getHintL2(), 70))
+                        .hintL3(truncate(cause.getHintL3(), 70))
+                        .abilityPoint(cause.getAbilityPoint())
+                        .relatedFineTags(cause.getRelatedFineTags())
+                        .teachingAction(cause.getTeachingAction())
+                        .build())
+                .toList();
+    }
+
+    private List<StandardLibraryPack.ImprovementPointOption> compactImprovementPoints(
+            List<StandardLibraryPack.ImprovementPointOption> source) {
+        if (source == null || source.isEmpty()) {
+            return List.of();
+        }
+        return source.stream()
+                .map(point -> StandardLibraryPack.ImprovementPointOption.builder()
+                        .id(point.getId())
+                        .category(point.getCategory())
+                        .name(point.getName())
+                        .description(truncate(point.getDescription(), 90))
+                        .whenToUse(truncate(point.getWhenToUse(), 90))
+                        .studentBenefit(truncate(point.getStudentBenefit(), 70))
+                        .requiredEvidence(limit(point.getRequiredEvidence(), 3))
+                        .hintL1(truncate(point.getHintL1(), 70))
+                        .hintL2(truncate(point.getHintL2(), 70))
+                        .hintL3(truncate(point.getHintL3(), 70))
+                        .abilityPoint(point.getAbilityPoint())
+                        .relatedBasicCauses(point.getRelatedBasicCauses())
+                        .build())
+                .toList();
     }
 
     private List<StandardLibraryPack.TagOption> compactTags(List<StandardLibraryPack.TagOption> source) {
@@ -264,25 +299,6 @@ public class ExternalModelAgentRuntime {
                 .toList();
     }
 
-    private List<StandardLibraryPack.JudgmentCalibrationExample> compactJudgmentCalibrationExamples(
-            List<StandardLibraryPack.JudgmentCalibrationExample> source) {
-        if (source == null || source.isEmpty()) {
-            return List.of();
-        }
-        return source.stream()
-                .limit(3)
-                .map(example -> StandardLibraryPack.JudgmentCalibrationExample.builder()
-                        .id(example.getId())
-                        .when(truncate(example.getWhen(), 130))
-                        .choosePrimary(truncate(example.getChoosePrimary(), 110))
-                        .doNotChoosePrimary(truncate(example.getDoNotChoosePrimary(), 110))
-                        .reasoningPattern(truncate(example.getReasoningPattern(), 90))
-                        .nextActionPattern(truncate(example.getNextActionPattern(), 90))
-                        .safeImprovementCategories(example.getSafeImprovementCategories())
-                        .build())
-                .toList();
-    }
-
     private List<StandardLibraryPack.TeachingActionOption> compactTeachingActions(
             List<StandardLibraryPack.TeachingActionOption> source) {
         if (source == null || source.isEmpty()) {
@@ -296,101 +312,18 @@ public class ExternalModelAgentRuntime {
                 .toList();
     }
 
-    private StandardLibraryPack.DecisionProtocol compactDecisionProtocol() {
-        return StandardLibraryPack.DecisionProtocol.builder()
-                .globalRules(List.of(
-                        "Choose the narrowest evidence-supported diagnosis.",
-                        "Hidden failures justify uncertainty, not guessed hidden data."
-                ))
-                .evidencePriorityRules(List.of(
-                        "Current judge facts and source evidence outrank memory.",
-                        "Candidate signals with evidenceRefs outrank broad summaries."
-                ))
-                .tagSelectionRules(List.of(
-                        "Select tags only from this pack.",
-                        "Cite evidenceRefs from the brief."
-                ))
-                .conflictRules(List.of(
-                        "If evidence conflicts, choose NEEDS_MORE_EVIDENCE when available."
-                ))
-                .teachingActionRules(List.of(
-                        "Bind teachingAction to the selected tag.",
-                        "Ask for one observable trace, comparison, estimate or counterexample."
-                ))
-                .build();
-    }
-
-    private StandardLibraryPack.EducationAgentProtocol compactEducationAgentProtocol() {
-        return StandardLibraryPack.EducationAgentProtocol.builder()
-                .roleRules(List.of(
-                        "Act as the external education AI agent.",
-                        "Make a teaching judgment from problem, code and evidence."
-                ))
-                .rootCauseDecisionChecklist(List.of(
-                        "1. Locate earliest concrete failed evidence.",
-                        "2. Connect evidence to code behavior.",
-                        "3. Compare candidate root causes and choose the direct explainer.",
-                        "4. Demote helper/debug/style/sample distractors unless they explain the same evidence.",
-                        "5. Convert the chosen root cause into one observable next action."
-                ))
-                .primaryRootCauseRules(List.of(
-                        "Choose the current blocking root cause first.",
-                        "Prioritize the earliest concrete failed evidence."
-                ))
-                .evidenceGroundingRules(List.of(
-                        "Cite brief evidenceRefs.",
-                        "Prefer the most specific generator:* or candidate evidenceRef plus readable judge/problem ref.",
-                        "Hidden tests justify uncertainty, not guesses."
-                ))
-                .secondarySignalRules(List.of(
-                        "Name secondary or distracting signals only when they are not primary."
-                ))
-                .improvementOpportunityRules(List.of(
-                        "Improvements are follow-up learning value, not the blocking fix."
-                ))
-                .studentActionRules(List.of(
-                        "Give one observable next action: compare, trace, estimate or counterexample.",
-                        "For repeated input, count required input groups and actual read operations."
-                ))
-                .safetyBoundaryRules(List.of(
-                        "No complete code, final answers, hidden data or replacement structures.",
-                        "Do not say for _ in range(q), while q, or directly add a loop.",
-                        "Set HIGH risk only for actual solution leakage, not for safe read-count comparisons."
-                ))
-                .nativeTraceQualityChecklist(List.of(
-                        "nativePrimaryReasoningGrounded: root cause + strongest evidenceRefs + concrete failed behavior.",
-                        "nativeTeachingPriorityClear: say why this is the first learning focus.",
-                        "nativeSecondarySignalsBalanced: explain why secondary/distractor signals are not primary.",
-                        "nativeNextActionObservable: one observable compare/trace/estimate/counterexample/checklist task with evidenceRefs.",
-                        "nativeSafetyBoundary: no code, hidden data, replacement structures, formulas, or 直接改成."
-                ))
-                .build();
-    }
-
-    private StandardLibraryPack.StudentFeedbackRules compactStudentFeedbackRules() {
-        return StandardLibraryPack.StudentFeedbackRules.builder()
-                .blockingIssueRules(List.of(
-                        "First blocking issue must explain the current failed evidence.",
-                        "Do not promote optional improvements to primary cause."
-                ))
-                .secondaryIssueRules(List.of(
-                        "Mention secondary signals only when clearly not primary."
-                ))
-                .improvementRules(List.of(
-                        "Use only improvementTags ids.",
-                        "Improvements are follow-up learning value, not current root cause."
-                ))
-                .nextActionRules(List.of(
-                        "Ask for one observable check without full solution code."
-                ))
-                .build();
-    }
-
     private String truncate(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
         }
         return value.substring(0, Math.max(0, maxLength - 24)) + "\n...[truncated for model]";
+    }
+
+    private List<String> limit(List<String> values, int maxSize) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream().limit(maxSize).toList();
     }
 
     public ExternalModelStagePayloads.StageValidationResult validateDiagnosisDecision(

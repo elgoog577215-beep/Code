@@ -545,6 +545,40 @@ class AiReportServiceExternalRuntimeTest {
     }
 
     @Test
+    void modelScopeCompatibleRequestMergesSystemPromptAndOmitsOptionalSamplingParameters() throws Exception {
+        CapturingAiReportService service = new CapturingAiReportService(objectMapper, runtime(), validSingleCallApiResponse());
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://api-inference.modelscope.cn/v1");
+        ReflectionTestUtils.setField(service, "model", "deepseek-ai/DeepSeek-V4-Pro");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 900);
+        ReflectionTestUtils.setField(service, "streamEnabled", true);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", true);
+        ReflectionTestUtils.setField(service, "modelScopeCompatibleRequest", "auto");
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        JsonNode request = objectMapper.readTree(service.lastRequestBody());
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(request.has("temperature")).isFalse();
+        assertThat(request.has("max_tokens")).isFalse();
+        assertThat(request.path("stream").asBoolean()).isTrue();
+        assertThat(request.path("messages")).hasSize(1);
+        assertThat(request.path("messages").path(0).path("role").asText()).isEqualTo("user");
+        assertThat(request.path("messages").path(0).path("content").asText())
+                .contains("系统指令", "用户任务", "single-call runtime");
+    }
+
+    @Test
     void lowLatencyRuntimeProfileDoesNotBypassValidation() {
         StubAiReportService service = newService(
                 """
@@ -1292,6 +1326,23 @@ class AiReportServiceExternalRuntimeTest {
 
         assertThat(content).contains("\"diagnosisDecision\"", "\"primaryIssueTag\":\"LOOP_BOUNDARY\"");
         assertThat(content).doesNotContain("先判断");
+        assertThat(service.streamFlags()).containsExactly(false, true);
+    }
+
+    @Test
+    void smokeChatCompletionUsesStreamingFallbackWhenModelScopeNonStreamHasNoChoices() throws Exception {
+        StreamingFallbackAiReportService service = new StreamingFallbackAiReportService(objectMapper, "OK");
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://example.test/v1");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "timeoutSeconds", 5L);
+        ReflectionTestUtils.setField(service, "streamEnabled", false);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", true);
+
+        String content = service.smokeChatCompletion();
+
+        assertThat(content).isEqualTo("OK");
         assertThat(service.streamFlags()).containsExactly(false, true);
     }
 
@@ -2100,9 +2151,15 @@ class AiReportServiceExternalRuntimeTest {
 
     private static class StreamingFallbackAiReportService extends AiReportService {
         private final List<Boolean> streamFlags = new java.util.ArrayList<>();
+        private final String streamingContent;
 
         StreamingFallbackAiReportService(ObjectMapper objectMapper) {
+            this(objectMapper, "{\\\"diagnosisDecision\\\":{\\\"primaryIssueTag\\\":\\\"LOOP_BOUNDARY\\\",\\\"fineGrainedTag\\\":\\\"OFF_BY_ONE\\\",\\\"evidenceRefs\\\":[\\\"code:range_excludes_n\\\"],\\\"confidence\\\":0.9,\\\"uncertainty\\\":\\\"ok\\\",\\\"needsMoreEvidence\\\":false,\\\"answerLeakRisk\\\":\\\"LOW\\\"},\\\"teachingHint\\\":{\\\"studentHint\\\":\\\"先用 n=1 手推。\\\",\\\"studentHintPlan\\\":{\\\"hintLevel\\\":\\\"L2\\\",\\\"problemType\\\":\\\"循环边界\\\",\\\"evidenceAnchor\\\":\\\"code:range_excludes_n\\\",\\\"nextAction\\\":\\\"列出 range 产生的 i。\\\",\\\"coachQuestion\\\":\\\"当 n=1 时循环执行几次？\\\",\\\"teachingAction\\\":\\\"TRACE_VARIABLES\\\",\\\"evidenceRefs\\\":[\\\"code:range_excludes_n\\\"],\\\"answerLeakRisk\\\":\\\"LOW\\\"},\\\"learningInterventionPlan\\\":{\\\"interventionType\\\":\\\"VARIABLE_TRACE\\\",\\\"goal\\\":\\\"确认循环边界。\\\",\\\"studentTask\\\":\\\"手推最小样例。\\\",\\\"checkQuestion\\\":\\\"是否处理到 n？\\\",\\\"completionSignal\\\":\\\"能指出缺失位置。\\\",\\\"evidenceRefs\\\":[\\\"code:range_excludes_n\\\"],\\\"estimatedMinutes\\\":5,\\\"answerLeakRisk\\\":\\\"LOW\\\"},\\\"teacherNote\\\":\\\"stream ok\\\",\\\"answerLeakRisk\\\":\\\"LOW\\\"}}");
+        }
+
+        StreamingFallbackAiReportService(ObjectMapper objectMapper, String streamingContent) {
             super(objectMapper, new AiCodeAssistSupport());
+            this.streamingContent = streamingContent;
         }
 
         @Override
@@ -2118,10 +2175,10 @@ class AiReportServiceExternalRuntimeTest {
 
                     data: not-json
 
-                    data: {"choices":[{"delta":{"reasoning_content":"","content":"{\\"diagnosisDecision\\":{\\"primaryIssueTag\\":\\"LOOP_BOUNDARY\\",\\"fineGrainedTag\\":\\"OFF_BY_ONE\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"confidence\\":0.9,\\"uncertainty\\":\\"ok\\",\\"needsMoreEvidence\\":false,\\"answerLeakRisk\\":\\"LOW\\"},\\"teachingHint\\":{\\"studentHint\\":\\"先用 n=1 手推。\\",\\"studentHintPlan\\":{\\"hintLevel\\":\\"L2\\",\\"problemType\\":\\"循环边界\\",\\"evidenceAnchor\\":\\"code:range_excludes_n\\",\\"nextAction\\":\\"列出 range 产生的 i。\\",\\"coachQuestion\\":\\"当 n=1 时循环执行几次？\\",\\"teachingAction\\":\\"TRACE_VARIABLES\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"answerLeakRisk\\":\\"LOW\\"},\\"learningInterventionPlan\\":{\\"interventionType\\":\\"VARIABLE_TRACE\\",\\"goal\\":\\"确认循环边界。\\",\\"studentTask\\":\\"手推最小样例。\\",\\"checkQuestion\\":\\"是否处理到 n？\\",\\"completionSignal\\":\\"能指出缺失位置。\\",\\"evidenceRefs\\":[\\"code:range_excludes_n\\"],\\"estimatedMinutes\\":5,\\"answerLeakRisk\\":\\"LOW\\"},\\"teacherNote\\":\\"stream ok\\",\\"answerLeakRisk\\":\\"LOW\\"}}"},"finish_reason":"stop"}]}
+                    data: {"choices":[{"delta":{"reasoning_content":"","content":"%s"},"finish_reason":"stop"}]}
 
                     data: [DONE]
-                    """;
+                    """.formatted(streamingContent);
         }
 
         List<Boolean> streamFlags() {

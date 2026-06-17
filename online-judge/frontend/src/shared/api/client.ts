@@ -1,6 +1,9 @@
 import type {
   Assignment,
   AssignmentOverview,
+  AiStandardLibraryItem,
+  AiStandardLibraryItemPayload,
+  AiStandardLibraryLayer,
   AiSmoke,
   AiQualityOverview,
   AiQualityTrend,
@@ -82,6 +85,17 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 function jsonBody(payload: unknown): string {
   return JSON.stringify(payload);
+}
+
+function queryString(params: Record<string, string | number | boolean | undefined | null>): string {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      search.set(key, String(value));
+    }
+  });
+  const value = search.toString();
+  return value ? `?${value}` : "";
 }
 
 export const api = {
@@ -249,6 +263,22 @@ export const api = {
     request<ImportPreview>("/api/teacher/problems/import-preview", { method: "POST", body: jsonBody(payload) }),
   problemImportCommit: (payload: unknown) =>
     request<ImportCommit>("/api/teacher/problems/import-commit", { method: "POST", body: jsonBody(payload) }),
+
+  aiStandardLibraryItems: (params?: {
+    layer?: AiStandardLibraryLayer | "";
+    category?: string;
+    enabled?: boolean | "";
+    query?: string;
+  }) => request<AiStandardLibraryItem[]>(`/api/teacher/ai-standard-library/items${queryString(params || {})}`),
+  aiStandardLibraryItem: (id: number) => request<AiStandardLibraryItem>(`/api/teacher/ai-standard-library/items/${id}`),
+  createAiStandardLibraryItem: (payload: AiStandardLibraryItemPayload) =>
+    request<AiStandardLibraryItem>("/api/teacher/ai-standard-library/items", { method: "POST", body: jsonBody(payload) }),
+  updateAiStandardLibraryItem: (id: number, payload: AiStandardLibraryItemPayload) =>
+    request<AiStandardLibraryItem>(`/api/teacher/ai-standard-library/items/${id}`, { method: "PUT", body: jsonBody(payload) }),
+  enableAiStandardLibraryItem: (id: number) =>
+    request<AiStandardLibraryItem>(`/api/teacher/ai-standard-library/items/${id}/enable`, { method: "POST" }),
+  disableAiStandardLibraryItem: (id: number) =>
+    request<AiStandardLibraryItem>(`/api/teacher/ai-standard-library/items/${id}/disable`, { method: "POST" }),
 
   executorStatus: () => request<ExecutorStatus>("/api/system/executor-status"),
   readiness: () => request<Readiness>("/api/system/readiness"),

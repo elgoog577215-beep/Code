@@ -48,7 +48,7 @@ class ReadinessServiceTest {
     }
 
     @Test
-    void aiRateLimitDegradesWhenAiIsNotRequiredForOpeningClass() {
+    void aiRateLimitDegradesOnlyWhenAiGateIsExplicitlyRelaxed() {
         ReadinessService service = readyInfrastructureWithAi("FAILED", "RATE_LIMITED", false);
 
         ReadinessResponse readiness = service.getReadiness();
@@ -58,6 +58,20 @@ class ReadinessServiceTest {
         assertThat(ai.getStatus()).isEqualTo("WARN");
         assertThat(ai.isBlocking()).isFalse();
         assertThat(ai.getMessage()).contains("限流");
+    }
+
+    @Test
+    void aiRateLimitBlocksByDefaultForSchoolAiPilot() {
+        ReadinessService service = readyInfrastructureWithAi("FAILED", "RATE_LIMITED", true);
+        ReflectionTestUtils.setField(service, "aiBlocking", true);
+
+        ReadinessResponse readiness = service.getReadiness();
+        ReadinessResponse.Check ai = byId(readiness).get("ai-smoke");
+
+        assertThat(readiness.getStatus()).isEqualTo("BLOCKED");
+        assertThat(ai.getStatus()).isEqualTo("WARN");
+        assertThat(ai.isBlocking()).isTrue();
+        assertThat(ai.getAction()).contains("修正 key", "额度", "限流");
     }
 
     @Test

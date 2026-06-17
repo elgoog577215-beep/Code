@@ -29,7 +29,7 @@ public class ReadinessService {
     @Value("${ai.api-key:}")
     private String aiApiKey;
 
-    @Value("${readiness.ai-blocking:${AI_READINESS_BLOCKING:false}}")
+    @Value("${readiness.ai-blocking:${AI_READINESS_BLOCKING:true}}")
     private boolean aiBlocking;
 
     public ReadinessResponse getReadiness() {
@@ -122,7 +122,7 @@ public class ReadinessService {
                 aiStatus,
                 aiBlocking && !"PASS".equals(aiStatus),
                 aiStatusMessage(aiEnabled, aiConfigured, smoke),
-                "教师端执行 AI smoke；若出现 401/429，请修正 key、额度或关闭 AI 必须通过门禁。"
+                "教师端执行 AI smoke；若出现 401/429/超时，请修正 key、额度、限流或网络后再开课。"
         ));
 
         String overall = overallStatus(checks);
@@ -135,10 +135,10 @@ public class ReadinessService {
 
     private String aiStatusMessage(boolean enabled, boolean configured, AiSmokeResponse smoke) {
         if (!enabled) {
-            return "AI 已关闭，系统会使用规则诊断。";
+            return "AI 已关闭；高中 AI 试点版不能宣称 AI 能力可用。";
         }
         if (!configured) {
-            return "AI 已启用但未配置 API key，系统会使用规则诊断。";
+            return "AI 已启用但未配置 API key，外部模型不可用。";
         }
         if ("READY".equals(smoke.getStatus())) {
             return "外部 AI 最近一次 smoke 通过。";

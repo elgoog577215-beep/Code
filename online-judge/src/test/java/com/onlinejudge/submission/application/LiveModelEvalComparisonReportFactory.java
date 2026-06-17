@@ -805,11 +805,11 @@ public class LiveModelEvalComparisonReportFactory {
             standardLibraryActions.add(action(
                     "STANDARD_LIBRARY",
                     "P1",
-                    "补充教育判断校准样例",
-                    "标准库需要把退化 case 的判断范式沉淀给模型，帮助它在多错因场景稳定做主次取舍。",
+                    "补充基础错因证据与提示条目",
+                    "标准库需要把退化 case 对应的错因证据、学生提示和教师解释沉淀为基础层条目，帮助模型在多错因场景稳定做主次取舍。",
                     matchingSignals(regressionSignals, "educationAgentQualityAverageScore", "educationAgentQualityScore"),
                     List.of("online-judge/src/main/java/com/onlinejudge/submission/application/StandardLibraryPackBuilder.java"),
-                    "调整 judgmentCalibrationExamples 后跑 StandardLibraryPackBuilderTest，并用同一 candidate report 对比 educationAgentQualityAverageScore。"
+                    "补充 basicCauses 或 improvementPoints 后跑 StandardLibraryPackBuilderTest，并用同一 candidate report 对比 educationAgentQualityAverageScore。"
             ));
         }
         if (containsSignal(regressionSignals, "studentFeedbackQualityAverageScore")
@@ -1023,11 +1023,11 @@ public class LiveModelEvalComparisonReportFactory {
                 standardLibraryActions.add(action(
                         "STANDARD_LIBRARY",
                         "P1",
-                        "调整主次优先级规则和校准样例",
-                        "用校准样例告诉模型：first failed evidence 优先于风格、变量名和表面复杂度。",
+                        "补充主错因证据条目",
+                        "用基础层条目的 evidenceSignals 和 teacherExplanation 表达：first failed evidence 优先于风格、变量名和表面复杂度。",
                         evidence,
                         List.of("online-judge/src/main/java/com/onlinejudge/submission/application/StandardLibraryPackBuilder.java"),
-                        "新增或调整 judgmentCalibrationExamples 后跑 StandardLibraryPackBuilderTest，并确认 modelTraceMetric:nativeTeachingPriorityClear。"
+                        "新增或调整 basicCauses 后跑 StandardLibraryPackBuilderTest，并确认 modelTraceMetric:nativeTeachingPriorityClear。"
                 ));
             }
             case "nativeSecondarySignalsBalanced" -> {
@@ -1043,11 +1043,11 @@ public class LiveModelEvalComparisonReportFactory {
                 standardLibraryActions.add(action(
                         "STANDARD_LIBRARY",
                         "P0",
-                        "补充干扰信号抵抗校准样例",
-                        "标准库应覆盖同类 distractor，帮助模型在多错因里保持主次取舍。",
+                        "补充干扰信号知识条目",
+                        "标准库应在相关基础错因中覆盖同类 distractor 的 code pattern 和教师解释，帮助模型在多错因里保持主次取舍。",
                         evidence,
                         List.of("online-judge/src/main/java/com/onlinejudge/submission/application/StandardLibraryPackBuilder.java"),
-                        "确认 judgmentCalibrationExamples 覆盖样例特判、debug、表面复杂度至少一种干扰，并验证 modelTraceMetric:nativeSecondarySignalsBalanced。"
+                        "确认 basicCauses 覆盖样例特判、debug、表面复杂度至少一种干扰，并验证 modelTraceMetric:nativeSecondarySignalsBalanced。"
                 ));
             }
             case "nativeNextActionObservable" -> {
@@ -1124,11 +1124,11 @@ public class LiveModelEvalComparisonReportFactory {
                 standardLibraryActions.add(action(
                         "STANDARD_LIBRARY",
                         "P0",
-                        "校准主错因优先级协议",
-                        "标准库需要把 first failed evidence、代码行为和候选根因排序讲得更明确，帮助模型自主选主因。",
+                        "补充主错因证据库",
+                        "标准库需要把 first failed evidence、代码行为和候选根因的证据模式讲得更明确，帮助模型自主选主因。",
                         evidence,
                         List.of("online-judge/src/main/java/com/onlinejudge/submission/application/StandardLibraryPackBuilder.java"),
-                        "补充 rootCauseDecisionChecklist 或 judgmentCalibrationExamples 后重跑 comparison。"
+                        "补充 basicCauses 的 evidenceSignals、commonCodePatterns 或 teacherExplanation 后重跑 comparison。"
                 ));
             }
             case "teachingDecisionQuality" -> promptActions.add(action(
@@ -1153,11 +1153,11 @@ public class LiveModelEvalComparisonReportFactory {
                 standardLibraryActions.add(action(
                         "STANDARD_LIBRARY",
                         "P1",
-                        "补充复杂多信号排序样例",
-                        "标准库需要给模型更多多错因学生代码的排序范式，避免平均铺开所有问题。",
+                        "补充复杂多信号错因条目",
+                        "标准库需要补齐多错因学生代码中主错因和次要信号的证据差异，避免模型平均铺开所有问题。",
                         evidence,
                         List.of("online-judge/src/main/java/com/onlinejudge/submission/application/StandardLibraryPackBuilder.java"),
-                        "新增多信号校准样例后重跑 comparison，确认 complexSignalPrioritization 通过。"
+                        "新增或调整 basicCauses 后重跑 comparison，确认 complexSignalPrioritization 通过。"
                 ));
             }
             case "distractorResistance" -> {
@@ -1173,11 +1173,11 @@ public class LiveModelEvalComparisonReportFactory {
                 standardLibraryActions.add(action(
                         "STANDARD_LIBRARY",
                         "P0",
-                        "补充干扰抵抗样例",
-                        "标准库应把真实 distractor 形态沉淀为校准样例，要求模型说明为什么它们不是主因。",
+                        "补充干扰抵抗知识条目",
+                        "标准库应把真实 distractor 形态沉淀为 code pattern 或 teacherExplanation，要求模型说明为什么它们不是主因。",
                         evidence,
                         List.of("online-judge/src/main/java/com/onlinejudge/submission/application/StandardLibraryPackBuilder.java"),
-                        "补充 distractor calibration 后重跑同 case，确认 distractorResistance 通过。"
+                        "补充相关 basicCauses 后重跑同 case，确认 distractorResistance 通过。"
                 ));
             }
             case "evidenceGroundedReasoning" -> promptActions.add(action(
@@ -1203,7 +1203,7 @@ public class LiveModelEvalComparisonReportFactory {
                         "STANDARD_LIBRARY",
                         "P0",
                         "沉淀综合智能安全边界样式",
-                        "标准库需要把真实泄题样式加入 safetyRules，让模型在推理和教学表达中都守住边界。",
+                        "泄题样式应沉淀到提示词安全边界和 ModelOutputSafetyPolicy，标准库只保留错因和提升点知识。",
                         evidence,
                         List.of(
                                 "online-judge/src/main/java/com/onlinejudge/submission/application/StandardLibraryPackBuilder.java",
@@ -1272,11 +1272,11 @@ public class LiveModelEvalComparisonReportFactory {
                 standardLibraryActions.add(action(
                         "STANDARD_LIBRARY",
                         "P1",
-                        "补充多信号主次取舍范式",
-                        "标准库应给模型更多复杂学生代码的主次取舍示例，帮助它像老师一样先稳住教学重点。",
+                        "补充多信号主次取舍知识",
+                        "标准库应给相关基础错因补足证据模式和教师解释，帮助模型像老师一样先稳住教学重点。",
                         evidence,
                         List.of("online-judge/src/main/java/com/onlinejudge/submission/application/StandardLibraryPackBuilder.java"),
-                        "调整 judgmentCalibrationExamples 后重跑同 case，确认 secondarySignalsBalanced 通过。"
+                        "调整 basicCauses 后重跑同 case，确认 secondarySignalsBalanced 通过。"
                 ));
             }
             case "nextActionObservable" -> {
@@ -1420,8 +1420,8 @@ public class LiveModelEvalComparisonReportFactory {
                 standardLibraryActions.add(action(
                         "STANDARD_LIBRARY",
                         "P0",
-                        "把学生反馈泄题样式沉淀进 safetyRules",
-                        "标准库需要把真实学生端泄题表达加入禁止边界，避免模型把教育反馈变成替学生写答案。",
+                        "把学生反馈泄题样式沉淀进安全策略",
+                        "真实学生端泄题表达应加入 PromptTemplateRegistry 和 ModelOutputSafetyPolicy，避免模型把教育反馈变成替学生写答案。",
                         evidence,
                         List.of(
                                 "online-judge/src/main/java/com/onlinejudge/submission/application/StandardLibraryPackBuilder.java",

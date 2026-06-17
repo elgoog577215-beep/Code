@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.submission.application.ExternalModelBudgetGuard;
+import com.onlinejudge.submission.application.ExternalModelChatRequestFactory;
 import com.onlinejudge.submission.application.ExternalModelFailureClassifier;
 import com.onlinejudge.submission.application.ModelDiagnosisBrief;
 import com.onlinejudge.submission.application.ModelStageFailureReason;
@@ -43,6 +44,7 @@ public class CoachAgentService {
     private final DiagnosisTaxonomy diagnosisTaxonomy;
     private final ExternalModelFailureClassifier failureClassifier;
     private final ExternalModelBudgetGuard budgetGuard;
+    private final ExternalModelChatRequestFactory chatRequestFactory;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -56,10 +58,19 @@ public class CoachAgentService {
                              DiagnosisTaxonomy diagnosisTaxonomy,
                              ExternalModelFailureClassifier failureClassifier,
                              ExternalModelBudgetGuard budgetGuard) {
+        this(objectMapper, diagnosisTaxonomy, failureClassifier, budgetGuard, new ExternalModelChatRequestFactory());
+    }
+
+    public CoachAgentService(ObjectMapper objectMapper,
+                             DiagnosisTaxonomy diagnosisTaxonomy,
+                             ExternalModelFailureClassifier failureClassifier,
+                             ExternalModelBudgetGuard budgetGuard,
+                             ExternalModelChatRequestFactory chatRequestFactory) {
         this.objectMapper = objectMapper;
         this.diagnosisTaxonomy = diagnosisTaxonomy;
         this.failureClassifier = failureClassifier == null ? new ExternalModelFailureClassifier() : failureClassifier;
         this.budgetGuard = budgetGuard == null ? new ExternalModelBudgetGuard() : budgetGuard;
+        this.chatRequestFactory = chatRequestFactory == null ? new ExternalModelChatRequestFactory() : chatRequestFactory;
     }
 
     @Value("${ai.enabled:true}")
@@ -73,6 +84,9 @@ public class CoachAgentService {
 
     @Value("${ai.model:deepseek-ai/DeepSeek-V4-Pro}")
     private String model;
+
+    @Value("${ai.modelscope-compatible-request:auto}")
+    private String modelScopeCompatibleRequest = "auto";
 
     @Value("${ai.timeout-seconds:25}")
     private long timeoutSeconds;
@@ -269,14 +283,14 @@ public class CoachAgentService {
 
     private String doChatCompletion(String systemPrompt, String userPrompt, boolean stream)
             throws IOException, InterruptedException {
-        Map<String, Object> requestBody = Map.of(
-                "model", model,
-                "messages", List.of(
-                        Map.of("role", "system", "content", systemPrompt),
-                        Map.of("role", "user", "content", userPrompt)
-                ),
-                "temperature", 0.2,
-                "stream", stream
+        Map<String, Object> requestBody = chatRequestFactory.build(
+                baseUrl,
+                modelScopeCompatibleRequest,
+                model,
+                systemPrompt,
+                userPrompt,
+                stream,
+                null
         );
         String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
         HttpRequest request = HttpRequest.newBuilder()

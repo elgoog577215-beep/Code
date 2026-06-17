@@ -53,6 +53,7 @@ public class AiReportService {
     private final ExternalModelAgentRuntime externalModelAgentRuntime;
     private final ExternalModelFailureClassifier failureClassifier;
     private final ExternalModelBudgetGuard budgetGuard;
+    private final ExternalModelChatRequestFactory chatRequestFactory;
     private final ThreadLocal<ExternalModelCallTelemetry> lastCallTelemetry = ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
     private final ThreadLocal<ExternalModelCallTelemetry> lastStructuredRetrySourceTelemetry =
             ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
@@ -79,11 +80,22 @@ public class AiReportService {
                            ExternalModelAgentRuntime externalModelAgentRuntime,
                            ExternalModelFailureClassifier failureClassifier,
                            ExternalModelBudgetGuard budgetGuard) {
+        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
+                new ExternalModelChatRequestFactory());
+    }
+
+    public AiReportService(ObjectMapper objectMapper,
+                           AiCodeAssistSupport aiCodeAssistSupport,
+                           ExternalModelAgentRuntime externalModelAgentRuntime,
+                           ExternalModelFailureClassifier failureClassifier,
+                           ExternalModelBudgetGuard budgetGuard,
+                           ExternalModelChatRequestFactory chatRequestFactory) {
         this.objectMapper = objectMapper;
         this.aiCodeAssistSupport = aiCodeAssistSupport;
         this.externalModelAgentRuntime = externalModelAgentRuntime;
         this.failureClassifier = failureClassifier == null ? new ExternalModelFailureClassifier() : failureClassifier;
         this.budgetGuard = budgetGuard == null ? new ExternalModelBudgetGuard() : budgetGuard;
+        this.chatRequestFactory = chatRequestFactory == null ? new ExternalModelChatRequestFactory() : chatRequestFactory;
     }
 
     @Value("${ai.enabled:true}")
@@ -97,6 +109,9 @@ public class AiReportService {
 
     @Value("${ai.model:deepseek-ai/DeepSeek-V4-Pro}")
     private String model;
+
+    @Value("${ai.modelscope-compatible-request:auto}")
+    private String modelScopeCompatibleRequest = "auto";
 
     @Value("${ai.timeout-seconds:25}")
     private long timeoutSeconds;
@@ -1665,7 +1680,7 @@ public class AiReportService {
         return chatCompletionWithOverrides(
                 "You are a production readiness smoke test. Reply with exactly OK.",
                 "Return OK.",
-                false,
+                streamEnabled,
                 128
         );
     }
@@ -1725,6 +1740,13 @@ public class AiReportService {
             budgetGuard.recordSuccess(PROVIDER, model);
             return content;
         } catch (IOException exception) {
+            if (!stream && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
+                log.warn("Retrying AI chat completion with stream=true after non-stream response was unusable. model={}", model);
+                String content = doChatCompletionWithRetry(systemPrompt, userPrompt, true, requestContext, outputTokens);
+                lastCallTelemetry.set(lastCallTelemetry.get().withFallbackRetryUsed(true));
+                budgetGuard.recordSuccess(PROVIDER, model);
+                return content;
+            }
             recordBudgetFailure(exception);
             throw exception;
         }
@@ -1777,15 +1799,15 @@ public class AiReportService {
                                     boolean stream,
                                     ExternalModelRequestContext requestContext,
                                     int outputTokens) throws IOException, InterruptedException {
-        Map<String, Object> requestBody = new LinkedHashMap<>();
-        requestBody.put("model", model);
-        requestBody.put("messages", List.of(
-                Map.of("role", "system", "content", systemPrompt),
-                Map.of("role", "user", "content", userPrompt)
-        ));
-        requestBody.put("temperature", 0.2);
-        requestBody.put("stream", stream);
-        requestBody.put("max_tokens", Math.max(128, outputTokens));
+        Map<String, Object> requestBody = chatRequestFactory.build(
+                baseUrl,
+                modelScopeCompatibleRequest,
+                model,
+                systemPrompt,
+                userPrompt,
+                stream,
+                outputTokens
+        );
         String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
         log.info("Calling AI chat completion. model={}, timeoutSeconds={}, stream={}, endpoint={}",
                 model,

@@ -1568,6 +1568,63 @@ export interface AiSmoke {
   checkedAt?: string | null;
 }
 
+export type AiStandardLibraryLayer = "BASIC_CAUSE" | "IMPROVEMENT_POINT";
+
+export interface AiStandardLibraryItem {
+  id: number;
+  layer: AiStandardLibraryLayer;
+  code: string;
+  category: string;
+  name: string;
+  description?: string | null;
+  studentExplanation?: string | null;
+  teacherExplanation?: string | null;
+  evidenceSignals: string[];
+  commonCodePatterns: string[];
+  judgeSignals: string[];
+  requiredEvidence: string[];
+  whenToUse?: string | null;
+  studentBenefit?: string | null;
+  hintL1?: string | null;
+  hintL2?: string | null;
+  hintL3?: string | null;
+  abilityPoint?: string | null;
+  severity?: string | null;
+  applicableLanguages: string[];
+  relatedItems: string[];
+  teachingAction?: string | null;
+  enabled: boolean;
+  libraryVersion?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface AiStandardLibraryItemPayload {
+  layer: AiStandardLibraryLayer;
+  code: string;
+  category: string;
+  name: string;
+  description?: string | null;
+  studentExplanation?: string | null;
+  teacherExplanation?: string | null;
+  evidenceSignals?: string[];
+  commonCodePatterns?: string[];
+  judgeSignals?: string[];
+  requiredEvidence?: string[];
+  whenToUse?: string | null;
+  studentBenefit?: string | null;
+  hintL1?: string | null;
+  hintL2?: string | null;
+  hintL3?: string | null;
+  abilityPoint?: string | null;
+  severity?: string | null;
+  applicableLanguages?: string[];
+  relatedItems?: string[];
+  teachingAction?: string | null;
+  enabled?: boolean;
+  libraryVersion?: string | null;
+}
+
 export interface ImportPreview {
   importType: string;
   totalRows: number;
