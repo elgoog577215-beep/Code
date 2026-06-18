@@ -10,7 +10,7 @@ export type ContestLanguage = {
 
 export const PYTHON3_LANGUAGE_ID = 71;
 export const CPP17_LANGUAGE_ID = 54;
-export const DEFAULT_CONTEST_LANGUAGE_ID = CPP17_LANGUAGE_ID;
+export const DEFAULT_CONTEST_LANGUAGE_ID = PYTHON3_LANGUAGE_ID;
 
 const PYTHON_TEMPLATE = "n = int(input())\nprint(n)\n";
 const CPP17_TEMPLATE = `#include <bits/stdc++.h>

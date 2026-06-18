@@ -24,6 +24,7 @@ const initialProblem = {
   timeLimit: 1000,
   memoryLimit: 131072,
   aiPromptDirection: "",
+  starterCode: "",
   knowledgePointsText: "",
   algorithmStrategiesText: "",
   commonMistakesText: "",
@@ -93,6 +94,7 @@ export default function TaskEditorPage() {
       timeLimit: problem.timeLimit || 1000,
       memoryLimit: problem.memoryLimit || 131072,
       aiPromptDirection: problem.aiPromptDirection || "",
+      starterCode: problem.starterCode || "",
       knowledgePointsText: joinList(problem.knowledgePoints),
       algorithmStrategiesText: joinList(problem.algorithmStrategies),
       commonMistakesText: joinList(problem.commonMistakes),
@@ -145,6 +147,7 @@ export default function TaskEditorPage() {
       timeLimit: Number(form.timeLimit),
       memoryLimit: Number(form.memoryLimit),
       aiPromptDirection: form.aiPromptDirection.trim(),
+      starterCode: form.starterCode.trim(),
       knowledgePoints: splitList(form.knowledgePointsText),
       algorithmStrategies: splitList(form.algorithmStrategiesText),
       commonMistakes: splitList(form.commonMistakesText),
@@ -205,6 +208,13 @@ export default function TaskEditorPage() {
               </div>
               <Field label="题面">
                 <TextArea value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} />
+              </Field>
+              <Field label="默认代码">
+                <TextArea
+                  value={form.starterCode}
+                  onChange={event => setForm({ ...form, starterCode: event.target.value })}
+                  rows={8}
+                />
               </Field>
               <details className="editor-compact-details">
                 <summary>

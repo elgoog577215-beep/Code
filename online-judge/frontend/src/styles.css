@@ -552,7 +552,7 @@ a {
 }
 
 .route-hub-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .route-hub-card {
@@ -10333,6 +10333,65 @@ tr:last-child td {
   min-height: 36px;
   white-space: nowrap;
   box-shadow: none;
+}
+
+.teacher-management-drawer {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.teacher-management-drawer > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.72rem 0.85rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.teacher-management-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.teacher-management-drawer > summary span {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.teacher-management-drawer > summary small,
+.assignment-default-class {
+  color: var(--ink-soft);
+}
+
+.assignment-default-class {
+  margin: -0.18rem 0 0;
+  font-weight: 760;
+}
+
+.teacher-management-embed {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0 0.85rem 0.85rem;
+}
+
+.teacher-management-embed .management-console {
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.teacher-management-embed .management-task-grid {
+  padding: 0;
+}
+
+.teacher-management-embed .standard-library-details {
+  grid-column: 1 / -1;
 }
 
 .assignment-builder {

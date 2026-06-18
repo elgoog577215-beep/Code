@@ -33,4 +33,3 @@ public interface ProblemRepository extends JpaRepository<Problem, Long> {
             """)
     Optional<String> findTitleById(@Param("id") Long id);
 }
-

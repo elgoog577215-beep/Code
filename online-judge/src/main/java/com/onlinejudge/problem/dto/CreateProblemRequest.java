@@ -32,6 +32,8 @@ public class CreateProblemRequest {
 
     private String aiPromptDirection;
 
+    private String starterCode;
+
     private List<String> knowledgePoints;
 
     private List<String> algorithmStrategies;

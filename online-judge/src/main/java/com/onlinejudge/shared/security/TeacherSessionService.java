@@ -31,6 +31,9 @@ public class TeacherSessionService {
     }
 
     public boolean authenticated(HttpServletRequest request) {
+        if (properties.teacherDevAutoAuth()) {
+            return true;
+        }
         String token = cookieValue(request);
         if (token.isBlank()) {
             return false;

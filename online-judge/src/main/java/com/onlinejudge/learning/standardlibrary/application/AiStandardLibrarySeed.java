@@ -25,6 +25,7 @@ public record AiStandardLibrarySeed(
         String severity,
         List<String> applicableLanguages,
         List<String> relatedItems,
+        List<String> knowledgeNodeCodes,
         String teachingAction,
         String libraryVersion
 ) {

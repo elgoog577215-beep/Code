@@ -18,6 +18,7 @@ public class ProblemManageResponse {
     private Integer timeLimit;
     private Integer memoryLimit;
     private String aiPromptDirection;
+    private String starterCode;
     private List<String> knowledgePoints;
     private List<String> algorithmStrategies;
     private List<String> commonMistakes;
@@ -44,6 +45,7 @@ public class ProblemManageResponse {
                 .timeLimit(problem.getTimeLimit())
                 .memoryLimit(problem.getMemoryLimit())
                 .aiPromptDirection(problem.getAiPromptDirection())
+                .starterCode(problem.getStarterCode())
                 .knowledgePoints(safeList(problem.getKnowledgePoints()))
                 .algorithmStrategies(safeList(problem.getAlgorithmStrategies()))
                 .commonMistakes(safeList(problem.getCommonMistakes()))

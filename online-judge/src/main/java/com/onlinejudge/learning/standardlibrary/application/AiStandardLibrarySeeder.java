@@ -57,6 +57,7 @@ public class AiStandardLibrarySeeder implements CommandLineRunner {
                 .severity(seed.severity())
                 .applicableLanguages(join(seed.applicableLanguages()))
                 .relatedItems(join(seed.relatedItems()))
+                .knowledgeNodeCodes(join(seed.knowledgeNodeCodes()))
                 .teachingAction(seed.teachingAction())
                 .enabled(true)
                 .libraryVersion(seed.libraryVersion())

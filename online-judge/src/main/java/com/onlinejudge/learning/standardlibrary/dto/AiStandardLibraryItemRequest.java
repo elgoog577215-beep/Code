@@ -35,6 +35,7 @@ public class AiStandardLibraryItemRequest {
     private String severity;
     private List<String> applicableLanguages;
     private List<String> relatedItems;
+    private List<String> knowledgeNodeCodes;
     private String teachingAction;
     private Boolean enabled;
     private String libraryVersion;

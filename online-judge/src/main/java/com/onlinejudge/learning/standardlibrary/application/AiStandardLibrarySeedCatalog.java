@@ -1,13 +1,19 @@
 package com.onlinejudge.learning.standardlibrary.application;
 
+import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeed;
+import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeedCatalog;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public final class AiStandardLibrarySeedCatalog {
 
-    public static final String VERSION = "standard-library-db-v1";
+    public static final String VERSION = "standard-library-db-v2-full-coverage";
 
     private AiStandardLibrarySeedCatalog() {
     }
@@ -16,6 +22,7 @@ public final class AiStandardLibrarySeedCatalog {
         List<AiStandardLibrarySeed> seeds = new ArrayList<>();
         basics(seeds);
         improvements(seeds);
+        generatedFullCoverage(seeds);
         return seeds;
     }
 
@@ -847,6 +854,7 @@ public final class AiStandardLibrarySeedCatalog {
                 severity,
                 applicableLanguages,
                 relatedItems,
+                knowledgeNodesFor(code),
                 teachingAction,
                 VERSION
         ));
@@ -887,9 +895,348 @@ public final class AiStandardLibrarySeedCatalog {
                 "",
                 l("PYTHON", "CPP17"),
                 relatedItems,
+                knowledgeNodesFor(code),
                 "",
                 VERSION
         ));
+    }
+
+    private static void generatedFullCoverage(List<AiStandardLibrarySeed> seeds) {
+        Set<String> existingBasicCodes = codes(seeds, AiStandardLibraryLayer.BASIC_CAUSE);
+        Set<String> existingImprovementCodes = codes(seeds, AiStandardLibraryLayer.IMPROVEMENT_POINT);
+        for (InformaticsKnowledgeSeed knowledge : InformaticsKnowledgeSeedCatalog.seeds()) {
+            if (knowledge.type() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT) {
+                AiStandardLibrarySeed basic = generatedBasicCause(knowledge);
+                if (existingBasicCodes.add(basic.code())) {
+                    seeds.add(basic);
+                }
+                AiStandardLibrarySeed improvement = generatedKnowledgePointImprovement(knowledge, basic.code());
+                if (existingImprovementCodes.add(improvement.code())) {
+                    seeds.add(improvement);
+                }
+            } else if (knowledge.type() == InformaticsKnowledgeNodeType.TOPIC) {
+                AiStandardLibrarySeed improvement = generatedTopicImprovement(knowledge);
+                if (existingImprovementCodes.add(improvement.code())) {
+                    seeds.add(improvement);
+                }
+            }
+        }
+    }
+
+    private static Set<String> codes(List<AiStandardLibrarySeed> seeds, AiStandardLibraryLayer layer) {
+        Set<String> result = new LinkedHashSet<>();
+        seeds.stream()
+                .filter(seed -> seed.layer() == layer)
+                .map(AiStandardLibrarySeed::code)
+                .forEach(result::add);
+        return result;
+    }
+
+    private static AiStandardLibrarySeed generatedBasicCause(InformaticsKnowledgeSeed knowledge) {
+        String name = safeName(knowledge.name() + "掌握偏差", 120);
+        String category = safeName("知识点错因/" + domainName(knowledge), 80);
+        String abilityPoint = safeName(knowledge.name(), 120);
+        return new AiStandardLibrarySeed(
+                AiStandardLibraryLayer.BASIC_CAUSE,
+                generatedCode("KB", knowledge.code()),
+                category,
+                name,
+                "学生在「" + knowledge.path() + "」相关代码中出现概念理解、边界处理或应用迁移偏差。",
+                "先回到「" + knowledge.name() + "」这个知识点，确认题目里它对应的是输入、状态、循环、结构还是算法选择。",
+                "该条目用于覆盖知识点「" + knowledge.path() + "」下的常见基础层错因，教师可根据课堂题型继续细化证据信号。",
+                List.of(
+                        "knowledge_node:" + knowledge.code(),
+                        "student code touches " + knowledge.name(),
+                        "judge result conflicts with expected behavior near " + knowledge.name(),
+                        "local evidence graph or teacher review points to " + knowledge.name()
+                ),
+                generatedCodePatterns(knowledge),
+                generatedJudgeSignals(knowledge),
+                List.of(),
+                "",
+                "",
+                "先判断这题是否真的用到了「" + knowledge.name() + "」。",
+                "把代码里和「" + knowledge.name() + "」有关的变量、循环或状态单独圈出来。",
+                "用一个最小样例手推这部分逻辑，确认它和题意中的定义是否一致。",
+                abilityPoint,
+                generatedSeverity(knowledge),
+                List.of("PYTHON", "CPP17"),
+                generatedRelatedItems(knowledge),
+                List.of(knowledge.code()),
+                generatedTeachingAction(knowledge),
+                VERSION
+        );
+    }
+
+    private static AiStandardLibrarySeed generatedKnowledgePointImprovement(InformaticsKnowledgeSeed knowledge,
+                                                                            String relatedBasicCode) {
+        return new AiStandardLibrarySeed(
+                AiStandardLibraryLayer.IMPROVEMENT_POINT,
+                generatedCode("KI", knowledge.code()),
+                safeName("知识点提升/" + domainName(knowledge), 80),
+                safeName(knowledge.name() + "迁移提升", 120),
+                "在掌握「" + knowledge.name() + "」的基本用法后，进一步训练其边界、复杂度、证明或迁移应用能力。",
+                "",
+                "教师可要求学生用自己的话说明「" + knowledge.name() + "」的定义、适用条件、边界和一个反例。",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(
+                        "submission is accepted or close to accepted",
+                        "basic cause confidence is low but knowledge node is relevant",
+                        "student needs transfer practice for " + knowledge.code(),
+                        "teacher wants post-AC reflection"
+                ),
+                "用于学生已经接近通过、已经 AC 或基础错误不明显时，引导其把「" + knowledge.name() + "」迁移到相邻题型。",
+                "帮助学生把一次代码修正沉淀为可迁移的知识点理解，而不是只记住本题改法。",
+                "先用一句话总结「" + knowledge.name() + "」解决了什么问题。",
+                "再写一个和原题不同的最小例子，说明这个知识点仍然适用或不适用。",
+                "最后比较当前写法的复杂度、边界和可迁移性。",
+                safeName(knowledge.name(), 120),
+                "",
+                List.of("PYTHON", "CPP17"),
+                List.of(relatedBasicCode),
+                List.of(knowledge.code()),
+                "",
+                VERSION
+        );
+    }
+
+    private static AiStandardLibrarySeed generatedTopicImprovement(InformaticsKnowledgeSeed knowledge) {
+        return new AiStandardLibrarySeed(
+                AiStandardLibraryLayer.IMPROVEMENT_POINT,
+                generatedCode("KT", knowledge.code()),
+                safeName("主题提升/" + domainName(knowledge), 80),
+                safeName(knowledge.name() + "专题复盘", 120),
+                "围绕「" + knowledge.path() + "」形成专题化复盘，帮助学生把多个细知识点串成解题方法。",
+                "",
+                "教师可把该主题下的错题合并成一次小复盘，要求学生说明共性结构。",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(
+                        "multiple related knowledge points are involved",
+                        "same topic appears across recent submissions",
+                        "teacher review groups errors by topic",
+                        "post-AC transfer or class review is needed"
+                ),
+                "当学生在同一主题下多个知识点反复出错，或通过单题后需要总结题型时使用。",
+                "帮助学生从单点修错上升到专题方法，比如读题、建模、边界、复杂度和验证习惯。",
+                "先找出这几题共同属于哪个主题。",
+                "把共同的输入结构、状态变量或算法选择列出来。",
+                "总结一条下次遇到同类题时可复用的检查清单。",
+                safeName(knowledge.name(), 120),
+                "",
+                List.of("PYTHON", "CPP17"),
+                List.of(),
+                List.of(knowledge.code()),
+                "",
+                VERSION
+        );
+    }
+
+    private static String generatedCode(String prefix, String knowledgeCode) {
+        String slug = knowledgeCode.toUpperCase(Locale.ROOT)
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+        if (slug.length() > 54) {
+            slug = slug.substring(0, 54).replaceAll("_+$", "");
+        }
+        String hash = Integer.toUnsignedString(knowledgeCode.hashCode(), 16).toUpperCase(Locale.ROOT);
+        return (prefix + "_" + slug + "_" + hash).replaceAll("__+", "_");
+    }
+
+    private static List<String> generatedCodePatterns(InformaticsKnowledgeSeed knowledge) {
+        String code = knowledge.code();
+        if (code.contains(".IO.")) {
+            return List.of("读入次数和题面不一致", "输出行数、空格或小数格式不符合题意", "多组数据下状态没有独立处理");
+        }
+        if (code.contains(".LOOP.") || code.contains(".ARRAY.") || code.contains(".STRING.")) {
+            return List.of("循环端点没有覆盖最小/最大下标", "0 基和 1 基编号混用", "对空串、单元素或最后一个元素处理不一致");
+        }
+        if (code.contains(".DP.")) {
+            return List.of("状态含义没有覆盖题目所需信息", "初始值或转移顺序不完整", "滚动数组覆盖了仍需使用的旧状态");
+        }
+        if (code.contains(".GRAPH.") || code.contains(".SEARCH.")) {
+            return List.of("访问标记时机不正确", "状态重复入队或递归未恢复", "边方向、权值或终点判断与题意不一致");
+        }
+        if (code.contains(".GREEDY.") || code.contains(".BINARY.")) {
+            return List.of("缺少单调性或交换依据", "边界返回值与题意目标不一致", "只用样例验证没有构造反例");
+        }
+        if (code.contains(".COMPLEXITY.") || code.contains(".ENUM.")) {
+            return List.of("核心循环次数超过数据范围可承受规模", "重复计算没有缓存或预处理", "最大输入下可能超时");
+        }
+        return List.of("知识点定义和代码变量没有对应清楚", "边界样例和普通样例表现不一致", "题意中的条件没有完整映射到代码结构");
+    }
+
+    private static List<String> generatedJudgeSignals(InformaticsKnowledgeSeed knowledge) {
+        String code = knowledge.code();
+        if (code.contains(".ERROR.COMPILE")) {
+            return List.of("CE", "COMPILE_ERROR");
+        }
+        if (code.contains(".ERROR.RUNTIME") || code.contains(".ARRAY.") || code.contains(".RECURSION.")) {
+            return List.of("RE", "WA");
+        }
+        if (code.contains(".COMPLEXITY.") || code.contains(".TIME") || code.contains(".ENUM.")) {
+            return List.of("TLE", "WA_ON_MAX_CASE");
+        }
+        if (code.contains(".IO.") || code.contains(".FORMAT")) {
+            return List.of("WA", "VISIBLE_OUTPUT_MISMATCH", "PRESENTATION_ERROR");
+        }
+        return List.of("WA", "HIDDEN_CASE_FAILED");
+    }
+
+    private static List<String> generatedRelatedItems(InformaticsKnowledgeSeed knowledge) {
+        List<String> result = new ArrayList<>();
+        if (knowledge.parentCode() != null && !knowledge.parentCode().isBlank()) {
+            result.add(knowledge.parentCode());
+        }
+        if (knowledge.prerequisites() != null) {
+            result.addAll(knowledge.prerequisites());
+        }
+        return result.stream().distinct().toList();
+    }
+
+    private static String generatedSeverity(InformaticsKnowledgeSeed knowledge) {
+        String code = knowledge.code();
+        if (code.contains(".IO.") || code.contains(".LOOP.") || code.contains(".ARRAY.")
+                || code.contains(".ERROR.") || code.contains(".COMPLEXITY.")) {
+            return "HIGH";
+        }
+        if (code.contains(".STYLE.") || code.contains(".SUBMIT.")) {
+            return "LOW";
+        }
+        return "MEDIUM";
+    }
+
+    private static String generatedTeachingAction(InformaticsKnowledgeSeed knowledge) {
+        String code = knowledge.code();
+        if (code.contains(".IO.")) {
+            return "COMPARE_INPUT_SPEC";
+        }
+        if (code.contains(".LOOP.") || code.contains(".ARRAY.") || code.contains(".STRING.")) {
+            return "TRACE_VARIABLES";
+        }
+        if (code.contains(".BRANCH.")) {
+            return "CHECK_BRANCH_COVERAGE";
+        }
+        if (code.contains(".DP.") || code.contains(".SIM.")) {
+            return "DEFINE_STATE";
+        }
+        if (code.contains(".RECURSION.") || code.contains(".SEARCH.")) {
+            return "DRAW_RECURSION_TREE";
+        }
+        if (code.contains(".COMPLEXITY.") || code.contains(".ENUM.")) {
+            return "COUNT_COMPLEXITY";
+        }
+        if (code.contains(".GREEDY.") || code.contains(".BINARY.")) {
+            return "CHECK_INVARIANT";
+        }
+        if (code.contains(".DEBUG.") || code.contains(".SUBMIT.")) {
+            return "ASK_MIN_CASE";
+        }
+        return "TRACE_STATE";
+    }
+
+    private static String domainName(InformaticsKnowledgeSeed knowledge) {
+        String first = knowledge.path() == null ? "" : knowledge.path().split(" / ")[0];
+        return first.isBlank() ? "信息学知识" : first;
+    }
+
+    private static String safeName(String value, int maxLength) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength);
+    }
+
+    private static List<String> knowledgeNodesFor(String code) {
+        return switch (code) {
+            case "SYNTAX_ERROR" -> l("ENG.ERROR.COMPILE.语法拼写", "ENG.ERROR.COMPILE.括号不匹配");
+            case "PY_INDENTATION" -> l("ENG.ERROR.COMPILE.语法拼写", "BASIC.BRANCH.IF.嵌套分支");
+            case "CPP_HEADER_NAMESPACE" -> l("ENG.ERROR.COMPILE.未声明标识符", "BASIC.FUNCTION.DEF.函数命名");
+            case "TYPE_MISMATCH" -> l("BASIC.TYPE.VARIABLE.声明与初始化", "ENG.ERROR.COMPILE.类型不匹配");
+            case "FUNCTION_SIGNATURE" -> l("BASIC.FUNCTION.DEF.参数设计", "BASIC.FUNCTION.RETURN.完整返回路径");
+            case "RUNTIME_STABILITY" -> l("ENG.ERROR.RUNTIME.数组越界", "ENG.ERROR.RUNTIME.除零");
+            case "ARRAY_INDEX_OUT_OF_RANGE" -> l("BASIC.ARRAY.INDEX.越界访问", "ENG.ERROR.RUNTIME.数组越界");
+            case "DIVISION_BY_ZERO" -> l("ENG.ERROR.RUNTIME.除零", "BASIC.EXPR.ARITH.取模含义");
+            case "RECURSION_DEPTH" -> l("BASIC.RECURSION.BASE.终止条件", "ENG.ERROR.RUNTIME.递归爆栈");
+            case "IO_FORMAT" -> l("BASIC.IO.STDOUT.按要求换行", "ENG.ERROR.FORMAT.缺少换行");
+            case "INPUT_PARSING" -> l("BASIC.IO.STDIN.输入顺序映射", "CONTEST.READING.INPUT.输入结构识别");
+            case "MULTI_CASE_INPUT" -> l("BASIC.IO.MULTI_CASE.显式_T_组循环", "BASIC.IO.MULTI_CASE.每组状态重置");
+            case "EOF_INPUT_LOOP" -> l("BASIC.IO.MULTI_CASE.未知组数读到_EOF", "BASIC.IO.STDIN.读到文件结束");
+            case "OUTPUT_FORMAT_DETAIL" -> l("BASIC.IO.STDOUT.空格分隔", "ENG.ERROR.FORMAT.多余空格");
+            case "DEBUG_OUTPUT_LEFT" -> l("BASIC.IO.STDOUT.禁止多余调试输出", "ENG.ERROR.FORMAT.调试输出");
+            case "CASE_SENSITIVITY" -> l("BASIC.IO.STDOUT.大小写与标点一致", "ENG.ERROR.FORMAT.大小写错误");
+            case "OUTPUT_ORDER" -> l("BASIC.IO.STDOUT.按要求换行", "ALGO.SORT.BASIC.排序后遍历");
+            case "VARIABLE_INITIALIZATION" -> l("BASIC.TYPE.VARIABLE.声明与初始化", "ENG.DEBUG.TRACE.循环状态");
+            case "INITIAL_STATE" -> l("ALGO.SIM.STATE.状态初始化", "BASIC.TYPE.VARIABLE.声明与初始化");
+            case "MIN_MAX_INITIALIZATION" -> l("BASIC.ARRAY.TRAVERSE.全量遍历", "ALGO.DP.INIT.初始值");
+            case "FLAG_UPDATE" -> l("BASIC.TYPE.CHAR_BOOL.逻辑标志变量", "BASIC.LOOP.CONTROL.标志变量");
+            case "ACCUMULATOR_UPDATE" -> l("BASIC.ARRAY.PREFIX.频次统计", "MATH.COUNT.RECUR.递推式");
+            case "STATE_RESET" -> l("BASIC.IO.MULTI_CASE.每组状态重置", "ALGO.SIM.STATE.状态初始化");
+            case "MUTABLE_ALIASING" -> l("BASIC.ARRAY.UPDATE.覆盖风险", "BASIC.FUNCTION.PARAM.可变对象风险");
+            case "CONDITION_BRANCH" -> l("BASIC.BRANCH.CASE.覆盖所有情况", "BASIC.BRANCH.IF.多分支链");
+            case "OVERLAPPING_CONDITIONS" -> l("BASIC.BRANCH.CASE.互斥条件", "BASIC.BRANCH.CASE.优先级条件前置");
+            case "MISSING_ELSE_CASE" -> l("BASIC.BRANCH.CASE.默认分支", "BASIC.BRANCH.CASE.覆盖所有情况");
+            case "COMPARISON_OPERATOR" -> l("BASIC.EXPR.COMPARE.边界比较", "BASIC.LOOP.BOUNDARY.最后一次迭代");
+            case "BOOLEAN_LOGIC" -> l("BASIC.EXPR.LOGIC.条件组合", "BASIC.EXPR.LOGIC.德摩根变换");
+            case "LOOP_BOUNDARY" -> l("BASIC.LOOP.BOUNDARY.左闭右开", "BASIC.LOOP.BOUNDARY.左闭右闭");
+            case "OFF_BY_ONE" -> l("BASIC.LOOP.BOUNDARY.最后一次迭代", "BASIC.ARRAY.INDEX.长度与最后下标");
+            case "WHILE_TERMINATION" -> l("BASIC.LOOP.WHILE.循环条件", "BASIC.LOOP.WHILE.状态推进");
+            case "NESTED_LOOP_SCOPE" -> l("BASIC.LOOP.NESTED.内外层变量区分", "BASIC.LOOP.NESTED.重复初始化位置");
+            case "TWO_POINTER_PROGRESS" -> l("ALGO.TWO_POINTERS.WINDOW.窗口扩张", "ALGO.TWO_POINTERS.WINDOW.窗口收缩");
+            case "BOUNDARY_CONDITION" -> l("ENG.DEBUG.BOUNDARY.最小输入", "ENG.DEBUG.BOUNDARY.最大输入");
+            case "EMPTY_INPUT" -> l("ENG.DEBUG.BOUNDARY.空结果", "BASIC.ARRAY.INDEX.越界访问");
+            case "SINGLE_ELEMENT_CASE" -> l("ENG.DEBUG.BOUNDARY.最小输入", "BASIC.ARRAY.INDEX.长度与最后下标");
+            case "ZERO_ONE_CASE" -> l("ENG.DEBUG.BOUNDARY.极端值", "MATH.NUMBER.DIVISIBILITY.倍数判断");
+            case "MAX_BOUNDARY" -> l("ENG.DEBUG.BOUNDARY.最大输入", "ENG.COMPLEXITY.TIME.数据范围反推");
+            case "DUPLICATE_CASE" -> l("DS.SET_MAP.SET.去重", "ALGO.SORT.APPLICATION.去重统计");
+            case "NEGATIVE_NUMBER_CASE" -> l("BASIC.TYPE.INTEGER.int_范围", "MATH.NUMBER.MOD.负数取模修正");
+            case "DATA_STRUCTURE_CHOICE" -> l("DS.LINEAR.VECTOR.随机访问", "DS.SET_MAP.MAP.键值关系");
+            case "HASH_LOOKUP_MISSING" -> l("DS.SET_MAP.HASH.空间换时间", "DS.SET_MAP.MAP.频次统计");
+            case "SORTING_ORDER_KEY" -> l("ALGO.SORT.BASIC.自定义比较", "ALGO.SORT.APPLICATION.区间排序");
+            case "QUEUE_STACK_MISUSE" -> l("DS.LINEAR.STACK.后进先出", "DS.LINEAR.QUEUE.先进先出");
+            case "TIME_COMPLEXITY", "COMPLEXITY" -> l("ENG.COMPLEXITY.TIME.数据范围反推", "CONTEST.PATTERN.RANGE.大范围_O_N_LOG_N");
+            case "OVER_SIMULATION" -> l("ALGO.SIM.PROCESS.时间推进", "ENG.COMPLEXITY.TRADEOFF.预处理");
+            case "BRUTE_FORCE_LIMIT" -> l("ALGO.ENUM.COMPLEXITY.数据范围反推", "CONTEST.PATTERN.RANGE.中等范围优化");
+            case "REPEATED_WORK" -> l("ENG.COMPLEXITY.TRADEOFF.缓存", "ENG.COMPLEXITY.TRADEOFF.重复计算消除");
+            case "SPACE_COMPLEXITY" -> l("ENG.COMPLEXITY.SPACE.数组规模", "ENG.COMPLEXITY.SPACE.二维空间");
+            case "INTEGER_OVERFLOW" -> l("BASIC.TYPE.INTEGER.long_long_范围", "MATH.NUMBER.MOD.大数防溢出");
+            case "FLOAT_PRECISION" -> l("BASIC.TYPE.FLOAT.浮点误差", "BASIC.TYPE.FLOAT.小数比较");
+            case "ALGORITHM_STRATEGY", "ALGORITHM_MODELING" -> l("CONTEST.PATTERN.STRUCTURE.结构特征", "CONTEST.PATTERN.OBJECTIVE.目标特征");
+            case "GREEDY_ASSUMPTION", "GREEDY_PROOF" -> l("ALGO.GREEDY.CHOICE.反例检查", "ALGO.GREEDY.CHOICE.交换论证");
+            case "MONOTONICITY_MISSING", "BINARY_SEARCH_MODEL" -> l("ALGO.BINARY.ANSWER.单调性证明", "ALGO.BINARY.ANSWER.check_函数");
+            case "PREFIX_SUM_MISSING", "PREFIX_SUM_MODEL" -> l("ALGO.PREFIX.SUM.区间查询", "ALGO.PREFIX.DIFF.区间加");
+            case "GRAPH_VISITED" -> l("DS.GRAPH.TRAVERSE.访问标记", "ALGO.GRAPH.CONNECT.连通块");
+            case "GRAPH_DIRECTION" -> l("DS.GRAPH.MODEL.有向无向", "DS.GRAPH.STORE.双向边添加");
+            case "SHORTEST_PATH_RELAXATION" -> l("ALGO.GRAPH.SHORTEST.松弛操作", "ALGO.GRAPH.SHORTEST.距离初始化");
+            case "RECURSION_EXIT" -> l("BASIC.RECURSION.BASE.终止条件", "ALGO.SEARCH.DFS.搜索边界");
+            case "SEARCH_STATE_DUPLICATE" -> l("ALGO.SEARCH.STATE.判重", "ALGO.SEARCH.BFS.访问标记");
+            case "PRUNING_UNSAFE", "SEARCH_PRUNING" -> l("ALGO.ENUM.PRUNE.不可能条件", "ALGO.SEARCH.DFS.剪枝位置");
+            case "STATE_TRANSITION" -> l("ALGO.SIM.STATE.状态转移", "ALGO.DP.TRANSITION.枚举决策");
+            case "DP_STATE_DESIGN" -> l("ALGO.DP.STATE.状态含义", "ALGO.DP.STATE.维度选择");
+            case "DP_INITIALIZATION" -> l("ALGO.DP.INIT.初始值", "ALGO.DP.INIT.边界状态");
+            case "DP_UPDATE_ORDER" -> l("ALGO.DP.TRANSITION.从前往后", "ALGO.DP.TRANSITION.从后往前");
+            case "IN_PLACE_STATE_PROGRESS" -> l("BASIC.ARRAY.UPDATE.原地修改", "ALGO.DP.STATE.状态压缩直觉");
+            case "MODULAR_ARITHMETIC" -> l("MATH.NUMBER.MOD.加法取模", "MATH.NUMBER.MOD.乘法取模");
+            case "COMBINATORICS_COUNT" -> l("MATH.COUNT.PERM.顺序是否重要", "MATH.COUNT.INCLUSION.集合重叠");
+            case "SAMPLE_ONLY", "SAMPLE_OVERFIT" -> l("CONTEST.SUBMIT.CHECKLIST.边界复测", "CONTEST.SUBMIT.REVIEW.最小反例构造");
+            case "PARTIAL_FIX_REGRESSION" -> l("CONTEST.SUBMIT.REVIEW.同类错因记录", "CONTEST.SUBMIT.REVIEW.再次提交策略");
+            case "CODE_READABILITY", "CODE_QUALITY", "CODE_ORGANIZATION", "REFACTOR_AFTER_AC" -> l("ENG.STYLE.NAME.变量含义", "ENG.STYLE.STRUCTURE.函数拆分");
+            case "GENERALIZATION_CHECK", "TRANSFER_REVIEW" -> l("CONTEST.SUBMIT.REVIEW.知识点回补", "CONTEST.PATTERN.STRUCTURE.结构特征");
+            case "NEEDS_MORE_EVIDENCE", "TESTING_HABIT", "EDGE_CASE_CATALOG" -> l("ENG.DEBUG.BOUNDARY.边界测试", "CONTEST.SUBMIT.CHECKLIST.样例复测");
+            case "DATA_STRUCTURE_FIT" -> l("DS.SET_MAP.MAP.频次统计", "DS.LINEAR.QUEUE.BFS_队列");
+            case "MATH_PATTERN" -> l("MATH.NUMBER.GCD.欧几里得算法", "MATH.COUNT.RECUR.递推式");
+            case "DEBUGGING_TRACE" -> l("ENG.DEBUG.TRACE.循环状态", "ENG.DEBUG.TRACE.数组状态");
+            case "BOUNDARY_AWARENESS" -> l("ENG.DEBUG.BOUNDARY.最小输入", "ENG.DEBUG.BOUNDARY.最大输入");
+            case "PROOF_INVARIANT" -> l("ENG.STYLE.INVARIANT.循环不变量", "ENG.STYLE.INVARIANT.DP_状态含义");
+            case "LANGUAGE_RUNTIME_AWARENESS" -> l("ENG.ERROR.RUNTIME.递归爆栈", "BASIC.TYPE.INTEGER.整型溢出");
+            case "READ_PROBLEM_CONSTRAINTS" -> l("CONTEST.READING.CONSTRAINT.数据范围", "CONTEST.READING.CONSTRAINT.时间限制");
+            case "TEACHER_INTERVENTION_SIGNAL" -> l("CONTEST.SUBMIT.REVIEW.同类错因记录", "CONTEST.SUBMIT.REVIEW.再次提交策略");
+            default -> l("CONTEST.READING.CONSTRAINT.数据范围");
+        };
     }
 
     private static List<String> l(String... values) {

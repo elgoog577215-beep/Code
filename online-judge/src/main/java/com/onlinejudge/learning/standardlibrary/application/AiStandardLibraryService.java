@@ -166,6 +166,7 @@ public class AiStandardLibraryService {
         item.setSeverity(normalizeText(request.getSeverity()));
         item.setApplicableLanguages(join(request.getApplicableLanguages()));
         item.setRelatedItems(join(request.getRelatedItems()));
+        item.setKnowledgeNodeCodes(join(request.getKnowledgeNodeCodes()));
         item.setTeachingAction(normalizeText(request.getTeachingAction()));
         item.setLibraryVersion(normalizeText(request.getLibraryVersion()).isBlank()
                 ? AiStandardLibrarySeedCatalog.VERSION

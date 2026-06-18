@@ -18,6 +18,9 @@ public class SchoolSecurityProperties {
     @Value("${security.teacher.session-ttl-hours:${TEACHER_SESSION_TTL_HOURS:12}}")
     private long teacherSessionTtlHours;
 
+    @Value("${security.teacher.dev-auto-auth:${TEACHER_DEV_AUTO_AUTH:true}}")
+    private boolean teacherDevAutoAuth;
+
     @Value("${security.student.token-secret:${STUDENT_TOKEN_SECRET:dev-student-token-secret-change-me}}")
     private String studentTokenSecret;
 
@@ -30,6 +33,10 @@ public class SchoolSecurityProperties {
 
     public boolean schoolProfile() {
         return "school".equalsIgnoreCase(appProfile());
+    }
+
+    public boolean teacherDevAutoAuth() {
+        return teacherDevAutoAuth && !schoolProfile();
     }
 
     public String teacherPassword() {

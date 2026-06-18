@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Plus } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
 import type { Assignment, AssignmentOverview } from "../../shared/api/types";
 import { assignmentStatusLabel, displayText, looksCorruptText } from "../../shared/format";
 import { ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
+import { TeacherManagementTools } from "./TeacherManagementPage";
 
 type Alert = { type: "success" | "error"; message: string };
 
@@ -37,14 +39,23 @@ function attentionCount(overview?: AssignmentOverview | null) {
 }
 
 export default function TeacherPage() {
+  const location = useLocation();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [overviewByAssignment, setOverviewByAssignment] = useState<Record<number, AssignmentOverview | null>>({});
   const [alert, setAlert] = useState<Alert | null>(null);
   const [loading, setLoading] = useState(true);
+  const showManagement = new URLSearchParams(location.search).get("manage") === "1";
+  const [managementOpen, setManagementOpen] = useState(showManagement);
 
   useEffect(() => {
     void loadTeacherHome();
   }, []);
+
+  useEffect(() => {
+    if (showManagement) {
+      setManagementOpen(true);
+    }
+  }, [showManagement]);
 
   const cleanAssignments = useMemo(
     () =>
@@ -130,6 +141,20 @@ export default function TeacherPage() {
           <EmptyState title="暂无作业" />
         )}
       </section>
+
+      <details
+        className="teacher-management-drawer"
+        open={managementOpen}
+        onToggle={event => setManagementOpen(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>更多管理</strong>
+            <small>班级名单、题目导入、AI 标准库</small>
+          </span>
+        </summary>
+        <TeacherManagementTools embedded />
+      </details>
     </div>
   );
 }

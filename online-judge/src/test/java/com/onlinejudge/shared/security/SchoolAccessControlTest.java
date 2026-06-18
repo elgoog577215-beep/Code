@@ -36,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "TEACHER_PASSWORD=test-teacher-password",
         "TEACHER_SESSION_SECRET=test-teacher-session-secret-1234567890",
+        "TEACHER_DEV_AUTO_AUTH=false",
         "STUDENT_TOKEN_SECRET=test-student-token-secret-1234567890",
         "AI_ENABLED=false"
 })
@@ -59,6 +60,9 @@ class SchoolAccessControlTest {
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/api/teacher/ai-standard-library/items"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/teacher/informatics-knowledge/tree"))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(post("/api/teacher/auth/login")
@@ -98,13 +102,23 @@ class SchoolAccessControlTest {
         updatePayload.put("severity", "HIGH");
         updatePayload.put("applicableLanguages", List.of("PYTHON", "CPP17"));
         updatePayload.put("relatedItems", List.of("INPUT_PARSING"));
+        updatePayload.put("knowledgeNodeCodes", List.of("BASIC.IO"));
         updatePayload.put("teachingAction", "COMPARE_INPUT_SPEC");
         updatePayload.put("enabled", true);
 
-        mockMvc.perform(put("/api/teacher/ai-standard-library/items/" + id)
+        MvcResult updateResult = mockMvc.perform(put("/api/teacher/ai-standard-library/items/" + id)
                         .header("Cookie", cookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updatePayload)))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(objectMapper.readTree(updateResult.getResponse().getContentAsString())
+                .path("knowledgeNodeCodes")
+                .get(0)
+                .asText()).isEqualTo("BASIC.IO");
+
+        mockMvc.perform(get("/api/teacher/informatics-knowledge/tree")
+                        .header("Cookie", cookie))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/teacher/ai-standard-library/items/" + id + "/disable")

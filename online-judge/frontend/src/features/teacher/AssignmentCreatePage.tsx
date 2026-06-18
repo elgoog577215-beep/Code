@@ -35,6 +35,7 @@ const DIFFICULTY_FILTERS: Array<{ value: DifficultyFilter; label: string }> = [
   { value: "MEDIUM", label: "提高" },
   { value: "HARD", label: "挑战" }
 ];
+const DEFAULT_CLASS_NAME = "默认班级";
 
 function cleanAssignmentTitle(value?: string | null, fallback = "课堂作业") {
   const title = displayText(value, fallback);
@@ -92,14 +93,27 @@ export default function AssignmentCreatePage() {
     setLoading(true);
     setAlert(null);
     try {
-      const [classResult, problemResult] = await Promise.all([api.classes(), api.problemCatalog()]);
+      const [classResult, problemResult] = await Promise.all([ensureDefaultClass(), api.problemCatalog()]);
       setClasses(classResult);
       setProblems(problemResult);
+      setForm(current => ({
+        ...current,
+        classGroupId: current.classGroupId || (classResult[0] ? String(classResult[0].id) : "")
+      }));
     } catch (error) {
       setAlert({ type: "error", message: teacherErrorMessage(error, "新建作业资源读取失败。") });
     } finally {
       setLoading(false);
     }
+  }
+
+  async function ensureDefaultClass() {
+    const classResult = await api.classes();
+    if (classResult.length) {
+      return classResult;
+    }
+    const created = await api.createClass({ name: DEFAULT_CLASS_NAME });
+    return [created];
   }
 
   function toggleProblem(problemId: number) {
@@ -116,8 +130,9 @@ export default function AssignmentCreatePage() {
       setAlert({ type: "error", message: "请填写作业名称。" });
       return;
     }
-    if (!form.classGroupId) {
-      setAlert({ type: "error", message: "请选择要布置的班级。" });
+    const classGroupId = form.classGroupId || (classes[0] ? String(classes[0].id) : "");
+    if (!classGroupId) {
+      setAlert({ type: "error", message: "默认班级还没准备好，请刷新后重试。" });
       return;
     }
     if (!form.problemIds.length) {
@@ -129,7 +144,7 @@ export default function AssignmentCreatePage() {
       const payload = {
         title: form.title.trim(),
         description: form.description.trim(),
-        classGroupId: Number(form.classGroupId),
+        classGroupId: Number(classGroupId),
         hintPolicy: form.hintPolicy,
         status: form.status,
         problemIds: form.problemIds
@@ -144,7 +159,7 @@ export default function AssignmentCreatePage() {
     }
   }
 
-  const selectedClass = classes.find(item => String(item.id) === form.classGroupId);
+  const selectedClass = classes.find(item => String(item.id) === form.classGroupId) || classes[0];
 
   return (
     <div className="teacher-page teacher-workflow assignment-builder-page">
@@ -183,16 +198,6 @@ export default function AssignmentCreatePage() {
                   placeholder="例如：循环边界练习"
                 />
               </Field>
-              <Field label="选择班级">
-                <Select value={form.classGroupId} onChange={event => setForm({ ...form, classGroupId: event.target.value })}>
-                  <option value="">请选择班级</option>
-                  {classes.map(item => (
-                    <option value={item.id} key={item.id}>
-                      {displayText(item.name, `班级 #${item.id}`)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
               <Field label="发布状态">
                 <Select value={form.status} onChange={event => setForm({ ...form, status: event.target.value })}>
                   <option value="ACTIVE">进行中</option>
@@ -201,6 +206,9 @@ export default function AssignmentCreatePage() {
                 </Select>
               </Field>
             </div>
+            <p className="assignment-default-class">
+              默认发布到 <strong>{displayText(selectedClass?.name, DEFAULT_CLASS_NAME)}</strong>
+            </p>
             <Field label="作业说明">
               <TextArea
                 value={form.description}

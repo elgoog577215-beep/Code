@@ -84,6 +84,7 @@ public class ProblemService {
                 .timeLimit(request.getTimeLimit())
                 .memoryLimit(request.getMemoryLimit())
                 .aiPromptDirection(normalizePromptDirection(request.getAiPromptDirection()))
+                .starterCode(normalizeStarterCode(request.getStarterCode()))
                 .knowledgePoints(normalizeList(request.getKnowledgePoints()))
                 .algorithmStrategies(normalizeList(request.getAlgorithmStrategies()))
                 .commonMistakes(normalizeList(request.getCommonMistakes()))
@@ -112,6 +113,7 @@ public class ProblemService {
         problem.setTimeLimit(request.getTimeLimit());
         problem.setMemoryLimit(request.getMemoryLimit());
         problem.setAiPromptDirection(normalizePromptDirection(request.getAiPromptDirection()));
+        problem.setStarterCode(normalizeStarterCode(request.getStarterCode()));
         problem.setKnowledgePoints(normalizeList(request.getKnowledgePoints()));
         problem.setAlgorithmStrategies(normalizeList(request.getAlgorithmStrategies()));
         problem.setCommonMistakes(normalizeList(request.getCommonMistakes()));
@@ -198,6 +200,15 @@ public class ProblemService {
 
         String trimmed = promptDirection.trim();
         return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private String normalizeStarterCode(String starterCode) {
+        if (starterCode == null) {
+            return null;
+        }
+
+        String normalized = starterCode.replace("\r\n", "\n").replace('\r', '\n').stripTrailing();
+        return normalized.isBlank() ? null : normalized + "\n";
     }
 
     private List<String> normalizeList(List<String> values) {

@@ -157,6 +157,17 @@ function normalizeNumber(value: string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function initialSourceFor(problem: Problem | null, problemId: number, languageId: number) {
+  const draft = loadDraft(problemId, languageId);
+  if (draft !== null) {
+    return draft;
+  }
+  if (problem?.starterCode?.trim()) {
+    return problem.starterCode;
+  }
+  return contestLanguageById(languageId).template;
+}
+
 function terminalFeedbackStatus(status?: string | null) {
   return ["READY", "TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(String(status || "").toUpperCase());
 }
@@ -278,8 +289,7 @@ export default function ProblemPage() {
         const [problemResult, historyResult] = await Promise.all([api.problem(problemId), api.history(problemId)]);
         setProblem(problemResult);
         setHistory(historyResult);
-        const draft = loadDraft(problemId, languageId);
-        setSourceCode(draft || contestLanguageById(languageId).template);
+        setSourceCode(initialSourceFor(problemResult, problemId, languageId));
       } catch (error) {
         setAlert({ type: "error", message: error instanceof Error ? error.message : "题目加载失败。" });
       }
@@ -291,9 +301,8 @@ export default function ProblemPage() {
   }, [problemId]);
 
   useEffect(() => {
-    const draft = loadDraft(problemId, languageId);
-    setSourceCode(draft || contestLanguageById(languageId).template);
-  }, [languageId, problemId]);
+    setSourceCode(initialSourceFor(problem, problemId, languageId));
+  }, [languageId, problem, problemId]);
 
   useEffect(() => {
     let ignore = false;

@@ -31,6 +31,7 @@ public class AiStandardLibraryItemResponse {
     private String severity;
     private List<String> applicableLanguages;
     private List<String> relatedItems;
+    private List<String> knowledgeNodeCodes;
     private String teachingAction;
     private boolean enabled;
     private String libraryVersion;
@@ -60,6 +61,7 @@ public class AiStandardLibraryItemResponse {
                 .severity(item.getSeverity())
                 .applicableLanguages(lines(item.getApplicableLanguages()))
                 .relatedItems(lines(item.getRelatedItems()))
+                .knowledgeNodeCodes(lines(item.getKnowledgeNodeCodes()))
                 .teachingAction(item.getTeachingAction())
                 .enabled(item.isEnabled())
                 .libraryVersion(item.getLibraryVersion())

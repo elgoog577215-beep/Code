@@ -34,13 +34,25 @@ class AiStandardLibrarySeederTest {
     void seedsFineGrainedBasicAndImprovementItemsIdempotently() {
         long initialCount = repository.count();
 
-        assertThat(initialCount).isGreaterThanOrEqualTo(90);
+        assertThat(initialCount).isGreaterThanOrEqualTo(650);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
-                .count()).isGreaterThanOrEqualTo(70);
+                .count()).isGreaterThanOrEqualTo(430);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT)
-                .count()).isGreaterThanOrEqualTo(20);
+                .count()).isGreaterThanOrEqualTo(220);
+        assertThat(repository.findAll().stream()
+                .filter(item -> item.getKnowledgeNodeCodes() != null
+                        && item.getKnowledgeNodeCodes().contains("BASIC.LOOP.BOUNDARY.左闭右开"))
+                .count()).isGreaterThanOrEqualTo(1);
+        assertThat(repository.findAll().stream()
+                .filter(item -> item.getKnowledgeNodeCodes() != null
+                        && item.getKnowledgeNodeCodes().contains("ALGO.DP.STATE.状态含义"))
+                .count()).isGreaterThanOrEqualTo(1);
+        assertThat(repository.findAll().stream()
+                .filter(item -> item.getKnowledgeNodeCodes() != null
+                        && item.getKnowledgeNodeCodes().contains("CONTEST.READING.CONSTRAINT.数据范围"))
+                .count()).isGreaterThanOrEqualTo(1);
 
         seeder.run();
 

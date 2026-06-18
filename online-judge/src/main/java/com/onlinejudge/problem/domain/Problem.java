@@ -41,6 +41,9 @@ public class Problem {
     @Column(columnDefinition = "TEXT")
     private String aiPromptDirection;
 
+    @Column(name = "starter_code", columnDefinition = "TEXT")
+    private String starterCode;
+
     @Convert(converter = StringListJsonConverter.class)
     @Column(name = "knowledge_points", columnDefinition = "TEXT")
     private List<String> knowledgePoints;

@@ -257,6 +257,7 @@ export interface Problem {
   timeLimit: number;
   memoryLimit: number;
   aiPromptDirection?: string | null;
+  starterCode?: string | null;
   knowledgePoints?: string[];
   algorithmStrategies?: string[];
   commonMistakes?: string[];

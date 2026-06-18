@@ -15,4 +15,6 @@ public interface AiStandardLibraryItemRepository extends JpaRepository<AiStandar
     List<AiStandardLibraryItem> findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc();
 
     List<AiStandardLibraryItem> findAllByOrderByLayerAscCategoryAscCodeAsc();
+
+    List<AiStandardLibraryItem> findByEnabledTrueAndKnowledgeNodeCodesContainingOrderByLayerAscCategoryAscCodeAsc(String knowledgeNodeCode);
 }

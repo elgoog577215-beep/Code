@@ -12,7 +12,7 @@ import type {
   Readiness
 } from "../../shared/api/types";
 import { displayText } from "../../shared/format";
-import { Button } from "../../shared/ui/Button";
+import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea, TextInput } from "../../shared/ui/Field";
 import { StatusPill } from "../../shared/ui/StatusPill";
@@ -55,7 +55,15 @@ type LibraryDraft = {
 
 const DEFAULT_LIBRARY_FILTERS: LibraryFilters = { query: "", layer: "", category: "", enabled: "" };
 
+type TeacherManagementToolsProps = {
+  embedded?: boolean;
+};
+
 export default function TeacherManagementPage() {
+  return <TeacherManagementTools />;
+}
+
+export function TeacherManagementTools({ embedded = false }: TeacherManagementToolsProps) {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
   const [classForm, setClassForm] = useState({ name: "", grade: "", teacherName: "" });
@@ -295,40 +303,43 @@ export default function TeacherManagementPage() {
     }
   }
 
+  const statusPill = loadFailed ? (
+    <StatusPill tone="warning">读取失败</StatusPill>
+  ) : dataReady ? (
+    <StatusPill tone="neutral">{cleanClasses.length} 个班级 · {problems.length} 个题目</StatusPill>
+  ) : (
+    <StatusPill tone="neutral">读取中</StatusPill>
+  );
+
   return (
-    <div className="stack teacher-management-page management-console-page">
+    <div className={embedded ? "teacher-management-embed" : "stack teacher-management-page management-console-page"}>
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
       <section className="management-console">
-        <header className="management-console__brand">
-          <div>
-            <p className="eyebrow">教师端</p>
-            <h1>管理</h1>
-          </div>
-          {loadFailed ? <StatusPill tone="warning">读取失败</StatusPill> : dataReady ? <StatusPill tone="neutral">{cleanClasses.length} 个班级 · {problems.length} 个题目</StatusPill> : <StatusPill tone="neutral">读取中</StatusPill>}
-        </header>
+        {!embedded ? (
+          <header className="management-console__brand">
+            <div>
+              <p className="eyebrow">教师端</p>
+              <h1>管理</h1>
+            </div>
+            {statusPill}
+          </header>
+        ) : null}
 
-        <ReadinessPanel readiness={readiness} busy={aiSmokeBusy} onRefresh={loadReadiness} onAiSmoke={runAiSmoke} />
+        <details className="management-compact-details">
+          <summary>
+            <span>开课状态</span>
+            {statusPill}
+          </summary>
+          <div className="management-compact-details__body">
+            <ReadinessPanel readiness={readiness} busy={aiSmokeBusy} onRefresh={loadReadiness} onAiSmoke={runAiSmoke} />
+          </div>
+        </details>
 
         <main className="management-workspace">
           <section className="management-task-grid">
-            <StandardLibraryManager
-              items={libraryItems}
-              filters={libraryFilters}
-              draft={libraryDraft}
-              busy={libraryBusy}
-              selectedId={selectedLibraryId}
-              onFiltersChange={setLibraryFilters}
-              onReload={filters => void loadStandardLibrary(filters || libraryFilters)}
-              onNew={createLibraryDraft}
-              onSelect={selectLibraryItem}
-              onDraftChange={setLibraryDraft}
-              onSave={draft => void saveLibraryItem(draft)}
-              onToggle={item => void toggleLibraryItem(item)}
-            />
-
-            <section className="management-task-card">
-              <h2>创建班级</h2>
+            <section className="management-task-card management-task-card--large">
+              <h2>班级与名单</h2>
               <div className="form-grid management-create-form">
                 <Field label="班级名称">
                   <TextInput value={classForm.name} onChange={event => setClassForm({ ...classForm, name: event.target.value })} />
@@ -343,10 +354,6 @@ export default function TeacherManagementPage() {
               <Button type="button" variant="primary" onClick={() => void createClass()} disabled={busy}>
                 创建班级
               </Button>
-            </section>
-
-            <section className="management-task-card management-task-card--large">
-              <h2>导入名单</h2>
               <div className="management-form-row">
                 <Field label="导入到班级">
                   <Select value={targetClassGroupId} onChange={event => setTargetClassGroupId(event.target.value)}>
@@ -386,7 +393,12 @@ export default function TeacherManagementPage() {
             </section>
 
             <section className="management-task-card management-task-card--large">
-              <h2>导入题目</h2>
+              <h2>题目</h2>
+              <div className="actions">
+                <ButtonLink to="/app/task-editor" variant="secondary">
+                  编辑题目
+                </ButtonLink>
+              </div>
               <div className="management-form-row">
                 <FilePicker
                   accept=".md,.markdown,.json,.csv,.txt,.xlsx"
@@ -414,6 +426,29 @@ export default function TeacherManagementPage() {
               </div>
               <ImportResult result={problemImportResult} />
             </section>
+
+            <details className="management-compact-details standard-library-details">
+              <summary>
+                <span>AI 标准库</span>
+                <StatusPill tone="neutral">{libraryItems.length || "读取中"} 条</StatusPill>
+              </summary>
+              <div className="management-compact-details__body">
+                <StandardLibraryManager
+                  items={libraryItems}
+                  filters={libraryFilters}
+                  draft={libraryDraft}
+                  busy={libraryBusy}
+                  selectedId={selectedLibraryId}
+                  onFiltersChange={setLibraryFilters}
+                  onReload={filters => void loadStandardLibrary(filters || libraryFilters)}
+                  onNew={createLibraryDraft}
+                  onSelect={selectLibraryItem}
+                  onDraftChange={setLibraryDraft}
+                  onSave={draft => void saveLibraryItem(draft)}
+                  onToggle={item => void toggleLibraryItem(item)}
+                />
+              </div>
+            </details>
           </section>
         </main>
       </section>

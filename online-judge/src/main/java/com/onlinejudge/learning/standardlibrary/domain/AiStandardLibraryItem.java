@@ -97,6 +97,9 @@ public class AiStandardLibraryItem {
     @Column(length = 1600)
     private String relatedItems;
 
+    @Column(length = 2400)
+    private String knowledgeNodeCodes;
+
     @Column(length = 120)
     private String teachingAction;
 
