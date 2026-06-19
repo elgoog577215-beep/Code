@@ -82,7 +82,8 @@ public class AiStandardLibraryService {
     @Transactional(readOnly = true)
     public List<StandardLibraryPack.BasicCauseOption> enabledBasicCauses() {
         return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
-                .filter(item -> item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
+                .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
+                        || item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
                 .sorted(Comparator.comparing(AiStandardLibraryItem::getCategory).thenComparing(AiStandardLibraryItem::getCode))
                 .map(this::toBasicCause)
                 .toList();
@@ -103,6 +104,27 @@ public class AiStandardLibraryService {
     }
 
     StandardLibraryPack.BasicCauseOption toBasicCause(AiStandardLibraryItem item) {
+        if (item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT) {
+            return StandardLibraryPack.BasicCauseOption.builder()
+                    .id(item.getCode())
+                    .category(item.getCategory())
+                    .name(item.getName())
+                    .description(item.getDescription())
+                    .studentExplanation(item.getCommonMisconception())
+                    .teacherExplanation(item.getTeacherExplanation())
+                    .evidenceSignals(List.of())
+                    .commonCodePatterns(List.of())
+                    .judgeSignals(List.of())
+                    .hintL1("")
+                    .hintL2("")
+                    .hintL3("")
+                    .abilityPoint(item.getSkillUnitCode())
+                    .severity(item.getSeverity())
+                    .applicableLanguages(lines(item.getApplicableLanguages()))
+                    .relatedFineTags(lines(item.getKnowledgeNodeCodes()))
+                    .teachingAction("")
+                    .build();
+        }
         return StandardLibraryPack.BasicCauseOption.builder()
                 .id(item.getCode())
                 .category(item.getCategory())
@@ -153,6 +175,9 @@ public class AiStandardLibraryService {
         item.setDescription(normalizeText(request.getDescription()));
         item.setStudentExplanation(normalizeText(request.getStudentExplanation()));
         item.setTeacherExplanation(normalizeText(request.getTeacherExplanation()));
+        item.setSkillUnitCode(normalizeCodeOrBlank(request.getSkillUnitCode()));
+        item.setMistakeType(normalizeText(request.getMistakeType()));
+        item.setCommonMisconception(normalizeText(request.getCommonMisconception()));
         item.setEvidenceSignals(join(request.getEvidenceSignals()));
         item.setCommonCodePatterns(join(request.getCommonCodePatterns()));
         item.setJudgeSignals(join(request.getJudgeSignals()));
@@ -167,11 +192,41 @@ public class AiStandardLibraryService {
         item.setApplicableLanguages(join(request.getApplicableLanguages()));
         item.setRelatedItems(join(request.getRelatedItems()));
         item.setKnowledgeNodeCodes(join(request.getKnowledgeNodeCodes()));
+        item.setPrerequisiteKnowledgeCodes(join(request.getPrerequisiteKnowledgeCodes()));
         item.setTeachingAction(normalizeText(request.getTeachingAction()));
         item.setLibraryVersion(normalizeText(request.getLibraryVersion()).isBlank()
                 ? AiStandardLibrarySeedCatalog.VERSION
                 : normalizeText(request.getLibraryVersion()));
         item.setEnabled(request.getEnabled() == null || request.getEnabled());
+        validateKnowledgeItem(item);
+    }
+
+    private void validateKnowledgeItem(AiStandardLibraryItem item) {
+        if (item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT) {
+            requireText(item.getDescription(), "能力点定义不能为空");
+            requireText(item.getStudentExplanation(), "能力点学习目标不能为空");
+            requireLines(item.getKnowledgeNodeCodes(), "能力点必须关联至少一个知识节点");
+            return;
+        }
+        if (item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT) {
+            requireText(item.getDescription(), "易错点定义不能为空");
+            requireText(item.getSkillUnitCode(), "易错点必须关联能力点");
+            requireText(item.getMistakeType(), "易错点类型不能为空");
+            requireText(item.getCommonMisconception(), "学生常见误解不能为空");
+            requireLines(item.getKnowledgeNodeCodes(), "易错点必须关联至少一个知识节点");
+        }
+    }
+
+    private void requireText(String value, String message) {
+        if (normalizeText(value).isBlank()) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private void requireLines(String value, String message) {
+        if (lines(value).isEmpty()) {
+            throw new IllegalArgumentException(message);
+        }
     }
 
     private boolean matchesQuery(AiStandardLibraryItem item, String query) {
@@ -183,6 +238,10 @@ public class AiStandardLibraryService {
                 || contains(item.getCategory(), query)
                 || contains(item.getDescription(), query)
                 || contains(item.getTeacherExplanation(), query)
+                || contains(item.getSkillUnitCode(), query)
+                || contains(item.getMistakeType(), query)
+                || contains(item.getCommonMisconception(), query)
+                || contains(item.getKnowledgeNodeCodes(), query)
                 || contains(item.getEvidenceSignals(), query)
                 || contains(item.getCommonCodePatterns(), query);
     }
@@ -215,6 +274,11 @@ public class AiStandardLibraryService {
 
     private String normalizeCode(String value) {
         return required(value, "条目 ID 不能为空").trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeCodeOrBlank(String value) {
+        String normalized = normalizeText(value);
+        return normalized.isBlank() ? "" : normalized.toUpperCase(Locale.ROOT);
     }
 
     private String required(String value, String message) {

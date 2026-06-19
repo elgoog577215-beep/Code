@@ -44,6 +44,9 @@ class InformaticsKnowledgeServiceTest {
                 .contains("BASIC", "BASIC.IO", "BASIC.IO.MULTI_CASE");
         assertThat(detail.getStandardLibraryItems())
                 .extracting(item -> item.getCode())
-                .contains("MULTI_CASE_INPUT");
+                .contains("SK_BASIC_IO_MULTI_CASE_T_D3A160E0", "MP_BASIC_IO_MULTI_CASE_T_D3A160E0");
+        assertThat(detail.getStandardLibraryItems())
+                .extracting(item -> item.getLayer())
+                .contains("SKILL_UNIT", "MISTAKE_POINT");
     }
 }

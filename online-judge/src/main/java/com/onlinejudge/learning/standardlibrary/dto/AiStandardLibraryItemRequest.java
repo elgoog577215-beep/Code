@@ -22,6 +22,9 @@ public class AiStandardLibraryItemRequest {
     private String description;
     private String studentExplanation;
     private String teacherExplanation;
+    private String skillUnitCode;
+    private String mistakeType;
+    private String commonMisconception;
     private List<String> evidenceSignals;
     private List<String> commonCodePatterns;
     private List<String> judgeSignals;
@@ -36,6 +39,7 @@ public class AiStandardLibraryItemRequest {
     private List<String> applicableLanguages;
     private List<String> relatedItems;
     private List<String> knowledgeNodeCodes;
+    private List<String> prerequisiteKnowledgeCodes;
     private String teachingAction;
     private Boolean enabled;
     private String libraryVersion;

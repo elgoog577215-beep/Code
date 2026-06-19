@@ -1569,7 +1569,7 @@ export interface AiSmoke {
   checkedAt?: string | null;
 }
 
-export type AiStandardLibraryLayer = "BASIC_CAUSE" | "IMPROVEMENT_POINT";
+export type AiStandardLibraryLayer = "SKILL_UNIT" | "MISTAKE_POINT" | "BASIC_CAUSE" | "IMPROVEMENT_POINT";
 
 export interface AiStandardLibraryItem {
   id: number;
@@ -1580,6 +1580,9 @@ export interface AiStandardLibraryItem {
   description?: string | null;
   studentExplanation?: string | null;
   teacherExplanation?: string | null;
+  skillUnitCode?: string | null;
+  mistakeType?: string | null;
+  commonMisconception?: string | null;
   evidenceSignals: string[];
   commonCodePatterns: string[];
   judgeSignals: string[];
@@ -1593,6 +1596,8 @@ export interface AiStandardLibraryItem {
   severity?: string | null;
   applicableLanguages: string[];
   relatedItems: string[];
+  knowledgeNodeCodes: string[];
+  prerequisiteKnowledgeCodes: string[];
   teachingAction?: string | null;
   enabled: boolean;
   libraryVersion?: string | null;
@@ -1608,6 +1613,9 @@ export interface AiStandardLibraryItemPayload {
   description?: string | null;
   studentExplanation?: string | null;
   teacherExplanation?: string | null;
+  skillUnitCode?: string | null;
+  mistakeType?: string | null;
+  commonMisconception?: string | null;
   evidenceSignals?: string[];
   commonCodePatterns?: string[];
   judgeSignals?: string[];
@@ -1621,6 +1629,8 @@ export interface AiStandardLibraryItemPayload {
   severity?: string | null;
   applicableLanguages?: string[];
   relatedItems?: string[];
+  knowledgeNodeCodes?: string[];
+  prerequisiteKnowledgeCodes?: string[];
   teachingAction?: string | null;
   enabled?: boolean;
   libraryVersion?: string | null;

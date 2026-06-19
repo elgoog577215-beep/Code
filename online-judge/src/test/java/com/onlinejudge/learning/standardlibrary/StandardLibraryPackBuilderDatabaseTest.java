@@ -36,9 +36,9 @@ class StandardLibraryPackBuilderDatabaseTest {
 
     @Test
     void packBuilderReadsEnabledItemsFromDatabaseBeforeBuiltinFallback() {
-        var item = repository.findByLayerAndCode(AiStandardLibraryLayer.BASIC_CAUSE, "IO_FORMAT").orElseThrow();
-        item.setName("数据库输入输出格式");
-        item.setHintL1("先确认数据库条目是否被读取。");
+        var item = repository.findByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, "IO_FORMAT").orElseThrow();
+        item.setName("数据库输入输出易错点");
+        item.setCommonMisconception("先确认数据库 v3 易错点是否被读取。");
         repository.saveAndFlush(item);
 
         StandardLibraryPack pack = builder.build(ModelDiagnosisBrief.builder()
@@ -49,8 +49,8 @@ class StandardLibraryPackBuilderDatabaseTest {
                 .filteredOn(cause -> "IO_FORMAT".equals(cause.getId()))
                 .singleElement()
                 .satisfies(cause -> {
-                    assertThat(cause.getName()).isEqualTo("数据库输入输出格式");
-                    assertThat(cause.getHintL1()).isEqualTo("先确认数据库条目是否被读取。");
+                    assertThat(cause.getName()).isEqualTo("数据库输入输出易错点");
+                    assertThat(cause.getStudentExplanation()).isEqualTo("先确认数据库 v3 易错点是否被读取。");
                 });
     }
 

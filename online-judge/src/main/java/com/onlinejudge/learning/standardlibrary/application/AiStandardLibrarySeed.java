@@ -12,6 +12,9 @@ public record AiStandardLibrarySeed(
         String description,
         String studentExplanation,
         String teacherExplanation,
+        String skillUnitCode,
+        String mistakeType,
+        String commonMisconception,
         List<String> evidenceSignals,
         List<String> commonCodePatterns,
         List<String> judgeSignals,
@@ -26,6 +29,7 @@ public record AiStandardLibrarySeed(
         List<String> applicableLanguages,
         List<String> relatedItems,
         List<String> knowledgeNodeCodes,
+        List<String> prerequisiteKnowledgeCodes,
         String teachingAction,
         String libraryVersion
 ) {

@@ -15,6 +15,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,33 +78,29 @@ class SchoolAccessControlTest {
         String cookie = loginTeacherCookie();
 
         MvcResult listResult = mockMvc.perform(get("/api/teacher/ai-standard-library/items")
-                        .param("query", "IO_FORMAT")
+                        .param("query", "MP_IO_ONLY_READS_ONE_CASE")
                         .header("Cookie", cookie))
                 .andExpect(status().isOk())
                 .andReturn();
-        JsonNode first = objectMapper.readTree(listResult.getResponse().getContentAsString()).get(0);
+        JsonNode first = objectMapper.readTree(listResult.getResponse().getContentAsString(StandardCharsets.UTF_8)).get(0);
         long id = first.path("id").asLong();
 
         Map<String, Object> updatePayload = new LinkedHashMap<>();
-        updatePayload.put("layer", "BASIC_CAUSE");
-        updatePayload.put("code", "IO_FORMAT");
-        updatePayload.put("category", "输入输出");
-        updatePayload.put("name", "输入输出格式测试更新");
+        updatePayload.put("layer", "MISTAKE_POINT");
+        updatePayload.put("code", "MP_IO_ONLY_READS_ONE_CASE");
+        updatePayload.put("category", "易错点/输入输出");
+        updatePayload.put("name", "多组数据只处理一组测试更新");
         updatePayload.put("description", "测试更新");
         updatePayload.put("studentExplanation", "先核对读入和输出。");
         updatePayload.put("teacherExplanation", "教师可要求学生逐行对照题面格式。");
-        updatePayload.put("evidenceSignals", List.of("visible mismatch"));
-        updatePayload.put("commonCodePatterns", List.of("输出调试内容"));
-        updatePayload.put("judgeSignals", List.of("WA"));
-        updatePayload.put("hintL1", "先看输入输出格式。");
-        updatePayload.put("hintL2", "把期望输出和实际输出按行对齐。");
-        updatePayload.put("hintL3", "删掉调试输出后重新提交。");
-        updatePayload.put("abilityPoint", "题意读取");
+        updatePayload.put("skillUnitCode", "SK_IO_STRUCTURE_MAPPING");
+        updatePayload.put("mistakeType", "IO_FORMAT");
+        updatePayload.put("commonMisconception", "把样例单组输入当成完整格式。");
         updatePayload.put("severity", "HIGH");
         updatePayload.put("applicableLanguages", List.of("PYTHON", "CPP17"));
-        updatePayload.put("relatedItems", List.of("INPUT_PARSING"));
-        updatePayload.put("knowledgeNodeCodes", List.of("BASIC.IO"));
-        updatePayload.put("teachingAction", "COMPARE_INPUT_SPEC");
+        updatePayload.put("relatedItems", List.of("SK_IO_STRUCTURE_MAPPING"));
+        updatePayload.put("knowledgeNodeCodes", List.of("BASIC.IO.MULTI_CASE.显式 T 组循环"));
+        updatePayload.put("prerequisiteKnowledgeCodes", List.of("BASIC.LOOP.FOR.循环次数计算"));
         updatePayload.put("enabled", true);
 
         MvcResult updateResult = mockMvc.perform(put("/api/teacher/ai-standard-library/items/" + id)
@@ -112,10 +109,13 @@ class SchoolAccessControlTest {
                         .content(objectMapper.writeValueAsString(updatePayload)))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertThat(objectMapper.readTree(updateResult.getResponse().getContentAsString())
+        assertThat(objectMapper.readTree(updateResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
                 .path("knowledgeNodeCodes")
                 .get(0)
-                .asText()).isEqualTo("BASIC.IO");
+                .asText()).isEqualTo("BASIC.IO.MULTI_CASE.显式 T 组循环");
+        assertThat(objectMapper.readTree(updateResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("skillUnitCode")
+                .asText()).isEqualTo("SK_IO_STRUCTURE_MAPPING");
 
         mockMvc.perform(get("/api/teacher/informatics-knowledge/tree")
                         .header("Cookie", cookie))
@@ -129,12 +129,62 @@ class SchoolAccessControlTest {
                         .header("Cookie", cookie))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertThat(objectMapper.readTree(disabledResult.getResponse().getContentAsString()).path("enabled").asBoolean())
+        assertThat(objectMapper.readTree(disabledResult.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("enabled").asBoolean())
                 .isFalse();
 
         mockMvc.perform(post("/api/teacher/ai-standard-library/items/" + id + "/enable")
                         .header("Cookie", cookie))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void teacherCannotSaveIncompleteMistakePoint() throws Exception {
+        String cookie = loginTeacherCookie();
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("layer", "MISTAKE_POINT");
+        payload.put("code", "MP_TEST_INCOMPLETE");
+        payload.put("category", "易错点/测试");
+        payload.put("name", "缺少能力点关联");
+        payload.put("description", "这是一个测试易错点。");
+        payload.put("mistakeType", "BOUNDARY");
+        payload.put("commonMisconception", "学生常见误解。");
+        payload.put("knowledgeNodeCodes", List.of("BASIC.LOOP.BOUNDARY.左闭右开"));
+        payload.put("enabled", true);
+
+        MvcResult result = mockMvc.perform(post("/api/teacher/ai-standard-library/items")
+                        .header("Cookie", cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+        assertThat(objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("error")
+                .asText()).contains("易错点必须关联能力点");
+    }
+
+    @Test
+    void teacherCannotSaveSkillUnitWithoutKnowledgeNode() throws Exception {
+        String cookie = loginTeacherCookie();
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("layer", "SKILL_UNIT");
+        payload.put("code", "SK_TEST_NO_KNOWLEDGE");
+        payload.put("category", "能力点/测试");
+        payload.put("name", "测试能力点");
+        payload.put("description", "这是一个测试能力点。");
+        payload.put("studentExplanation", "学习目标。");
+        payload.put("enabled", true);
+
+        MvcResult result = mockMvc.perform(post("/api/teacher/ai-standard-library/items")
+                        .header("Cookie", cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+        assertThat(objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("error")
+                .asText()).contains("能力点必须关联至少一个知识节点");
     }
 
     @Test

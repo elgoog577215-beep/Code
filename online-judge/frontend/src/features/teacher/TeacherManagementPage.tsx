@@ -35,6 +35,9 @@ type LibraryDraft = {
   description: string;
   studentExplanation: string;
   teacherExplanation: string;
+  skillUnitCode: string;
+  mistakeType: string;
+  commonMisconception: string;
   evidenceSignals: string;
   commonCodePatterns: string;
   judgeSignals: string;
@@ -48,6 +51,8 @@ type LibraryDraft = {
   severity: string;
   applicableLanguages: string;
   relatedItems: string;
+  knowledgeNodeCodes: string;
+  prerequisiteKnowledgeCodes: string;
   teachingAction: string;
   enabled: boolean;
   libraryVersion: string;
@@ -537,8 +542,8 @@ function StandardLibraryManager({
   onToggle: (item: AiStandardLibraryItem) => void;
 }) {
   const visibleItems = items.filter(item => libraryItemMatchesFilters(item, filters));
-  const basicCount = visibleItems.filter(item => item.layer === "BASIC_CAUSE").length;
-  const improvementCount = visibleItems.filter(item => item.layer === "IMPROVEMENT_POINT").length;
+  const skillCount = visibleItems.filter(item => item.layer === "SKILL_UNIT").length;
+  const mistakeCount = visibleItems.filter(item => item.layer === "MISTAKE_POINT").length;
   const categoryOptions = Array.from(new Set(items.map(item => item.category).filter(Boolean))).sort((left, right) => left.localeCompare(right, "zh-Hans-CN"));
   const selectedItem = visibleItems.find(item => item.id === selectedId) || items.find(item => item.id === selectedId) || null;
 
@@ -555,7 +560,7 @@ function StandardLibraryManager({
           </span>
           <div>
             <h2>AI 标准库</h2>
-            <p>基础层 {basicCount} · 提高层 {improvementCount}</p>
+            <p>能力点 {skillCount} · 易错点 {mistakeCount}</p>
           </div>
         </div>
         <div className="actions">
@@ -576,14 +581,14 @@ function StandardLibraryManager({
                 onReload(readFiltersFromElement(event.currentTarget));
               }
             }}
-            placeholder="ID、名称、证据信号"
+            placeholder="ID、名称、知识点、能力点、易错点"
           />
         </Field>
-        <Field label="层级">
+        <Field label="类型">
           <Select name="layer" value={filters.layer} onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}>
             <option value="">全部</option>
-            <option value="BASIC_CAUSE">基础层</option>
-            <option value="IMPROVEMENT_POINT">提高层</option>
+            <option value="SKILL_UNIT">能力点</option>
+            <option value="MISTAKE_POINT">易错点</option>
           </Select>
         </Field>
         <Field label="分类">
@@ -623,7 +628,7 @@ function StandardLibraryManager({
                   <small>{item.code}</small>
                 </span>
                 <span>
-                  <StatusPill tone={item.layer === "BASIC_CAUSE" ? "info" : "warning"}>{layerLabel(item.layer)}</StatusPill>
+                  <StatusPill tone={item.layer === "SKILL_UNIT" ? "info" : "warning"}>{layerLabel(item.layer)}</StatusPill>
                   <StatusPill tone={item.enabled ? "success" : "neutral"}>{item.enabled ? "启用" : "停用"}</StatusPill>
                 </span>
               </button>
@@ -658,14 +663,14 @@ function StandardLibraryManager({
           </div>
 
           <div className="form-grid standard-library-editor__core">
-            <Field label="层级">
+            <Field label="类型">
               <Select name="layer" value={draft.layer} onChange={event => patchDraft({ layer: event.target.value as AiStandardLibraryLayer })}>
-                <option value="BASIC_CAUSE">基础层</option>
-                <option value="IMPROVEMENT_POINT">提高层</option>
+                <option value="SKILL_UNIT">能力点</option>
+                <option value="MISTAKE_POINT">易错点</option>
               </Select>
             </Field>
             <Field label="条目 ID">
-              <TextInput name="code" value={draft.code} onChange={event => patchDraft({ code: event.target.value })} placeholder="IO_FORMAT" />
+              <TextInput name="code" value={draft.code} onChange={event => patchDraft({ code: event.target.value })} placeholder="SK_LOOP_ENDPOINT_INCLUSION" />
             </Field>
             <Field label="分类">
               <TextInput name="category" value={draft.category} onChange={event => patchDraft({ category: event.target.value })} />
@@ -676,30 +681,45 @@ function StandardLibraryManager({
           </div>
 
           <div className="standard-library-editor__textarea-grid">
-            <Field label="描述">
+            <Field label={draft.layer === "SKILL_UNIT" ? "能力定义" : "易错点定义"}>
               <TextArea name="description" value={draft.description} onChange={event => patchDraft({ description: event.target.value })} />
             </Field>
-            <Field label="学生解释">
+            <Field label={draft.layer === "SKILL_UNIT" ? "学习目标" : "学生常见误解"}>
               <TextArea name="studentExplanation" value={draft.studentExplanation} onChange={event => patchDraft({ studentExplanation: event.target.value })} />
             </Field>
             <Field label="教师解释">
               <TextArea name="teacherExplanation" value={draft.teacherExplanation} onChange={event => patchDraft({ teacherExplanation: event.target.value })} />
             </Field>
-            <Field label="L1 提示">
-              <TextArea name="hintL1" value={draft.hintL1} onChange={event => patchDraft({ hintL1: event.target.value })} />
-            </Field>
-            <Field label="L2 提示">
-              <TextArea name="hintL2" value={draft.hintL2} onChange={event => patchDraft({ hintL2: event.target.value })} />
-            </Field>
-            <Field label="L3 提示">
-              <TextArea name="hintL3" value={draft.hintL3} onChange={event => patchDraft({ hintL3: event.target.value })} />
-            </Field>
+            {draft.layer === "MISTAKE_POINT" ? (
+              <Field label="常见误解">
+                <TextArea name="commonMisconception" value={draft.commonMisconception} onChange={event => patchDraft({ commonMisconception: event.target.value })} />
+              </Field>
+            ) : null}
           </div>
 
           <div className="form-grid standard-library-editor__meta">
-            <Field label="能力点">
-              <TextInput name="abilityPoint" value={draft.abilityPoint} onChange={event => patchDraft({ abilityPoint: event.target.value })} />
-            </Field>
+            {draft.layer === "MISTAKE_POINT" ? (
+              <>
+                <Field label="所属能力点">
+                  <TextInput name="skillUnitCode" value={draft.skillUnitCode} onChange={event => patchDraft({ skillUnitCode: event.target.value })} placeholder="SK_..." />
+                </Field>
+                <Field label="易错类型">
+                  <Select name="mistakeType" value={draft.mistakeType} onChange={event => patchDraft({ mistakeType: event.target.value })}>
+                    <option value="">未指定</option>
+                    <option value="CONCEPT">概念</option>
+                    <option value="BOUNDARY">边界</option>
+                    <option value="IO_FORMAT">输入输出</option>
+                    <option value="STATE">状态</option>
+                    <option value="TRANSITION">转移</option>
+                    <option value="COMPLEXITY">复杂度</option>
+                    <option value="MODELING">建模</option>
+                    <option value="SYNTAX">语法</option>
+                    <option value="RUNTIME">运行时</option>
+                    <option value="DEBUGGING">调试习惯</option>
+                  </Select>
+                </Field>
+              </>
+            ) : null}
             <Field label="严重度">
               <Select name="severity" value={draft.severity} onChange={event => patchDraft({ severity: event.target.value })}>
                 <option value="">未指定</option>
@@ -708,45 +728,25 @@ function StandardLibraryManager({
                 <option value="HIGH">HIGH</option>
               </Select>
             </Field>
-            <Field label="教学动作">
-              <TextInput name="teachingAction" value={draft.teachingAction} onChange={event => patchDraft({ teachingAction: event.target.value })} />
-            </Field>
             <Field label="版本">
               <TextInput name="libraryVersion" value={draft.libraryVersion} onChange={event => patchDraft({ libraryVersion: event.target.value })} />
             </Field>
           </div>
 
           <div className="standard-library-editor__textarea-grid standard-library-editor__signals">
-            <Field label="证据信号">
-              <TextArea name="evidenceSignals" value={draft.evidenceSignals} onChange={event => patchDraft({ evidenceSignals: event.target.value })} placeholder="每行一个" />
-            </Field>
-            <Field label="代码形态">
-              <TextArea name="commonCodePatterns" value={draft.commonCodePatterns} onChange={event => patchDraft({ commonCodePatterns: event.target.value })} placeholder="每行一个" />
-            </Field>
-            <Field label="判题信号">
-              <TextArea name="judgeSignals" value={draft.judgeSignals} onChange={event => patchDraft({ judgeSignals: event.target.value })} placeholder="WA / TLE / RE" />
-            </Field>
-            <Field label="必需证据">
-              <TextArea name="requiredEvidence" value={draft.requiredEvidence} onChange={event => patchDraft({ requiredEvidence: event.target.value })} placeholder="提高层可用" />
+            <Field label="关联知识点">
+              <TextArea name="knowledgeNodeCodes" value={draft.knowledgeNodeCodes} onChange={event => patchDraft({ knowledgeNodeCodes: event.target.value })} placeholder="每行一个知识点 ID" />
             </Field>
             <Field label="适用语言">
               <TextArea name="applicableLanguages" value={draft.applicableLanguages} onChange={event => patchDraft({ applicableLanguages: event.target.value })} placeholder="PYTHON&#10;CPP17" />
+            </Field>
+            <Field label="前置知识">
+              <TextArea name="prerequisiteKnowledgeCodes" value={draft.prerequisiteKnowledgeCodes} onChange={event => patchDraft({ prerequisiteKnowledgeCodes: event.target.value })} placeholder="每行一个知识点或能力点 ID" />
             </Field>
             <Field label="相关条目">
               <TextArea name="relatedItems" value={draft.relatedItems} onChange={event => patchDraft({ relatedItems: event.target.value })} placeholder="每行一个条目 ID" />
             </Field>
           </div>
-
-          {draft.layer === "IMPROVEMENT_POINT" ? (
-            <div className="standard-library-editor__textarea-grid">
-              <Field label="使用时机">
-                <TextArea name="whenToUse" value={draft.whenToUse} onChange={event => patchDraft({ whenToUse: event.target.value })} />
-              </Field>
-              <Field label="学生收益">
-                <TextArea name="studentBenefit" value={draft.studentBenefit} onChange={event => patchDraft({ studentBenefit: event.target.value })} />
-              </Field>
-            </div>
-          ) : null}
         </div>
       </div>
     </section>
@@ -783,13 +783,16 @@ function FilePicker({
 
 function emptyLibraryDraft(): LibraryDraft {
   return {
-    layer: "BASIC_CAUSE",
+    layer: "MISTAKE_POINT",
     code: "",
     category: "",
     name: "",
     description: "",
     studentExplanation: "",
     teacherExplanation: "",
+    skillUnitCode: "",
+    mistakeType: "",
+    commonMisconception: "",
     evidenceSignals: "",
     commonCodePatterns: "",
     judgeSignals: "",
@@ -803,9 +806,11 @@ function emptyLibraryDraft(): LibraryDraft {
     severity: "MEDIUM",
     applicableLanguages: "PYTHON\nCPP17",
     relatedItems: "",
+    knowledgeNodeCodes: "",
+    prerequisiteKnowledgeCodes: "",
     teachingAction: "",
     enabled: true,
-    libraryVersion: "standard-library-db-v1"
+    libraryVersion: "standard-library-v3-skill-mistake"
   };
 }
 
@@ -819,6 +824,9 @@ function itemToDraft(item: AiStandardLibraryItem): LibraryDraft {
     description: item.description || "",
     studentExplanation: item.studentExplanation || "",
     teacherExplanation: item.teacherExplanation || "",
+    skillUnitCode: item.skillUnitCode || "",
+    mistakeType: item.mistakeType || "",
+    commonMisconception: item.commonMisconception || "",
     evidenceSignals: linesToText(item.evidenceSignals),
     commonCodePatterns: linesToText(item.commonCodePatterns),
     judgeSignals: linesToText(item.judgeSignals),
@@ -832,9 +840,11 @@ function itemToDraft(item: AiStandardLibraryItem): LibraryDraft {
     severity: item.severity || "",
     applicableLanguages: linesToText(item.applicableLanguages),
     relatedItems: linesToText(item.relatedItems),
+    knowledgeNodeCodes: linesToText(item.knowledgeNodeCodes),
+    prerequisiteKnowledgeCodes: linesToText(item.prerequisiteKnowledgeCodes),
     teachingAction: item.teachingAction || "",
     enabled: item.enabled,
-    libraryVersion: item.libraryVersion || "standard-library-db-v1"
+    libraryVersion: item.libraryVersion || "standard-library-v3-skill-mistake"
   };
 }
 
@@ -847,20 +857,25 @@ function draftToPayload(draft: LibraryDraft): AiStandardLibraryItemPayload {
     description: draft.description.trim(),
     studentExplanation: draft.studentExplanation.trim(),
     teacherExplanation: draft.teacherExplanation.trim(),
-    evidenceSignals: textToLines(draft.evidenceSignals),
-    commonCodePatterns: textToLines(draft.commonCodePatterns),
-    judgeSignals: textToLines(draft.judgeSignals),
-    requiredEvidence: textToLines(draft.requiredEvidence),
-    whenToUse: draft.whenToUse.trim(),
-    studentBenefit: draft.studentBenefit.trim(),
-    hintL1: draft.hintL1.trim(),
-    hintL2: draft.hintL2.trim(),
-    hintL3: draft.hintL3.trim(),
-    abilityPoint: draft.abilityPoint.trim(),
+    skillUnitCode: draft.skillUnitCode.trim(),
+    mistakeType: draft.mistakeType.trim(),
+    commonMisconception: draft.commonMisconception.trim(),
+    evidenceSignals: [],
+    commonCodePatterns: [],
+    judgeSignals: [],
+    requiredEvidence: [],
+    whenToUse: "",
+    studentBenefit: "",
+    hintL1: "",
+    hintL2: "",
+    hintL3: "",
+    abilityPoint: draft.layer === "SKILL_UNIT" ? draft.name.trim() : draft.skillUnitCode.trim(),
     severity: draft.severity.trim(),
     applicableLanguages: textToLines(draft.applicableLanguages),
     relatedItems: textToLines(draft.relatedItems),
-    teachingAction: draft.teachingAction.trim(),
+    knowledgeNodeCodes: textToLines(draft.knowledgeNodeCodes),
+    prerequisiteKnowledgeCodes: textToLines(draft.prerequisiteKnowledgeCodes),
+    teachingAction: "",
     enabled: draft.enabled,
     libraryVersion: draft.libraryVersion.trim()
   };
@@ -878,7 +893,10 @@ function textToLines(text: string): string[] {
 }
 
 function layerLabel(layer: AiStandardLibraryLayer) {
-  return layer === "BASIC_CAUSE" ? "基础层" : "提高层";
+  if (layer === "SKILL_UNIT") return "能力点";
+  if (layer === "MISTAKE_POINT") return "易错点";
+  if (layer === "BASIC_CAUSE") return "旧基础层";
+  return "旧提高层";
 }
 
 function libraryItemMatchesFilters(item: AiStandardLibraryItem, filters: LibraryFilters) {
@@ -902,6 +920,9 @@ function libraryItemMatchesFilters(item: AiStandardLibraryItem, filters: Library
     item.description,
     item.studentExplanation,
     item.teacherExplanation,
+    item.skillUnitCode,
+    item.mistakeType,
+    item.commonMisconception,
     ...item.evidenceSignals,
     ...item.commonCodePatterns,
     ...item.judgeSignals,
@@ -910,6 +931,8 @@ function libraryItemMatchesFilters(item: AiStandardLibraryItem, filters: Library
     item.severity,
     ...item.applicableLanguages,
     ...item.relatedItems,
+    ...item.knowledgeNodeCodes,
+    ...item.prerequisiteKnowledgeCodes,
     item.teachingAction
   ]
     .filter(Boolean)
@@ -947,6 +970,9 @@ function readDraftFromElement(element: HTMLElement, fallback: LibraryDraft): Lib
     description: value("description"),
     studentExplanation: value("studentExplanation"),
     teacherExplanation: value("teacherExplanation"),
+    skillUnitCode: value("skillUnitCode"),
+    mistakeType: value("mistakeType"),
+    commonMisconception: value("commonMisconception"),
     evidenceSignals: value("evidenceSignals"),
     commonCodePatterns: value("commonCodePatterns"),
     judgeSignals: value("judgeSignals"),
@@ -960,6 +986,8 @@ function readDraftFromElement(element: HTMLElement, fallback: LibraryDraft): Lib
     severity: value("severity"),
     applicableLanguages: value("applicableLanguages"),
     relatedItems: value("relatedItems"),
+    knowledgeNodeCodes: value("knowledgeNodeCodes"),
+    prerequisiteKnowledgeCodes: value("prerequisiteKnowledgeCodes"),
     teachingAction: value("teachingAction"),
     libraryVersion: value("libraryVersion")
   };
