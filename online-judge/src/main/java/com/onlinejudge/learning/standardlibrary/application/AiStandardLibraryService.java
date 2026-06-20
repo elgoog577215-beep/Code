@@ -4,6 +4,7 @@ import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRequest;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemResponse;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryEmbeddingRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import com.onlinejudge.submission.application.StandardLibraryPack;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import java.util.Optional;
 public class AiStandardLibraryService {
 
     private final AiStandardLibraryItemRepository repository;
+    private final AiStandardLibraryEmbeddingRepository embeddingRepository;
 
     @Transactional(readOnly = true)
     public List<AiStandardLibraryItemResponse> list(String layer, String category, String enabled, String query) {
@@ -52,7 +54,9 @@ public class AiStandardLibraryService {
         item.setLayer(layer);
         item.setCode(code);
         apply(item, request);
-        return AiStandardLibraryItemResponse.from(repository.save(item));
+        AiStandardLibraryItem saved = repository.save(item);
+        markEmbeddingStale(saved);
+        return AiStandardLibraryItemResponse.from(saved);
     }
 
     @Transactional
@@ -69,14 +73,18 @@ public class AiStandardLibraryService {
             item.setCode(requestedCode);
         }
         apply(item, request);
-        return AiStandardLibraryItemResponse.from(repository.save(item));
+        AiStandardLibraryItem saved = repository.save(item);
+        markEmbeddingStale(saved);
+        return AiStandardLibraryItemResponse.from(saved);
     }
 
     @Transactional
     public AiStandardLibraryItemResponse setEnabled(Long id, boolean enabled) {
         AiStandardLibraryItem item = find(id);
         item.setEnabled(enabled);
-        return AiStandardLibraryItemResponse.from(repository.save(item));
+        AiStandardLibraryItem saved = repository.save(item);
+        markEmbeddingStale(saved);
+        return AiStandardLibraryItemResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -101,6 +109,30 @@ public class AiStandardLibraryService {
     @Transactional(readOnly = true)
     public boolean hasEnabledKnowledge() {
         return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream().findAny().isPresent();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AiStandardLibraryItem> enabledSearchLocationItems() {
+        return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
+                .filter(item -> item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT
+                        || item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
+                        || item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT
+                        || item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
+                .toList();
+    }
+
+    @Transactional
+    public void markEmbeddingStale(AiStandardLibraryItem item) {
+        if (item == null || item.getId() == null) {
+            return;
+        }
+        embeddingRepository.findAll().stream()
+                .filter(embedding -> embedding.getItem() != null && item.getId().equals(embedding.getItem().getId()))
+                .forEach(embedding -> {
+                    embedding.setStatus("STALE");
+                    embedding.setFailureReason("标准库条目已更新，等待重建 embedding。");
+                    embeddingRepository.save(embedding);
+                });
     }
 
     StandardLibraryPack.BasicCauseOption toBasicCause(AiStandardLibraryItem item) {

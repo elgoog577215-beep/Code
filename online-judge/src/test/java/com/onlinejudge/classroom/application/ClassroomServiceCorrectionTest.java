@@ -30,6 +30,7 @@ import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 class ClassroomServiceCorrectionTest {
 
@@ -86,6 +87,85 @@ class ClassroomServiceCorrectionTest {
             coachPromptRepository,
             new StudentAccessTokenService(new TestSchoolSecurityProperties())
     );
+
+    @Test
+    void overviewIncludesProgressTrendAndProblemSummaries() {
+        FakeStudentProfileRepository studentProfiles = new FakeStudentProfileRepository();
+        FakeAssignmentRepository assignments = new FakeAssignmentRepository();
+        FakeAssignmentTaskRepository assignmentTasks = new FakeAssignmentTaskRepository();
+        FakeProblemRepository problems = new FakeProblemRepository();
+        FakeSubmissionRepository submissions = new FakeSubmissionRepository();
+        FakeSubmissionAnalysisRepository analyses = new FakeSubmissionAnalysisRepository();
+        ClassroomService localService = newClassroomService(assignments, studentProfiles, assignmentTasks, problems, submissions, analyses);
+        Assignment assignment = Assignment.builder()
+                .id(300L)
+                .title("drilldown assignment")
+                .classGroupId(9L)
+                .hintPolicy(Assignment.HintPolicy.L2)
+                .status(Assignment.AssignmentStatus.ACTIVE)
+                .createdAt(LocalDateTime.of(2026, 5, 18, 9, 0))
+                .build();
+        assignments.items.put(assignment.getId(), assignment);
+        assignmentTasks.items.add(AssignmentTask.builder()
+                .id(1L)
+                .assignmentId(assignment.getId())
+                .problemId(101L)
+                .orderIndex(0)
+                .required(true)
+                .build());
+        assignmentTasks.items.add(AssignmentTask.builder()
+                .id(2L)
+                .assignmentId(assignment.getId())
+                .problemId(102L)
+                .orderIndex(1)
+                .required(true)
+                .build());
+        studentProfiles.items.add(studentProfile(1L, 9L, "01", "小一"));
+        studentProfiles.items.add(studentProfile(2L, 9L, "02", "小二"));
+        studentProfiles.items.add(studentProfile(3L, 9L, "03", "小三"));
+        problems.items.put(101L, problem(101L, "两数求和"));
+        problems.items.put(102L, problem(102L, "回文判断"));
+        submissions.items.put(1L, submission(1L, assignment.getId(), 1L, 101L, Submission.Verdict.WRONG_ANSWER, 0));
+        submissions.items.put(2L, submission(2L, assignment.getId(), 1L, 101L, Submission.Verdict.ACCEPTED, 5));
+        submissions.items.put(3L, submission(3L, assignment.getId(), 2L, 101L, Submission.Verdict.WRONG_ANSWER, 8));
+        submissions.items.put(4L, submission(4L, assignment.getId(), 3L, 102L, Submission.Verdict.WRONG_ANSWER, 12));
+        analyses.save(analysis(1L, "BOUNDARY_CONDITION", "OFF_BY_ONE"));
+        analyses.save(analysis(3L, "IO_FORMAT", "INPUT_PARSING"));
+        analyses.save(analysis(4L, "ALGORITHM_STRATEGY", "DP_STATE_DESIGN"));
+
+        var overview = localService.getAssignmentOverview(assignment.getId());
+
+        assertThat(overview.getProgressTrend())
+                .extracting("submittedStudentCount", "passedStudentCount", "submissionCount")
+                .containsExactly(
+                        tuple(1L, 0L, 1L),
+                        tuple(1L, 1L, 2L),
+                        tuple(2L, 1L, 3L),
+                        tuple(3L, 1L, 4L)
+                );
+        assertThat(overview.getProblemSummaries()).hasSize(2);
+        assertThat(overview.getProblemSummaries().get(0))
+                .satisfies(problem -> {
+                    assertThat(problem.getProblemId()).isEqualTo(101L);
+                    assertThat(problem.getSubmittedStudentCount()).isEqualTo(2);
+                    assertThat(problem.getSubmissionCount()).isEqualTo(3);
+                    assertThat(problem.getPassedStudentCount()).isEqualTo(1);
+                    assertThat(problem.getSubmissionRate()).isEqualTo(66.7);
+                    assertThat(problem.getPassRate()).isEqualTo(50.0);
+                    assertThat(problem.getAverageAttempts()).isEqualTo(1.5);
+                    assertThat(problem.getTopIssues()).extracting("label").containsExactlyInAnyOrder("OFF_BY_ONE", "INPUT_PARSING");
+                    assertThat(problem.getAbilityWeaknesses()).extracting("abilityPoint")
+                            .containsExactlyInAnyOrder("循环与边界", "题意读取");
+                    assertThat(problem.getStudents()).extracting("studentProfileId").containsExactlyInAnyOrder(1L, 2L);
+                });
+        assertThat(overview.getProblemSummaries().get(1))
+                .satisfies(problem -> {
+                    assertThat(problem.getProblemId()).isEqualTo(102L);
+                    assertThat(problem.getSubmittedStudentCount()).isEqualTo(1);
+                    assertThat(problem.getTopIssues()).extracting("label").containsExactly("DP_STATE_DESIGN");
+                    assertThat(problem.getTopIssues()).extracting("label").doesNotContain("OFF_BY_ONE");
+                });
+    }
 
     @Test
     void overviewIncludesTeachingInterventionForTopIssues() {
@@ -1228,6 +1308,77 @@ class ClassroomServiceCorrectionTest {
                 .verdict(verdict)
                 .submittedAt(LocalDateTime.of(2026, 5, 18, 10, 0).plusMinutes(minuteOffset))
                 .build();
+    }
+
+    private Problem problem(Long id, String title) {
+        return Problem.builder()
+                .id(id)
+                .title(title)
+                .description(title)
+                .difficulty(Problem.Difficulty.EASY)
+                .timeLimit(1000)
+                .memoryLimit(65536)
+                .build();
+    }
+
+    private StudentProfile studentProfile(Long id, Long classGroupId, String studentNo, String displayName) {
+        return StudentProfile.builder()
+                .id(id)
+                .classGroupId(classGroupId)
+                .studentNo(studentNo)
+                .displayName(displayName)
+                .identityKey("student-" + id)
+                .createdAt(LocalDateTime.of(2026, 5, 18, 9, 0))
+                .lastSeenAt(LocalDateTime.of(2026, 5, 18, 9, 0))
+                .build();
+    }
+
+    private ClassroomService newClassroomService(FakeAssignmentRepository assignments,
+                                                 StudentProfileRepository studentProfiles,
+                                                 AssignmentTaskRepository assignmentTasks,
+                                                 FakeProblemRepository problems,
+                                                 FakeSubmissionRepository submissions,
+                                                 FakeSubmissionAnalysisRepository analyses) {
+        return new ClassroomService(
+                new EmptyClassGroupRepository(),
+                studentProfiles,
+                assignments,
+                new EmptyAssignmentInviteRepository(),
+                assignmentTasks,
+                problems,
+                submissions,
+                analyses,
+                submissionCaseResultRepository,
+                correctionRepository,
+                objectMapper,
+                taxonomy,
+                new DiagnosisReportReader(objectMapper, taxonomy),
+                new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+                new CoachInteractionAnalyzer(coachPromptRepository, new CoachAnswerQualityAnalyzer()),
+                new StudentIdentityService(),
+                new ClassReviewFeedbackService(classReviewFeedbackRepository, assignments, objectMapper),
+                new CoachImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+                new LearningInterventionImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+                new LearningActionEvidenceAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy)),
+                new TeacherActionPriorityAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+                new TeacherInterventionImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy)),
+                new PostAcTransferAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+                new RecurringMisconceptionAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+                new SelfExplanationMasteryAnalyzer(new CoachAnswerQualityAnalyzer()),
+                recommendationEventRepository,
+                new AiDependencyAnalyzer(),
+                new MasteryGrowthAnalyzer(
+                        new DiagnosisReportReader(objectMapper, taxonomy),
+                        taxonomy,
+                        new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
+                ),
+                new TeachingActionOrchestrator(),
+                new ClassTeachingStrategyAnalyzer(),
+                new ClassTeachingStrategyImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy)),
+                hintSafetyCheckRepository,
+                coachPromptRepository,
+                new StudentAccessTokenService(new TestSchoolSecurityProperties())
+        );
     }
 
     private HintSafetyCheck hintSafetyCheck(Long id, Long submissionId, String riskLevel) {
@@ -2393,6 +2544,11 @@ class ClassroomServiceCorrectionTest {
 
     private static class EmptyClassGroupRepository extends UnsupportedJpaRepository<ClassGroup, Long> implements ClassGroupRepository {
         @Override
+        public Optional<ClassGroup> findById(Long id) {
+            return Optional.empty();
+        }
+
+        @Override
         public List<ClassGroup> findAllByOrderByCreatedAtDesc() {
             return List.of();
         }
@@ -2440,6 +2596,29 @@ class ClassroomServiceCorrectionTest {
         }
     }
 
+    private static class FakeStudentProfileRepository extends EmptyStudentProfileRepository {
+        private final List<StudentProfile> items = new ArrayList<>();
+
+        @Override
+        public List<StudentProfile> findAllById(Iterable<Long> ids) {
+            Set<Long> wanted = new LinkedHashSet<>();
+            ids.forEach(wanted::add);
+            return items.stream()
+                    .filter(item -> wanted.contains(item.getId()))
+                    .toList();
+        }
+
+        @Override
+        public List<StudentProfile> findByClassGroupIdOrderByStudentNoAscDisplayNameAsc(Long classGroupId) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getClassGroupId(), classGroupId))
+                    .sorted(Comparator
+                            .comparing(StudentProfile::getStudentNo, Comparator.nullsLast(String::compareTo))
+                            .thenComparing(StudentProfile::getDisplayName, Comparator.nullsLast(String::compareTo)))
+                    .toList();
+        }
+    }
+
     private static class EmptyAssignmentInviteRepository extends UnsupportedJpaRepository<AssignmentInvite, Long> implements AssignmentInviteRepository {
         @Override
         public List<AssignmentInvite> findAll() {
@@ -2476,6 +2655,25 @@ class ClassroomServiceCorrectionTest {
         @Override
         public long deleteByAssignmentId(Long assignmentId) {
             return 0;
+        }
+    }
+
+    private static class FakeAssignmentTaskRepository extends EmptyAssignmentTaskRepository {
+        private final List<AssignmentTask> items = new ArrayList<>();
+
+        @Override
+        public List<AssignmentTask> findByAssignmentIdOrderByOrderIndexAsc(Long assignmentId) {
+            return items.stream()
+                    .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
+                    .sorted(Comparator.comparing(AssignmentTask::getOrderIndex, Comparator.nullsLast(Integer::compareTo)))
+                    .toList();
+        }
+
+        @Override
+        public boolean existsByAssignmentIdAndProblemId(Long assignmentId, Long problemId) {
+            return items.stream()
+                    .anyMatch(item -> Objects.equals(item.getAssignmentId(), assignmentId)
+                            && Objects.equals(item.getProblemId(), problemId));
         }
     }
 

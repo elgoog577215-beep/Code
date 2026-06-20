@@ -41,6 +41,9 @@ public class SubmissionAnalysisResponse {
     private String uncertainty;
     private String diagnosticTrace;
     private ModelEducationTrace modelEducationTrace;
+    private CaseUnderstanding caseUnderstanding;
+    private List<BasicLayerAdvice> basicLayerAdvice;
+    private List<ImprovementLayerAdvice> improvementLayerAdvice;
     private AiInvocation aiInvocation;
     private String answerLeakRisk;
     private String wrongSolution;
@@ -271,6 +274,48 @@ public class SubmissionAnalysisResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class CaseUnderstanding {
+        private String problemGoal;
+        private String codeIntent;
+        private String behaviorGap;
+        private String primaryEvidenceRef;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BasicLayerAdvice {
+        private String mistakePointId;
+        private String skillUnitId;
+        private String title;
+        private String whatHappened;
+        private String whyItMatters;
+        private String studentAction;
+        private String checkQuestion;
+        private List<String> evidenceRefs;
+        private Double confidence;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ImprovementLayerAdvice {
+        private String improvementPointId;
+        private String skillUnitId;
+        private String title;
+        private String currentLimit;
+        private String suggestion;
+        private String studentBenefit;
+        private List<String> evidenceRefs;
+        private Double confidence;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class AiInvocation {
         private String provider;
         private String model;
@@ -295,5 +340,16 @@ public class SubmissionAnalysisResponse {
         private Integer streamInvalidChunkCount;
         private String streamFinishReason;
         private Boolean streamFallbackRetryUsed;
+        private Boolean searchLocationEnabled;
+        private String searchLocationStatus;
+        private Integer searchLocationCandidateCount;
+        private Integer searchLocationSelectedCount;
+        private String searchLocationFallbackReason;
+        private String embeddingStatus;
+        private String adviceGenerationStatus;
+        private String adviceGenerationFallbackReason;
+        private Integer basicAdviceCount;
+        private Integer improvementAdviceCount;
+        private String advicePromptVersion;
     }
 }

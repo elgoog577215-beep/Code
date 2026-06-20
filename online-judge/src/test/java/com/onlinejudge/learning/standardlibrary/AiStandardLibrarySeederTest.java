@@ -46,13 +46,13 @@ class AiStandardLibrarySeederTest {
     void seedsSkillUnitsAndMistakePointsIdempotently() {
         long initialCount = repository.count();
 
-        assertThat(initialCount).isGreaterThanOrEqualTo(1228);
+        assertThat(initialCount).isGreaterThanOrEqualTo(1280);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT)
-                .count()).isGreaterThanOrEqualTo(590);
+                .count()).isGreaterThanOrEqualTo(605);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
-                .count()).isGreaterThanOrEqualTo(620);
+                .count()).isGreaterThanOrEqualTo(660);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .allMatch(item -> item.getSkillUnitCode() != null && !item.getSkillUnitCode().isBlank()))
@@ -108,6 +108,18 @@ class AiStandardLibrarySeederTest {
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .filter(item -> item.getCode().equals("MP_READING_SAMPLE_SHAPE_OVERFITS_FORMAT"))
+                .count()).isEqualTo(1);
+        assertThat(repository.findAll().stream()
+                .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
+                .filter(item -> item.getCode().equals("MP_V6_DP_01_KNAPSACK_FORWARD_REUSES_ITEM"))
+                .count()).isEqualTo(1);
+        assertThat(repository.findAll().stream()
+                .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
+                .filter(item -> item.getCode().equals("MP_V6_DIJKSTRA_NEGATIVE_EDGE_USED"))
+                .count()).isEqualTo(1);
+        assertThat(repository.findAll().stream()
+                .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
+                .filter(item -> item.getCode().equals("MP_V6_IO_TREATED_T_AS_DATA_VALUE"))
                 .count()).isEqualTo(1);
 
         seeder.run();
@@ -232,13 +244,14 @@ class AiStandardLibrarySeederTest {
                         || seed.code().startsWith("MP_READING_")
                         || seed.code().startsWith("MP_SIM_")
                         || seed.code().startsWith("MP_STRING_")
-                        || seed.code().startsWith("MP_ARRAY_"))
+                        || seed.code().startsWith("MP_ARRAY_")
+                        || seed.code().startsWith("MP_V6_"))
                 .count();
 
-        assertThat(generatedSkillCount).isGreaterThanOrEqualTo(590);
+        assertThat(generatedSkillCount).isGreaterThanOrEqualTo(605);
         assertThat(genericSkillNameCount).isZero();
         assertThat(genericMistakeNameCount).isZero();
-        assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(29);
+        assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(68);
     }
 
     @Test
@@ -266,6 +279,12 @@ class AiStandardLibrarySeederTest {
                 .contains("样例").contains("隐藏数据");
         assertThat(seedsByCode.get("MP_READING_TIE_RULE_IGNORED").description())
                 .contains("并列").contains("输出顺序");
+        assertThat(seedsByCode.get("MP_V6_BINARY_LOWER_UPPER_BOUND_MIXED").description())
+                .contains("大于等于").contains("大于");
+        assertThat(seedsByCode.get("MP_V6_DIFF_RIGHT_PLUS_ONE_MISSING").description())
+                .contains("r+1").contains("后续所有位置");
+        assertThat(seedsByCode.get("MP_V6_FUNCTION_MISSING_RETURN_ON_BRANCH").description())
+                .contains("部分条件").contains("其他合法分支");
     }
 
     private AiStandardLibraryItem findGeneratedByKnowledge(AiStandardLibraryLayer layer, String codePrefix, String knowledgeCode) {

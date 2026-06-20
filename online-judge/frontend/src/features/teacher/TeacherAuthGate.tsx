@@ -9,6 +9,8 @@ type Props = {
   children: ReactNode;
 };
 
+const TEACHER_DEV_AUTO_ENTER = import.meta.env.DEV && import.meta.env.VITE_TEACHER_DEV_AUTO_ENTER !== "false";
+
 export default function TeacherAuthGate({ children }: Props) {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [password, setPassword] = useState("");
@@ -20,12 +22,12 @@ export default function TeacherAuthGate({ children }: Props) {
     api.teacherSession()
       .then(result => {
         if (!ignore) {
-          setAuthenticated(result.authenticated);
+          setAuthenticated(TEACHER_DEV_AUTO_ENTER || result.authenticated);
         }
       })
       .catch(() => {
         if (!ignore) {
-          setAuthenticated(false);
+          setAuthenticated(TEACHER_DEV_AUTO_ENTER);
         }
       });
     return () => {

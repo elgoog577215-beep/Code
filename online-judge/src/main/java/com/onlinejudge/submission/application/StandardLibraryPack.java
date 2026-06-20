@@ -21,6 +21,10 @@ public class StandardLibraryPack {
     private String taxonomyVersion;
     private List<BasicCauseOption> basicCauses;
     private List<ImprovementPointOption> improvementPoints;
+    private List<KnowledgeAnchorOption> knowledgeAnchors;
+    private List<SkillUnitOption> skillUnits;
+    private List<MistakePointOption> mistakePoints;
+    private SearchLocationSummary searchLocationSummary;
     private List<TagOption> issueTags;
     private List<TagOption> fineGrainedTags;
     private List<ImprovementTagOption> improvementTags;
@@ -70,6 +74,63 @@ public class StandardLibraryPack {
         private String hintL3;
         private String abilityPoint;
         private List<String> relatedBasicCauses;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class KnowledgeAnchorOption {
+        private String id;
+        private String name;
+        private String path;
+        private String description;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class SkillUnitOption {
+        private String id;
+        private String category;
+        private String name;
+        private String description;
+        private List<String> knowledgeNodeCodes;
+        private List<String> applicableLanguages;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class MistakePointOption {
+        private String id;
+        private String category;
+        private String name;
+        private String description;
+        private String skillUnitCode;
+        private String mistakeType;
+        private String commonMisconception;
+        private List<String> knowledgeNodeCodes;
+        private List<String> applicableLanguages;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class SearchLocationSummary {
+        private String status;
+        private String embeddingStatus;
+        private String fallbackReason;
+        private Integer candidateCount;
+        private Integer selectedCount;
+        private String uncertainty;
     }
 
     @Data

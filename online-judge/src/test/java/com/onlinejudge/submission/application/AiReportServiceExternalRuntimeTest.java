@@ -1568,6 +1568,8 @@ class AiReportServiceExternalRuntimeTest {
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
         ReflectionTestUtils.setField(service, "model", "test-model");
         ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalSingleCallPromptVersion",
+                PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
         ReflectionTestUtils.setField(service, "maxOutputTokens", 900);
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
@@ -1598,6 +1600,8 @@ class AiReportServiceExternalRuntimeTest {
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
         ReflectionTestUtils.setField(service, "model", "test-model");
         ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalSingleCallPromptVersion",
+                PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
         ReflectionTestUtils.setField(service, "maxOutputTokens", 900);
         return service;
     }
@@ -2125,6 +2129,8 @@ class AiReportServiceExternalRuntimeTest {
                                  String... responses) {
             super(objectMapper, new AiCodeAssistSupport(), runtime);
             this.responses.addAll(List.of(responses));
+            ReflectionTestUtils.setField(this, "externalSingleCallPromptVersion",
+                    PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
         }
 
         @Override
@@ -2197,6 +2203,8 @@ class AiReportServiceExternalRuntimeTest {
                     new PromptTemplateRegistry(),
                     new ModelOutputValidator()
             ));
+            ReflectionTestUtils.setField(this, "externalSingleCallPromptVersion",
+                    PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
             if (retryResponses == null || retryResponses.length == 0) {
                 this.retryResponses.add(defaultSingleCallCombinedJson());
             } else {
@@ -2366,6 +2374,8 @@ class AiReportServiceExternalRuntimeTest {
                     new PromptTemplateRegistry(),
                     new ModelOutputValidator()
             ));
+            ReflectionTestUtils.setField(this, "externalSingleCallPromptVersion",
+                    PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
             this.validDiagnosis = validDiagnosis;
         }
 

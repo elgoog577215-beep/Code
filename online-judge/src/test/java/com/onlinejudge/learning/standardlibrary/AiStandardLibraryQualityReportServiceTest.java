@@ -18,9 +18,9 @@ class AiStandardLibraryQualityReportServiceTest {
         assertThat(report.summary().chapterCount()).isGreaterThanOrEqualTo(34);
         assertThat(report.summary().topicCount()).isGreaterThanOrEqualTo(110);
         assertThat(report.summary().knowledgePointCount()).isGreaterThanOrEqualTo(550);
-        assertThat(report.summary().totalItemCount()).isGreaterThanOrEqualTo(1228);
-        assertThat(report.summary().handwrittenSkillUnitCount()).isGreaterThanOrEqualTo(32);
-        assertThat(report.summary().handwrittenMistakePointCount()).isGreaterThanOrEqualTo(65);
+        assertThat(report.summary().totalItemCount()).isGreaterThanOrEqualTo(1280);
+        assertThat(report.summary().handwrittenSkillUnitCount()).isGreaterThanOrEqualTo(45);
+        assertThat(report.summary().handwrittenMistakePointCount()).isGreaterThanOrEqualTo(104);
 
         assertThat(report.domainCoverage())
                 .anySatisfy(domain -> {
@@ -31,6 +31,7 @@ class AiStandardLibraryQualityReportServiceTest {
                 .anySatisfy(domain -> {
                     assertThat(domain.domainCode()).isEqualTo("ALGO");
                     assertThat(domain.knowledgePointCount()).isGreaterThanOrEqualTo(140);
+                    assertThat(domain.handwrittenMistakeLinkCount()).isGreaterThanOrEqualTo(70);
                 });
 
         assertThat(report.mistakeTypeDistribution())

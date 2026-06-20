@@ -181,13 +181,12 @@ export default function AssignmentCreatePage() {
       {loading ? (
         <EmptyState title="正在准备新建作业" />
       ) : (
-        <div className="assignment-builder">
+        <div className="assignment-builder assignment-builder--minimal">
           <section className="assignment-builder-section" aria-label="基本信息">
             <div className="assignment-builder-section__head">
-              <span>1</span>
               <div>
                 <p className="eyebrow">基本信息</p>
-                <h2>先确定这份作业给谁</h2>
+                <h2>作业</h2>
               </div>
             </div>
             <div className="form-grid">
@@ -220,10 +219,9 @@ export default function AssignmentCreatePage() {
 
           <section className="assignment-builder-section" aria-label="选择题目">
             <div className="assignment-builder-section__head">
-              <span>2</span>
               <div>
                 <p className="eyebrow">选择题目</p>
-                <h2>从题库挑选练习内容</h2>
+                <h2>题库</h2>
               </div>
             </div>
             <div className="assignment-builder-picker">
@@ -290,10 +288,9 @@ export default function AssignmentCreatePage() {
 
           <section className="assignment-builder-section" aria-label="确认发布">
             <div className="assignment-builder-section__head">
-              <span>3</span>
               <div>
                 <p className="eyebrow">确认发布</p>
-                <h2>发布前快速复查</h2>
+                <h2>发布</h2>
               </div>
             </div>
             <div className="assignment-publish-review">

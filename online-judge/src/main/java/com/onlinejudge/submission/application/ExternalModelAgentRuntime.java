@@ -32,13 +32,17 @@ public class ExternalModelAgentRuntime {
     private final PromptTemplateRegistry promptTemplateRegistry;
     private final ModelOutputValidator modelOutputValidator;
     private final ExternalModelOutputNormalizer outputNormalizer;
+    private final AdviceGenerationOutputValidator adviceGenerationOutputValidator;
+    private final AdviceGenerationFeedbackMapper adviceGenerationFeedbackMapper;
 
     public ExternalModelAgentRuntime(ModelDiagnosisBriefBuilder briefBuilder,
                                      StandardLibraryPackBuilder standardLibraryPackBuilder,
                                      PromptTemplateRegistry promptTemplateRegistry,
                                      ModelOutputValidator modelOutputValidator) {
         this(briefBuilder, standardLibraryPackBuilder, promptTemplateRegistry, modelOutputValidator,
-                new ExternalModelOutputNormalizer());
+                new ExternalModelOutputNormalizer(),
+                new AdviceGenerationOutputValidator(),
+                new AdviceGenerationFeedbackMapper());
     }
 
     @Autowired
@@ -46,12 +50,20 @@ public class ExternalModelAgentRuntime {
                                      StandardLibraryPackBuilder standardLibraryPackBuilder,
                                      PromptTemplateRegistry promptTemplateRegistry,
                                      ModelOutputValidator modelOutputValidator,
-                                     ExternalModelOutputNormalizer outputNormalizer) {
+                                     ExternalModelOutputNormalizer outputNormalizer,
+                                     AdviceGenerationOutputValidator adviceGenerationOutputValidator,
+                                     AdviceGenerationFeedbackMapper adviceGenerationFeedbackMapper) {
         this.briefBuilder = briefBuilder;
         this.standardLibraryPackBuilder = standardLibraryPackBuilder;
         this.promptTemplateRegistry = promptTemplateRegistry;
         this.modelOutputValidator = modelOutputValidator;
         this.outputNormalizer = outputNormalizer == null ? new ExternalModelOutputNormalizer() : outputNormalizer;
+        this.adviceGenerationOutputValidator = adviceGenerationOutputValidator == null
+                ? new AdviceGenerationOutputValidator()
+                : adviceGenerationOutputValidator;
+        this.adviceGenerationFeedbackMapper = adviceGenerationFeedbackMapper == null
+                ? new AdviceGenerationFeedbackMapper()
+                : adviceGenerationFeedbackMapper;
     }
 
     public RuntimePlan prepare(DiagnosisEvidencePackage evidencePackage,
@@ -65,7 +77,7 @@ public class ExternalModelAgentRuntime {
                                SubmissionAnalysisResponse fallback,
                                String runtimeProfile) {
         return prepare(evidencePackage, ruleSignals, fallback, runtimeProfile,
-                PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
+                PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
     }
 
     public RuntimePlan prepare(DiagnosisEvidencePackage evidencePackage,
@@ -87,6 +99,7 @@ public class ExternalModelAgentRuntime {
                 .standardLibraryPack(standardLibraryPack)
                 .diagnosisPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_JUDGE_V2))
                 .teachingPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.TEACHING_HINT_V1))
+                .searchLocationPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.SEARCH_LOCATION_V1))
                 .singleCallPrompt(promptTemplateRegistry.get(normalizedPromptVersion))
                 .runtimeProfile(normalizedProfile)
                 .requestCompact(compact)
@@ -95,10 +108,14 @@ public class ExternalModelAgentRuntime {
 
     private String normalizeSingleCallPromptVersion(String promptVersion) {
         String version = promptVersion == null ? "" : promptVersion.trim();
+        if (version.isBlank()) {
+            return PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1;
+        }
         if (PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V1.equals(version)
                 || PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V2.equals(version)
                 || PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3.equals(version)
-                || PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V4_LITE.equals(version)) {
+                || PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V4_LITE.equals(version)
+                || PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1.equals(version)) {
             return version;
         }
         return PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3;
@@ -218,6 +235,10 @@ public class ExternalModelAgentRuntime {
                 .taxonomyVersion(source.getTaxonomyVersion())
                 .basicCauses(compactBasicCauses(source.getBasicCauses()))
                 .improvementPoints(compactImprovementPoints(source.getImprovementPoints()))
+                .knowledgeAnchors(compactKnowledgeAnchors(source.getKnowledgeAnchors()))
+                .skillUnits(compactSkillUnits(source.getSkillUnits()))
+                .mistakePoints(compactMistakePoints(source.getMistakePoints()))
+                .searchLocationSummary(source.getSearchLocationSummary())
                 .issueTags(compactTags(source.getIssueTags()))
                 .fineGrainedTags(compactTags(source.getFineGrainedTags()))
                 .improvementTags(compactImprovementTags(source.getImprovementTags()))
@@ -268,6 +289,58 @@ public class ExternalModelAgentRuntime {
                         .hintL3(truncate(point.getHintL3(), 70))
                         .abilityPoint(point.getAbilityPoint())
                         .relatedBasicCauses(point.getRelatedBasicCauses())
+                        .build())
+                .toList();
+    }
+
+    private List<StandardLibraryPack.KnowledgeAnchorOption> compactKnowledgeAnchors(
+            List<StandardLibraryPack.KnowledgeAnchorOption> source) {
+        if (source == null || source.isEmpty()) {
+            return List.of();
+        }
+        return source.stream()
+                .map(anchor -> StandardLibraryPack.KnowledgeAnchorOption.builder()
+                        .id(anchor.getId())
+                        .name(anchor.getName())
+                        .path(truncate(anchor.getPath(), 120))
+                        .description(truncate(anchor.getDescription(), 80))
+                        .build())
+                .toList();
+    }
+
+    private List<StandardLibraryPack.SkillUnitOption> compactSkillUnits(
+            List<StandardLibraryPack.SkillUnitOption> source) {
+        if (source == null || source.isEmpty()) {
+            return List.of();
+        }
+        return source.stream()
+                .map(skill -> StandardLibraryPack.SkillUnitOption.builder()
+                        .id(skill.getId())
+                        .category(skill.getCategory())
+                        .name(skill.getName())
+                        .description(truncate(skill.getDescription(), 90))
+                        .knowledgeNodeCodes(limit(skill.getKnowledgeNodeCodes(), 5))
+                        .applicableLanguages(limit(skill.getApplicableLanguages(), 3))
+                        .build())
+                .toList();
+    }
+
+    private List<StandardLibraryPack.MistakePointOption> compactMistakePoints(
+            List<StandardLibraryPack.MistakePointOption> source) {
+        if (source == null || source.isEmpty()) {
+            return List.of();
+        }
+        return source.stream()
+                .map(mistake -> StandardLibraryPack.MistakePointOption.builder()
+                        .id(mistake.getId())
+                        .category(mistake.getCategory())
+                        .name(mistake.getName())
+                        .description(truncate(mistake.getDescription(), 90))
+                        .skillUnitCode(mistake.getSkillUnitCode())
+                        .mistakeType(mistake.getMistakeType())
+                        .commonMisconception(truncate(mistake.getCommonMisconception(), 80))
+                        .knowledgeNodeCodes(limit(mistake.getKnowledgeNodeCodes(), 5))
+                        .applicableLanguages(limit(mistake.getApplicableLanguages(), 3))
                         .build())
                 .toList();
     }
@@ -384,13 +457,60 @@ public class ExternalModelAgentRuntime {
         );
     }
 
+    public ExternalModelStagePayloads.StageValidationResult validateAdviceGeneration(
+            AdviceGenerationOutput output,
+            RuntimePlan runtimePlan) {
+        return adviceGenerationOutputValidator.validate(
+                output,
+                runtimePlan == null ? null : runtimePlan.getBrief(),
+                runtimePlan == null ? null : runtimePlan.getStandardLibraryPack()
+        );
+    }
+
+    public com.onlinejudge.submission.dto.SubmissionAnalysisResponse.StudentFeedback mapAdviceStudentFeedback(
+            AdviceGenerationOutput output,
+            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
+            RuntimePlan runtimePlan) {
+        return adviceGenerationFeedbackMapper.toStudentFeedback(
+                output,
+                decision,
+                runtimePlan == null ? null : runtimePlan.getStandardLibraryPack()
+        );
+    }
+
+    public ExternalModelStagePayloads.DiagnosisJudgeOutput mapAdviceDiagnosisDecision(
+            AdviceGenerationOutput output,
+            com.onlinejudge.submission.dto.SubmissionAnalysisResponse fallback) {
+        return adviceGenerationFeedbackMapper.toDiagnosisDecision(output, fallback);
+    }
+
+    public ExternalModelStagePayloads.TeachingHintOutput mapAdviceTeachingHint(
+            AdviceGenerationOutput output,
+            com.onlinejudge.submission.dto.SubmissionAnalysisResponse fallback) {
+        return adviceGenerationFeedbackMapper.toTeachingHint(output, fallback, null);
+    }
+
+    public ExternalModelStagePayloads.TeachingHintOutput mapAdviceTeachingHint(
+            AdviceGenerationOutput output,
+            com.onlinejudge.submission.dto.SubmissionAnalysisResponse fallback,
+            RuntimePlan runtimePlan) {
+        return adviceGenerationFeedbackMapper.toTeachingHint(
+                output,
+                fallback,
+                runtimePlan == null ? null : runtimePlan.getStandardLibraryPack()
+        );
+    }
+
     @Data
     @Builder
     public static class RuntimePlan {
         private ModelDiagnosisBrief brief;
         private StandardLibraryPack standardLibraryPack;
+        private SearchLocationResult searchLocationResult;
+        private AdviceGenerationResult adviceGenerationResult;
         private PromptTemplateRegistry.PromptTemplate diagnosisPrompt;
         private PromptTemplateRegistry.PromptTemplate teachingPrompt;
+        private PromptTemplateRegistry.PromptTemplate searchLocationPrompt;
         private PromptTemplateRegistry.PromptTemplate singleCallPrompt;
         private String runtimeProfile;
         private boolean requestCompact;

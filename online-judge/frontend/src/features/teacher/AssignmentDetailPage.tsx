@@ -1,31 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, BarChart3, BookOpenCheck, Brain, PenLine, UsersRound, type LucideIcon } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, ChartNoAxesCombined, PenLine } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
-import type { Assignment, AssignmentOverview, DiagnosisTag } from "../../shared/api/types";
-import { assignmentStatusLabel, displayText, formatDateTime, issueLabel, percent, verdictLabel } from "../../shared/format";
+import type { AssignmentOverview, DiagnosisTag } from "../../shared/api/types";
+import { assignmentStatusLabel, confidenceLabel, displayText, formatDateTime, hintPolicyLabel, issueLabel, percent, verdictLabel } from "../../shared/format";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea } from "../../shared/ui/Field";
 import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
 
 type Alert = { type: "success" | "error"; message: string };
-type OverviewStudent = AssignmentOverview["students"][number];
-type DetailTab = "overview" | "students" | "problems" | "diagnosis";
+type ProblemSummary = NonNullable<AssignmentOverview["problemSummaries"]>[number];
+type ProblemStudent = NonNullable<ProblemSummary["students"]>[number];
+type TrendPoint = NonNullable<AssignmentOverview["progressTrend"]>[number];
 type CorrectionDraft = {
-  studentProfileId: number;
   submissionId: number;
   correctedIssueTag: string;
   correctedFineGrainedTag: string;
   teacherNote: string;
 };
-
-const DETAIL_TABS: Array<{ id: DetailTab; label: string; icon: LucideIcon }> = [
-  { id: "overview", label: "总览", icon: BarChart3 },
-  { id: "students", label: "学生", icon: UsersRound },
-  { id: "problems", label: "讲题", icon: BookOpenCheck },
-  { id: "diagnosis", label: "校正", icon: Brain }
-];
 
 function cleanAssignmentTitle(value?: string | null, fallback = "课堂作业") {
   const title = displayText(value, fallback);
@@ -46,61 +39,76 @@ function teacherErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? `${base}，${error.message}` : fallback;
 }
 
-function studentPassRate(student: OverviewStudent) {
+function formatCountRate(value?: number | null) {
+  return typeof value === "number" && Number.isFinite(value) ? percent(value) : "-";
+}
+
+function formatNumber(value?: number | null, digits = 1) {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits).replace(/\.0$/, "") : "-";
+}
+
+function statusTone(status?: string | null): "neutral" | "success" | "warning" | "danger" | "info" {
+  if (status === "已掌握") {
+    return "success";
+  }
+  if (status === "需讲评") {
+    return "warning";
+  }
+  if (status === "推进中") {
+    return "info";
+  }
+  return "neutral";
+}
+
+function latestTrend(points: TrendPoint[]) {
+  return points[points.length - 1] || null;
+}
+
+function trendPath(points: TrendPoint[], key: "submittedStudentCount" | "passedStudentCount" | "submissionCount") {
+  if (!points.length) {
+    return "";
+  }
+  const maxValue = Math.max(1, ...points.map(point => point[key] || 0));
+  const maxIndex = Math.max(1, points.length - 1);
+  return points
+    .map((point, index) => {
+      const x = (index / maxIndex) * 100;
+      const y = 100 - ((point[key] || 0) / maxValue) * 88 - 6;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function visibleProblems(overview: AssignmentOverview) {
+  return [...(overview.problemSummaries || [])].sort((left, right) => (left.orderIndex ?? 0) - (right.orderIndex ?? 0));
+}
+
+function studentPassRate(student: ProblemStudent) {
   return student.attemptCount ? Math.round((student.passedCount / student.attemptCount) * 100) : 0;
 }
 
-function problemStats(assignment: Assignment, overview: AssignmentOverview) {
-  return assignment.tasks.map(task => {
-    const relatedStudents = overview.students.filter(
-      student =>
-        student.attentionEvidence?.some(evidence => evidence.problemId === task.problemId) ||
-        (!student.attentionEvidence?.length && student.latestSubmissionId)
-    );
-    const issueHits = relatedStudents.filter(student => student.needsAttention).length;
-    const latestAttempts = relatedStudents.reduce((sum, student) => sum + student.attemptCount, 0);
-    const latestPassed = relatedStudents.reduce((sum, student) => sum + student.passedCount, 0);
-    const rate = latestAttempts ? Math.round((latestPassed / latestAttempts) * 100) : 0;
-    return { task, issueHits, latestAttempts, latestPassed, rate };
-  });
-}
-
-function classroomState(attentionCount: number) {
-  return attentionCount ? `${attentionCount} 人需关注` : "推进稳定";
+function assignmentPassRate(overview: AssignmentOverview) {
+  return overview.attemptCount ? Math.round((overview.passedAttemptCount / overview.attemptCount) * 100) : 0;
 }
 
 export default function AssignmentDetailPage() {
-  const { assignmentId } = useParams<{ assignmentId: string }>();
+  const { assignmentId, problemId, studentProfileId } = useParams<{
+    assignmentId: string;
+    problemId?: string;
+    studentProfileId?: string;
+  }>();
   const id = Number(assignmentId);
-  const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const currentProblemId = Number(problemId);
+  const currentStudentId = Number(studentProfileId);
   const [overview, setOverview] = useState<AssignmentOverview | null>(null);
   const [diagnosisTags, setDiagnosisTags] = useState<DiagnosisTag[]>([]);
-  const [activeTab, setActiveTab] = useState<DetailTab>("overview");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState<Alert | null>(null);
-  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [correctionDraft, setCorrectionDraft] = useState<CorrectionDraft | null>(null);
 
   const coarseDiagnosisTags = useMemo(() => diagnosisTags.filter(tag => !tag.fineGrained), [diagnosisTags]);
   const fineDiagnosisTags = useMemo(() => diagnosisTags.filter(tag => tag.fineGrained), [diagnosisTags]);
-  const attentionStudents = useMemo(() => overview?.students.filter(student => student.needsAttention) || [], [overview]);
-  const visibleStudents = useMemo(() => {
-    const students = overview?.students || [];
-    return [...students].sort((left, right) => {
-      const attentionDiff = Number(Boolean(right.needsAttention)) - Number(Boolean(left.needsAttention));
-      return attentionDiff || right.attemptCount - left.attemptCount;
-    });
-  }, [overview]);
-  const focusStudents = useMemo(
-    () => (attentionStudents.length ? visibleStudents.filter(student => student.needsAttention) : visibleStudents),
-    [attentionStudents.length, visibleStudents]
-  );
-  const passRate = overview?.attemptCount ? Math.round((overview.passedAttemptCount / overview.attemptCount) * 100) : 0;
-  const selectedStudent = focusStudents.find(student => student.studentProfileId === selectedStudentId) || focusStudents[0] || null;
-  const taskStats = assignment && overview ? problemStats(assignment, overview) : [];
-  const sortedTaskStats = [...taskStats].sort((left, right) => right.issueHits - left.issueHits || right.latestAttempts - left.latestAttempts);
-  const topTask = sortedTaskStats.find(task => task.issueHits) || sortedTaskStats[0] || null;
 
   useEffect(() => {
     if (!Number.isFinite(id)) {
@@ -111,26 +119,14 @@ export default function AssignmentDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  useEffect(() => {
-    if (!selectedStudentId && focusStudents[0]) {
-      setSelectedStudentId(focusStudents[0].studentProfileId);
-    }
-  }, [focusStudents, selectedStudentId]);
-
   async function loadAssignmentDetail(targetId: number) {
     setLoading(true);
     setAlert(null);
     try {
-      const [assignments, overviewResult, tags] = await Promise.all([
-        api.assignments(),
-        api.assignmentOverview(targetId),
-        api.diagnosisTags()
-      ]);
-      setAssignment(assignments.find(item => item.id === targetId) || overviewResult.assignment || null);
+      const [overviewResult, tags] = await Promise.all([api.assignmentOverview(targetId), api.diagnosisTags()]);
       setOverview(overviewResult);
       setDiagnosisTags(tags);
     } catch (error) {
-      setAssignment(null);
       setOverview(null);
       setAlert({ type: "error", message: teacherErrorMessage(error, "作业详情加载失败。") });
     } finally {
@@ -138,24 +134,9 @@ export default function AssignmentDetailPage() {
     }
   }
 
-  function openCorrection(student: OverviewStudent) {
-    if (!student.latestSubmissionId) {
-      setAlert({ type: "error", message: "这名学生还没有可校正的提交。" });
-      return;
-    }
-    setActiveTab("diagnosis");
-    setSelectedStudentId(student.studentProfileId);
-    setCorrectionDraft({
-      studentProfileId: student.studentProfileId,
-      submissionId: student.latestSubmissionId,
-      correctedIssueTag: student.latestCorrection?.correctedIssueTag || student.latestIssueTag || "",
-      correctedFineGrainedTag: student.latestCorrection?.correctedFineGrainedTag || "",
-      teacherNote: student.latestCorrection?.teacherNote || ""
-    });
-  }
-
-  async function saveCorrection() {
-    if (!Number.isFinite(id) || !correctionDraft) {
+  async function saveCorrection(event: FormEvent) {
+    event.preventDefault();
+    if (!overview || !correctionDraft) {
       return;
     }
     if (!correctionDraft.correctedIssueTag) {
@@ -164,7 +145,7 @@ export default function AssignmentDetailPage() {
     }
     setSaving(true);
     try {
-      await api.correctDiagnosis(id, {
+      await api.correctDiagnosis(overview.assignment.id, {
         submissionId: correctionDraft.submissionId,
         correctedIssueTag: correctionDraft.correctedIssueTag,
         correctedFineGrainedTag: correctionDraft.correctedFineGrainedTag || null,
@@ -174,7 +155,7 @@ export default function AssignmentDetailPage() {
       });
       setAlert({ type: "success", message: "教师校正已保存。" });
       setCorrectionDraft(null);
-      await loadAssignmentDetail(id);
+      await loadAssignmentDetail(overview.assignment.id);
     } catch (error) {
       setAlert({ type: "error", message: teacherErrorMessage(error, "教师校正保存失败。") });
     } finally {
@@ -186,7 +167,7 @@ export default function AssignmentDetailPage() {
     return <EmptyState title="正在加载作业详情" />;
   }
 
-  if (!assignment || !overview) {
+  if (!overview) {
     return (
       <div className="stack assignment-detail-page teacher-workflow">
         {alert && <div className="alert alert--error">{alert.message}</div>}
@@ -198,276 +179,386 @@ export default function AssignmentDetailPage() {
     );
   }
 
-  const stateLabel = classroomState(attentionStudents.length);
+  const problems = visibleProblems(overview);
+  const selectedProblem = problems.find(problem => problem.problemId === currentProblemId) || null;
+  const selectedStudent = selectedProblem?.students?.find(student => student.studentProfileId === currentStudentId) || null;
 
   return (
-    <div className="teacher-page teacher-workflow assignment-detail-page assignment-detail-workflow">
+    <div className="teacher-page teacher-workflow assignment-drill-page">
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
-      <section className="teacher-workflow-header assignment-detail-header">
+      {!selectedProblem ? <AssignmentOverviewView overview={overview} problems={problems} /> : null}
+      {selectedProblem && !selectedStudent ? <ProblemOverviewView overview={overview} problem={selectedProblem} /> : null}
+      {selectedProblem && selectedStudent ? (
+        <StudentProblemView
+          overview={overview}
+          problem={selectedProblem}
+          student={selectedStudent}
+          correctionDraft={correctionDraft}
+          setCorrectionDraft={setCorrectionDraft}
+          coarseDiagnosisTags={coarseDiagnosisTags}
+          fineDiagnosisTags={fineDiagnosisTags}
+          saving={saving}
+          saveCorrection={saveCorrection}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOverview; problems: ProblemSummary[] }) {
+  const trend = overview.progressTrend || [];
+  const latest = latestTrend(trend);
+  const passRate = assignmentPassRate(overview);
+  const submittedText = latest ? `${latest.submittedStudentCount} 人` : `${overview.participantCount} 人`;
+  return (
+    <>
+      <section className="teacher-drill-header">
         <div>
           <Link to="/app/teacher" className="back-link">
             <ArrowLeft size={16} /> 返回作业中心
           </Link>
-          <h1>{cleanAssignmentTitle(assignment.title)}</h1>
+          <h1>{cleanAssignmentTitle(overview.assignment.title)}</h1>
           <div className="assignment-detail-meta">
-            <span>{displayText(assignment.className, "未绑定班级")}</span>
-            <span>{assignment.tasks?.length || 0} 题</span>
-            <span>{assignmentStatusLabel(assignment.status)}</span>
-            <span>{stateLabel}</span>
+            <span>{displayText(overview.assignment.className, "默认班级")}</span>
+            <span>{problems.length} 题</span>
+            <span>{assignmentStatusLabel(overview.assignment.status)}</span>
+            <span>{submittedText} 已提交</span>
             <span>{passRate}% 通过</span>
           </div>
         </div>
       </section>
 
-      <nav className="assignment-detail-tabs" aria-label="作业详情标签">
-        {DETAIL_TABS.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button type="button" className={activeTab === tab.id ? "is-active" : ""} key={tab.id} onClick={() => setActiveTab(tab.id)}>
-              <Icon size={16} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      <section className="teacher-drill-overview">
+        <div className="teacher-drill-strip">
+          <Metric label="提交人数" value={submittedText} />
+          <Metric label="总提交" value={overview.attemptCount} />
+          <Metric label="通过提交" value={overview.passedAttemptCount} />
+          <Metric label="通过率" value={`${passRate}%`} />
+          <Metric label="需关注" value={overview.strugglingStudentCount} />
+        </div>
 
-      {activeTab === "overview" && (
-        <section className="assignment-tab-panel assignment-overview-tab" aria-label="概览">
-          <div className="assignment-overview-grid">
-            <article>
-              <span>现在</span>
-              <strong>{stateLabel}</strong>
-              <p>{attentionStudents[0]?.attentionReason || overview.classTeachingStrategySignal?.summary || "当前作业推进稳定。"}</p>
-            </article>
-            <article>
-              <span>先看</span>
-              <strong>{displayText(attentionStudents[0]?.displayName, attentionStudents.length ? "需关注学生" : "暂无需关注")}</strong>
-              <p>{attentionStudents[0]?.latestProgressSignal || attentionStudents[0]?.crossProblemSummary || "学生整体暂未出现集中卡点。"}</p>
-            </article>
-            <article>
-              <span>先讲</span>
-              <strong>{topTask?.task.title || "等待提交"}</strong>
-              <p>{topTask?.issueHits ? `${topTask.issueHits} 人在这道题出现需关注信号。` : "暂无明显题目集中问题。"}</p>
-            </article>
+        <article className="teacher-trend-panel">
+          <div>
+            <p className="eyebrow">提交推进</p>
+            <h2>作业增长情况</h2>
           </div>
-
-          <div className="assignment-next-actions">
-            <Button type="button" variant="secondary" onClick={() => setActiveTab("students")} icon={<UsersRound size={16} />}>
-              看学生
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setActiveTab("problems")} icon={<BookOpenCheck size={16} />}>
-              看题目
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setActiveTab("diagnosis")} icon={<Brain size={16} />}>
-              校正错因
-            </Button>
-          </div>
-        </section>
-      )}
-
-      {activeTab === "students" && (
-        <section className="assignment-tab-panel assignment-students-tab" aria-label="学生">
-          <div className="assignment-tab-head">
-            <h2>{attentionStudents.length ? "先看这些学生" : "学生提交"}</h2>
-          </div>
-          <div className="assignment-students-workflow">
-            <div className="assignment-student-list">
-              {focusStudents.map(student => (
-                <button
-                  type="button"
-                  className={`assignment-student-card ${student.studentProfileId === selectedStudent?.studentProfileId ? "is-active" : ""}`}
-                  key={student.studentProfileId}
-                  onClick={() => setSelectedStudentId(student.studentProfileId)}
-                >
-                  <span>
-                    <strong>{displayText(student.displayName, `学生 #${student.studentProfileId}`)}</strong>
-                    <small>
-                      {student.attemptCount} 次 · {studentPassRate(student)}%
-                    </small>
-                  </span>
-                  {student.needsAttention ? <StatusPill tone="warning">关注</StatusPill> : <StatusPill tone="success">稳定</StatusPill>}
-                </button>
-              ))}
+          {trend.length ? (
+            <div className="teacher-trend-chart" aria-label="提交推进曲线">
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                <polyline className="trend-line trend-line--attempts" points={trendPath(trend, "submissionCount")} />
+                <polyline className="trend-line trend-line--submitted" points={trendPath(trend, "submittedStudentCount")} />
+                <polyline className="trend-line trend-line--passed" points={trendPath(trend, "passedStudentCount")} />
+              </svg>
+              <div className="teacher-trend-legend">
+                <span>提交次数</span>
+                <span>提交人数</span>
+                <span>通过人数</span>
+              </div>
             </div>
+          ) : (
+            <EmptyState title="等待第一次提交" />
+          )}
+        </article>
 
-            {selectedStudent ? (
-              <article className="assignment-student-report">
-                <div className="assignment-student-report__head">
-                  <div>
-                    <h3>{displayText(selectedStudent.displayName, "学生")}</h3>
-                    <p>
-                      {selectedStudent.studentNo ? `${selectedStudent.studentNo} 号 · ` : ""}
-                      {selectedStudent.attemptCount} 次尝试 · {selectedStudent.passedCount} 次通过
-                    </p>
-                  </div>
-                  <VerdictPill verdict={selectedStudent.latestVerdict} />
-                </div>
-                <div className="assignment-student-report__metrics">
-                  <div>
-                    <span>通过率</span>
-                    <strong>{studentPassRate(selectedStudent)}%</strong>
-                  </div>
-                  <div>
-                    <span>重复问题</span>
-                    <strong>{selectedStudent.repeatedIssueCount || 0}</strong>
-                  </div>
-                  <div>
-                    <span>能力焦点</span>
-                    <strong>{displayText(selectedStudent.primaryAbilityFocus, "待观察")}</strong>
-                  </div>
-                </div>
-                <div className="assignment-student-report__body">
-                  <p>{selectedStudent.latestProgressSignal || selectedStudent.attentionReason || selectedStudent.crossProblemSummary || "暂无明确反馈。"}</p>
-                  {selectedStudent.latestIssueTag && (
-                    <p>
-                      <strong>最近问题：</strong>
-                      {issueLabel(selectedStudent.latestFineGrainedIssue || selectedStudent.latestIssueTag)}
-                    </p>
-                  )}
-                </div>
-                <div className="actions">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon={<PenLine size={15} />}
-                    onClick={() => openCorrection(selectedStudent)}
-                    disabled={!selectedStudent.latestSubmissionId}
-                  >
-                    校正错因
-                  </Button>
-                </div>
-              </article>
-            ) : (
-              <EmptyState title="暂无学生提交" />
-            )}
+        <section className="teacher-problem-table" aria-label="题目推进列表">
+          <div className="teacher-section-head">
+            <div>
+              <p className="eyebrow">题目</p>
+              <h2>每道题推进情况</h2>
+            </div>
           </div>
-        </section>
-      )}
-
-      {activeTab === "problems" && (
-        <section className="assignment-tab-panel assignment-problems-tab" aria-label="题目">
-          <div className="assignment-tab-head">
-            <h2>先讲问题最多的题</h2>
-          </div>
-          <div className="assignment-task-list">
-            {sortedTaskStats.map(item => (
-              <article className="assignment-task-row" key={item.task.problemId}>
-                <div>
-                  <DifficultyPill difficulty={item.task.difficulty} />
-                  <h3>{item.task.title}</h3>
-                  <p>{item.latestAttempts ? `${item.latestAttempts} 次相关尝试 · ${item.latestPassed} 次通过` : "等待学生提交"}</p>
-                </div>
-                <div className="assignment-task-row__stats">
-                  <strong>{item.latestAttempts ? percent(item.rate) : "-"}</strong>
-                  <StatusPill tone={item.issueHits ? "warning" : item.latestAttempts ? "success" : "neutral"}>
-                    {item.issueHits ? `${item.issueHits} 人需讲评` : item.latestAttempts ? "正常推进" : "待提交"}
-                  </StatusPill>
-                </div>
-              </article>
+          <div className="teacher-table">
+            <div className="teacher-table-row teacher-table-row--head">
+              <span>题目</span>
+              <span>提交</span>
+              <span>通过</span>
+              <span>尝试</span>
+              <span>关注</span>
+              <span></span>
+            </div>
+            {problems.map(problem => (
+              <Link className="teacher-table-row teacher-table-row--link" to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`} key={problem.problemId}>
+                <span className="teacher-table-title">
+                  <DifficultyPill difficulty={problem.difficulty} />
+                  <strong>{problem.title}</strong>
+                </span>
+                <span>{formatCountRate(problem.submissionRate)}</span>
+                <span>{formatCountRate(problem.passRate)}</span>
+                <span>{problem.submissionCount} 次</span>
+                <span>{problem.attentionStudentCount || "-"}</span>
+                <span className="teacher-table-action">
+                  <StatusPill tone={statusTone(problem.statusLabel)}>{problem.statusLabel || "待提交"}</StatusPill>
+                  <ArrowRight size={16} />
+                </span>
+              </Link>
             ))}
           </div>
         </section>
-      )}
+      </section>
+    </>
+  );
+}
 
-      {activeTab === "diagnosis" && (
-        <section className="assignment-tab-panel assignment-diagnosis-tab" aria-label="诊断">
-          <div className="assignment-tab-head">
-            <h2>证据和校正</h2>
+function ProblemOverviewView({ overview, problem }: { overview: AssignmentOverview; problem: ProblemSummary }) {
+  const students = problem.students || [];
+  const topIssue = problem.topIssues?.[0] || null;
+  const topAbility = problem.abilityWeaknesses?.[0] || null;
+  return (
+    <>
+      <section className="teacher-drill-header">
+        <div>
+          <Link to={`/app/teacher/assignment/${overview.assignment.id}`} className="back-link">
+            <ArrowLeft size={16} /> 返回作业总览
+          </Link>
+          <h1>{problem.title}</h1>
+          <div className="assignment-detail-meta">
+            <span>{cleanAssignmentTitle(overview.assignment.title)}</span>
+            <span>{problem.submittedStudentCount} 人提交</span>
+            <span>{problem.submissionCount} 次提交</span>
+            <span>{problem.statusLabel || "待提交"}</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="teacher-problem-layout">
+        <main className="teacher-problem-main">
+          <div className="teacher-drill-strip">
+            <Metric label="提交率" value={formatCountRate(problem.submissionRate)} />
+            <Metric label="通过率" value={formatCountRate(problem.passRate)} />
+            <Metric label="提交人数" value={`${problem.submittedStudentCount}/${problem.classStudentCount ?? "-"}`} />
+            <Metric label="总提交" value={problem.submissionCount} />
+            <Metric label="人均尝试" value={formatNumber(problem.averageAttempts)} />
           </div>
 
-          {selectedStudent ? (
-            <article className="assignment-diagnosis-evidence">
-              <div>
-                <p className="eyebrow">学生证据</p>
-                <h3>{displayText(selectedStudent.displayName, "学生")}</h3>
-              </div>
-              {selectedStudent.attentionEvidence?.length ? (
-                <div className="teacher-attention-evidence">
-                  {selectedStudent.attentionEvidence.slice(0, 3).map(evidence => (
-                    <div key={evidence.submissionId}>
-                      <span>{formatDateTime(evidence.submittedAt)}</span>
-                      <strong>
-                        {evidence.fineGrainedTag
-                          ? issueLabel(evidence.fineGrainedTag)
-                          : evidence.issueTag
-                            ? issueLabel(evidence.issueTag)
-                            : verdictLabel(evidence.verdict)}
-                      </strong>
-                      <small>{evidence.reason || evidence.headline || "最近提交证据"}</small>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p>这名学生暂时没有可展示的错因证据。</p>
-              )}
-              <Button
-                type="button"
-                variant="secondary"
-                icon={<PenLine size={15} />}
-                onClick={() => openCorrection(selectedStudent)}
-                disabled={!selectedStudent.latestSubmissionId}
-              >
-                校正错因
-              </Button>
-            </article>
-          ) : (
-            <EmptyState title="暂无学生诊断证据" />
-          )}
+          <section className="teacher-analysis-grid">
+            <RankPanel title="高频错因" items={(problem.topIssues || []).map(item => ({ label: issueLabel(item.label), value: item.count, note: item.interventionSuggestion }))} />
+            <RankPanel title="知识点薄弱" items={(problem.abilityWeaknesses || []).map(item => ({ label: item.abilityPoint, value: item.submissionCount, note: item.evidenceTags?.map(issueLabel).join("、") }))} />
+            <RankPanel title="提示进度" items={(problem.hintLevelDistribution || []).map(item => ({ label: hintPolicyLabel(item.hintLevel), value: item.count }))} />
+          </section>
 
-          {correctionDraft && selectedStudent && (
-            <section className="teacher-correction-panel assignment-correction-panel" aria-label="教师校正错因">
+          <section className="teacher-problem-table" aria-label="学生题目明细">
+            <div className="teacher-section-head">
               <div>
-                <p className="eyebrow">教师校正</p>
-                <h2>修正 {displayText(selectedStudent.displayName, "学生")} 的错因</h2>
+                <p className="eyebrow">学生</p>
+                <h2>这道题的学生情况</h2>
               </div>
-              <div className="form-grid">
-                <Field label="主要错因">
-                  <Select
-                    value={correctionDraft.correctedIssueTag}
-                    onChange={event => setCorrectionDraft({ ...correctionDraft, correctedIssueTag: event.target.value })}
-                  >
-                    <option value="">请选择</option>
-                    {coarseDiagnosisTags.map(tag => (
-                      <option value={tag.id} key={tag.id}>
-                        {tag.label}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="细分错因">
-                  <Select
-                    value={correctionDraft.correctedFineGrainedTag}
-                    onChange={event => setCorrectionDraft({ ...correctionDraft, correctedFineGrainedTag: event.target.value })}
-                  >
-                    <option value="">不指定</option>
-                    {fineDiagnosisTags.map(tag => (
-                      <option value={tag.id} key={tag.id}>
-                        {tag.label}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
+            </div>
+            <div className="teacher-table teacher-table--students">
+              <div className="teacher-table-row teacher-table-row--head">
+                <span>学生</span>
+                <span>提交</span>
+                <span>通过</span>
+                <span>最新结果</span>
+                <span>错因</span>
+                <span></span>
               </div>
+              {students.length ? (
+                students.map(student => (
+                  <Link
+                    className="teacher-table-row teacher-table-row--link"
+                    to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}/students/${student.studentProfileId}`}
+                    key={student.studentProfileId}
+                  >
+                    <span className="teacher-table-title">
+                      <strong>{displayText(student.displayName, `学生 #${student.studentProfileId}`)}</strong>
+                      {student.studentNo ? <small>{student.studentNo} 号</small> : null}
+                    </span>
+                    <span>{student.attemptCount} 次</span>
+                    <span>{studentPassRate(student)}%</span>
+                    <span><VerdictPill verdict={student.latestVerdict} /></span>
+                    <span>{student.latestFineGrainedIssue || student.latestIssueTag ? issueLabel(student.latestFineGrainedIssue || student.latestIssueTag) : "-"}</span>
+                    <span className="teacher-table-action">
+                      {student.needsAttention ? <StatusPill tone="warning">关注</StatusPill> : <StatusPill tone="success">稳定</StatusPill>}
+                      <ArrowRight size={16} />
+                    </span>
+                  </Link>
+                ))
+              ) : (
+                <EmptyState title="暂无学生提交" />
+              )}
+            </div>
+          </section>
+        </main>
+
+        <aside className="teacher-action-rail">
+          <p className="eyebrow">教师动作</p>
+          <h2>{problem.statusLabel === "需讲评" ? "先讲这题" : "继续观察"}</h2>
+          <p>{topIssue?.interventionSuggestion || topAbility?.abilityPoint || "等待更多学生提交后再形成讲评建议。"}</p>
+          <ButtonLink to={`/app/teacher/assignment/${overview.assignment.id}`} variant="ghost" icon={<ChartNoAxesCombined size={16} />}>
+            看作业推进
+          </ButtonLink>
+        </aside>
+      </section>
+    </>
+  );
+}
+
+function StudentProblemView({
+  overview,
+  problem,
+  student,
+  correctionDraft,
+  setCorrectionDraft,
+  coarseDiagnosisTags,
+  fineDiagnosisTags,
+  saving,
+  saveCorrection
+}: {
+  overview: AssignmentOverview;
+  problem: ProblemSummary;
+  student: ProblemStudent;
+  correctionDraft: CorrectionDraft | null;
+  setCorrectionDraft: (value: CorrectionDraft | null) => void;
+  coarseDiagnosisTags: DiagnosisTag[];
+  fineDiagnosisTags: DiagnosisTag[];
+  saving: boolean;
+  saveCorrection: (event: FormEvent) => void;
+}) {
+  return (
+    <>
+      <section className="teacher-drill-header">
+        <div>
+          <Link to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`} className="back-link">
+            <ArrowLeft size={16} /> 返回题目总览
+          </Link>
+          <h1>{displayText(student.displayName, "学生")}</h1>
+          <div className="assignment-detail-meta">
+            <span>{problem.title}</span>
+            <span>{student.attemptCount} 次提交</span>
+            <span>{studentPassRate(student)}% 通过</span>
+            <span>{student.latestHintLevel ? hintPolicyLabel(student.latestHintLevel) : "提示待定"}</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="teacher-student-problem-layout">
+        <main className="teacher-student-evidence">
+          <div className="teacher-drill-strip">
+            <Metric label="提交次数" value={student.attemptCount} />
+            <Metric label="通过次数" value={student.passedCount} />
+            <Metric label="最新结果" value={verdictLabel(student.latestVerdict)} />
+            <Metric label="AI 置信" value={confidenceLabel(student.latestConfidence).replace("置信度 ", "")} />
+          </div>
+
+          <article className="teacher-evidence-card">
+            <span>当前卡点</span>
+            <strong>{student.latestFineGrainedIssue || student.latestIssueTag ? issueLabel(student.latestFineGrainedIssue || student.latestIssueTag) : "等待更多证据"}</strong>
+            <p>{student.latestIssue || student.latestProgressSignal || "这名学生在这道题上还没有形成明确错因。"}</p>
+          </article>
+
+          <article className="teacher-evidence-card">
+            <span>知识点</span>
+            <strong>{displayText(student.abilityPoint, "待观察")}</strong>
+            <p>{student.latestHintAction || "暂无明确提示动作。"}</p>
+          </article>
+
+          <article className="teacher-evidence-card">
+            <span>最近提交</span>
+            <strong>{formatDateTime(student.latestSubmittedAt)}</strong>
+            <p>{student.latestProgressSignal || "继续观察下一次提交。"}</p>
+          </article>
+        </main>
+
+        <aside className="teacher-action-rail">
+          <p className="eyebrow">教师动作</p>
+          <h2>{student.needsAttention ? "优先处理" : "保持观察"}</h2>
+          <p>{student.latestHintAction || student.latestProgressSignal || "让学生先补一次可见提交，再判断是否需要讲解。"}</p>
+          <Button
+            type="button"
+            variant="secondary"
+            icon={<PenLine size={15} />}
+            disabled={!student.latestSubmissionId}
+            onClick={() =>
+              student.latestSubmissionId &&
+              setCorrectionDraft({
+                submissionId: student.latestSubmissionId,
+                correctedIssueTag: student.latestIssueTag || "",
+                correctedFineGrainedTag: student.latestFineGrainedIssue || "",
+                teacherNote: ""
+              })
+            }
+          >
+            校正错因
+          </Button>
+
+          {correctionDraft ? (
+            <form className="teacher-correction-panel assignment-correction-panel" onSubmit={saveCorrection}>
+              <Field label="主要错因">
+                <Select
+                  value={correctionDraft.correctedIssueTag}
+                  onChange={event => setCorrectionDraft({ ...correctionDraft, correctedIssueTag: event.target.value })}
+                >
+                  <option value="">请选择</option>
+                  {coarseDiagnosisTags.map(tag => (
+                    <option value={tag.id} key={tag.id}>
+                      {tag.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="细分错因">
+                <Select
+                  value={correctionDraft.correctedFineGrainedTag}
+                  onChange={event => setCorrectionDraft({ ...correctionDraft, correctedFineGrainedTag: event.target.value })}
+                >
+                  <option value="">不指定</option>
+                  {fineDiagnosisTags.map(tag => (
+                    <option value={tag.id} key={tag.id}>
+                      {tag.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
               <Field label="校正理由">
                 <TextArea
                   value={correctionDraft.teacherNote}
                   onChange={event => setCorrectionDraft({ ...correctionDraft, teacherNote: event.target.value })}
-                  placeholder="例如：学生不是边界问题，而是输入读取方式理解错。"
+                  placeholder="例如：不是循环边界，而是输入读取理解错。"
                 />
               </Field>
               <div className="actions">
-                <Button type="button" variant="primary" onClick={() => void saveCorrection()} disabled={saving}>
-                  保存校正
+                <Button type="submit" variant="primary" disabled={saving}>
+                  保存
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setCorrectionDraft(null)}>
                   取消
                 </Button>
               </div>
-            </section>
-          )}
-        </section>
-      )}
+            </form>
+          ) : null}
+        </aside>
+      </section>
+    </>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="teacher-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
+  );
+}
+
+function RankPanel({ title, items }: { title: string; items: Array<{ label?: string | null; value: number; note?: string | null }> }) {
+  return (
+    <article className="teacher-rank-panel">
+      <p className="eyebrow">{title}</p>
+      {items.length ? (
+        <div className="teacher-rank-list">
+          {items.slice(0, 5).map((item, index) => (
+            <div className="teacher-rank-row" key={`${title}-${item.label}-${index}`}>
+              <span>{displayText(item.label, "待定")}</span>
+              <strong>{item.value}</strong>
+              {item.note ? <small>{item.note}</small> : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p>暂无集中信号。</p>
+      )}
+    </article>
   );
 }

@@ -276,6 +276,8 @@ export default function App() {
             <Route path="/app/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
             <Route path="/app/teacher" element={<TeacherAuthGate><TeacherPage /></TeacherAuthGate>} />
             <Route path="/app/teacher/assignment/new" element={<TeacherAuthGate><AssignmentCreatePage /></TeacherAuthGate>} />
+            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherAuthGate><AssignmentDetailPage /></TeacherAuthGate>} />
+            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherAuthGate><AssignmentDetailPage /></TeacherAuthGate>} />
             <Route path="/app/teacher/assignment/:assignmentId" element={<TeacherAuthGate><AssignmentDetailPage /></TeacherAuthGate>} />
             <Route path="/app/teacher-management" element={<Navigate to="/app/teacher?manage=1" replace />} />
             <Route path="/app/task-editor" element={<TeacherAuthGate><TaskEditorPage /></TeacherAuthGate>} />

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, Plus, SlidersHorizontal } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
 import type { Assignment, AssignmentOverview } from "../../shared/api/types";
 import { assignmentStatusLabel, displayText, looksCorruptText } from "../../shared/format";
 import { ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
+import { StatusPill } from "../../shared/ui/StatusPill";
 import { TeacherManagementTools } from "./TeacherManagementPage";
 
 type Alert = { type: "success" | "error"; message: string };
@@ -30,12 +31,12 @@ function teacherErrorMessage(error: unknown, fallback: string) {
   return detail ? `${base}，${detail}` : fallback;
 }
 
-function passRate(overview?: AssignmentOverview | null) {
-  return overview?.attemptCount ? Math.round((overview.passedAttemptCount / overview.attemptCount) * 100) : 0;
-}
-
 function attentionCount(overview?: AssignmentOverview | null) {
   return overview?.students.filter(student => student.needsAttention).length || 0;
+}
+
+function participantText(overview?: AssignmentOverview | null) {
+  return overview ? `${overview.participantCount} 人` : "0 人";
 }
 
 export default function TeacherPage() {
@@ -120,17 +121,19 @@ export default function TeacherPage() {
               const taskCount = assignment.tasks?.length || 0;
               const count = attentionCount(overview);
               return (
-                <article className="teacher-assignment-row teacher-assignment-row--simple" key={assignment.id}>
+                <article className="teacher-assignment-row teacher-assignment-row--simple teacher-assignment-row--entry" key={assignment.id}>
                   <div className="teacher-assignment-row__title">
                     <strong>{assignment.title}</strong>
                     <small className="teacher-assignment-row__meta">
-                      {assignment.className} · {taskCount} 题 · {assignmentStatusLabel(assignment.status)} · {overview ? `${passRate(overview)}% 通过` : "暂无提交"} ·{" "}
-                      {overview ? `${count} 关注` : "0 关注"}
+                      {taskCount} 题 · {participantText(overview)} · {assignmentStatusLabel(assignment.status)}
                     </small>
                   </div>
+                  <StatusPill tone={count ? "warning" : assignment.status === "ACTIVE" ? "success" : "neutral"}>
+                    {count ? `${count} 关注` : assignmentStatusLabel(assignment.status)}
+                  </StatusPill>
                   <div className="teacher-assignment-row__action">
                     <ButtonLink to={`/app/teacher/assignment/${assignment.id}`} variant="primary" icon={<ArrowRight size={17} />}>
-                      查看
+                      进入
                     </ButtonLink>
                   </div>
                 </article>
@@ -143,14 +146,15 @@ export default function TeacherPage() {
       </section>
 
       <details
-        className="teacher-management-drawer"
+        className="teacher-management-drawer teacher-management-drawer--quiet"
         open={managementOpen}
         onToggle={event => setManagementOpen(event.currentTarget.open)}
       >
         <summary>
           <span>
-            <strong>更多管理</strong>
-            <small>班级名单、题目导入、AI 标准库</small>
+            <SlidersHorizontal size={15} />
+            <strong>高级</strong>
+            <small>导入、题库、AI 标准库</small>
           </span>
         </summary>
         <TeacherManagementTools embedded />

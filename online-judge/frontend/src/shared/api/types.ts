@@ -813,6 +813,62 @@ export interface AssignmentOverview {
       matchedTags?: string[];
     } | null;
   } | null;
+  progressTrend?: Array<{
+    submittedAt?: string | null;
+    submittedStudentCount: number;
+    passedStudentCount: number;
+    submissionCount: number;
+  }>;
+  problemSummaries?: Array<{
+    problemId: number;
+    title: string;
+    difficulty?: string | null;
+    orderIndex?: number | null;
+    required?: boolean;
+    classStudentCount?: number | null;
+    submittedStudentCount: number;
+    submissionCount: number;
+    passedStudentCount: number;
+    passedAttemptCount: number;
+    submissionRate?: number | null;
+    passRate?: number | null;
+    averageAttempts?: number | null;
+    attentionStudentCount: number;
+    statusLabel?: string | null;
+    topIssues?: Array<{
+      label: string;
+      count: number;
+      explanation?: string | null;
+      abilityPoint?: string | null;
+      recommendedHintPolicy?: string | null;
+      interventionSuggestion?: string | null;
+      affectedStudentCount?: number;
+    }>;
+    abilityWeaknesses?: AbilityStat[];
+    hintLevelDistribution?: Array<{
+      hintLevel: string;
+      count: number;
+    }>;
+    students?: Array<{
+      studentProfileId: number;
+      displayName: string;
+      studentNo?: string | null;
+      attemptCount: number;
+      passedCount: number;
+      latestSubmissionId?: number | null;
+      latestVerdict?: string | null;
+      latestSubmittedAt?: string | null;
+      latestIssue?: string | null;
+      latestIssueTag?: string | null;
+      latestFineGrainedIssue?: string | null;
+      abilityPoint?: string | null;
+      latestHintLevel?: string | null;
+      latestHintAction?: string | null;
+      latestProgressSignal?: string | null;
+      latestConfidence?: number | null;
+      needsAttention: boolean;
+    }>;
+  }>;
   topIssues: Array<{
     label: string;
     count: number;

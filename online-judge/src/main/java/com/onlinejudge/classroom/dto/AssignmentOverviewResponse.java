@@ -29,6 +29,8 @@ public class AssignmentOverviewResponse {
     private long teachingActionRiskStudentCount;
     private String teachingActionSummary;
     private ClassTeachingStrategySignal classTeachingStrategySignal;
+    private List<ProgressTrendPoint> progressTrend;
+    private List<ProblemSummary> problemSummaries;
     private List<IssueStat> topIssues;
     private List<AbilityStat> classAbilityWeaknesses;
     private List<ClassReviewSuggestion> classReviewSuggestions;
@@ -88,6 +90,68 @@ public class AssignmentOverviewResponse {
         private String attentionReason;
         private List<AttentionEvidence> attentionEvidence;
         private boolean needsAttention;
+    }
+
+    @Data
+    @Builder
+    public static class ProgressTrendPoint {
+        private LocalDateTime submittedAt;
+        private long submittedStudentCount;
+        private long passedStudentCount;
+        private long submissionCount;
+    }
+
+    @Data
+    @Builder
+    public static class ProblemSummary {
+        private Long problemId;
+        private String title;
+        private String difficulty;
+        private Integer orderIndex;
+        private boolean required;
+        private Long classStudentCount;
+        private long submittedStudentCount;
+        private long submissionCount;
+        private long passedStudentCount;
+        private long passedAttemptCount;
+        private Double submissionRate;
+        private Double passRate;
+        private Double averageAttempts;
+        private long attentionStudentCount;
+        private String statusLabel;
+        private List<IssueStat> topIssues;
+        private List<AbilityStat> abilityWeaknesses;
+        private List<HintLevelStat> hintLevelDistribution;
+        private List<ProblemStudentSummary> students;
+    }
+
+    @Data
+    @Builder
+    public static class ProblemStudentSummary {
+        private Long studentProfileId;
+        private String displayName;
+        private String studentNo;
+        private long attemptCount;
+        private long passedCount;
+        private Long latestSubmissionId;
+        private String latestVerdict;
+        private LocalDateTime latestSubmittedAt;
+        private String latestIssue;
+        private String latestIssueTag;
+        private String latestFineGrainedIssue;
+        private String abilityPoint;
+        private String latestHintLevel;
+        private String latestHintAction;
+        private String latestProgressSignal;
+        private Double latestConfidence;
+        private boolean needsAttention;
+    }
+
+    @Data
+    @Builder
+    public static class HintLevelStat {
+        private String hintLevel;
+        private long count;
     }
 
     @Data

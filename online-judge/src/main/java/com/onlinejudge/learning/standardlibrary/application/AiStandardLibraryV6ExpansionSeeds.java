@@ -20,6 +20,9 @@ final class AiStandardLibraryV6ExpansionSeeds {
         addRecursionAndSearch(seeds);
         addSortingAndIntervals(seeds);
         addDebuggingAndSubmissionReview(seeds);
+        addGridAndCoordinateModeling(seeds);
+        addInputOutputMultiCase(seeds);
+        addFunctionContractAndSideEffects(seeds);
     }
 
     private static void addDynamicProgramming(List<AiStandardLibrarySeed> seeds) {
@@ -287,7 +290,7 @@ final class AiStandardLibraryV6ExpansionSeeds {
                 "SK_V6_DATA_STRUCTURE_OPERATION_CONTRACT",
                 "MODELING",
                 List.of("DS.LINEAR.STACK.后进先出", "DS.LINEAR.QUEUE.先进先出", "DS.LINEAR.QUEUE.BFS_队列"),
-                List.of("CONTEST.PATTERN.STRUCTURE.结构特征"),
+                List.of("CONTEST.PATTERN.STRUCTURE.有序性"),
                 "HIGH",
                 LANGUAGES);
         AiStandardLibrarySeedCatalog.mistake(seeds,
@@ -397,7 +400,7 @@ final class AiStandardLibraryV6ExpansionSeeds {
                 "SK_V6_SEARCH_RECURSION_STATE_SPACE",
                 "BOUNDARY",
                 List.of("ALGO.SEARCH.STATE.终点判断", "ALGO.SEARCH.DFS.搜索边界", "ALGO.SEARCH.BFS.最短步数"),
-                List.of("BASIC.BRANCH.GUARD.提前返回"),
+                List.of("BASIC.BRANCH.GUARD.特殊情况前置"),
                 "HIGH",
                 LANGUAGES);
         AiStandardLibrarySeedCatalog.mistake(seeds,
@@ -508,6 +511,153 @@ final class AiStandardLibraryV6ExpansionSeeds {
                 "COMPLEXITY",
                 List.of("ENG.ERROR.TIME.复杂度过高", "ENG.COMPLEXITY.TIME.数据范围反推", "CONTEST.SUBMIT.CHECKLIST.复杂度检查"),
                 List.of("ALGO.ENUM.COMPLEXITY.数据范围反推"),
+                "HIGH",
+                LANGUAGES);
+    }
+
+    private static void addGridAndCoordinateModeling(List<AiStandardLibrarySeed> seeds) {
+        AiStandardLibrarySeedCatalog.skill(seeds,
+                "SK_V6_GRID_COORDINATE_TRANSFORM",
+                "能力点/网格坐标",
+                "统一网格坐标、方向数组和边界变换",
+                "能把题面坐标、矩阵行列、方向数组、障碍判断和越界保护统一到一套坐标系统里。",
+                "网格题先确认 r/c 和 x/y 的对应，再写方向、边界和访问条件。",
+                List.of("BASIC.ARRAY.MATRIX.行列含义", "BASIC.ARRAY.MATRIX.方向遍历", "BASIC.ARRAY.MATRIX.边界检查", "MATH.GEOMETRY.COORD.x_y_坐标", "MATH.GEOMETRY.COORD.方向数组", "MATH.GEOMETRY.COORD.坐标偏移"),
+                List.of("BASIC.ARRAY.INDEX.下标映射"),
+                "HIGH",
+                LANGUAGES);
+        AiStandardLibrarySeedCatalog.mistake(seeds,
+                "MP_V6_GRID_INPUT_COORDINATE_NOT_NORMALIZED",
+                "易错点/网格坐标",
+                "题面坐标没有转换成数组下标",
+                "题面给出的坐标从 1 开始或使用 x/y 表示，但代码直接当作 0 基 row/col 使用，导致整体偏移或行列互换。",
+                "没有先建立题面坐标到 grid[r][c] 的映射表。",
+                "SK_V6_GRID_COORDINATE_TRANSFORM",
+                "BOUNDARY",
+                List.of("MATH.GEOMETRY.COORD.x_y_坐标", "BASIC.ARRAY.MATRIX.行列含义", "BASIC.ARRAY.INDEX.下标映射"),
+                List.of("BASIC.ARRAY.INDEX.0_基下标"),
+                "HIGH",
+                LANGUAGES);
+        AiStandardLibrarySeedCatalog.mistake(seeds,
+                "MP_V6_GRID_DIRECTION_DELTA_PAIR_SWAPPED",
+                "易错点/网格坐标",
+                "方向数组行列增量配对错误",
+                "dr/dc 或 dx/dy 的配对顺序写错，导致移动方向和题意不一致，搜索或模拟走到错误格子。",
+                "只分别写了两个数组，没有检查同一个下标下两个增量是否组成正确方向。",
+                "SK_V6_GRID_COORDINATE_TRANSFORM",
+                "BOUNDARY",
+                List.of("MATH.GEOMETRY.COORD.方向数组", "MATH.GEOMETRY.COORD.坐标偏移", "BASIC.ARRAY.MATRIX.方向遍历"),
+                List.of("ENG.DEBUG.TRACE.数组状态"),
+                "HIGH",
+                LANGUAGES);
+        AiStandardLibrarySeedCatalog.mistake(seeds,
+                "MP_V6_GRID_OBSTACLE_CHECK_AFTER_VISIT",
+                "易错点/网格坐标",
+                "障碍或越界判断晚于访问标记",
+                "代码先标记 visited、入队或访问数组，再检查越界和障碍，导致非法格子污染搜索状态。",
+                "没有把合法性判断作为进入格子的前置条件。",
+                "SK_V6_GRID_COORDINATE_TRANSFORM",
+                "RUNTIME",
+                List.of("BASIC.ARRAY.MATRIX.边界检查", "ALGO.SEARCH.STATE.非法状态过滤", "ALGO.SEARCH.BFS.状态入队"),
+                List.of("BASIC.BRANCH.GUARD.非法输入保护"),
+                "HIGH",
+                LANGUAGES);
+    }
+
+    private static void addInputOutputMultiCase(List<AiStandardLibrarySeed> seeds) {
+        AiStandardLibrarySeedCatalog.skill(seeds,
+                "SK_V6_IO_MULTICASE_FORMAT_CONTRACT",
+                "能力点/输入输出",
+                "完整映射多组输入、输出格式和状态重置",
+                "能区分显式 T 组、读到 EOF、每组输出格式和每组内部状态重置位置。",
+                "多组数据题先圈出外层循环，再决定哪些变量必须每组重新初始化。",
+                List.of("BASIC.IO.MULTI_CASE.显式_T_组循环", "BASIC.IO.MULTI_CASE.未知组数读到_EOF", "BASIC.IO.MULTI_CASE.每组状态重置", "BASIC.IO.MULTI_CASE.多组输出格式", "BASIC.IO.STDOUT.按要求换行"),
+                List.of("BASIC.IO.STDIN.输入顺序映射"),
+                "HIGH",
+                LANGUAGES);
+        AiStandardLibrarySeedCatalog.mistake(seeds,
+                "MP_V6_IO_TREATED_T_AS_DATA_VALUE",
+                "易错点/输入输出",
+                "把组数 T 当作普通数据参与计算",
+                "第一行表示测试组数，但代码把它当作第一组数据的一部分，导致读入错位。",
+                "没有先判断第一行是控制循环次数还是业务数据。",
+                "SK_V6_IO_MULTICASE_FORMAT_CONTRACT",
+                "IO_FORMAT",
+                List.of("BASIC.IO.MULTI_CASE.显式_T_组循环", "CONTEST.READING.INPUT.数据组数", "BASIC.IO.STDIN.输入顺序映射"),
+                List.of("BASIC.LOOP.FOR.循环次数计算"),
+                "HIGH",
+                LANGUAGES);
+        AiStandardLibrarySeedCatalog.mistake(seeds,
+                "MP_V6_IO_EOF_LOOP_DROPS_LAST_RECORD",
+                "易错点/输入输出",
+                "读到 EOF 循环漏处理最后一条记录",
+                "读取驱动循环把处理逻辑放在下一次读取之后，导致最后一次成功读取的数据没有被处理。",
+                "没有区分读取成功、处理当前记录、再读取下一记录这三个时刻。",
+                "SK_V6_IO_MULTICASE_FORMAT_CONTRACT",
+                "IO_FORMAT",
+                List.of("BASIC.IO.MULTI_CASE.未知组数读到_EOF", "BASIC.LOOP.WHILE.读入驱动循环", "BASIC.IO.STDIN.多行读取"),
+                List.of("ENG.DEBUG.BOUNDARY.最小输入"),
+                "MEDIUM",
+                LANGUAGES);
+        AiStandardLibrarySeedCatalog.mistake(seeds,
+                "MP_V6_IO_CASE_OUTPUT_SEPARATOR_WRONG",
+                "易错点/输入输出",
+                "多组输出分隔格式错误",
+                "题面要求每组一行、空行分隔或 Case 编号，但代码少输出、多输出或位置错误。",
+                "只关注每组答案数值，没有把组间格式也视为判题内容。",
+                "SK_V6_IO_MULTICASE_FORMAT_CONTRACT",
+                "IO_FORMAT",
+                List.of("BASIC.IO.MULTI_CASE.多组输出格式", "BASIC.IO.STDOUT.按要求换行", "BASIC.IO.STDOUT.空格分隔"),
+                List.of("ENG.ERROR.FORMAT.缺少换行"),
+                "MEDIUM",
+                LANGUAGES);
+    }
+
+    private static void addFunctionContractAndSideEffects(List<AiStandardLibrarySeed> seeds) {
+        AiStandardLibrarySeedCatalog.skill(seeds,
+                "SK_V6_FUNCTION_RECURSION_CONTRACT",
+                "能力点/函数递归",
+                "定义函数契约、可变参数和递归返回路径",
+                "能说明函数输入、输出、是否修改外部状态、递归返回值如何合并，以及所有路径是否都有返回。",
+                "函数不是把代码包起来，而是给调用者一个稳定的输入输出契约。",
+                List.of("BASIC.FUNCTION.DEF.参数设计", "BASIC.FUNCTION.DEF.返回值设计", "BASIC.FUNCTION.PARAM.可变对象风险", "BASIC.FUNCTION.RETURN.完整返回路径", "BASIC.RECURSION.STATE.递归转移"),
+                List.of("BASIC.TYPE.VARIABLE.作用域"),
+                "HIGH",
+                LANGUAGES);
+        AiStandardLibrarySeedCatalog.mistake(seeds,
+                "MP_V6_FUNCTION_MUTABLE_DEFAULT_STATE_LEAKS",
+                "易错点/函数递归",
+                "可变默认状态在多次调用间泄漏",
+                "函数参数、全局列表或静态容器在多次调用之间复用，导致上一题、上一组或上一分支的状态残留。",
+                "把可变对象当作临时变量，没有意识到它会跨调用共享。",
+                "SK_V6_FUNCTION_RECURSION_CONTRACT",
+                "STATE",
+                List.of("BASIC.FUNCTION.PARAM.可变对象风险", "BASIC.TYPE.VARIABLE.作用域", "BASIC.IO.MULTI_CASE.每组状态重置"),
+                List.of("ENG.DEBUG.TRACE.递归栈"),
+                "HIGH",
+                LANGUAGES);
+        AiStandardLibrarySeedCatalog.mistake(seeds,
+                "MP_V6_FUNCTION_MISSING_RETURN_ON_BRANCH",
+                "易错点/函数递归",
+                "函数某些分支没有返回值",
+                "函数在部分条件下返回结果，但其他合法分支没有 return，调用处拿到空值、默认值或未定义结果。",
+                "只沿着样例路径检查返回，没有覆盖所有分支的返回契约。",
+                "SK_V6_FUNCTION_RECURSION_CONTRACT",
+                "RUNTIME",
+                List.of("BASIC.FUNCTION.RETURN.完整返回路径", "BASIC.BRANCH.CASE.覆盖所有情况", "BASIC.BRANCH.CASE.默认分支"),
+                List.of("ENG.ERROR.RUNTIME.非法内存"),
+                "HIGH",
+                LANGUAGES);
+        AiStandardLibrarySeedCatalog.mistake(seeds,
+                "MP_V6_RECURSION_MERGE_IGNORES_CHILD_RESULT",
+                "易错点/函数递归",
+                "递归子问题结果没有正确合并",
+                "递归调用返回了子结果，但父层没有累加、取最值、合并列表或向上返回，导致最终答案缺失。",
+                "只写了递归调用，没有定义子问题结果如何贡献到父问题。",
+                "SK_V6_FUNCTION_RECURSION_CONTRACT",
+                "STATE",
+                List.of("BASIC.RECURSION.STATE.递归转移", "BASIC.FUNCTION.RETURN.返回集合", "BASIC.FUNCTION.RETURN.完整返回路径"),
+                List.of("ALGO.DP.TRANSITION.取_max_min_sum"),
                 "HIGH",
                 LANGUAGES);
     }

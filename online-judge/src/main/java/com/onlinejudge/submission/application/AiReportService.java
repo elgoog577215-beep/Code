@@ -39,7 +39,7 @@ public class AiReportService {
     private static final String PROVIDER = "ModelScope";
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
     private static final String RUNTIME_PROMPT_VERSION = "diagnosis-judge-v2+teaching-hint-v1";
-    private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = "diagnosis-and-teaching-v3";
+    private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1;
     private static final String STUDENT_FAST_FEEDBACK_PROMPT_VERSION = "student-fast-feedback-v2";
     private static final String RUNTIME_MODE_SINGLE_CALL = "single-call";
     private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^(\\d+):\\s?(.*)$", Pattern.MULTILINE);
@@ -54,6 +54,10 @@ public class AiReportService {
     private final ExternalModelFailureClassifier failureClassifier;
     private final ExternalModelBudgetGuard budgetGuard;
     private final ExternalModelChatRequestFactory chatRequestFactory;
+    private final SearchLocationRetrievalService searchLocationRetrievalService;
+    private final SearchLocationOutputValidator searchLocationOutputValidator;
+    private final SearchLocationPackSelector searchLocationPackSelector;
+    private final SearchLocationProperties searchLocationProperties;
     private final ThreadLocal<ExternalModelCallTelemetry> lastCallTelemetry = ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
     private final ThreadLocal<ExternalModelCallTelemetry> lastStructuredRetrySourceTelemetry =
             ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
@@ -74,14 +78,13 @@ public class AiReportService {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, new ExternalModelFailureClassifier(), new ExternalModelBudgetGuard());
     }
 
-    @Autowired
     public AiReportService(ObjectMapper objectMapper,
                            AiCodeAssistSupport aiCodeAssistSupport,
                            ExternalModelAgentRuntime externalModelAgentRuntime,
                            ExternalModelFailureClassifier failureClassifier,
                            ExternalModelBudgetGuard budgetGuard) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
-                new ExternalModelChatRequestFactory());
+                null, null, null, null);
     }
 
     public AiReportService(ObjectMapper objectMapper,
@@ -90,12 +93,47 @@ public class AiReportService {
                            ExternalModelFailureClassifier failureClassifier,
                            ExternalModelBudgetGuard budgetGuard,
                            ExternalModelChatRequestFactory chatRequestFactory) {
+        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
+                chatRequestFactory, null, null, null, null);
+    }
+
+    @Autowired
+    public AiReportService(ObjectMapper objectMapper,
+                           AiCodeAssistSupport aiCodeAssistSupport,
+                           ExternalModelAgentRuntime externalModelAgentRuntime,
+                           ExternalModelFailureClassifier failureClassifier,
+                           ExternalModelBudgetGuard budgetGuard,
+                           SearchLocationRetrievalService searchLocationRetrievalService,
+                           SearchLocationOutputValidator searchLocationOutputValidator,
+                           SearchLocationPackSelector searchLocationPackSelector,
+                           SearchLocationProperties searchLocationProperties) {
+        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
+                new ExternalModelChatRequestFactory(), searchLocationRetrievalService, searchLocationOutputValidator,
+                searchLocationPackSelector, searchLocationProperties);
+    }
+
+    public AiReportService(ObjectMapper objectMapper,
+                           AiCodeAssistSupport aiCodeAssistSupport,
+                           ExternalModelAgentRuntime externalModelAgentRuntime,
+                           ExternalModelFailureClassifier failureClassifier,
+                           ExternalModelBudgetGuard budgetGuard,
+                           ExternalModelChatRequestFactory chatRequestFactory,
+                           SearchLocationRetrievalService searchLocationRetrievalService,
+                           SearchLocationOutputValidator searchLocationOutputValidator,
+                           SearchLocationPackSelector searchLocationPackSelector,
+                           SearchLocationProperties searchLocationProperties) {
         this.objectMapper = objectMapper;
         this.aiCodeAssistSupport = aiCodeAssistSupport;
         this.externalModelAgentRuntime = externalModelAgentRuntime;
         this.failureClassifier = failureClassifier == null ? new ExternalModelFailureClassifier() : failureClassifier;
         this.budgetGuard = budgetGuard == null ? new ExternalModelBudgetGuard() : budgetGuard;
         this.chatRequestFactory = chatRequestFactory == null ? new ExternalModelChatRequestFactory() : chatRequestFactory;
+        this.searchLocationRetrievalService = searchLocationRetrievalService;
+        this.searchLocationOutputValidator = searchLocationOutputValidator == null
+                ? new SearchLocationOutputValidator()
+                : searchLocationOutputValidator;
+        this.searchLocationPackSelector = searchLocationPackSelector;
+        this.searchLocationProperties = searchLocationProperties == null ? new SearchLocationProperties() : searchLocationProperties;
     }
 
     @Value("${ai.enabled:true}")
@@ -472,6 +510,7 @@ public class AiReportService {
                 externalRuntimeProfile,
                 externalSingleCallPromptVersion
         );
+        runtimePlan = applySearchLocationIfAvailable(runtimePlan, ruleSignals);
         if (useSingleCallRuntime()) {
             return enhanceWithSingleCallRuntime(
                     submission,
@@ -565,6 +604,16 @@ public class AiReportService {
             String rawSourceCode,
             List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues)
             throws JsonProcessingException, IOException, InterruptedException {
+        if (useAdviceGenerationPrompt(runtimePlan)) {
+            return enhanceWithAdviceGenerationRuntime(
+                    submission,
+                    fallback,
+                    runtimePlan,
+                    rawSourceCode,
+                    baselineLineIssues
+            );
+        }
+
         ExternalModelStagePayloads.CombinedOutput combinedOutput;
         try {
             combinedOutput = callSingleCallRuntimeStage(runtimePlan);
@@ -662,8 +711,136 @@ public class AiReportService {
                 baselineLineIssues
         );
         response.setAiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false,
-                runtimePromptVersion(runtimePlan)));
+                runtimePromptVersion(runtimePlan), runtimePlan));
         return response;
+    }
+
+    private SubmissionAnalysisResponse enhanceWithAdviceGenerationRuntime(
+            Submission submission,
+            SubmissionAnalysisResponse fallback,
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            String rawSourceCode,
+            List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues)
+            throws JsonProcessingException, IOException, InterruptedException {
+        String promptVersion = runtimePromptVersion(runtimePlan);
+        AdviceGenerationOutput adviceOutput;
+        try {
+            adviceOutput = callAdviceGenerationStage(runtimePlan);
+        } catch (Exception exception) {
+            ExternalModelStagePayloads.StageValidationResult failure =
+                    stageFailureFromException("DIAGNOSIS_AND_ADVICE", exception);
+            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
+                    adviceFallbackReason(failure),
+                    promptVersion
+            ));
+            return runtimeFallback(fallback, runtimePlan, failure);
+        }
+
+        ExternalModelStagePayloads.StageValidationResult adviceValidation =
+                withStage("DIAGNOSIS_AND_ADVICE",
+                        externalModelAgentRuntime.validateAdviceGeneration(adviceOutput, runtimePlan));
+        if (!adviceValidation.isValid()) {
+            adviceValidation = withTransportAttribution(adviceValidation);
+            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
+                    adviceFallbackReason(adviceValidation),
+                    promptVersion
+            ));
+            log.warn("External model advice generation failed validation. submissionId={}, reason={}, message={}",
+                    submission.getId(),
+                    adviceValidation.getFailureReason(),
+                    adviceValidation.getMessage());
+            return runtimeFallback(fallback, runtimePlan, adviceValidation);
+        }
+
+        runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.success(adviceOutput, promptVersion));
+
+        ExternalModelStagePayloads.DiagnosisJudgeOutput decision =
+                externalModelAgentRuntime.mapAdviceDiagnosisDecision(adviceOutput, fallback);
+        decision = externalModelAgentRuntime.normalizeDiagnosisDecision(decision, runtimePlan);
+        ExternalModelStagePayloads.StageValidationResult decisionValidation =
+                withStage("DIAGNOSIS_AND_ADVICE",
+                        externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan));
+        if (!decisionValidation.isValid()) {
+            decisionValidation = withTransportAttribution(decisionValidation);
+            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
+                    adviceFallbackReason(decisionValidation),
+                    promptVersion
+            ));
+            return runtimeFallback(fallback, runtimePlan, decisionValidation);
+        }
+
+        ExternalModelStagePayloads.TeachingHintOutput teachingHint =
+                externalModelAgentRuntime.mapAdviceTeachingHint(adviceOutput, fallback, runtimePlan);
+        teachingHint = externalModelAgentRuntime.normalizeTeachingHint(teachingHint, runtimePlan);
+        ExternalModelStagePayloads.StageValidationResult teachingValidation =
+                withStage("DIAGNOSIS_AND_ADVICE",
+                        externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan));
+        if (!teachingValidation.isValid()) {
+            teachingValidation = withTransportAttribution(teachingValidation);
+            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
+                    adviceFallbackReason(teachingValidation),
+                    promptVersion
+            ));
+            return runtimeFallback(fallback, runtimePlan, teachingValidation);
+        }
+
+        SubmissionAnalysisResponse.StudentFeedback studentFeedback =
+                externalModelAgentRuntime.mapAdviceStudentFeedback(adviceOutput, decision, runtimePlan);
+        studentFeedback = externalModelAgentRuntime.normalizeStudentFeedback(studentFeedback, runtimePlan);
+        ExternalModelStagePayloads.StageValidationResult feedbackValidation =
+                withStage("DIAGNOSIS_AND_ADVICE",
+                        externalModelAgentRuntime.validateStudentFeedback(studentFeedback, decision, runtimePlan));
+        if (!feedbackValidation.isValid()) {
+            feedbackValidation = withTransportAttribution(feedbackValidation);
+            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
+                    adviceFallbackReason(feedbackValidation),
+                    promptVersion
+            ));
+            return runtimeFallback(fallback, runtimePlan, feedbackValidation);
+        }
+
+        SubmissionAnalysisResponse response = buildRuntimeAnalysisResponse(
+                fallback,
+                runtimePlan,
+                decision,
+                teachingHint,
+                studentFeedback,
+                rawSourceCode,
+                baselineLineIssues
+        );
+        response.setCaseUnderstanding(toResponseCaseUnderstanding(adviceOutput.getCaseUnderstanding()));
+        response.setBasicLayerAdvice(toResponseBasicLayerAdvice(adviceOutput.getBasicLayerAdvice()));
+        response.setImprovementLayerAdvice(toResponseImprovementLayerAdvice(adviceOutput.getImprovementLayerAdvice()));
+        response.setSummary(defaultIfBlank(adviceOutput.getStudentSummary(), response.getSummary()));
+        response.setReportMarkdown(buildAdviceReportMarkdown(runtimePlan, adviceOutput, response.getReportMarkdown()));
+        response.setAiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false,
+                promptVersion, runtimePlan));
+        return response;
+    }
+
+    private AdviceGenerationOutput callAdviceGenerationStage(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("brief", runtimePlan.getBrief());
+        request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        request.put("searchLocationSummary", runtimePlan.getStandardLibraryPack() == null
+                ? null
+                : runtimePlan.getStandardLibraryPack().getSearchLocationSummary());
+        activateRuntimePlan(runtimePlan);
+        String systemPrompt = runtimePlan.getSingleCallPrompt().getSystemPrompt();
+        String userPrompt = objectMapper.writeValueAsString(request);
+        String content = chatCompletion(systemPrompt, userPrompt);
+        lastStructuredRetrySourceTelemetry.set(ExternalModelCallTelemetry.empty());
+        AdviceGenerationOutput output = parseModelStagePayload(content, AdviceGenerationOutput.class);
+        if (output != null) {
+            return output;
+        }
+        return retryStructuredModelStagePayload(
+                systemPrompt,
+                userPrompt,
+                runtimePlan,
+                AdviceGenerationOutput.class
+        );
     }
 
     private ExternalModelStagePayloads.CombinedOutput callSingleCallRuntimeStage(
@@ -769,17 +946,282 @@ public class AiReportService {
         }
     }
 
+    private ExternalModelAgentRuntime.RuntimePlan applySearchLocationIfAvailable(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        if (runtimePlan == null || !searchLocationProperties.isEnabled()) {
+            if (runtimePlan != null) {
+                runtimePlan.setSearchLocationResult(SearchLocationResult.disabled());
+            }
+            return runtimePlan;
+        }
+        if (searchLocationRetrievalService == null || searchLocationPackSelector == null) {
+            runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
+                    "FALLBACK_USED",
+                    "UNAVAILABLE",
+                    "SEARCH_LOCATION_SERVICES_UNAVAILABLE",
+                    null
+            ));
+            return runtimePlan;
+        }
+        SearchLocationCandidatePack candidatePack = null;
+        try {
+            candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief(), ruleSignals);
+            if (candidatePack.getCandidates() == null || candidatePack.getCandidates().isEmpty()) {
+                runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
+                        "FALLBACK_USED",
+                        candidatePack.getEmbeddingStatus(),
+                        "NO_SEARCH_LOCATION_CANDIDATES",
+                        candidatePack
+                ));
+                return runtimePlan;
+            }
+            if (searchLocationProperties.isRequireVector()
+                    && candidatePack.getEmbeddingStatus() != null
+                    && !"READY".equalsIgnoreCase(candidatePack.getEmbeddingStatus())) {
+                runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
+                        "FALLBACK_USED",
+                        candidatePack.getEmbeddingStatus(),
+                        "VECTOR_REQUIRED_BUT_UNAVAILABLE",
+                        candidatePack
+                ));
+                return runtimePlan;
+            }
+            SearchLocationOutput output = callSearchLocationStage(runtimePlan, candidatePack);
+            ExternalModelStagePayloads.StageValidationResult validation =
+                    searchLocationOutputValidator.validate(output, candidatePack, runtimePlan.getBrief());
+            if (validation == null || !validation.isValid()) {
+                runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
+                        "FALLBACK_USED",
+                        candidatePack.getEmbeddingStatus(),
+                        validation == null ? "SEARCH_LOCATION_INVALID" : validation.getMessage(),
+                        candidatePack
+                ));
+                return runtimePlan;
+            }
+            StandardLibraryPack selectedPack = searchLocationPackSelector.select(
+                    output,
+                    candidatePack,
+                    runtimePlan.getStandardLibraryPack()
+            );
+            SearchLocationResult result = SearchLocationResult.builder()
+                    .enabled(true)
+                    .status("SUCCESS")
+                    .embeddingStatus(candidatePack.getEmbeddingStatus())
+                    .fallbackReason("")
+                    .candidateCount(candidatePack.getCandidateCount())
+                    .selectedCount(selectedCount(output))
+                    .candidatePack(candidatePack)
+                    .output(output)
+                    .selectedPack(selectedPack)
+                    .build();
+            runtimePlan.setSearchLocationResult(result);
+            runtimePlan.setStandardLibraryPack(selectedPack);
+            return runtimePlan;
+        } catch (Exception exception) {
+            runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
+                    "FALLBACK_USED",
+                    candidatePack == null ? "UNKNOWN" : candidatePack.getEmbeddingStatus(),
+                    "SEARCH_LOCATION_EXCEPTION:" + exception.getClass().getSimpleName(),
+                    candidatePack
+            ));
+            return runtimePlan;
+        }
+    }
+
+    private SearchLocationOutput callSearchLocationStage(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+                                                        SearchLocationCandidatePack candidatePack)
+            throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("brief", runtimePlan.getBrief());
+        request.put("candidatePack", candidatePack);
+        activateRuntimePlan(runtimePlan);
+        String content = chatCompletion(
+                runtimePlan.getSearchLocationPrompt().getSystemPrompt(),
+                objectMapper.writeValueAsString(request)
+        );
+        return parseModelStagePayload(content, SearchLocationOutput.class);
+    }
+
+    private int selectedCount(SearchLocationOutput output) {
+        if (output == null) {
+            return 0;
+        }
+        return size(output.getBasicCandidates())
+                + size(output.getImprovementCandidates())
+                + size(output.getKnowledgeAnchors());
+    }
+
+    private int size(List<?> values) {
+        return values == null ? 0 : values.size();
+    }
+
     private boolean shouldRetryStructuredPayload(Class<?> payloadType,
                                                  ExternalModelCallTelemetry telemetry,
                                                  String rawContent) {
-        if (payloadType != ExternalModelStagePayloads.CombinedOutput.class) {
+        if (payloadType != ExternalModelStagePayloads.CombinedOutput.class
+                && payloadType != AdviceGenerationOutput.class) {
             return false;
         }
         if (!structuredRetryEnabled) {
             return false;
         }
         String finishReason = telemetry == null ? "" : defaultIfBlank(telemetry.streamFinishReason(), "");
-        return "length".equalsIgnoreCase(finishReason) || cleanupAiText(rawContent).contains("\"diagnosisDecision\"");
+        String cleaned = cleanupAiText(rawContent);
+        if ("length".equalsIgnoreCase(finishReason)) {
+            return true;
+        }
+        if (payloadType == ExternalModelStagePayloads.CombinedOutput.class) {
+            return cleaned.contains("\"diagnosisDecision\"");
+        }
+        return cleaned.contains("\"caseUnderstanding\"")
+                || cleaned.contains("\"basicLayerAdvice\"")
+                || cleaned.contains("\"nextStepPlan\"");
+    }
+
+    private boolean useAdviceGenerationPrompt(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        return PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1.equals(runtimePromptVersion(runtimePlan));
+    }
+
+    private String adviceFallbackReason(ExternalModelStagePayloads.StageValidationResult failure) {
+        if (failure == null) {
+            return "UNKNOWN_ERROR";
+        }
+        String reason = failure.getFailureReason() == null
+                ? "UNKNOWN_ERROR"
+                : failure.getFailureReason().name();
+        String message = cleanupAiText(failure.getMessage());
+        return message.isBlank() ? reason : reason + ":" + message;
+    }
+
+    private SubmissionAnalysisResponse.CaseUnderstanding toResponseCaseUnderstanding(
+            AdviceGenerationOutput.CaseUnderstanding source) {
+        if (source == null) {
+            return null;
+        }
+        return SubmissionAnalysisResponse.CaseUnderstanding.builder()
+                .problemGoal(cleanupAiText(source.getProblemGoal()))
+                .codeIntent(cleanupAiText(source.getCodeIntent()))
+                .behaviorGap(cleanupAiText(source.getBehaviorGap()))
+                .primaryEvidenceRef(cleanupAiText(source.getPrimaryEvidenceRef()))
+                .build();
+    }
+
+    private List<SubmissionAnalysisResponse.BasicLayerAdvice> toResponseBasicLayerAdvice(
+            List<AdviceGenerationOutput.BasicLayerAdvice> source) {
+        if (source == null || source.isEmpty()) {
+            return List.of();
+        }
+        return source.stream()
+                .filter(item -> item != null)
+                .map(item -> SubmissionAnalysisResponse.BasicLayerAdvice.builder()
+                        .mistakePointId(cleanupAiText(item.getMistakePointId()))
+                        .skillUnitId(cleanupAiText(item.getSkillUnitId()))
+                        .title(cleanupAiText(item.getTitle()))
+                        .whatHappened(cleanupAiText(item.getWhatHappened()))
+                        .whyItMatters(cleanupAiText(item.getWhyItMatters()))
+                        .studentAction(cleanupAiText(item.getStudentAction()))
+                        .checkQuestion(cleanupAiText(item.getCheckQuestion()))
+                        .evidenceRefs(cleanList(item.getEvidenceRefs(), List.of()))
+                        .confidence(item.getConfidence())
+                        .build())
+                .toList();
+    }
+
+    private List<SubmissionAnalysisResponse.ImprovementLayerAdvice> toResponseImprovementLayerAdvice(
+            List<AdviceGenerationOutput.ImprovementLayerAdvice> source) {
+        if (source == null || source.isEmpty()) {
+            return List.of();
+        }
+        return source.stream()
+                .filter(item -> item != null)
+                .map(item -> SubmissionAnalysisResponse.ImprovementLayerAdvice.builder()
+                        .improvementPointId(cleanupAiText(item.getImprovementPointId()))
+                        .skillUnitId(cleanupAiText(item.getSkillUnitId()))
+                        .title(cleanupAiText(item.getTitle()))
+                        .currentLimit(cleanupAiText(item.getCurrentLimit()))
+                        .suggestion(cleanupAiText(item.getSuggestion()))
+                        .studentBenefit(cleanupAiText(item.getStudentBenefit()))
+                        .evidenceRefs(cleanList(item.getEvidenceRefs(), List.of()))
+                        .confidence(item.getConfidence())
+                        .build())
+                .toList();
+    }
+
+    private String buildAdviceReportMarkdown(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+                                             AdviceGenerationOutput output,
+                                             String fallbackMarkdown) {
+        if (output == null) {
+            return fallbackMarkdown;
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append("## AI 完整诊断与建议\n\n");
+        if (output.getCaseUnderstanding() != null) {
+            AdviceGenerationOutput.CaseUnderstanding understanding = output.getCaseUnderstanding();
+            builder.append("### 题目与代码理解\n\n");
+            appendMarkdownLine(builder, "题目目标", understanding.getProblemGoal());
+            appendMarkdownLine(builder, "代码意图", understanding.getCodeIntent());
+            appendMarkdownLine(builder, "行为差距", understanding.getBehaviorGap());
+            appendMarkdownLine(builder, "主要证据", understanding.getPrimaryEvidenceRef());
+            builder.append('\n');
+        }
+        if (output.getBasicLayerAdvice() != null && !output.getBasicLayerAdvice().isEmpty()) {
+            builder.append("### 基础层\n\n");
+            int index = 1;
+            for (AdviceGenerationOutput.BasicLayerAdvice item : output.getBasicLayerAdvice()) {
+                if (item == null) {
+                    continue;
+                }
+                builder.append(index++).append(". ")
+                        .append(defaultIfBlank(item.getTitle(), "基础层问题"))
+                        .append('\n');
+                appendMarkdownLine(builder, "发生了什么", item.getWhatHappened());
+                appendMarkdownLine(builder, "为什么重要", item.getWhyItMatters());
+                appendMarkdownLine(builder, "下一步", item.getStudentAction());
+                appendMarkdownLine(builder, "自查问题", item.getCheckQuestion());
+                if (item.getEvidenceRefs() != null && !item.getEvidenceRefs().isEmpty()) {
+                    appendMarkdownLine(builder, "证据", String.join(", ", item.getEvidenceRefs()));
+                }
+                builder.append('\n');
+            }
+        }
+        if (output.getImprovementLayerAdvice() != null && !output.getImprovementLayerAdvice().isEmpty()) {
+            builder.append("### 提高层\n\n");
+            int index = 1;
+            for (AdviceGenerationOutput.ImprovementLayerAdvice item : output.getImprovementLayerAdvice()) {
+                if (item == null) {
+                    continue;
+                }
+                builder.append(index++).append(". ")
+                        .append(defaultIfBlank(item.getTitle(), "提高层建议"))
+                        .append('\n');
+                appendMarkdownLine(builder, "当前限制", item.getCurrentLimit());
+                appendMarkdownLine(builder, "建议", item.getSuggestion());
+                appendMarkdownLine(builder, "收益", item.getStudentBenefit());
+                if (item.getEvidenceRefs() != null && !item.getEvidenceRefs().isEmpty()) {
+                    appendMarkdownLine(builder, "证据", String.join(", ", item.getEvidenceRefs()));
+                }
+                builder.append('\n');
+            }
+        }
+        if (runtimePlan != null && runtimePlan.getStandardLibraryPack() != null
+                && runtimePlan.getStandardLibraryPack().getSearchLocationSummary() != null) {
+            StandardLibraryPack.SearchLocationSummary summary =
+                    runtimePlan.getStandardLibraryPack().getSearchLocationSummary();
+            builder.append("### 定位说明\n\n");
+            appendMarkdownLine(builder, "定位状态", summary.getStatus());
+            appendMarkdownLine(builder, "候选数量", summary.getCandidateCount() == null ? "" : summary.getCandidateCount().toString());
+            appendMarkdownLine(builder, "精选数量", summary.getSelectedCount() == null ? "" : summary.getSelectedCount().toString());
+        }
+        String markdown = builder.toString().trim();
+        return markdown.isBlank() ? fallbackMarkdown : markdown;
+    }
+
+    private void appendMarkdownLine(StringBuilder builder, String label, String value) {
+        String cleaned = cleanupAiText(value);
+        if (!cleaned.isBlank()) {
+            builder.append("- ").append(label).append("：").append(cleaned).append('\n');
+        }
     }
 
     private SubmissionAnalysisResponse buildRuntimeAnalysisResponse(
@@ -840,7 +1282,7 @@ public class AiReportService {
                 .uncertainty(defaultIfBlank(decision.getUncertainty(), fallback.getUncertainty()))
                 .diagnosticTrace(fallback.getDiagnosticTrace())
                 .modelEducationTrace(modelEducationTrace(decision))
-                .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false, RUNTIME_PROMPT_VERSION))
+                .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false, RUNTIME_PROMPT_VERSION, runtimePlan))
                 .answerLeakRisk(resolveRuntimeAnswerLeakRisk(alignedTeachingHint, fallback.getAnswerLeakRisk()))
                 .wrongSolution(fallback.getWrongSolution())
                 .correctSolution(fallback.getCorrectSolution())
@@ -1262,6 +1704,7 @@ public class AiReportService {
                 "MODEL_PARTIAL_COMPLETED",
                 false,
                 runtimePromptVersion(runtimePlan),
+                runtimePlan,
                 teachingFailure
         ));
         response.setUncertainty(appendFailureNote(
@@ -1528,6 +1971,7 @@ public class AiReportService {
                 "MODEL_RUNTIME_FALLBACK",
                 true,
                 runtimePromptVersion(runtimePlan),
+                runtimePlan,
                 attributionResult
         ));
         fallback.setUncertainty(defaultIfBlank(
@@ -2493,13 +2937,31 @@ public class AiReportService {
                                                                     String status,
                                                                     boolean fallbackUsed,
                                                                     String promptVersion) {
-        return modelInvocation(fallback, status, fallbackUsed, promptVersion, null);
+        return modelInvocation(fallback, status, fallbackUsed, promptVersion,
+                (ExternalModelAgentRuntime.RuntimePlan) null);
     }
 
     private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
                                                                     String status,
                                                                     boolean fallbackUsed,
                                                                     String promptVersion,
+                                                                    ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        return modelInvocation(fallback, status, fallbackUsed, promptVersion, runtimePlan, null);
+    }
+
+    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
+                                                                    String status,
+                                                                    boolean fallbackUsed,
+                                                                    String promptVersion,
+                                                                    ExternalModelStagePayloads.StageValidationResult failure) {
+        return modelInvocation(fallback, status, fallbackUsed, promptVersion, null, failure);
+    }
+
+    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
+                                                                    String status,
+                                                                    boolean fallbackUsed,
+                                                                    String promptVersion,
+                                                                    ExternalModelAgentRuntime.RuntimePlan runtimePlan,
                                                                     ExternalModelStagePayloads.StageValidationResult failure) {
         ExternalModelCallTelemetry telemetry = lastCallTelemetry.get();
         int requestBytes = telemetry.requestBytes() == null ? 0 : telemetry.requestBytes();
@@ -2532,13 +2994,41 @@ public class AiReportService {
                 .streamInvalidChunkCount(telemetry.streamInvalidChunkCount())
                 .streamFinishReason(telemetry.streamFinishReason())
                 .streamFallbackRetryUsed(telemetry.streamFallbackRetryUsed())
+                .searchLocationEnabled(searchLocation(runtimePlan).enabled())
+                .searchLocationStatus(searchLocation(runtimePlan).status())
+                .searchLocationCandidateCount(searchLocation(runtimePlan).candidateCount())
+                .searchLocationSelectedCount(searchLocation(runtimePlan).selectedCount())
+                .searchLocationFallbackReason(searchLocation(runtimePlan).fallbackReason())
+                .embeddingStatus(searchLocation(runtimePlan).embeddingStatus())
+                .adviceGenerationStatus(adviceGeneration(runtimePlan).status())
+                .adviceGenerationFallbackReason(adviceGeneration(runtimePlan).fallbackReason())
+                .basicAdviceCount(adviceGeneration(runtimePlan).basicAdviceCount())
+                .improvementAdviceCount(adviceGeneration(runtimePlan).improvementAdviceCount())
+                .advicePromptVersion(adviceGeneration(runtimePlan).promptVersion())
                 .build();
+    }
+
+    private SearchLocationResult searchLocation(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (runtimePlan == null || runtimePlan.getSearchLocationResult() == null) {
+            return SearchLocationResult.disabled();
+        }
+        return runtimePlan.getSearchLocationResult();
+    }
+
+    private AdviceGenerationResult adviceGeneration(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (runtimePlan == null || runtimePlan.getAdviceGenerationResult() == null) {
+            return AdviceGenerationResult.disabled();
+        }
+        return runtimePlan.getAdviceGenerationResult();
     }
 
     private String runtimeModeForPrompt(String promptVersion) {
         String version = cleanupAiText(promptVersion);
         if (STUDENT_FAST_FEEDBACK_PROMPT_VERSION.equals(version)) {
             return "student-fast-feedback";
+        }
+        if (PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1.equals(version)) {
+            return RUNTIME_MODE_SINGLE_CALL;
         }
         if (version.startsWith("diagnosis-and-teaching-")) {
             return RUNTIME_MODE_SINGLE_CALL;

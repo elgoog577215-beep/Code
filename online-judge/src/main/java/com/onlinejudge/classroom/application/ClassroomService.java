@@ -304,6 +304,13 @@ public class ClassroomService {
                         .toList())
                 .stream()
                 .collect(Collectors.toMap(Problem::getId, Function.identity()));
+        Map<Long, Problem> assignmentProblems = problemRepository.findAllById(assignmentResponse.getTasks().stream()
+                        .map(AssignmentResponse.TaskSummary::getProblemId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList())
+                .stream()
+                .collect(Collectors.toMap(Problem::getId, Function.identity()));
 
         Map<Long, List<Submission>> byStudent = submissions.stream()
                 .filter(submission -> submission.getStudentProfileId() != null)
@@ -457,6 +464,12 @@ public class ClassroomService {
                         classReviewSuggestions
                 );
         attachClassTeachingStrategyImpact(classTeachingStrategySignal, feedbackByKey, submissions, analyses);
+        List<StudentProfile> classStudents = assignment.getClassGroupId() == null
+                ? List.of()
+                : studentProfileRepository.findByClassGroupIdOrderByStudentNoAscDisplayNameAsc(assignment.getClassGroupId());
+        long classStudentCount = classStudents.size();
+        List<AssignmentOverviewResponse.ProblemSummary> problemSummaries =
+                buildProblemSummaries(assignmentResponse, assignmentProblems, submissions, analyses, classStudents, classStudentCount);
 
         return AssignmentOverviewResponse.builder()
                 .assignment(assignmentResponse)
@@ -479,6 +492,8 @@ public class ClassroomService {
                 .teachingActionRiskStudentCount(teachingActionRiskStudentCount)
                 .teachingActionSummary(buildTeachingActionSummary(studentSummaries, teachingActionRiskStudentCount))
                 .classTeachingStrategySignal(classTeachingStrategySignal)
+                .progressTrend(buildProgressTrend(submissions))
+                .problemSummaries(problemSummaries)
                 .topIssues(topIssues)
                 .classAbilityWeaknesses(classAbilityWeaknesses)
                 .classReviewSuggestions(classReviewSuggestions)
@@ -1049,6 +1064,275 @@ public class ClassroomService {
             }
         }
         return List.copyOf(suggestions.values());
+    }
+
+    private List<AssignmentOverviewResponse.ProgressTrendPoint> buildProgressTrend(List<Submission> submissions) {
+        if (submissions == null || submissions.isEmpty()) {
+            return List.of();
+        }
+        List<Submission> ordered = submissions.stream()
+                .filter(Objects::nonNull)
+                .filter(submission -> submission.getSubmittedAt() != null)
+                .sorted(Comparator.comparing(Submission::getSubmittedAt))
+                .toList();
+        Set<Long> submittedStudents = new LinkedHashSet<>();
+        Set<Long> passedStudents = new LinkedHashSet<>();
+        List<AssignmentOverviewResponse.ProgressTrendPoint> points = new ArrayList<>();
+        long count = 0;
+        for (Submission submission : ordered) {
+            count++;
+            if (submission.getStudentProfileId() != null) {
+                submittedStudents.add(submission.getStudentProfileId());
+                if (submission.getVerdict() == Submission.Verdict.ACCEPTED) {
+                    passedStudents.add(submission.getStudentProfileId());
+                }
+            }
+            points.add(AssignmentOverviewResponse.ProgressTrendPoint.builder()
+                    .submittedAt(submission.getSubmittedAt())
+                    .submittedStudentCount(submittedStudents.size())
+                    .passedStudentCount(passedStudents.size())
+                    .submissionCount(count)
+                    .build());
+        }
+        return points;
+    }
+
+    private List<AssignmentOverviewResponse.ProblemSummary> buildProblemSummaries(
+            AssignmentResponse assignment,
+            Map<Long, Problem> problems,
+            List<Submission> submissions,
+            Map<Long, SubmissionAnalysis> analyses,
+            List<StudentProfile> classStudents,
+            long classStudentCount) {
+        if (assignment == null || assignment.getTasks() == null || assignment.getTasks().isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<Submission>> submissionsByProblem = safeList(submissions).stream()
+                .filter(submission -> submission.getProblemId() != null)
+                .collect(Collectors.groupingBy(
+                        Submission::getProblemId,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+        Map<Long, StudentProfile> classStudentById = safeList(classStudents).stream()
+                .filter(student -> student.getId() != null)
+                .collect(Collectors.toMap(StudentProfile::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
+        return assignment.getTasks().stream()
+                .sorted(Comparator.comparing(AssignmentResponse.TaskSummary::getOrderIndex, Comparator.nullsLast(Integer::compareTo)))
+                .map(task -> buildProblemSummary(
+                        task,
+                        problems == null ? null : problems.get(task.getProblemId()),
+                        submissionsByProblem.getOrDefault(task.getProblemId(), List.of()),
+                        analyses,
+                        classStudentById,
+                        classStudentCount
+                ))
+                .toList();
+    }
+
+    private AssignmentOverviewResponse.ProblemSummary buildProblemSummary(
+            AssignmentResponse.TaskSummary task,
+            Problem problem,
+            List<Submission> problemSubmissions,
+            Map<Long, SubmissionAnalysis> analyses,
+            Map<Long, StudentProfile> classStudentById,
+            long classStudentCount) {
+        List<Submission> ordered = safeList(problemSubmissions).stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                .toList();
+        Map<Long, List<Submission>> byStudent = ordered.stream()
+                .filter(submission -> submission.getStudentProfileId() != null)
+                .collect(Collectors.groupingBy(
+                        Submission::getStudentProfileId,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+        long submittedStudentCount = byStudent.size();
+        long passedAttemptCount = ordered.stream().filter(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED).count();
+        long passedStudentCount = byStudent.values().stream()
+                .filter(items -> items.stream().anyMatch(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED))
+                .count();
+        List<AssignmentOverviewResponse.ProblemStudentSummary> students = byStudent.entrySet().stream()
+                .map(entry -> buildProblemStudentSummary(entry.getKey(), classStudentById.get(entry.getKey()), entry.getValue(), analyses))
+                .sorted(Comparator.comparing(AssignmentOverviewResponse.ProblemStudentSummary::isNeedsAttention).reversed()
+                        .thenComparing(AssignmentOverviewResponse.ProblemStudentSummary::getDisplayName, Comparator.nullsLast(String::compareTo)))
+                .toList();
+        long attentionCount = students.stream().filter(AssignmentOverviewResponse.ProblemStudentSummary::isNeedsAttention).count();
+        return AssignmentOverviewResponse.ProblemSummary.builder()
+                .problemId(task.getProblemId())
+                .title(problem == null ? task.getTitle() : problem.getTitle())
+                .difficulty(problem == null || problem.getDifficulty() == null ? task.getDifficulty() : problem.getDifficulty().name())
+                .orderIndex(task.getOrderIndex())
+                .required(Boolean.TRUE.equals(task.getRequired()))
+                .classStudentCount(classStudentCount > 0 ? classStudentCount : null)
+                .submittedStudentCount(submittedStudentCount)
+                .submissionCount(ordered.size())
+                .passedStudentCount(passedStudentCount)
+                .passedAttemptCount(passedAttemptCount)
+                .submissionRate(classStudentCount > 0 ? roundOneDecimal(submittedStudentCount * 100.0 / classStudentCount) : null)
+                .passRate(submittedStudentCount > 0 ? roundOneDecimal(passedStudentCount * 100.0 / submittedStudentCount) : null)
+                .averageAttempts(submittedStudentCount > 0 ? roundOneDecimal(ordered.size() * 1.0 / submittedStudentCount) : null)
+                .attentionStudentCount(attentionCount)
+                .statusLabel(resolveProblemStatusLabel(submittedStudentCount, passedStudentCount, attentionCount))
+                .topIssues(buildProblemIssueStats(ordered, analyses))
+                .abilityWeaknesses(buildProblemAbilityStats(ordered, analyses))
+                .hintLevelDistribution(buildHintLevelStats(ordered, analyses))
+                .students(students)
+                .build();
+    }
+
+    private AssignmentOverviewResponse.ProblemStudentSummary buildProblemStudentSummary(
+            Long studentId,
+            StudentProfile student,
+            List<Submission> submissions,
+            Map<Long, SubmissionAnalysis> analyses) {
+        List<Submission> ordered = safeList(submissions).stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                .toList();
+        Submission latest = ordered.isEmpty() ? null : ordered.get(0);
+        SubmissionAnalysis latestAnalysis = latest == null ? null : analyses.get(latest.getId());
+        long passedCount = ordered.stream().filter(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED).count();
+        String fineTag = resolveLatestFineGrainedIssue(latestAnalysis);
+        String issueTag = resolveLatestIssueTag(latestAnalysis);
+        String primaryTag = fineTag == null ? issueTag : fineTag;
+        String abilityPoint = resolveAbilityPoint(primaryTag);
+        boolean needsAttention = passedCount == 0 && ordered.size() >= 2
+                || (latest != null && latest.getVerdict() != Submission.Verdict.ACCEPTED && primaryTag != null);
+        return AssignmentOverviewResponse.ProblemStudentSummary.builder()
+                .studentProfileId(studentId)
+                .displayName(resolveStudentDisplayName(student, studentId))
+                .studentNo(student == null ? "" : student.getStudentNo())
+                .attemptCount(ordered.size())
+                .passedCount(passedCount)
+                .latestSubmissionId(latest == null ? null : latest.getId())
+                .latestVerdict(latest == null || latest.getVerdict() == null ? "暂无" : latest.getVerdict().name())
+                .latestSubmittedAt(latest == null ? null : latest.getSubmittedAt())
+                .latestIssue(latestAnalysis == null ? "" : latestAnalysis.getHeadline())
+                .latestIssueTag(issueTag)
+                .latestFineGrainedIssue(fineTag)
+                .abilityPoint(abilityPoint)
+                .latestHintLevel(resolveHintLevel(latestAnalysis))
+                .latestHintAction(resolveHintAction(latestAnalysis))
+                .latestProgressSignal(resolveProgressSignal(latestAnalysis, resolveRepeatedIssue(ordered, analyses), resolveRepeatedFineIssue(ordered, analyses)))
+                .latestConfidence(diagnosisReportReader.confidence(latestAnalysis))
+                .needsAttention(needsAttention)
+                .build();
+    }
+
+    private List<AssignmentOverviewResponse.IssueStat> buildProblemIssueStats(List<Submission> submissions,
+                                                                              Map<Long, SubmissionAnalysis> analyses) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        safeList(submissions).stream()
+                .map(submission -> analyses.get(submission.getId()))
+                .filter(Objects::nonNull)
+                .forEach(analysis -> {
+                    List<String> tags = diagnosisReportReader.fineGrainedTags(analysis);
+                    if (tags.isEmpty()) {
+                        tags = diagnosisReportReader.issueTags(analysis);
+                    }
+                    tags.forEach(tag -> counts.put(tag, counts.getOrDefault(tag, 0L) + 1));
+                });
+        return counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(entry -> AssignmentOverviewResponse.IssueStat.builder()
+                        .label(entry.getKey())
+                        .count(entry.getValue())
+                        .explanation(resolveTeacherExplanation(entry.getKey()))
+                        .abilityPoint(resolveAbilityPoint(entry.getKey()))
+                        .recommendedHintPolicy(resolveRecommendedHintPolicy(entry.getKey()))
+                        .interventionSuggestion(resolveInterventionSuggestion(entry.getKey()))
+                        .affectedStudentCount(countAffectedStudents(submissions, analyses, entry.getKey()))
+                        .build())
+                .toList();
+    }
+
+    private List<AssignmentOverviewResponse.AbilityStat> buildProblemAbilityStats(List<Submission> submissions,
+                                                                                  Map<Long, SubmissionAnalysis> analyses) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        Map<String, LinkedHashSet<String>> tagsByAbility = new LinkedHashMap<>();
+        safeList(submissions).stream()
+                .map(submission -> analyses.get(submission.getId()))
+                .filter(Objects::nonNull)
+                .forEach(analysis -> {
+                    List<String> tags = diagnosisReportReader.fineGrainedTags(analysis);
+                    if (tags.isEmpty()) {
+                        tags = diagnosisReportReader.issueTags(analysis);
+                    }
+                    tags.forEach(tag -> {
+                        String ability = resolveAbilityPoint(tag);
+                        if (ability == null || ability.isBlank()) {
+                            return;
+                        }
+                        counts.put(ability, counts.getOrDefault(ability, 0L) + 1);
+                        tagsByAbility.computeIfAbsent(ability, ignored -> new LinkedHashSet<>()).add(tag);
+                    });
+                });
+        return counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(entry -> AssignmentOverviewResponse.AbilityStat.builder()
+                        .abilityPoint(entry.getKey())
+                        .taskCount(1)
+                        .submissionCount(entry.getValue())
+                        .evidenceTags(tagsByAbility.getOrDefault(entry.getKey(), new LinkedHashSet<>()).stream().limit(4).toList())
+                        .build())
+                .toList();
+    }
+
+    private List<AssignmentOverviewResponse.HintLevelStat> buildHintLevelStats(List<Submission> submissions,
+                                                                               Map<Long, SubmissionAnalysis> analyses) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        safeList(submissions).stream()
+                .map(submission -> resolveHintLevel(analyses.get(submission.getId())))
+                .filter(value -> value != null && !value.isBlank())
+                .forEach(level -> counts.put(level, counts.getOrDefault(level, 0L) + 1));
+        return counts.entrySet().stream()
+                .map(entry -> AssignmentOverviewResponse.HintLevelStat.builder()
+                        .hintLevel(entry.getKey())
+                        .count(entry.getValue())
+                        .build())
+                .toList();
+    }
+
+    private long countAffectedStudents(List<Submission> submissions,
+                                       Map<Long, SubmissionAnalysis> analyses,
+                                       String tag) {
+        return safeList(submissions).stream()
+                .filter(submission -> submission.getStudentProfileId() != null)
+                .filter(submission -> mergedDiagnosisTags(analyses.get(submission.getId())).contains(tag))
+                .map(Submission::getStudentProfileId)
+                .distinct()
+                .count();
+    }
+
+    private String resolveHintLevel(SubmissionAnalysis analysis) {
+        var hintPlan = diagnosisReportReader.studentHintPlan(analysis);
+        return hintPlan == null ? null : normalizeNullable(hintPlan.hintLevel());
+    }
+
+    private String resolveHintAction(SubmissionAnalysis analysis) {
+        var hintPlan = diagnosisReportReader.studentHintPlan(analysis);
+        return hintPlan == null ? "" : firstNonBlank(hintPlan.nextAction(), hintPlan.teachingAction(), hintPlan.coachQuestion());
+    }
+
+    private String resolveProblemStatusLabel(long submittedStudentCount, long passedStudentCount, long attentionCount) {
+        if (submittedStudentCount == 0) {
+            return "待提交";
+        }
+        if (attentionCount > 0) {
+            return "需讲评";
+        }
+        if (passedStudentCount >= submittedStudentCount) {
+            return "已掌握";
+        }
+        return "推进中";
+    }
+
+    private double roundOneDecimal(double value) {
+        return Math.round(value * 10.0) / 10.0;
     }
 
     private Map<String, ClassReviewFeedback> latestClassReviewFeedbackByKey(Long assignmentId) {

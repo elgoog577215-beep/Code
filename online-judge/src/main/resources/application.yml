@@ -51,6 +51,21 @@ ai:
   stream-fallback-enabled: ${AI_STREAM_FALLBACK_ENABLED:true}
   structured-retry-enabled: ${AI_STRUCTURED_RETRY_ENABLED:true}
   structured-retry-output-tokens: ${AI_STRUCTURED_RETRY_OUTPUT_TOKENS:2600}
+  search-location:
+    enabled: ${AI_SEARCH_LOCATION_ENABLED:true}
+    mode: ${AI_SEARCH_LOCATION_MODE:hybrid}
+    candidate-limit: ${AI_SEARCH_LOCATION_CANDIDATE_LIMIT:120}
+    selected-limit: ${AI_SEARCH_LOCATION_SELECTED_LIMIT:15}
+    require-vector: ${AI_SEARCH_REQUIRE_VECTOR:false}
+    text-weight: ${AI_SEARCH_TEXT_WEIGHT:0.45}
+    vector-weight: ${AI_SEARCH_VECTOR_WEIGHT:0.35}
+    signal-weight: ${AI_SEARCH_SIGNAL_WEIGHT:0.20}
+  embedding:
+    enabled: ${AI_EMBEDDING_ENABLED:true}
+    base-url: ${AI_EMBEDDING_BASE_URL:${OJ_AI_BASE_URL:${AI_BASE_URL:https://api-inference.modelscope.cn/v1}}}
+    api-key: ${AI_EMBEDDING_API_KEY:${OJ_MODELSCOPE_API_KEY:${MODELSCOPE_API_KEY:}}}
+    model: ${AI_EMBEDDING_MODEL:text-embedding-v1}
+    timeout-seconds: ${AI_EMBEDDING_TIMEOUT_SECONDS:20}
 
 ---
 spring:
