@@ -32,7 +32,8 @@ export default function ClassOverviewPage() {
     <div className="stack class-overview-page">
       <section className="overview-command">
         <div className="overview-command__main">
-          <h1>讲评优先级</h1>
+          <p className="eyebrow">教师查看</p>
+          <h1>班级情况</h1>
         </div>
         <div className="overview-command__note">
           <StatusPill tone={reviewEntries.length ? "warning" : "success"}>{reviewEntries.length ? "需要关注" : "正常"}</StatusPill>

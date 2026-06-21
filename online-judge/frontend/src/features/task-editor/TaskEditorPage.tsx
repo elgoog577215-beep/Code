@@ -32,7 +32,7 @@ const initialProblem = {
   testCases: [{ input: "", expectedOutput: "", hidden: false }] as TestCaseDraft[]
 };
 
-export default function TaskEditorPage() {
+export default function TaskEditorPage({ embedded = false }: { embedded?: boolean }) {
   const [searchParams] = useSearchParams();
   const [catalog, setCatalog] = useState<ProblemCatalogItem[]>([]);
   const [form, setForm] = useState(initialProblem);
@@ -171,19 +171,35 @@ export default function TaskEditorPage() {
   }
 
   return (
-    <div className="stack task-editor-page">
-      <section className="editor-command">
-        <div>
-          <h1>{form.title || "新建题目"}</h1>
-        </div>
-        <div className="editor-command__actions">
-          <span className={`meta-badge ${visibleCount ? "meta-badge--success" : "meta-badge--danger"}`}>{visibleCount} 个公开测试点</span>
-          <span className={`meta-badge ${readyQualityCount >= 4 ? "meta-badge--success" : "meta-badge--warning"}`}>{readyQualityCount}/5 检查完成</span>
-          <Button type="button" variant="primary" onClick={() => void save()} disabled={busy} icon={<Save size={18} />}>
-            保存题目
-          </Button>
-        </div>
-      </section>
+    <div className={`stack task-editor-page ${embedded ? "task-editor-page--embedded" : ""}`}>
+      {!embedded ? (
+        <section className="editor-command">
+          <div>
+            <h1>{form.title || "新建题目"}</h1>
+          </div>
+          <div className="editor-command__actions">
+            <span className={`meta-badge ${visibleCount ? "meta-badge--success" : "meta-badge--danger"}`}>{visibleCount} 个公开测试点</span>
+            <span className={`meta-badge ${readyQualityCount >= 4 ? "meta-badge--success" : "meta-badge--warning"}`}>{readyQualityCount}/5 检查完成</span>
+            <Button type="button" variant="primary" onClick={() => void save()} disabled={busy} icon={<Save size={18} />}>
+              保存题目
+            </Button>
+          </div>
+        </section>
+      ) : (
+        <section className="editor-command editor-command--embedded">
+          <div>
+            <p className="eyebrow">题库编辑</p>
+            <h1>{form.title || "新建题目"}</h1>
+          </div>
+          <div className="editor-command__actions">
+            <span className={`meta-badge ${visibleCount ? "meta-badge--success" : "meta-badge--danger"}`}>{visibleCount} 个公开</span>
+            <span className={`meta-badge ${readyQualityCount >= 4 ? "meta-badge--success" : "meta-badge--warning"}`}>{readyQualityCount}/5</span>
+            <Button type="button" variant="primary" onClick={() => void save()} disabled={busy} icon={<Save size={18} />}>
+              保存
+            </Button>
+          </div>
+        </section>
+      )}
 
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 

@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { lazy, ReactNode, Suspense, useEffect, useMemo, useState } from "react";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import { BookOpenCheck, LogIn, Menu, Moon, Sun, UserRound, UsersRound, X } from "lucide-react";
 import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
+import { TeacherShell } from "./features/teacher/TeacherShell";
 import { clearActiveStudent, loadStudent } from "./shared/storage";
 import { Button } from "./shared/ui/Button";
 import { EmptyState } from "./shared/ui/EmptyState";
@@ -15,7 +16,6 @@ const ProblemPage = lazy(() => import("./features/problem/ProblemPage"));
 const AssignmentDetailPage = lazy(() => import("./features/teacher/AssignmentDetailPage"));
 const AssignmentCreatePage = lazy(() => import("./features/teacher/AssignmentCreatePage"));
 const TeacherManagementPage = lazy(() => import("./features/teacher/TeacherManagementPage"));
-const TaskEditorPage = lazy(() => import("./features/task-editor/TaskEditorPage"));
 const ClassOverviewPage = lazy(() => import("./features/insights/ClassOverviewPage"));
 
 type Theme = "light" | "dark";
@@ -41,40 +41,14 @@ function useTheme() {
   return { theme, setTheme };
 }
 
-function LegacyRedirect() {
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  const id = params.get("id");
-  const search = new URLSearchParams(location.search);
-  search.delete("id");
-  const suffix = search.toString() ? `?${search.toString()}` : "";
-
-  if (location.pathname.endsWith("problem.html") && id) {
-    return <Navigate to={`/app/problem/${id}${suffix}`} replace />;
-  }
-  if (location.pathname.endsWith("student.html")) {
-    return <Navigate to={`/app/student${location.search}`} replace />;
-  }
-  if (location.pathname.endsWith("teacher.html")) {
-    return <Navigate to="/app/teacher" replace />;
-  }
-  if (location.pathname.endsWith("problem-create.html")) {
-    return <Navigate to={`/app/task-editor${location.search}`} replace />;
-  }
-  if (location.pathname.endsWith("leaderboard.html")) {
-    return <Navigate to="/app/class-overview" replace />;
-  }
-  return <Navigate to="/app" replace />;
-}
-
 function RouteHubPage() {
   return (
     <div className="role-entry-page route-hub-page">
       <section className="role-entry route-hub-hero">
         <div>
           <p className="eyebrow">入口</p>
-          <h1>选择身份</h1>
-          <p>学生写题，老师管课。其他管理能力都放进教师端里。</p>
+          <h1>学习平台</h1>
+          <p>学生学习和教师工作台各走自己的路径，入口清楚，任务直接。</p>
         </div>
       </section>
 
@@ -87,7 +61,7 @@ function RouteHubPage() {
             <span className="role-entry-card__head">
               <span className="eyebrow">学生</span>
             </span>
-            <h2>学生练习</h2>
+            <h2>学生学习</h2>
             <p>进入课堂作业、公共题库和个人提交记录。</p>
             <small>/app/student</small>
           </span>
@@ -101,8 +75,8 @@ function RouteHubPage() {
             <span className="role-entry-card__head">
               <span className="eyebrow">教师</span>
             </span>
-            <h2>作业中心</h2>
-            <p>管理作业列表、新建作业，并进入作业详情。</p>
+            <h2>教师工作台</h2>
+            <p>查看班级、作业、题目和学生，也管理名单、题库与 AI 标准库。</p>
             <small>/app/teacher</small>
           </span>
         </NavLink>
@@ -111,14 +85,12 @@ function RouteHubPage() {
   );
 }
 
-function LegacyProblemRedirect() {
-  const { problemId } = useParams();
-  return <Navigate to={`/app/problem/${problemId}`} replace />;
-}
-
-function LegacyAssignmentRedirect() {
-  const { assignmentId } = useParams();
-  return <Navigate to={`/app/teacher/assignment/${assignmentId}`} replace />;
+function TeacherRoute({ children }: { children: ReactNode }) {
+  return (
+    <TeacherAuthGate>
+      <TeacherShell>{children}</TeacherShell>
+    </TeacherAuthGate>
+  );
 }
 
 function Header() {
@@ -127,41 +99,18 @@ function Header() {
   const [student, setStudent] = useState(() => loadStudent());
   const location = useLocation();
   const isProblemPage =
-    location.pathname.startsWith("/app/problem") ||
-    location.pathname.startsWith("/problem/") ||
     /^\/app\/student\/assignments\/[^/]+\/problems\//.test(location.pathname);
-  const isStudentContext = location.pathname.startsWith("/app/student") || isProblemPage || location.pathname.startsWith("/student");
-  const isTeacherContext =
-    location.pathname.startsWith("/app/teacher") ||
-    location.pathname.startsWith("/teacher") ||
-    location.pathname.startsWith("/app/teacher-management") ||
-    location.pathname.startsWith("/teacher-management") ||
-    location.pathname.startsWith("/app/task-editor") ||
-    location.pathname.startsWith("/task-editor") ||
-    location.pathname.startsWith("/app/class-overview") ||
-    location.pathname.startsWith("/class-overview");
-  const isCatalogContext =
-    location.pathname.startsWith("/app/student/problems") ||
-    location.pathname.startsWith("/app/student/assignments/public") ||
-    location.pathname.startsWith("/app/problems") ||
-    location.pathname === "/problems";
+  const isStudentContext = location.pathname.startsWith("/app/student") || isProblemPage;
+  const isTeacherContext = location.pathname.startsWith("/app/teacher");
   const navItems = useMemo<NavItem[]>(
     () => {
       const teacherItem: NavItem = {
         to: "/app/teacher",
         label: "教师端",
         icon: UsersRound,
-        activeWhen: (pathname: string) =>
-          pathname.startsWith("/app/teacher") ||
-          pathname.startsWith("/teacher") ||
-          pathname.startsWith("/app/teacher-management") ||
-          pathname.startsWith("/teacher-management") ||
-          pathname.startsWith("/app/task-editor") ||
-          pathname.startsWith("/task-editor") ||
-          pathname.startsWith("/app/class-overview") ||
-          pathname.startsWith("/class-overview")
+        activeWhen: (pathname: string) => pathname.startsWith("/app/teacher")
       };
-      if (isStudentContext || isCatalogContext) {
+      if (isStudentContext) {
         return [];
       }
       if (isTeacherContext) {
@@ -172,7 +121,7 @@ function Header() {
         teacherItem
       ];
     },
-    [isCatalogContext, isStudentContext, isTeacherContext]
+    [isStudentContext, isTeacherContext]
   );
 
   useEffect(() => {
@@ -269,37 +218,20 @@ export default function App() {
             <Route path="/" element={<Navigate to="/app" replace />} />
             <Route path="/app" element={<RouteHubPage />} />
             <Route path="/app/" element={<RouteHubPage />} />
-            <Route path="/app/problems" element={<Navigate to="/app/student/assignments/public" replace />} />
-            <Route path="/app/student/problems" element={<Navigate to="/app/student/assignments/public" replace />} />
             <Route path="/app/student" element={<StudentPage />} />
             <Route path="/app/student/login" element={<StudentLoginPage />} />
             <Route path="/app/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
             <Route path="/app/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
-            <Route path="/app/teacher" element={<TeacherAuthGate><TeacherPage /></TeacherAuthGate>} />
-            <Route path="/app/teacher/manage" element={<TeacherAuthGate><TeacherManagementPage /></TeacherAuthGate>} />
-            <Route path="/app/teacher/resources" element={<Navigate to="/app/teacher/manage" replace />} />
-            <Route path="/app/teacher/assignment/new" element={<TeacherAuthGate><AssignmentCreatePage /></TeacherAuthGate>} />
-            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherAuthGate><AssignmentDetailPage /></TeacherAuthGate>} />
-            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherAuthGate><AssignmentDetailPage /></TeacherAuthGate>} />
-            <Route path="/app/teacher/assignment/:assignmentId" element={<TeacherAuthGate><AssignmentDetailPage /></TeacherAuthGate>} />
-            <Route path="/app/teacher-management" element={<Navigate to="/app/teacher/manage" replace />} />
-            <Route path="/app/task-editor" element={<TeacherAuthGate><TaskEditorPage /></TeacherAuthGate>} />
-            <Route path="/app/class-overview" element={<TeacherAuthGate><ClassOverviewPage /></TeacherAuthGate>} />
-            <Route path="/app/problem/:problemId" element={<ProblemPage />} />
-            <Route path="/problems" element={<Navigate to="/app/student/assignments/public" replace />} />
-            <Route path="/student" element={<Navigate to="/app/student" replace />} />
-            <Route path="/problem/:problemId" element={<LegacyProblemRedirect />} />
-            <Route path="/teacher" element={<Navigate to="/app/teacher" replace />} />
-            <Route path="/teacher/assignment/new" element={<Navigate to="/app/teacher/assignment/new" replace />} />
-            <Route path="/teacher/assignment/:assignmentId" element={<LegacyAssignmentRedirect />} />
-            <Route path="/teacher-management" element={<Navigate to="/app/teacher/manage" replace />} />
-            <Route path="/task-editor" element={<Navigate to="/app/task-editor" replace />} />
-            <Route path="/class-overview" element={<Navigate to="/app/class-overview" replace />} />
-            <Route path="/student.html" element={<LegacyRedirect />} />
-            <Route path="/teacher.html" element={<LegacyRedirect />} />
-            <Route path="/problem.html" element={<LegacyRedirect />} />
-            <Route path="/problem-create.html" element={<LegacyRedirect />} />
-            <Route path="/leaderboard.html" element={<LegacyRedirect />} />
+            <Route path="/app/teacher" element={<TeacherRoute><TeacherPage /></TeacherRoute>} />
+            <Route path="/app/teacher/classes" element={<TeacherRoute><ClassOverviewPage /></TeacherRoute>} />
+            <Route path="/app/teacher/manage" element={<TeacherRoute><TeacherManagementPage section="home" /></TeacherRoute>} />
+            <Route path="/app/teacher/manage/classes" element={<TeacherRoute><TeacherManagementPage section="classes" /></TeacherRoute>} />
+            <Route path="/app/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
+            <Route path="/app/teacher/manage/ai-library" element={<TeacherRoute><TeacherManagementPage section="ai-library" /></TeacherRoute>} />
+            <Route path="/app/teacher/assignment/new" element={<TeacherRoute><AssignmentCreatePage /></TeacherRoute>} />
+            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherRoute><AssignmentDetailPage /></TeacherRoute>} />
+            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherRoute><AssignmentDetailPage /></TeacherRoute>} />
+            <Route path="/app/teacher/assignment/:assignmentId" element={<TeacherRoute><AssignmentDetailPage /></TeacherRoute>} />
             <Route path="*" element={<Navigate to="/app" replace />} />
           </Routes>
         </Suspense>

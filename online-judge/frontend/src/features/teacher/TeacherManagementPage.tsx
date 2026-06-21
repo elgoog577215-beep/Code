@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, BookOpen, Plus, Power, PowerOff, Save, Search, UploadCloud } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, BookOpen, Database, Plus, Power, PowerOff, Save, Search, UploadCloud, UsersRound } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   AiStandardLibraryItem,
@@ -16,6 +17,7 @@ import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea, TextInput } from "../../shared/ui/Field";
 import { StatusPill } from "../../shared/ui/StatusPill";
+import TaskEditorPage from "../task-editor/TaskEditorPage";
 
 type Alert = { type: "success" | "error"; message: string };
 type ImportKind = "class" | "problem";
@@ -61,10 +63,11 @@ type LibraryDraft = {
 const DEFAULT_LIBRARY_FILTERS: LibraryFilters = { query: "", layer: "", category: "", enabled: "" };
 
 type TeacherManagementToolsProps = {
-  embedded?: boolean;
+  section?: ManagementSection;
 };
+type ManagementSection = "home" | "classes" | "problems" | "ai-library";
 
-export default function TeacherManagementPage() {
+export default function TeacherManagementPage({ section = "home" }: { section?: ManagementSection }) {
   return (
     <div className="teacher-page teacher-workflow teacher-manage-page">
       <section className="teacher-workflow-header teacher-workflow-header--simple teacher-manage-header">
@@ -72,16 +75,24 @@ export default function TeacherManagementPage() {
           <p className="eyebrow">教师端</p>
           <h1>管理</h1>
         </div>
-        <ButtonLink to="/app/teacher" variant="secondary" icon={<ArrowLeft size={17} />}>
-          返回作业
-        </ButtonLink>
+        <div className="teacher-manage-tabs" aria-label="管理分类">
+          <ButtonLink to="/app/teacher/manage/classes" variant={section === "classes" ? "primary" : "secondary"} icon={<UsersRound size={16} />}>
+            班级名单
+          </ButtonLink>
+          <ButtonLink to="/app/teacher/manage/problems" variant={section === "problems" ? "primary" : "secondary"} icon={<BookOpen size={16} />}>
+            题库
+          </ButtonLink>
+          <ButtonLink to="/app/teacher/manage/ai-library" variant={section === "ai-library" ? "primary" : "secondary"} icon={<Database size={16} />}>
+            AI 标准库
+          </ButtonLink>
+        </div>
       </section>
-      <TeacherManagementTools embedded />
+      <TeacherManagementTools section={section} />
     </div>
   );
 }
 
-export function TeacherManagementTools({ embedded = false }: TeacherManagementToolsProps) {
+export function TeacherManagementTools({ section = "home" }: TeacherManagementToolsProps) {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
   const [classForm, setClassForm] = useState({ name: "", grade: "", teacherName: "" });
@@ -330,39 +341,44 @@ export function TeacherManagementTools({ embedded = false }: TeacherManagementTo
   );
 
   return (
-    <div className={embedded ? "teacher-management-embed" : "stack teacher-management-page management-console-page"}>
+    <div className="teacher-management-embed teacher-management-embed--routed">
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
       <section className="management-console">
-        {!embedded ? (
-          <header className="management-console__brand">
-            <div>
-              <p className="eyebrow">教师端</p>
-              <h1>管理</h1>
-            </div>
-            {statusPill}
-          </header>
-        ) : null}
-
-        {embedded ? (
-          <section className="teacher-manage-status-panel">
-            <ReadinessPanel readiness={readiness} busy={aiSmokeBusy} summary={statusPill} onRefresh={loadReadiness} onAiSmoke={runAiSmoke} />
-          </section>
-        ) : (
-          <details className="management-compact-details">
-            <summary>
-              <span>开课状态</span>
-              {statusPill}
-            </summary>
-            <div className="management-compact-details__body">
-              <ReadinessPanel readiness={readiness} busy={aiSmokeBusy} onRefresh={loadReadiness} onAiSmoke={runAiSmoke} />
-            </div>
-          </details>
-        )}
+        <section className="teacher-manage-status-panel">
+          <ReadinessPanel readiness={readiness} busy={aiSmokeBusy} summary={statusPill} onRefresh={loadReadiness} onAiSmoke={runAiSmoke} />
+        </section>
 
         <main className="management-workspace">
-          <section className="management-task-grid">
-            <section className="management-task-card management-task-card--large">
+          {section === "home" ? (
+            <section className="management-home-grid" aria-label="管理入口">
+              <ManagementEntry
+                to="/app/teacher/manage/classes"
+                icon={<UsersRound size={18} />}
+                title="班级与名单"
+                meta={`${cleanClasses.length} 个班级`}
+                description="创建默认班级，导入或更新学生名单。"
+              />
+              <ManagementEntry
+                to="/app/teacher/manage/problems"
+                icon={<BookOpen size={18} />}
+                title="题库"
+                meta={`${problems.length} 个题目`}
+                description="导入题目、维护题面、测试点和教学增强信息。"
+              />
+              <ManagementEntry
+                to="/app/teacher/manage/ai-library"
+                icon={<Database size={18} />}
+                title="AI 标准库"
+                meta={`${libraryItems.length || 0} 条`}
+                description="维护能力点、易错点和 AI 教学解释标准。"
+              />
+            </section>
+          ) : null}
+
+          {section === "classes" ? (
+            <section className="management-task-grid management-task-grid--single">
+              <section className="management-task-card management-task-card--large">
               <h2>班级与名单</h2>
               <div className="management-inline-create">
                 <div className="form-grid management-create-form">
@@ -417,68 +433,77 @@ export function TeacherManagementTools({ embedded = false }: TeacherManagementTo
               </div>
               <ImportResult result={classImportResult} />
             </section>
-
-            <section className="management-task-card management-task-card--large">
-              <div className="management-card-head">
-                <h2>题目</h2>
-                <ButtonLink to="/app/task-editor" variant="secondary">
-                  编辑题目
-                </ButtonLink>
-              </div>
-              <div className="management-form-row">
-                <FilePicker
-                  accept=".md,.markdown,.json,.csv,.txt,.xlsx"
-                  fileName={problemFileName}
-                  kind="problem"
-                  label="题目文件"
-                  note="Markdown、JSON、CSV 或 XLSX"
-                  onPick={readImportFile}
-                />
-              </div>
-              <Field label="粘贴题目">
-                <TextArea
-                  value={problemImport.content}
-                  onChange={event => setProblemImport({ ...problemImport, content: event.target.value })}
-                  placeholder={"# 两数求和\n\n## 题目描述\n...\n\n## 样例输入\n1 2\n\n## 样例输出\n3"}
-                />
-              </Field>
-              <div className="actions">
-                <Button type="button" variant="secondary" onClick={() => void runImport("problem", "preview")} disabled={busy} icon={<UploadCloud size={17} />}>
-                  预览题目
-                </Button>
-                <Button type="button" variant="primary" onClick={() => void runImport("problem", "commit")} disabled={busy}>
-                  导入题目
-                </Button>
-              </div>
-              <ImportResult result={problemImportResult} />
             </section>
+          ) : null}
 
-            <details className="management-compact-details standard-library-details">
-              <summary>
-                <span>AI 标准库</span>
-                <StatusPill tone="neutral">{libraryItems.length || "读取中"} 条</StatusPill>
-              </summary>
-              <div className="management-compact-details__body">
-                <StandardLibraryManager
-                  items={libraryItems}
-                  filters={libraryFilters}
-                  draft={libraryDraft}
-                  busy={libraryBusy}
-                  selectedId={selectedLibraryId}
-                  onFiltersChange={setLibraryFilters}
-                  onReload={filters => void loadStandardLibrary(filters || libraryFilters)}
-                  onNew={createLibraryDraft}
-                  onSelect={selectLibraryItem}
-                  onDraftChange={setLibraryDraft}
-                  onSave={draft => void saveLibraryItem(draft)}
-                  onToggle={item => void toggleLibraryItem(item)}
-                />
-              </div>
-            </details>
-          </section>
+          {section === "problems" ? (
+            <section className="management-task-grid management-task-grid--problem-manager">
+              <section className="management-task-card management-task-card--large">
+                <h2>题目导入</h2>
+                <div className="management-form-row">
+                  <FilePicker
+                    accept=".md,.markdown,.json,.csv,.txt,.xlsx"
+                    fileName={problemFileName}
+                    kind="problem"
+                    label="题目文件"
+                    note="Markdown、JSON、CSV 或 XLSX"
+                    onPick={readImportFile}
+                  />
+                </div>
+                <Field label="粘贴题目">
+                  <TextArea
+                    value={problemImport.content}
+                    onChange={event => setProblemImport({ ...problemImport, content: event.target.value })}
+                    placeholder={"# 两数求和\n\n## 题目描述\n...\n\n## 样例输入\n1 2\n\n## 样例输出\n3"}
+                  />
+                </Field>
+                <div className="actions">
+                  <Button type="button" variant="secondary" onClick={() => void runImport("problem", "preview")} disabled={busy} icon={<UploadCloud size={17} />}>
+                    预览题目
+                  </Button>
+                  <Button type="button" variant="primary" onClick={() => void runImport("problem", "commit")} disabled={busy}>
+                    导入题目
+                  </Button>
+                </div>
+                <ImportResult result={problemImportResult} />
+              </section>
+              <TaskEditorPage embedded />
+            </section>
+          ) : null}
+
+          {section === "ai-library" ? (
+            <StandardLibraryManager
+              items={libraryItems}
+              filters={libraryFilters}
+              draft={libraryDraft}
+              busy={libraryBusy}
+              selectedId={selectedLibraryId}
+              onFiltersChange={setLibraryFilters}
+              onReload={filters => void loadStandardLibrary(filters || libraryFilters)}
+              onNew={createLibraryDraft}
+              onSelect={selectLibraryItem}
+              onDraftChange={setLibraryDraft}
+              onSave={draft => void saveLibraryItem(draft)}
+              onToggle={item => void toggleLibraryItem(item)}
+            />
+          ) : null}
         </main>
       </section>
     </div>
+  );
+}
+
+function ManagementEntry({ to, icon, title, meta, description }: { to: string; icon: ReactNode; title: string; meta: string; description: string }) {
+  return (
+    <Link to={to} className="management-home-entry">
+      <span className="management-home-entry__icon">{icon}</span>
+      <span>
+        <strong>{title}</strong>
+        <small>{description}</small>
+      </span>
+      <StatusPill tone="neutral">{meta}</StatusPill>
+      <ArrowRight size={16} />
+    </Link>
   );
 }
 

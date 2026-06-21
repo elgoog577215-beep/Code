@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Plus, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, Plus, UsersRound } from "lucide-react";
 import { ApiError, api } from "../../shared/api/client";
 import type { Assignment, AssignmentOverview } from "../../shared/api/types";
 import { assignmentStatusLabel, displayText, looksCorruptText } from "../../shared/format";
@@ -96,8 +96,8 @@ export default function TeacherPage() {
           <h1>作业</h1>
         </div>
         <div className="teacher-home-actions">
-          <ButtonLink to="/app/teacher/manage" variant="ghost" icon={<SlidersHorizontal size={16} />}>
-            管理
+          <ButtonLink to="/app/teacher/classes" variant="secondary" icon={<UsersRound size={16} />}>
+            班级查看
           </ButtonLink>
           <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
             新建作业
