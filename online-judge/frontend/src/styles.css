@@ -12859,6 +12859,253 @@ select.control {
   min-height: 96px;
 }
 
+.teacher-manage-status-strip {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem 0.62rem;
+  padding: 0.42rem 0.56rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.teacher-manage-status-strip__main,
+.teacher-manage-status-strip__actions,
+.teacher-manage-status-strip__details > div {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.36rem;
+}
+
+.teacher-manage-status-strip__main > span:not(.status-pill),
+.teacher-manage-status-strip__details span {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-weight: 820;
+}
+
+.teacher-manage-status-strip__summary .status-pill {
+  margin-left: 0.04rem;
+}
+
+.teacher-manage-status-strip__details {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.teacher-manage-status-strip__details > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--brand-strong);
+  font-size: 0.78rem;
+  font-weight: 880;
+}
+
+.teacher-manage-status-strip__details > div {
+  margin-top: 0.36rem;
+  padding-top: 0.36rem;
+  border-top: 1px solid var(--line);
+}
+
+.management-object-workbench {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.3fr) minmax(0, 1fr);
+  gap: 0.58rem;
+  align-items: start;
+}
+
+.management-object-list,
+.management-object-main {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.management-object-list {
+  display: grid;
+  align-content: start;
+  gap: 0.34rem;
+  padding: 0.44rem;
+}
+
+.management-object-list__head,
+.management-object-main__head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.48rem;
+  padding: 0.3rem 0.34rem 0.46rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.management-object-list__head > span,
+.management-object-main__head > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.management-object-list__head strong,
+.management-object-main__head h2 {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.management-object-list__head small {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 760;
+}
+
+.management-object-row {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.48rem 0.52rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.management-object-row:hover,
+.management-object-row.is-active {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 26%, transparent);
+}
+
+.management-object-row strong,
+.management-object-row small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.management-object-row small {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 720;
+}
+
+.management-object-main {
+  display: grid;
+  gap: 0.58rem;
+  padding: 0.56rem;
+}
+
+.management-object-main__head {
+  padding: 0.2rem 0.2rem 0.48rem;
+}
+
+.management-import-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.45fr);
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.management-import-drawer {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+}
+
+.management-import-drawer > summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.34rem 0.48rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 880;
+}
+
+.management-import-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.management-import-drawer__body {
+  display: grid;
+  gap: 0.48rem;
+  padding: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.standard-library-manager {
+  gap: 0.58rem;
+}
+
+.standard-library-filters {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.38rem;
+  padding-bottom: 0.36rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.standard-library-category-filter .control {
+  min-height: 34px;
+}
+
+.standard-library-editor {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.standard-library-editor__head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 0.42rem 0.46rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.standard-library-editor__head h3,
+.standard-library-editor__head p,
+.standard-library-editor__section h4 {
+  margin: 0;
+}
+
+.standard-library-editor__section {
+  min-width: 0;
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.56rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+details.standard-library-editor__section > summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 900;
+  list-style: none;
+}
+
+details.standard-library-editor__section > summary::-webkit-details-marker {
+  display: none;
+}
+
 :root[data-theme="dark"] .app-header,
 :root[data-theme="dark"] .top-nav,
 :root[data-theme="dark"] .teacher-shell-nav,
@@ -12875,13 +13122,20 @@ select.control {
 :root[data-theme="dark"] .teacher-problem-table,
 :root[data-theme="dark"] .teacher-rank-panel,
 :root[data-theme="dark"] .teacher-action-rail,
-:root[data-theme="dark"] .teacher-evidence-card {
+:root[data-theme="dark"] .teacher-evidence-card,
+:root[data-theme="dark"] .teacher-manage-status-strip,
+:root[data-theme="dark"] .management-object-list,
+:root[data-theme="dark"] .management-object-main,
+:root[data-theme="dark"] .management-import-drawer,
+:root[data-theme="dark"] .standard-library-editor__head,
+:root[data-theme="dark"] .standard-library-editor__section {
   box-shadow: none;
 }
 
 @media (max-width: 1080px) {
   .management-task-grid--problem-manager,
-  .standard-library-workbench {
+  .standard-library-workbench,
+  .management-object-workbench {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -12926,5 +13180,19 @@ select.control {
 
   .teacher-drill-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-manage-status-strip,
+  .management-import-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-manage-status-strip__actions,
+  .teacher-manage-status-strip__actions .ui-button {
+    width: 100%;
+  }
+
+  .management-object-list {
+    max-height: none;
   }
 }

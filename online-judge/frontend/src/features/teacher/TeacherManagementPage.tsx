@@ -114,6 +114,7 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
   const [libraryDraft, setLibraryDraft] = useState<LibraryDraft>(() => emptyLibraryDraft());
   const [libraryBusy, setLibraryBusy] = useState(false);
+  const [selectedProblemId, setSelectedProblemId] = useState<number | null>(null);
 
   useEffect(() => {
     void loadData();
@@ -150,6 +151,9 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
       setProblems(problemResult);
       if (!targetClassGroupId && classResult[0]) {
         setTargetClassGroupId(String(classResult[0].id));
+      }
+      if (!selectedProblemId && problemResult[0]) {
+        setSelectedProblemId(problemResult[0].id);
       }
       setDataReady(true);
     } catch (error) {
@@ -345,9 +349,16 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
       <section className="management-console">
-        <section className="teacher-manage-status-panel">
-          <ReadinessPanel readiness={readiness} busy={aiSmokeBusy} summary={statusPill} onRefresh={loadReadiness} onAiSmoke={runAiSmoke} />
-        </section>
+        <ManagementStatusStrip
+          readiness={readiness}
+          busy={aiSmokeBusy}
+          summary={statusPill}
+          classCount={cleanClasses.length}
+          problemCount={problems.length}
+          libraryCount={libraryItems.length}
+          onRefresh={loadReadiness}
+          onAiSmoke={runAiSmoke}
+        />
 
         <main className="management-workspace">
           {section === "home" ? (
@@ -377,98 +388,40 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
           ) : null}
 
           {section === "classes" ? (
-            <section className="management-task-grid management-task-grid--single">
-              <section className="management-task-card management-task-card--large">
-              <h2>班级与名单</h2>
-              <div className="management-inline-create">
-                <div className="form-grid management-create-form">
-                  <Field label="班级名称">
-                    <TextInput value={classForm.name} onChange={event => setClassForm({ ...classForm, name: event.target.value })} />
-                  </Field>
-                  <Field label="年级">
-                    <TextInput value={classForm.grade} onChange={event => setClassForm({ ...classForm, grade: event.target.value })} />
-                  </Field>
-                  <Field label="任课老师">
-                    <TextInput value={classForm.teacherName} onChange={event => setClassForm({ ...classForm, teacherName: event.target.value })} />
-                  </Field>
-                </div>
-                <Button type="button" variant="primary" onClick={() => void createClass()} disabled={busy}>
-                  创建
-                </Button>
-              </div>
-              <div className="management-form-row">
-                <Field label="导入到班级">
-                  <Select value={targetClassGroupId} onChange={event => setTargetClassGroupId(event.target.value)}>
-                    <option value="">不指定班级</option>
-                    {cleanClasses.map(item => (
-                      <option value={item.id} key={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <FilePicker
-                  accept=".csv,.txt,.xlsx"
-                  fileName={classFileName}
-                  kind="class"
-                  label="名单文件"
-                  note="CSV 或 XLSX"
-                  onPick={readImportFile}
-                />
-              </div>
-              <Field label="粘贴名单">
-                <TextArea
-                  value={classImport.content}
-                  onChange={event => setClassImport({ ...classImport, content: event.target.value })}
-                  placeholder={"班级,姓名,学号\n高一1班,张三,01"}
-                />
-              </Field>
-              <div className="actions">
-                <Button type="button" variant="secondary" onClick={() => void runImport("class", "preview")} disabled={busy} icon={<UploadCloud size={17} />}>
-                  预览名单
-                </Button>
-                <Button type="button" variant="primary" onClick={() => void runImport("class", "commit")} disabled={busy}>
-                  导入名单
-                </Button>
-              </div>
-              <ImportResult result={classImportResult} />
-            </section>
-            </section>
+            <ClassManageSection
+              classes={cleanClasses}
+              selectedClassGroupId={targetClassGroupId}
+              classForm={classForm}
+              classImport={classImport}
+              classFileName={classFileName}
+              classImportResult={classImportResult}
+              busy={busy}
+              onSelectClass={setTargetClassGroupId}
+              onClassFormChange={setClassForm}
+              onClassImportChange={setClassImport}
+              onCreateClass={() => void createClass()}
+              onPickFile={readImportFile}
+              onRunImport={mode => void runImport("class", mode)}
+            />
           ) : null}
 
           {section === "problems" ? (
-            <section className="management-task-grid management-task-grid--problem-manager">
-              <section className="management-task-card management-task-card--large">
-                <h2>题目导入</h2>
-                <div className="management-form-row">
-                  <FilePicker
-                    accept=".md,.markdown,.json,.csv,.txt,.xlsx"
-                    fileName={problemFileName}
-                    kind="problem"
-                    label="题目文件"
-                    note="Markdown、JSON、CSV 或 XLSX"
-                    onPick={readImportFile}
-                  />
-                </div>
-                <Field label="粘贴题目">
-                  <TextArea
-                    value={problemImport.content}
-                    onChange={event => setProblemImport({ ...problemImport, content: event.target.value })}
-                    placeholder={"# 两数求和\n\n## 题目描述\n...\n\n## 样例输入\n1 2\n\n## 样例输出\n3"}
-                  />
-                </Field>
-                <div className="actions">
-                  <Button type="button" variant="secondary" onClick={() => void runImport("problem", "preview")} disabled={busy} icon={<UploadCloud size={17} />}>
-                    预览题目
-                  </Button>
-                  <Button type="button" variant="primary" onClick={() => void runImport("problem", "commit")} disabled={busy}>
-                    导入题目
-                  </Button>
-                </div>
-                <ImportResult result={problemImportResult} />
-              </section>
-              <TaskEditorPage embedded />
-            </section>
+            <ProblemManageSection
+              problems={problems}
+              selectedProblemId={selectedProblemId}
+              problemImport={problemImport}
+              problemFileName={problemFileName}
+              problemImportResult={problemImportResult}
+              busy={busy}
+              onSelectProblem={setSelectedProblemId}
+              onProblemImportChange={setProblemImport}
+              onPickFile={readImportFile}
+              onRunImport={mode => void runImport("problem", mode)}
+              onProblemSaved={problem => {
+                setSelectedProblemId(problem.id);
+                void loadData();
+              }}
+            />
           ) : null}
 
           {section === "ai-library" ? (
@@ -504,6 +457,285 @@ function ManagementEntry({ to, icon, title, meta, description }: { to: string; i
       <StatusPill tone="neutral">{meta}</StatusPill>
       <ArrowRight size={16} />
     </Link>
+  );
+}
+
+function ManagementStatusStrip({
+  readiness,
+  busy,
+  summary,
+  classCount,
+  problemCount,
+  libraryCount,
+  onRefresh,
+  onAiSmoke
+}: {
+  readiness: Readiness | null;
+  busy: boolean;
+  summary?: ReactNode;
+  classCount: number;
+  problemCount: number;
+  libraryCount: number;
+  onRefresh: () => void;
+  onAiSmoke: () => void;
+}) {
+  const status = readiness?.status || "UNKNOWN";
+  const tone = status === "READY" ? "success" : status === "BLOCKED" ? "danger" : "warning";
+  const blocking = readiness?.checks.filter(item => item.blocking && item.status !== "PASS") || [];
+  const warnings = readiness?.checks.filter(item => item.status !== "PASS" && !(item.blocking && item.status !== "PASS")) || [];
+  const visibleChecks = [...blocking, ...warnings].slice(0, 6);
+
+  return (
+    <section className="teacher-manage-status-strip">
+      <div className="teacher-manage-status-strip__main">
+        <StatusPill tone={tone}>{status}</StatusPill>
+        <span>班级 {classCount}</span>
+        <span>题目 {problemCount}</span>
+        <span>标准库 {libraryCount}</span>
+        {summary ? <span className="teacher-manage-status-strip__summary">{summary}</span> : null}
+      </div>
+      <div className="teacher-manage-status-strip__actions">
+        <Button type="button" variant="secondary" onClick={() => void onRefresh()}>
+          刷新
+        </Button>
+        <Button type="button" variant="primary" onClick={() => void onAiSmoke()} disabled={busy}>
+          {busy ? "检测中" : "检测 AI"}
+        </Button>
+      </div>
+      {visibleChecks.length ? (
+        <details className="teacher-manage-status-strip__details">
+          <summary>
+            {blocking.length ? `${blocking.length} 个阻断` : `${warnings.length} 个提醒`}
+          </summary>
+          <div>
+            {visibleChecks.map(item => (
+              <span key={item.id} title={`${item.message} ${item.action}`}>
+                <StatusPill tone={item.status === "FAIL" ? "danger" : item.status === "WARN" ? "warning" : "neutral"}>{item.status}</StatusPill>
+                {item.label}
+              </span>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
+function ClassManageSection({
+  classes,
+  selectedClassGroupId,
+  classForm,
+  classImport,
+  classFileName,
+  classImportResult,
+  busy,
+  onSelectClass,
+  onClassFormChange,
+  onClassImportChange,
+  onCreateClass,
+  onPickFile,
+  onRunImport
+}: {
+  classes: ClassGroup[];
+  selectedClassGroupId: string;
+  classForm: { name: string; grade: string; teacherName: string };
+  classImport: { format: string; content: string };
+  classFileName: string;
+  classImportResult: ImportPreview | ImportCommit | null;
+  busy: boolean;
+  onSelectClass: (id: string) => void;
+  onClassFormChange: (form: { name: string; grade: string; teacherName: string }) => void;
+  onClassImportChange: (value: { format: string; content: string }) => void;
+  onCreateClass: () => void;
+  onPickFile: (kind: ImportKind, file: File | null) => void | Promise<void>;
+  onRunImport: (mode: "preview" | "commit") => void;
+}) {
+  const selectedClass = classes.find(item => String(item.id) === selectedClassGroupId) || classes[0] || null;
+
+  return (
+    <section className="management-object-workbench management-object-workbench--classes">
+      <aside className="management-object-list" aria-label="班级列表">
+        <div className="management-object-list__head">
+          <strong>班级</strong>
+          <StatusPill tone="neutral">{classes.length} 个</StatusPill>
+        </div>
+        {classes.length ? (
+          classes.map(item => (
+            <button
+              type="button"
+              className={`management-object-row ${String(item.id) === String(selectedClass?.id) ? "is-active" : ""}`}
+              key={item.id}
+              onClick={() => onSelectClass(String(item.id))}
+            >
+              <strong>{item.name}</strong>
+              <small>{[item.grade, item.teacherName].filter(Boolean).join(" · ") || `班级 #${item.id}`}</small>
+            </button>
+          ))
+        ) : (
+          <EmptyState title="暂无班级" description="先创建一个默认班级。" />
+        )}
+        <details className="management-import-drawer management-import-drawer--create">
+          <summary>
+            <Plus size={15} />
+            创建班级
+          </summary>
+          <div className="management-import-drawer__body">
+            <Field label="班级名称">
+              <TextInput value={classForm.name} onChange={event => onClassFormChange({ ...classForm, name: event.target.value })} />
+            </Field>
+            <Field label="年级">
+              <TextInput value={classForm.grade} onChange={event => onClassFormChange({ ...classForm, grade: event.target.value })} />
+            </Field>
+            <Field label="任课老师">
+              <TextInput value={classForm.teacherName} onChange={event => onClassFormChange({ ...classForm, teacherName: event.target.value })} />
+            </Field>
+            <Button type="button" variant="primary" onClick={onCreateClass} disabled={busy}>
+              创建
+            </Button>
+          </div>
+        </details>
+      </aside>
+
+      <section className="management-object-main">
+        <div className="management-object-main__head">
+          <div>
+            <p className="eyebrow">名单维护</p>
+            <h2>{selectedClass?.name || "默认班级"}</h2>
+          </div>
+          {selectedClass ? <StatusPill tone="info">导入到当前班级</StatusPill> : <StatusPill tone="warning">等待班级</StatusPill>}
+        </div>
+        <div className="management-import-grid">
+          <FilePicker
+            accept=".csv,.txt,.xlsx"
+            fileName={classFileName}
+            kind="class"
+            label="名单文件"
+            note="CSV 或 XLSX"
+            onPick={onPickFile}
+          />
+          <Field label="目标班级">
+            <Select value={selectedClass ? String(selectedClass.id) : ""} onChange={event => onSelectClass(event.target.value)}>
+              {classes.map(item => (
+                <option value={item.id} key={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <Field label="粘贴名单">
+          <TextArea
+            value={classImport.content}
+            onChange={event => onClassImportChange({ ...classImport, content: event.target.value })}
+            placeholder={"班级,姓名,学号\n高一1班,张三,01"}
+          />
+        </Field>
+        <div className="actions">
+          <Button type="button" variant="secondary" onClick={() => onRunImport("preview")} disabled={busy} icon={<UploadCloud size={17} />}>
+            预览名单
+          </Button>
+          <Button type="button" variant="primary" onClick={() => onRunImport("commit")} disabled={busy}>
+            导入名单
+          </Button>
+        </div>
+        <ImportResult result={classImportResult} />
+      </section>
+    </section>
+  );
+}
+
+function ProblemManageSection({
+  problems,
+  selectedProblemId,
+  problemImport,
+  problemFileName,
+  problemImportResult,
+  busy,
+  onSelectProblem,
+  onProblemImportChange,
+  onPickFile,
+  onRunImport,
+  onProblemSaved
+}: {
+  problems: ProblemCatalogItem[];
+  selectedProblemId: number | null;
+  problemImport: { format: string; content: string };
+  problemFileName: string;
+  problemImportResult: ImportPreview | ImportCommit | null;
+  busy: boolean;
+  onSelectProblem: (id: number | null) => void;
+  onProblemImportChange: (value: { format: string; content: string }) => void;
+  onPickFile: (kind: ImportKind, file: File | null) => void | Promise<void>;
+  onRunImport: (mode: "preview" | "commit") => void;
+  onProblemSaved: (problem: import("../../shared/api/types").Problem) => void;
+}) {
+  const selectedProblem = problems.find(item => item.id === selectedProblemId) || problems[0] || null;
+
+  return (
+    <section className="management-object-workbench management-object-workbench--problems">
+      <aside className="management-object-list" aria-label="题目列表">
+        <div className="management-object-list__head">
+          <strong>题目</strong>
+          <StatusPill tone="neutral">{problems.length} 个</StatusPill>
+        </div>
+        {problems.length ? (
+          problems.map(item => (
+            <button
+              type="button"
+              className={`management-object-row ${item.id === selectedProblem?.id ? "is-active" : ""}`}
+              key={item.id}
+              onClick={() => onSelectProblem(item.id)}
+            >
+              <strong>{item.title}</strong>
+              <small>{displayText(item.summary || "", `${item.difficulty} · ${item.timeLimit} ms`)}</small>
+            </button>
+          ))
+        ) : (
+          <EmptyState title="暂无题目" description="导入题目或新建题目。" />
+        )}
+        <details className="management-import-drawer">
+          <summary>
+            <UploadCloud size={15} />
+            导入题目
+          </summary>
+          <div className="management-import-drawer__body">
+            <FilePicker
+              accept=".md,.markdown,.json,.csv,.txt,.xlsx"
+              fileName={problemFileName}
+              kind="problem"
+              label="题目文件"
+              note="Markdown、JSON、CSV 或 XLSX"
+              onPick={onPickFile}
+            />
+            <Field label="粘贴题目">
+              <TextArea
+                value={problemImport.content}
+                onChange={event => onProblemImportChange({ ...problemImport, content: event.target.value })}
+                placeholder={"# 两数求和\n\n## 题目描述\n...\n\n## 样例输入\n1 2\n\n## 样例输出\n3"}
+              />
+            </Field>
+            <div className="actions">
+              <Button type="button" variant="secondary" onClick={() => onRunImport("preview")} disabled={busy} icon={<UploadCloud size={17} />}>
+                预览
+              </Button>
+              <Button type="button" variant="primary" onClick={() => onRunImport("commit")} disabled={busy}>
+                导入
+              </Button>
+            </div>
+            <ImportResult result={problemImportResult} />
+          </div>
+        </details>
+      </aside>
+
+      <section className="management-object-main">
+        <TaskEditorPage
+          embedded
+          selectedProblemId={selectedProblem?.id || null}
+          showCatalogDrawer={false}
+          onSaved={onProblemSaved}
+        />
+      </section>
+    </section>
   );
 }
 
@@ -620,75 +852,68 @@ function StandardLibraryManager({
   }
 
   return (
-    <section className="management-task-card management-task-card--large standard-library-manager">
-      <div className="standard-library-manager__head">
-        <div>
-          <span className="standard-library-manager__icon">
-            <BookOpen size={19} />
+    <section className="management-object-workbench management-object-workbench--ai standard-library-manager">
+      <aside className="management-object-list standard-library-list" aria-label="AI 标准库条目">
+        <div className="management-object-list__head">
+          <span>
+            <strong>AI 标准库</strong>
+            <small>能力点 {skillCount} · 易错点 {mistakeCount}</small>
           </span>
-          <div>
-            <h2>AI 标准库</h2>
-            <p>能力点 {skillCount} · 易错点 {mistakeCount}</p>
-          </div>
-        </div>
-        <div className="actions">
-          <Button type="button" variant="secondary" icon={<Plus size={17} />} onClick={onNew} disabled={busy}>
-            新建条目
+          <Button type="button" variant="secondary" icon={<Plus size={16} />} onClick={onNew} disabled={busy}>
+            新建
           </Button>
         </div>
-      </div>
-
-      <div className="standard-library-filters">
-        <Field label="搜索">
-          <TextInput
-            name="query"
-            value={filters.query}
-            onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}
-            onKeyDown={event => {
-              if (event.key === "Enter") {
-                onReload(readFiltersFromElement(event.currentTarget));
-              }
-            }}
-            placeholder="ID、名称、知识点、能力点、易错点"
-          />
-        </Field>
-        <Field label="类型">
-          <Select name="layer" value={filters.layer} onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}>
-            <option value="">全部</option>
-            <option value="SKILL_UNIT">能力点</option>
-            <option value="MISTAKE_POINT">易错点</option>
-          </Select>
-        </Field>
-        <Field label="分类">
-          <Select name="category" value={filters.category} onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}>
-            <option value="">全部</option>
-            {categoryOptions.map(category => (
-              <option value={category} key={category}>
-                {category}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="状态">
-          <Select name="enabled" value={filters.enabled} onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}>
-            <option value="">全部</option>
-            <option value="true">启用</option>
-            <option value="false">停用</option>
-          </Select>
-        </Field>
-        <Button type="button" variant="secondary" icon={<Search size={17} />} onClick={event => onReload(readFiltersFromElement(event.currentTarget))} disabled={busy}>
-          筛选
-        </Button>
-      </div>
-
-      <div className="standard-library-workbench">
-        <div className="standard-library-list" aria-label="AI 标准库条目">
+        <div className="standard-library-filters">
+          <Field label="搜索">
+            <TextInput
+              name="query"
+              value={filters.query}
+              onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}
+              onKeyDown={event => {
+                if (event.key === "Enter") {
+                  onReload(readFiltersFromElement(event.currentTarget));
+                }
+              }}
+              placeholder="ID、名称、知识点"
+            />
+          </Field>
+          <Field label="类型">
+            <Select name="layer" value={filters.layer} onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}>
+              <option value="">全部</option>
+              <option value="SKILL_UNIT">能力点</option>
+              <option value="MISTAKE_POINT">易错点</option>
+            </Select>
+          </Field>
+          <Field label="状态">
+            <Select name="enabled" value={filters.enabled} onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}>
+              <option value="">全部</option>
+              <option value="true">启用</option>
+              <option value="false">停用</option>
+            </Select>
+          </Field>
+          <details className="management-import-drawer standard-library-category-filter">
+            <summary>分类</summary>
+            <div className="management-import-drawer__body">
+              <Select name="category" value={filters.category} onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}>
+                <option value="">全部分类</option>
+                {categoryOptions.map(category => (
+                  <option value={category} key={category}>
+                    {category}
+                  </option>
+                ))}
+              </Select>
+              <Button type="button" variant="secondary" icon={<Search size={16} />} onClick={event => onReload(readFiltersFromElement(event.currentTarget))} disabled={busy}>
+                筛选
+              </Button>
+            </div>
+          </details>
+        </div>
           {visibleItems.length ? (
             visibleItems.slice(0, 160).map(item => (
               <button
                 type="button"
                 key={item.id}
-                className={`standard-library-list__item ${item.id === selectedId ? "is-active" : ""}`}
+                className={`management-object-row standard-library-list__item ${item.id === selectedId ? "is-active" : ""}`}
                 onClick={() => onSelect(item)}
               >
                 <span>
@@ -704,16 +929,18 @@ function StandardLibraryManager({
           ) : (
             <EmptyState title="暂无条目" description="换一个筛选条件，或新建一个标准库条目。" />
           )}
-        </div>
+      </aside>
 
+      <section className="management-object-main">
         <div className="standard-library-editor">
           <div className="standard-library-editor__head">
             <div>
+              <p className="eyebrow">{draft.layer === "SKILL_UNIT" ? "能力点" : "易错点"}</p>
               <h3>{draft.id ? draft.name || "编辑条目" : "新建条目"}</h3>
               <p>{draft.id ? `${draft.code} · ${draft.category}` : "保存后进入当前学校标准库"}</p>
             </div>
-            {selectedItem ? (
-              <div className="actions">
+            <div className="actions">
+              {selectedItem ? (
                 <Button
                   type="button"
                   variant={selectedItem.enabled ? "secondary" : "primary"}
@@ -723,100 +950,110 @@ function StandardLibraryManager({
                 >
                   {selectedItem.enabled ? "停用" : "启用"}
                 </Button>
-                <Button type="button" variant="primary" icon={<Save size={17} />} onClick={event => onSave(readDraftFromElement(event.currentTarget, draft))} disabled={busy}>
-                  保存
-                </Button>
-              </div>
-            ) : null}
+              ) : null}
+              <Button type="button" variant="primary" icon={<Save size={17} />} onClick={event => onSave(readDraftFromElement(event.currentTarget, draft))} disabled={busy}>
+                保存
+              </Button>
+            </div>
           </div>
 
-          <div className="form-grid standard-library-editor__core">
-            <Field label="类型">
-              <Select name="layer" value={draft.layer} onChange={event => patchDraft({ layer: event.target.value as AiStandardLibraryLayer })}>
-                <option value="SKILL_UNIT">能力点</option>
-                <option value="MISTAKE_POINT">易错点</option>
-              </Select>
-            </Field>
-            <Field label="条目 ID">
-              <TextInput name="code" value={draft.code} onChange={event => patchDraft({ code: event.target.value })} placeholder="SK_LOOP_ENDPOINT_INCLUSION" />
-            </Field>
-            <Field label="分类">
-              <TextInput name="category" value={draft.category} onChange={event => patchDraft({ category: event.target.value })} />
-            </Field>
-            <Field label="名称">
-              <TextInput name="name" value={draft.name} onChange={event => patchDraft({ name: event.target.value })} />
-            </Field>
-          </div>
-
-          <div className="standard-library-editor__textarea-grid">
-            <Field label={draft.layer === "SKILL_UNIT" ? "能力定义" : "易错点定义"}>
-              <TextArea name="description" value={draft.description} onChange={event => patchDraft({ description: event.target.value })} />
-            </Field>
-            <Field label={draft.layer === "SKILL_UNIT" ? "学习目标" : "学生常见误解"}>
-              <TextArea name="studentExplanation" value={draft.studentExplanation} onChange={event => patchDraft({ studentExplanation: event.target.value })} />
-            </Field>
-            <Field label="教师解释">
-              <TextArea name="teacherExplanation" value={draft.teacherExplanation} onChange={event => patchDraft({ teacherExplanation: event.target.value })} />
-            </Field>
-            {draft.layer === "MISTAKE_POINT" ? (
-              <Field label="常见误解">
-                <TextArea name="commonMisconception" value={draft.commonMisconception} onChange={event => patchDraft({ commonMisconception: event.target.value })} />
+          <section className="standard-library-editor__section">
+            <h4>基础信息</h4>
+            <div className="form-grid standard-library-editor__core">
+              <Field label="类型">
+                <Select name="layer" value={draft.layer} onChange={event => patchDraft({ layer: event.target.value as AiStandardLibraryLayer })}>
+                  <option value="SKILL_UNIT">能力点</option>
+                  <option value="MISTAKE_POINT">易错点</option>
+                </Select>
               </Field>
-            ) : null}
-          </div>
+              <Field label="条目 ID">
+                <TextInput name="code" value={draft.code} onChange={event => patchDraft({ code: event.target.value })} placeholder="SK_LOOP_ENDPOINT_INCLUSION" />
+              </Field>
+              <Field label="分类">
+                <TextInput name="category" value={draft.category} onChange={event => patchDraft({ category: event.target.value })} />
+              </Field>
+              <Field label="名称">
+                <TextInput name="name" value={draft.name} onChange={event => patchDraft({ name: event.target.value })} />
+              </Field>
+            </div>
+          </section>
 
-          <div className="form-grid standard-library-editor__meta">
-            {draft.layer === "MISTAKE_POINT" ? (
-              <>
-                <Field label="所属能力点">
-                  <TextInput name="skillUnitCode" value={draft.skillUnitCode} onChange={event => patchDraft({ skillUnitCode: event.target.value })} placeholder="SK_..." />
-                </Field>
-                <Field label="易错类型">
-                  <Select name="mistakeType" value={draft.mistakeType} onChange={event => patchDraft({ mistakeType: event.target.value })}>
-                    <option value="">未指定</option>
-                    <option value="CONCEPT">概念</option>
-                    <option value="BOUNDARY">边界</option>
-                    <option value="IO_FORMAT">输入输出</option>
-                    <option value="STATE">状态</option>
-                    <option value="TRANSITION">转移</option>
-                    <option value="COMPLEXITY">复杂度</option>
-                    <option value="MODELING">建模</option>
-                    <option value="SYNTAX">语法</option>
-                    <option value="RUNTIME">运行时</option>
-                    <option value="DEBUGGING">调试习惯</option>
-                  </Select>
-                </Field>
-              </>
-            ) : null}
-            <Field label="严重度">
-              <Select name="severity" value={draft.severity} onChange={event => patchDraft({ severity: event.target.value })}>
-                <option value="">未指定</option>
-                <option value="LOW">LOW</option>
-                <option value="MEDIUM">MEDIUM</option>
-                <option value="HIGH">HIGH</option>
-              </Select>
-            </Field>
-            <Field label="版本">
-              <TextInput name="libraryVersion" value={draft.libraryVersion} onChange={event => patchDraft({ libraryVersion: event.target.value })} />
-            </Field>
-          </div>
+          <section className="standard-library-editor__section">
+            <h4>教学解释</h4>
+            <div className="standard-library-editor__textarea-grid">
+              <Field label={draft.layer === "SKILL_UNIT" ? "能力定义" : "易错点定义"}>
+                <TextArea name="description" value={draft.description} onChange={event => patchDraft({ description: event.target.value })} />
+              </Field>
+              <Field label={draft.layer === "SKILL_UNIT" ? "学习目标" : "学生常见误解"}>
+                <TextArea name="studentExplanation" value={draft.studentExplanation} onChange={event => patchDraft({ studentExplanation: event.target.value })} />
+              </Field>
+              <Field label="教师解释">
+                <TextArea name="teacherExplanation" value={draft.teacherExplanation} onChange={event => patchDraft({ teacherExplanation: event.target.value })} />
+              </Field>
+            </div>
+          </section>
 
-          <div className="standard-library-editor__textarea-grid standard-library-editor__signals">
-            <Field label="关联知识点">
-              <TextArea name="knowledgeNodeCodes" value={draft.knowledgeNodeCodes} onChange={event => patchDraft({ knowledgeNodeCodes: event.target.value })} placeholder="每行一个知识点 ID" />
-            </Field>
-            <Field label="适用语言">
-              <TextArea name="applicableLanguages" value={draft.applicableLanguages} onChange={event => patchDraft({ applicableLanguages: event.target.value })} placeholder="PYTHON&#10;CPP17" />
-            </Field>
-            <Field label="前置知识">
-              <TextArea name="prerequisiteKnowledgeCodes" value={draft.prerequisiteKnowledgeCodes} onChange={event => patchDraft({ prerequisiteKnowledgeCodes: event.target.value })} placeholder="每行一个知识点或能力点 ID" />
-            </Field>
-            <Field label="相关条目">
-              <TextArea name="relatedItems" value={draft.relatedItems} onChange={event => patchDraft({ relatedItems: event.target.value })} placeholder="每行一个条目 ID" />
-            </Field>
-          </div>
+          <details className="standard-library-editor__section" open>
+            <summary>关联与规则</summary>
+            <div className="form-grid standard-library-editor__meta">
+              {draft.layer === "MISTAKE_POINT" ? (
+                <>
+                  <Field label="所属能力点">
+                    <TextInput name="skillUnitCode" value={draft.skillUnitCode} onChange={event => patchDraft({ skillUnitCode: event.target.value })} placeholder="SK_..." />
+                  </Field>
+                  <Field label="易错类型">
+                    <Select name="mistakeType" value={draft.mistakeType} onChange={event => patchDraft({ mistakeType: event.target.value })}>
+                      <option value="">未指定</option>
+                      <option value="CONCEPT">概念</option>
+                      <option value="BOUNDARY">边界</option>
+                      <option value="IO_FORMAT">输入输出</option>
+                      <option value="STATE">状态</option>
+                      <option value="TRANSITION">转移</option>
+                      <option value="COMPLEXITY">复杂度</option>
+                      <option value="MODELING">建模</option>
+                      <option value="SYNTAX">语法</option>
+                      <option value="RUNTIME">运行时</option>
+                      <option value="DEBUGGING">调试习惯</option>
+                    </Select>
+                  </Field>
+                  <Field label="常见误解">
+                    <TextInput name="commonMisconception" value={draft.commonMisconception} onChange={event => patchDraft({ commonMisconception: event.target.value })} />
+                  </Field>
+                </>
+              ) : null}
+              <Field label="严重度">
+                <Select name="severity" value={draft.severity} onChange={event => patchDraft({ severity: event.target.value })}>
+                  <option value="">未指定</option>
+                  <option value="LOW">LOW</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="HIGH">HIGH</option>
+                </Select>
+              </Field>
+              <Field label="版本">
+                <TextInput name="libraryVersion" value={draft.libraryVersion} onChange={event => patchDraft({ libraryVersion: event.target.value })} />
+              </Field>
+            </div>
+          </details>
+
+          <details className="standard-library-editor__section">
+            <summary>证据与建议</summary>
+            <div className="standard-library-editor__textarea-grid standard-library-editor__signals">
+              <Field label="关联知识点">
+                <TextArea name="knowledgeNodeCodes" value={draft.knowledgeNodeCodes} onChange={event => patchDraft({ knowledgeNodeCodes: event.target.value })} placeholder="每行一个知识点 ID" />
+              </Field>
+              <Field label="适用语言">
+                <TextArea name="applicableLanguages" value={draft.applicableLanguages} onChange={event => patchDraft({ applicableLanguages: event.target.value })} placeholder="PYTHON&#10;CPP17" />
+              </Field>
+              <Field label="前置知识">
+                <TextArea name="prerequisiteKnowledgeCodes" value={draft.prerequisiteKnowledgeCodes} onChange={event => patchDraft({ prerequisiteKnowledgeCodes: event.target.value })} placeholder="每行一个知识点或能力点 ID" />
+              </Field>
+              <Field label="相关条目">
+                <TextArea name="relatedItems" value={draft.relatedItems} onChange={event => patchDraft({ relatedItems: event.target.value })} placeholder="每行一个条目 ID" />
+              </Field>
+            </div>
+          </details>
         </div>
-      </div>
+      </section>
     </section>
   );
 }

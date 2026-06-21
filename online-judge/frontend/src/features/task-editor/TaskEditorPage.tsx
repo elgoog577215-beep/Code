@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Save } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { ProblemCatalogItem, ProblemManage } from "../../shared/api/types";
+import type { Problem, ProblemCatalogItem, ProblemManage } from "../../shared/api/types";
 import { difficultyLabel } from "../../shared/format";
 import { Button } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -32,7 +32,19 @@ const initialProblem = {
   testCases: [{ input: "", expectedOutput: "", hidden: false }] as TestCaseDraft[]
 };
 
-export default function TaskEditorPage({ embedded = false }: { embedded?: boolean }) {
+type TaskEditorPageProps = {
+  embedded?: boolean;
+  selectedProblemId?: number | null;
+  showCatalogDrawer?: boolean;
+  onSaved?: (problem: Problem) => void;
+};
+
+export default function TaskEditorPage({
+  embedded = false,
+  selectedProblemId,
+  showCatalogDrawer = true,
+  onSaved
+}: TaskEditorPageProps) {
   const [searchParams] = useSearchParams();
   const [catalog, setCatalog] = useState<ProblemCatalogItem[]>([]);
   const [form, setForm] = useState(initialProblem);
@@ -60,13 +72,22 @@ export default function TaskEditorPage({ embedded = false }: { embedded?: boolea
   const readinessTone = readyQualityCount >= qualityItems.length ? "success" : readyQualityCount >= 4 ? "info" : "warning";
 
   useEffect(() => {
-    void loadCatalog();
+    if (showCatalogDrawer) {
+      void loadCatalog();
+    }
     const id = searchParams.get("id");
-    if (id) {
-      void loadProblem(Number(id));
+    const initialId = selectedProblemId || (id ? Number(id) : null);
+    if (initialId) {
+      void loadProblem(initialId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (selectedProblemId) {
+      void loadProblem(selectedProblemId);
+    }
+  }, [selectedProblemId]);
 
   async function loadCatalog() {
     try {
@@ -162,7 +183,10 @@ export default function TaskEditorPage({ embedded = false }: { embedded?: boolea
       const result = form.id ? await api.updateProblem(Number(form.id), payload) : await api.createProblem(payload);
       setAlert({ type: "success", message: "题目已保存，可在教师工作台绑定到作业。" });
       setForm(current => ({ ...current, id: String(result.id) }));
-      await loadCatalog();
+      if (showCatalogDrawer) {
+        await loadCatalog();
+      }
+      onSaved?.(result);
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "保存失败。" });
     } finally {
@@ -313,6 +337,7 @@ export default function TaskEditorPage({ embedded = false }: { embedded?: boolea
 
       </section>
 
+      {showCatalogDrawer ? (
       <section className="editor-secondary-drawer">
         <details className="editor-compact-details editor-compact-details--side">
           <summary>
@@ -352,6 +377,7 @@ export default function TaskEditorPage({ embedded = false }: { embedded?: boolea
           </div>
         </details>
       </section>
+      ) : null}
 
     </div>
   );
