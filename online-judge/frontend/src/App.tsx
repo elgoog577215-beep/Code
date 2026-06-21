@@ -14,6 +14,7 @@ const StudentAssignmentPage = lazy(() => import("./features/student/StudentAssig
 const ProblemPage = lazy(() => import("./features/problem/ProblemPage"));
 const AssignmentDetailPage = lazy(() => import("./features/teacher/AssignmentDetailPage"));
 const AssignmentCreatePage = lazy(() => import("./features/teacher/AssignmentCreatePage"));
+const TeacherManagementPage = lazy(() => import("./features/teacher/TeacherManagementPage"));
 const TaskEditorPage = lazy(() => import("./features/task-editor/TaskEditorPage"));
 const ClassOverviewPage = lazy(() => import("./features/insights/ClassOverviewPage"));
 
@@ -275,11 +276,13 @@ export default function App() {
             <Route path="/app/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
             <Route path="/app/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
             <Route path="/app/teacher" element={<TeacherAuthGate><TeacherPage /></TeacherAuthGate>} />
+            <Route path="/app/teacher/manage" element={<TeacherAuthGate><TeacherManagementPage /></TeacherAuthGate>} />
+            <Route path="/app/teacher/resources" element={<Navigate to="/app/teacher/manage" replace />} />
             <Route path="/app/teacher/assignment/new" element={<TeacherAuthGate><AssignmentCreatePage /></TeacherAuthGate>} />
             <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherAuthGate><AssignmentDetailPage /></TeacherAuthGate>} />
             <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherAuthGate><AssignmentDetailPage /></TeacherAuthGate>} />
             <Route path="/app/teacher/assignment/:assignmentId" element={<TeacherAuthGate><AssignmentDetailPage /></TeacherAuthGate>} />
-            <Route path="/app/teacher-management" element={<Navigate to="/app/teacher?manage=1" replace />} />
+            <Route path="/app/teacher-management" element={<Navigate to="/app/teacher/manage" replace />} />
             <Route path="/app/task-editor" element={<TeacherAuthGate><TaskEditorPage /></TeacherAuthGate>} />
             <Route path="/app/class-overview" element={<TeacherAuthGate><ClassOverviewPage /></TeacherAuthGate>} />
             <Route path="/app/problem/:problemId" element={<ProblemPage />} />
@@ -289,7 +292,7 @@ export default function App() {
             <Route path="/teacher" element={<Navigate to="/app/teacher" replace />} />
             <Route path="/teacher/assignment/new" element={<Navigate to="/app/teacher/assignment/new" replace />} />
             <Route path="/teacher/assignment/:assignmentId" element={<LegacyAssignmentRedirect />} />
-            <Route path="/teacher-management" element={<Navigate to="/app/teacher?manage=1" replace />} />
+            <Route path="/teacher-management" element={<Navigate to="/app/teacher/manage" replace />} />
             <Route path="/task-editor" element={<Navigate to="/app/task-editor" replace />} />
             <Route path="/class-overview" element={<Navigate to="/app/class-overview" replace />} />
             <Route path="/student.html" element={<LegacyRedirect />} />

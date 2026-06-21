@@ -65,7 +65,7 @@ public class LiveEvalQualityBaselineDraftFactory {
     private LiveEvalQualityBaselineDraft fromAssistantEntry(AssistantLiveEvalReport.Entry entry) {
         String assistantType = firstNonBlank(entry.getAssistantType(), "UNKNOWN_ASSISTANT");
         String stage = "SUBMISSION_DIAGNOSIS".equals(assistantType)
-                ? firstNonBlank(entry.getFailureStage(), "DIAGNOSIS_AND_TEACHING")
+                ? firstNonBlank(entry.getFailureStage(), "DIAGNOSIS_AND_ADVICE")
                 : assistantType;
         List<String> evidenceRefs = evidenceRefs(entry.getCaseId(), entry.getActualEvidenceRefs());
         List<String> expectedSignals = assistantExpectedSignals(entry);

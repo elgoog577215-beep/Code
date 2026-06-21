@@ -79,10 +79,10 @@ class AiQualityOverviewServiceTest {
         submissionRepository.items.add(submission(11L, 7L));
         submissionRepository.items.add(submission(12L, 7L));
         analysisRepository.save(analysis(11L, 0.55, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
-                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_TEACHING", "INSUFFICIENT_QUOTA",
+                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_ADVICE", "INSUFFICIENT_QUOTA",
                 "stream", 0, 0, 0, false));
         analysisRepository.save(analysis(12L, 0.82, "HIGH", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]",
-                "MODEL_PARTIAL_COMPLETED", false, null, "single-call", "TEACHING_HINT", "SAFETY_RISK"));
+                "MODEL_PARTIAL_COMPLETED", false, null, "single-call", "DIAGNOSIS_AND_ADVICE", "SAFETY_RISK"));
         correctionRepository.saved.add(correction(1L, 7L, 11L, "BOUNDARY_CONDITION", "OFF_BY_ONE", "IO_FORMAT", "INPUT_PARSING", true));
 
         var overview = service.buildOverview(7L);
@@ -147,7 +147,7 @@ class AiQualityOverviewServiceTest {
             assertThat(signal.getStatus()).isEqualTo("ACTION_NEEDED");
             assertThat(signal.getPrimaryFailureType()).isEqualTo("QUOTA_LIMIT");
             assertThat(signal.getPrimaryFailureReason()).isEqualTo("INSUFFICIENT_QUOTA");
-            assertThat(signal.getPrimaryFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+            assertThat(signal.getPrimaryFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
             assertThat(signal.getPrimaryTransportMode()).isEqualTo("stream");
             assertThat(signal.getModelPartialCount()).isEqualTo(1);
             assertThat(signal.getModelRuntimeFailureCount()).isEqualTo(1);
@@ -235,7 +235,7 @@ class AiQualityOverviewServiceTest {
         submissionRepository.items.add(submission(191L, 19L));
         submissionRepository.items.add(submission(192L, 19L));
         analysisRepository.save(analysis(191L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
-                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_TEACHING", "BUDGET_GUARD_OPEN"));
+                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_ADVICE", "BUDGET_GUARD_OPEN"));
         analysisRepository.save(analysis(192L, 0.81, "LOW", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]",
                 "MODEL_COMPLETED", false));
 
@@ -265,7 +265,7 @@ class AiQualityOverviewServiceTest {
         submissionRepository.items.add(submission(201L, 20L));
         submissionRepository.items.add(submission(202L, 20L));
         analysisRepository.save(analysis(201L, 0.76, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
-                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_TEACHING", "OUTPUT_TRUNCATED",
+                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_ADVICE", "OUTPUT_TRUNCATED",
                 "stream", 241, 77, 0, "length", false));
         analysisRepository.save(analysis(202L, 0.81, "LOW", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]",
                 "MODEL_COMPLETED", false));
@@ -275,7 +275,7 @@ class AiQualityOverviewServiceTest {
         assertThat(overview.getRuntimeAttributionSignal()).satisfies(signal -> {
             assertThat(signal.getPrimaryFailureType()).isEqualTo("OUTPUT_TRUNCATED");
             assertThat(signal.getPrimaryFailureReason()).isEqualTo("OUTPUT_TRUNCATED");
-            assertThat(signal.getPrimaryFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+            assertThat(signal.getPrimaryFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
             assertThat(signal.getPrimaryTransportMode()).isEqualTo("stream");
             assertThat(signal.getModelRuntimeFailureCount()).isEqualTo(1);
             assertThat(signal.getModelCompletedCount()).isEqualTo(1);
@@ -302,7 +302,7 @@ class AiQualityOverviewServiceTest {
         submissionRepository.items.add(submission(211L, 21L));
         submissionRepository.items.add(submission(212L, 21L));
         analysisRepository.save(analysis(211L, 0.58, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
-                "MODEL_RUNTIME_FALLBACK", true, null, "low-latency", "DIAGNOSIS_AND_TEACHING", "RATE_LIMITED",
+                "MODEL_RUNTIME_FALLBACK", true, null, "low-latency", "DIAGNOSIS_AND_ADVICE", "RATE_LIMITED",
                 "stream", 0, 0, 0, false));
         analysisRepository.save(analysis(212L, 0.86, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
                 "MODEL_COMPLETED", false, null, "low-latency", "", "",
@@ -378,7 +378,7 @@ class AiQualityOverviewServiceTest {
         analysisRepository.save(analysis(231L, 0.83, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
                 "MODEL_COMPLETED", false));
         analysisRepository.save(analysis(232L, 0.80, "LOW", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]",
-                "MODEL_PARTIAL_COMPLETED", false, null, "low-latency", "TEACHING_HINT", "SAFETY_RISK"));
+                "MODEL_PARTIAL_COMPLETED", false, null, "low-latency", "DIAGNOSIS_AND_ADVICE", "SAFETY_RISK"));
 
         var overview = service.buildOverview(23L);
 

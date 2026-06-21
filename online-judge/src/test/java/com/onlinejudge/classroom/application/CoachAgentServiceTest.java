@@ -339,6 +339,8 @@ class CoachAgentServiceTest {
     @Test
     void liveModelCoachQuestionsStaySafeWhenEnabled() throws IOException {
         String apiKey = System.getenv("AI_EVAL_API_KEY");
+        Assumptions.assumeTrue(Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_LIVE_ENABLED"), "false")),
+                "Set AI_EVAL_LIVE_ENABLED=true to run live coach eval.");
         Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "Set AI_EVAL_API_KEY to run live coach eval.");
         CoachAgentService service = newLiveService(apiKey);
         List<CoachEvalFixtureLoader.Fixture> fixtures = new CoachEvalFixtureLoader(objectMapper).loadDefault();

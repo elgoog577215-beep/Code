@@ -1,0 +1,43 @@
+This file is a non-compilable text snapshot of removed legacy model contracts.
+
+Removed DTOs:
+
+```java
+class DiagnosisJudgeOutput {
+  String primaryIssueTag;
+  String fineGrainedTag;
+  List<String> evidenceRefs;
+  String primaryReasoning;
+  List<EducationIssueNote> secondaryIssues;
+  List<EducationIssueNote> distractorNotes;
+  String teachingPriority;
+  List<ImprovementOpportunity> improvementOpportunities;
+  NextLearningAction nextLearningAction;
+  Double confidence;
+  String uncertainty;
+  Boolean needsMoreEvidence;
+  String answerLeakRisk;
+}
+
+class TeachingHintOutput {
+  String studentHint;
+  StudentHintPlan studentHintPlan;
+  LearningInterventionPlan learningInterventionPlan;
+  String teacherNote;
+  String answerLeakRisk;
+}
+
+class CombinedOutput {
+  DiagnosisJudgeOutput diagnosisDecision;
+  TeachingHintOutput teachingHint;
+  StudentFeedback studentFeedback;
+}
+```
+
+Kept concept:
+
+- Generic stage validation result may continue to exist for search-location and advice-generation.
+
+Reason for removal:
+- New formal model contract is `AdviceGenerationOutput`.
+- New model output should not be converted through old diagnosis/teaching DTOs.

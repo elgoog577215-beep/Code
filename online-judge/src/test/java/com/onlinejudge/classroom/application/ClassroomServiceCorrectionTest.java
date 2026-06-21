@@ -1758,7 +1758,7 @@ class ClassroomServiceCorrectionTest {
                 "MODEL_RUNTIME_FALLBACK",
                 true,
                 "single-call",
-                "DIAGNOSIS_AND_TEACHING",
+                "DIAGNOSIS_AND_ADVICE",
                 "INSUFFICIENT_QUOTA api_key=ms-secret-token-should-not-leak",
                 "stream",
                 0,
@@ -1772,14 +1772,14 @@ class ClassroomServiceCorrectionTest {
                 "MODEL_RUNTIME_FALLBACK",
                 true,
                 "single-call",
-                "DIAGNOSIS_AND_TEACHING",
+                "DIAGNOSIS_AND_ADVICE",
                 "BUDGET_GUARD_OPEN"));
         submissionAnalysisRepository.save(runtimeAnalysis(
                 704L,
                 "MODEL_RUNTIME_FALLBACK",
                 true,
                 "single-call",
-                "DIAGNOSIS_AND_TEACHING",
+                "DIAGNOSIS_AND_ADVICE",
                 "OUTPUT_TRUNCATED",
                 "stream",
                 241,
@@ -1793,7 +1793,7 @@ class ClassroomServiceCorrectionTest {
                 "MODEL_PARTIAL_COMPLETED",
                 false,
                 "single-call",
-                "TEACHING_HINT",
+                "DIAGNOSIS_AND_ADVICE",
                 "SAFETY_RISK"));
 
         var response = service.exportDiagnosisEvalFixtureDraft(assignment.getId());
@@ -1815,7 +1815,7 @@ class ClassroomServiceCorrectionTest {
                     assertThat(draft.getStreamInvalidChunkCount()).isEqualTo(2);
                     assertThat(draft.getStreamFinishReason()).isEmpty();
                     assertThat(draft.getStreamFallbackRetryUsed()).isFalse();
-                    assertThat(draft.getFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+                    assertThat(draft.getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
                     assertThat(draft.getFailureReason()).contains("INSUFFICIENT_QUOTA", "[redacted]");
                     assertThat(draft.getFailureReason()).doesNotContain("ms-secret-token-should-not-leak");
                     assertThat(draft.getExpectedRuntimeAction()).contains("ModelScope 额度", "stream", "content chunk");
@@ -1877,7 +1877,7 @@ class ClassroomServiceCorrectionTest {
                             "aiInvocation.streamFinishReason length",
                             "runtime failure type OUTPUT_TRUNCATED");
                     assertThat(draft.getQuality().getMisconception()).contains("输出预算不足", "截断 JSON");
-                    assertThat(draft.getQuality().getExpectedStudentMove()).contains("max tokens", "staged runtime");
+                    assertThat(draft.getQuality().getExpectedStudentMove()).contains("max tokens", "结构化重试");
                 });
         assertThat(response.getRuntimeFixtures().get(3))
                 .satisfies(draft -> {

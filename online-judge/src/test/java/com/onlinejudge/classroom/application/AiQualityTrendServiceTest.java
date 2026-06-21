@@ -61,9 +61,9 @@ class AiQualityTrendServiceTest {
         submissionRepository.items.add(submission(21L, 8L));
         analysisRepository.save(analysis(11L, 0.55, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_COMPLETED", false));
         analysisRepository.save(analysis(12L, 0.82, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]", "MODEL_PARTIAL_COMPLETED", false,
-                "single-call", "TEACHING_HINT", "SAFETY_RISK"));
+                "single-call", "DIAGNOSIS_AND_ADVICE", "SAFETY_RISK"));
         analysisRepository.save(analysis(21L, 0.72, "HIGH", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]", "MODEL_RUNTIME_FALLBACK", true,
-                "single-call", "DIAGNOSIS_AND_TEACHING", "INSUFFICIENT_QUOTA",
+                "single-call", "DIAGNOSIS_AND_ADVICE", "INSUFFICIENT_QUOTA",
                 "stream", 0, 0, 2, false));
         correctionRepository.saved.add(correction(1L, 7L, 11L, "BOUNDARY_CONDITION", "OFF_BY_ONE", "IO_FORMAT", "INPUT_PARSING", true));
         correctionRepository.saved.add(correction(2L, 8L, 21L, "BOUNDARY_CONDITION", "OFF_BY_ONE", "IO_FORMAT", "INPUT_PARSING", false));
@@ -125,7 +125,7 @@ class AiQualityTrendServiceTest {
                 .first()
                 .satisfies(segment -> {
                     assertThat(segment.getRuntimeMode()).isEqualTo("single-call");
-                    assertThat(segment.getFailureStage()).isEqualTo("TEACHING_HINT");
+                    assertThat(segment.getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
                     assertThat(segment.getFailureReason()).isEqualTo("SAFETY_RISK");
                     assertThat(segment.getModelPartialCount()).isEqualTo(1);
                     assertThat(segment.getModelRuntimeFailureCount()).isZero();
@@ -141,7 +141,7 @@ class AiQualityTrendServiceTest {
                 .satisfies(segment -> {
                     assertThat(segment.getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
                     assertThat(segment.getRuntimeMode()).isEqualTo("single-call");
-                    assertThat(segment.getFailureStage()).isEqualTo("DIAGNOSIS_AND_TEACHING");
+                    assertThat(segment.getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
                     assertThat(segment.getFailureReason()).isEqualTo("INSUFFICIENT_QUOTA");
                     assertThat(segment.getTransportMode()).isEqualTo("stream");
                     assertThat(segment.getFallbackCount()).isEqualTo(1);
@@ -188,7 +188,7 @@ class AiQualityTrendServiceTest {
         submissionRepository.items.add(submission(371L, 37L));
         submissionRepository.items.add(submission(372L, 37L));
         analysisRepository.save(analysis(371L, 0.80, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
-                "MODEL_PARTIAL_COMPLETED", false, "low-latency", "TEACHING_HINT", "SAFETY_RISK",
+                "MODEL_PARTIAL_COMPLETED", false, "low-latency", "DIAGNOSIS_AND_ADVICE", "SAFETY_RISK",
                 "stream", 0, 0, 0, false));
         analysisRepository.save(analysis(372L, 0.86, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
                 "MODEL_COMPLETED", false, "low-latency", "", "",

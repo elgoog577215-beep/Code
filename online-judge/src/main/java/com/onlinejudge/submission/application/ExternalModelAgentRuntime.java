@@ -33,6 +33,7 @@ public class ExternalModelAgentRuntime {
     private final ModelOutputValidator modelOutputValidator;
     private final ExternalModelOutputNormalizer outputNormalizer;
     private final AdviceGenerationOutputValidator adviceGenerationOutputValidator;
+    private final AdviceGenerationOutputNormalizer adviceGenerationOutputNormalizer;
     private final AdviceGenerationFeedbackMapper adviceGenerationFeedbackMapper;
 
     public ExternalModelAgentRuntime(ModelDiagnosisBriefBuilder briefBuilder,
@@ -42,6 +43,7 @@ public class ExternalModelAgentRuntime {
         this(briefBuilder, standardLibraryPackBuilder, promptTemplateRegistry, modelOutputValidator,
                 new ExternalModelOutputNormalizer(),
                 new AdviceGenerationOutputValidator(),
+                new AdviceGenerationOutputNormalizer(),
                 new AdviceGenerationFeedbackMapper());
     }
 
@@ -52,6 +54,7 @@ public class ExternalModelAgentRuntime {
                                      ModelOutputValidator modelOutputValidator,
                                      ExternalModelOutputNormalizer outputNormalizer,
                                      AdviceGenerationOutputValidator adviceGenerationOutputValidator,
+                                     AdviceGenerationOutputNormalizer adviceGenerationOutputNormalizer,
                                      AdviceGenerationFeedbackMapper adviceGenerationFeedbackMapper) {
         this.briefBuilder = briefBuilder;
         this.standardLibraryPackBuilder = standardLibraryPackBuilder;
@@ -61,6 +64,9 @@ public class ExternalModelAgentRuntime {
         this.adviceGenerationOutputValidator = adviceGenerationOutputValidator == null
                 ? new AdviceGenerationOutputValidator()
                 : adviceGenerationOutputValidator;
+        this.adviceGenerationOutputNormalizer = adviceGenerationOutputNormalizer == null
+                ? new AdviceGenerationOutputNormalizer()
+                : adviceGenerationOutputNormalizer;
         this.adviceGenerationFeedbackMapper = adviceGenerationFeedbackMapper == null
                 ? new AdviceGenerationFeedbackMapper()
                 : adviceGenerationFeedbackMapper;
@@ -76,17 +82,7 @@ public class ExternalModelAgentRuntime {
                                RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                SubmissionAnalysisResponse fallback,
                                String runtimeProfile) {
-        return prepare(evidencePackage, ruleSignals, fallback, runtimeProfile,
-                PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
-    }
-
-    public RuntimePlan prepare(DiagnosisEvidencePackage evidencePackage,
-                               RuleSignalAnalyzer.RuleSignalResult ruleSignals,
-                               SubmissionAnalysisResponse fallback,
-                               String runtimeProfile,
-                               String singleCallPromptVersion) {
         String normalizedProfile = normalizeRuntimeProfile(runtimeProfile);
-        String normalizedPromptVersion = normalizeSingleCallPromptVersion(singleCallPromptVersion);
         ModelDiagnosisBrief standardBrief = briefBuilder.build(evidencePackage, ruleSignals, fallback);
         boolean compact = shouldCompact(normalizedProfile, standardBrief);
         ModelDiagnosisBrief brief = compact ? compactBrief(standardBrief) : standardBrief;
@@ -97,28 +93,11 @@ public class ExternalModelAgentRuntime {
         return RuntimePlan.builder()
                 .brief(brief)
                 .standardLibraryPack(standardLibraryPack)
-                .diagnosisPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_JUDGE_V2))
-                .teachingPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.TEACHING_HINT_V1))
                 .searchLocationPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.SEARCH_LOCATION_V1))
-                .singleCallPrompt(promptTemplateRegistry.get(normalizedPromptVersion))
+                .advicePrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1))
                 .runtimeProfile(normalizedProfile)
                 .requestCompact(compact)
                 .build();
-    }
-
-    private String normalizeSingleCallPromptVersion(String promptVersion) {
-        String version = promptVersion == null ? "" : promptVersion.trim();
-        if (version.isBlank()) {
-            return PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1;
-        }
-        if (PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V1.equals(version)
-                || PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V2.equals(version)
-                || PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3.equals(version)
-                || PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V4_LITE.equals(version)
-                || PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1.equals(version)) {
-            return version;
-        }
-        return PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3;
     }
 
     private String normalizeRuntimeProfile(String runtimeProfile) {
@@ -399,59 +378,17 @@ public class ExternalModelAgentRuntime {
         return values.stream().limit(maxSize).toList();
     }
 
-    public ExternalModelStagePayloads.StageValidationResult validateDiagnosisDecision(
-            ExternalModelStagePayloads.DiagnosisJudgeOutput output,
-            RuntimePlan runtimePlan) {
-        return modelOutputValidator.validateDiagnosisJudgeOutput(
-                output,
-                runtimePlan == null ? null : runtimePlan.getBrief(),
-                runtimePlan == null ? null : runtimePlan.getStandardLibraryPack()
-        );
-    }
-
-    public ExternalModelStagePayloads.DiagnosisJudgeOutput normalizeDiagnosisDecision(
-            ExternalModelStagePayloads.DiagnosisJudgeOutput output,
-            RuntimePlan runtimePlan) {
-        return outputNormalizer.normalizeDiagnosisDecision(output, runtimePlan);
-    }
-
-    public ExternalModelStagePayloads.TeachingHintOutput normalizeTeachingHint(
-            ExternalModelStagePayloads.TeachingHintOutput output,
-            RuntimePlan runtimePlan) {
-        return outputNormalizer.normalizeTeachingHint(output, runtimePlan);
-    }
-
-    public ExternalModelStagePayloads.CombinedOutput normalizeCombinedOutput(
-            ExternalModelStagePayloads.CombinedOutput output,
-            RuntimePlan runtimePlan) {
-        return outputNormalizer.normalizeCombinedOutput(output, runtimePlan);
-    }
-
     public com.onlinejudge.submission.dto.SubmissionAnalysisResponse.StudentFeedback normalizeStudentFeedback(
             com.onlinejudge.submission.dto.SubmissionAnalysisResponse.StudentFeedback feedback,
             RuntimePlan runtimePlan) {
         return outputNormalizer.normalizeStudentFeedback(feedback, runtimePlan);
     }
 
-    public ExternalModelStagePayloads.StageValidationResult validateTeachingHint(
-            ExternalModelStagePayloads.TeachingHintOutput output,
-            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
-            RuntimePlan runtimePlan) {
-        return modelOutputValidator.validateTeachingHintOutput(
-                output,
-                decision,
-                runtimePlan == null ? null : runtimePlan.getBrief(),
-                runtimePlan == null ? null : runtimePlan.getStandardLibraryPack()
-        );
-    }
-
     public ExternalModelStagePayloads.StageValidationResult validateStudentFeedback(
             com.onlinejudge.submission.dto.SubmissionAnalysisResponse.StudentFeedback feedback,
-            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
             RuntimePlan runtimePlan) {
         return modelOutputValidator.validateStudentFeedback(
                 feedback,
-                decision,
                 runtimePlan == null ? null : runtimePlan.getBrief(),
                 runtimePlan == null ? null : runtimePlan.getStandardLibraryPack()
         );
@@ -467,36 +404,19 @@ public class ExternalModelAgentRuntime {
         );
     }
 
-    public com.onlinejudge.submission.dto.SubmissionAnalysisResponse.StudentFeedback mapAdviceStudentFeedback(
-            AdviceGenerationOutput output,
-            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
-            RuntimePlan runtimePlan) {
-        return adviceGenerationFeedbackMapper.toStudentFeedback(
+    public AdviceGenerationOutput normalizeAdviceGeneration(AdviceGenerationOutput output,
+                                                            RuntimePlan runtimePlan) {
+        return adviceGenerationOutputNormalizer.normalize(
                 output,
-                decision,
                 runtimePlan == null ? null : runtimePlan.getStandardLibraryPack()
         );
     }
 
-    public ExternalModelStagePayloads.DiagnosisJudgeOutput mapAdviceDiagnosisDecision(
+    public com.onlinejudge.submission.dto.SubmissionAnalysisResponse.StudentFeedback mapAdviceStudentFeedback(
             AdviceGenerationOutput output,
-            com.onlinejudge.submission.dto.SubmissionAnalysisResponse fallback) {
-        return adviceGenerationFeedbackMapper.toDiagnosisDecision(output, fallback);
-    }
-
-    public ExternalModelStagePayloads.TeachingHintOutput mapAdviceTeachingHint(
-            AdviceGenerationOutput output,
-            com.onlinejudge.submission.dto.SubmissionAnalysisResponse fallback) {
-        return adviceGenerationFeedbackMapper.toTeachingHint(output, fallback, null);
-    }
-
-    public ExternalModelStagePayloads.TeachingHintOutput mapAdviceTeachingHint(
-            AdviceGenerationOutput output,
-            com.onlinejudge.submission.dto.SubmissionAnalysisResponse fallback,
             RuntimePlan runtimePlan) {
-        return adviceGenerationFeedbackMapper.toTeachingHint(
+        return adviceGenerationFeedbackMapper.toStudentFeedback(
                 output,
-                fallback,
                 runtimePlan == null ? null : runtimePlan.getStandardLibraryPack()
         );
     }
@@ -508,10 +428,8 @@ public class ExternalModelAgentRuntime {
         private StandardLibraryPack standardLibraryPack;
         private SearchLocationResult searchLocationResult;
         private AdviceGenerationResult adviceGenerationResult;
-        private PromptTemplateRegistry.PromptTemplate diagnosisPrompt;
-        private PromptTemplateRegistry.PromptTemplate teachingPrompt;
         private PromptTemplateRegistry.PromptTemplate searchLocationPrompt;
-        private PromptTemplateRegistry.PromptTemplate singleCallPrompt;
+        private PromptTemplateRegistry.PromptTemplate advicePrompt;
         private String runtimeProfile;
         private boolean requestCompact;
     }

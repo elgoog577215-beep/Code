@@ -3,13 +3,16 @@ package com.onlinejudge.submission.application;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import org.springframework.stereotype.Component;
 
+import java.util.Locale;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Component
 public class AdviceGenerationFeedbackMapper {
 
     public SubmissionAnalysisResponse.StudentFeedback toStudentFeedback(AdviceGenerationOutput output,
-                                                                        ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
                                                                         StandardLibraryPack standardLibraryPack) {
         if (output == null) {
             return null;
@@ -22,8 +25,8 @@ public class AdviceGenerationFeedbackMapper {
                         .studentMessage(joinNonBlank(item.getWhatHappened(), item.getWhyItMatters()))
                         .evidence(firstOrDefault(item.getEvidenceRefs(), "模型引用了当前提交证据。"))
                         .nextAction(item.getStudentAction())
-                        .issueTag(decision == null ? null : decision.getPrimaryIssueTag())
-                        .fineGrainedTag(decision == null ? null : decision.getFineGrainedTag())
+                        .issueTag(defaultIfBlank(item.getSkillUnitId(), item.getMistakePointId()))
+                        .fineGrainedTag(item.getMistakePointId())
                         .evidenceRefs(item.getEvidenceRefs())
                         .build())
                 .toList();
@@ -59,99 +62,6 @@ public class AdviceGenerationFeedbackMapper {
                 .build();
     }
 
-    public ExternalModelStagePayloads.DiagnosisJudgeOutput toDiagnosisDecision(AdviceGenerationOutput output,
-                                                                               SubmissionAnalysisResponse fallback) {
-        List<String> issueTags = fallback == null ? List.of() : safe(fallback.getIssueTags());
-        List<String> fineTags = fallback == null ? List.of() : safe(fallback.getFineGrainedTags());
-        List<String> evidenceRefs = primaryEvidenceRefs(output, fallback);
-        return ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
-                .primaryIssueTag(firstOrDefault(issueTags, "NEEDS_MORE_EVIDENCE"))
-                .fineGrainedTag(firstOrDefault(fineTags, ""))
-                .evidenceRefs(evidenceRefs)
-                .primaryReasoning(primaryReasoning(output))
-                .secondaryIssues(List.of())
-                .distractorNotes(List.of())
-                .teachingPriority(defaultIfBlank(output == null ? "" : output.getStudentSummary(),
-                        "先处理当前最明确的基础层问题。"))
-                .improvementOpportunities(List.of())
-                .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
-                        .hintLevel("L2")
-                        .action("COLLECT_EVIDENCE")
-                        .task(firstStepTarget(output))
-                        .checkQuestion(firstBasicQuestion(output))
-                        .evidenceRefs(evidenceRefs)
-                        .answerLeakRisk("LOW")
-                        .build())
-                .confidence(firstBasicConfidence(output))
-                .uncertainty("advice-generation-v1 已给出结构化建议。")
-                .needsMoreEvidence(false)
-                .answerLeakRisk("LOW")
-                .build();
-    }
-
-    public ExternalModelStagePayloads.TeachingHintOutput toTeachingHint(AdviceGenerationOutput output,
-                                                                        SubmissionAnalysisResponse fallback,
-                                                                        StandardLibraryPack standardLibraryPack) {
-        AdviceGenerationOutput.NextStepAdvice firstStep = safe(output == null ? null : output.getNextStepPlan()).stream()
-                .filter(item -> item != null)
-                .findFirst()
-                .orElse(null);
-        String evidence = firstStep == null ? firstOrDefault(firstBasicEvidenceRefs(output), "model:advice_generation") : firstStep.getEvidenceRef();
-        String target = firstStep == null ? firstBasicAction(output) : firstStep.getTarget();
-        String teachingAction = firstTeachingAction(standardLibraryPack);
-        List<String> evidenceRefs = firstStep == null || firstStep.getEvidenceRef() == null || firstStep.getEvidenceRef().isBlank()
-                ? firstBasicEvidenceRefs(output)
-                : List.of(firstStep.getEvidenceRef());
-        return ExternalModelStagePayloads.TeachingHintOutput.builder()
-                .studentHint(defaultIfBlank(target, fallback == null ? "" : fallback.getStudentHint()))
-                .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
-                        .hintLevel("L2")
-                        .problemType("基础层诊断")
-                        .evidenceAnchor(defaultIfBlank(evidence, "model:advice_generation"))
-                        .nextAction(defaultIfBlank(target, "先复核模型指出的证据。"))
-                        .coachQuestion(firstBasicQuestion(output))
-                        .teachingAction(teachingAction)
-                        .evidenceRefs(evidenceRefs)
-                        .answerLeakRisk("LOW")
-                        .build())
-                .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
-                        .interventionType("ADVICE_GENERATION")
-                        .goal("完成当前最小可观察诊断动作。")
-                        .studentTask(defaultIfBlank(target, "复核证据。"))
-                        .checkQuestion(firstBasicQuestion(output))
-                        .completionSignal("学生能说出证据和代码行为之间的差距。")
-                        .evidenceRefs(evidenceRefs)
-                        .estimatedMinutes(6)
-                        .answerLeakRisk("LOW")
-                        .build())
-                .teacherNote("外部模型已生成基础层与提高层结构化建议。")
-                .answerLeakRisk("LOW")
-                .build();
-    }
-
-    private String primaryReasoning(AdviceGenerationOutput output) {
-        AdviceGenerationOutput.BasicLayerAdvice first = firstBasic(output);
-        if (first != null) {
-            return joinNonBlank(first.getWhatHappened(), first.getWhyItMatters());
-        }
-        return output == null || output.getCaseUnderstanding() == null
-                ? "模型基于当前证据生成了结构化建议。"
-                : output.getCaseUnderstanding().getBehaviorGap();
-    }
-
-    private List<String> primaryEvidenceRefs(AdviceGenerationOutput output, SubmissionAnalysisResponse fallback) {
-        AdviceGenerationOutput.BasicLayerAdvice first = firstBasic(output);
-        if (first != null && first.getEvidenceRefs() != null && !first.getEvidenceRefs().isEmpty()) {
-            return first.getEvidenceRefs();
-        }
-        if (output != null && output.getCaseUnderstanding() != null
-                && output.getCaseUnderstanding().getPrimaryEvidenceRef() != null
-                && !output.getCaseUnderstanding().getPrimaryEvidenceRef().isBlank()) {
-            return List.of(output.getCaseUnderstanding().getPrimaryEvidenceRef());
-        }
-        return fallback == null ? List.of() : safe(fallback.getEvidenceRefs());
-    }
-
     private AdviceGenerationOutput.BasicLayerAdvice firstBasic(AdviceGenerationOutput output) {
         return safe(output == null ? null : output.getBasicLayerAdvice()).stream()
                 .filter(item -> item != null)
@@ -169,11 +79,6 @@ public class AdviceGenerationFeedbackMapper {
         return first == null ? "这条证据说明了什么代码行为？" : first.getCheckQuestion();
     }
 
-    private Double firstBasicConfidence(AdviceGenerationOutput output) {
-        AdviceGenerationOutput.BasicLayerAdvice first = firstBasic(output);
-        return first == null || first.getConfidence() == null ? 0.7 : first.getConfidence();
-    }
-
     private List<String> firstBasicEvidenceRefs(AdviceGenerationOutput output) {
         AdviceGenerationOutput.BasicLayerAdvice first = firstBasic(output);
         if (first != null && first.getEvidenceRefs() != null && !first.getEvidenceRefs().isEmpty()) {
@@ -187,21 +92,67 @@ public class AdviceGenerationFeedbackMapper {
         return List.of();
     }
 
-    private String firstStepTarget(AdviceGenerationOutput output) {
-        return safe(output == null ? null : output.getNextStepPlan()).stream()
-                .filter(item -> item != null && item.getTarget() != null && !item.getTarget().isBlank())
-                .map(AdviceGenerationOutput.NextStepAdvice::getTarget)
-                .findFirst()
-                .orElse(firstBasicAction(output));
-    }
-
     private String toImprovementCategory(AdviceGenerationOutput.ImprovementLayerAdvice item,
                                          StandardLibraryPack standardLibraryPack) {
+        String mappedCategory = categoryFromImprovementPoint(item, standardLibraryPack);
+        if (!mappedCategory.isBlank()) {
+            return mappedCategory;
+        }
+        String normalizedSkillCategory = normalizeToAllowedImprovementTag(
+                item == null ? "" : item.getSkillUnitId(),
+                standardLibraryPack
+        );
+        if (!normalizedSkillCategory.isBlank()) {
+            return normalizedSkillCategory;
+        }
         if (standardLibraryPack != null && standardLibraryPack.getImprovementTags() != null
                 && !standardLibraryPack.getImprovementTags().isEmpty()) {
             return standardLibraryPack.getImprovementTags().get(0).getId();
         }
-        return defaultIfBlank(item.getImprovementPointId(), "TRANSFER_REVIEW");
+        return "TRANSFER_REVIEW";
+    }
+
+    private String categoryFromImprovementPoint(AdviceGenerationOutput.ImprovementLayerAdvice item,
+                                                StandardLibraryPack standardLibraryPack) {
+        if (item == null || item.getImprovementPointId() == null || item.getImprovementPointId().isBlank()
+                || standardLibraryPack == null || standardLibraryPack.getImprovementPoints() == null) {
+            return "";
+        }
+        Map<String, StandardLibraryPack.ImprovementPointOption> pointsById =
+                standardLibraryPack.getImprovementPoints().stream()
+                        .filter(point -> point != null && point.getId() != null && !point.getId().isBlank())
+                        .collect(Collectors.toMap(
+                                point -> normalizeKey(point.getId()),
+                                Function.identity(),
+                                (left, right) -> left
+                        ));
+        StandardLibraryPack.ImprovementPointOption point = pointsById.get(normalizeKey(item.getImprovementPointId()));
+        if (point == null) {
+            return "";
+        }
+        String category = normalizeToAllowedImprovementTag(point.getCategory(), standardLibraryPack);
+        if (!category.isBlank()) {
+            return category;
+        }
+        return normalizeToAllowedImprovementTag(point.getId(), standardLibraryPack);
+    }
+
+    private String normalizeToAllowedImprovementTag(String rawValue, StandardLibraryPack standardLibraryPack) {
+        if (rawValue == null || rawValue.isBlank()
+                || standardLibraryPack == null || standardLibraryPack.getImprovementTags() == null) {
+            return "";
+        }
+        String key = normalizeKey(rawValue);
+        return standardLibraryPack.getImprovementTags().stream()
+                .filter(tag -> tag != null && tag.getId() != null && !tag.getId().isBlank())
+                .map(StandardLibraryPack.ImprovementTagOption::getId)
+                .filter(id -> normalizeKey(id).equals(key))
+                .findFirst()
+                .orElse("");
+    }
+
+    private String normalizeKey(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private int priorityOf(List<AdviceGenerationOutput.BasicLayerAdvice> values,

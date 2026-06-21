@@ -15,7 +15,7 @@ class LiveModelEvalComparisonReportFactoryTest {
     void comparesPromptIterationsByNativeTraceAndIntelligenceQuality() {
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .timeoutSeconds(35L)
                 .maxOutputTokens(900)
@@ -53,7 +53,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .build();
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-native-checklist")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .timeoutSeconds(45L)
                 .maxOutputTokens(1200)
@@ -138,7 +138,7 @@ class LiveModelEvalComparisonReportFactoryTest {
     void flagsFallbackMissingCasesAndNativeTraceRegressions() {
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(2)
                 .fallbackCount(0)
@@ -171,7 +171,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .build();
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-short")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("low-latency")
                 .completedCount(0)
                 .fallbackCount(1)
@@ -243,7 +243,7 @@ class LiveModelEvalComparisonReportFactoryTest {
     void iterationAdviceSeparatesQuotaAndBudgetGuardFromPromptQualityRegression() {
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(2)
                 .fallbackCount(0)
@@ -281,13 +281,13 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .build();
         LiveModelEvalReport.Entry quotaFallback = entry("complex-live-01", "MODEL_RUNTIME_FALLBACK", true,
                 0.0, 0.0, 0.0, List.of(), List.of());
-        quotaFallback.setFailureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_TEACHING:INSUFFICIENT_QUOTA");
+        quotaFallback.setFailureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_ADVICE:INSUFFICIENT_QUOTA");
         LiveModelEvalReport.Entry budgetGuardFallback = entry("complex-live-02", "MODEL_RUNTIME_FALLBACK", true,
                 0.0, 0.0, 0.0, List.of(), List.of());
-        budgetGuardFallback.setFailureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_TEACHING:BUDGET_GUARD_OPEN");
+        budgetGuardFallback.setFailureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_ADVICE:BUDGET_GUARD_OPEN");
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v4-lite")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(0)
                 .fallbackCount(2)
@@ -342,7 +342,7 @@ class LiveModelEvalComparisonReportFactoryTest {
     void iterationAdviceMapsNativeTracePriorityAndSecondaryRegressionsToPromptAndStandardLibraryActions() {
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -374,7 +374,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .build();
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-experimental")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -428,7 +428,7 @@ class LiveModelEvalComparisonReportFactoryTest {
     void iterationAdviceMapsRootCauseChecklistRegressionToPromptAndStandardLibraryActions() {
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -450,7 +450,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .build();
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-checklist-risk")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -492,7 +492,7 @@ class LiveModelEvalComparisonReportFactoryTest {
     void iterationAdviceSeparatesOutputBudgetTruncationFromModelReasoningRegression() {
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .timeoutSeconds(35L)
                 .maxOutputTokens(900)
@@ -527,10 +527,10 @@ class LiveModelEvalComparisonReportFactoryTest {
                 List.of("modelTraceMetric:nativePrimaryReasoningGrounded"),
                 List.of("nativeTeachingPriorityClear", "nativeNextActionObservable"));
         truncated.setStreamFinishReason("length");
-        truncated.setFailureReason("MODEL_PARTIAL_COMPLETED:DIAGNOSIS_AND_TEACHING:OUTPUT_TRUNCATED");
+        truncated.setFailureReason("MODEL_PARTIAL_COMPLETED:DIAGNOSIS_AND_ADVICE:OUTPUT_TRUNCATED");
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-long-schema")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .timeoutSeconds(35L)
                 .maxOutputTokens(512)
@@ -581,7 +581,7 @@ class LiveModelEvalComparisonReportFactoryTest {
     void iterationAdviceSeparatesSafetyBoundaryRegressionFromGenericQualityDrop() {
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -610,7 +610,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                         "modelTraceMetric:nativeNextActionObservable"),
                 List.of("nativeSafetyBoundary"));
         unsafe.setSafetyPassed(false);
-        unsafe.setFailureReason("MODEL_COMPLETED:DIAGNOSIS_AND_TEACHING:SAFETY_RISK");
+        unsafe.setFailureReason("MODEL_COMPLETED:DIAGNOSIS_AND_ADVICE:SAFETY_RISK");
         unsafe.setModelOutput(LiveModelEvalReport.ModelOutput.builder()
                 .answerLeakRisk("HIGH")
                 .summary("完整代码如下：def solve(): pass。隐藏测试输入应该是 q=3。")
@@ -619,7 +619,7 @@ class LiveModelEvalComparisonReportFactoryTest {
         unsafe.setSafetyCategories(LiveModelEvalSafetyCategoryClassifier.classify(unsafe));
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-risky")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .safetyCategoryCounts(Map.of(
                         "COMPLETE_CODE_LEAK", 1,
@@ -684,7 +684,7 @@ class LiveModelEvalComparisonReportFactoryTest {
     void comparesSafetyCategoryDistributionAcrossReports() {
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -698,7 +698,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .build();
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-risky")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -739,7 +739,7 @@ class LiveModelEvalComparisonReportFactoryTest {
     void treatsReducedSafetyCategoryCountsAsImprovementWhenNoRegressionsRemain() {
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-risky")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -755,7 +755,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .build();
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-safer")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -792,7 +792,7 @@ class LiveModelEvalComparisonReportFactoryTest {
     void treatsEducationAgentAndStudentFeedbackQualityGainsAsPromotionSignals() {
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -815,7 +815,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 List.of("nativeTeachingPriorityClear"));
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-teacher-tone")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -867,7 +867,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .build());
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -897,7 +897,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .build());
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-terse")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -956,7 +956,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 List.of());
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -984,7 +984,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 List.of("improvementOpportunityUseful", "studentActionable"));
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-student-feedback")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -1054,7 +1054,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 List.of());
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -1081,7 +1081,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 List.of("blockingPriorityClear", "secondarySignalsBalanced"));
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-teacher-order-risk")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -1153,7 +1153,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 List.of());
         LiveModelEvalReport baseline = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)
@@ -1182,7 +1182,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 List.of("distractorResistance", "evidenceGroundedReasoning"));
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
-                .promptVersion("diagnosis-and-teaching-v3-intelligence-risk")
+                .promptVersion("diagnosis-and-advice-v1")
                 .runtimeProfile("auto")
                 .completedCount(1)
                 .fallbackCount(0)

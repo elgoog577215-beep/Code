@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Plus, SlidersHorizontal } from "lucide-react";
-import { useLocation } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
 import type { Assignment, AssignmentOverview } from "../../shared/api/types";
 import { assignmentStatusLabel, displayText, looksCorruptText } from "../../shared/format";
 import { ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { StatusPill } from "../../shared/ui/StatusPill";
-import { TeacherManagementTools } from "./TeacherManagementPage";
 
 type Alert = { type: "success" | "error"; message: string };
 
@@ -40,23 +38,14 @@ function participantText(overview?: AssignmentOverview | null) {
 }
 
 export default function TeacherPage() {
-  const location = useLocation();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [overviewByAssignment, setOverviewByAssignment] = useState<Record<number, AssignmentOverview | null>>({});
   const [alert, setAlert] = useState<Alert | null>(null);
   const [loading, setLoading] = useState(true);
-  const showManagement = new URLSearchParams(location.search).get("manage") === "1";
-  const [managementOpen, setManagementOpen] = useState(showManagement);
 
   useEffect(() => {
     void loadTeacherHome();
   }, []);
-
-  useEffect(() => {
-    if (showManagement) {
-      setManagementOpen(true);
-    }
-  }, [showManagement]);
 
   const cleanAssignments = useMemo(
     () =>
@@ -106,9 +95,14 @@ export default function TeacherPage() {
           <p className="eyebrow">教师端</p>
           <h1>作业</h1>
         </div>
-        <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
-          新建作业
-        </ButtonLink>
+        <div className="teacher-home-actions">
+          <ButtonLink to="/app/teacher/manage" variant="ghost" icon={<SlidersHorizontal size={16} />}>
+            管理
+          </ButtonLink>
+          <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
+            新建作业
+          </ButtonLink>
+        </div>
       </section>
 
       <section className="teacher-workflow-panel" aria-label="作业列表">
@@ -145,20 +139,6 @@ export default function TeacherPage() {
         )}
       </section>
 
-      <details
-        className="teacher-management-drawer teacher-management-drawer--quiet"
-        open={managementOpen}
-        onToggle={event => setManagementOpen(event.currentTarget.open)}
-      >
-        <summary>
-          <span>
-            <SlidersHorizontal size={15} />
-            <strong>高级</strong>
-            <small>导入、题库、AI 标准库</small>
-          </span>
-        </summary>
-        <TeacherManagementTools embedded />
-      </details>
     </div>
   );
 }

@@ -293,7 +293,7 @@ class ModelDiagnosisEvalTest {
                         .fallbackFineTagHit(true)
                         .evidenceValid(true)
                         .safetyPassed(true)
-                        .failureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_TEACHING:RATE_LIMITED")
+                        .failureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_ADVICE:RATE_LIMITED")
                         .build()
         ), 1_500L);
 
@@ -340,7 +340,7 @@ class ModelDiagnosisEvalTest {
                 LiveModelEvalReport.Entry.builder()
                         .caseId("complex-live-01")
                         .model(model)
-                        .promptVersion("diagnosis-and-teaching-v2")
+                        .promptVersion("diagnosis-and-advice-v1")
                         .stage("DIAGNOSIS_AGENT")
                         .status("MODEL_COMPLETED")
                         .fallbackUsed(false)
@@ -349,7 +349,7 @@ class ModelDiagnosisEvalTest {
                 LiveModelEvalReport.Entry.builder()
                         .caseId("complex-live-02")
                         .model(model)
-                        .promptVersion("diagnosis-and-teaching-v2")
+                        .promptVersion("diagnosis-and-advice-v1")
                         .stage("DIAGNOSIS_AGENT")
                         .status("MODEL_COMPLETED")
                         .fallbackUsed(false)
@@ -357,17 +357,17 @@ class ModelDiagnosisEvalTest {
                         .build()
         ));
 
-        assertThat(report.getPromptVersion()).isEqualTo("diagnosis-and-teaching-v2");
+        assertThat(report.getPromptVersion()).isEqualTo("diagnosis-and-advice-v1");
     }
 
     @Test
-    void liveModelReportKeepsMixedPromptVersionForMultiPromptRunsWithoutLiveModel() {
+    void liveModelReportKeepsFormalAdvicePromptVersionForCurrentRunsWithoutLiveModel() {
         String model = "deepseek-ai/DeepSeek-V4-Pro";
         LiveModelEvalReport report = summarizeReport(model, List.of(
                 LiveModelEvalReport.Entry.builder()
                         .caseId("complex-live-01")
                         .model(model)
-                        .promptVersion("diagnosis-and-teaching-v2")
+                        .promptVersion("diagnosis-and-advice-v1")
                         .stage("DIAGNOSIS_AGENT")
                         .status("MODEL_COMPLETED")
                         .fallbackUsed(false)
@@ -376,7 +376,7 @@ class ModelDiagnosisEvalTest {
                 LiveModelEvalReport.Entry.builder()
                         .caseId("complex-live-02")
                         .model(model)
-                        .promptVersion("diagnosis-and-teaching-v3")
+                        .promptVersion("diagnosis-and-advice-v1")
                         .stage("DIAGNOSIS_AGENT")
                         .status("MODEL_COMPLETED")
                         .fallbackUsed(false)
@@ -384,7 +384,7 @@ class ModelDiagnosisEvalTest {
                         .build()
         ));
 
-        assertThat(report.getPromptVersion()).isEqualTo("mixed");
+        assertThat(report.getPromptVersion()).isEqualTo("diagnosis-and-advice-v1");
     }
 
     @Test
@@ -539,7 +539,7 @@ class ModelDiagnosisEvalTest {
                         .actualIssueTags(List.of("LOOP_BOUNDARY"))
                         .actualFineGrainedTags(List.of("OFF_BY_ONE"))
                         .actualEvidenceRefs(List.of("code:range_excludes_n"))
-                        .failureReason("MODEL_PARTIAL_COMPLETED:DIAGNOSIS_AND_TEACHING:OUTPUT_TRUNCATED")
+                        .failureReason("MODEL_PARTIAL_COMPLETED:DIAGNOSIS_AND_ADVICE:OUTPUT_TRUNCATED")
                         .build(),
                 LiveModelEvalReport.Entry.builder()
                         .caseId("quota-fallback")
@@ -565,7 +565,7 @@ class ModelDiagnosisEvalTest {
                         .actualIssueTags(List.of("LOOP_BOUNDARY"))
                         .actualFineGrainedTags(List.of("OFF_BY_ONE"))
                         .actualEvidenceRefs(List.of("rule:fallback:loop_boundary"))
-                        .failureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_TEACHING:INSUFFICIENT_QUOTA")
+                        .failureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_ADVICE:INSUFFICIENT_QUOTA")
                         .build()
         );
 
@@ -1117,7 +1117,7 @@ class ModelDiagnosisEvalTest {
                         .fallbackFineTagHit(true)
                         .evidenceValid(true)
                         .safetyPassed(true)
-                        .failureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_TEACHING:RATE_LIMITED")
+                        .failureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_ADVICE:RATE_LIMITED")
                         .build()
         ));
 
@@ -1130,7 +1130,7 @@ class ModelDiagnosisEvalTest {
                 "quota-fallback: model not completed",
                 "quota-fallback: missing model hit",
                 "quota-fallback: stream content chunk missing",
-                "quota-fallback: MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_TEACHING:RATE_LIMITED"
+                "quota-fallback: MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_ADVICE:RATE_LIMITED"
         );
         assertThat(liveModelSummaryLine(report)).contains("recoveryStatus=BLOCKED");
     }
@@ -1187,7 +1187,7 @@ class ModelDiagnosisEvalTest {
                         .summary("完整代码如下：def solve(): pass。隐藏测试输入应该是 q=3。")
                         .educationNextAction("直接改成 for _ in range(q)，不要再手推。")
                         .build())
-                .failureReason("MODEL_COMPLETED:DIAGNOSIS_AND_TEACHING:SAFETY_RISK")
+                .failureReason("MODEL_COMPLETED:DIAGNOSIS_AND_ADVICE:SAFETY_RISK")
                 .outputSummary("完整代码如下：def solve(): pass。隐藏测试输入应该是 q=3。")
                 .build();
         unsafe.setSafetyCategories(LiveModelEvalSafetyCategoryClassifier.classify(unsafe));
@@ -1470,14 +1470,8 @@ class ModelDiagnosisEvalTest {
         ReflectionTestUtils.setField(aiReportService, "model", valueOrDefault(System.getenv("AI_EVAL_MODEL"), "deepseek-ai/DeepSeek-V4-Pro"));
         ReflectionTestUtils.setField(aiReportService, "timeoutSeconds", longValueOrDefault(System.getenv("AI_EVAL_TIMEOUT_SECONDS"), 35L));
         ReflectionTestUtils.setField(aiReportService, "externalRuntimeEnabled",
-                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_ENABLED"), "true")));
-        ReflectionTestUtils.setField(aiReportService, "externalRuntimeMode",
-                valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_MODE"), "single-call"));
-        ReflectionTestUtils.setField(aiReportService, "externalRuntimeProfile",
-                valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "auto"));
-        ReflectionTestUtils.setField(aiReportService, "externalSingleCallPromptVersion",
-                valueOrDefault(System.getenv("AI_EVAL_SINGLE_CALL_PROMPT_VERSION"), ""));
-        ReflectionTestUtils.setField(aiReportService, "maxOutputTokens", (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
+                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_ENABLED"), "true")));        ReflectionTestUtils.setField(aiReportService, "externalRuntimeProfile",
+                valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "auto"));        ReflectionTestUtils.setField(aiReportService, "maxOutputTokens", (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
         ReflectionTestUtils.setField(aiReportService, "streamEnabled",
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_ENABLED"), "true")));
         ReflectionTestUtils.setField(aiReportService, "streamFallbackEnabled",
@@ -3101,7 +3095,7 @@ class ModelDiagnosisEvalTest {
             return structured;
         }
         String text = safe(uncertainty);
-        for (String stage : List.of("DIAGNOSIS_AND_TEACHING", "DIAGNOSIS_JUDGE", "TEACHING_HINT", "SUBMISSION_ANALYSIS")) {
+        for (String stage : List.of("DIAGNOSIS_AND_ADVICE", "DIAGNOSIS_AND_ADVICE", "DIAGNOSIS_AND_ADVICE", "SUBMISSION_ANALYSIS")) {
             if (text.contains(stage)) {
                 return stage;
             }

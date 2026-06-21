@@ -71,17 +71,17 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "problemGoal": "输出 1 到 n 的整数和。",
                     "codeIntent": "学生想用循环累加。",
                     "behaviorGap": "循环没有覆盖末端。",
-                    "primaryEvidenceRef": "code:range_excludes_n"
+                    "primaryEvidenceRef": "invented:evidence"
                   },
                   "basicLayerAdvice": [{
-                    "mistakePointId": "MP_NOT_IN_PACK",
+                    "mistakePointId": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
                     "skillUnitId": "SK_RANGE_BOUNDARY",
                     "title": "循环右边界漏取",
                     "whatHappened": "当前循环范围没有覆盖题目要求的最后一个数。",
                     "whyItMatters": "少处理端点会让结果偏小。",
                     "studentAction": "先手推 n=1 和 n=2。",
                     "checkQuestion": "最后一个数有没有进入循环？",
-                    "evidenceRefs": ["code:range_excludes_n"],
+                    "evidenceRefs": ["invented:evidence"],
                     "confidence": 0.9
                   }],
                   "improvementLayerAdvice": [],
@@ -89,7 +89,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "step": 1,
                     "target": "手推循环变量取值。",
                     "reason": "这是当前阻塞通过的问题。",
-                    "evidenceRef": "code:range_excludes_n"
+                    "evidenceRef": "invented:evidence"
                   }],
                   "studentSummary": "边界没有对齐。"
                 }
@@ -109,7 +109,34 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isTrue();
         assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("FALLBACK_USED");
-        assertThat(analysis.getAiInvocation().getAdviceGenerationFallbackReason()).contains("INVALID_TAG");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationFallbackReason()).contains("INVALID_EVIDENCE_REF");
+    }
+
+    @Test
+    void safetyRiskAdviceIsRewrittenBeforeFallback() {
+        StubAiReportService service = newService(
+                validSearchLocationResponse(),
+                unsafeAdviceResponse(),
+                validAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(service.userPrompt(2)).contains("previousOutput", "validationFailure");
+        assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
+        assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getNextAction())
+                .doesNotContain("直接改成", "range(1, n + 1)");
     }
 
     private StubAiReportService newService(String... responses) {
@@ -137,7 +164,6 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
         ReflectionTestUtils.setField(service, "model", "test-model");
         ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
-        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
         ReflectionTestUtils.setField(service, "externalRuntimeProfile", ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
         ReflectionTestUtils.setField(service, "maxOutputTokens", 1200);
         return service;
@@ -391,6 +417,47 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 """;
     }
 
+    private String unsafeAdviceResponse() {
+        return """
+                {
+                  "caseUnderstanding": {
+                    "problemGoal": "题目要求输出 1 到 n 的整数和。",
+                    "codeIntent": "学生使用循环累加 total。",
+                    "behaviorGap": "循环实际没有覆盖题目要求的末端。",
+                    "primaryEvidenceRef": "code:range_excludes_n"
+                  },
+                  "basicLayerAdvice": [{
+                    "mistakePointId": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "循环右边界漏取",
+                    "whatHappened": "当前循环范围没有覆盖题目要求的最后一个数。",
+                    "whyItMatters": "少处理一个端点会让求和结果偏小。",
+                    "studentAction": "直接改成 range(1, n + 1)。",
+                    "checkQuestion": "最后一个应该被处理的数有没有进入循环？",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.92
+                  }],
+                  "improvementLayerAdvice": [{
+                    "improvementPointId": "TESTING_HABIT",
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "补充边界样例意识",
+                    "currentLimit": "这类问题不是算法方向错，而是边界验证不足。",
+                    "suggestion": "修复后补测最小值和端点样例。",
+                    "studentBenefit": "能更早发现开闭区间和下标边界问题。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.8
+                  }],
+                  "nextStepPlan": [{
+                    "step": 1,
+                    "target": "手推循环变量取值。",
+                    "reason": "这是当前阻塞通过的主要问题。",
+                    "evidenceRef": "code:range_excludes_n"
+                  }],
+                  "studentSummary": "这次主要卡在循环边界和题目要求范围没有对齐。"
+                }
+                """;
+    }
+
     private static class StubAiReportService extends AiReportService {
         private final Queue<String> responses = new ArrayDeque<>();
         private final List<String> userPrompts = new ArrayList<>();
@@ -411,6 +478,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     new ExternalModelChatRequestFactory(),
                     retrievalService,
                     outputValidator,
+                    new SearchLocationOutputNormalizer(),
                     packSelector,
                     searchLocationProperties);
             this.responses.addAll(List.of(responses));

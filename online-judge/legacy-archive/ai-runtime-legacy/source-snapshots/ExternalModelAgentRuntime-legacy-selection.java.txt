@@ -1,0 +1,29 @@
+This file is a non-compilable text snapshot of removed legacy runtime selection.
+
+Old selection behavior:
+
+```java
+return RuntimePlan.builder()
+    .diagnosisPrompt(promptTemplateRegistry.get(DIAGNOSIS_JUDGE_V2))
+    .teachingPrompt(promptTemplateRegistry.get(TEACHING_HINT_V1))
+    .searchLocationPrompt(promptTemplateRegistry.get(SEARCH_LOCATION_V1))
+    .singleCallPrompt(promptTemplateRegistry.get(normalizedPromptVersion))
+    .build();
+```
+
+Old prompt normalization:
+
+```java
+if promptVersion is blank:
+  return diagnosis-and-advice-v1
+if promptVersion is diagnosis-and-teaching-v1/v2/v3/v4-lite:
+  return promptVersion
+if promptVersion is diagnosis-and-advice-v1:
+  return promptVersion
+return diagnosis-and-teaching-v3
+```
+
+Reason for removal:
+- Formal runtime no longer supports choosing old prompt versions.
+- Invalid prompt versions must not silently fall back to `diagnosis-and-teaching-v3`.
+- RuntimePlan no longer needs diagnosisPrompt or teachingPrompt.

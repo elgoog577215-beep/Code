@@ -1445,7 +1445,7 @@ public class AiQualityOverviewService {
             case "BUDGET_GUARD" -> "检查近期连续失败记录，确认额度或 provider 恢复后再解除预算保护并重跑小样本 live eval。";
             case "SAFETY_REJECTED" -> "把对应样本沉淀为提示安全 fixture，复核 prompt 是否诱导直接给答案或越过教学边界。";
             case "VALIDATION_FAILED" -> "收窄输出 schema 和 prompt 契约，补充校验失败 fixture，优先修复结构化解析。";
-            case "OUTPUT_TRUNCATED" -> "提高输出 token 预算或收缩 JSON schema/上下文；必要时切换 staged runtime 避免单次输出截断。";
+            case "OUTPUT_TRUNCATED" -> "提高输出 token 预算或收缩 JSON schema/上下文；必要时切换 结构化重试 避免单次输出截断。";
             case "TIMEOUT" -> "降低单次上下文体积或调整超时阈值，再用小批量 live eval 验证响应时延。";
             case "PROVIDER_ERROR" -> "检查 provider 状态、网络和重试策略，并保留失败样本用于稳定性回归。";
             case "PARTIAL_COMPLETION" -> "保留可用诊断，同时复核教学提示阶段的安全和结构校验规则。";

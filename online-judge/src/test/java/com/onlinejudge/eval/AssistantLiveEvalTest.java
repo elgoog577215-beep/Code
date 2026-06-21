@@ -369,10 +369,7 @@ class AssistantLiveEvalTest {
         ReflectionTestUtils.setField(service, "model", valueOrDefault(System.getenv("AI_EVAL_MODEL"), "deepseek-ai/DeepSeek-V4-Pro"));
         ReflectionTestUtils.setField(service, "timeoutSeconds", longValueOrDefault(System.getenv("AI_EVAL_TIMEOUT_SECONDS"), 35L));
         ReflectionTestUtils.setField(service, "externalRuntimeEnabled",
-                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_ENABLED"), "true")));
-        ReflectionTestUtils.setField(service, "externalRuntimeMode",
-                valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_MODE"), "single-call"));
-        ReflectionTestUtils.setField(service, "maxOutputTokens", (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
+                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_ENABLED"), "true")));        ReflectionTestUtils.setField(service, "maxOutputTokens", (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
         ReflectionTestUtils.setField(service, "streamEnabled",
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_ENABLED"), "true")));
         ReflectionTestUtils.setField(service, "streamFallbackEnabled",
@@ -769,9 +766,9 @@ class AssistantLiveEvalTest {
     private String extractRuntimeFailureStage(String uncertainty) {
         String text = safe(uncertainty);
         List<String> knownStages = List.of(
-                "DIAGNOSIS_JUDGE",
-                "DIAGNOSIS_AND_TEACHING",
-                "TEACHING_HINT",
+                "DIAGNOSIS_AND_ADVICE",
+                "DIAGNOSIS_AND_ADVICE",
+                "DIAGNOSIS_AND_ADVICE",
                 "SUBMISSION_ANALYSIS",
                 "UNKNOWN_STAGE"
         );

@@ -37,6 +37,7 @@ public class EmbeddingClient {
             Map<String, Object> requestBody = new LinkedHashMap<>();
             requestBody.put("model", properties.getModel());
             requestBody.put("input", text == null ? "" : text);
+            requestBody.put("encoding_format", "float");
             String endpoint = properties.getBaseUrl().endsWith("/")
                     ? properties.getBaseUrl() + "embeddings"
                     : properties.getBaseUrl() + "/embeddings";

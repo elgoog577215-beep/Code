@@ -40,11 +40,10 @@ ai:
   enabled: ${AI_ENABLED:true}
   base-url: ${OJ_AI_BASE_URL:${AI_BASE_URL:https://api-inference.modelscope.cn/v1}}
   api-key: ${OJ_MODELSCOPE_API_KEY:${MODELSCOPE_API_KEY:}}
-  model: ${OJ_AI_MODEL:${AI_MODEL:deepseek-ai/DeepSeek-V4-Pro}}
+  model: ${OJ_AI_MODEL:${AI_MODEL:Qwen/Qwen3-235B-A22B-Instruct-2507}}
   modelscope-compatible-request: ${AI_MODELSCOPE_COMPATIBLE_REQUEST:auto}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:25}
   external-runtime-enabled: ${AI_EXTERNAL_RUNTIME_ENABLED:true}
-  external-runtime-mode: ${AI_EXTERNAL_RUNTIME_MODE:single-call}
   external-runtime-profile: ${AI_EXTERNAL_RUNTIME_PROFILE:standard}
   max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1800}
   stream-enabled: ${AI_STREAM_ENABLED:true}
@@ -64,7 +63,7 @@ ai:
     enabled: ${AI_EMBEDDING_ENABLED:true}
     base-url: ${AI_EMBEDDING_BASE_URL:${OJ_AI_BASE_URL:${AI_BASE_URL:https://api-inference.modelscope.cn/v1}}}
     api-key: ${AI_EMBEDDING_API_KEY:${OJ_MODELSCOPE_API_KEY:${MODELSCOPE_API_KEY:}}}
-    model: ${AI_EMBEDDING_MODEL:text-embedding-v1}
+    model: ${AI_EMBEDDING_MODEL:Qwen/Qwen3-Embedding-0.6B}
     timeout-seconds: ${AI_EMBEDDING_TIMEOUT_SECONDS:20}
 
 ---

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Plus, Power, PowerOff, Save, Search, ShieldCheck, UploadCloud } from "lucide-react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, BookOpen, Plus, Power, PowerOff, Save, Search, UploadCloud } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   AiStandardLibraryItem,
@@ -65,7 +65,20 @@ type TeacherManagementToolsProps = {
 };
 
 export default function TeacherManagementPage() {
-  return <TeacherManagementTools />;
+  return (
+    <div className="teacher-page teacher-workflow teacher-manage-page">
+      <section className="teacher-workflow-header teacher-workflow-header--simple teacher-manage-header">
+        <div>
+          <p className="eyebrow">教师端</p>
+          <h1>管理</h1>
+        </div>
+        <ButtonLink to="/app/teacher" variant="secondary" icon={<ArrowLeft size={17} />}>
+          返回作业
+        </ButtonLink>
+      </section>
+      <TeacherManagementTools embedded />
+    </div>
+  );
 }
 
 export function TeacherManagementTools({ embedded = false }: TeacherManagementToolsProps) {
@@ -331,34 +344,42 @@ export function TeacherManagementTools({ embedded = false }: TeacherManagementTo
           </header>
         ) : null}
 
-        <details className="management-compact-details">
-          <summary>
-            <span>开课状态</span>
-            {statusPill}
-          </summary>
-          <div className="management-compact-details__body">
-            <ReadinessPanel readiness={readiness} busy={aiSmokeBusy} onRefresh={loadReadiness} onAiSmoke={runAiSmoke} />
-          </div>
-        </details>
+        {embedded ? (
+          <section className="teacher-manage-status-panel">
+            <ReadinessPanel readiness={readiness} busy={aiSmokeBusy} summary={statusPill} onRefresh={loadReadiness} onAiSmoke={runAiSmoke} />
+          </section>
+        ) : (
+          <details className="management-compact-details">
+            <summary>
+              <span>开课状态</span>
+              {statusPill}
+            </summary>
+            <div className="management-compact-details__body">
+              <ReadinessPanel readiness={readiness} busy={aiSmokeBusy} onRefresh={loadReadiness} onAiSmoke={runAiSmoke} />
+            </div>
+          </details>
+        )}
 
         <main className="management-workspace">
           <section className="management-task-grid">
             <section className="management-task-card management-task-card--large">
               <h2>班级与名单</h2>
-              <div className="form-grid management-create-form">
-                <Field label="班级名称">
-                  <TextInput value={classForm.name} onChange={event => setClassForm({ ...classForm, name: event.target.value })} />
-                </Field>
-                <Field label="年级">
-                  <TextInput value={classForm.grade} onChange={event => setClassForm({ ...classForm, grade: event.target.value })} />
-                </Field>
-                <Field label="任课老师">
-                  <TextInput value={classForm.teacherName} onChange={event => setClassForm({ ...classForm, teacherName: event.target.value })} />
-                </Field>
+              <div className="management-inline-create">
+                <div className="form-grid management-create-form">
+                  <Field label="班级名称">
+                    <TextInput value={classForm.name} onChange={event => setClassForm({ ...classForm, name: event.target.value })} />
+                  </Field>
+                  <Field label="年级">
+                    <TextInput value={classForm.grade} onChange={event => setClassForm({ ...classForm, grade: event.target.value })} />
+                  </Field>
+                  <Field label="任课老师">
+                    <TextInput value={classForm.teacherName} onChange={event => setClassForm({ ...classForm, teacherName: event.target.value })} />
+                  </Field>
+                </div>
+                <Button type="button" variant="primary" onClick={() => void createClass()} disabled={busy}>
+                  创建
+                </Button>
               </div>
-              <Button type="button" variant="primary" onClick={() => void createClass()} disabled={busy}>
-                创建班级
-              </Button>
               <div className="management-form-row">
                 <Field label="导入到班级">
                   <Select value={targetClassGroupId} onChange={event => setTargetClassGroupId(event.target.value)}>
@@ -398,8 +419,8 @@ export function TeacherManagementTools({ embedded = false }: TeacherManagementTo
             </section>
 
             <section className="management-task-card management-task-card--large">
-              <h2>题目</h2>
-              <div className="actions">
+              <div className="management-card-head">
+                <h2>题目</h2>
                 <ButtonLink to="/app/task-editor" variant="secondary">
                   编辑题目
                 </ButtonLink>
@@ -464,11 +485,13 @@ export function TeacherManagementTools({ embedded = false }: TeacherManagementTo
 function ReadinessPanel({
   readiness,
   busy,
+  summary,
   onRefresh,
   onAiSmoke
 }: {
   readiness: Readiness | null;
   busy: boolean;
+  summary?: ReactNode;
   onRefresh: () => void;
   onAiSmoke: () => void;
 }) {
@@ -476,40 +499,60 @@ function ReadinessPanel({
   const tone = status === "READY" ? "success" : status === "BLOCKED" ? "danger" : "warning";
   const blocking = readiness?.checks.filter(item => item.blocking && item.status !== "PASS") || [];
   const warnings = readiness?.checks.filter(item => item.status !== "PASS" && !(item.blocking && item.status !== "PASS")) || [];
+  const visibleChecks = [...blocking, ...warnings].slice(0, 6);
+  const compactChecks = visibleChecks.slice(0, 3);
   return (
     <section className="management-readiness">
       <div className="management-readiness__head">
-        <span className="management-readiness__icon">
-          <ShieldCheck size={20} />
-        </span>
         <div>
           <h2>开课状态</h2>
-          <p>{status === "READY" ? "可以开课" : status === "BLOCKED" ? "暂不能正式开课" : "可试用，需关注降级项"}</p>
+          <p>
+            {status === "READY" ? "可以开课" : status === "BLOCKED" ? "暂不能正式开课" : "可试用"}
+            {readiness ? ` · ${blocking.length} 阻断 · ${warnings.length} 提醒` : ""}
+          </p>
         </div>
         <StatusPill tone={tone}>{status}</StatusPill>
+        {summary ? <span className="management-readiness__summary">{summary}</span> : null}
+        <div className="management-readiness__actions">
+          <Button type="button" variant="secondary" onClick={() => void onRefresh()}>
+            刷新
+          </Button>
+          <Button type="button" variant="primary" onClick={() => void onAiSmoke()} disabled={busy}>
+            {busy ? "检测中" : "检测 AI"}
+          </Button>
+        </div>
       </div>
       {readiness ? (
-        <div className="management-readiness__checks">
-          {[...blocking, ...warnings].slice(0, 5).map(item => (
-            <article key={item.id}>
-              <strong>{item.label}</strong>
-              <p>{item.message}</p>
-              <small>{item.action}</small>
-            </article>
-          ))}
-          {!blocking.length && !warnings.length ? <p className="management-readiness__ok">全部关键检查已通过。</p> : null}
-        </div>
+        visibleChecks.length ? (
+          <>
+            <div className="management-readiness__chips">
+              {compactChecks.map(item => (
+                <span key={item.id} title={`${item.message} ${item.action}`}>
+                  <StatusPill tone={item.status === "FAIL" ? "danger" : item.status === "WARN" ? "warning" : "neutral"}>{item.status}</StatusPill>
+                  {item.label}
+                </span>
+              ))}
+              {visibleChecks.length > compactChecks.length ? <small>+{visibleChecks.length - compactChecks.length}</small> : null}
+            </div>
+            <details className="management-readiness__details">
+              <summary>查看检查详情</summary>
+              <div className="management-readiness__checks">
+                {visibleChecks.map(item => (
+                  <article key={item.id} title={`${item.message} ${item.action}`}>
+                    <strong>{item.label}</strong>
+                    <StatusPill tone={item.status === "FAIL" ? "danger" : item.status === "WARN" ? "warning" : "neutral"}>{item.status}</StatusPill>
+                    <p>{item.message}</p>
+                  </article>
+                ))}
+              </div>
+            </details>
+          </>
+        ) : (
+          <p className="management-readiness__ok">全部关键检查已通过。</p>
+        )
       ) : (
         <p className="management-readiness__ok">正在读取系统状态。</p>
       )}
-      <div className="actions">
-        <Button type="button" variant="secondary" onClick={() => void onRefresh()}>
-          刷新状态
-        </Button>
-        <Button type="button" variant="primary" onClick={() => void onAiSmoke()} disabled={busy}>
-          {busy ? "检测中" : "检测 AI"}
-        </Button>
-      </div>
     </section>
   );
 }

@@ -127,7 +127,7 @@ public class OfflineRuntimeProfileEvalReportFactory {
         );
         return OfflineRuntimeProfileEvalReport.Entry.builder()
                 .caseId(evalCase.caseId())
-                .promptVersion(lowLatencyPlan.getSingleCallPrompt().getVersion())
+                .promptVersion(lowLatencyPlan.getAdvicePrompt().getVersion())
                 .standardRequestBytes(standardBytes)
                 .lowLatencyRequestBytes(lowLatencyBytes)
                 .autoRequestBytes(autoBytes)
@@ -165,7 +165,7 @@ public class OfflineRuntimeProfileEvalReportFactory {
         Map<String, Object> requestBody = new LinkedHashMap<>();
         requestBody.put("model", MODEL);
         requestBody.put("messages", List.of(
-                Map.of("role", "system", "content", plan.getSingleCallPrompt().getSystemPrompt()),
+                Map.of("role", "system", "content", plan.getAdvicePrompt().getSystemPrompt()),
                 Map.of("role", "user", "content", write(stagePayload))
         ));
         requestBody.put("temperature", 0.2);

@@ -29,7 +29,7 @@ class AiReportServiceSearchLocationRuntimeTest {
     void searchLocationSuccessUsesSelectedPackBeforeDiagnosis() {
         StubAiReportService service = newService(
                 validSearchLocationResponse(),
-                validSingleCallResponse()
+                validAdviceResponse()
         );
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
@@ -74,7 +74,7 @@ class AiReportServiceSearchLocationRuntimeTest {
                   "needsMoreEvidence": false
                 }
                 """,
-                validSingleCallResponse()
+                validAdviceResponse()
         );
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
@@ -92,12 +92,12 @@ class AiReportServiceSearchLocationRuntimeTest {
         assertThat(analysis.getAiInvocation().getSearchLocationCandidateCount()).isEqualTo(3);
         assertThat(analysis.getAiInvocation().getSearchLocationSelectedCount()).isEqualTo(0);
         assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
-        assertThat(service.userPrompt(1)).doesNotContain("searchLocationSummary");
+        assertThat(service.userPrompt(1)).contains("\"searchLocationSummary\":null");
     }
 
     @Test
-    void searchLocationDisabledKeepsOldSingleCallRuntime() {
-        StubAiReportService service = newService(validSingleCallResponse());
+    void searchLocationDisabledStillUsesAdviceGeneration() {
+        StubAiReportService service = newService(validAdviceResponse());
         service.searchLocationProperties.setEnabled(false);
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
@@ -141,10 +141,7 @@ class AiReportServiceSearchLocationRuntimeTest {
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
         ReflectionTestUtils.setField(service, "model", "test-model");
         ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
-        ReflectionTestUtils.setField(service, "externalRuntimeMode", "single-call");
         ReflectionTestUtils.setField(service, "externalRuntimeProfile", ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
-        ReflectionTestUtils.setField(service, "externalSingleCallPromptVersion",
-                PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
         ReflectionTestUtils.setField(service, "maxOutputTokens", 1200);
         return service;
     }
@@ -343,89 +340,43 @@ class AiReportServiceSearchLocationRuntimeTest {
                 """;
     }
 
-    private String validSingleCallResponse() {
+    private String validAdviceResponse() {
         return """
                 {
-                  "diagnosisDecision": {
-                    "primaryIssueTag": "LOOP_BOUNDARY",
-                    "fineGrainedTag": "OFF_BY_ONE",
+                  "caseUnderstanding": {
+                    "problemGoal": "题目要求输出 1 到 n 的整数和。",
+                    "codeIntent": "学生使用循环累加 total。",
+                    "behaviorGap": "循环实际没有覆盖题目要求的末端。",
+                    "primaryEvidenceRef": "code:range_excludes_n"
+                  },
+                  "basicLayerAdvice": [{
+                    "mistakePointId": null,
+                    "skillUnitId": null,
+                    "title": "循环右边界漏取",
+                    "whatHappened": "当前循环范围没有覆盖题目要求的最后一个数。",
+                    "whyItMatters": "少处理一个端点会让求和结果偏小。",
+                    "studentAction": "先手推 n=1 和 n=2 时循环变量实际出现过哪些值。",
+                    "checkQuestion": "最后一个应该被处理的数有没有进入循环？",
                     "evidenceRefs": ["code:range_excludes_n"],
-                    "primaryReasoning": "先检查循环边界，当前循环没有覆盖题目要求的末端。",
-                    "secondaryIssues": [],
-                    "distractorNotes": [],
-                    "teachingPriority": "优先让学生手推闭区间和实际循环取值。",
-                    "improvementOpportunities": [{
-                      "category": "TESTING_HABIT",
-                      "studentMessage": "通过后补一个最小边界自测。",
-                      "benefit": "能提前发现边界遗漏。",
-                      "evidenceRefs": ["code:range_excludes_n"]
-                    }],
-                    "nextLearningAction": {
-                      "hintLevel": "L2",
-                      "action": "TRACE_VARIABLES",
-                      "task": "列出循环变量实际出现过的取值。",
-                      "checkQuestion": "最后一个需要处理的数有没有进入循环？",
-                      "evidenceRefs": ["code:range_excludes_n"],
-                      "answerLeakRisk": "LOW"
-                    },
-                    "confidence": 0.9,
-                    "uncertainty": "range 右边界证据明确。",
-                    "needsMoreEvidence": false,
-                    "answerLeakRisk": "LOW"
-                  },
-                  "teachingHint": {
-                    "studentHint": "先用 n=1 和 n=2 手推循环实际执行了哪些 i。",
-                    "studentHintPlan": {
-                      "hintLevel": "L2",
-                      "problemType": "循环边界",
-                      "evidenceAnchor": "code:range_excludes_n",
-                      "nextAction": "列出 range 产生的每个 i，再和题目要求对齐。",
-                      "coachQuestion": "当 n=1 时，循环体会执行几次？",
-                      "teachingAction": "TRACE_VARIABLES",
-                      "evidenceRefs": ["code:range_excludes_n"],
-                      "answerLeakRisk": "LOW"
-                    },
-                    "learningInterventionPlan": {
-                      "interventionType": "VARIABLE_TRACE",
-                      "goal": "确认循环上下界是否覆盖题目要求。",
-                      "studentTask": "写出 n=1、n=2 时 i 的取值表。",
-                      "checkQuestion": "最后一次循环是否处理到了题目要求的末端？",
-                      "completionSignal": "学生能给出 i 的取值表并指出缺失位置。",
-                      "evidenceRefs": ["code:range_excludes_n"],
-                      "estimatedMinutes": 6,
-                      "answerLeakRisk": "LOW"
-                    },
-                    "teacherNote": "学生需要把 range 的右边界与闭区间要求对应起来。",
-                    "answerLeakRisk": "LOW"
-                  },
-                  "studentFeedback": {
-                    "summary": "这次主要问题是循环边界没有覆盖到题目要求的范围。",
-                    "blockingIssues": [{
-                      "priority": 1,
-                      "title": "当前最需要先处理的问题",
-                      "studentMessage": "循环边界和题目要求的闭区间不一致，先手推最小样例确认缺失位置。",
-                      "evidence": "code:range_excludes_n",
-                      "nextAction": "列出循环变量实际出现过的取值。",
-                      "issueTag": "LOOP_BOUNDARY",
-                      "fineGrainedTag": "OFF_BY_ONE",
-                      "evidenceRefs": ["code:range_excludes_n"]
-                    }],
-                    "secondaryIssues": [],
-                    "improvementOpportunities": [{
-                      "category": "TESTING_HABIT",
-                      "studentMessage": "通过后补一个 n=1 的最小自测。",
-                      "benefit": "能提前发现边界遗漏。",
-                      "evidenceRefs": ["code:range_excludes_n"]
-                    }],
-                    "nextLearningAction": {
-                      "hintLevel": "L2",
-                      "action": "TRACE_VARIABLES",
-                      "task": "列出循环变量实际出现过的取值。",
-                      "checkQuestion": "最后一个需要处理的数有没有进入循环？",
-                      "evidenceRefs": ["code:range_excludes_n"],
-                      "answerLeakRisk": "LOW"
-                    }
-                  }
+                    "confidence": 0.92
+                  }],
+                  "improvementLayerAdvice": [{
+                    "improvementPointId": null,
+                    "skillUnitId": null,
+                    "title": "补充边界样例意识",
+                    "currentLimit": "这类问题不是算法方向错，而是边界验证不足。",
+                    "suggestion": "修复后补测最小值、端点值和最大值附近样例。",
+                    "studentBenefit": "能更早发现开闭区间和下标边界问题。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.8
+                  }],
+                  "nextStepPlan": [{
+                    "step": 1,
+                    "target": "手推循环变量取值。",
+                    "reason": "这是当前阻塞通过的主要问题。",
+                    "evidenceRef": "code:range_excludes_n"
+                  }],
+                  "studentSummary": "这次主要问题是循环边界没有覆盖到题目要求的范围。"
                 }
                 """;
     }
@@ -451,6 +402,7 @@ class AiReportServiceSearchLocationRuntimeTest {
                     new ExternalModelChatRequestFactory(),
                     retrievalService,
                     outputValidator,
+                    new SearchLocationOutputNormalizer(),
                     packSelector,
                     searchLocationProperties);
             this.searchLocationProperties = searchLocationProperties;

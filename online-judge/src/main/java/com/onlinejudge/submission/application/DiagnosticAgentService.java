@@ -1178,6 +1178,17 @@ public class DiagnosticAgentService {
                 .streamInvalidChunkCount(existing == null ? null : existing.getStreamInvalidChunkCount())
                 .streamFinishReason(defaultIfBlank(existing == null ? null : existing.getStreamFinishReason(), ""))
                 .streamFallbackRetryUsed(existing == null ? null : existing.getStreamFallbackRetryUsed())
+                .searchLocationEnabled(existing == null ? null : existing.getSearchLocationEnabled())
+                .searchLocationStatus(existing == null ? null : existing.getSearchLocationStatus())
+                .searchLocationCandidateCount(existing == null ? null : existing.getSearchLocationCandidateCount())
+                .searchLocationSelectedCount(existing == null ? null : existing.getSearchLocationSelectedCount())
+                .searchLocationFallbackReason(existing == null ? null : existing.getSearchLocationFallbackReason())
+                .embeddingStatus(existing == null ? null : existing.getEmbeddingStatus())
+                .adviceGenerationStatus(existing == null ? null : existing.getAdviceGenerationStatus())
+                .adviceGenerationFallbackReason(existing == null ? null : existing.getAdviceGenerationFallbackReason())
+                .basicAdviceCount(existing == null ? null : existing.getBasicAdviceCount())
+                .improvementAdviceCount(existing == null ? null : existing.getImprovementAdviceCount())
+                .advicePromptVersion(existing == null ? null : existing.getAdvicePromptVersion())
                 .build();
     }
 

@@ -142,7 +142,7 @@ class StandardLibraryPackBuilderTest {
     }
 
     @Test
-    void runtimePlanSupportsSingleCallPromptVersionOverrideForEvalExperiments() {
+    void runtimePlanAlwaysUsesFormalAdvicePrompt() {
         ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
                 new ModelDiagnosisBriefBuilder(),
                 builder,
@@ -150,36 +150,26 @@ class StandardLibraryPackBuilderTest {
                 new ModelOutputValidator()
         );
 
-        ExternalModelAgentRuntime.RuntimePlan v2Plan = runtime.prepare(
+        ExternalModelAgentRuntime.RuntimePlan standardPlan = runtime.prepare(
                 DiagnosisEvidencePackage.builder().build(),
                 RuleSignalAnalyzer.RuleSignalResult.builder().build(),
                 null,
-                "auto",
-                PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V2
+                ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD
         );
-        ExternalModelAgentRuntime.RuntimePlan v4LitePlan = runtime.prepare(
+        ExternalModelAgentRuntime.RuntimePlan lowLatencyPlan = runtime.prepare(
                 DiagnosisEvidencePackage.builder().build(),
                 RuleSignalAnalyzer.RuleSignalResult.builder().build(),
                 null,
-                "auto",
-                PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V4_LITE
-        );
-        ExternalModelAgentRuntime.RuntimePlan fallbackPlan = runtime.prepare(
-                DiagnosisEvidencePackage.builder().build(),
-                RuleSignalAnalyzer.RuleSignalResult.builder().build(),
-                null,
-                "auto",
-                "missing-prompt-candidate"
+                ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY
         );
 
-        assertThat(v2Plan.getSingleCallPrompt().getVersion())
-                .isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V2);
-        assertThat(v4LitePlan.getSingleCallPrompt().getVersion())
-                .isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V4_LITE);
-        assertThat(v4LitePlan.getSingleCallPrompt().getSystemPrompt())
-                .contains("low-latency single-call runtime")
-                .contains("teachingHint to null");
-        assertThat(fallbackPlan.getSingleCallPrompt().getVersion())
-                .isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_TEACHING_V3);
+        assertThat(standardPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
+        assertThat(lowLatencyPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
+        assertThat(lowLatencyPlan.getAdvicePrompt().getSystemPrompt())
+                .contains("complete diagnosis and advice generation stage")
+                .contains("basicLayerAdvice")
+                .contains("improvementLayerAdvice")
+                .doesNotContain("diagnosisDecision")
+                .doesNotContain("teachingHint");
     }
 }

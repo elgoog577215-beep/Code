@@ -254,7 +254,7 @@ public class LiveEvalRuntimeFixtureDraftFactory {
             case "TEACHING_ACTION_MISMATCH" -> "复核教学动作 rubric 与 prompt 契约，让输出行动与错因标签一致。";
             case "QUALITY_MISS" -> "优先优化 prompt、rubric 或 fixture 质量约束，再对同类样本重跑 live eval。";
             case "SLOW_RESPONSE" -> "收缩诊断上下文或降低 max output tokens，并复核 stream reasoning chunk 体积。";
-            case "OUTPUT_TRUNCATED" -> "提高输出 token 预算或收缩 JSON schema/上下文；必要时改用 staged runtime 避免单次输出被截断。";
+            case "OUTPUT_TRUNCATED" -> "提高输出 token 预算或收缩 JSON schema/上下文；必要时收缩 advice 输出 schema 或增加结构化重试。";
             default -> "先补充失败归因分类，再决定是否扩大外部模型评测。";
         };
     }

@@ -1,0 +1,28 @@
+This file is a non-compilable text snapshot of removed legacy prompt registry entries.
+
+Removed prompt versions:
+
+```java
+DIAGNOSIS_JUDGE_V1 = "diagnosis-judge-v1"
+DIAGNOSIS_JUDGE_V2 = "diagnosis-judge-v2"
+TEACHING_HINT_V1 = "teaching-hint-v1"
+DIAGNOSIS_AND_TEACHING_V1 = "diagnosis-and-teaching-v1"
+DIAGNOSIS_AND_TEACHING_V2 = "diagnosis-and-teaching-v2"
+DIAGNOSIS_AND_TEACHING_V3 = "diagnosis-and-teaching-v3"
+DIAGNOSIS_AND_TEACHING_V4_LITE = "diagnosis-and-teaching-v4-lite"
+```
+
+Removed prompt families:
+
+- `diagnosisJudgeSystemPrompt()`
+- `teachingHintSystemPrompt()`
+- `diagnosisAndTeachingSystemPrompt()`
+- `diagnosisAndTeachingV3SystemPrompt()`
+- `diagnosisAndTeachingV4LiteSystemPrompt()`
+
+Remaining formal prompt versions:
+
+```java
+SEARCH_LOCATION_V1 = "search-location-v1"
+DIAGNOSIS_AND_ADVICE_V1 = "diagnosis-and-advice-v1"
+```

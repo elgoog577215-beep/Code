@@ -12,100 +12,6 @@ import java.util.Set;
 @Component
 public class ExternalModelOutputNormalizer {
 
-    public ExternalModelStagePayloads.DiagnosisJudgeOutput normalizeDiagnosisDecision(
-            ExternalModelStagePayloads.DiagnosisJudgeOutput output,
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        if (output == null) {
-            return null;
-        }
-        StandardLibraryPack standardLibraryPack = runtimePlan == null ? null : runtimePlan.getStandardLibraryPack();
-        ModelDiagnosisBrief brief = runtimePlan == null ? null : runtimePlan.getBrief();
-        output.setPrimaryIssueTag(resolveTag(output.getPrimaryIssueTag(),
-                standardLibraryPack == null ? null : standardLibraryPack.getIssueTags()));
-        output.setFineGrainedTag(resolveTag(output.getFineGrainedTag(),
-                standardLibraryPack == null ? null : standardLibraryPack.getFineGrainedTags()));
-        output.setEvidenceRefs(normalizeEvidenceRefs(output.getEvidenceRefs(), brief));
-        output.setSecondaryIssues(normalizeEducationIssueNotes(output.getSecondaryIssues(), runtimePlan));
-        output.setDistractorNotes(normalizeEducationIssueNotes(output.getDistractorNotes(), runtimePlan));
-        output.setImprovementOpportunities(normalizeImprovementOpportunities(output.getImprovementOpportunities(), runtimePlan));
-        if (output.getNextLearningAction() != null) {
-            output.getNextLearningAction().setEvidenceRefs(
-                    normalizeEvidenceRefs(output.getNextLearningAction().getEvidenceRefs(), brief));
-            output.getNextLearningAction().setAnswerLeakRisk(
-                    ModelOutputSafetyPolicy.calibrateModelReportedRisk(
-                            output.getNextLearningAction().getAnswerLeakRisk(),
-                            output.getNextLearningAction().getAction(),
-                            output.getNextLearningAction().getTask(),
-                            output.getNextLearningAction().getCheckQuestion()
-                    ));
-        }
-        output.setAnswerLeakRisk(ModelOutputSafetyPolicy.calibrateModelReportedRisk(
-                output.getAnswerLeakRisk(),
-                output.getPrimaryReasoning(),
-                output.getTeachingPriority(),
-                educationIssueText(output.getSecondaryIssues()),
-                educationIssueText(output.getDistractorNotes()),
-                improvementText(output.getImprovementOpportunities()),
-                nextLearningActionText(output.getNextLearningAction())
-        ));
-        return output;
-    }
-
-    public ExternalModelStagePayloads.TeachingHintOutput normalizeTeachingHint(
-            ExternalModelStagePayloads.TeachingHintOutput output,
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        if (output == null) {
-            return null;
-        }
-        StandardLibraryPack standardLibraryPack = runtimePlan == null ? null : runtimePlan.getStandardLibraryPack();
-        ModelDiagnosisBrief brief = runtimePlan == null ? null : runtimePlan.getBrief();
-        Set<String> allowedActions = actionLookup(standardLibraryPack == null ? null : standardLibraryPack.getTeachingActions());
-        if (output.getStudentHintPlan() != null) {
-            SubmissionAnalysisResponse.StudentHintPlan plan = output.getStudentHintPlan();
-            plan.setTeachingAction(resolveAction(plan.getTeachingAction(), allowedActions));
-            plan.setEvidenceRefs(normalizeEvidenceRefs(plan.getEvidenceRefs(), brief));
-            plan.setAnswerLeakRisk(ModelOutputSafetyPolicy.calibrateModelReportedRisk(
-                    plan.getAnswerLeakRisk(),
-                    plan.getNextAction(),
-                    plan.getCoachQuestion()
-            ));
-        }
-        if (output.getLearningInterventionPlan() != null) {
-            SubmissionAnalysisResponse.LearningInterventionPlan plan = output.getLearningInterventionPlan();
-            plan.setEvidenceRefs(normalizeEvidenceRefs(plan.getEvidenceRefs(), brief));
-            plan.setAnswerLeakRisk(ModelOutputSafetyPolicy.calibrateModelReportedRisk(
-                    plan.getAnswerLeakRisk(),
-                    plan.getGoal(),
-                    plan.getStudentTask(),
-                    plan.getCheckQuestion(),
-                    plan.getCompletionSignal()
-            ));
-        }
-        output.setAnswerLeakRisk(ModelOutputSafetyPolicy.calibrateModelReportedRisk(
-                output.getAnswerLeakRisk(),
-                output.getStudentHint(),
-                output.getTeacherNote(),
-                output.getStudentHintPlan() == null ? "" : output.getStudentHintPlan().getNextAction(),
-                output.getStudentHintPlan() == null ? "" : output.getStudentHintPlan().getCoachQuestion(),
-                output.getLearningInterventionPlan() == null ? "" : output.getLearningInterventionPlan().getGoal(),
-                output.getLearningInterventionPlan() == null ? "" : output.getLearningInterventionPlan().getStudentTask(),
-                output.getLearningInterventionPlan() == null ? "" : output.getLearningInterventionPlan().getCheckQuestion()
-        ));
-        return output;
-    }
-
-    public ExternalModelStagePayloads.CombinedOutput normalizeCombinedOutput(
-            ExternalModelStagePayloads.CombinedOutput output,
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        if (output == null) {
-            return null;
-        }
-        output.setDiagnosisDecision(normalizeDiagnosisDecision(output.getDiagnosisDecision(), runtimePlan));
-        output.setTeachingHint(normalizeTeachingHint(output.getTeachingHint(), runtimePlan));
-        output.setStudentFeedback(normalizeStudentFeedback(output.getStudentFeedback(), runtimePlan));
-        return output;
-    }
-
     public SubmissionAnalysisResponse.StudentFeedback normalizeStudentFeedback(
             SubmissionAnalysisResponse.StudentFeedback feedback,
             ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
@@ -155,109 +61,6 @@ public class ExternalModelOutputNormalizer {
         return feedback;
     }
 
-    private String educationIssueText(List<ExternalModelStagePayloads.EducationIssueNote> notes) {
-        if (notes == null || notes.isEmpty()) {
-            return "";
-        }
-        return String.join("\n", notes.stream()
-                .filter(note -> note != null)
-                .map(note -> safeJoin(note.getTitle(), note.getMessage()))
-                .toList());
-    }
-
-    private String improvementText(List<SubmissionAnalysisResponse.ImprovementOpportunity> opportunities) {
-        if (opportunities == null || opportunities.isEmpty()) {
-            return "";
-        }
-        return String.join("\n", opportunities.stream()
-                .filter(item -> item != null)
-                .map(item -> safeJoin(item.getStudentMessage(), item.getBenefit()))
-                .toList());
-    }
-
-    private String nextLearningActionText(SubmissionAnalysisResponse.NextLearningAction action) {
-        if (action == null) {
-            return "";
-        }
-        return safeJoin(action.getAction(), action.getTask(), action.getCheckQuestion());
-    }
-
-    private String safeJoin(String... values) {
-        if (values == null || values.length == 0) {
-            return "";
-        }
-        return String.join("\n", java.util.Arrays.stream(values)
-                .filter(value -> value != null && !value.isBlank())
-                .toList());
-    }
-
-    private List<ExternalModelStagePayloads.EducationIssueNote> normalizeEducationIssueNotes(
-            List<ExternalModelStagePayloads.EducationIssueNote> notes,
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        if (notes == null || notes.isEmpty()) {
-            return notes;
-        }
-        ModelDiagnosisBrief brief = runtimePlan == null ? null : runtimePlan.getBrief();
-        StandardLibraryPack standardLibraryPack = runtimePlan == null ? null : runtimePlan.getStandardLibraryPack();
-        return notes.stream()
-                .map(note -> {
-                    if (note == null) {
-                        return null;
-                    }
-                    note.setIssueTag(resolveTag(note.getIssueTag(),
-                            standardLibraryPack == null ? null : standardLibraryPack.getIssueTags()));
-                    note.setFineGrainedTag(resolveTag(note.getFineGrainedTag(),
-                            standardLibraryPack == null ? null : standardLibraryPack.getFineGrainedTags()));
-                    note.setEvidenceRefs(normalizeEvidenceRefs(note.getEvidenceRefs(), brief));
-                    return note;
-                })
-                .toList();
-    }
-
-    private List<SubmissionAnalysisResponse.ImprovementOpportunity> normalizeImprovementOpportunities(
-            List<SubmissionAnalysisResponse.ImprovementOpportunity> opportunities,
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        if (opportunities == null || opportunities.isEmpty()) {
-            return opportunities;
-        }
-        ModelDiagnosisBrief brief = runtimePlan == null ? null : runtimePlan.getBrief();
-        StandardLibraryPack standardLibraryPack = runtimePlan == null ? null : runtimePlan.getStandardLibraryPack();
-        Set<String> improvementTags = improvementTagLookup(
-                standardLibraryPack == null ? null : standardLibraryPack.getImprovementTags());
-        return opportunities.stream()
-                .map(item -> {
-                    if (item == null) {
-                        return null;
-                    }
-                    item.setCategory(resolveImprovementTag(item.getCategory(), improvementTags));
-                    item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), brief));
-                    return item;
-                })
-                .toList();
-    }
-
-    private String resolveTag(String rawValue, List<StandardLibraryPack.TagOption> options) {
-        if (rawValue == null || rawValue.isBlank()) {
-            return rawValue;
-        }
-        Map<String, String> lookup = new LinkedHashMap<>();
-        if (options != null) {
-            for (StandardLibraryPack.TagOption option : options) {
-                if (option == null || option.getId() == null || option.getId().isBlank()) {
-                    continue;
-                }
-                String id = option.getId().trim();
-                lookup.put(normalizeKey(id), id);
-                lookup.put(normalizeText(id), id);
-                if (option.getLabel() != null && !option.getLabel().isBlank()) {
-                    lookup.put(normalizeKey(option.getLabel()), id);
-                    lookup.put(normalizeText(option.getLabel()), id);
-                }
-            }
-        }
-        return lookup.getOrDefault(normalizeKey(rawValue), lookup.getOrDefault(normalizeText(rawValue), rawValue));
-    }
-
     private List<String> normalizeEvidenceRefs(List<String> refs, ModelDiagnosisBrief brief) {
         if (refs == null || refs.isEmpty()) {
             return refs;
@@ -302,17 +105,6 @@ public class ExternalModelOutputNormalizer {
                 .forEach(ref -> refs.putIfAbsent(normalizeKey(ref), ref));
     }
 
-    private Set<String> actionLookup(List<StandardLibraryPack.TeachingActionOption> actions) {
-        Set<String> ids = new LinkedHashSet<>();
-        if (actions != null) {
-            actions.stream()
-                    .map(StandardLibraryPack.TeachingActionOption::getId)
-                    .filter(id -> id != null && !id.isBlank())
-                    .forEach(id -> ids.add(id.trim()));
-        }
-        return ids;
-    }
-
     private Set<String> improvementTagLookup(List<StandardLibraryPack.ImprovementTagOption> tags) {
         Set<String> ids = new LinkedHashSet<>();
         if (tags != null) {
@@ -331,17 +123,6 @@ public class ExternalModelOutputNormalizer {
         String key = normalizeKey(rawValue);
         return allowedTags.stream()
                 .filter(tag -> normalizeKey(tag).equals(key))
-                .findFirst()
-                .orElse(rawValue);
-    }
-
-    private String resolveAction(String rawValue, Set<String> allowedActions) {
-        if (rawValue == null || rawValue.isBlank() || allowedActions == null || allowedActions.isEmpty()) {
-            return rawValue;
-        }
-        String key = normalizeKey(rawValue);
-        return allowedActions.stream()
-                .filter(action -> normalizeKey(action).equals(key))
                 .findFirst()
                 .orElse(rawValue);
     }

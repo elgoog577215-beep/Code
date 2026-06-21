@@ -239,6 +239,14 @@ class DiagnosticAgentServiceTest {
         );
 
         assertThat(result.analysis().getAiInvocation().isFallbackUsed()).isFalse();
+        assertThat(result.analysis().getAiInvocation().getSearchLocationStatus()).isEqualTo("SUCCESS");
+        assertThat(result.analysis().getAiInvocation().getSearchLocationCandidateCount()).isEqualTo(4);
+        assertThat(result.analysis().getAiInvocation().getSearchLocationSelectedCount()).isEqualTo(2);
+        assertThat(result.analysis().getAiInvocation().getEmbeddingStatus()).isEqualTo("VECTOR_DEGRADED");
+        assertThat(result.analysis().getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(result.analysis().getAiInvocation().getBasicAdviceCount()).isEqualTo(1);
+        assertThat(result.analysis().getAiInvocation().getImprovementAdviceCount()).isEqualTo(1);
+        assertThat(result.analysis().getAiInvocation().getAdvicePromptVersion()).isEqualTo("diagnosis-and-advice-v1");
         assertThat(result.analysis().getIssueTags()).contains("ALGORITHM_STRATEGY");
         assertThat(result.analysis().getFineGrainedTags()).contains("DP_STATE_DESIGN");
         assertThat(result.analysis().getEvidenceRefs()).contains(
@@ -735,10 +743,19 @@ class DiagnosticAgentServiceTest {
                     .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
                             .provider("MODEL_SCOPE")
                             .model("deepseek-ai/DeepSeek-V4-Pro")
-                            .promptVersion("diagnosis-and-teaching-v2")
+                            .promptVersion("diagnosis-and-advice-v1")
                             .status("MODEL_COMPLETED")
                             .fallbackUsed(false)
                             .runtimeMode("single-call")
+                            .searchLocationEnabled(true)
+                            .searchLocationStatus("SUCCESS")
+                            .searchLocationCandidateCount(4)
+                            .searchLocationSelectedCount(2)
+                            .embeddingStatus("VECTOR_DEGRADED")
+                            .adviceGenerationStatus("SUCCESS")
+                            .basicAdviceCount(1)
+                            .improvementAdviceCount(1)
+                            .advicePromptVersion("diagnosis-and-advice-v1")
                             .build())
                     .answerLeakRisk("LOW")
                     .build();

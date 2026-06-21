@@ -25,7 +25,7 @@ services:
       AI_ENABLED: "${AI_ENABLED:-true}"
       MODELSCOPE_API_KEY: "${OJ_MODELSCOPE_API_KEY:-}"
       AI_BASE_URL: "${OJ_AI_BASE_URL:-https://api-inference.modelscope.cn/v1}"
-      AI_MODEL: "${OJ_AI_MODEL:-deepseek-ai/DeepSeek-V4-Pro}"
+      AI_MODEL: "${OJ_AI_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507}"
       AI_MODELSCOPE_COMPATIBLE_REQUEST: "${AI_MODELSCOPE_COMPATIBLE_REQUEST:-auto}"
       AI_READINESS_BLOCKING: "${AI_READINESS_BLOCKING:-true}"
       AI_SEARCH_LOCATION_ENABLED: "${AI_SEARCH_LOCATION_ENABLED:-true}"
@@ -39,7 +39,7 @@ services:
       AI_EMBEDDING_ENABLED: "${AI_EMBEDDING_ENABLED:-true}"
       AI_EMBEDDING_BASE_URL: "${AI_EMBEDDING_BASE_URL:-https://api-inference.modelscope.cn/v1}"
       AI_EMBEDDING_API_KEY: "${AI_EMBEDDING_API_KEY:-${OJ_MODELSCOPE_API_KEY:-}}"
-      AI_EMBEDDING_MODEL: "${AI_EMBEDDING_MODEL:-text-embedding-v1}"
+      AI_EMBEDDING_MODEL: "${AI_EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-0.6B}"
       AI_EMBEDDING_TIMEOUT_SECONDS: "${AI_EMBEDDING_TIMEOUT_SECONDS:-20}"
     ports:
       - "${SERVER_PORT:-8081}:8081"

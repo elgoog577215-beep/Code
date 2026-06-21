@@ -21,14 +21,11 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Service
 @Slf4j
@@ -38,15 +35,7 @@ public class AiReportService {
     private static final String AI_SOURCE = "MODEL_SCOPE_EXTERNAL_MODEL";
     private static final String PROVIDER = "ModelScope";
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
-    private static final String RUNTIME_PROMPT_VERSION = "diagnosis-judge-v2+teaching-hint-v1";
-    private static final String SINGLE_CALL_RUNTIME_PROMPT_VERSION = PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1;
     private static final String STUDENT_FAST_FEEDBACK_PROMPT_VERSION = "student-fast-feedback-v2";
-    private static final String RUNTIME_MODE_SINGLE_CALL = "single-call";
-    private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^(\\d+):\\s?(.*)$", Pattern.MULTILINE);
-    private static final Pattern REPORT_LINE_ISSUE_PATTERN = Pattern.compile(
-            "行号[：:]\\s*(\\d+)\\s*错误[：:]\\s*(.+?)\\s*建议[：:]\\s*(.+?)(?=(?:\\n\\s*行号[：:])|\\Z)",
-            Pattern.DOTALL
-    );
 
     private final ObjectMapper objectMapper;
     private final AiCodeAssistSupport aiCodeAssistSupport;
@@ -56,6 +45,7 @@ public class AiReportService {
     private final ExternalModelChatRequestFactory chatRequestFactory;
     private final SearchLocationRetrievalService searchLocationRetrievalService;
     private final SearchLocationOutputValidator searchLocationOutputValidator;
+    private final SearchLocationOutputNormalizer searchLocationOutputNormalizer;
     private final SearchLocationPackSelector searchLocationPackSelector;
     private final SearchLocationProperties searchLocationProperties;
     private final ThreadLocal<ExternalModelCallTelemetry> lastCallTelemetry = ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
@@ -84,7 +74,7 @@ public class AiReportService {
                            ExternalModelFailureClassifier failureClassifier,
                            ExternalModelBudgetGuard budgetGuard) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
-                null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     public AiReportService(ObjectMapper objectMapper,
@@ -94,7 +84,7 @@ public class AiReportService {
                            ExternalModelBudgetGuard budgetGuard,
                            ExternalModelChatRequestFactory chatRequestFactory) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
-                chatRequestFactory, null, null, null, null);
+                chatRequestFactory, null, null, null, null, null);
     }
 
     @Autowired
@@ -105,11 +95,12 @@ public class AiReportService {
                            ExternalModelBudgetGuard budgetGuard,
                            SearchLocationRetrievalService searchLocationRetrievalService,
                            SearchLocationOutputValidator searchLocationOutputValidator,
+                           SearchLocationOutputNormalizer searchLocationOutputNormalizer,
                            SearchLocationPackSelector searchLocationPackSelector,
                            SearchLocationProperties searchLocationProperties) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
                 new ExternalModelChatRequestFactory(), searchLocationRetrievalService, searchLocationOutputValidator,
-                searchLocationPackSelector, searchLocationProperties);
+                searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties);
     }
 
     public AiReportService(ObjectMapper objectMapper,
@@ -120,6 +111,7 @@ public class AiReportService {
                            ExternalModelChatRequestFactory chatRequestFactory,
                            SearchLocationRetrievalService searchLocationRetrievalService,
                            SearchLocationOutputValidator searchLocationOutputValidator,
+                           SearchLocationOutputNormalizer searchLocationOutputNormalizer,
                            SearchLocationPackSelector searchLocationPackSelector,
                            SearchLocationProperties searchLocationProperties) {
         this.objectMapper = objectMapper;
@@ -132,6 +124,9 @@ public class AiReportService {
         this.searchLocationOutputValidator = searchLocationOutputValidator == null
                 ? new SearchLocationOutputValidator()
                 : searchLocationOutputValidator;
+        this.searchLocationOutputNormalizer = searchLocationOutputNormalizer == null
+                ? new SearchLocationOutputNormalizer()
+                : searchLocationOutputNormalizer;
         this.searchLocationPackSelector = searchLocationPackSelector;
         this.searchLocationProperties = searchLocationProperties == null ? new SearchLocationProperties() : searchLocationProperties;
     }
@@ -157,14 +152,8 @@ public class AiReportService {
     @Value("${ai.external-runtime-enabled:true}")
     private boolean externalRuntimeEnabled;
 
-    @Value("${ai.external-runtime-mode:single-call}")
-    private String externalRuntimeMode = RUNTIME_MODE_SINGLE_CALL;
-
     @Value("${ai.external-runtime-profile:auto}")
     private String externalRuntimeProfile = ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO;
-
-    @Value("${ai.external-single-call-prompt-version:}")
-    private String externalSingleCallPromptVersion = "";
 
     @Value("${ai.max-output-tokens:1800}")
     private int maxOutputTokens = 1800;
@@ -222,215 +211,9 @@ public class AiReportService {
                         baselineLineIssues
                 );
             }
-
-            Map<String, Object> context = new LinkedHashMap<>();
-            context.put("problemTitle", problem.getTitle());
-            context.put("problemDescription", problem.getDescription());
-            context.put("aiPromptDirection", problem.getAiPromptDirection() == null ? "" : problem.getAiPromptDirection());
-            context.put("verdict", submission.getVerdict() == null ? "UNKNOWN" : submission.getVerdict().name());
-            context.put("language", submission.getLanguageName());
-            context.put("sourceCode", truncateSourceCode(rawSourceCode));
-            context.put("sourceCodeLineCount", countSourceLines(rawSourceCode));
-            context.put("sourceCodeForLineAnalysis", buildLineAwareSourceCode(rawSourceCode));
-            context.put("baselineLineIssues", baselineLineIssues);
-            context.put("compileOutput", submission.getCompileOutput() == null ? "" : submission.getCompileOutput());
-            context.put("runtimeErrorMessage", submission.getErrorMessage() == null ? "" : submission.getErrorMessage());
-            context.put("baselineAnalysis", fallback);
-            context.put("firstFailedCase", fallback == null ? null : fallback.getFirstFailedCase());
-            context.put("evidencePackage", evidencePackage);
-            context.put("ruleSignals", ruleSignals);
-
-            String systemPrompt = """
-                    You are an online judge debugging assistant.
-                    Return strict JSON only. Do not wrap the response in markdown fences.
-                    Do not output explanations, chain-of-thought, XML, or any text outside the JSON object.
-                    All generated user-facing strings must be Simplified Chinese.
-
-                    Required JSON fields:
-                    headline(string),
-                    summary(string),
-                    issueTags(string[]),
-                    fineGrainedTags(string[]),
-                    abilityPoints(string[]),
-                    focusPoints(string[]),
-                    fixDirections(string[]),
-                    evidenceRefs(string[]),
-                    studentHint(string),
-                    studentHintPlan({
-                      hintLevel("L1"|"L2"|"L3"|"L4"),
-                      problemType(string),
-                      evidenceAnchor(string),
-                      nextAction(string),
-                      coachQuestion(string),
-                      teachingAction(string),
-                      evidenceRefs(string[]),
-                      answerLeakRisk("LOW"|"MEDIUM"|"HIGH")
-                    }),
-                    learningInterventionPlan({
-                      interventionType(string),
-                      goal(string),
-                      studentTask(string),
-                      checkQuestion(string),
-                      completionSignal(string),
-                      evidenceRefs(string[]),
-                      estimatedMinutes(number),
-                      answerLeakRisk("LOW"|"MEDIUM"|"HIGH")
-                    }),
-                    teacherNote(string),
-                    progressSignal(string),
-                    confidence(number),
-                    uncertainty(string),
-                    answerLeakRisk("LOW"|"MEDIUM"|"HIGH"),
-                    wrongSolution(string|null),
-                    correctSolution(string|null),
-                    lineIssues([{lineNumber(number), error(string), suggestion(string)}]),
-                    reportMarkdown(string)
-
-                    Teaching and safety rules:
-                    1. Prefer hints about thinking path, boundary categories, complexity, and debugging direction.
-                    2. Do not provide complete code, final answers, hidden test data, or a step-by-step solution that removes the student's thinking work.
-                    3. issueTags must reuse standard learning-diagnosis labels such as SYNTAX_ERROR, IO_FORMAT, BOUNDARY_CONDITION, CONDITION_BRANCH, LOOP_BOUNDARY, DATA_STRUCTURE_CHOICE, TIME_COMPLEXITY, SPACE_COMPLEXITY, VARIABLE_INITIALIZATION, STATE_TRANSITION, RECURSION_EXIT, CODE_READABILITY, SAMPLE_ONLY, ALGORITHM_STRATEGY, RUNTIME_STABILITY, NEEDS_MORE_EVIDENCE.
-                    4. fineGrainedTags must only reuse candidate or standard fine-grained labels such as OFF_BY_ONE, EMPTY_INPUT, MAX_BOUNDARY, DUPLICATE_CASE, OUTPUT_FORMAT_DETAIL, INPUT_PARSING, INITIAL_STATE, STATE_RESET, OVER_SIMULATION, BRUTE_FORCE_LIMIT, GREEDY_ASSUMPTION, DP_STATE_DESIGN, IN_PLACE_STATE_PROGRESS, SAMPLE_OVERFIT, PARTIAL_FIX_REGRESSION.
-                    5. evidenceRefs must cite evidencePackage or ruleSignals references, not invented evidence.
-                    6. uncertainty must state what is unknown or inferred, especially for hidden tests.
-                    7. studentHint should be scaffolded at hint level 1-2: problem type and locating direction, not a full fix.
-                    8. teacherNote should summarize what the teacher can act on.
-                    9. answerLeakRisk must be HIGH if the response contains complete code, direct final solution, or hidden data.
-                    10. studentHintPlan must split the student-facing guidance into: current problem type, evidence anchor, next action, and one coach question. Keep it short and actionable.
-                    11. teachingAction must be one of ASK_MIN_CASE, TRACE_VARIABLES, COMPARE_OUTPUT, COUNT_COMPLEXITY, DEFINE_STATE, CHECK_INVARIANT, BUILD_COUNTEREXAMPLE, COMPARE_SUBMISSIONS, CHECK_RUNTIME_GUARDS, COLLECT_EVIDENCE, FIX_FIRST_COMPILER_ERROR, COMPARE_INPUT_SPEC, TRACE_STATE, COMPARE_STRUCTURES, DRAW_RECURSION_TREE, EXPLAIN_GENERALITY, CHECK_BRANCH_COVERAGE.
-                    12. learningInterventionPlan must describe one small, verifiable learning action. It must not include complete code or final solution. The completionSignal must tell a teacher what observable student work counts as done.
-
-                    Rules for line-aware analysis:
-                    1. You must analyze sourceCodeForLineAnalysis first. It contains the real source code with line numbers.
-                    2. If baselineLineIssues, compileOutput, or runtimeErrorMessage already expose concrete line numbers, preserve or refine those lines instead of inventing new ones.
-                    3. Any code-specific diagnosis must include a concrete lineNumber.
-                    4. Every lineIssues item must contain both error and suggestion.
-                    5. If you cannot confidently locate a concrete line, return an empty array [] instead of guessing.
-                    6. If verdict is COMPILATION_ERROR, prioritize compileOutput. If verdict is RUNTIME_ERROR, prioritize runtimeErrorMessage and stack traces.
-                    7. reportMarkdown should mention concrete line numbers whenever it talks about code issues.
-                    8. Hidden test cases must not be guessed or leaked.
-                    9. Keep the advice grounded in the judging facts and the provided code.
-                    10. If ruleSignals contain candidate tags, prefer selecting from them unless the evidence clearly suggests another standard tag.
-                    """;
-            String userPrompt = "Generate the JSON from this context: " + objectMapper.writeValueAsString(context);
-            String content = chatCompletion(systemPrompt, userPrompt); /*
-                    """
-                    你是中文 OJ 智能教练。
-                    请根据评测结果输出严格 JSON，不要输出 Markdown 代码块，不要输出 JSON 之外的任何解释，不要输出 <think>、思考过程或草稿。
-                    JSON 字段必须包含：
-                    headline(string),
-                    summary(string),
-                    focusPoints(string[]),
-                    fixDirections(string[]),
-                    wrongSolution(string|null),
-                    correctSolution(string|null),
-                    lineIssues([{lineNumber(number), error(string), suggestion(string)}]),
-                    reportMarkdown(string)
-                    如果 verdict 是 COMPILATION_ERROR，必须优先根据 compileOutput 给出带行号的 lineIssues；如果是 RUNTIME_ERROR 且 runtimeErrorMessage 含有行号，也必须优先使用这些行号。
-
-                    纠错格式要求：
-                    1. 必须优先基于带行号代码进行分析。
-                    2. 只要指出代码问题，就必须给出具体 lineNumber。
-                    3. 每条 lineIssues 都必须同时包含 error 和 suggestion。
-                    4. 禁止返回“检查循环”“看看边界”这类不带行号的模糊建议放进 lineIssues。
-                    5. 如果暂时无法定位到具体行，就返回空数组 []，不要编造行号。
-                    6. reportMarkdown 中如果提到代码问题，也必须尽量引用具体行号，格式示例：
-                       行号：5
-                       错误：变量未定义
-                       建议：定义变量后再使用
-
-                    要求：
-                    1. 全部使用中文。
-                    2. 结论必须贴合 OJ 评测场景，不要空泛。
-                    3. 如果失败测试点是隐藏的，不要猜测或泄露具体隐藏数据。
-                    4. 可以比 baseline 更自然，但不能偏离评测事实。
-                    """,
-                    "请基于以下上下文生成 JSON：" + objectMapper.writeValueAsString(context)
-            ); */
-
-            AiAnalysisPayload payload = parseAnalysisPayload(content);
-            if (payload == null || payload.reportMarkdown == null || payload.reportMarkdown.isBlank()) {
-                log.warn("AI submission analysis returned no structured markdown payload. submissionId={}", submission.getId());
-                String markdownFallback = cleanupAiText(content);
-                if (!markdownFallback.isBlank()) {
-                    return SubmissionAnalysisResponse.builder()
-                            .submissionId(fallback.getSubmissionId())
-                            .analysisSchemaVersion(fallback.getAnalysisSchemaVersion())
-                            .evidenceSchemaVersion(fallback.getEvidenceSchemaVersion())
-                            .taxonomyVersion(fallback.getTaxonomyVersion())
-                            .sourceType(AI_SOURCE)
-                            .scenario(fallback.getScenario())
-                            .headline(fallback.getHeadline())
-                            .summary(fallback.getSummary())
-                            .issueTags(cleanList(fallback.getIssueTags(), List.of()))
-                            .fineGrainedTags(cleanList(fallback.getFineGrainedTags(), List.of()))
-                            .abilityPoints(cleanList(fallback.getAbilityPoints(), List.of()))
-                            .focusPoints(cleanList(fallback.getFocusPoints(), List.of()))
-                            .fixDirections(cleanList(fallback.getFixDirections(), List.of()))
-                            .evidenceRefs(cleanList(fallback.getEvidenceRefs(), List.of()))
-                            .studentHint(fallback.getStudentHint())
-                            .studentHintPlan(fallback.getStudentHintPlan())
-                            .studentFeedback(fallback.getStudentFeedback())
-                            .learningInterventionPlan(fallback.getLearningInterventionPlan())
-                            .learningActionEvidence(fallback.getLearningActionEvidence())
-                            .teacherNote(fallback.getTeacherNote())
-                            .progressSignal(fallback.getProgressSignal())
-                            .confidence(fallback.getConfidence())
-                            .uncertainty(fallback.getUncertainty())
-                            .diagnosticTrace(fallback.getDiagnosticTrace())
-                            .aiInvocation(modelInvocation(fallback, "MODEL_TEXT_FALLBACK", false))
-                            .answerLeakRisk(fallback.getAnswerLeakRisk())
-                            .wrongSolution(fallback.getWrongSolution())
-                            .correctSolution(fallback.getCorrectSolution())
-                            .lineIssues(baselineLineIssues)
-                            .firstFailedCase(fallback.getFirstFailedCase())
-                            .reportMarkdown(markdownFallback)
-                            .generatedAt(fallback.getGeneratedAt())
-                            .build();
-                }
-                return fallback;
-            }
-
-            return SubmissionAnalysisResponse.builder()
-                    .submissionId(fallback.getSubmissionId())
-                    .analysisSchemaVersion(defaultIfBlank(payload.analysisSchemaVersion, fallback.getAnalysisSchemaVersion()))
-                    .evidenceSchemaVersion(defaultIfBlank(payload.evidenceSchemaVersion, fallback.getEvidenceSchemaVersion()))
-                    .taxonomyVersion(defaultIfBlank(payload.taxonomyVersion, fallback.getTaxonomyVersion()))
-                    .sourceType(AI_SOURCE)
-                    .scenario(fallback.getScenario())
-                    .headline(defaultIfBlank(payload.headline, fallback.getHeadline()))
-                    .summary(defaultIfBlank(payload.summary, fallback.getSummary()))
-                    .issueTags(cleanList(payload.issueTags, fallback.getIssueTags()))
-                    .fineGrainedTags(cleanList(payload.fineGrainedTags, fallback.getFineGrainedTags()))
-                    .abilityPoints(cleanList(payload.abilityPoints, fallback.getAbilityPoints()))
-                    .focusPoints(cleanList(payload.focusPoints, fallback.getFocusPoints()))
-                    .fixDirections(cleanList(payload.fixDirections, fallback.getFixDirections()))
-                    .evidenceRefs(cleanList(payload.evidenceRefs, fallback.getEvidenceRefs()))
-                    .studentHint(defaultIfBlank(payload.studentHint, fallback.getStudentHint()))
-                    .studentHintPlan(cleanHintPlan(payload.studentHintPlan, fallback.getStudentHintPlan()))
-                    .studentFeedback(fallback.getStudentFeedback())
-                    .learningInterventionPlan(cleanInterventionPlan(payload.learningInterventionPlan, fallback.getLearningInterventionPlan()))
-                    .learningActionEvidence(fallback.getLearningActionEvidence())
-                    .teacherNote(defaultIfBlank(payload.teacherNote, fallback.getTeacherNote()))
-                    .progressSignal(defaultIfBlank(payload.progressSignal, fallback.getProgressSignal()))
-                    .confidence(resolveConfidence(payload.confidence, fallback.getConfidence()))
-                    .uncertainty(defaultIfBlank(payload.uncertainty, fallback.getUncertainty()))
-                    .diagnosticTrace(fallback.getDiagnosticTrace())
-                    .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false))
-                    .answerLeakRisk(resolveAnswerLeakRisk(payload.answerLeakRisk, fallback.getAnswerLeakRisk()))
-                    .wrongSolution(defaultNullable(payload.wrongSolution, fallback.getWrongSolution()))
-                    .correctSolution(defaultNullable(payload.correctSolution, fallback.getCorrectSolution()))
-                    .lineIssues(aiCodeAssistSupport.resolveLineIssues(
-                            toLineIssueCandidates(payload),
-                            payload == null ? null : payload.reportMarkdown,
-                            content,
-                            rawSourceCode,
-                            baselineLineIssues
-                    ))
-                    .firstFailedCase(fallback.getFirstFailedCase())
-                    .reportMarkdown(cleanupAiText(payload.reportMarkdown))
-                    .generatedAt(fallback.getGeneratedAt())
-                    .build();
+            log.info("AI submission analysis skipped because new runtime context is incomplete. submissionId={}",
+                    submission.getId());
+            return fallback;
         } catch (Exception exception) {
             log.error("AI submission analysis enhancement failed. submissionId={}", submission.getId(), exception);
             if (exception instanceof InterruptedException) {
@@ -507,212 +290,16 @@ public class AiReportService {
                 evidencePackage,
                 ruleSignals,
                 fallback,
-                externalRuntimeProfile,
-                externalSingleCallPromptVersion
+                externalRuntimeProfile
         );
         runtimePlan = applySearchLocationIfAvailable(runtimePlan, ruleSignals);
-        if (useSingleCallRuntime()) {
-            return enhanceWithSingleCallRuntime(
-                    submission,
-                    fallback,
-                    runtimePlan,
-                    rawSourceCode,
-                    baselineLineIssues
-            );
-        }
-
-        ExternalModelStagePayloads.DiagnosisJudgeOutput decision;
-        try {
-            decision = callDiagnosisJudgeStage(runtimePlan);
-            decision = externalModelAgentRuntime.normalizeDiagnosisDecision(decision, runtimePlan);
-        } catch (Exception exception) {
-            return runtimeFallback(fallback, runtimePlan, stageFailureFromException("DIAGNOSIS_JUDGE", exception));
-        }
-        ExternalModelStagePayloads.StageValidationResult decisionValidation =
-                withStage("DIAGNOSIS_JUDGE", externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan));
-        if (!decisionValidation.isValid()) {
-            decisionValidation = withTransportAttribution(decisionValidation);
-            log.warn("External model diagnosis stage failed validation. submissionId={}, reason={}, message={}",
-                    submission.getId(),
-                    decisionValidation.getFailureReason(),
-                    decisionValidation.getMessage());
-            return runtimeFallback(fallback, runtimePlan, decisionValidation);
-        }
-
-        ExternalModelStagePayloads.TeachingHintOutput teachingHint;
-        try {
-            teachingHint = callTeachingHintStage(runtimePlan, decision);
-            teachingHint = externalModelAgentRuntime.normalizeTeachingHint(teachingHint, runtimePlan);
-        } catch (Exception exception) {
-            return buildPartialRuntimeAnalysisResponse(
-                    fallback,
-                    runtimePlan,
-                    decision,
-                    stageFailureFromException("TEACHING_HINT", exception),
-                    rawSourceCode,
-                    baselineLineIssues
-            );
-        }
-        ExternalModelStagePayloads.StageValidationResult teachingValidation =
-                withStage("TEACHING_HINT", externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan));
-        if (!teachingValidation.isValid()) {
-            teachingValidation = withTransportAttribution(teachingValidation);
-            log.warn("External model teaching stage failed validation. submissionId={}, reason={}, message={}",
-                    submission.getId(),
-                    teachingValidation.getFailureReason(),
-                    teachingValidation.getMessage());
-            return buildPartialRuntimeAnalysisResponse(
-                    fallback,
-                    runtimePlan,
-                    decision,
-                    teachingValidation,
-                    rawSourceCode,
-                    baselineLineIssues
-            );
-        }
-
-        return buildRuntimeAnalysisResponse(
+        return enhanceWithAdviceGenerationRuntime(
+                submission,
                 fallback,
                 runtimePlan,
-                decision,
-                teachingHint,
-                null,
                 rawSourceCode,
                 baselineLineIssues
         );
-    }
-
-    private ExternalModelStagePayloads.DiagnosisJudgeOutput callDiagnosisJudgeStage(
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
-        Map<String, Object> request = new LinkedHashMap<>();
-        request.put("brief", runtimePlan.getBrief());
-        request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
-        activateRuntimePlan(runtimePlan);
-        String content = chatCompletion(
-                runtimePlan.getDiagnosisPrompt().getSystemPrompt(),
-                objectMapper.writeValueAsString(request)
-        );
-        ExternalModelStagePayloads.DiagnosisJudgeOutput output =
-                parseModelStagePayload(content, ExternalModelStagePayloads.DiagnosisJudgeOutput.class);
-        return output;
-    }
-
-    private SubmissionAnalysisResponse enhanceWithSingleCallRuntime(
-            Submission submission,
-            SubmissionAnalysisResponse fallback,
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-            String rawSourceCode,
-            List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues)
-            throws JsonProcessingException, IOException, InterruptedException {
-        if (useAdviceGenerationPrompt(runtimePlan)) {
-            return enhanceWithAdviceGenerationRuntime(
-                    submission,
-                    fallback,
-                    runtimePlan,
-                    rawSourceCode,
-                    baselineLineIssues
-            );
-        }
-
-        ExternalModelStagePayloads.CombinedOutput combinedOutput;
-        try {
-            combinedOutput = callSingleCallRuntimeStage(runtimePlan);
-            combinedOutput = externalModelAgentRuntime.normalizeCombinedOutput(combinedOutput, runtimePlan);
-        } catch (Exception exception) {
-            return runtimeFallback(fallback, runtimePlan, stageFailureFromException("DIAGNOSIS_AND_TEACHING", exception));
-        }
-        if (combinedOutput == null) {
-            ExternalModelStagePayloads.DiagnosisJudgeOutput retainedDecision =
-                    retainDiagnosisDecisionFromTruncatedSingleCall(runtimePlan);
-            if (retainedDecision != null) {
-                return buildPartialRuntimeAnalysisResponse(
-                        fallback,
-                        runtimePlan,
-                        retainedDecision,
-                        withStage("DIAGNOSIS_AND_TEACHING", ExternalModelStagePayloads.StageValidationResult.builder()
-                                .valid(false)
-                                .failureReason(ModelStageFailureReason.OUTPUT_TRUNCATED)
-                                .message("Single-call output was truncated after a valid diagnosisDecision.")
-                                .build()),
-                        rawSourceCode,
-                        baselineLineIssues
-                );
-            }
-        }
-
-        ExternalModelStagePayloads.DiagnosisJudgeOutput decision =
-                combinedOutput == null ? null : combinedOutput.getDiagnosisDecision();
-        ExternalModelStagePayloads.StageValidationResult decisionValidation =
-                withStage("DIAGNOSIS_AND_TEACHING", externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan));
-        if (!decisionValidation.isValid()) {
-            decisionValidation = withTransportAttribution(decisionValidation);
-            log.warn("External model single-call diagnosis failed validation. submissionId={}, reason={}, message={}",
-                    submission.getId(),
-                    decisionValidation.getFailureReason(),
-                    decisionValidation.getMessage());
-            return runtimeFallback(fallback, runtimePlan, decisionValidation);
-        }
-
-        ExternalModelStagePayloads.TeachingHintOutput teachingHint =
-                combinedOutput == null ? null : combinedOutput.getTeachingHint();
-        if (teachingHint != null) {
-            ExternalModelStagePayloads.StageValidationResult teachingValidation =
-                    withStage("DIAGNOSIS_AND_TEACHING", externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan));
-            if (!teachingValidation.isValid()) {
-                teachingValidation = withTransportAttribution(teachingValidation);
-                log.warn("External model single-call teaching failed validation. submissionId={}, reason={}, message={}",
-                        submission.getId(),
-                        teachingValidation.getFailureReason(),
-                        teachingValidation.getMessage());
-                return buildPartialRuntimeAnalysisResponse(
-                        fallback,
-                        runtimePlan,
-                        decision,
-                        teachingValidation,
-                        rawSourceCode,
-                        baselineLineIssues
-                );
-            }
-        } else {
-            teachingHint = buildModelActionTeachingHintFromDecision(decision, runtimePlan, fallback);
-        }
-
-        SubmissionAnalysisResponse.StudentFeedback studentFeedback =
-                combinedOutput == null ? null : combinedOutput.getStudentFeedback();
-        ExternalModelStagePayloads.StageValidationResult feedbackValidation =
-                withStage("DIAGNOSIS_AND_TEACHING", externalModelAgentRuntime.validateStudentFeedback(
-                        studentFeedback,
-                        decision,
-                        runtimePlan
-                ));
-        if (!feedbackValidation.isValid()) {
-            feedbackValidation = withTransportAttribution(feedbackValidation);
-            log.warn("External model single-call student feedback failed validation. submissionId={}, reason={}, message={}",
-                    submission.getId(),
-                    feedbackValidation.getFailureReason(),
-                    feedbackValidation.getMessage());
-            return buildPartialRuntimeAnalysisResponse(
-                    fallback,
-                    runtimePlan,
-                    decision,
-                    feedbackValidation,
-                    rawSourceCode,
-                    baselineLineIssues
-            );
-        }
-
-        SubmissionAnalysisResponse response = buildRuntimeAnalysisResponse(
-                fallback,
-                runtimePlan,
-                decision,
-                teachingHint,
-                studentFeedback,
-                rawSourceCode,
-                baselineLineIssues
-        );
-        response.setAiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false,
-                runtimePromptVersion(runtimePlan), runtimePlan));
-        return response;
     }
 
     private SubmissionAnalysisResponse enhanceWithAdviceGenerationRuntime(
@@ -735,10 +322,30 @@ public class AiReportService {
             ));
             return runtimeFallback(fallback, runtimePlan, failure);
         }
+        adviceOutput = externalModelAgentRuntime.normalizeAdviceGeneration(adviceOutput, runtimePlan);
 
         ExternalModelStagePayloads.StageValidationResult adviceValidation =
                 withStage("DIAGNOSIS_AND_ADVICE",
                         externalModelAgentRuntime.validateAdviceGeneration(adviceOutput, runtimePlan));
+        if (!adviceValidation.isValid()
+                && adviceValidation.getFailureReason() == ModelStageFailureReason.SAFETY_RISK) {
+            try {
+                AdviceGenerationOutput rewrittenOutput =
+                        retryAdviceGenerationForSafety(runtimePlan, adviceOutput, adviceValidation);
+                rewrittenOutput = externalModelAgentRuntime.normalizeAdviceGeneration(rewrittenOutput, runtimePlan);
+                ExternalModelStagePayloads.StageValidationResult rewrittenValidation =
+                        withStage("DIAGNOSIS_AND_ADVICE",
+                                externalModelAgentRuntime.validateAdviceGeneration(rewrittenOutput, runtimePlan));
+                if (rewrittenValidation.isValid()) {
+                    adviceOutput = rewrittenOutput;
+                    adviceValidation = rewrittenValidation;
+                } else {
+                    adviceValidation = rewrittenValidation;
+                }
+            } catch (Exception exception) {
+                adviceValidation = stageFailureFromException("DIAGNOSIS_AND_ADVICE", exception);
+            }
+        }
         if (!adviceValidation.isValid()) {
             adviceValidation = withTransportAttribution(adviceValidation);
             runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
@@ -754,42 +361,12 @@ public class AiReportService {
 
         runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.success(adviceOutput, promptVersion));
 
-        ExternalModelStagePayloads.DiagnosisJudgeOutput decision =
-                externalModelAgentRuntime.mapAdviceDiagnosisDecision(adviceOutput, fallback);
-        decision = externalModelAgentRuntime.normalizeDiagnosisDecision(decision, runtimePlan);
-        ExternalModelStagePayloads.StageValidationResult decisionValidation =
-                withStage("DIAGNOSIS_AND_ADVICE",
-                        externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan));
-        if (!decisionValidation.isValid()) {
-            decisionValidation = withTransportAttribution(decisionValidation);
-            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
-                    adviceFallbackReason(decisionValidation),
-                    promptVersion
-            ));
-            return runtimeFallback(fallback, runtimePlan, decisionValidation);
-        }
-
-        ExternalModelStagePayloads.TeachingHintOutput teachingHint =
-                externalModelAgentRuntime.mapAdviceTeachingHint(adviceOutput, fallback, runtimePlan);
-        teachingHint = externalModelAgentRuntime.normalizeTeachingHint(teachingHint, runtimePlan);
-        ExternalModelStagePayloads.StageValidationResult teachingValidation =
-                withStage("DIAGNOSIS_AND_ADVICE",
-                        externalModelAgentRuntime.validateTeachingHint(teachingHint, decision, runtimePlan));
-        if (!teachingValidation.isValid()) {
-            teachingValidation = withTransportAttribution(teachingValidation);
-            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
-                    adviceFallbackReason(teachingValidation),
-                    promptVersion
-            ));
-            return runtimeFallback(fallback, runtimePlan, teachingValidation);
-        }
-
         SubmissionAnalysisResponse.StudentFeedback studentFeedback =
-                externalModelAgentRuntime.mapAdviceStudentFeedback(adviceOutput, decision, runtimePlan);
+                externalModelAgentRuntime.mapAdviceStudentFeedback(adviceOutput, runtimePlan);
         studentFeedback = externalModelAgentRuntime.normalizeStudentFeedback(studentFeedback, runtimePlan);
         ExternalModelStagePayloads.StageValidationResult feedbackValidation =
                 withStage("DIAGNOSIS_AND_ADVICE",
-                        externalModelAgentRuntime.validateStudentFeedback(studentFeedback, decision, runtimePlan));
+                        externalModelAgentRuntime.validateStudentFeedback(studentFeedback, runtimePlan));
         if (!feedbackValidation.isValid()) {
             feedbackValidation = withTransportAttribution(feedbackValidation);
             runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
@@ -799,22 +376,14 @@ public class AiReportService {
             return runtimeFallback(fallback, runtimePlan, feedbackValidation);
         }
 
-        SubmissionAnalysisResponse response = buildRuntimeAnalysisResponse(
+        SubmissionAnalysisResponse response = buildAdviceRuntimeAnalysisResponse(
                 fallback,
                 runtimePlan,
-                decision,
-                teachingHint,
+                adviceOutput,
                 studentFeedback,
                 rawSourceCode,
                 baselineLineIssues
         );
-        response.setCaseUnderstanding(toResponseCaseUnderstanding(adviceOutput.getCaseUnderstanding()));
-        response.setBasicLayerAdvice(toResponseBasicLayerAdvice(adviceOutput.getBasicLayerAdvice()));
-        response.setImprovementLayerAdvice(toResponseImprovementLayerAdvice(adviceOutput.getImprovementLayerAdvice()));
-        response.setSummary(defaultIfBlank(adviceOutput.getStudentSummary(), response.getSummary()));
-        response.setReportMarkdown(buildAdviceReportMarkdown(runtimePlan, adviceOutput, response.getReportMarkdown()));
-        response.setAiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false,
-                promptVersion, runtimePlan));
         return response;
     }
 
@@ -827,7 +396,7 @@ public class AiReportService {
                 ? null
                 : runtimePlan.getStandardLibraryPack().getSearchLocationSummary());
         activateRuntimePlan(runtimePlan);
-        String systemPrompt = runtimePlan.getSingleCallPrompt().getSystemPrompt();
+        String systemPrompt = runtimePlan.getAdvicePrompt().getSystemPrompt();
         String userPrompt = objectMapper.writeValueAsString(request);
         String content = chatCompletion(systemPrompt, userPrompt);
         lastStructuredRetrySourceTelemetry.set(ExternalModelCallTelemetry.empty());
@@ -843,73 +412,46 @@ public class AiReportService {
         );
     }
 
-    private ExternalModelStagePayloads.CombinedOutput callSingleCallRuntimeStage(
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
+    private AdviceGenerationOutput retryAdviceGenerationForSafety(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            AdviceGenerationOutput unsafeOutput,
+            ExternalModelStagePayloads.StageValidationResult failure)
+            throws JsonProcessingException, IOException, InterruptedException {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("brief", runtimePlan.getBrief());
         request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        request.put("searchLocationSummary", runtimePlan.getStandardLibraryPack() == null
+                ? null
+                : runtimePlan.getStandardLibraryPack().getSearchLocationSummary());
+        request.put("previousOutput", unsafeOutput);
+        request.put("validationFailure", Map.of(
+                "stage", failure == null ? "DIAGNOSIS_AND_ADVICE" : defaultIfBlank(failure.getStage(), "DIAGNOSIS_AND_ADVICE"),
+                "reason", failure == null || failure.getFailureReason() == null
+                        ? ModelStageFailureReason.SAFETY_RISK.name()
+                        : failure.getFailureReason().name(),
+                "message", failure == null ? "" : cleanupAiText(failure.getMessage())
+        ));
+        String systemPrompt = runtimePlan.getAdvicePrompt().getSystemPrompt()
+                + "\n\nSafety rewrite retry:\n"
+                + "The previous JSON was rejected because a student-facing field was too close to a direct answer.\n"
+                + "Return the same output schema again, but rewrite unsafe student-facing text into diagnostic prompts only.\n"
+                + "Keep valid evidenceRefs and valid standard library ids when they still match.\n"
+                + "Do not use phrases meaning directly change to, replace with, final answer, complete code, or exact executable expressions.\n"
+                + "For boundary issues, ask the student to trace included values, compare the target interval, and inspect whether the endpoint enters the loop.\n"
+                + "Do not state the replacement expression or exact loop header.\n";
         activateRuntimePlan(runtimePlan);
-        String systemPrompt = runtimePlan.getSingleCallPrompt().getSystemPrompt();
-        String userPrompt = objectMapper.writeValueAsString(request);
-        String content = chatCompletion(systemPrompt, userPrompt);
-        lastStructuredRetrySourceTelemetry.set(ExternalModelCallTelemetry.empty());
-        ExternalModelStagePayloads.CombinedOutput output =
-                parseModelStagePayload(content, ExternalModelStagePayloads.CombinedOutput.class);
+        String content = chatCompletion(systemPrompt, objectMapper.writeValueAsString(request));
+        lastCallTelemetry.set(lastCallTelemetry.get().withFallbackRetryUsed(true));
+        AdviceGenerationOutput output = parseModelStagePayload(content, AdviceGenerationOutput.class);
         if (output != null) {
             return output;
         }
         return retryStructuredModelStagePayload(
                 systemPrompt,
-                userPrompt,
+                objectMapper.writeValueAsString(request),
                 runtimePlan,
-                ExternalModelStagePayloads.CombinedOutput.class
+                AdviceGenerationOutput.class
         );
-    }
-
-    private ExternalModelStagePayloads.DiagnosisJudgeOutput retainDiagnosisDecisionFromTruncatedSingleCall(
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        if (!"length".equalsIgnoreCase(defaultIfBlank(lastCallTelemetry.get().streamFinishReason(), ""))) {
-            return null;
-        }
-        String fragment = extractJsonObjectField(lastModelStageRawContent.get(), "diagnosisDecision");
-        if (fragment.isBlank()) {
-            return null;
-        }
-        ExternalModelStagePayloads.DiagnosisJudgeOutput decision;
-        try {
-            decision = objectMapper.readValue(fragment, ExternalModelStagePayloads.DiagnosisJudgeOutput.class);
-            decision = externalModelAgentRuntime.normalizeDiagnosisDecision(decision, runtimePlan);
-        } catch (JsonProcessingException exception) {
-            log.warn("Truncated single-call diagnosisDecision extraction failed. error={}, contentPreview={}",
-                    exception.getMessage(),
-                    previewBody(fragment));
-            return null;
-        }
-        ExternalModelStagePayloads.StageValidationResult validation =
-                externalModelAgentRuntime.validateDiagnosisDecision(decision, runtimePlan);
-        if (validation == null || !validation.isValid()) {
-            log.warn("Truncated single-call diagnosisDecision failed validation. reason={}, message={}",
-                    validation == null ? ModelStageFailureReason.UNKNOWN_ERROR : validation.getFailureReason(),
-                    validation == null ? "" : validation.getMessage());
-            return null;
-        }
-        return decision;
-    }
-
-    private ExternalModelStagePayloads.TeachingHintOutput callTeachingHintStage(
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-            ExternalModelStagePayloads.DiagnosisJudgeOutput decision)
-            throws JsonProcessingException, IOException, InterruptedException {
-        Map<String, Object> request = new LinkedHashMap<>();
-        request.put("brief", runtimePlan.getBrief());
-        request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
-        request.put("diagnosisDecision", decision);
-        activateRuntimePlan(runtimePlan);
-        String content = chatCompletion(
-                runtimePlan.getTeachingPrompt().getSystemPrompt(),
-                objectMapper.writeValueAsString(request)
-        );
-        return parseModelStagePayload(content, ExternalModelStagePayloads.TeachingHintOutput.class);
     }
 
     private <T> T retryStructuredModelStagePayload(String systemPrompt,
@@ -988,6 +530,7 @@ public class AiReportService {
                 return runtimePlan;
             }
             SearchLocationOutput output = callSearchLocationStage(runtimePlan, candidatePack);
+            output = searchLocationOutputNormalizer.normalize(output, candidatePack, runtimePlan.getBrief());
             ExternalModelStagePayloads.StageValidationResult validation =
                     searchLocationOutputValidator.validate(output, candidatePack, runtimePlan.getBrief());
             if (validation == null || !validation.isValid()) {
@@ -1059,8 +602,7 @@ public class AiReportService {
     private boolean shouldRetryStructuredPayload(Class<?> payloadType,
                                                  ExternalModelCallTelemetry telemetry,
                                                  String rawContent) {
-        if (payloadType != ExternalModelStagePayloads.CombinedOutput.class
-                && payloadType != AdviceGenerationOutput.class) {
+        if (payloadType != AdviceGenerationOutput.class) {
             return false;
         }
         if (!structuredRetryEnabled) {
@@ -1071,16 +613,9 @@ public class AiReportService {
         if ("length".equalsIgnoreCase(finishReason)) {
             return true;
         }
-        if (payloadType == ExternalModelStagePayloads.CombinedOutput.class) {
-            return cleaned.contains("\"diagnosisDecision\"");
-        }
         return cleaned.contains("\"caseUnderstanding\"")
                 || cleaned.contains("\"basicLayerAdvice\"")
                 || cleaned.contains("\"nextStepPlan\"");
-    }
-
-    private boolean useAdviceGenerationPrompt(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        return PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1.equals(runtimePromptVersion(runtimePlan));
     }
 
     private String adviceFallbackReason(ExternalModelStagePayloads.StageValidationResult failure) {
@@ -1224,32 +759,16 @@ public class AiReportService {
         }
     }
 
-    private SubmissionAnalysisResponse buildRuntimeAnalysisResponse(
+    private SubmissionAnalysisResponse buildAdviceRuntimeAnalysisResponse(
             SubmissionAnalysisResponse fallback,
             ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
-            ExternalModelStagePayloads.TeachingHintOutput teachingHint,
+            AdviceGenerationOutput adviceOutput,
             SubmissionAnalysisResponse.StudentFeedback studentFeedback,
             String rawSourceCode,
             List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues) {
-        String primaryIssueTag = cleanupAiText(decision.getPrimaryIssueTag()).toUpperCase();
-        String fineGrainedTag = cleanupAiText(decision.getFineGrainedTag()).toUpperCase();
-        String studentHint = defaultIfBlank(teachingHint.getStudentHint(), fallback.getStudentHint());
-        String teacherNote = defaultIfBlank(teachingHint.getTeacherNote(), fallback.getTeacherNote());
-        List<String> evidenceRefs = cleanList(decision.getEvidenceRefs(), fallback.getEvidenceRefs());
-        List<String> runtimeFocusPoints = buildRuntimeFocusPoints(primaryIssueTag, fineGrainedTag, teachingHint);
-        List<String> runtimeFixDirections = buildRuntimeFixDirections(teachingHint, primaryIssueTag, fineGrainedTag);
-        ExternalModelStagePayloads.TeachingHintOutput alignedTeachingHint =
-                alignTeachingHintWithDiagnosis(teachingHint, primaryIssueTag, fineGrainedTag, evidenceRefs);
-        SubmissionAnalysisResponse.StudentFeedback resolvedStudentFeedback = resolveModelStudentFeedback(
-                studentFeedback,
-                decision,
-                alignedTeachingHint,
-                primaryIssueTag,
-                fineGrainedTag,
-                evidenceRefs
-        );
-
+        List<String> evidenceRefs = adviceEvidenceRefs(adviceOutput, fallback);
+        SubmissionAnalysisResponse.NextLearningAction nextAction =
+                studentFeedback == null ? null : studentFeedback.getNextLearningAction();
         return SubmissionAnalysisResponse.builder()
                 .submissionId(fallback.getSubmissionId())
                 .analysisSchemaVersion(fallback.getAnalysisSchemaVersion())
@@ -1257,471 +776,247 @@ public class AiReportService {
                 .taxonomyVersion(fallback.getTaxonomyVersion())
                 .sourceType(AI_SOURCE)
                 .scenario(fallback.getScenario())
-                .headline(defaultIfBlank(fallback.getHeadline(), "AI 阶段化诊断已完成"))
-                .summary(defaultIfBlank(fallback.getSummary(), buildRuntimeSummary(primaryIssueTag, fineGrainedTag, decision)))
-                .issueTags(cleanList(List.of(primaryIssueTag), fallback.getIssueTags()))
-                .fineGrainedTags(fineGrainedTag.isBlank()
-                        ? cleanList(List.of(), fallback.getFineGrainedTags())
-                        : cleanList(List.of(fineGrainedTag), fallback.getFineGrainedTags()))
+                .headline(defaultIfBlank(fallback.getHeadline(), "AI 完整诊断已完成"))
+                .summary(defaultIfBlank(adviceOutput == null ? "" : adviceOutput.getStudentSummary(), fallback.getSummary()))
+                .issueTags(cleanList(fallback.getIssueTags(), List.of()))
+                .fineGrainedTags(cleanList(fallback.getFineGrainedTags(), List.of()))
                 .abilityPoints(cleanList(fallback.getAbilityPoints(), List.of()))
-                .focusPoints(cleanList(runtimeFocusPoints, fallback.getFocusPoints()))
-                .fixDirections(cleanList(runtimeFixDirections, fallback.getFixDirections()))
+                .focusPoints(cleanList(adviceFocusPoints(adviceOutput), fallback.getFocusPoints()))
+                .fixDirections(cleanList(adviceFixDirections(adviceOutput), fallback.getFixDirections()))
                 .evidenceRefs(evidenceRefs)
-                .studentHint(studentHint)
-                .studentHintPlan(alignedTeachingHint.getStudentHintPlan() == null
-                        ? fallback.getStudentHintPlan()
-                        : alignedTeachingHint.getStudentHintPlan())
-                .studentFeedback(resolvedStudentFeedback)
-                .learningInterventionPlan(alignedTeachingHint.getLearningInterventionPlan() == null
-                        ? fallback.getLearningInterventionPlan()
-                        : alignedTeachingHint.getLearningInterventionPlan())
+                .studentHint(defaultIfBlank(nextAction == null ? "" : nextAction.getTask(),
+                        firstAdviceAction(adviceOutput, fallback.getStudentHint())))
+                .studentHintPlan(buildAdviceHintPlan(adviceOutput, studentFeedback, fallback))
+                .studentFeedback(studentFeedback)
+                .learningInterventionPlan(buildAdviceInterventionPlan(studentFeedback, fallback))
                 .learningActionEvidence(fallback.getLearningActionEvidence())
-                .teacherNote(teacherNote)
+                .teacherNote(defaultIfBlank(fallback.getTeacherNote(), "外部模型已生成基础层与提高层结构化建议。"))
                 .progressSignal(fallback.getProgressSignal())
-                .confidence(resolveConfidence(decision.getConfidence(), fallback.getConfidence()))
-                .uncertainty(defaultIfBlank(decision.getUncertainty(), fallback.getUncertainty()))
+                .confidence(resolveConfidence(adviceConfidence(adviceOutput), fallback.getConfidence()))
+                .uncertainty(defaultIfBlank(runtimePlan == null || runtimePlan.getBrief() == null
+                        ? ""
+                        : runtimePlan.getBrief().getUncertainty(), fallback.getUncertainty()))
                 .diagnosticTrace(fallback.getDiagnosticTrace())
-                .modelEducationTrace(modelEducationTrace(decision))
-                .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false, RUNTIME_PROMPT_VERSION, runtimePlan))
-                .answerLeakRisk(resolveRuntimeAnswerLeakRisk(alignedTeachingHint, fallback.getAnswerLeakRisk()))
+                .modelEducationTrace(adviceModelEducationTrace(adviceOutput))
+                .caseUnderstanding(toResponseCaseUnderstanding(adviceOutput == null ? null : adviceOutput.getCaseUnderstanding()))
+                .basicLayerAdvice(toResponseBasicLayerAdvice(adviceOutput == null ? null : adviceOutput.getBasicLayerAdvice()))
+                .improvementLayerAdvice(toResponseImprovementLayerAdvice(adviceOutput == null ? null : adviceOutput.getImprovementLayerAdvice()))
+                .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false, runtimePromptVersion(runtimePlan), runtimePlan))
+                .answerLeakRisk(resolveAnswerLeakRisk(nextAction == null ? "" : nextAction.getAnswerLeakRisk(),
+                        fallback.getAnswerLeakRisk()))
                 .wrongSolution(fallback.getWrongSolution())
                 .correctSolution(fallback.getCorrectSolution())
                 .lineIssues(baselineLineIssues == null ? List.of() : baselineLineIssues)
                 .firstFailedCase(fallback.getFirstFailedCase())
-                .reportMarkdown(buildRuntimeReportMarkdown(runtimePlan, decision, alignedTeachingHint, rawSourceCode))
+                .reportMarkdown(buildAdviceReportMarkdown(runtimePlan, adviceOutput, fallback.getReportMarkdown()))
                 .generatedAt(fallback.getGeneratedAt())
                 .build();
     }
 
-    private SubmissionAnalysisResponse.ModelEducationTrace modelEducationTrace(
-            ExternalModelStagePayloads.DiagnosisJudgeOutput decision) {
-        if (decision == null) {
-            return null;
+    private List<String> adviceEvidenceRefs(AdviceGenerationOutput output, SubmissionAnalysisResponse fallback) {
+        List<String> refs = new ArrayList<>();
+        if (output != null && output.getCaseUnderstanding() != null) {
+            addIfNotBlank(refs, output.getCaseUnderstanding().getPrimaryEvidenceRef());
         }
-        return SubmissionAnalysisResponse.ModelEducationTrace.builder()
-                .source("diagnosisDecision")
-                .primaryIssueTag(cleanupAiText(decision.getPrimaryIssueTag()).toUpperCase())
-                .fineGrainedTag(cleanupAiText(decision.getFineGrainedTag()).toUpperCase())
-                .evidenceRefs(cleanList(decision.getEvidenceRefs(), List.of()))
-                .primaryReasoning(cleanupAiText(decision.getPrimaryReasoning()))
-                .secondaryIssues(modelEducationIssueNotes(decision.getSecondaryIssues()))
-                .distractorNotes(modelEducationIssueNotes(decision.getDistractorNotes()))
-                .teachingPriority(cleanupAiText(decision.getTeachingPriority()))
-                .improvementCategories(modelImprovementCategories(decision.getImprovementOpportunities()))
-                .nextLearningAction(decision.getNextLearningAction() == null
-                        ? ""
-                        : cleanupAiText(decision.getNextLearningAction().getTask()))
-                .nextLearningActionEvidenceRefs(decision.getNextLearningAction() == null
-                        ? List.of()
-                        : cleanList(decision.getNextLearningAction().getEvidenceRefs(), List.of()))
-                .confidence(decision.getConfidence())
-                .uncertainty(cleanupAiText(decision.getUncertainty()))
-                .needsMoreEvidence(decision.getNeedsMoreEvidence())
-                .answerLeakRisk(cleanupAiText(decision.getAnswerLeakRisk()).toUpperCase())
-                .build();
+        if (output != null && output.getBasicLayerAdvice() != null) {
+            output.getBasicLayerAdvice().stream()
+                    .filter(item -> item != null && item.getEvidenceRefs() != null)
+                    .flatMap(item -> item.getEvidenceRefs().stream())
+                    .forEach(ref -> addIfNotBlank(refs, ref));
+        }
+        if (output != null && output.getImprovementLayerAdvice() != null) {
+            output.getImprovementLayerAdvice().stream()
+                    .filter(item -> item != null && item.getEvidenceRefs() != null)
+                    .flatMap(item -> item.getEvidenceRefs().stream())
+                    .forEach(ref -> addIfNotBlank(refs, ref));
+        }
+        if (refs.isEmpty() && fallback != null) {
+            refs.addAll(cleanList(fallback.getEvidenceRefs(), List.of()));
+        }
+        return refs.stream().distinct().toList();
     }
 
-    private List<SubmissionAnalysisResponse.ModelEducationIssueNote> modelEducationIssueNotes(
-            List<ExternalModelStagePayloads.EducationIssueNote> notes) {
-        if (notes == null || notes.isEmpty()) {
+    private List<String> adviceFocusPoints(AdviceGenerationOutput output) {
+        if (output == null || output.getBasicLayerAdvice() == null) {
             return List.of();
         }
-        return notes.stream()
-                .filter(note -> note != null)
-                .map(note -> SubmissionAnalysisResponse.ModelEducationIssueNote.builder()
-                        .title(cleanupAiText(note.getTitle()))
-                        .message(cleanupAiText(note.getMessage()))
-                        .issueTag(cleanupAiText(note.getIssueTag()).toUpperCase())
-                        .fineGrainedTag(cleanupAiText(note.getFineGrainedTag()).toUpperCase())
-                        .evidenceRefs(cleanList(note.getEvidenceRefs(), List.of()))
-                        .build())
+        return output.getBasicLayerAdvice().stream()
+                .filter(item -> item != null)
+                .map(AdviceGenerationOutput.BasicLayerAdvice::getTitle)
+                .map(this::cleanupAiText)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .limit(5)
                 .toList();
     }
 
-    private List<String> modelImprovementCategories(
-            List<SubmissionAnalysisResponse.ImprovementOpportunity> opportunities) {
-        if (opportunities == null || opportunities.isEmpty()) {
+    private List<String> adviceFixDirections(AdviceGenerationOutput output) {
+        List<String> directions = new ArrayList<>();
+        if (output != null && output.getNextStepPlan() != null) {
+            output.getNextStepPlan().stream()
+                    .filter(item -> item != null)
+                    .map(AdviceGenerationOutput.NextStepAdvice::getTarget)
+                    .forEach(value -> addIfNotBlank(directions, value));
+        }
+        if (directions.isEmpty() && output != null && output.getBasicLayerAdvice() != null) {
+            output.getBasicLayerAdvice().stream()
+                    .filter(item -> item != null)
+                    .map(AdviceGenerationOutput.BasicLayerAdvice::getStudentAction)
+                    .forEach(value -> addIfNotBlank(directions, value));
+        }
+        return directions.stream().distinct().limit(5).toList();
+    }
+
+    private String firstAdviceAction(AdviceGenerationOutput output, String fallback) {
+        if (output != null && output.getNextStepPlan() != null) {
+            String target = output.getNextStepPlan().stream()
+                    .filter(item -> item != null)
+                    .map(AdviceGenerationOutput.NextStepAdvice::getTarget)
+                    .map(this::cleanupAiText)
+                    .filter(value -> !value.isBlank())
+                    .findFirst()
+                    .orElse("");
+            if (!target.isBlank()) {
+                return target;
+            }
+        }
+        if (output != null && output.getBasicLayerAdvice() != null) {
+            String action = output.getBasicLayerAdvice().stream()
+                    .filter(item -> item != null)
+                    .map(AdviceGenerationOutput.BasicLayerAdvice::getStudentAction)
+                    .map(this::cleanupAiText)
+                    .filter(value -> !value.isBlank())
+                    .findFirst()
+                    .orElse("");
+            if (!action.isBlank()) {
+                return action;
+            }
+        }
+        return fallback;
+    }
+
+    private SubmissionAnalysisResponse.StudentHintPlan buildAdviceHintPlan(
+            AdviceGenerationOutput output,
+            SubmissionAnalysisResponse.StudentFeedback studentFeedback,
+            SubmissionAnalysisResponse fallback) {
+        SubmissionAnalysisResponse.NextLearningAction nextAction =
+                studentFeedback == null ? null : studentFeedback.getNextLearningAction();
+        if (nextAction == null) {
+            return fallback == null ? null : fallback.getStudentHintPlan();
+        }
+        List<String> evidenceRefs = cleanList(nextAction.getEvidenceRefs(), adviceEvidenceRefs(output, fallback));
+        return SubmissionAnalysisResponse.StudentHintPlan.builder()
+                .hintLevel(defaultIfBlank(nextAction.getHintLevel(), "L2"))
+                .problemType("AI 完整诊断")
+                .evidenceAnchor(evidenceRefs.isEmpty() ? "" : evidenceRefs.get(0))
+                .nextAction(defaultIfBlank(nextAction.getTask(), firstAdviceAction(output, "")))
+                .coachQuestion(defaultIfBlank(nextAction.getCheckQuestion(), firstAdviceQuestion(output)))
+                .teachingAction(defaultIfBlank(nextAction.getAction(), "COLLECT_EVIDENCE"))
+                .evidenceRefs(evidenceRefs)
+                .answerLeakRisk(resolveAnswerLeakRisk(nextAction.getAnswerLeakRisk(), "LOW"))
+                .build();
+    }
+
+    private SubmissionAnalysisResponse.LearningInterventionPlan buildAdviceInterventionPlan(
+            SubmissionAnalysisResponse.StudentFeedback studentFeedback,
+            SubmissionAnalysisResponse fallback) {
+        SubmissionAnalysisResponse.NextLearningAction nextAction =
+                studentFeedback == null ? null : studentFeedback.getNextLearningAction();
+        if (nextAction == null) {
+            return fallback == null ? null : fallback.getLearningInterventionPlan();
+        }
+        return SubmissionAnalysisResponse.LearningInterventionPlan.builder()
+                .interventionType("ADVICE_GENERATION")
+                .goal("完成 AI 建议中的第一个可观察动作。")
+                .studentTask(nextAction.getTask())
+                .checkQuestion(nextAction.getCheckQuestion())
+                .completionSignal("学生能用证据说明当前问题和下一步验证动作。")
+                .evidenceRefs(cleanList(nextAction.getEvidenceRefs(), List.of()))
+                .estimatedMinutes(6)
+                .answerLeakRisk(resolveAnswerLeakRisk(nextAction.getAnswerLeakRisk(), "LOW"))
+                .build();
+    }
+
+    private Double adviceConfidence(AdviceGenerationOutput output) {
+        if (output == null || output.getBasicLayerAdvice() == null || output.getBasicLayerAdvice().isEmpty()) {
+            return null;
+        }
+        return output.getBasicLayerAdvice().stream()
+                .filter(item -> item != null && item.getConfidence() != null)
+                .map(AdviceGenerationOutput.BasicLayerAdvice::getConfidence)
+                .max(Double::compareTo)
+                .orElse(null);
+    }
+
+    private SubmissionAnalysisResponse.ModelEducationTrace adviceModelEducationTrace(AdviceGenerationOutput output) {
+        if (output == null) {
+            return null;
+        }
+        AdviceGenerationOutput.BasicLayerAdvice firstBasic = firstBasicAdvice(output);
+        return SubmissionAnalysisResponse.ModelEducationTrace.builder()
+                .source("adviceGeneration")
+                .primaryIssueTag(firstBasic == null ? "" : cleanupAiText(firstBasic.getSkillUnitId()).toUpperCase())
+                .fineGrainedTag(firstBasic == null ? "" : cleanupAiText(firstBasic.getMistakePointId()).toUpperCase())
+                .evidenceRefs(adviceEvidenceRefs(output, null))
+                .primaryReasoning(firstBasic == null ? "" : cleanupAiText(firstBasic.getWhatHappened()))
+                .secondaryIssues(List.of())
+                .distractorNotes(List.of())
+                .teachingPriority(cleanupAiText(output.getStudentSummary()))
+                .improvementCategories(adviceImprovementCategories(output))
+                .nextLearningAction(firstAdviceAction(output, ""))
+                .nextLearningActionEvidenceRefs(firstStepEvidenceRefs(output))
+                .confidence(adviceConfidence(output))
+                .uncertainty("")
+                .needsMoreEvidence(false)
+                .answerLeakRisk("LOW")
+                .build();
+    }
+
+    private List<String> adviceImprovementCategories(AdviceGenerationOutput output) {
+        if (output == null || output.getImprovementLayerAdvice() == null) {
             return List.of();
         }
-        return opportunities.stream()
+        return output.getImprovementLayerAdvice().stream()
                 .filter(item -> item != null)
-                .map(item -> cleanupAiText(item.getCategory()).toUpperCase())
+                .map(AdviceGenerationOutput.ImprovementLayerAdvice::getImprovementPointId)
+                .map(this::cleanupAiText)
                 .filter(value -> !value.isBlank())
+                .map(value -> value.toUpperCase(java.util.Locale.ROOT))
                 .distinct()
                 .toList();
     }
 
-    private ExternalModelStagePayloads.TeachingHintOutput alignTeachingHintWithDiagnosis(
-            ExternalModelStagePayloads.TeachingHintOutput teachingHint,
-            String primaryIssueTag,
-            String fineGrainedTag,
-            List<String> evidenceRefs) {
-        if (teachingHint == null) {
-            return ExternalModelStagePayloads.TeachingHintOutput.builder().build();
-        }
-        String teachingTag = fineGrainedTag == null || fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
-        String expectedAction = localTeachingAction(teachingTag);
-        SubmissionAnalysisResponse.StudentHintPlan alignedHintPlan =
-                alignStudentHintPlan(teachingHint.getStudentHintPlan(), teachingTag, expectedAction, evidenceRefs);
-        SubmissionAnalysisResponse.LearningInterventionPlan alignedInterventionPlan =
-                alignInterventionPlan(teachingHint.getLearningInterventionPlan(), teachingTag, expectedAction, evidenceRefs);
-        return ExternalModelStagePayloads.TeachingHintOutput.builder()
-                .studentHint(teachingHint.getStudentHint())
-                .studentHintPlan(alignedHintPlan)
-                .learningInterventionPlan(alignedInterventionPlan)
-                .teacherNote(teachingHint.getTeacherNote())
-                .answerLeakRisk(teachingHint.getAnswerLeakRisk())
-                .build();
-    }
-
-    private ExternalModelStagePayloads.TeachingHintOutput buildModelActionTeachingHintFromDecision(
-            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-            SubmissionAnalysisResponse fallback) {
-        if (decision == null) {
-            return ExternalModelStagePayloads.TeachingHintOutput.builder().build();
-        }
-        String primaryIssueTag = cleanupAiText(decision.getPrimaryIssueTag()).toUpperCase();
-        String fineGrainedTag = cleanupAiText(decision.getFineGrainedTag()).toUpperCase();
-        String teachingTag = fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
-        String expectedAction = localTeachingAction(teachingTag);
-        String label = localTagLabel(teachingTag);
-        List<String> evidenceRefs = cleanList(decision.getEvidenceRefs(), fallback == null ? List.of() : fallback.getEvidenceRefs());
-        String evidenceAnchor = evidenceRefs.isEmpty() ? "model:diagnosis_decision" : evidenceRefs.get(0);
-        SubmissionAnalysisResponse.NextLearningAction modelAction = decision.getNextLearningAction();
-        String task = defaultIfBlank(modelAction == null ? "" : modelAction.getTask(),
-                localNextAction(teachingTag, expectedAction));
-        String checkQuestion = defaultIfBlank(modelAction == null ? "" : modelAction.getCheckQuestion(),
-                localCoachQuestion(teachingTag, expectedAction));
-        String hintLevel = defaultIfBlank(modelAction == null ? "" : modelAction.getHintLevel(), "L2");
-        List<String> actionRefs = cleanList(
-                modelAction == null ? List.of() : modelAction.getEvidenceRefs(),
-                evidenceRefs
-        );
-        String risk = resolveAnswerLeakRisk(modelAction == null ? "" : modelAction.getAnswerLeakRisk(), "LOW");
-        String hint = defaultIfBlank(decision.getTeachingPriority(),
-                "先围绕「" + label + "」做一次可观察验证。");
-        return ExternalModelStagePayloads.TeachingHintOutput.builder()
-                .studentHint(hint)
-                .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
-                        .hintLevel(hintLevel)
-                        .problemType(label)
-                        .evidenceAnchor(evidenceAnchor)
-                        .nextAction(task)
-                        .coachQuestion(checkQuestion)
-                        .teachingAction(expectedAction)
-                        .evidenceRefs(actionRefs)
-                        .answerLeakRisk(risk)
-                        .build())
-                .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
-                        .interventionType(localInterventionType(expectedAction))
-                        .goal(defaultIfBlank(decision.getPrimaryReasoning(), "把模型判断转化为一个可验证的小动作。"))
-                        .studentTask(task)
-                        .checkQuestion(checkQuestion)
-                        .completionSignal(localCompletionSignal(teachingTag, expectedAction))
-                        .evidenceRefs(actionRefs)
-                        .estimatedMinutes(6)
-                        .answerLeakRisk(risk)
-                        .build())
-                .teacherNote("外部模型采用轻量单调用协议，学生提示由模型下一步学习动作派生。")
-                .answerLeakRisk(risk)
-                .build();
-    }
-
-    private SubmissionAnalysisResponse.StudentFeedback resolveModelStudentFeedback(
-            SubmissionAnalysisResponse.StudentFeedback modelFeedback,
-            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
-            ExternalModelStagePayloads.TeachingHintOutput teachingHint,
-            String primaryIssueTag,
-            String fineGrainedTag,
-            List<String> evidenceRefs) {
-        if (modelFeedback != null
-                && modelFeedback.getBlockingIssues() != null
-                && !modelFeedback.getBlockingIssues().isEmpty()
-                && modelFeedback.getNextLearningAction() != null) {
-            return modelFeedback;
-        }
-        if (!hasEducationAgentJudgment(decision)) {
-            return modelFeedback;
-        }
-        String teachingTag = fineGrainedTag == null || fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
-        String label = localTagLabel(teachingTag);
-        List<String> refs = cleanList(evidenceRefs, List.of());
-        String evidence = refs.isEmpty()
-                ? "外接模型基于判题证据和代码片段做出判断。"
-                : "外接模型引用证据：" + String.join(", ", refs);
-        SubmissionAnalysisResponse.NextLearningAction nextAction = decision.getNextLearningAction();
-        String modelNextAction = defaultIfBlank(
-                nextAction == null ? "" : nextAction.getTask(),
-                teachingHint == null || teachingHint.getStudentHintPlan() == null
-                        ? localNextAction(teachingTag, localTeachingAction(teachingTag))
-                        : teachingHint.getStudentHintPlan().getNextAction()
-        );
-        return SubmissionAnalysisResponse.StudentFeedback.builder()
-                .summary(defaultIfBlank(decision.getTeachingPriority(),
-                        "先处理外接模型判断的当前主错因：" + label + "。"))
-                .blockingIssues(List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
-                        .priority(1)
-                        .title("当前最需要先处理的问题")
-                        .studentMessage(defaultIfBlank(decision.getPrimaryReasoning(),
-                                "外接模型判断当前最需要先处理的是“" + label + "”。"))
-                        .evidence(evidence)
-                        .nextAction(modelNextAction)
-                        .issueTag(primaryIssueTag)
-                        .fineGrainedTag(fineGrainedTag == null || fineGrainedTag.isBlank() ? null : fineGrainedTag)
-                        .evidenceRefs(refs)
-                        .build()))
-                .secondaryIssues(toStudentSecondaryIssues(decision.getSecondaryIssues(), refs))
-                .improvementOpportunities(cleanImprovementOpportunities(decision.getImprovementOpportunities()))
-                .nextLearningAction(nextAction == null
-                        ? SubmissionAnalysisResponse.NextLearningAction.builder()
-                        .hintLevel("L2")
-                        .action(localTeachingAction(teachingTag))
-                        .task(modelNextAction)
-                        .checkQuestion(localCoachQuestion(teachingTag, localTeachingAction(teachingTag)))
-                        .evidenceRefs(refs)
-                        .answerLeakRisk("LOW")
-                        .build()
-                        : nextAction)
-                .build();
-    }
-
-    private List<SubmissionAnalysisResponse.ImprovementOpportunity> cleanImprovementOpportunities(
-            List<SubmissionAnalysisResponse.ImprovementOpportunity> opportunities) {
-        if (opportunities == null || opportunities.isEmpty()) {
-            return List.of();
-        }
-        return opportunities.stream()
-                .filter(item -> item != null)
-                .toList();
-    }
-
-    private boolean hasEducationAgentJudgment(ExternalModelStagePayloads.DiagnosisJudgeOutput decision) {
-        if (decision == null) {
-            return false;
-        }
-        return !cleanupAiText(decision.getPrimaryReasoning()).isBlank()
-                || !cleanupAiText(decision.getTeachingPriority()).isBlank()
-                || decision.getNextLearningAction() != null
-                || decision.getImprovementOpportunities() != null && !decision.getImprovementOpportunities().isEmpty()
-                || decision.getSecondaryIssues() != null && !decision.getSecondaryIssues().isEmpty();
-    }
-
-    private List<SubmissionAnalysisResponse.SecondaryIssue> toStudentSecondaryIssues(
-            List<ExternalModelStagePayloads.EducationIssueNote> notes,
-            List<String> fallbackRefs) {
-        if (notes == null || notes.isEmpty()) {
-            return List.of();
-        }
-        return notes.stream()
-                .filter(note -> note != null && !cleanupAiText(note.getMessage()).isBlank())
-                .limit(2)
-                .map(note -> SubmissionAnalysisResponse.SecondaryIssue.builder()
-                        .title(defaultIfBlank(note.getTitle(), "可能的次要问题"))
-                        .studentMessage(note.getMessage())
-                        .whyNotPrimary("外接模型将它作为次要信号，不应压过当前第一失败证据。")
-                        .issueTag(note.getIssueTag())
-                        .evidenceRefs(cleanList(note.getEvidenceRefs(), fallbackRefs))
-                        .build())
-                .toList();
-    }
-
-    private SubmissionAnalysisResponse.StudentHintPlan alignStudentHintPlan(
-            SubmissionAnalysisResponse.StudentHintPlan plan,
-            String teachingTag,
-            String expectedAction,
-            List<String> evidenceRefs) {
-        if (plan == null) {
+    private AdviceGenerationOutput.BasicLayerAdvice firstBasicAdvice(AdviceGenerationOutput output) {
+        if (output == null || output.getBasicLayerAdvice() == null) {
             return null;
         }
-        String currentAction = cleanupAiText(plan.getTeachingAction()).toUpperCase();
-        boolean needsAlignment = currentAction.isBlank()
-                || "COLLECT_EVIDENCE".equals(currentAction) && !"NEEDS_MORE_EVIDENCE".equals(teachingTag)
-                || !expectedAction.equals(currentAction) && directTeachingActionRequired(teachingTag);
-        if (!needsAlignment) {
-            return plan;
-        }
-        String nextAction = localNextAction(teachingTag, expectedAction);
-        String coachQuestion = localCoachQuestion(teachingTag, expectedAction);
-        List<String> alignedRefs = evidenceRefs == null || evidenceRefs.isEmpty()
-                ? cleanList(plan.getEvidenceRefs(), List.of())
-                : evidenceRefs;
-        return SubmissionAnalysisResponse.StudentHintPlan.builder()
-                .hintLevel(defaultIfBlank(plan.getHintLevel(), "L2"))
-                .problemType(defaultIfBlank(plan.getProblemType(), localTagLabel(teachingTag)))
-                .evidenceAnchor(defaultIfBlank(plan.getEvidenceAnchor(),
-                        alignedRefs.isEmpty() ? "" : alignedRefs.get(0)))
-                .nextAction(nextAction)
-                .coachQuestion(coachQuestion)
-                .teachingAction(expectedAction)
-                .evidenceRefs(alignedRefs)
-                .answerLeakRisk(resolveAnswerLeakRisk(plan.getAnswerLeakRisk(), "LOW"))
-                .build();
+        return output.getBasicLayerAdvice().stream()
+                .filter(item -> item != null)
+                .findFirst()
+                .orElse(null);
     }
 
-    private SubmissionAnalysisResponse.LearningInterventionPlan alignInterventionPlan(
-            SubmissionAnalysisResponse.LearningInterventionPlan plan,
-            String teachingTag,
-            String expectedAction,
-            List<String> evidenceRefs) {
-        if (plan == null || "COLLECT_EVIDENCE".equals(expectedAction)) {
-            return plan;
-        }
-        String currentType = cleanupAiText(plan.getInterventionType()).toUpperCase();
-        String expectedType = localInterventionType(expectedAction);
-        if (currentType.equals(expectedType)) {
-            return plan;
-        }
-        List<String> alignedRefs = evidenceRefs == null || evidenceRefs.isEmpty()
-                ? cleanList(plan.getEvidenceRefs(), List.of())
-                : evidenceRefs;
-        return SubmissionAnalysisResponse.LearningInterventionPlan.builder()
-                .interventionType(expectedType)
-                .goal(defaultIfBlank(plan.getGoal(), "把诊断结论转化为一个可观察的小动作。"))
-                .studentTask(localNextAction(teachingTag, expectedAction))
-                .checkQuestion(localCoachQuestion(teachingTag, expectedAction))
-                .completionSignal(defaultIfBlank(plan.getCompletionSignal(),
-                        "学生能用证据说明自己验证了当前判断。"))
-                .evidenceRefs(alignedRefs)
-                .estimatedMinutes(plan.getEstimatedMinutes() == null ? 6 : plan.getEstimatedMinutes())
-                .answerLeakRisk(resolveAnswerLeakRisk(plan.getAnswerLeakRisk(), "LOW"))
-                .build();
+    private String firstAdviceQuestion(AdviceGenerationOutput output) {
+        AdviceGenerationOutput.BasicLayerAdvice first = firstBasicAdvice(output);
+        return first == null ? "这条证据说明了什么代码行为？" : first.getCheckQuestion();
     }
 
-    private boolean directTeachingActionRequired(String teachingTag) {
-        String normalized = cleanupAiText(teachingTag).toUpperCase();
-        return switch (normalized) {
-            case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION", "MAX_BOUNDARY",
-                    "OUTPUT_FORMAT_DETAIL", "INPUT_PARSING", "IO_FORMAT",
-                    "EMPTY_INPUT", "IN_PLACE_STATE_PROGRESS", "SAMPLE_OVERFIT", "SAMPLE_ONLY" -> true;
-            default -> false;
-        };
+    private List<String> firstStepEvidenceRefs(AdviceGenerationOutput output) {
+        if (output == null || output.getNextStepPlan() == null) {
+            return List.of();
+        }
+        return output.getNextStepPlan().stream()
+                .filter(item -> item != null && item.getEvidenceRef() != null && !item.getEvidenceRef().isBlank())
+                .map(AdviceGenerationOutput.NextStepAdvice::getEvidenceRef)
+                .distinct()
+                .toList();
     }
 
-    private String localInterventionType(String teachingAction) {
-        return switch (teachingAction == null ? "" : teachingAction) {
-            case "TRACE_VARIABLES" -> "VARIABLE_TRACE";
-            case "COMPARE_INPUT_SPEC", "COMPARE_OUTPUT" -> "IO_COMPARE";
-            case "COUNT_COMPLEXITY" -> "COMPLEXITY_ESTIMATE";
-            case "ASK_MIN_CASE" -> "MIN_CASE";
-            case "TRACE_STATE" -> "MIN_CASE_TRACE";
-            case "DEFINE_STATE" -> "STATE_EXPLANATION";
-            case "CHECK_INVARIANT", "BUILD_COUNTEREXAMPLE" -> "COUNTEREXAMPLE";
-            case "CHECK_RUNTIME_GUARDS" -> "RUNTIME_GUARD_CHECK";
-            case "COMPARE_SUBMISSIONS" -> "COMPARE_SUBMISSIONS";
-            default -> "COLLECT_EVIDENCE";
-        };
-    }
-
-    private String resolveRuntimeAnswerLeakRisk(ExternalModelStagePayloads.TeachingHintOutput teachingHint,
-                                                String fallbackRisk) {
-        String visibleRisk = higherRisk(
-                teachingHint == null ? "" : teachingHint.getAnswerLeakRisk(),
-                higherRisk(
-                        teachingHint == null || teachingHint.getStudentHintPlan() == null
-                                ? ""
-                                : teachingHint.getStudentHintPlan().getAnswerLeakRisk(),
-                        teachingHint == null || teachingHint.getLearningInterventionPlan() == null
-                                ? ""
-                                : teachingHint.getLearningInterventionPlan().getAnswerLeakRisk()
-                )
-        );
-        String normalizedVisibleRisk = resolveAnswerLeakRisk(visibleRisk, "");
-        if (!normalizedVisibleRisk.isBlank() && !"UNKNOWN".equalsIgnoreCase(normalizedVisibleRisk)) {
-            return normalizedVisibleRisk;
-        }
-        return resolveAnswerLeakRisk("", fallbackRisk);
-    }
-
-    private List<String> buildRuntimeFocusPoints(String primaryIssueTag,
-                                                 String fineGrainedTag,
-                                                 ExternalModelStagePayloads.TeachingHintOutput teachingHint) {
-        List<String> focusPoints = new ArrayList<>();
-        String selectedTag = fineGrainedTag == null || fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
-        if (selectedTag != null && !selectedTag.isBlank()) {
-            focusPoints.add(localTagLabel(selectedTag));
-        }
-        SubmissionAnalysisResponse.StudentHintPlan plan =
-                teachingHint == null ? null : teachingHint.getStudentHintPlan();
-        if (plan != null) {
-            addIfUseful(focusPoints, plan.getProblemType());
-            addIfUseful(focusPoints, plan.getEvidenceAnchor());
-        }
-        return focusPoints;
-    }
-
-    private List<String> buildRuntimeFixDirections(ExternalModelStagePayloads.TeachingHintOutput teachingHint,
-                                                   String primaryIssueTag,
-                                                   String fineGrainedTag) {
-        List<String> directions = new ArrayList<>();
-        SubmissionAnalysisResponse.StudentHintPlan hintPlan =
-                teachingHint == null ? null : teachingHint.getStudentHintPlan();
-        SubmissionAnalysisResponse.LearningInterventionPlan interventionPlan =
-                teachingHint == null ? null : teachingHint.getLearningInterventionPlan();
-        if (hintPlan != null) {
-            addIfUseful(directions, hintPlan.getNextAction());
-            addIfUseful(directions, hintPlan.getCoachQuestion());
-        }
-        if (interventionPlan != null) {
-            addIfUseful(directions, interventionPlan.getStudentTask());
-            addIfUseful(directions, interventionPlan.getCheckQuestion());
-        }
-        if (directions.isEmpty()) {
-            String selectedTag = fineGrainedTag == null || fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
-            String teachingAction = localTeachingAction(selectedTag);
-            directions.add(localNextAction(selectedTag, teachingAction));
-        }
-        return directions;
-    }
-
-    private void addIfUseful(List<String> values, String candidate) {
+    private void addIfNotBlank(List<String> values, String candidate) {
         String cleaned = cleanupAiText(candidate);
         if (!cleaned.isBlank()) {
             values.add(cleaned);
         }
-    }
-
-    private SubmissionAnalysisResponse buildPartialRuntimeAnalysisResponse(
-            SubmissionAnalysisResponse fallback,
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
-            ExternalModelStagePayloads.StageValidationResult teachingFailure,
-            String rawSourceCode,
-            List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues) {
-        ExternalModelStagePayloads.TeachingHintOutput localTeachingHint =
-                buildLocalTeachingHintFromDecision(decision, runtimePlan, teachingFailure, fallback);
-        SubmissionAnalysisResponse response = buildRuntimeAnalysisResponse(
-                fallback,
-                runtimePlan,
-                decision,
-                localTeachingHint,
-                null,
-                rawSourceCode,
-                baselineLineIssues
-        );
-        response.setAiInvocation(modelInvocation(
-                fallback,
-                "MODEL_PARTIAL_COMPLETED",
-                false,
-                runtimePromptVersion(runtimePlan),
-                runtimePlan,
-                teachingFailure
-        ));
-        response.setUncertainty(appendFailureNote(
-                response.getUncertainty(),
-                "教学提示阶段由本地安全模板补齐",
-                teachingFailure
-        ));
-        response.setReportMarkdown(response.getReportMarkdown()
-                + "\n\n## 模型调用说明\n\n"
-                + "- 错因裁决来自外部模型。\n"
-                + "- 教学表达阶段未完成，已使用本地安全教学模板补齐。"
-                + failureSummary(teachingFailure));
-        return response;
-    }
-
-    private boolean useSingleCallRuntime() {
-        return RUNTIME_MODE_SINGLE_CALL.equalsIgnoreCase(cleanupAiText(externalRuntimeMode));
     }
 
     private void activateRuntimePlan(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
@@ -1742,169 +1037,12 @@ public class AiReportService {
         ));
     }
 
-    private String activeRuntimePromptVersion() {
-        if (!useSingleCallRuntime()) {
-            return RUNTIME_PROMPT_VERSION;
-        }
-        String configured = cleanupAiText(externalSingleCallPromptVersion);
-        return configured.isBlank() ? SINGLE_CALL_RUNTIME_PROMPT_VERSION : configured;
-    }
-
     private String runtimePromptVersion(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        if (!useSingleCallRuntime()) {
-            return RUNTIME_PROMPT_VERSION;
+        if (runtimePlan != null && runtimePlan.getAdvicePrompt() != null
+                && !cleanupAiText(runtimePlan.getAdvicePrompt().getVersion()).isBlank()) {
+            return cleanupAiText(runtimePlan.getAdvicePrompt().getVersion());
         }
-        if (runtimePlan != null && runtimePlan.getSingleCallPrompt() != null
-                && !cleanupAiText(runtimePlan.getSingleCallPrompt().getVersion()).isBlank()) {
-            return cleanupAiText(runtimePlan.getSingleCallPrompt().getVersion());
-        }
-        return activeRuntimePromptVersion();
-    }
-
-    private ExternalModelStagePayloads.TeachingHintOutput buildLocalTeachingHintFromDecision(
-            ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-            ExternalModelStagePayloads.StageValidationResult teachingFailure,
-            SubmissionAnalysisResponse fallback) {
-        String primaryIssueTag = cleanupAiText(decision.getPrimaryIssueTag()).toUpperCase();
-        String fineGrainedTag = cleanupAiText(decision.getFineGrainedTag()).toUpperCase();
-        String teachingTag = fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
-        String teachingAction = localTeachingAction(teachingTag);
-        List<String> evidenceRefs = cleanList(decision.getEvidenceRefs(), fallback == null ? List.of() : fallback.getEvidenceRefs());
-        String label = localTagLabel(teachingTag);
-        String evidenceAnchor = evidenceRefs.isEmpty() ? "model:diagnosis_decision" : evidenceRefs.get(0);
-        String nextAction = localNextAction(teachingTag, teachingAction);
-        String coachQuestion = localCoachQuestion(teachingTag, teachingAction);
-        String hint = "先不要大改代码。把当前问题当作「" + label + "」来验证：" + nextAction;
-
-        return ExternalModelStagePayloads.TeachingHintOutput.builder()
-                .studentHint(hint)
-                .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
-                        .hintLevel("L2")
-                        .problemType(label)
-                        .evidenceAnchor(evidenceAnchor)
-                        .nextAction(nextAction)
-                        .coachQuestion(coachQuestion)
-                        .teachingAction(teachingAction)
-                        .evidenceRefs(evidenceRefs)
-                        .answerLeakRisk("LOW")
-                        .build())
-                .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
-                        .interventionType(localInterventionType(teachingAction))
-                        .goal("把外部模型判断转化为一个可验证的小动作。")
-                        .studentTask(nextAction)
-                        .checkQuestion(coachQuestion)
-                        .completionSignal(localCompletionSignal(teachingTag, teachingAction))
-                        .evidenceRefs(evidenceRefs)
-                        .estimatedMinutes(6)
-                        .answerLeakRisk("LOW")
-                        .build())
-                .teacherNote("外部模型已完成错因裁决；教学表达阶段失败，系统使用本地安全模板补齐。"
-                        + failureSummary(teachingFailure))
-                .answerLeakRisk("LOW")
-                .build();
-    }
-
-    private String buildRuntimeSummary(String primaryIssueTag,
-                                       String fineGrainedTag,
-                                       ExternalModelStagePayloads.DiagnosisJudgeOutput decision) {
-        String finePart = fineGrainedTag == null || fineGrainedTag.isBlank() ? "" : " / " + fineGrainedTag;
-        return "外部模型裁决的主要错因是 " + primaryIssueTag + finePart
-                + "，置信度 " + (decision.getConfidence() == null ? "未知" : decision.getConfidence())
-                + "。";
-    }
-
-    private String localTagLabel(String tag) {
-        return switch (tag == null ? "" : tag) {
-            case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "循环边界";
-            case "INPUT_PARSING", "IO_FORMAT" -> "输入读取";
-            case "OUTPUT_FORMAT_DETAIL" -> "输出格式";
-            case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION" -> "复杂度";
-            case "MAX_BOUNDARY" -> "最大规模边界";
-            case "EMPTY_INPUT", "BOUNDARY_CONDITION" -> "边界条件";
-            case "STATE_RESET", "INITIAL_STATE", "VARIABLE_INITIALIZATION" -> "状态初始化或重置";
-            case "DP_STATE_DESIGN", "STATE_TRANSITION", "IN_PLACE_STATE_PROGRESS" -> "状态设计";
-            case "GREEDY_ASSUMPTION", "ALGORITHM_STRATEGY" -> "算法策略";
-            case "RUNTIME_STABILITY" -> "运行稳定性";
-            case "SAMPLE_OVERFIT", "SAMPLE_ONLY" -> "样例泛化";
-            case "PARTIAL_FIX_REGRESSION" -> "局部修复回退";
-            default -> "证据不足";
-        };
-    }
-
-    private String localTeachingAction(String tag) {
-        return switch (tag == null ? "" : tag) {
-            case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "TRACE_VARIABLES";
-            case "INPUT_PARSING", "IO_FORMAT" -> "COMPARE_INPUT_SPEC";
-            case "OUTPUT_FORMAT_DETAIL" -> "COMPARE_OUTPUT";
-            case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION", "MAX_BOUNDARY" -> "COUNT_COMPLEXITY";
-            case "EMPTY_INPUT", "BOUNDARY_CONDITION" -> "ASK_MIN_CASE";
-            case "STATE_RESET", "INITIAL_STATE", "VARIABLE_INITIALIZATION" -> "TRACE_STATE";
-            case "DP_STATE_DESIGN", "STATE_TRANSITION", "IN_PLACE_STATE_PROGRESS" -> "DEFINE_STATE";
-            case "GREEDY_ASSUMPTION", "ALGORITHM_STRATEGY" -> "CHECK_INVARIANT";
-            case "RUNTIME_STABILITY" -> "CHECK_RUNTIME_GUARDS";
-            case "SAMPLE_OVERFIT", "SAMPLE_ONLY" -> "BUILD_COUNTEREXAMPLE";
-            case "PARTIAL_FIX_REGRESSION" -> "COMPARE_SUBMISSIONS";
-            default -> "COLLECT_EVIDENCE";
-        };
-    }
-
-    private String localNextAction(String tag, String teachingAction) {
-        return switch (teachingAction == null ? "" : teachingAction) {
-            case "TRACE_VARIABLES" -> "选一个最小样例，列出循环第一次、最后一次以及关键变量的实际取值。";
-            case "COMPARE_INPUT_SPEC" -> "把题面每一行输入和代码每一次读取按顺序对齐，找出第一处对不上的位置。";
-            case "COMPARE_OUTPUT" -> "逐字比较你的输出和期望输出，只圈出第一处多余、缺失或格式不同的字符。";
-            case "COUNT_COMPLEXITY" -> "用题面最大规模估算核心循环或核心操作大约执行多少次。";
-            case "ASK_MIN_CASE" -> "构造一个最小边界样例，写出期望输出和当前实际输出。";
-            case "TRACE_STATE" -> "列出状态变量在进入循环前、一次循环后、下一组数据前的值。";
-            case "DEFINE_STATE" -> "先用一句话说明这个状态表示什么，再用一个小样例验证状态是否包含足够信息。";
-            case "CHECK_INVARIANT" -> "构造一个能挑战当前策略的小反例，说明它破坏了哪条假设。";
-            case "CHECK_RUNTIME_GUARDS" -> "列出最可能触发越界、空值或除零的输入，并检查代码是否有保护条件。";
-            case "BUILD_COUNTEREXAMPLE" -> "构造一个不同于样例的最小输入，验证当前做法是否仍然成立。";
-            case "COMPARE_SUBMISSIONS" -> "对比最近两次提交，只记录一个代码变化和一个行为变化。";
-            default -> "补充一个最小样例、实际输出或错误信息，用来确认当前判断。";
-        };
-    }
-
-    private String localCoachQuestion(String tag, String teachingAction) {
-        return switch (teachingAction == null ? "" : teachingAction) {
-            case "TRACE_VARIABLES" -> "这个最小样例里，第一次偏离预期的变量是哪一个？";
-            case "COMPARE_INPUT_SPEC" -> "从题面第几行开始，你的读取次数或读取顺序和要求不一致？";
-            case "COMPARE_OUTPUT" -> "你的输出和期望输出第一处不同是什么字符？";
-            case "COUNT_COMPLEXITY" -> "当输入取最大值时，最内层操作大约会发生多少次？";
-            case "ASK_MIN_CASE" -> "这个边界样例为什么足以暴露当前问题？";
-            case "TRACE_STATE" -> "状态变量第一次偏离预期发生在进入哪一轮之前或之后？";
-            case "DEFINE_STATE" -> "这个状态是否包含判断答案所需的全部信息？";
-            case "CHECK_INVARIANT" -> "什么输入会挑战你当前的选择依据？";
-            case "CHECK_RUNTIME_GUARDS" -> "哪一种极端输入最可能触发运行错误？";
-            case "BUILD_COUNTEREXAMPLE" -> "这个反例破坏了当前做法的哪条假设？";
-            case "COMPARE_SUBMISSIONS" -> "哪一处改动让原本更好的行为变差了？";
-            default -> "你下一步准备用哪条证据确认这个判断？";
-        };
-    }
-
-    private String localCompletionSignal(String tag, String teachingAction) {
-        return switch (teachingAction == null ? "" : teachingAction) {
-            case "TRACE_VARIABLES", "TRACE_STATE" -> "学生能给出变量或状态表，并指出第一处偏离预期的位置。";
-            case "COMPARE_INPUT_SPEC", "COMPARE_OUTPUT" -> "学生能指出第一处输入读取或输出格式差异。";
-            case "COUNT_COMPLEXITY" -> "学生能给出最大规模下的数量级估算，并判断当前做法是否可能通过。";
-            case "ASK_MIN_CASE", "BUILD_COUNTEREXAMPLE" -> "学生能给出最小样例、期望结果和当前结果的对比。";
-            case "DEFINE_STATE" -> "学生能说明状态含义，并用小样例验证状态是否足够。";
-            case "CHECK_INVARIANT" -> "学生能给出反例，并说明当前策略的假设在哪里失效。";
-            case "CHECK_RUNTIME_GUARDS" -> "学生能指出风险输入和对应保护条件。";
-            case "COMPARE_SUBMISSIONS" -> "学生能指出一个代码变化、一个行为变化和受影响样例。";
-            default -> "学生能补充一条新的可观察证据。";
-        };
-    }
-
-    private String appendFailureNote(String base,
-                                     String prefix,
-                                     ExternalModelStagePayloads.StageValidationResult failure) {
-        String note = prefix + failureSummary(failure);
-        if (base == null || base.isBlank()) {
-            return note;
-        }
-        return base + " " + note;
+        return PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1;
     }
 
     private String failureSummary(ExternalModelStagePayloads.StageValidationResult failure) {
@@ -1914,36 +1052,6 @@ public class AiReportService {
         String stage = failure.getStage() == null || failure.getStage().isBlank() ? "UNKNOWN_STAGE" : failure.getStage();
         String reason = failure.getFailureReason() == null ? "UNKNOWN_ERROR" : failure.getFailureReason().name();
         return "（失败阶段：" + stage + "；失败原因：" + reason + "）";
-    }
-
-    private String buildRuntimeReportMarkdown(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-                                              ExternalModelStagePayloads.DiagnosisJudgeOutput decision,
-                                              ExternalModelStagePayloads.TeachingHintOutput teachingHint,
-                                              String rawSourceCode) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("## AI 阶段化诊断\n\n");
-        builder.append("- 错因阶段：")
-                .append(decision.getPrimaryIssueTag());
-        if (decision.getFineGrainedTag() != null && !decision.getFineGrainedTag().isBlank()) {
-            builder.append(" / ").append(decision.getFineGrainedTag());
-        }
-        builder.append('\n');
-        builder.append("- 证据引用：")
-                .append(String.join(", ", decision.getEvidenceRefs() == null ? List.of() : decision.getEvidenceRefs()))
-                .append('\n');
-        builder.append("- 不确定性：")
-                .append(defaultIfBlank(decision.getUncertainty(), runtimePlan.getBrief().getUncertainty()))
-                .append("\n\n");
-        builder.append("## 给学生的下一步\n\n");
-        builder.append(defaultIfBlank(teachingHint.getStudentHint(), "先选一个最小样例，验证当前判断是否成立。"));
-        List<String> refs = decision.getEvidenceRefs() == null ? List.of() : decision.getEvidenceRefs();
-        if (!refs.isEmpty()) {
-            builder.append("\n\n## 证据定位\n\n");
-            refs.stream()
-                    .limit(5)
-                    .forEach(ref -> builder.append("- ").append(ref).append('\n'));
-        }
-        return builder.toString().trim();
     }
 
     private SubmissionAnalysisResponse runtimeFallback(SubmissionAnalysisResponse fallback,
@@ -2461,10 +1569,6 @@ public class AiReportService {
         return "";
     }
 
-    private AiAnalysisPayload parseAnalysisPayload(String rawContent) {
-        return parseModelStagePayload(rawContent, AiAnalysisPayload.class);
-    }
-
     private <T> T parseModelStagePayload(String rawContent, Class<T> payloadType) {
         String normalized = cleanupAiText(rawContent);
         lastModelStageRawContent.set(normalized);
@@ -2487,171 +1591,12 @@ public class AiReportService {
         }
     }
 
-    private String extractJsonObjectField(String rawContent, String fieldName) {
-        String normalized = cleanupAiText(rawContent);
-        String fieldToken = "\"" + fieldName + "\"";
-        int fieldIndex = normalized.indexOf(fieldToken);
-        if (fieldIndex < 0) {
-            return "";
-        }
-        int colonIndex = normalized.indexOf(':', fieldIndex + fieldToken.length());
-        if (colonIndex < 0) {
-            return "";
-        }
-        int objectStart = normalized.indexOf('{', colonIndex + 1);
-        if (objectStart < 0) {
-            return "";
-        }
-        int objectEnd = findBalancedObjectEnd(normalized, objectStart);
-        if (objectEnd <= objectStart) {
-            return "";
-        }
-        return normalized.substring(objectStart, objectEnd + 1);
-    }
-
-    private int findBalancedObjectEnd(String text, int objectStart) {
-        if (text == null || objectStart < 0 || objectStart >= text.length() || text.charAt(objectStart) != '{') {
-            return -1;
-        }
-        int depth = 0;
-        boolean inString = false;
-        boolean escaped = false;
-        for (int index = objectStart; index < text.length(); index++) {
-            char current = text.charAt(index);
-            if (inString) {
-                if (escaped) {
-                    escaped = false;
-                } else if (current == '\\') {
-                    escaped = true;
-                } else if (current == '"') {
-                    inString = false;
-                }
-                continue;
-            }
-            if (current == '"') {
-                inString = true;
-                continue;
-            }
-            if (current == '{') {
-                depth++;
-            } else if (current == '}') {
-                depth--;
-                if (depth == 0) {
-                    return index;
-                }
-            }
-        }
-        return -1;
-    }
-
     private String previewBody(String body) {
         String normalized = body == null ? "" : body.replace("\r", "").replace("\n", "\\n").trim();
         if (normalized.length() <= 320) {
             return normalized;
         }
         return normalized.substring(0, 317) + "...";
-    }
-
-    private List<AiCodeAssistSupport.LineIssueCandidate> toLineIssueCandidates(AiAnalysisPayload payload) {
-        if (payload == null || payload.lineIssues == null || payload.lineIssues.isEmpty()) {
-            return List.of();
-        }
-
-        return payload.lineIssues.stream()
-                .filter(item -> item != null)
-                .map(item -> new AiCodeAssistSupport.LineIssueCandidate(item.lineNumber, item.error, item.suggestion))
-                .toList();
-    }
-
-    private SubmissionAnalysisResponse.StudentHintPlan cleanHintPlan(AiStudentHintPlanPayload candidate,
-                                                                     SubmissionAnalysisResponse.StudentHintPlan fallback) {
-        if (candidate == null) {
-            return fallback;
-        }
-        String hintLevel = normalizeHintLevel(candidate.hintLevel, fallback == null ? null : fallback.getHintLevel());
-        String problemType = defaultIfBlank(candidate.problemType, fallback == null ? "" : fallback.getProblemType());
-        String evidenceAnchor = defaultIfBlank(candidate.evidenceAnchor, fallback == null ? "" : fallback.getEvidenceAnchor());
-        String nextAction = defaultIfBlank(candidate.nextAction, fallback == null ? "" : fallback.getNextAction());
-        String coachQuestion = defaultIfBlank(candidate.coachQuestion, fallback == null ? "" : fallback.getCoachQuestion());
-        String teachingAction = normalizeTeachingAction(candidate.teachingAction, fallback == null ? null : fallback.getTeachingAction());
-        List<String> evidenceRefs = cleanList(candidate.evidenceRefs, fallback == null ? List.of() : fallback.getEvidenceRefs());
-        String answerLeakRisk = resolveAnswerLeakRisk(candidate.answerLeakRisk, fallback == null ? "UNKNOWN" : fallback.getAnswerLeakRisk());
-        if (problemType.isBlank() && evidenceAnchor.isBlank() && nextAction.isBlank() && coachQuestion.isBlank()) {
-            return fallback;
-        }
-        return SubmissionAnalysisResponse.StudentHintPlan.builder()
-                .hintLevel(hintLevel)
-                .problemType(problemType)
-                .evidenceAnchor(evidenceAnchor)
-                .nextAction(nextAction)
-                .coachQuestion(coachQuestion)
-                .teachingAction(teachingAction)
-                .evidenceRefs(evidenceRefs)
-                .answerLeakRisk(answerLeakRisk)
-                .build();
-    }
-
-    private SubmissionAnalysisResponse.LearningInterventionPlan cleanInterventionPlan(
-            AiLearningInterventionPlanPayload candidate,
-            SubmissionAnalysisResponse.LearningInterventionPlan fallback) {
-        if (candidate == null) {
-            return fallback;
-        }
-        String interventionType = normalizeInterventionType(
-                candidate.interventionType,
-                fallback == null ? null : fallback.getInterventionType()
-        );
-        String goal = defaultIfBlank(candidate.goal, fallback == null ? "" : fallback.getGoal());
-        String studentTask = defaultIfBlank(candidate.studentTask, fallback == null ? "" : fallback.getStudentTask());
-        String checkQuestion = defaultIfBlank(candidate.checkQuestion, fallback == null ? "" : fallback.getCheckQuestion());
-        String completionSignal = defaultIfBlank(candidate.completionSignal, fallback == null ? "" : fallback.getCompletionSignal());
-        List<String> evidenceRefs = cleanList(candidate.evidenceRefs, fallback == null ? List.of() : fallback.getEvidenceRefs());
-        Integer estimatedMinutes = candidate.estimatedMinutes == null || candidate.estimatedMinutes <= 0
-                ? fallback == null ? 5 : fallback.getEstimatedMinutes()
-                : Math.min(candidate.estimatedMinutes, 20);
-        String answerLeakRisk = resolveAnswerLeakRisk(candidate.answerLeakRisk, fallback == null ? "UNKNOWN" : fallback.getAnswerLeakRisk());
-        if (studentTask.isBlank() && checkQuestion.isBlank() && completionSignal.isBlank()) {
-            return fallback;
-        }
-        return SubmissionAnalysisResponse.LearningInterventionPlan.builder()
-                .interventionType(interventionType)
-                .goal(goal)
-                .studentTask(studentTask)
-                .checkQuestion(checkQuestion)
-                .completionSignal(completionSignal)
-                .evidenceRefs(evidenceRefs)
-                .estimatedMinutes(estimatedMinutes == null || estimatedMinutes <= 0 ? 5 : estimatedMinutes)
-                .answerLeakRisk(answerLeakRisk)
-                .build();
-    }
-
-    private String normalizeHintLevel(String candidate, String fallback) {
-        String normalized = cleanupAiText(candidate).toUpperCase();
-        return switch (normalized) {
-            case "L1", "L2", "L3", "L4" -> normalized;
-            default -> fallback == null || fallback.isBlank() ? "L2" : fallback;
-        };
-    }
-
-    private String normalizeTeachingAction(String candidate, String fallback) {
-        String normalized = cleanupAiText(candidate).toUpperCase();
-        return switch (normalized) {
-            case "ASK_MIN_CASE", "TRACE_VARIABLES", "COMPARE_OUTPUT", "COUNT_COMPLEXITY", "DEFINE_STATE",
-                    "CHECK_INVARIANT", "BUILD_COUNTEREXAMPLE", "COMPARE_SUBMISSIONS", "CHECK_RUNTIME_GUARDS",
-                    "COLLECT_EVIDENCE", "FIX_FIRST_COMPILER_ERROR", "COMPARE_INPUT_SPEC", "TRACE_STATE",
-                    "COMPARE_STRUCTURES", "DRAW_RECURSION_TREE", "EXPLAIN_GENERALITY", "CHECK_BRANCH_COVERAGE" -> normalized;
-            default -> fallback == null || fallback.isBlank() ? "TRACE_VARIABLES" : fallback;
-        };
-    }
-
-    private String normalizeInterventionType(String candidate, String fallback) {
-        String normalized = cleanupAiText(candidate).toUpperCase();
-        return switch (normalized) {
-            case "MIN_CASE", "MIN_CASE_TRACE", "VARIABLE_TRACE", "IO_COMPARE", "COMPLEXITY_ESTIMATE",
-                    "STATE_EXPLANATION", "COUNTEREXAMPLE", "RUNTIME_GUARD_CHECK", "COMPARE_SUBMISSIONS",
-                    "FIX_FIRST_COMPILER_ERROR", "EXPLAIN_GENERALITY", "COLLECT_EVIDENCE" -> normalized;
-            default -> fallback == null || fallback.isBlank() ? "COLLECT_EVIDENCE" : fallback;
-        };
     }
 
     private List<String> cleanList(List<String> candidate, List<String> fallback) {
@@ -2740,80 +1685,6 @@ public class AiReportService {
         return builder.toString();
     }
 
-    private List<SubmissionAnalysisResponse.LineIssue> cleanLineIssues(List<AiLineIssuePayload> issues,
-                                                                      String sourceCode,
-                                                                      List<SubmissionAnalysisResponse.LineIssue> fallback) {
-        int maxLineNumber = countSourceLines(sourceCode);
-        if (issues == null || issues.isEmpty() || maxLineNumber == 0) {
-            return fallback == null ? List.of() : fallback;
-        }
-
-        List<SubmissionAnalysisResponse.LineIssue> normalized = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        for (AiLineIssuePayload issue : issues) {
-            if (issue == null) {
-                continue;
-            }
-
-            Integer lineNumber = normalizeLineNumber(issue.lineNumber, maxLineNumber);
-            String error = cleanupAiText(issue.error);
-            String suggestion = cleanupAiText(issue.suggestion);
-            if (lineNumber == null || error.isBlank() || suggestion.isBlank()) {
-                continue;
-            }
-
-            String dedupeKey = lineNumber + "|" + error + "|" + suggestion;
-            if (!seen.add(dedupeKey)) {
-                continue;
-            }
-
-            normalized.add(SubmissionAnalysisResponse.LineIssue.builder()
-                    .lineNumber(lineNumber)
-                    .error(error)
-                    .suggestion(suggestion)
-                    .build());
-        }
-
-        normalized.sort(Comparator.comparing(SubmissionAnalysisResponse.LineIssue::getLineNumber));
-        return normalized;
-    }
-
-    private List<SubmissionAnalysisResponse.LineIssue> resolveLineIssues(AiAnalysisPayload payload,
-                                                                         String rawContent,
-                                                                         String sourceCode,
-                                                                         SubmissionAnalysisResponse fallback) {
-        List<SubmissionAnalysisResponse.LineIssue> fallbackIssues = fallback.getLineIssues() == null ? List.of() : fallback.getLineIssues();
-        List<SubmissionAnalysisResponse.LineIssue> direct = cleanLineIssues(
-                payload == null ? null : payload.lineIssues,
-                sourceCode,
-                List.of()
-        );
-        if (!direct.isEmpty()) {
-            return direct;
-        }
-
-        List<AiLineIssuePayload> parsedFromMarkdown = parseLineIssuesFromText(payload == null ? null : payload.reportMarkdown);
-        List<SubmissionAnalysisResponse.LineIssue> fromMarkdown = cleanLineIssues(parsedFromMarkdown, sourceCode, List.of());
-        if (!fromMarkdown.isEmpty()) {
-            return fromMarkdown;
-        }
-
-        List<AiLineIssuePayload> parsedFromRaw = parseLineIssuesFromText(rawContent);
-        List<SubmissionAnalysisResponse.LineIssue> fromRaw = cleanLineIssues(parsedFromRaw, sourceCode, List.of());
-        if (!fromRaw.isEmpty()) {
-            return fromRaw;
-        }
-
-        return fallbackIssues;
-    }
-
-    private Integer normalizeLineNumber(Integer lineNumber, int maxLineNumber) {
-        if (lineNumber == null || lineNumber < 1 || lineNumber > maxLineNumber) {
-            return null;
-        }
-        return lineNumber;
-    }
-
     private int countSourceLines(String sourceCode) {
         if (sourceCode == null) {
             return 0;
@@ -2845,45 +1716,7 @@ public class AiReportService {
         return normalized.trim();
     }
 
-    private String extractLineNumberedBlock(String text) {
-        Matcher matcher = NUMBERED_LINE_PATTERN.matcher(text == null ? "" : text);
-        StringBuilder builder = new StringBuilder();
-        while (matcher.find()) {
-            if (builder.length() > 0) {
-                builder.append('\n');
-            }
-            builder.append(matcher.group(1)).append(": ").append(matcher.group(2));
-        }
-        return builder.toString();
-    }
-
-    private List<AiLineIssuePayload> parseLineIssuesFromText(String text) {
-        String normalized = cleanupAiText(text);
-        if (normalized.isBlank()) {
-            return List.of();
-        }
-
-        List<AiLineIssuePayload> issues = new ArrayList<>();
-        Matcher matcher = REPORT_LINE_ISSUE_PATTERN.matcher(normalized);
-        while (matcher.find()) {
-            AiLineIssuePayload issue = new AiLineIssuePayload();
-            issue.lineNumber = Integer.valueOf(matcher.group(1));
-            issue.error = cleanupAiText(matcher.group(2));
-            issue.suggestion = cleanupAiText(matcher.group(3));
-            issues.add(issue);
-        }
-        return issues;
-    }
-
     private String defaultIfBlank(String candidate, String fallback) {
-        String normalized = cleanupAiText(candidate);
-        if (normalized.isBlank()) {
-            return fallback;
-        }
-        return normalized;
-    }
-
-    private String defaultNullable(String candidate, String fallback) {
         String normalized = cleanupAiText(candidate);
         if (normalized.isBlank()) {
             return fallback;
@@ -2904,27 +1737,6 @@ public class AiReportService {
             return normalized;
         }
         return fallback == null || fallback.isBlank() ? "UNKNOWN" : fallback;
-    }
-
-    private String higherRisk(String left, String right) {
-        int leftScore = riskScore(left);
-        int rightScore = riskScore(right);
-        int score = Math.max(leftScore, rightScore);
-        return switch (score) {
-            case 3 -> "HIGH";
-            case 2 -> "MEDIUM";
-            case 1 -> "LOW";
-            default -> "";
-        };
-    }
-
-    private int riskScore(String risk) {
-        return switch (cleanupAiText(risk).toUpperCase()) {
-            case "HIGH" -> 3;
-            case "MEDIUM" -> 2;
-            case "LOW" -> 1;
-            default -> 0;
-        };
     }
 
     private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
@@ -3028,15 +1840,9 @@ public class AiReportService {
             return "student-fast-feedback";
         }
         if (PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1.equals(version)) {
-            return RUNTIME_MODE_SINGLE_CALL;
+            return "advice-generation";
         }
-        if (version.startsWith("diagnosis-and-teaching-")) {
-            return RUNTIME_MODE_SINGLE_CALL;
-        }
-        if (RUNTIME_PROMPT_VERSION.equals(version)) {
-            return "staged";
-        }
-        return "legacy-long-prompt";
+        return "external-model";
     }
 
     private record ParsedStreamingContent(String content, ExternalModelCallTelemetry telemetry) {
@@ -3524,64 +2330,6 @@ public class AiReportService {
             return normalized;
         }
         return "LOW";
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class AiAnalysisPayload {
-        public String analysisSchemaVersion;
-        public String evidenceSchemaVersion;
-        public String taxonomyVersion;
-        public String headline;
-        public String summary;
-        public List<String> issueTags;
-        public List<String> fineGrainedTags;
-        public List<String> abilityPoints;
-        public List<String> focusPoints;
-        public List<String> fixDirections;
-        public List<String> evidenceRefs;
-        public String studentHint;
-        public AiStudentHintPlanPayload studentHintPlan;
-        public AiLearningInterventionPlanPayload learningInterventionPlan;
-        public String teacherNote;
-        public String progressSignal;
-        public Double confidence;
-        public String uncertainty;
-        public String answerLeakRisk;
-        public String wrongSolution;
-        public String correctSolution;
-        public List<AiLineIssuePayload> lineIssues;
-        public String reportMarkdown;
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class AiStudentHintPlanPayload {
-        public String hintLevel;
-        public String problemType;
-        public String evidenceAnchor;
-        public String nextAction;
-        public String coachQuestion;
-        public String teachingAction;
-        public List<String> evidenceRefs;
-        public String answerLeakRisk;
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class AiLearningInterventionPlanPayload {
-        public String interventionType;
-        public String goal;
-        public String studentTask;
-        public String checkQuestion;
-        public String completionSignal;
-        public List<String> evidenceRefs;
-        public Integer estimatedMinutes;
-        public String answerLeakRisk;
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class AiLineIssuePayload {
-        public Integer lineNumber;
-        public String error;
-        public String suggestion;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

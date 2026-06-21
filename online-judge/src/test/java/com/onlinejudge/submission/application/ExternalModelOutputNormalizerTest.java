@@ -14,162 +14,91 @@ class ExternalModelOutputNormalizerTest {
     private final ModelOutputValidator validator = new ModelOutputValidator();
 
     @Test
-    void normalizesChineseTagLabelsAndEvidenceRefsBeforeValidation() {
+    void normalizesStudentFeedbackEvidenceAndImprovementCategory() {
         Fixture fixture = fixture();
-        ExternalModelStagePayloads.DiagnosisJudgeOutput output = ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
-                .primaryIssueTag("循环边界")
-                .fineGrainedTag("差 一 位 错误")
-                .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
-                .confidence(0.82)
-                .uncertainty("已根据可见证据判断。")
-                .needsMoreEvidence(false)
-                .answerLeakRisk(" low ")
-                .build();
+        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback(" testing_habit ", " CODE:RANGE_EXCLUDES_N ");
 
-        ExternalModelStagePayloads.DiagnosisJudgeOutput normalized =
-                normalizer.normalizeDiagnosisDecision(output, fixture.runtimePlan());
+        SubmissionAnalysisResponse.StudentFeedback normalized =
+                normalizer.normalizeStudentFeedback(feedback, fixture.runtimePlan());
 
-        assertThat(normalized.getPrimaryIssueTag()).isEqualTo("LOOP_BOUNDARY");
-        assertThat(normalized.getFineGrainedTag()).isEqualTo("OFF_BY_ONE");
-        assertThat(normalized.getEvidenceRefs()).containsExactly("code:range_excludes_n");
-        assertThat(normalized.getAnswerLeakRisk()).isEqualTo("LOW");
-        assertThat(validator.validateDiagnosisJudgeOutput(normalized, fixture.brief(), fixture.pack()).isValid()).isTrue();
-    }
-
-    @Test
-    void leavesUnknownTagsAndEvidenceRefsForStrictValidation() {
-        Fixture fixture = fixture();
-        ExternalModelStagePayloads.DiagnosisJudgeOutput output = ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
-                .primaryIssueTag("大概是循环问题")
-                .fineGrainedTag("OFF_BY_ONE")
-                .evidenceRefs(List.of("invented:evidence"))
-                .answerLeakRisk("LOW")
-                .build();
-
-        ExternalModelStagePayloads.DiagnosisJudgeOutput normalized =
-                normalizer.normalizeDiagnosisDecision(output, fixture.runtimePlan());
-
-        assertThat(normalized.getPrimaryIssueTag()).isEqualTo("大概是循环问题");
-        assertThat(normalized.getEvidenceRefs()).containsExactly("invented:evidence");
-        assertThat(validator.validateDiagnosisJudgeOutput(normalized, fixture.brief(), fixture.pack()).isValid()).isFalse();
-    }
-
-    @Test
-    void normalizesEducationAgentJudgmentFields() {
-        Fixture fixture = fixture();
-        ExternalModelStagePayloads.DiagnosisJudgeOutput output = ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
-                .primaryIssueTag("循环边界")
-                .fineGrainedTag("差 一 位 错误")
-                .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
-                .primaryReasoning("先看循环边界。")
-                .secondaryIssues(List.of(ExternalModelStagePayloads.EducationIssueNote.builder()
-                        .title("次要信号")
-                        .message("自测习惯可后续处理。")
-                        .issueTag("循环边界")
-                        .fineGrainedTag("差 一 位 错误")
-                        .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
-                        .build()))
-                .improvementOpportunities(List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
-                        .category(" testing_habit ")
-                        .studentMessage("补一个最小样例。")
-                        .benefit("发现边界遗漏。")
-                        .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
-                        .build()))
-                .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
-                        .task("列出 range 产生的 i。")
-                        .checkQuestion("n=1 时循环几次？")
-                        .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
-                        .answerLeakRisk(" low ")
-                        .build())
-                .answerLeakRisk("low")
-                .build();
-
-        ExternalModelStagePayloads.DiagnosisJudgeOutput normalized =
-                normalizer.normalizeDiagnosisDecision(output, fixture.runtimePlan());
-
-        assertThat(normalized.getSecondaryIssues()).singleElement()
-                .satisfies(note -> {
-                    assertThat(note.getIssueTag()).isEqualTo("LOOP_BOUNDARY");
-                    assertThat(note.getFineGrainedTag()).isEqualTo("OFF_BY_ONE");
-                    assertThat(note.getEvidenceRefs()).containsExactly("code:range_excludes_n");
-                });
+        assertThat(normalized.getBlockingIssues()).singleElement()
+                .satisfies(issue -> assertThat(issue.getEvidenceRefs()).containsExactly("code:range_excludes_n"));
         assertThat(normalized.getImprovementOpportunities()).singleElement()
                 .satisfies(item -> {
                     assertThat(item.getCategory()).isEqualTo("TESTING_HABIT");
                     assertThat(item.getEvidenceRefs()).containsExactly("code:range_excludes_n");
                 });
         assertThat(normalized.getNextLearningAction().getEvidenceRefs()).containsExactly("code:range_excludes_n");
-        assertThat(normalized.getNextLearningAction().getAnswerLeakRisk()).isEqualTo("LOW");
-        assertThat(validator.validateDiagnosisJudgeOutput(normalized, fixture.brief(), fixture.pack()).isValid()).isTrue();
+        assertThat(validator.validateStudentFeedback(normalized, fixture.brief(), fixture.pack()).isValid()).isTrue();
+    }
+
+    @Test
+    void leavesUnknownCategoryForStrictValidation() {
+        Fixture fixture = fixture();
+        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback("made_up", "code:range_excludes_n");
+
+        SubmissionAnalysisResponse.StudentFeedback normalized =
+                normalizer.normalizeStudentFeedback(feedback, fixture.runtimePlan());
+
+        assertThat(normalized.getImprovementOpportunities()).singleElement()
+                .satisfies(item -> assertThat(item.getCategory()).isEqualTo("made_up"));
+        assertThat(validator.validateStudentFeedback(normalized, fixture.brief(), fixture.pack()).isValid()).isFalse();
     }
 
     @Test
     void calibratesModelReportedHighRiskWhenVisibleTextIsSafe() {
         Fixture fixture = fixture();
-        ExternalModelStagePayloads.DiagnosisJudgeOutput output = ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
-                .primaryIssueTag("LOOP_BOUNDARY")
-                .fineGrainedTag("OFF_BY_ONE")
-                .evidenceRefs(List.of("code:range_excludes_n"))
-                .primaryReasoning("第一个失败证据显示循环边界需要先手推确认。")
-                .teachingPriority("先列出最小样例里的循环取值，再和题目要求对齐。")
-                .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
-                        .task("列出最小样例里循环实际经过的值。")
-                        .checkQuestion("第一次和期望不一致的位置在哪里？")
-                        .evidenceRefs(List.of("code:range_excludes_n"))
-                        .answerLeakRisk("HIGH")
-                        .build())
-                .answerLeakRisk("HIGH")
-                .build();
+        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback("TESTING_HABIT", "code:range_excludes_n");
+        feedback.getNextLearningAction().setAnswerLeakRisk("HIGH");
 
-        ExternalModelStagePayloads.DiagnosisJudgeOutput normalized =
-                normalizer.normalizeDiagnosisDecision(output, fixture.runtimePlan());
+        SubmissionAnalysisResponse.StudentFeedback normalized =
+                normalizer.normalizeStudentFeedback(feedback, fixture.runtimePlan());
 
-        assertThat(normalized.getAnswerLeakRisk()).isEqualTo("MEDIUM");
         assertThat(normalized.getNextLearningAction().getAnswerLeakRisk()).isEqualTo("MEDIUM");
-        assertThat(validator.validateDiagnosisJudgeOutput(normalized, fixture.brief(), fixture.pack()).isValid()).isTrue();
+        assertThat(validator.validateStudentFeedback(normalized, fixture.brief(), fixture.pack()).isValid()).isTrue();
     }
 
     @Test
-    void normalizesTeachingActionAndEvidenceButDoesNotHideSafetyRisk() {
+    void keepsUnsafeFeedbackVisibleForValidator() {
         Fixture fixture = fixture();
-        ExternalModelStagePayloads.TeachingHintOutput output = ExternalModelStagePayloads.TeachingHintOutput.builder()
-                .studentHint("完整代码如下：def solve(): pass")
-                .studentHintPlan(SubmissionAnalysisResponse.StudentHintPlan.builder()
-                        .teachingAction(" trace_variables ")
-                        .nextAction("复制完整代码")
-                        .coachQuestion("无")
-                        .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
-                        .answerLeakRisk(" high ")
-                        .build())
-                .learningInterventionPlan(SubmissionAnalysisResponse.LearningInterventionPlan.builder()
-                        .studentTask("复制答案")
-                        .evidenceRefs(List.of(" CODE:RANGE_EXCLUDES_N "))
-                        .answerLeakRisk(" high ")
-                        .build())
-                .answerLeakRisk(" high ")
-                .build();
+        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback("TESTING_HABIT", "code:range_excludes_n");
+        feedback.getBlockingIssues().get(0).setNextAction("直接改成 range(1, n + 1)。");
 
-        ExternalModelStagePayloads.TeachingHintOutput normalized =
-                normalizer.normalizeTeachingHint(output, fixture.runtimePlan());
+        SubmissionAnalysisResponse.StudentFeedback normalized =
+                normalizer.normalizeStudentFeedback(feedback, fixture.runtimePlan());
 
-        assertThat(normalized.getStudentHintPlan().getTeachingAction()).isEqualTo("TRACE_VARIABLES");
-        assertThat(normalized.getStudentHintPlan().getEvidenceRefs()).containsExactly("code:range_excludes_n");
-        assertThat(normalized.getLearningInterventionPlan().getEvidenceRefs()).containsExactly("code:range_excludes_n");
-        assertThat(normalized.getAnswerLeakRisk()).isEqualTo("HIGH");
-        assertThat(validator.validateTeachingHintOutput(
-                normalized,
-                validDecision(),
-                fixture.brief(),
-                fixture.pack()
-        ).getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(validator.validateStudentFeedback(normalized, fixture.brief(), fixture.pack()).getFailureReason())
+                .isEqualTo(ModelStageFailureReason.SAFETY_RISK);
     }
 
-    private ExternalModelStagePayloads.DiagnosisJudgeOutput validDecision() {
-        return ExternalModelStagePayloads.DiagnosisJudgeOutput.builder()
-                .primaryIssueTag("LOOP_BOUNDARY")
-                .fineGrainedTag("OFF_BY_ONE")
-                .evidenceRefs(List.of("code:range_excludes_n"))
-                .answerLeakRisk("LOW")
+    private SubmissionAnalysisResponse.StudentFeedback validFeedback(String category, String evidenceRef) {
+        return SubmissionAnalysisResponse.StudentFeedback.builder()
+                .summary("这次主要问题是循环边界没有覆盖题目要求。")
+                .blockingIssues(List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
+                        .priority(1)
+                        .title("循环边界")
+                        .studentMessage("循环范围和题目要求不一致。")
+                        .evidence(evidenceRef)
+                        .nextAction("列出 range 产生的 i。")
+                        .issueTag("SK_LOOP_BOUNDARY")
+                        .fineGrainedTag("MP_RANGE_RIGHT_ENDPOINT")
+                        .evidenceRefs(List.of(evidenceRef))
+                        .build()))
+                .secondaryIssues(List.of())
+                .improvementOpportunities(List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                        .category(category)
+                        .studentMessage("通过后补一个最小边界自测。")
+                        .benefit("能提前发现边界遗漏。")
+                        .evidenceRefs(List.of(evidenceRef))
+                        .build()))
+                .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                        .hintLevel("L2")
+                        .action("TRACE_VARIABLES")
+                        .task("列出 range 产生的 i。")
+                        .checkQuestion("当 n=1 时循环执行几次？")
+                        .evidenceRefs(List.of(evidenceRef))
+                        .answerLeakRisk("LOW")
+                        .build())
                 .build();
     }
 
