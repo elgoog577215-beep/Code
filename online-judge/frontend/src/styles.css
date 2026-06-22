@@ -13196,3 +13196,414 @@ details.standard-library-editor__section > summary::-webkit-details-marker {
     max-height: none;
   }
 }
+
+/* Teacher management density pass: keep management as a compact tool workspace. */
+.teacher-manage-page {
+  gap: 0.54rem;
+}
+
+.teacher-manage-page .teacher-manage-header {
+  min-height: 0;
+  align-items: center;
+  padding: 0.48rem 0.56rem 0.48rem 0.62rem;
+}
+
+.teacher-manage-header h1 {
+  font-size: clamp(1.24rem, 1.8vw, 1.56rem);
+  line-height: 1.04;
+}
+
+.teacher-manage-header .eyebrow {
+  font-size: 0.68rem;
+}
+
+.teacher-manage-tabs {
+  gap: 0.28rem;
+}
+
+.teacher-manage-page .teacher-manage-tabs .ui-button {
+  min-height: 32px;
+  padding: 0.26rem 0.48rem;
+  font-size: 0.8rem;
+}
+
+.teacher-manage-page .teacher-manage-tabs .ui-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.teacher-manage-status-strip {
+  gap: 0.3rem 0.48rem;
+  padding: 0.3rem 0.42rem;
+}
+
+.teacher-manage-status-strip__main,
+.teacher-manage-status-strip__actions,
+.teacher-manage-status-strip__details > div {
+  gap: 0.26rem;
+}
+
+.teacher-manage-status-strip__main > span:not(.status-pill),
+.teacher-manage-status-strip__details span {
+  font-size: 0.74rem;
+}
+
+.teacher-manage-status-strip__summary {
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-manage-status-strip__details > summary {
+  font-size: 0.74rem;
+}
+
+.teacher-manage-status-strip__details > div {
+  margin-top: 0.28rem;
+  padding-top: 0.28rem;
+}
+
+.teacher-manage-status-strip .ui-button {
+  min-height: 30px;
+  padding: 0.24rem 0.42rem;
+  font-size: 0.78rem;
+}
+
+.teacher-manage-page .status-pill,
+.teacher-manage-page .meta-badge {
+  min-height: 22px;
+  padding: 0.14rem 0.36rem;
+  font-size: 0.7rem;
+}
+
+.management-home-grid {
+  gap: 0.36rem;
+}
+
+.management-home-entry {
+  min-height: 52px;
+  gap: 0.46rem;
+  padding: 0.46rem 0.56rem;
+}
+
+.management-home-entry__icon {
+  width: 28px;
+  height: 28px;
+}
+
+.management-home-entry small {
+  margin-top: 0.06rem;
+  font-size: 0.74rem;
+}
+
+.management-object-workbench {
+  grid-template-columns: minmax(210px, 0.28fr) minmax(0, 1fr);
+  gap: 0.46rem;
+}
+
+.management-object-list {
+  gap: 0.26rem;
+  padding: 0.34rem;
+}
+
+@media (min-width: 1081px) {
+  .management-object-list {
+    position: sticky;
+    top: 0.64rem;
+    max-height: calc(100vh - 170px);
+    overflow: auto;
+  }
+}
+
+.management-object-list__head,
+.management-object-main__head {
+  gap: 0.34rem;
+  padding: 0.22rem 0.24rem 0.34rem;
+}
+
+.management-object-row {
+  gap: 0.05rem;
+  padding: 0.36rem 0.42rem;
+}
+
+.management-object-row small {
+  font-size: 0.72rem;
+}
+
+.management-object-main {
+  gap: 0.44rem;
+  padding: 0.44rem;
+}
+
+.management-object-main__head {
+  padding: 0.1rem 0.1rem 0.36rem;
+}
+
+.management-import-grid {
+  gap: 0.4rem;
+}
+
+.management-import-drawer > summary {
+  min-height: 30px;
+  gap: 0.26rem;
+  padding: 0.26rem 0.38rem;
+  font-size: 0.78rem;
+}
+
+.management-import-drawer__body {
+  gap: 0.38rem;
+  padding: 0.42rem;
+}
+
+.teacher-manage-page .control,
+.teacher-manage-page .management-create-form .control,
+.teacher-manage-page .management-task-card .control,
+.standard-library-editor .control,
+.standard-library-filters .control,
+.task-editor-page--embedded .control {
+  min-height: 36px;
+  padding: 0.36rem 0.48rem;
+  font-size: 0.84rem;
+}
+
+.teacher-manage-page .control--textarea,
+.teacher-manage-page .management-task-card .control--textarea,
+.task-editor-page--embedded .control--textarea {
+  min-height: 82px;
+}
+
+.task-editor-page--embedded {
+  gap: 0.48rem;
+}
+
+.task-editor-page--embedded .editor-command {
+  gap: 0.36rem;
+  padding: 0.42rem 0.5rem;
+}
+
+.task-editor-page--embedded .editor-command h1 {
+  font-size: clamp(1.08rem, 1.5vw, 1.24rem);
+  line-height: 1.08;
+}
+
+.task-editor-page--embedded .editor-command p:not(.eyebrow) {
+  margin-top: 0.12rem;
+  font-size: 0.78rem;
+  line-height: 1.32;
+}
+
+.task-editor-page--embedded .editor-workbench,
+.task-editor-page--embedded .editor-primary-stack,
+.task-editor-page--embedded .editor-side,
+.task-editor-page--embedded .editor-layout {
+  gap: 0.48rem;
+}
+
+.task-editor-page--embedded .panel__header {
+  padding: 0.46rem 0.54rem;
+}
+
+.task-editor-page--embedded .panel__body {
+  padding: 0.52rem;
+}
+
+.task-editor-page--embedded .control--textarea {
+  min-height: 82px;
+}
+
+.task-editor-page--embedded textarea.control {
+  max-height: 144px;
+}
+
+.task-editor-page--embedded .editor-test-row {
+  gap: 0.4rem;
+  padding: 0.44rem;
+}
+
+.task-editor-page--embedded .editor-test-row textarea.control {
+  min-height: 68px;
+  max-height: 116px;
+}
+
+.standard-library-manager {
+  gap: 0.46rem;
+}
+
+.standard-library-filters {
+  gap: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
+.standard-library-list {
+  gap: 0.24rem;
+}
+
+.standard-library-editor__head {
+  padding: 0.34rem 0.4rem;
+}
+
+.standard-library-editor__section {
+  gap: 0.38rem;
+  padding: 0.44rem;
+}
+
+.standard-library-editor__section h4,
+details.standard-library-editor__section > summary {
+  font-size: 0.84rem;
+}
+
+.standard-library-editor__textarea-grid {
+  gap: 0.4rem;
+}
+
+.standard-library-editor .control--textarea,
+.standard-library-editor__signals .control--textarea,
+.knowledge-grid .control--textarea {
+  min-height: 72px;
+  max-height: 112px;
+}
+
+@media (max-width: 760px) {
+  .teacher-shell-nav {
+    gap: 0.42rem;
+    padding: 0.42rem;
+  }
+
+  .teacher-shell-nav__links a {
+    min-height: 30px;
+    padding: 0.22rem 0.36rem;
+    font-size: 0.78rem;
+  }
+
+  .teacher-manage-page .teacher-manage-header {
+    gap: 0.42rem;
+    padding: 0.48rem;
+  }
+
+  .teacher-manage-header h1 {
+    font-size: 1.24rem;
+  }
+
+  .teacher-manage-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.22rem;
+  }
+
+  .teacher-manage-page .teacher-manage-tabs .ui-button {
+    width: 100%;
+    min-height: 32px;
+    justify-content: center;
+    gap: 0.18rem;
+    padding: 0.24rem 0.18rem;
+    font-size: 0.72rem;
+  }
+
+  .teacher-manage-page .teacher-manage-tabs .ui-button svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .teacher-manage-status-strip {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.3rem;
+    padding: 0.34rem 0.38rem;
+  }
+
+  .teacher-manage-status-strip__main {
+    gap: 0.22rem;
+  }
+
+  .teacher-manage-status-strip__summary {
+    display: none;
+  }
+
+  .teacher-manage-status-strip__actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.24rem;
+  }
+
+  .teacher-manage-status-strip__actions .ui-button {
+    width: 100%;
+    min-height: 30px;
+  }
+
+  .management-home-entry {
+    min-height: 50px;
+    padding: 0.44rem 0.5rem;
+  }
+
+  .management-object-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.42rem;
+  }
+
+  .management-object-list {
+    position: static;
+    max-height: none;
+    padding: 0.32rem;
+  }
+
+  .management-object-main {
+    padding: 0.38rem;
+  }
+
+  .task-editor-page--embedded .editor-command,
+  .task-editor-page--embedded .panel__header,
+  .task-editor-page--embedded .panel__body,
+  .standard-library-editor__section {
+    padding: 0.42rem;
+  }
+
+  .teacher-manage-page .task-editor-page--embedded .editor-command {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.34rem;
+    align-items: start;
+  }
+
+  .teacher-manage-page .task-editor-page--embedded .editor-command h1 {
+    margin-top: 0.12rem;
+    font-size: 1.08rem;
+  }
+
+  .teacher-manage-page .task-editor-page--embedded .editor-command__actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, auto));
+    justify-content: start;
+    gap: 0.2rem;
+  }
+
+  .teacher-manage-page .task-editor-page--embedded .editor-command__actions .ui-button {
+    grid-column: auto;
+    width: auto;
+    min-height: 30px;
+    padding-inline: 0.42rem;
+  }
+
+  .standard-library-editor__head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.3rem;
+    align-items: start;
+  }
+
+  .standard-library-editor__head .actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.24rem;
+  }
+
+  .standard-library-editor__head .ui-button {
+    width: 100%;
+    min-height: 30px;
+    padding: 0.24rem 0.34rem;
+    font-size: 0.74rem;
+  }
+}
