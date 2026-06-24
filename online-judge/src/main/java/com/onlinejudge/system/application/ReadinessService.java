@@ -1,6 +1,8 @@
 package com.onlinejudge.system.application;
 
 import com.onlinejudge.shared.security.SchoolSecurityProperties;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthProperties;
+import com.onlinejudge.submission.application.PromptTemplateRegistry;
 import com.onlinejudge.system.dto.AiSmokeResponse;
 import com.onlinejudge.system.dto.ExecutorStatusResponse;
 import com.onlinejudge.system.dto.ReadinessResponse;
@@ -19,6 +21,7 @@ public class ReadinessService {
     private final ExecutorStatusService executorStatusService;
     private final AiSmokeService aiSmokeService;
     private final SchoolSecurityProperties securityProperties;
+    private final AiStandardLibraryGrowthProperties growthProperties;
 
     @Value("${spring.datasource.url:}")
     private String datasourceUrl;
@@ -31,6 +34,12 @@ public class ReadinessService {
 
     @Value("${readiness.ai-blocking:${AI_READINESS_BLOCKING:true}}")
     private boolean aiBlocking;
+
+    @Value("${ai.diagnosis-report-v2-enabled:${AI_DIAGNOSIS_REPORT_V2_ENABLED:true}}")
+    private boolean diagnosisReportV2Enabled = true;
+
+    @Value("${ai.model-failure-degrade-enabled:${AI_MODEL_FAILURE_DEGRADE_ENABLED:true}}")
+    private boolean modelFailureDegradeEnabled = true;
 
     public ReadinessResponse getReadiness() {
         List<ReadinessResponse.Check> checks = new ArrayList<>();
@@ -123,6 +132,41 @@ public class ReadinessService {
                 aiBlocking && !"PASS".equals(aiStatus),
                 aiStatusMessage(aiEnabled, aiConfigured, smoke),
                 "教师端执行 AI smoke；若出现 401/429/超时，请修正 key、额度、限流或网络后再开课。"
+        ));
+
+        checks.add(check(
+                "ai-diagnosis-report-v2",
+                "AI 诊断报告 v2",
+                diagnosisReportV2Enabled ? "PASS" : "FAIL",
+                true,
+                diagnosisReportV2Enabled
+                        ? "建议层使用 " + PromptTemplateRegistry.DIAGNOSIS_REPORT_V2 + "，学生反馈按基础层、提高层、下一步行动输出。"
+                        : "诊断报告 v2 已关闭，当前链路不能满足正式 AI 诊断方案。",
+                "设置 AI_DIAGNOSIS_REPORT_V2_ENABLED=true。"
+        ));
+
+        checks.add(check(
+                "ai-standard-library-growth",
+                "标准库成长 Agent",
+                growthProperties.isEnabled() ? growthProperties.isAutoMergeEnabled() ? "WARN" : "PASS" : "WARN",
+                false,
+                growthProperties.isEnabled()
+                        ? growthProperties.isAutoMergeEnabled()
+                        ? "成长 Agent 已启用，且允许自动正式入库；请确认学校已接受该权限。"
+                        : "成长 Agent 已启用，默认只写入候选池，等待教师处理。"
+                        : "成长 Agent 已关闭；库外错因不会沉淀为候选。",
+                "默认建议开启候选池，自动入库仅在小范围审核后开启。"
+        ));
+
+        checks.add(check(
+                "ai-model-failure-degrade",
+                "模型失败降级",
+                modelFailureDegradeEnabled ? "PASS" : "WARN",
+                false,
+                modelFailureDegradeEnabled
+                        ? "模型 429、超时、无效 JSON 等失败会在 trace/readiness 中明确暴露，并保留非伪装降级。"
+                        : "模型失败降级开关关闭；外部 AI 异常时体验风险更高。",
+                "建议保持 AI_MODEL_FAILURE_DEGRADE_ENABLED=true。"
         ));
 
         String overall = overallStatus(checks);

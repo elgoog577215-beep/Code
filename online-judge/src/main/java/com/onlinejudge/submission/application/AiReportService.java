@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
 import com.onlinejudge.problem.domain.Problem;
@@ -48,6 +49,7 @@ public class AiReportService {
     private final SearchLocationOutputNormalizer searchLocationOutputNormalizer;
     private final SearchLocationPackSelector searchLocationPackSelector;
     private final SearchLocationProperties searchLocationProperties;
+    private final AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService;
     private final ThreadLocal<ExternalModelCallTelemetry> lastCallTelemetry = ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
     private final ThreadLocal<ExternalModelCallTelemetry> lastStructuredRetrySourceTelemetry =
             ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
@@ -74,7 +76,7 @@ public class AiReportService {
                            ExternalModelFailureClassifier failureClassifier,
                            ExternalModelBudgetGuard budgetGuard) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
-                null, null, null, null, null, null);
+                (ExternalModelChatRequestFactory) null, null, null, null, null, null);
     }
 
     public AiReportService(ObjectMapper objectMapper,
@@ -84,7 +86,7 @@ public class AiReportService {
                            ExternalModelBudgetGuard budgetGuard,
                            ExternalModelChatRequestFactory chatRequestFactory) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
-                chatRequestFactory, null, null, null, null, null);
+                chatRequestFactory, null, null, null, null, null, null);
     }
 
     @Autowired
@@ -97,10 +99,12 @@ public class AiReportService {
                            SearchLocationOutputValidator searchLocationOutputValidator,
                            SearchLocationOutputNormalizer searchLocationOutputNormalizer,
                            SearchLocationPackSelector searchLocationPackSelector,
-                           SearchLocationProperties searchLocationProperties) {
+                           SearchLocationProperties searchLocationProperties,
+                           AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
                 new ExternalModelChatRequestFactory(), searchLocationRetrievalService, searchLocationOutputValidator,
-                searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties);
+                searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties,
+                standardLibraryGrowthAgentService);
     }
 
     public AiReportService(ObjectMapper objectMapper,
@@ -114,6 +118,23 @@ public class AiReportService {
                            SearchLocationOutputNormalizer searchLocationOutputNormalizer,
                            SearchLocationPackSelector searchLocationPackSelector,
                            SearchLocationProperties searchLocationProperties) {
+        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
+                chatRequestFactory, searchLocationRetrievalService, searchLocationOutputValidator,
+                searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties, null);
+    }
+
+    public AiReportService(ObjectMapper objectMapper,
+                           AiCodeAssistSupport aiCodeAssistSupport,
+                           ExternalModelAgentRuntime externalModelAgentRuntime,
+                           ExternalModelFailureClassifier failureClassifier,
+                           ExternalModelBudgetGuard budgetGuard,
+                           ExternalModelChatRequestFactory chatRequestFactory,
+                           SearchLocationRetrievalService searchLocationRetrievalService,
+                           SearchLocationOutputValidator searchLocationOutputValidator,
+                           SearchLocationOutputNormalizer searchLocationOutputNormalizer,
+                           SearchLocationPackSelector searchLocationPackSelector,
+                           SearchLocationProperties searchLocationProperties,
+                           AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService) {
         this.objectMapper = objectMapper;
         this.aiCodeAssistSupport = aiCodeAssistSupport;
         this.externalModelAgentRuntime = externalModelAgentRuntime;
@@ -129,6 +150,7 @@ public class AiReportService {
                 : searchLocationOutputNormalizer;
         this.searchLocationPackSelector = searchLocationPackSelector;
         this.searchLocationProperties = searchLocationProperties == null ? new SearchLocationProperties() : searchLocationProperties;
+        this.standardLibraryGrowthAgentService = standardLibraryGrowthAgentService;
     }
 
     @Value("${ai.enabled:true}")
@@ -359,6 +381,7 @@ public class AiReportService {
             return runtimeFallback(fallback, runtimePlan, adviceValidation);
         }
 
+        persistStandardLibraryGrowthCandidates(adviceOutput);
         runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.success(adviceOutput, promptVersion));
 
         SubmissionAnalysisResponse.StudentFeedback studentFeedback =
@@ -385,6 +408,17 @@ public class AiReportService {
                 baselineLineIssues
         );
         return response;
+    }
+
+    private void persistStandardLibraryGrowthCandidates(AdviceGenerationOutput adviceOutput) {
+        if (standardLibraryGrowthAgentService == null || adviceOutput == null) {
+            return;
+        }
+        try {
+            standardLibraryGrowthAgentService.proposeFromDiagnosisOutput(adviceOutput);
+        } catch (Exception exception) {
+            log.warn("Failed to persist AI standard library growth candidates. reason={}", exception.getMessage());
+        }
     }
 
     private AdviceGenerationOutput callAdviceGenerationStage(
@@ -1042,7 +1076,7 @@ public class AiReportService {
                 && !cleanupAiText(runtimePlan.getAdvicePrompt().getVersion()).isBlank()) {
             return cleanupAiText(runtimePlan.getAdvicePrompt().getVersion());
         }
-        return PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1;
+        return PromptTemplateRegistry.DIAGNOSIS_REPORT_V2;
     }
 
     private String failureSummary(ExternalModelStagePayloads.StageValidationResult failure) {
@@ -1817,7 +1851,31 @@ public class AiReportService {
                 .basicAdviceCount(adviceGeneration(runtimePlan).basicAdviceCount())
                 .improvementAdviceCount(adviceGeneration(runtimePlan).improvementAdviceCount())
                 .advicePromptVersion(adviceGeneration(runtimePlan).promptVersion())
+                .diagnosisLibraryFit(diagnosisLibraryFit(runtimePlan))
+                .diagnosisSoftFixes(diagnosisSoftFixes(runtimePlan))
+                .diagnosisHardFailures(diagnosisHardFailures(runtimePlan))
                 .build();
+    }
+
+    private String diagnosisLibraryFit(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        AdviceGenerationOutput output = adviceGeneration(runtimePlan).output();
+        return output == null || output.getDiagnosisDecision() == null
+                ? ""
+                : cleanupAiText(output.getDiagnosisDecision().getLibraryFit());
+    }
+
+    private List<String> diagnosisSoftFixes(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        AdviceGenerationOutput output = adviceGeneration(runtimePlan).output();
+        return output == null || output.getTeacherTrace() == null || output.getTeacherTrace().getSoftFixes() == null
+                ? List.of()
+                : output.getTeacherTrace().getSoftFixes();
+    }
+
+    private List<String> diagnosisHardFailures(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        AdviceGenerationOutput output = adviceGeneration(runtimePlan).output();
+        return output == null || output.getTeacherTrace() == null || output.getTeacherTrace().getHardFailures() == null
+                ? List.of()
+                : output.getTeacherTrace().getHardFailures();
     }
 
     private SearchLocationResult searchLocation(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
@@ -1841,6 +1899,9 @@ public class AiReportService {
         }
         if (PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1.equals(version)) {
             return "advice-generation";
+        }
+        if (PromptTemplateRegistry.DIAGNOSIS_REPORT_V2.equals(version)) {
+            return "diagnosis-report";
         }
         return "external-model";
     }

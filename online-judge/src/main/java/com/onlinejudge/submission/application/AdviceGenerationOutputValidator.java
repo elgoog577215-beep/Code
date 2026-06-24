@@ -16,6 +16,9 @@ public class AdviceGenerationOutputValidator {
         if (output == null) {
             return invalid(ModelStageFailureReason.EMPTY_RESPONSE, "Advice generation output is empty.");
         }
+        if (hasStudentReport(output)) {
+            return validateDiagnosisReportV2(output, brief, standardLibraryPack);
+        }
         if (output.getCaseUnderstanding() == null) {
             return invalid(ModelStageFailureReason.INVALID_JSON, "caseUnderstanding is missing.");
         }
@@ -120,6 +123,113 @@ public class AdviceGenerationOutputValidator {
                 .build();
     }
 
+    private ExternalModelStagePayloads.StageValidationResult validateDiagnosisReportV2(
+            AdviceGenerationOutput output,
+            ModelDiagnosisBrief brief,
+            StandardLibraryPack standardLibraryPack
+    ) {
+        List<String> softFixes = new java.util.ArrayList<>();
+        AdviceGenerationOutput.StudentReport report = output.getStudentReport();
+        if (!isAccepted(brief) && blank(report.getBasicLayerText())) {
+            return invalid(ModelStageFailureReason.INVALID_JSON,
+                    "Non-accepted submission requires studentReport.basicLayerText.");
+        }
+        if (blank(report.getNextActionText())) {
+            return invalid(ModelStageFailureReason.INVALID_JSON, "studentReport.nextActionText is empty.");
+        }
+        String hintLevel = report.getHintLevel();
+        if (!blank(hintLevel) && !List.of("L1", "L2", "L3", "L4").contains(hintLevel.trim().toUpperCase(Locale.ROOT))) {
+            return invalid(ModelStageFailureReason.INVALID_JSON, "studentReport.hintLevel is invalid.");
+        }
+        if (unsafe(report.getBasicLayerText(), report.getImprovementLayerText(), report.getNextActionText(), output.getStudentSummary())) {
+            return invalid(ModelStageFailureReason.SAFETY_RISK, "studentReport contains answer leak.");
+        }
+
+        Set<String> evidenceRefs = evidenceRefs(brief);
+        List<String> orderedEvidenceRefs = evidenceRefs.stream().toList();
+        Set<String> allowedIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getMistakePoints());
+        allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getBasicCauses()));
+        allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getSkillUnits()));
+        allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getImprovementPoints()));
+
+        AdviceGenerationOutput.DiagnosisDecision decision = output.getDiagnosisDecision();
+        if (decision != null) {
+            String fit = normalize(decision.getLibraryFit());
+            if (!fit.isBlank() && !List.of("HIT", "PARTIAL", "MISS").contains(fit)) {
+                return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisDecision.libraryFit is invalid.");
+            }
+            for (AdviceGenerationOutput.DiagnosisAnchor anchor : safe(decision.getAnchors())) {
+                if (anchor == null) {
+                    return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisDecision.anchors contains null item.");
+                }
+                String type = normalize(anchor.getType());
+                boolean outOfLibrary = "OUT_OF_LIBRARY".equals(type);
+                if (!outOfLibrary && !blank(anchor.getId()) && !allowedIds.contains(normalize(anchor.getId()))) {
+                    softFixes.add("unknown anchor id converted to OUT_OF_LIBRARY: " + anchor.getId());
+                    anchor.setId(null);
+                    anchor.setType("OUT_OF_LIBRARY");
+                }
+                anchor.setEvidenceRefs(normalizeEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
+                String invalidEvidence = invalidEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs,
+                        "diagnosisDecision.anchors.evidenceRefs");
+                if (!invalidEvidence.isBlank()) {
+                    return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
+                }
+                if (invalidConfidence(anchor.getConfidence())) {
+                    return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisDecision anchor confidence is invalid.");
+                }
+                if (unsafe(anchor.getReason())) {
+                    return invalid(ModelStageFailureReason.SAFETY_RISK, "diagnosisDecision anchor contains answer leak.");
+                }
+            }
+            for (AdviceGenerationOutput.OutOfLibraryFinding finding : safe(decision.getOutOfLibraryFindings())) {
+                if (finding == null || blank(finding.getName()) || blank(finding.getReason())) {
+                    return invalid(ModelStageFailureReason.INVALID_JSON,
+                            "diagnosisDecision.outOfLibraryFindings item is incomplete.");
+                }
+                finding.setEvidenceRefs(normalizeEvidenceRefs(finding.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
+                String invalidEvidence = invalidEvidenceRefs(finding.getEvidenceRefs(), evidenceRefs,
+                        "diagnosisDecision.outOfLibraryFindings.evidenceRefs");
+                if (!invalidEvidence.isBlank()) {
+                    return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
+                }
+                if (invalidConfidence(finding.getConfidence())) {
+                    return invalid(ModelStageFailureReason.INVALID_JSON,
+                            "diagnosisDecision outOfLibraryFinding confidence is invalid.");
+                }
+            }
+        }
+        attachValidationTrace(output, softFixes, List.of());
+        return ExternalModelStagePayloads.StageValidationResult.builder()
+                .valid(true)
+                .stage("DIAGNOSIS_REPORT")
+                .failureReason(ModelStageFailureReason.NONE)
+                .message("")
+                .softFixes(softFixes)
+                .hardFailures(List.of())
+                .build();
+    }
+
+    private void attachValidationTrace(AdviceGenerationOutput output, List<String> softFixes, List<String> hardFailures) {
+        if (output == null) {
+            return;
+        }
+        AdviceGenerationOutput.TeacherTrace trace = output.getTeacherTrace();
+        if (trace == null) {
+            trace = AdviceGenerationOutput.TeacherTrace.builder().build();
+            output.setTeacherTrace(trace);
+        }
+        trace.setSoftFixes(softFixes == null ? List.of() : softFixes);
+        trace.setHardFailures(hardFailures == null ? List.of() : hardFailures);
+    }
+
+    private boolean hasStudentReport(AdviceGenerationOutput output) {
+        AdviceGenerationOutput.StudentReport report = output.getStudentReport();
+        return report != null && (!blank(report.getBasicLayerText())
+                || !blank(report.getImprovementLayerText())
+                || !blank(report.getNextActionText()));
+    }
+
     private Set<String> evidenceRefs(ModelDiagnosisBrief brief) {
         LinkedHashSet<String> refs = new LinkedHashSet<>();
         if (brief == null) {
@@ -169,6 +279,52 @@ public class AdviceGenerationOutputValidator {
         return "";
     }
 
+    private List<String> normalizeEvidenceRefs(List<String> refs,
+                                               Set<String> validRefs,
+                                               List<String> orderedValidRefs,
+                                               List<String> softFixes) {
+        if (refs == null || refs.isEmpty() || validRefs == null || validRefs.isEmpty()) {
+            return refs;
+        }
+        List<String> normalizedRefs = new java.util.ArrayList<>(refs);
+        for (int i = 0; i < refs.size(); i++) {
+            String ref = refs.get(i);
+            if (ref == null || ref.isBlank() || validRefs.contains(ref)) {
+                continue;
+            }
+            String replacement = evidenceAlias(ref, orderedValidRefs);
+            if (!replacement.isBlank()) {
+                normalizedRefs.set(i, replacement);
+                softFixes.add("evidenceRef alias " + ref + " -> " + replacement);
+            }
+        }
+        return normalizedRefs;
+    }
+
+    private String evidenceAlias(String ref, List<String> orderedValidRefs) {
+        String normalized = normalize(ref);
+        if (orderedValidRefs == null || orderedValidRefs.isEmpty()) {
+            return "";
+        }
+        if (List.of("SOURCECODE", "CODE", "SOURCE").contains(normalized)) {
+            return firstEvidenceWithPrefix(orderedValidRefs, "code:");
+        }
+        if (List.of("PROBLEMCONSTRAINTS", "CONSTRAINTS", "PROBLEM").contains(normalized)) {
+            return firstEvidenceWithPrefix(orderedValidRefs, "judge:");
+        }
+        if (List.of("JUDGERESULT", "JUDGE", "VERDICT").contains(normalized)) {
+            return firstEvidenceWithPrefix(orderedValidRefs, "judge:");
+        }
+        return "";
+    }
+
+    private String firstEvidenceWithPrefix(List<String> evidenceRefs, String prefix) {
+        return evidenceRefs.stream()
+                .filter(ref -> ref != null && ref.startsWith(prefix))
+                .findFirst()
+                .orElse("");
+    }
+
     private boolean invalidConfidence(Double confidence) {
         return confidence == null || confidence < 0 || confidence > 1;
     }
@@ -200,6 +356,8 @@ public class AdviceGenerationOutputValidator {
                 .stage("DIAGNOSIS_AND_ADVICE")
                 .failureReason(reason)
                 .message(message == null ? "" : message)
+                .softFixes(List.of())
+                .hardFailures(List.of(message == null ? "" : message))
                 .build();
     }
 }

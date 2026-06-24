@@ -1,8 +1,9 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, Database, Plus, Power, PowerOff, Save, Search, UploadCloud, UsersRound } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, Database, PencilLine, Plus, Power, PowerOff, Save, Search, UploadCloud, UsersRound, XCircle } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
+  AiStandardLibraryGrowthCandidate,
   AiStandardLibraryItem,
   AiStandardLibraryItemPayload,
   AiStandardLibraryLayer,
@@ -110,6 +111,7 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [aiSmokeBusy, setAiSmokeBusy] = useState(false);
   const [libraryItems, setLibraryItems] = useState<AiStandardLibraryItem[]>([]);
+  const [growthCandidates, setGrowthCandidates] = useState<AiStandardLibraryGrowthCandidate[]>([]);
   const [libraryFilters, setLibraryFilters] = useState<LibraryFilters>(DEFAULT_LIBRARY_FILTERS);
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
   const [libraryDraft, setLibraryDraft] = useState<LibraryDraft>(() => emptyLibraryDraft());
@@ -175,13 +177,17 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
   async function loadStandardLibrary(filters = libraryFilters, preferredId = selectedLibraryId) {
     setLibraryBusy(true);
     try {
-      const items = await api.aiStandardLibraryItems({
+      const [items, candidates] = await Promise.all([
+        api.aiStandardLibraryItems({
         layer: filters.layer,
         category: filters.category,
         enabled: filters.enabled === "" ? "" : filters.enabled === "true",
         query: filters.query
-      });
+        }),
+        api.aiStandardLibraryGrowthCandidates()
+      ]);
       setLibraryItems(items);
+      setGrowthCandidates(candidates);
       const selected = items.find(item => item.id === preferredId) || items[0];
       if (selected) {
         setSelectedLibraryId(selected.id);
@@ -240,6 +246,41 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
     } finally {
       setLibraryBusy(false);
     }
+  }
+
+  async function mergeGrowthCandidate(candidate: AiStandardLibraryGrowthCandidate) {
+    setLibraryBusy(true);
+    try {
+      const updated = await api.mergeAiStandardLibraryGrowthCandidate(candidate.id);
+      setAlert({
+        type: updated.status === "MERGED" ? "success" : "error",
+        message: updated.status === "MERGED" ? "候选已合并到正式标准库。" : updated.precheckMessage || "候选需要继续人工处理。"
+      });
+      await loadStandardLibrary(libraryFilters);
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "候选合并失败。" });
+    } finally {
+      setLibraryBusy(false);
+    }
+  }
+
+  async function ignoreGrowthCandidate(candidate: AiStandardLibraryGrowthCandidate) {
+    setLibraryBusy(true);
+    try {
+      await api.ignoreAiStandardLibraryGrowthCandidate(candidate.id, "教师在管理后台忽略。");
+      setAlert({ type: "success", message: "候选已忽略。" });
+      await loadStandardLibrary(libraryFilters);
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "候选忽略失败。" });
+    } finally {
+      setLibraryBusy(false);
+    }
+  }
+
+  function editGrowthCandidate(candidate: AiStandardLibraryGrowthCandidate) {
+    setSelectedLibraryId(null);
+    setLibraryDraft(candidateToDraft(candidate));
+    setAlert({ type: "success", message: "候选已转为可编辑草稿，确认后可保存为正式条目。" });
   }
 
   async function runAiSmoke() {
@@ -427,6 +468,7 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
           {section === "ai-library" ? (
             <StandardLibraryManager
               items={libraryItems}
+              growthCandidates={growthCandidates}
               filters={libraryFilters}
               draft={libraryDraft}
               busy={libraryBusy}
@@ -438,6 +480,9 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
               onDraftChange={setLibraryDraft}
               onSave={draft => void saveLibraryItem(draft)}
               onToggle={item => void toggleLibraryItem(item)}
+              onMergeCandidate={candidate => void mergeGrowthCandidate(candidate)}
+              onIgnoreCandidate={candidate => void ignoreGrowthCandidate(candidate)}
+              onEditCandidate={editGrowthCandidate}
             />
           ) : null}
         </main>
@@ -816,6 +861,7 @@ function ReadinessPanel({
 
 function StandardLibraryManager({
   items,
+  growthCandidates,
   filters,
   draft,
   busy,
@@ -826,9 +872,13 @@ function StandardLibraryManager({
   onSelect,
   onDraftChange,
   onSave,
-  onToggle
+  onToggle,
+  onMergeCandidate,
+  onIgnoreCandidate,
+  onEditCandidate
 }: {
   items: AiStandardLibraryItem[];
+  growthCandidates: AiStandardLibraryGrowthCandidate[];
   filters: LibraryFilters;
   draft: LibraryDraft;
   busy: boolean;
@@ -840,6 +890,9 @@ function StandardLibraryManager({
   onDraftChange: (draft: LibraryDraft) => void;
   onSave: (draft: LibraryDraft) => void;
   onToggle: (item: AiStandardLibraryItem) => void;
+  onMergeCandidate: (candidate: AiStandardLibraryGrowthCandidate) => void;
+  onIgnoreCandidate: (candidate: AiStandardLibraryGrowthCandidate) => void;
+  onEditCandidate: (candidate: AiStandardLibraryGrowthCandidate) => void;
 }) {
   const visibleItems = items.filter(item => libraryItemMatchesFilters(item, filters));
   const skillCount = visibleItems.filter(item => item.layer === "SKILL_UNIT").length;
@@ -1052,8 +1105,104 @@ function StandardLibraryManager({
               </Field>
             </div>
           </details>
+          <GrowthCandidatePanel
+            candidates={growthCandidates}
+            busy={busy}
+            onMerge={onMergeCandidate}
+            onIgnore={onIgnoreCandidate}
+            onEdit={onEditCandidate}
+          />
         </div>
       </section>
+    </section>
+  );
+}
+
+function GrowthCandidatePanel({
+  candidates,
+  busy,
+  onMerge,
+  onIgnore,
+  onEdit
+}: {
+  candidates: AiStandardLibraryGrowthCandidate[];
+  busy: boolean;
+  onMerge: (candidate: AiStandardLibraryGrowthCandidate) => void;
+  onIgnore: (candidate: AiStandardLibraryGrowthCandidate) => void;
+  onEdit: (candidate: AiStandardLibraryGrowthCandidate) => void;
+}) {
+  const activeCandidates = candidates.filter(candidate => candidate.status !== "IGNORED");
+  const visibleCandidates = activeCandidates.slice(0, 12);
+  return (
+    <section className="standard-library-editor__section standard-library-growth-panel">
+      <div className="standard-library-growth-panel__head">
+        <h4>扩库候选</h4>
+        <StatusPill tone={activeCandidates.length ? "warning" : "neutral"}>{activeCandidates.length} 条</StatusPill>
+      </div>
+      {visibleCandidates.length ? (
+        <div className="standard-library-growth-panel__list">
+          {visibleCandidates.map(candidate => (
+            <article key={candidate.id} className="standard-library-growth-card">
+              <div className="standard-library-growth-card__head">
+                <span>
+                  <strong>{candidate.suggestedName}</strong>
+                  <small>{candidate.suggestedCode}</small>
+                </span>
+                <StatusPill tone={growthCandidateTone(candidate.status)}>{growthCandidateStatusLabel(candidate.status)}</StatusPill>
+              </div>
+              <p>{candidate.changeReason || "暂无变更理由。"}</p>
+              <div className="standard-library-growth-card__meta">
+                <span>路径：{candidate.suggestedPath.join(" / ") || "未指定"}</span>
+                <span>置信度：{candidate.confidence == null ? "未知" : `${Math.round(candidate.confidence * 100)}%`}</span>
+                <span>来源：题目 {candidate.sourceProblemId || "-"} · 提交 {candidate.sourceSubmissionId || "-"}</span>
+              </div>
+              {candidate.precheckMessage ? <p className="standard-library-growth-card__note">{candidate.precheckMessage}</p> : null}
+              {candidate.evidenceRefs.length ? (
+                <div className="standard-library-growth-card__evidence">
+                  {candidate.evidenceRefs.slice(0, 4).map(ref => (
+                    <StatusPill tone="neutral" key={ref}>{ref}</StatusPill>
+                  ))}
+                </div>
+              ) : null}
+              <details>
+                <summary>审计与回滚</summary>
+                <pre>{[candidate.diffSummary, candidate.rollbackInfo].filter(Boolean).join("\n\n") || "暂无审计信息。"}</pre>
+              </details>
+              <div className="actions">
+                <Button
+                  type="button"
+                  variant="primary"
+                  icon={<CheckCircle2 size={16} />}
+                  disabled={busy || candidate.status === "MERGED" || candidate.status === "BLOCKED"}
+                  onClick={() => onMerge(candidate)}
+                >
+                  合并
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={<PencilLine size={16} />}
+                  disabled={busy || candidate.status === "MERGED"}
+                  onClick={() => onEdit(candidate)}
+                >
+                  编辑
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={<XCircle size={16} />}
+                  disabled={busy || candidate.status === "MERGED" || candidate.status === "IGNORED"}
+                  onClick={() => onIgnore(candidate)}
+                >
+                  忽略
+                </Button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="暂无扩库候选" description="当 AI 发现半命中或库外错因时，会先进入这里等待教师处理。" />
+      )}
     </section>
   );
 }
@@ -1153,6 +1302,27 @@ function itemToDraft(item: AiStandardLibraryItem): LibraryDraft {
   };
 }
 
+function candidateToDraft(candidate: AiStandardLibraryGrowthCandidate): LibraryDraft {
+  return {
+    ...emptyLibraryDraft(),
+    layer: candidate.layer,
+    code: candidate.suggestedCode,
+    category: candidate.suggestedPath[0] || "AI 扩库",
+    name: candidate.suggestedName,
+    description: candidate.changeReason || "由 AI 诊断发现的细颗粒标准库候选。",
+    studentExplanation: "先把这类问题和题目要求、代码行为、判题结果对齐，再做针对性修改。",
+    teacherExplanation: candidate.changeReason || "",
+    skillUnitCode: candidate.similarExistingItems.find(item => item.startsWith("SK_")) || "SK_AI_GROWTH_REVIEW",
+    mistakeType: "DEBUGGING",
+    commonMisconception: candidate.changeReason || "学生可能没有把代码行为和判题证据对齐。",
+    evidenceSignals: linesToText(candidate.evidenceRefs),
+    requiredEvidence: linesToText(candidate.evidenceRefs),
+    relatedItems: linesToText(candidate.similarExistingItems),
+    knowledgeNodeCodes: linesToText(candidate.suggestedPath),
+    libraryVersion: "standard-library-growth-v1"
+  };
+}
+
 function draftToPayload(draft: LibraryDraft): AiStandardLibraryItemPayload {
   return {
     layer: draft.layer,
@@ -1202,6 +1372,23 @@ function layerLabel(layer: AiStandardLibraryLayer) {
   if (layer === "MISTAKE_POINT") return "易错点";
   if (layer === "BASIC_CAUSE") return "旧基础层";
   return "旧提高层";
+}
+
+function growthCandidateStatusLabel(status: string) {
+  if (status === "PROPOSED") return "待确认";
+  if (status === "NEEDS_REVIEW") return "需复核";
+  if (status === "BLOCKED") return "阻断";
+  if (status === "MERGED") return "已合并";
+  if (status === "IGNORED") return "已忽略";
+  return status || "未知";
+}
+
+function growthCandidateTone(status: string): "neutral" | "success" | "warning" | "danger" | "info" {
+  if (status === "MERGED") return "success";
+  if (status === "BLOCKED") return "danger";
+  if (status === "NEEDS_REVIEW") return "warning";
+  if (status === "PROPOSED") return "info";
+  return "neutral";
 }
 
 function libraryItemMatchesFilters(item: AiStandardLibraryItem, filters: LibraryFilters) {

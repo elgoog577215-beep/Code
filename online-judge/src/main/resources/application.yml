@@ -45,6 +45,8 @@ ai:
   timeout-seconds: ${AI_TIMEOUT_SECONDS:25}
   external-runtime-enabled: ${AI_EXTERNAL_RUNTIME_ENABLED:true}
   external-runtime-profile: ${AI_EXTERNAL_RUNTIME_PROFILE:standard}
+  diagnosis-report-v2-enabled: ${AI_DIAGNOSIS_REPORT_V2_ENABLED:true}
+  model-failure-degrade-enabled: ${AI_MODEL_FAILURE_DEGRADE_ENABLED:true}
   max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1800}
   stream-enabled: ${AI_STREAM_ENABLED:true}
   stream-fallback-enabled: ${AI_STREAM_FALLBACK_ENABLED:true}
@@ -65,6 +67,10 @@ ai:
     api-key: ${AI_EMBEDDING_API_KEY:${OJ_MODELSCOPE_API_KEY:${MODELSCOPE_API_KEY:}}}
     model: ${AI_EMBEDDING_MODEL:Qwen/Qwen3-Embedding-0.6B}
     timeout-seconds: ${AI_EMBEDDING_TIMEOUT_SECONDS:20}
+  standard-library-growth:
+    enabled: ${AI_STANDARD_LIBRARY_GROWTH_ENABLED:true}
+    auto-merge-enabled: ${AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED:false}
+    auto-merge-min-confidence: ${AI_STANDARD_LIBRARY_AUTO_MERGE_MIN_CONFIDENCE:0.90}
 
 ---
 spring:

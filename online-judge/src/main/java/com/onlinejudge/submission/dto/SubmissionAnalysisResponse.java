@@ -351,5 +351,8 @@ public class SubmissionAnalysisResponse {
         private Integer basicAdviceCount;
         private Integer improvementAdviceCount;
         private String advicePromptVersion;
+        private String diagnosisLibraryFit;
+        private List<String> diagnosisSoftFixes;
+        private List<String> diagnosisHardFailures;
     }
 }

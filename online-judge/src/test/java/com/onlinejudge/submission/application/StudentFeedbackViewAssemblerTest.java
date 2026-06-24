@@ -39,6 +39,27 @@ class StudentFeedbackViewAssemblerTest {
     }
 
     @Test
+    void v2NaturalReportKeepsBasicTextAndNextActionSeparate() {
+        SubmissionAnalysisResponse analysis = analysis(false);
+        analysis.getAiInvocation().setPromptVersion(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        analysis.getStudentFeedback().getBlockingIssues().get(0)
+                .setStudentMessage("基础层：循环范围和题目边界要求没有完全对齐。先手推最小样例，确认端点是否进入循环。");
+        analysis.getStudentFeedback().getBlockingIssues().get(0)
+                .setNextAction("下一步：用 n=1 和 n=2 写出循环变量序列，再和题目要求逐项对照。");
+        analysis.getStudentFeedback().getImprovementOpportunities().get(0)
+                .setStudentMessage("提高层：修好后把最小值、端点值、最大值附近样例加入固定自测清单。");
+
+        SubmissionAnalysisResponse.StudentFeedbackView view = assembler.assemble(analysis);
+
+        assertThat(view.getRepairItems()).singleElement()
+                .satisfies(item -> assertThat(item.getBody())
+                        .contains("基础层：循环范围")
+                        .doesNotContain("下一步："));
+        assertThat(view.getPrimaryAction()).contains("基础层：循环范围");
+        assertThat(view.getNextQuestion()).contains("第二次读取");
+    }
+
+    @Test
     void filtersUnsafeOrNoisyItems() {
         SubmissionAnalysisResponse analysis = analysis(false);
         analysis.getStudentFeedback().getBlockingIssues().get(0).setNextAction("直接改成完整代码如下");

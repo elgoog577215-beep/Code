@@ -17,6 +17,9 @@ public class AdviceGenerationFeedbackMapper {
         if (output == null) {
             return null;
         }
+        if (hasStudentReport(output)) {
+            return toStudentFeedbackFromReportV2(output, standardLibraryPack);
+        }
         List<SubmissionAnalysisResponse.FeedbackIssue> blockingIssues = safe(output.getBasicLayerAdvice()).stream()
                 .filter(item -> item != null)
                 .map(item -> SubmissionAnalysisResponse.FeedbackIssue.builder()
@@ -60,6 +63,74 @@ public class AdviceGenerationFeedbackMapper {
                         .answerLeakRisk("LOW")
                         .build())
                 .build();
+    }
+
+    private SubmissionAnalysisResponse.StudentFeedback toStudentFeedbackFromReportV2(
+            AdviceGenerationOutput output,
+            StandardLibraryPack standardLibraryPack
+    ) {
+        AdviceGenerationOutput.StudentReport report = output.getStudentReport();
+        AdviceGenerationOutput.DiagnosisAnchor anchor = firstAnchor(output);
+        List<String> evidenceRefs = anchor == null || anchor.getEvidenceRefs() == null
+                ? List.of()
+                : anchor.getEvidenceRefs();
+        String anchorId = anchor == null ? "" : anchor.getId();
+        String nextAction = defaultIfBlank(report.getNextActionText(), "先复核模型指出的证据。");
+
+        List<SubmissionAnalysisResponse.FeedbackIssue> blockingIssues = blank(report.getBasicLayerText())
+                ? List.of()
+                : List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
+                        .priority(1)
+                        .title("基础层")
+                        .studentMessage(report.getBasicLayerText())
+                        .evidence(firstOrDefault(evidenceRefs, "模型引用了当前提交证据。"))
+                        .nextAction(nextAction)
+                        .issueTag(defaultIfBlank(anchorId, "BASIC_LAYER"))
+                        .fineGrainedTag(anchorId)
+                        .evidenceRefs(evidenceRefs)
+                        .build());
+
+        List<SubmissionAnalysisResponse.ImprovementOpportunity> improvementOpportunities =
+                blank(report.getImprovementLayerText())
+                        ? List.of()
+                        : List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                                .category(firstImprovementCategory(standardLibraryPack))
+                                .studentMessage(report.getImprovementLayerText())
+                                .benefit("帮助你把这次问题迁移到后续题目。")
+                                .evidenceRefs(evidenceRefs)
+                                .build());
+
+        return SubmissionAnalysisResponse.StudentFeedback.builder()
+                .summary(defaultIfBlank(output.getStudentSummary(), report.getBasicLayerText()))
+                .blockingIssues(blockingIssues)
+                .secondaryIssues(List.of())
+                .improvementOpportunities(improvementOpportunities)
+                .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                        .hintLevel(defaultIfBlank(report.getHintLevel(), "L3"))
+                        .action(firstTeachingAction(standardLibraryPack))
+                        .task(nextAction)
+                        .checkQuestion("你能用一个小样例验证这条判断吗？")
+                        .evidenceRefs(evidenceRefs)
+                        .answerLeakRisk("LOW")
+                        .build())
+                .build();
+    }
+
+    private boolean hasStudentReport(AdviceGenerationOutput output) {
+        AdviceGenerationOutput.StudentReport report = output.getStudentReport();
+        return report != null && (!blank(report.getBasicLayerText())
+                || !blank(report.getImprovementLayerText())
+                || !blank(report.getNextActionText()));
+    }
+
+    private AdviceGenerationOutput.DiagnosisAnchor firstAnchor(AdviceGenerationOutput output) {
+        if (output == null || output.getDiagnosisDecision() == null) {
+            return null;
+        }
+        return safe(output.getDiagnosisDecision().getAnchors()).stream()
+                .filter(item -> item != null)
+                .findFirst()
+                .orElse(null);
     }
 
     private AdviceGenerationOutput.BasicLayerAdvice firstBasic(AdviceGenerationOutput output) {
@@ -172,6 +243,17 @@ public class AdviceGenerationFeedbackMapper {
                 .orElse("COLLECT_EVIDENCE");
     }
 
+    private String firstImprovementCategory(StandardLibraryPack standardLibraryPack) {
+        if (standardLibraryPack == null || standardLibraryPack.getImprovementTags() == null) {
+            return "TRANSFER_REVIEW";
+        }
+        return standardLibraryPack.getImprovementTags().stream()
+                .filter(item -> item != null && item.getId() != null && !item.getId().isBlank())
+                .map(StandardLibraryPack.ImprovementTagOption::getId)
+                .findFirst()
+                .orElse("TRANSFER_REVIEW");
+    }
+
     private String joinNonBlank(String first, String second) {
         if (first == null || first.isBlank()) {
             return defaultIfBlank(second, "");
@@ -198,5 +280,9 @@ public class AdviceGenerationFeedbackMapper {
 
     private String defaultIfBlank(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private boolean blank(String value) {
+        return value == null || value.isBlank();
     }
 }

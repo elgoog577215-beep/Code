@@ -94,7 +94,7 @@ public class ExternalModelAgentRuntime {
                 .brief(brief)
                 .standardLibraryPack(standardLibraryPack)
                 .searchLocationPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.SEARCH_LOCATION_V1))
-                .advicePrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1))
+                .advicePrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2))
                 .runtimeProfile(normalizedProfile)
                 .requestCompact(compact)
                 .build();

@@ -73,7 +73,7 @@ class ModelOutputValidatorTest {
         assertThat(plan.getBrief().getSchemaVersion()).isEqualTo(ModelDiagnosisBrief.SCHEMA_VERSION);
         assertThat(plan.getStandardLibraryPack().getSchemaVersion()).isEqualTo(StandardLibraryPack.SCHEMA_VERSION);
         assertThat(plan.getSearchLocationPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.SEARCH_LOCATION_V1);
-        assertThat(plan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
+        assertThat(plan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
         assertThat(plan.getRuntimeProfile()).isEqualTo("standard");
         assertThat(plan.isRequestCompact()).isFalse();
     }

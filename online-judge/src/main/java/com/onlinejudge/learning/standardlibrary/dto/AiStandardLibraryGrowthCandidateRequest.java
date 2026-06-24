@@ -1,0 +1,20 @@
+package com.onlinejudge.learning.standardlibrary.dto;
+
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class AiStandardLibraryGrowthCandidateRequest {
+    private String layer;
+    private String suggestedCode;
+    private String suggestedName;
+    private List<String> suggestedPath;
+    private Long sourceProblemId;
+    private Long sourceSubmissionId;
+    private List<String> evidenceRefs;
+    private List<String> similarExistingItems;
+    private String changeReason;
+    private Double confidence;
+    private String teacherNote;
+}

@@ -1,6 +1,7 @@
 package com.onlinejudge.system.application;
 
 import com.onlinejudge.shared.security.SchoolSecurityProperties;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthProperties;
 import com.onlinejudge.system.dto.AiSmokeResponse;
 import com.onlinejudge.system.dto.ExecutorStatusResponse;
 import com.onlinejudge.system.dto.ReadinessResponse;
@@ -123,7 +124,7 @@ class ReadinessServiceTest {
         when(securityProperties.teacherSessionSecretConfigured()).thenReturn(true);
         when(securityProperties.studentTokenSecretConfigured()).thenReturn(true);
 
-        return new ReadinessService(executorStatusService, aiSmokeService, securityProperties);
+        return new ReadinessService(executorStatusService, aiSmokeService, securityProperties, new AiStandardLibraryGrowthProperties());
     }
 
     private Map<String, ReadinessResponse.Check> byId(ReadinessResponse readiness) {

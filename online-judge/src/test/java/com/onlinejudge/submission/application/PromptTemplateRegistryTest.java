@@ -10,11 +10,13 @@ class PromptTemplateRegistryTest {
     private final PromptTemplateRegistry registry = new PromptTemplateRegistry();
 
     @Test
-    void registersOnlySearchLocationAndAdvicePrompts() {
+    void registersSearchLocationAdviceAndDiagnosisReportPrompts() {
         PromptTemplateRegistry.PromptTemplate searchLocation =
                 registry.get(PromptTemplateRegistry.SEARCH_LOCATION_V1);
         PromptTemplateRegistry.PromptTemplate advice =
                 registry.get(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
+        PromptTemplateRegistry.PromptTemplate report =
+                registry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
 
         assertThat(searchLocation.getStage()).isEqualTo("SEARCH_LOCATION");
         assertThat(searchLocation.getSystemPrompt())
@@ -23,6 +25,10 @@ class PromptTemplateRegistryTest {
                 .contains("basicCandidates")
                 .contains("improvementCandidates")
                 .contains("knowledgeAnchors")
+                .contains("navigation map")
+                .contains("HIT")
+                .contains("PARTIAL")
+                .contains("MISS")
                 .contains("Do not provide complete code");
 
         assertThat(advice.getStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
@@ -34,6 +40,19 @@ class PromptTemplateRegistryTest {
                 .contains("nextStepPlan")
                 .contains("studentSummary")
                 .contains("Do not provide complete code");
+
+        assertThat(report.getStage()).isEqualTo("DIAGNOSIS_REPORT");
+        assertThat(report.getSystemPrompt())
+                .contains("diagnosis report v2")
+                .contains("studentReport")
+                .contains("basicLayerText")
+                .contains("improvementLayerText")
+                .contains("nextActionText")
+                .contains("HIT")
+                .contains("PARTIAL")
+                .contains("MISS")
+                .contains("full code")
+                .contains("state definition");
     }
 
     @Test

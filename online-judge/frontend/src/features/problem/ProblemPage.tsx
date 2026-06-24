@@ -159,13 +159,51 @@ function normalizeNumber(value: string | null | undefined) {
 
 function initialSourceFor(problem: Problem | null, problemId: number, languageId: number) {
   const draft = loadDraft(problemId, languageId);
+  const languageTemplate = contestLanguageById(languageId).template;
+  if (problem?.starterCode?.trim()) {
+    if (draft !== null && !isLegacyStarterDraft(draft, languageTemplate)) {
+      return draft;
+    }
+    return problem.starterCode;
+  }
   if (draft !== null) {
     return draft;
   }
-  if (problem?.starterCode?.trim()) {
-    return problem.starterCode;
-  }
-  return contestLanguageById(languageId).template;
+  return languageTemplate;
+}
+
+function isLegacyStarterDraft(draft: string, languageTemplate: string) {
+  const normalized = draft.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  return (
+    normalized === languageTemplate.trim() ||
+    normalized === "n = int(input())\n# 在这里计算 1 到 n 的和" ||
+    isPreviousPublicSeedStarterDraft(normalized)
+  );
+}
+
+function isPreviousPublicSeedStarterDraft(normalized: string) {
+  return (
+    (
+      normalized.includes("def solve_tree(n, k, values, children):") &&
+      normalized.includes("current = [NEG, values[node]]") &&
+      normalized.includes("return dfs(0)[k]")
+    ) ||
+    (
+      normalized.includes("def current_cost(left, right):") &&
+      normalized.includes("average = sum(merged) // len(merged)") &&
+      normalized.includes("remove_value(left, right, arr[i - k])")
+    ) ||
+    (
+      normalized.includes("def shortest(n, k, graph):") &&
+      normalized.includes("best_node = [INF] * (n + 1)") &&
+      normalized.includes("visited = [False] * (n + 1)")
+    ) ||
+    (
+      normalized.includes("def greedy_schedule(n, durations, edges):") &&
+      normalized.includes("while available and len(running) < 2:") &&
+      normalized.includes("heapq.heappush(available, (-durations[task], task))")
+    )
+  );
 }
 
 function terminalFeedbackStatus(status?: string | null) {

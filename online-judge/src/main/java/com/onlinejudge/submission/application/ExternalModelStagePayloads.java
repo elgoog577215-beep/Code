@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 public final class ExternalModelStagePayloads {
 
     private ExternalModelStagePayloads() {
@@ -19,5 +21,7 @@ public final class ExternalModelStagePayloads {
         private String stage;
         private ModelStageFailureReason failureReason;
         private String message;
+        private List<String> softFixes;
+        private List<String> hardFailures;
     }
 }

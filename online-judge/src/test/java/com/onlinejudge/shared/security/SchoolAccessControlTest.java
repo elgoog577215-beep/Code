@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.ClassGroup;
 import com.onlinejudge.classroom.persistence.ClassGroupRepository;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
+import com.onlinejudge.learning.standardlibrary.application.StandardLibraryGrowthProposal;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import org.junit.jupiter.api.Test;
@@ -55,12 +58,18 @@ class SchoolAccessControlTest {
     @Autowired
     SubmissionRepository submissionRepository;
 
+    @Autowired
+    AiStandardLibraryGrowthAgentService growthAgentService;
+
     @Test
     void teacherApisRequireSessionAndLoginSetsCookie() throws Exception {
         mockMvc.perform(get("/api/teacher/assignments"))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/api/teacher/ai-standard-library/items"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/teacher/ai-standard-library/growth-candidates"))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/api/teacher/informatics-knowledge/tree"))
@@ -185,6 +194,62 @@ class SchoolAccessControlTest {
         assertThat(objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
                 .path("error")
                 .asText()).contains("能力点必须关联至少一个知识节点");
+    }
+
+    @Test
+    void loggedTeacherCanReviewIgnoreAndMergeGrowthCandidates() throws Exception {
+        String cookie = loginTeacherCookie();
+        var candidate = growthAgentService.propose(StandardLibraryGrowthProposal.builder()
+                .suggestedCode("MP_TEACHER_REVIEW_GROWTH_CANDIDATE")
+                .suggestedName("教师确认扩库候选")
+                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .suggestedPath(List.of("BASIC", "DEBUG", "TRACE"))
+                .sourceProblemId(10L)
+                .sourceSubmissionId(100L)
+                .similarExistingItemCodes(List.of("SK_AI_GROWTH_REVIEW"))
+                .changeReason("教师端应能看到候选、忽略候选或合并到正式库。")
+                .evidenceRefs(List.of("code:trace_missing", "judge:wrong_answer"))
+                .confidence(0.93)
+                .build());
+
+        MvcResult listResult = mockMvc.perform(get("/api/teacher/ai-standard-library/growth-candidates")
+                        .header("Cookie", cookie))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(objectMapper.readTree(listResult.getResponse().getContentAsString(StandardCharsets.UTF_8)).get(0)
+                .path("suggestedCode")
+                .asText()).isEqualTo("MP_TEACHER_REVIEW_GROWTH_CANDIDATE");
+
+        MvcResult mergeResult = mockMvc.perform(post("/api/teacher/ai-standard-library/growth-candidates/" + candidate.getId() + "/merge")
+                        .header("Cookie", cookie))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode merged = objectMapper.readTree(mergeResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(merged.path("status").asText()).isEqualTo("MERGED");
+        assertThat(merged.path("rollbackInfo").asText()).contains("回滚");
+
+        var ignoredCandidate = growthAgentService.propose(StandardLibraryGrowthProposal.builder()
+                .suggestedCode("MP_TEACHER_IGNORE_GROWTH_CANDIDATE")
+                .suggestedName("教师忽略扩库候选")
+                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .suggestedPath(List.of("BASIC", "DEBUG", "IGNORE"))
+                .sourceProblemId(11L)
+                .sourceSubmissionId(101L)
+                .changeReason("这个候选用于验证忽略操作。")
+                .evidenceRefs(List.of("code:ignore"))
+                .confidence(0.82)
+                .build());
+        Map<String, Object> ignorePayload = Map.of("teacherNote", "暂不进入标准库");
+
+        MvcResult ignoreResult = mockMvc.perform(post("/api/teacher/ai-standard-library/growth-candidates/" + ignoredCandidate.getId() + "/ignore")
+                        .header("Cookie", cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ignorePayload)))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(objectMapper.readTree(ignoreResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("status")
+                .asText()).isEqualTo("IGNORED");
     }
 
     @Test

@@ -6,11 +6,13 @@
   --surface: rgba(255, 255, 255, 0.88);
   --surface-strong: #ffffff;
   --surface-soft: #e6f0ee;
+  --surface-muted: #eef5f3;
   --line: #d5e2df;
   --line-strong: #9bb7b2;
   --ink: #152122;
   --ink-soft: #4d6264;
   --ink-faint: #7b9091;
+  --muted: #6d8183;
   --brand: #0f766e;
   --brand-strong: #0d5f59;
   --brand-soft: rgba(15, 118, 110, 0.12);
@@ -47,11 +49,13 @@
   --surface: #101217;
   --surface-strong: #171a21;
   --surface-soft: #1e222b;
+  --surface-muted: #151922;
   --line: #2b303a;
   --line-strong: #424956;
   --ink: #f2f6fb;
   --ink-soft: #aab2bd;
   --ink-faint: #727b89;
+  --muted: #8b95a3;
   --brand: #35e6cc;
   --brand-strong: #7cf7e6;
   --brand-soft: rgba(53, 230, 204, 0.1);
@@ -13106,6 +13110,70 @@ details.standard-library-editor__section > summary::-webkit-details-marker {
   display: none;
 }
 
+.standard-library-growth-panel__head,
+.standard-library-growth-card__head,
+.standard-library-growth-card__meta,
+.standard-library-growth-card__evidence {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.standard-library-growth-panel__head,
+.standard-library-growth-card__head {
+  justify-content: space-between;
+}
+
+.standard-library-growth-panel__list {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.standard-library-growth-card {
+  display: grid;
+  gap: 0.46rem;
+  padding: 0.58rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.standard-library-growth-card strong,
+.standard-library-growth-card small,
+.standard-library-growth-card p {
+  margin: 0;
+}
+
+.standard-library-growth-card small,
+.standard-library-growth-card__meta,
+.standard-library-growth-card__note {
+  color: var(--muted);
+}
+
+.standard-library-growth-card__note {
+  padding: 0.45rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
+.standard-library-growth-card details > summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.standard-library-growth-card pre {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0.35rem 0 0;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+}
+
 :root[data-theme="dark"] .app-header,
 :root[data-theme="dark"] .top-nav,
 :root[data-theme="dark"] .teacher-shell-nav,
@@ -13605,5 +13673,372 @@ details.standard-library-editor__section > summary {
     min-height: 30px;
     padding: 0.24rem 0.34rem;
     font-size: 0.74rem;
+  }
+}
+
+/* UI clarity layer: one global pass for density, hierarchy, and overflow. */
+:root {
+  --clarity-gap: 0.48rem;
+  --clarity-pad: 0.56rem;
+  --clarity-pad-tight: 0.42rem;
+}
+
+body {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-plain) 92%, var(--bg)), var(--bg));
+}
+
+.app-shell::before {
+  opacity: 0.18;
+}
+
+.main-shell {
+  max-width: 1480px;
+  margin-inline: auto;
+}
+
+.teacher-page,
+.student-page,
+.problem-page,
+.task-editor-page,
+.role-entry-page,
+.route-hub-page {
+  min-width: 0;
+}
+
+.panel,
+.teacher-workflow-header,
+.teacher-workflow-panel,
+.teacher-drill-header,
+.teacher-trend-panel,
+.teacher-problem-table,
+.teacher-rank-panel,
+.teacher-action-rail,
+.teacher-evidence-card,
+.teacher-manage-status-strip,
+.management-object-list,
+.management-object-main,
+.standard-library-editor__head,
+.standard-library-editor__section,
+.standard-library-growth-card,
+.student-entry-panel,
+.student-context-panel,
+.role-entry-card,
+.route-hub-card,
+.task-card,
+.teacher-assignment-row {
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  box-shadow: none;
+}
+
+.teacher-workflow-header,
+.teacher-drill-header,
+.panel__header,
+.student-entry-panel__head {
+  min-height: 0;
+  padding: var(--clarity-pad);
+}
+
+.teacher-workflow-header h1,
+.teacher-drill-header h1,
+.route-hub-hero h1,
+.role-entry h1 {
+  font-size: clamp(1.24rem, 1.8vw, 1.68rem);
+  letter-spacing: 0;
+}
+
+.teacher-workflow-header p:not(.eyebrow),
+.teacher-drill-header p:not(.eyebrow),
+.route-hub-card p,
+.role-entry-card p,
+.panel__header p:not(.eyebrow) {
+  max-width: 62ch;
+  margin-top: 0.18rem;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.38;
+}
+
+.eyebrow {
+  margin-bottom: 0.12rem;
+  font-size: 0.66rem;
+  letter-spacing: 0;
+}
+
+.teacher-workflow,
+.assignment-drill-page,
+.teacher-manage-page,
+.student-workbench,
+.problem-layout--workbench,
+.management-object-main,
+.standard-library-manager,
+.standard-library-editor,
+.task-editor-page--embedded {
+  gap: var(--clarity-gap);
+}
+
+.teacher-home-actions,
+.teacher-manage-tabs,
+.actions,
+.editor-command__actions,
+.assignment-create-actions {
+  gap: 0.28rem;
+}
+
+.ui-button {
+  min-height: 32px;
+  padding: 0.28rem 0.52rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  line-height: 1.1;
+}
+
+.ui-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.status-pill,
+.meta-badge,
+.code-label {
+  min-height: 20px;
+  padding: 0.1rem 0.34rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  line-height: 1.1;
+}
+
+.control,
+.teacher-manage-page .control,
+.standard-library-editor .control,
+.standard-library-filters .control,
+.task-editor-page--embedded .control {
+  min-height: 34px;
+  padding: 0.32rem 0.44rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.control--textarea,
+.teacher-manage-page .control--textarea,
+.standard-library-editor .control--textarea,
+.task-editor-page--embedded .control--textarea {
+  min-height: 72px;
+  max-height: 150px;
+  line-height: 1.35;
+}
+
+.field {
+  gap: 0.24rem;
+}
+
+.field > span:first-child,
+.field > label,
+.management-file-picker > span {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+}
+
+.panel__body,
+.teacher-trend-panel,
+.teacher-rank-panel,
+.teacher-action-rail,
+.teacher-evidence-card,
+.standard-library-editor__section,
+.standard-library-growth-card {
+  padding: var(--clarity-pad);
+}
+
+.teacher-manage-status-strip {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.24rem 0.42rem;
+  padding: 0.28rem 0.42rem;
+}
+
+.teacher-manage-status-strip__main,
+.teacher-manage-status-strip__actions,
+.teacher-manage-status-strip__details > div {
+  gap: 0.22rem;
+}
+
+.teacher-manage-status-strip__main > span:not(.status-pill),
+.teacher-manage-status-strip__details span,
+.standard-library-growth-card__meta,
+.standard-library-growth-card__note {
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.management-object-workbench,
+.standard-library-workbench {
+  gap: var(--clarity-gap);
+}
+
+@media (min-width: 1081px) {
+  .management-object-workbench {
+    grid-template-columns: minmax(190px, 0.24fr) minmax(0, 1fr);
+  }
+
+  .standard-library-workbench {
+    grid-template-columns: minmax(210px, 0.28fr) minmax(0, 1fr);
+  }
+}
+
+.management-object-list,
+.standard-library-list {
+  gap: 0.2rem;
+  padding: 0.3rem;
+}
+
+.management-object-row,
+.standard-library-list__item,
+.teacher-table-row,
+.task-card,
+.teacher-assignment-row,
+.student-entry-link {
+  min-width: 0;
+  padding: 0.36rem 0.44rem;
+}
+
+.management-object-row strong,
+.management-object-row small,
+.standard-library-list__item strong,
+.standard-library-list__item small,
+.teacher-table-title strong,
+.teacher-table-title small,
+.teacher-assignment-row__title strong,
+.teacher-assignment-row__meta,
+.student-entry-link strong,
+.student-entry-link small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric,
+.teacher-metric {
+  min-height: 46px;
+  padding: 0.36rem 0.46rem;
+}
+
+.metric strong,
+.teacher-metric strong {
+  font-size: 1rem;
+}
+
+.metric span,
+.metric small,
+.teacher-metric span {
+  font-size: 0.68rem;
+}
+
+.teacher-trend-chart svg {
+  height: clamp(92px, 14vh, 142px);
+}
+
+.standard-library-growth-panel__list {
+  gap: 0.34rem;
+}
+
+.standard-library-growth-card {
+  gap: 0.32rem;
+}
+
+.standard-library-growth-card__head,
+.standard-library-growth-card__meta,
+.standard-library-growth-card__evidence {
+  gap: 0.26rem;
+}
+
+.standard-library-growth-card p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.standard-library-growth-card pre {
+  max-height: 120px;
+  font-size: 0.72rem;
+}
+
+.table-wrap,
+.teacher-table,
+.editor-shell,
+.code-block,
+pre {
+  max-width: 100%;
+}
+
+@media (max-width: 760px) {
+  .main-shell {
+    padding-inline: 0.42rem;
+  }
+
+  .app-shell::before {
+    display: none;
+  }
+
+  .teacher-workflow-header,
+  .teacher-drill-header,
+  .panel__header,
+  .panel__body,
+  .student-entry-panel__head,
+  .teacher-trend-panel,
+  .teacher-rank-panel,
+  .teacher-action-rail,
+  .teacher-evidence-card,
+  .standard-library-editor__section,
+  .standard-library-growth-card {
+    padding: var(--clarity-pad-tight);
+  }
+
+  .teacher-workflow-header h1,
+  .teacher-drill-header h1,
+  .route-hub-hero h1,
+  .role-entry h1 {
+    font-size: 1.18rem;
+  }
+
+  .teacher-home-actions,
+  .teacher-manage-tabs,
+  .teacher-manage-status-strip__actions,
+  .standard-library-editor__head .actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-home-actions .ui-button,
+  .teacher-manage-tabs .ui-button,
+  .teacher-manage-status-strip__actions .ui-button,
+  .standard-library-editor__head .ui-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .teacher-manage-status-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-manage-status-strip__summary {
+    display: none;
+  }
+
+  .management-object-row strong,
+  .management-object-row small,
+  .standard-library-list__item strong,
+  .standard-library-list__item small,
+  .teacher-table-title strong,
+  .teacher-table-title small,
+  .teacher-assignment-row__title strong,
+  .teacher-assignment-row__meta,
+  .student-entry-link strong,
+  .student-entry-link small {
+    white-space: normal;
+  }
+
+  .control--textarea,
+  .teacher-manage-page .control--textarea,
+  .standard-library-editor .control--textarea,
+  .task-editor-page--embedded .control--textarea {
+    max-height: none;
   }
 }

@@ -1,6 +1,7 @@
 package com.onlinejudge.shared.bootstrap;
 
 import com.onlinejudge.classroom.application.ClassroomService;
+import com.onlinejudge.problem.application.PublicStarterCodeCatalog;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.domain.TestCase;
 import com.onlinejudge.problem.persistence.ProblemRepository;
@@ -8,11 +9,13 @@ import com.onlinejudge.problem.persistence.TestCaseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
+@Order(1)
 @RequiredArgsConstructor
 @Slf4j
 public class DataInitializer implements CommandLineRunner {
@@ -228,6 +231,7 @@ public class DataInitializer implements CommandLineRunner {
                 .difficulty(difficulty)
                 .timeLimit(timeLimit)
                 .memoryLimit(memoryLimit)
+                .starterCode(normalizeStarterCode(PublicStarterCodeCatalog.findByTitle(title)))
                 .build());
 
         testCases.forEach(seed -> testCaseRepository.save(TestCase.builder()
@@ -247,9 +251,20 @@ public class DataInitializer implements CommandLineRunner {
                 continue;
             }
 
+            boolean changed = false;
             if (!localized.title().equals(problem.getTitle()) || !localized.description().equals(problem.getDescription())) {
                 problem.setTitle(localized.title());
                 problem.setDescription(localized.description());
+                changed = true;
+            }
+            if (isBlank(problem.getStarterCode())) {
+                String starterCode = PublicStarterCodeCatalog.findByTitle(localized.title());
+                if (starterCode != null) {
+                    problem.setStarterCode(normalizeStarterCode(starterCode));
+                    changed = true;
+                }
+            }
+            if (changed) {
                 problemRepository.save(problem);
                 updated++;
             }
@@ -374,6 +389,17 @@ public class DataInitializer implements CommandLineRunner {
 
     private TestCaseSeed testcase(String input, String expectedOutput, boolean hidden, int orderIndex) {
         return new TestCaseSeed(input, expectedOutput, hidden, orderIndex);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private String normalizeStarterCode(String starterCode) {
+        if (starterCode == null || starterCode.isBlank()) {
+            return null;
+        }
+        return starterCode.replace("\r\n", "\n").replace('\r', '\n').stripTrailing() + "\n";
     }
 
     private record TestCaseSeed(String input, String expectedOutput, boolean hidden, int orderIndex) {

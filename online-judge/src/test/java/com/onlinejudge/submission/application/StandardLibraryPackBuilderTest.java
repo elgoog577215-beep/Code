@@ -163,13 +163,14 @@ class StandardLibraryPackBuilderTest {
                 ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY
         );
 
-        assertThat(standardPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
-        assertThat(lowLatencyPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
+        assertThat(standardPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        assertThat(lowLatencyPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
         assertThat(lowLatencyPlan.getAdvicePrompt().getSystemPrompt())
-                .contains("complete diagnosis and advice generation stage")
-                .contains("basicLayerAdvice")
-                .contains("improvementLayerAdvice")
-                .doesNotContain("diagnosisDecision")
+                .contains("diagnosis report v2")
+                .contains("studentReport")
+                .contains("basicLayerText")
+                .contains("improvementLayerText")
+                .contains("diagnosisDecision")
                 .doesNotContain("teachingHint");
     }
 }

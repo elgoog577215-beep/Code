@@ -1,0 +1,146 @@
+[
+  {
+    "id": "sum-right-endpoint",
+    "title": "两数/区间求和端点漏取",
+    "problemSummary": "输入 n，输出 1 到 n 的整数和。",
+    "language": "PYTHON",
+    "buggyCode": "n = int(input())\ntotal = 0\nfor i in range(1, n):\n    total += i\nprint(total)\n",
+    "judgeResult": "WRONG_ANSWER",
+    "expectedLibraryFit": "HIT",
+    "expectedAnchors": ["MP_RANGE_RIGHT_ENDPOINT_MISSING", "SK_RANGE_BOUNDARY"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须指出循环端点与题意范围不一致",
+      "下一步必须要求手推 n=1 或 n=2",
+      "不得直接给出替换后的 loop header"
+    ],
+    "shouldGenerateGrowthCandidate": false,
+    "quickFeedbackKnownLimit": "快反馈能发现 range 右端不包含，但通常解释不出为什么最小样例能定位问题。",
+    "formalMustImproveAtLeastOneOf": ["证据解释", "自然语言可读性", "边界自测迁移"]
+  },
+  {
+    "id": "matrix-difference-prefix-restore",
+    "title": "二维差分还原顺序错误",
+    "problemSummary": "给若干矩形加值操作，输出最终矩阵或统计达标格子数。",
+    "language": "PYTHON",
+    "buggyCode": "n, m, q = map(int, input().split())\ndiff = [[0]*(m+2) for _ in range(n+2)]\nfor _ in range(q):\n    x1,y1,x2,y2,v = map(int, input().split())\n    diff[x1][y1] += v\n    diff[x2+1][y1] -= v\n    diff[x1][y2+1] -= v\n    diff[x2+1][y2+1] += v\nfor i in range(1, n+1):\n    for j in range(1, m+1):\n        diff[i][j] += diff[i-1][j] + diff[i][j-1]\nprint(diff[n][m])\n",
+    "judgeResult": "WRONG_ANSWER",
+    "expectedLibraryFit": "PARTIAL",
+    "expectedAnchors": ["SK_PREFIX_SUM_2D", "MP_ARRAY_IN_PLACE_UPDATE_OVERWRITES_SOURCE"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须解释二维前缀还原时左上角重复计入或状态来源污染",
+      "提高层可以建议用 2x2 或 3x3 手推差分还原表",
+      "不得直接写出完整二维前缀公式"
+    ],
+    "shouldGenerateGrowthCandidate": true,
+    "quickFeedbackKnownLimit": "快反馈可能只说数组更新顺序或公式错误，难以绑定到二维差分还原语义。",
+    "formalMustImproveAtLeastOneOf": ["知识锚点", "手推表格建议", "扩库候选"]
+  },
+  {
+    "id": "monotonic-stack-duplicates",
+    "title": "单调栈重复值处理方向错误",
+    "problemSummary": "对每个元素寻找左侧第一个大于等于或严格大于它的元素。",
+    "language": "CPP17",
+    "buggyCode": "#include <bits/stdc++.h>\nusing namespace std;\nint main(){\n  int n; cin >> n;\n  vector<int>a(n), ans(n);\n  for(int i=0;i<n;i++) cin >> a[i];\n  stack<int> st;\n  for(int i=0;i<n;i++){\n    while(!st.empty() && a[st.top()] <= a[i]) st.pop();\n    ans[i] = st.empty()?0:st.top()+1;\n    st.push(i);\n  }\n  for(int x: ans) cout << x << ' ';\n}\n",
+    "judgeResult": "WRONG_ANSWER",
+    "expectedLibraryFit": "PARTIAL",
+    "expectedAnchors": ["SK_MONOTONIC_STACK", "MP_LOOP_STRICT_INEQUALITY_WHEN_EQUAL_ALLOWED"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须指出重复值时弹栈条件和题意的严格/非严格关系不一致",
+      "下一步必须要求构造含相等元素的小样例",
+      "不得直接告诉学生把 <= 改成 < 或反过来"
+    ],
+    "shouldGenerateGrowthCandidate": true,
+    "quickFeedbackKnownLimit": "快反馈能看到比较符号，但容易直接给改法或忽略题意里的等号。",
+    "formalMustImproveAtLeastOneOf": ["题意条件解释", "小反例", "答案泄露控制"]
+  },
+  {
+    "id": "stone-merge-dp-interval",
+    "title": "石子合并区间 DP 状态/转移顺序错误",
+    "problemSummary": "合并相邻石子，求最小合并代价。",
+    "language": "PYTHON",
+    "buggyCode": "n = int(input())\na = list(map(int, input().split()))\npre = [0]\nfor x in a:\n    pre.append(pre[-1] + x)\nf = [[0]*n for _ in range(n)]\nfor l in range(n):\n    for r in range(l+1, n):\n        f[l][r] = 10**18\n        for k in range(l, r):\n            f[l][r] = min(f[l][r], f[l][k] + f[k+1][r] + pre[r+1] - pre[l])\nprint(f[0][n-1])\n",
+    "judgeResult": "WRONG_ANSWER",
+    "expectedLibraryFit": "HIT",
+    "expectedAnchors": ["SK_DP_INTERVAL", "MP_DP_TRANSITION_ORDER_WRONG"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须指出区间 DP 依赖短区间先计算",
+      "提高层可以提示按区间长度组织手推",
+      "允许提到 f[i][j] 的状态含义，但不得给完整转移式"
+    ],
+    "shouldGenerateGrowthCandidate": false,
+    "quickFeedbackKnownLimit": "快反馈可能只说 DP 顺序错，但说不清状态依赖关系。",
+    "formalMustImproveAtLeastOneOf": ["状态定义", "依赖顺序", "手推方法"]
+  },
+  {
+    "id": "dynamic-connectivity-missing-union",
+    "title": "动态连通性并查集合并条件错误",
+    "problemSummary": "支持加边和查询两个点是否连通。",
+    "language": "CPP17",
+    "buggyCode": "#include <bits/stdc++.h>\nusing namespace std;\nvector<int> p;\nint find(int x){ return p[x]==x?x:find(p[x]); }\nint main(){\n  int n,q; cin>>n>>q; p.resize(n+1); iota(p.begin(),p.end(),0);\n  while(q--){\n    int op,a,b; cin>>op>>a>>b;\n    if(op==1){ if(find(a)==find(b)) p[find(a)] = find(b); }\n    else cout << (find(a)==find(b)?\"Yes\":\"No\") << '\\n';\n  }\n}\n",
+    "judgeResult": "WRONG_ANSWER",
+    "expectedLibraryFit": "HIT",
+    "expectedAnchors": ["SK_UNION_FIND_CONNECTIVITY", "MP_GRAPH_UNION_CONDITION_REVERSED"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须指出合并发生条件和连通性维护目标相反",
+      "下一步必须要求手推两个原本不连通点加边后的父节点变化",
+      "提高层可提示路径压缩风险但不能抢主因"
+    ],
+    "shouldGenerateGrowthCandidate": false,
+    "quickFeedbackKnownLimit": "快反馈可能只看到 if 条件可疑，缺少并查集语义解释。",
+    "formalMustImproveAtLeastOneOf": ["数据结构语义", "操作前后状态", "主次顺序"]
+  },
+  {
+    "id": "string-window-boundary",
+    "title": "字符串滑动窗口右边界更新时机错误",
+    "problemSummary": "求满足条件的最短/最长子串长度。",
+    "language": "PYTHON",
+    "buggyCode": "s = input().strip()\nk = int(input())\nleft = 0\ncnt = {}\nans = 0\nfor right, ch in enumerate(s):\n    cnt[ch] = cnt.get(ch, 0) + 1\n    while len(cnt) > k:\n        cnt[s[left]] -= 1\n        left += 1\n    ans = max(ans, right - left)\nprint(ans)\n",
+    "judgeResult": "WRONG_ANSWER",
+    "expectedLibraryFit": "PARTIAL",
+    "expectedAnchors": ["SK_TWO_POINTERS_WINDOW", "MP_RANGE_RIGHT_ENDPOINT_MISSING"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须指出窗口长度和左右端点是否包含的关系",
+      "下一步必须要求手推一个长度为 1 的窗口",
+      "不得直接给 right-left+1"
+    ],
+    "shouldGenerateGrowthCandidate": true,
+    "quickFeedbackKnownLimit": "快反馈可能说 off-by-one，但缺少滑动窗口左右端包含语义。",
+    "formalMustImproveAtLeastOneOf": ["窗口语义", "最小样例", "扩库候选"]
+  },
+  {
+    "id": "sliding-window-balance-count",
+    "title": "滑窗调平计数与窗口状态不同步",
+    "problemSummary": "通过移动窗口维护频次或代价，求满足平衡条件的最优长度。",
+    "language": "PYTHON",
+    "buggyCode": "n, k = map(int, input().split())\na = list(map(int, input().split()))\nleft = 0\ncost = 0\nans = 0\nfor right in range(n):\n    cost += a[right]\n    while cost > k:\n        left += 1\n        cost -= a[left]\n    ans = max(ans, right - left + 1)\nprint(ans)\n",
+    "judgeResult": "WRONG_ANSWER",
+    "expectedLibraryFit": "PARTIAL",
+    "expectedAnchors": ["SK_TWO_POINTERS_WINDOW", "MP_SIM_UPDATE_ORDER_USES_STALE_STATE"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须指出缩窗时先移动指针再扣除元素会让窗口状态不同步",
+      "下一步必须要求写出 left 移动前后窗口实际包含哪些元素",
+      "提高层可建议统一维护窗口不变量"
+    ],
+    "shouldGenerateGrowthCandidate": true,
+    "quickFeedbackKnownLimit": "快反馈常说更新顺序错误，但不能说明窗口不变量被破坏。",
+    "formalMustImproveAtLeastOneOf": ["不变量解释", "窗口状态手推", "扩库候选"]
+  },
+  {
+    "id": "layered-shortest-path-state",
+    "title": "分层最短路状态维度缺失",
+    "problemSummary": "允许最多 k 次特殊操作，求从起点到终点的最短路。",
+    "language": "CPP17",
+    "buggyCode": "#include <bits/stdc++.h>\nusing namespace std;\nint main(){\n  int n,m,k; cin>>n>>m>>k;\n  vector<vector<pair<int,int>>> g(n+1);\n  for(int i=0;i<m;i++){int u,v,w;cin>>u>>v>>w;g[u].push_back({v,w});g[v].push_back({u,w});}\n  vector<long long>d(n+1,4e18); d[1]=0;\n  priority_queue<pair<long long,int>, vector<pair<long long,int>>, greater<pair<long long,int>>> pq;\n  pq.push({0,1});\n  while(!pq.empty()){\n    auto [du,u]=pq.top(); pq.pop(); if(du!=d[u]) continue;\n    for(auto [v,w]:g[u]) if(d[v]>du+w){d[v]=du+w; pq.push({d[v],v});}\n  }\n  cout<<d[n]<<\"\\n\";\n}\n",
+    "judgeResult": "WRONG_ANSWER",
+    "expectedLibraryFit": "HIT",
+    "expectedAnchors": ["SK_GRAPH_LAYERED_SHORTEST_PATH", "MP_DP_STATE_MISSING_DIMENSION"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须指出状态没有记录已使用特殊操作次数",
+      "提高层可以建议把节点和层数共同作为状态",
+      "不得直接给完整建图方式或完整 Dijkstra 模板"
+    ],
+    "shouldGenerateGrowthCandidate": false,
+    "quickFeedbackKnownLimit": "快反馈可能只说没有使用 k，但缺少分层状态解释。",
+    "formalMustImproveAtLeastOneOf": ["状态维度", "图模型解释", "答案泄露控制"]
+  }
+]

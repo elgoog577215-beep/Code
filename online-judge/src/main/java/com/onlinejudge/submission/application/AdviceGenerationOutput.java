@@ -14,11 +14,116 @@ import java.util.List;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class AdviceGenerationOutput {
+    private ExecutionGate executionGate;
+    private DiagnosisDecision diagnosisDecision;
+    private StudentReport studentReport;
+    private TeacherTrace teacherTrace;
+    private LibraryGrowth libraryGrowth;
     private CaseUnderstanding caseUnderstanding;
     private List<BasicLayerAdvice> basicLayerAdvice;
     private List<ImprovementLayerAdvice> improvementLayerAdvice;
     private List<NextStepAdvice> nextStepPlan;
     private String studentSummary;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ExecutionGate {
+        private String state;
+        private String priority;
+        private String reason;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class DiagnosisDecision {
+        private String libraryFit;
+        private List<DiagnosisAnchor> anchors;
+        private List<OutOfLibraryFinding> outOfLibraryFindings;
+        private String uncertainty;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class DiagnosisAnchor {
+        private String id;
+        private String type;
+        private String role;
+        private Double confidence;
+        private List<String> evidenceRefs;
+        private String reason;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class OutOfLibraryFinding {
+        private String name;
+        private List<String> suggestedPath;
+        private String reason;
+        private List<String> evidenceRefs;
+        private Double confidence;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class StudentReport {
+        private String hintLevel;
+        private String basicLayerText;
+        private String improvementLayerText;
+        private String nextActionText;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class TeacherTrace {
+        private String reasoningSummary;
+        private String uncertainty;
+        private List<String> qualityFlags;
+        private List<String> softFixes;
+        private List<String> hardFailures;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class LibraryGrowth {
+        private List<LibraryGrowthCandidate> candidates;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class LibraryGrowthCandidate {
+        private String name;
+        private List<String> suggestedPath;
+        private Long sourceProblemId;
+        private Long sourceSubmissionId;
+        private List<String> similarExistingItems;
+        private String reason;
+        private String status;
+        private Double confidence;
+    }
 
     @Data
     @Builder

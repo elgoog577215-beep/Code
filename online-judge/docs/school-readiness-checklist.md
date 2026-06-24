@@ -28,6 +28,17 @@ bash scripts/doctor-school.sh
 
 预检失败时不要开课。先按提示处理 Docker、镜像源、Postgres 密码或密钥配置。
 
+4. 确认 AI 诊断链路开关。
+
+```env
+AI_DIAGNOSIS_REPORT_V2_ENABLED=true
+AI_MODEL_FAILURE_DEGRADE_ENABLED=true
+AI_STANDARD_LIBRARY_GROWTH_ENABLED=true
+AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED=false
+```
+
+默认建议保持“成长 Agent 进入候选池、自动入库关闭”。这样 AI 可以根据真实诊断提出扩库建议，但不会绕过老师直接改正式标准库。
+
 ## 2. 启动
 
 ```bash
@@ -56,7 +67,34 @@ http://服务器局域网IP:8081/app/
 AI_ENABLED=false
 ```
 
-## 4. 数据备份
+## 4. AI 诊断与标准库成长
+
+当前正式链路是：
+
+```text
+学生提交 -> 搜索定位 -> 诊断报告 v2 -> 学生三段反馈 -> 库外发现进入扩库候选池
+```
+
+教师端 `/app/teacher/manage/ai-library` 会显示两类内容：
+
+- 正式标准库：当前 AI 可用的能力点、易错点和知识锚点。
+- 扩库候选：AI 在 `PARTIAL` 或 `MISS` 场景发现的新细颗粒错因。
+
+处理规则：
+
+- `PROPOSED`：可由教师合并或忽略。
+- `NEEDS_REVIEW`：候选方向有价值，但入库门禁未完全通过，需要编辑后再处理。
+- `BLOCKED`：缺来源、缺路径、重复、冲突或置信度不足，不能直接入库。
+- `MERGED`：已写入正式标准库。
+- `IGNORED`：教师判断暂不采用。
+
+回滚方式：
+
+- 候选未合并前：忽略候选即可回滚。
+- 候选已合并后：到正式标准库中停用或删除对应条目，并保留候选审计记录中的 `beforeSnapshot`、`diffSummary`、`rollbackInfo`。
+- 自动入库默认关闭；只有学校明确接受风险，并把 `AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED=true` 后，系统才会在高置信、无冲突、来源完整时尝试自动写入正式库。
+
+## 5. 数据备份
 
 学校部署使用 Postgres。建议每天课后备份一次：
 
@@ -72,19 +110,21 @@ bash scripts/restore-postgres.sh backups/onlinejudge-YYYYMMDD-HHMMSS.sql
 
 备份文件默认在 `backups/`，不要提交到 Git。
 
-## 5. 常见故障
+## 6. 常见故障
 
 - `Docker daemon is not available`：启动 Docker Desktop、OrbStack 或 Docker Engine。
 - `C++17 runner image is not built yet`：运行 `bash scripts/build-cpp17-runner.sh` 或重新 `bash scripts/start-school.sh`。
 - AI smoke 显示 `INSUFFICIENT_QUOTA`：ModelScope 额度不足，充值或关闭 AI。
 - AI smoke 显示认证失败：检查 `OJ_MODELSCOPE_API_KEY`。
+- readiness 显示 `AI 诊断报告 v2` 失败：检查 `AI_DIAGNOSIS_REPORT_V2_ENABLED=true`。
+- readiness 显示成长 Agent 提醒：检查是否符合学校对自动扩库权限的要求。
 - 教师端无法进入：检查 `.env` 中 `TEACHER_PASSWORD` 是否已设置，并重新启动服务。
 
-## 6. 最低验收
+## 7. 最低验收
 
 - `bash scripts/doctor-school.sh` 通过。
 - 教师端能登录。
-- `/api/system/readiness` 返回 `READY`，或只剩外部 AI 降级项。
+- `/api/system/readiness` 返回 `READY`，或只剩学校明确接受的非阻断提醒。
 - Python 提交可 AC/WA。
 - C++17 提交在 runner 就绪后可 AC。
-- AI smoke 通过，或教师明确接受规则诊断降级。
+- AI smoke 通过；如果 smoke 不通过，系统只能作为判题系统使用，不能宣称 AI 诊断能力已可交付。

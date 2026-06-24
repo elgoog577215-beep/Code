@@ -56,6 +56,12 @@ public class StudentFeedbackViewAssembler {
         return status.isBlank() || status.contains("COMPLETED");
     }
 
+    private boolean isDiagnosisReportV2(SubmissionAnalysisResponse analysis) {
+        SubmissionAnalysisResponse.AiInvocation invocation = analysis == null ? null : analysis.getAiInvocation();
+        return invocation != null
+                && PromptTemplateRegistry.DIAGNOSIS_REPORT_V2.equals(safe(invocation.getPromptVersion()).trim());
+    }
+
     private List<SubmissionAnalysisResponse.FeedbackViewItem> repairItems(SubmissionAnalysisResponse.StudentFeedback feedback,
                                                                           SubmissionAnalysisResponse analysis) {
         List<SubmissionAnalysisResponse.FeedbackViewItem> items = new ArrayList<>();
@@ -67,7 +73,11 @@ public class StudentFeedbackViewAssembler {
                 break;
             }
             String title = cleanTitle(issue.getTitle());
-            String body = clean(defaultIfBlank(issue.getNextAction(), issue.getStudentMessage()));
+            boolean diagnosisReportV2 = isDiagnosisReportV2(analysis);
+            String body = clean(defaultIfBlank(
+                    diagnosisReportV2 ? issue.getStudentMessage() : issue.getNextAction(),
+                    diagnosisReportV2 ? issue.getNextAction() : issue.getStudentMessage()
+            ));
             if (body.isBlank()) {
                 body = clean(issue.getEvidence());
             }

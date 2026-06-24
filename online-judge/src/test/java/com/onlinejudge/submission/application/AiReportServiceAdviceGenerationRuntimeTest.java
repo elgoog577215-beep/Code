@@ -3,6 +3,7 @@ package com.onlinejudge.submission.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.problem.domain.Problem;
@@ -19,6 +20,7 @@ import java.util.Queue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AiReportServiceAdviceGenerationRuntimeTest {
@@ -44,7 +46,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(service.userPrompt(1))
                 .contains("searchLocationSummary", "mistakePoints", "MP_RANGE_RIGHT_ENDPOINT_MISSING")
                 .doesNotContain("SK_UNRELATED_ARRAY_INDEX");
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
         assertThat(analysis.getAiInvocation().getBasicAdviceCount()).isEqualTo(1);
         assertThat(analysis.getAiInvocation().getImprovementAdviceCount()).isEqualTo(1);
@@ -139,6 +141,89 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 .doesNotContain("直接改成", "range(1, n + 1)");
     }
 
+    @Test
+    void diagnosisReportV2SoftFixesAreVisibleInInvocationTrace() {
+        StubAiReportService service = newService(
+                validSearchLocationResponse(),
+                diagnosisReportV2WithSoftFixesResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        assertThat(analysis.getAiInvocation().getDiagnosisLibraryFit()).isEqualTo("PARTIAL");
+        assertThat(analysis.getAiInvocation().getDiagnosisSoftFixes())
+                .contains("evidenceRef alias sourceCode -> code:range_excludes_n")
+                .contains("evidenceRef alias problemConstraints -> judge:first_failed_case")
+                .anySatisfy(item -> assertThat(item).contains("unknown anchor id"));
+        assertThat(analysis.getAiInvocation().getDiagnosisHardFailures()).isEmpty();
+        assertThat(analysis.getStudentFeedback().getBlockingIssues()).singleElement()
+                .satisfies(item -> assertThat(item.getStudentMessage()).contains("基础层：循环范围"));
+    }
+
+    @Test
+    void diagnosisReportV2GrowthCandidatesArePersistedToCandidatePool() {
+        AiStandardLibraryGrowthAgentService growthAgentService = mock(AiStandardLibraryGrowthAgentService.class);
+        StubAiReportService service = newService(
+                growthAgentService,
+                validSearchLocationResponse(),
+                diagnosisReportV2WithGrowthCandidateResponse()
+        );
+
+        service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        verify(growthAgentService).proposeFromDiagnosisOutput(org.mockito.ArgumentMatchers.argThat(output ->
+                output != null
+                        && output.getLibraryGrowth() != null
+                        && output.getLibraryGrowth().getCandidates() != null
+                        && output.getLibraryGrowth().getCandidates().size() == 1
+        ));
+    }
+
+    private StubAiReportService newService(AiStandardLibraryGrowthAgentService growthAgentService, String... responses) {
+        AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
+        when(libraryService.enabledSearchLocationItems()).thenReturn(searchLocationItems());
+        SearchLocationProperties properties = new SearchLocationProperties();
+        properties.setMode("text");
+        properties.setCandidateLimit(4);
+        SearchLocationRetrievalService retrievalService = new SearchLocationRetrievalService(
+                libraryService,
+                properties,
+                mock(EmbeddingClient.class)
+        );
+        SearchLocationPackSelector selector = new SearchLocationPackSelector(libraryService, new DiagnosisTaxonomy());
+        StubAiReportService service = new StubAiReportService(
+                objectMapper,
+                runtime(),
+                retrievalService,
+                new SearchLocationOutputValidator(),
+                selector,
+                properties,
+                growthAgentService,
+                responses
+        );
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalRuntimeProfile", ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 1200);
+        return service;
+    }
+
     private StubAiReportService newService(String... responses) {
         AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
         when(libraryService.enabledSearchLocationItems()).thenReturn(searchLocationItems());
@@ -158,6 +243,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 new SearchLocationOutputValidator(),
                 selector,
                 properties,
+                null,
                 responses
         );
         ReflectionTestUtils.setField(service, "enabled", true);
@@ -376,6 +462,43 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 """;
     }
 
+    private String diagnosisReportV2WithGrowthCandidateResponse() {
+        return """
+                {
+                  "diagnosisDecision": {
+                    "libraryFit": "MISS",
+                    "anchors": [{
+                      "id": null,
+                      "type": "OUT_OF_LIBRARY",
+                      "role": "PRIMARY",
+                      "confidence": 0.78,
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "reason": "当前候选不能精确表达该错因。"
+                    }]
+                  },
+                  "studentReport": {
+                    "hintLevel": "L3",
+                    "basicLayerText": "基础层：循环范围和题目边界要求没有完全对齐。",
+                    "improvementLayerText": "提高层：补充边界自测清单。",
+                    "nextActionText": "下一步：手推 n=1 和 n=2。"
+                  },
+                  "libraryGrowth": {
+                    "candidates": [{
+                      "name": "可见失败样例定位端点漏取",
+                      "suggestedPath": ["BASIC", "LOOP", "BOUNDARY", "VISIBLE_CASE_ENDPOINT"],
+                      "sourceProblemId": 1,
+                      "sourceSubmissionId": 11,
+                      "similarExistingItems": ["MP_RANGE_RIGHT_ENDPOINT_MISSING"],
+                      "reason": "MISS 场景下发现更细颗粒错因。",
+                      "status": "PROPOSED",
+                      "confidence": 0.78
+                    }]
+                  },
+                  "studentSummary": "这次重点是循环边界。"
+                }
+                """;
+    }
+
     private String validAdviceResponse() {
         return """
                 {
@@ -413,6 +536,31 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "evidenceRef": "code:range_excludes_n"
                   }],
                   "studentSummary": "这次主要卡在循环边界和题目要求范围没有对齐。"
+                }
+                """;
+    }
+
+    private String diagnosisReportV2WithSoftFixesResponse() {
+        return """
+                {
+                  "diagnosisDecision": {
+                    "libraryFit": "PARTIAL",
+                    "anchors": [{
+                      "id": "MP_LIBRARY_GAP_NEW_BOUNDARY_CASE",
+                      "type": "MISTAKE_POINT",
+                      "role": "PRIMARY",
+                      "confidence": 0.82,
+                      "evidenceRefs": ["sourceCode", "problemConstraints"],
+                      "reason": "模型发现了库里没有精确覆盖的边界错因。"
+                    }]
+                  },
+                  "studentReport": {
+                    "hintLevel": "L3",
+                    "basicLayerText": "基础层：循环范围和题目边界要求没有完全对齐。先手推最小样例，确认端点是否进入循环。",
+                    "improvementLayerText": "提高层：修好后把最小值、端点值、最大值附近样例加入固定自测清单。",
+                    "nextActionText": "下一步：用 n=1 和 n=2 写出循环变量序列，再和题目要求逐项对照。"
+                  },
+                  "studentSummary": "这次重点是循环边界和边界自测。"
                 }
                 """;
     }
@@ -469,6 +617,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                             SearchLocationOutputValidator outputValidator,
                             SearchLocationPackSelector packSelector,
                             SearchLocationProperties searchLocationProperties,
+                            AiStandardLibraryGrowthAgentService growthAgentService,
                             String... responses) {
             super(objectMapper,
                     new AiCodeAssistSupport(),
@@ -480,7 +629,8 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     outputValidator,
                     new SearchLocationOutputNormalizer(),
                     packSelector,
-                    searchLocationProperties);
+                    searchLocationProperties,
+                    growthAgentService);
             this.responses.addAll(List.of(responses));
         }
 

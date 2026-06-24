@@ -3,6 +3,8 @@ import type {
   AssignmentOverview,
   AiStandardLibraryItem,
   AiStandardLibraryItemPayload,
+  AiStandardLibraryGrowthCandidate,
+  AiStandardLibraryGrowthCandidatePayload,
   AiStandardLibraryLayer,
   AiSmoke,
   AiQualityOverview,
@@ -279,6 +281,23 @@ export const api = {
     request<AiStandardLibraryItem>(`/api/teacher/ai-standard-library/items/${id}/enable`, { method: "POST" }),
   disableAiStandardLibraryItem: (id: number) =>
     request<AiStandardLibraryItem>(`/api/teacher/ai-standard-library/items/${id}/disable`, { method: "POST" }),
+  aiStandardLibraryGrowthCandidates: () =>
+    request<AiStandardLibraryGrowthCandidate[]>("/api/teacher/ai-standard-library/growth-candidates"),
+  updateAiStandardLibraryGrowthCandidate: (id: number, payload: AiStandardLibraryGrowthCandidatePayload) =>
+    request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}`, {
+      method: "PUT",
+      body: jsonBody(payload)
+    }),
+  mergeAiStandardLibraryGrowthCandidate: (id: number, payload?: AiStandardLibraryGrowthCandidatePayload) =>
+    request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}/merge`, {
+      method: "POST",
+      body: payload ? jsonBody(payload) : undefined
+    }),
+  ignoreAiStandardLibraryGrowthCandidate: (id: number, teacherNote?: string) =>
+    request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}/ignore`, {
+      method: "POST",
+      body: jsonBody({ teacherNote })
+    }),
 
   executorStatus: () => request<ExecutorStatus>("/api/system/executor-status"),
   readiness: () => request<Readiness>("/api/system/readiness"),

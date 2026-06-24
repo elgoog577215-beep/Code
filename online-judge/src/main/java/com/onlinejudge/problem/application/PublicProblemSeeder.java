@@ -6,6 +6,7 @@ import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.problem.persistence.TestCaseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -14,6 +15,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Component
+@Order(2)
 @RequiredArgsConstructor
 public class PublicProblemSeeder implements CommandLineRunner {
 
@@ -22,8 +24,16 @@ public class PublicProblemSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        Set<String> existingTitles = problemRepository.findAllByOrderByIdAsc()
-                .stream()
+        List<Problem> existingProblems = problemRepository.findAllByOrderByIdAsc();
+        existingProblems.forEach(problem -> {
+                    String starterCode = PublicStarterCodeCatalog.findByTitle(problem.getTitle());
+                    if (starterCode != null && shouldUpgradeStarterCode(problem.getTitle(), problem.getStarterCode(), starterCode)) {
+                        problem.setStarterCode(normalizeStarterCode(starterCode));
+                        problemRepository.save(problem);
+                    }
+                });
+
+        Set<String> existingTitles = existingProblems.stream()
                 .map(Problem::getTitle)
                 .collect(Collectors.toSet());
         for (PublicProblemSeed seed : PublicProblemSeedCatalog.seeds()) {
@@ -46,6 +56,41 @@ public class PublicProblemSeeder implements CommandLineRunner {
             saveTestCases(problem.getId(), seed.testCases());
             existingTitles.add(seed.title());
         }
+    }
+
+    private boolean shouldUpgradeStarterCode(String title, String currentStarterCode, String catalogStarterCode) {
+        if (isBlank(currentStarterCode)) {
+            return true;
+        }
+        String normalizedCurrent = normalizeForComparison(currentStarterCode);
+        String normalizedCatalog = normalizeForComparison(catalogStarterCode);
+        if (normalizedCurrent.equals(normalizedCatalog)) {
+            return false;
+        }
+        return isLegacyStarterCode(normalizedCurrent)
+                || isOriginalSeedStarterCode(title, normalizedCurrent);
+    }
+
+    private boolean isLegacyStarterCode(String normalizedCurrent) {
+        return normalizedCurrent.equals("n = int(input())\nprint(n)")
+                || normalizedCurrent.equals("n = int(input())\n# 在这里计算 1 到 n 的和");
+    }
+
+    private boolean isOriginalSeedStarterCode(String title, String normalizedCurrent) {
+        return PublicProblemSeedCatalog.seeds()
+                .stream()
+                .filter(seed -> seed.title().equals(title))
+                .map(PublicProblemSeed::starterCode)
+                .map(this::normalizeForComparison)
+                .anyMatch(normalizedCurrent::equals);
+    }
+
+    private String normalizeForComparison(String value) {
+        return value == null ? "" : value.replace("\r\n", "\n").replace('\r', '\n').stripTrailing();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private void saveTestCases(Long problemId, List<PublicProblemSeed.TestCaseSeed> testCases) {

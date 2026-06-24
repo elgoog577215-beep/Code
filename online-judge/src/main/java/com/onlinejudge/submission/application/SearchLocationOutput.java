@@ -14,11 +14,15 @@ import java.util.List;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SearchLocationOutput {
+    private String libraryFit;
     private List<SelectedCandidate> basicCandidates;
     private List<SelectedCandidate> improvementCandidates;
     private List<SelectedCandidate> knowledgeAnchors;
     private String uncertainty;
+    private List<String> uncertaintyPoints;
     private Boolean needsMoreEvidence;
+    private Boolean needsLibraryGrowth;
+    private String libraryGrowthReason;
 
     @Data
     @Builder
@@ -31,9 +35,13 @@ public class SearchLocationOutput {
         private String knowledgeNodeId;
         private String skillUnitId;
         private String mistakePointId;
+        private String libraryFit;
         private Integer priority;
         private Double confidence;
         private List<String> evidenceRefs;
         private String reason;
+        private String recallReason;
+        private String evidenceSource;
+        private String uncertainty;
     }
 }

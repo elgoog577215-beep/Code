@@ -10,6 +10,7 @@ import java.util.Map;
 public class PromptTemplateRegistry {
 
     public static final String DIAGNOSIS_AND_ADVICE_V1 = "diagnosis-and-advice-v1";
+    public static final String DIAGNOSIS_REPORT_V2 = "diagnosis-report-v2";
     public static final String SEARCH_LOCATION_V1 = "search-location-v1";
 
     private final Map<String, PromptTemplate> templates = Map.of(
@@ -22,6 +23,11 @@ public class PromptTemplateRegistry {
                     .version(DIAGNOSIS_AND_ADVICE_V1)
                     .stage("DIAGNOSIS_AND_ADVICE")
                     .systemPrompt(diagnosisAndAdviceV1SystemPrompt())
+                    .build(),
+            DIAGNOSIS_REPORT_V2, PromptTemplate.builder()
+                    .version(DIAGNOSIS_REPORT_V2)
+                    .stage("DIAGNOSIS_REPORT")
+                    .systemPrompt(diagnosisReportV2SystemPrompt())
                     .build()
     );
 
@@ -37,7 +43,8 @@ public class PromptTemplateRegistry {
         return """
                 You are the search-location stage of an education coding agent.
                 Return strict JSON only. Do not output markdown fences, XML, chain-of-thought, or extra text.
-                Your job is NOT to write student-facing advice. Your job is to select the most relevant fine-grained standard-library candidates for the next diagnosis stage.
+                Your job is NOT to write student-facing advice. Your job is to provide a navigation map for the next diagnosis stage.
+                The standard library is a navigation map, not a forced answer. You may mark candidates as HIT, PARTIAL, or MISS.
 
                 Input schema:
                 {
@@ -47,16 +54,21 @@ public class PromptTemplateRegistry {
 
                 Output schema:
                 {
+                  "libraryFit": "HIT"|"PARTIAL"|"MISS",
                   "basicCandidates": [{
                     "id": string,
                     "layer": "MISTAKE_POINT"|"BASIC_CAUSE"|"SKILL_UNIT"|"KNOWLEDGE_NODE",
                     "knowledgeNodeId": string|null,
                     "skillUnitId": string|null,
                     "mistakePointId": string|null,
+                    "libraryFit": "HIT"|"PARTIAL"|"MISS",
                     "priority": number,
                     "confidence": number,
                     "evidenceRefs": string[],
-                    "reason": string
+                    "reason": string,
+                    "recallReason": string,
+                    "evidenceSource": string,
+                    "uncertainty": string
                   }],
                   "improvementCandidates": [{
                     "id": string,
@@ -64,10 +76,14 @@ public class PromptTemplateRegistry {
                     "knowledgeNodeId": string|null,
                     "skillUnitId": string|null,
                     "mistakePointId": string|null,
+                    "libraryFit": "HIT"|"PARTIAL"|"MISS",
                     "priority": number,
                     "confidence": number,
                     "evidenceRefs": string[],
-                    "reason": string
+                    "reason": string,
+                    "recallReason": string,
+                    "evidenceSource": string,
+                    "uncertainty": string
                   }],
                   "knowledgeAnchors": [{
                     "id": string,
@@ -75,26 +91,36 @@ public class PromptTemplateRegistry {
                     "knowledgeNodeId": string|null,
                     "skillUnitId": string|null,
                     "mistakePointId": string|null,
+                    "libraryFit": "HIT"|"PARTIAL"|"MISS",
                     "priority": number,
                     "confidence": number,
                     "evidenceRefs": string[],
-                    "reason": string
+                    "reason": string,
+                    "recallReason": string,
+                    "evidenceSource": string,
+                    "uncertainty": string
                   }],
                   "uncertainty": string,
-                  "needsMoreEvidence": boolean
+                  "uncertaintyPoints": string[],
+                  "needsMoreEvidence": boolean,
+                  "needsLibraryGrowth": boolean,
+                  "libraryGrowthReason": string|null
                 }
 
                 Rules:
                 1. Select only ids that appear in candidatePack.candidates.id.
-                2. basicCandidates should focus on current blocking causes: syntax, IO, runtime, boundary, state, recursion, DP transition, or other concrete error sources.
-                3. improvementCandidates should focus on non-blocking improvement directions: complexity, data structure choice, modeling, proof, testing habit, or transfer.
-                4. knowledgeAnchors should identify the knowledge/skill branch that explains the selected candidates.
-                5. Every selected item MUST cite at least one brief.evidenceRefs or brief.candidateSignals.evidenceRef value.
-                6. confidence MUST be between 0 and 1.
-                7. Prefer 3-8 basicCandidates, 1-5 improvementCandidates, and 1-5 knowledgeAnchors. Do not pad weak candidates.
-                8. Use judge facts as evidence, but still read the code behavior. Hidden data must not be guessed.
-                9. Do not provide complete code, final answers, executable fixes, hidden test data, or student-facing tutorial text.
-                10. Keep reason concise and evidence-grounded.
+                2. Set libraryFit=HIT when a candidate precisely covers the issue.
+                3. Set libraryFit=PARTIAL when the branch is useful but the exact fine-grained cause is missing.
+                4. Set libraryFit=MISS when current candidates do not explain the issue. Keep the closest anchor only if useful for navigation.
+                5. basicCandidates should focus on current blocking causes: syntax, IO, runtime, boundary, state, recursion, DP transition, or other concrete error sources.
+                6. improvementCandidates should focus on non-blocking improvement directions: complexity, data structure choice, modeling, proof, testing habit, or transfer.
+                7. knowledgeAnchors should identify the knowledge/skill branch that explains the selected candidates.
+                8. Every selected item MUST cite at least one brief.evidenceRefs or brief.candidateSignals.evidenceRef value.
+                9. confidence MUST be between 0 and 1.
+                10. Prefer 3-8 basicCandidates, 1-5 improvementCandidates, and 1-5 knowledgeAnchors. Do not pad weak candidates.
+                11. Use judge facts as evidence, but still read the code behavior. Hidden data must not be guessed.
+                12. Do not provide complete code, final answers, executable fixes, hidden test data, or student-facing tutorial text.
+                13. Keep reason concise and evidence-grounded.
                 """;
     }
 
@@ -170,6 +196,81 @@ public class PromptTemplateRegistry {
                 16. For boundary issues, ask the student to trace values or compare ranges; do not state the replacement expression.
                 17. For syntax or runtime errors, prioritize making the program runnable before improvement advice.
                 18. studentSummary should summarize the learning focus, not the answer.
+                """;
+    }
+
+    private String diagnosisReportV2SystemPrompt() {
+        return """
+                You are the diagnosis report v2 stage of an education coding agent.
+                Return strict JSON only. Do not output markdown fences, XML, chain-of-thought, or extra text.
+                Read the problem, source code, judge result, search-location output, and selected standard library.
+                The standard library is a navigation map and language standard. It should guide your diagnosis, but it must not force a wrong conclusion.
+                You may confirm, partially adopt, or reject search-layer candidates by using HIT, PARTIAL, or MISS.
+                All student-facing strings MUST be Simplified Chinese.
+
+                Output schema:
+                {
+                  "executionGate": {
+                    "state": "SHOW_TO_STUDENT"|"DEGRADE"|"BLOCK",
+                    "priority": "BASIC_FIRST"|"IMPROVEMENT_FIRST"|"REVIEW_ONLY",
+                    "reason": string
+                  },
+                  "diagnosisDecision": {
+                    "libraryFit": "HIT"|"PARTIAL"|"MISS",
+                    "anchors": [{
+                      "id": string|null,
+                      "type": "KNOWLEDGE_NODE"|"SKILL_UNIT"|"MISTAKE_POINT"|"IMPROVEMENT_POINT"|"OUT_OF_LIBRARY",
+                      "role": "PRIMARY"|"SECONDARY"|"CONTEXT",
+                      "confidence": number,
+                      "evidenceRefs": string[],
+                      "reason": string
+                    }],
+                    "outOfLibraryFindings": [{
+                      "name": string,
+                      "suggestedPath": string[],
+                      "reason": string,
+                      "evidenceRefs": string[],
+                      "confidence": number
+                    }],
+                    "uncertainty": string
+                  },
+                  "studentReport": {
+                    "hintLevel": "L1"|"L2"|"L3"|"L4",
+                    "basicLayerText": string,
+                    "improvementLayerText": string,
+                    "nextActionText": string
+                  },
+                  "teacherTrace": {
+                    "reasoningSummary": string,
+                    "uncertainty": string,
+                    "qualityFlags": string[],
+                    "softFixes": string[],
+                    "hardFailures": string[]
+                  },
+                  "libraryGrowth": {
+                    "candidates": [{
+                      "name": string,
+                      "suggestedPath": string[],
+                      "sourceProblemId": number|null,
+                      "sourceSubmissionId": number|null,
+                      "similarExistingItems": string[],
+                      "reason": string,
+                      "status": "PROPOSED"|"NEEDS_REVIEW"|"REJECTED",
+                      "confidence": number
+                    }]
+                  },
+                  "studentSummary": string
+                }
+
+                Student report rules:
+                1. Write studentReport as natural paragraphs, not fragmented form fields.
+                2. basicLayerText explains the current blocking issue or foundation gap with evidence.
+                3. improvementLayerText explains higher-level algorithm, complexity, testing, modeling, or transfer advice.
+                4. nextActionText gives one concrete next action that the student can do immediately.
+                5. Default hintLevel is L3. L1/L2 may be used for lighter hints. L4 is only for teacher-approved full tutorial contexts.
+                6. Allowed at L3: knowledge direction, state definition, small counterexample, hand-tracing method, and operation-count estimation.
+                7. Forbidden for students: full code, exact loop replacement, complete recurrence formula, complete final answer, hidden tests, or a copyable full solution.
+                8. If libraryFit is PARTIAL or MISS, do not force a standard-library id. Use outOfLibraryFindings and libraryGrowth candidates instead.
                 """;
     }
 

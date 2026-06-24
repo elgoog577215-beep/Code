@@ -33,6 +33,37 @@ class SearchLocationOutputValidatorTest {
     }
 
     @Test
+    void acceptsHitPartialAndMissLibraryFitStates() {
+        SearchLocationCandidatePack pack = SearchLocationCandidatePack.builder()
+                .candidates(List.of(SearchLocationCandidate.builder()
+                        .id("SK_RANGE_BOUNDARY")
+                        .layer("SKILL_UNIT")
+                        .build()))
+                .build();
+
+        for (String fit : List.of("HIT", "PARTIAL", "MISS")) {
+            SearchLocationOutput output = SearchLocationOutput.builder()
+                    .libraryFit(fit)
+                    .needsLibraryGrowth("MISS".equals(fit))
+                    .basicCandidates(List.of(SearchLocationOutput.SelectedCandidate.builder()
+                            .id("SK_RANGE_BOUNDARY")
+                            .layer("SKILL_UNIT")
+                            .libraryFit(fit)
+                            .recallReason("代码中出现 range 边界，候选来自循环边界分支。")
+                            .evidenceSource("sourceCode")
+                            .uncertainty("MISS".equals(fit) ? "现有库没有精确错因，只能保留上级技能。": "")
+                            .confidence(0.7)
+                            .evidenceRefs(List.of("code:range_excludes_n"))
+                            .build()))
+                    .build();
+
+            ExternalModelStagePayloads.StageValidationResult result = validator.validate(output, pack, brief());
+
+            assertThat(result.isValid()).as(fit).isTrue();
+        }
+    }
+
+    @Test
     void rejectsUnknownCandidateId() {
         SearchLocationCandidatePack pack = SearchLocationCandidatePack.builder()
                 .candidates(List.of(SearchLocationCandidate.builder()

@@ -33,16 +33,16 @@ class AiReportServiceExternalRuntimeTest {
         );
 
         assertThat(service.callCount()).isEqualTo(1);
-        assertThat(service.lastSystemPrompt()).contains("complete diagnosis and advice generation stage");
+        assertThat(service.lastSystemPrompt()).contains("diagnosis report v2");
         assertThat(service.lastSystemPrompt())
-                .doesNotContain("diagnosisDecision")
+                .contains("diagnosisDecision")
                 .doesNotContain("teachingHint");
         assertThat(service.lastUserPrompt()).contains("brief", "standardLibrary");
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
-        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("advice-generation");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("diagnosis-report");
         assertThat(analysis.getAiInvocation().getFailureStage()).isEmpty();
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
         assertThat(analysis.getBasicLayerAdvice()).singleElement()
@@ -120,7 +120,7 @@ class AiReportServiceExternalRuntimeTest {
         );
 
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
-        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("advice-generation");
+        assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("diagnosis-report");
         assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
         assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INSUFFICIENT_QUOTA");
         assertThat(analysis.getUncertainty()).contains("INSUFFICIENT_QUOTA");
@@ -148,7 +148,7 @@ class AiReportServiceExternalRuntimeTest {
         );
 
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
-        assertThat(service.lastRequestBody()).contains("complete diagnosis and advice generation stage");
+        assertThat(service.lastRequestBody()).contains("diagnosis report v2");
         assertThat(service.lastRequestBody()).contains("\"role\":\"user\"");
         assertThat(service.lastRequestBody()).doesNotContain("\"role\":\"system\"");
     }

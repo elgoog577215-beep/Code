@@ -13,6 +13,51 @@ class AdviceGenerationFeedbackMapperTest {
     private final ModelOutputValidator validator = new ModelOutputValidator();
 
     @Test
+    void mapsDiagnosisReportV2NaturalSectionsToLegacyStudentFeedback() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .diagnosisDecision(AdviceGenerationOutput.DiagnosisDecision.builder()
+                        .libraryFit("PARTIAL")
+                        .anchors(List.of(AdviceGenerationOutput.DiagnosisAnchor.builder()
+                                .id("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                                .type("MISTAKE_POINT")
+                                .role("PRIMARY")
+                                .confidence(0.86)
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .reason("候选方向对，但题目还需要结合最小样例手推。")
+                                .build()))
+                        .build())
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：这次最主要的问题不是求和思路，而是循环覆盖范围和题目要求没有对齐。建议先拿 n=1、n=2 手推循环变量实际出现过哪些值，再判断最后一个数有没有被处理。")
+                        .improvementLayerText("提高层：修好后可以把最小值、端点值、最大值附近样例当成固定自测清单，这会帮你更快发现开闭区间类问题。")
+                        .nextActionText("下一步：不要急着改代码，先在纸上写出 n=1、n=2 时循环变量序列，再和题目要求逐项对照。")
+                        .build())
+                .studentSummary("这次重点是循环边界和边界样例意识。")
+                .build();
+
+        StandardLibraryPack pack = StandardLibraryPack.builder()
+                .teachingActions(List.of(StandardLibraryPack.TeachingActionOption.builder()
+                        .id("TRACE_VARIABLES")
+                        .label("手推变量")
+                        .build()))
+                .build();
+
+        SubmissionAnalysisResponse.StudentFeedback feedback = mapper.toStudentFeedback(output, pack);
+
+        assertThat(feedback.getBlockingIssues()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getStudentMessage()).contains("基础层：这次最主要的问题");
+                    assertThat(item.getStudentMessage()).contains("n=1、n=2");
+                    assertThat(item.getFineGrainedTag()).isEqualTo("MP_RANGE_RIGHT_ENDPOINT_MISSING");
+                    assertThat(item.getEvidenceRefs()).containsExactly("code:range_excludes_n");
+                });
+        assertThat(feedback.getImprovementOpportunities()).singleElement()
+                .satisfies(item -> assertThat(item.getStudentMessage()).contains("提高层：修好后可以"));
+        assertThat(feedback.getNextLearningAction().getHintLevel()).isEqualTo("L3");
+        assertThat(feedback.getNextLearningAction().getTask()).contains("下一步：不要急着改代码");
+    }
+
+    @Test
     void mapsFineGrainedImprovementPointToLegacyImprovementTagCategory() {
         AdviceGenerationOutput output = AdviceGenerationOutput.builder()
                 .caseUnderstanding(AdviceGenerationOutput.CaseUnderstanding.builder()

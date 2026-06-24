@@ -1,0 +1,74 @@
+package com.onlinejudge.learning.standardlibrary.dto;
+
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidate;
+import lombok.Builder;
+import lombok.Data;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Data
+@Builder
+public class AiStandardLibraryGrowthCandidateResponse {
+    private Long id;
+    private String layer;
+    private String suggestedCode;
+    private String suggestedName;
+    private List<String> suggestedPath;
+    private Long sourceProblemId;
+    private Long sourceSubmissionId;
+    private List<String> evidenceRefs;
+    private List<String> similarExistingItems;
+    private String changeReason;
+    private String status;
+    private String precheckMessage;
+    private Double confidence;
+    private String beforeSnapshot;
+    private String diffSummary;
+    private String rollbackInfo;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public static AiStandardLibraryGrowthCandidateResponse from(AiStandardLibraryGrowthCandidate candidate) {
+        return AiStandardLibraryGrowthCandidateResponse.builder()
+                .id(candidate.getId())
+                .layer(candidate.getLayer().name())
+                .suggestedCode(candidate.getSuggestedCode())
+                .suggestedName(candidate.getSuggestedName())
+                .suggestedPath(path(candidate.getSuggestedPath()))
+                .sourceProblemId(candidate.getSourceProblemId())
+                .sourceSubmissionId(candidate.getSourceSubmissionId())
+                .evidenceRefs(lines(candidate.getEvidenceRefs()))
+                .similarExistingItems(lines(candidate.getSimilarExistingItems()))
+                .changeReason(candidate.getChangeReason())
+                .status(candidate.getStatus().name())
+                .precheckMessage(candidate.getPrecheckMessage())
+                .confidence(candidate.getConfidence())
+                .beforeSnapshot(candidate.getBeforeSnapshot())
+                .diffSummary(candidate.getDiffSummary())
+                .rollbackInfo(candidate.getRollbackInfo())
+                .createdAt(candidate.getCreatedAt())
+                .updatedAt(candidate.getUpdatedAt())
+                .build();
+    }
+
+    private static List<String> path(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return List.of(value.split("\\.")).stream()
+                .map(String::trim)
+                .filter(part -> !part.isBlank())
+                .toList();
+    }
+
+    private static List<String> lines(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return value.lines()
+                .map(String::trim)
+                .filter(line -> !line.isBlank())
+                .toList();
+    }
+}
