@@ -67,10 +67,17 @@ function latestTrend(points: TrendPoint[]) {
 function trendSummary(points: TrendPoint[], overview: AssignmentOverview) {
   const latest = latestTrend(points);
   return {
-    submitted: latest?.submittedStudentCount ?? overview.participantCount,
+    submitted: latest?.submittedStudentCount ?? 0,
     passed: latest?.passedStudentCount ?? 0,
     attempts: latest?.submissionCount ?? overview.attemptCount
   };
+}
+
+function recentTrendDelta(points: TrendPoint[]) {
+  if (points.length >= 2) {
+    return Math.max(0, points[points.length - 1].submissionCount - points[points.length - 2].submissionCount);
+  }
+  return points[0]?.submissionCount ?? 0;
 }
 
 function trendPath(points: TrendPoint[], key: "submittedStudentCount" | "passedStudentCount" | "submissionCount") {
@@ -98,6 +105,31 @@ function studentPassRate(student: ProblemStudent) {
 
 function assignmentPassRate(overview: AssignmentOverview) {
   return overview.attemptCount ? Math.round((overview.passedAttemptCount / overview.attemptCount) * 100) : 0;
+}
+
+function problemStudentIssue(student: ProblemStudent) {
+  return student.latestFineGrainedIssue || student.latestIssueTag ? issueLabel(student.latestFineGrainedIssue || student.latestIssueTag) : "-";
+}
+
+function latestStudentSubmission(students: ProblemStudent[]) {
+  return [...students]
+    .map(student => student.latestSubmittedAt)
+    .filter(Boolean)
+    .sort((left, right) => Date.parse(right || "") - Date.parse(left || ""))[0];
+}
+
+function sortedProblemStudents(students: ProblemStudent[]) {
+  return [...students].sort((left, right) => {
+    const attention = Number(right.needsAttention) - Number(left.needsAttention);
+    if (attention) {
+      return attention;
+    }
+    const submitted = Date.parse(right.latestSubmittedAt || "") - Date.parse(left.latestSubmittedAt || "");
+    if (submitted) {
+      return submitted;
+    }
+    return displayText(left.displayName, "").localeCompare(displayText(right.displayName, ""), "zh-Hans-CN");
+  });
 }
 
 export default function AssignmentDetailPage() {
@@ -220,7 +252,8 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
   const latest = latestTrend(trend);
   const currentTrend = trendSummary(trend, overview);
   const passRate = assignmentPassRate(overview);
-  const submittedText = latest ? `${latest.submittedStudentCount} 人` : `${overview.participantCount} 人`;
+  const recentSubmissions = recentTrendDelta(trend);
+  const submittedText = `${currentTrend.submitted} 人`;
   return (
     <>
       <section className="teacher-drill-header">
@@ -242,10 +275,10 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
       <section className="teacher-drill-overview">
         <div className="teacher-drill-strip">
           <Metric label="提交人数" value={submittedText} />
+          <Metric label="通过人数" value={currentTrend.passed || "-"} />
           <Metric label="总提交" value={overview.attemptCount} />
-          <Metric label="通过提交" value={overview.passedAttemptCount} />
-          <Metric label="通过率" value={`${passRate}%`} />
           <Metric label="需关注" value={overview.strugglingStudentCount} />
+          <Metric label="最近提交" value={recentSubmissions || "-"} />
         </div>
 
         <article className="teacher-trend-panel">
@@ -286,10 +319,11 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
           <div className="teacher-table teacher-table--problems">
             <div className="teacher-table-row teacher-table-row--head">
               <span>题目</span>
-              <span>提交</span>
-              <span>通过</span>
-              <span>尝试</span>
-              <span>关注</span>
+              <span>提交率</span>
+              <span>通过率</span>
+              <span>人均尝试</span>
+              <span>主要错因</span>
+              <span>需关注</span>
               <span></span>
             </div>
             {problems.map(problem => (
@@ -298,10 +332,11 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
                   <DifficultyPill difficulty={problem.difficulty} />
                   <strong>{problem.title}</strong>
                 </span>
-                <span data-label="提交">{formatCountRate(problem.submissionRate)}</span>
-                <span data-label="通过">{formatCountRate(problem.passRate)}</span>
-                <span data-label="尝试">{problem.submissionCount} 次</span>
-                <span data-label="关注">{problem.attentionStudentCount || "-"}</span>
+                <span data-label="提交率">{formatCountRate(problem.submissionRate)}</span>
+                <span data-label="通过率">{formatCountRate(problem.passRate)}</span>
+                <span data-label="人均尝试">{formatNumber(problem.averageAttempts)}</span>
+                <span data-label="主要错因">{problem.topIssues?.[0]?.label ? issueLabel(problem.topIssues[0].label) : "-"}</span>
+                <span data-label="需关注">{problem.attentionStudentCount || "-"}</span>
                 <span className="teacher-table-action">
                   <StatusPill tone={statusTone(problem.statusLabel)}>{problem.statusLabel || "待提交"}</StatusPill>
                   <ArrowRight size={16} />
@@ -316,12 +351,13 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
 }
 
 function ProblemOverviewView({ overview, problem }: { overview: AssignmentOverview; problem: ProblemSummary }) {
-  const students = problem.students || [];
+  const students = sortedProblemStudents(problem.students || []);
   const topIssue = problem.topIssues?.[0] || null;
   const topAbility = problem.abilityWeaknesses?.[0] || null;
   const hasStudentRows = students.length > 0;
   const hasSubmissions = problem.submissionCount > 0;
   const hasUnlinkedSubmissions = hasSubmissions && !hasStudentRows;
+  const latestSubmittedAt = latestStudentSubmission(students);
   const actionTitle = hasUnlinkedSubmissions ? "先补学生关联" : !hasSubmissions ? "等待提交" : problem.statusLabel === "需讲评" ? "先讲这题" : "继续观察";
   const actionCopy = hasUnlinkedSubmissions
     ? "这道题已有提交证据，但没有可定位到学生的明细；先让提交关联到默认班级名单。"
@@ -350,9 +386,9 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
           <div className="teacher-drill-strip">
             <Metric label="提交率" value={formatCountRate(problem.submissionRate)} />
             <Metric label="通过率" value={formatCountRate(problem.passRate)} />
-            <Metric label="提交人数" value={`${problem.submittedStudentCount}/${problem.classStudentCount ?? "-"}`} />
-            <Metric label="总提交" value={problem.submissionCount} />
             <Metric label="人均尝试" value={formatNumber(problem.averageAttempts)} />
+            <Metric label="需关注" value={problem.attentionStudentCount || "-"} />
+            <Metric label="最新提交" value={latestSubmittedAt ? formatDateTime(latestSubmittedAt) : hasSubmissions ? "有提交" : "-"} />
           </div>
 
           <section className="teacher-analysis-grid">
@@ -372,9 +408,11 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
               <div className="teacher-table-row teacher-table-row--head">
                 <span>学生</span>
                 <span>提交</span>
-                <span>通过</span>
+                <span>是否通过</span>
                 <span>最新结果</span>
+                <span>提示层级</span>
                 <span>错因</span>
+                <span>最近提交</span>
                 <span></span>
               </div>
               {hasStudentRows ? (
@@ -389,9 +427,11 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
                       {student.studentNo ? <small>{student.studentNo} 号</small> : null}
                     </span>
                     <span data-label="提交">{student.attemptCount} 次</span>
-                    <span data-label="通过">{studentPassRate(student)}%</span>
+                    <span data-label="是否通过">{student.passedCount > 0 ? "通过" : "未通过"}</span>
                     <span data-label="最新结果"><VerdictPill verdict={student.latestVerdict} /></span>
-                    <span data-label="错因">{student.latestFineGrainedIssue || student.latestIssueTag ? issueLabel(student.latestFineGrainedIssue || student.latestIssueTag) : "-"}</span>
+                    <span data-label="提示层级">{student.latestHintLevel ? hintPolicyLabel(student.latestHintLevel) : "-"}</span>
+                    <span data-label="错因">{problemStudentIssue(student)}</span>
+                    <span data-label="最近提交">{student.latestSubmittedAt ? formatDateTime(student.latestSubmittedAt) : "-"}</span>
                     <span className="teacher-table-action">
                       {student.needsAttention ? <StatusPill tone="warning">关注</StatusPill> : <StatusPill tone="success">稳定</StatusPill>}
                       <ArrowRight size={16} />
@@ -470,7 +510,8 @@ function StudentProblemView({
             <Metric label="提交次数" value={student.attemptCount} />
             <Metric label="通过次数" value={student.passedCount} />
             <Metric label="最新结果" value={verdictLabel(student.latestVerdict)} />
-            <Metric label="AI 置信" value={confidenceLabel(student.latestConfidence).replace("置信度 ", "")} />
+            <Metric label="提示层级" value={student.latestHintLevel ? hintPolicyLabel(student.latestHintLevel) : "-"} />
+            <Metric label="最近提交" value={student.latestSubmittedAt ? formatDateTime(student.latestSubmittedAt) : "-"} />
           </div>
 
           <article className="teacher-evidence-card">
@@ -480,15 +521,21 @@ function StudentProblemView({
           </article>
 
           <article className="teacher-evidence-card">
-            <span>知识点</span>
-            <strong>{displayText(student.abilityPoint, "待观察")}</strong>
-            <p>{student.latestHintAction || "暂无明确提示动作。"}</p>
+            <span>AI 判断</span>
+            <strong>{confidenceLabel(student.latestConfidence)}</strong>
+            <p>{student.latestProgressSignal || student.latestHintAction || "AI 还没有形成稳定判断。"}</p>
           </article>
 
           <article className="teacher-evidence-card">
-            <span>最近提交</span>
-            <strong>{formatDateTime(student.latestSubmittedAt)}</strong>
-            <p>{student.latestProgressSignal || "继续观察下一次提交。"}</p>
+            <span>错因标签</span>
+            <strong>{currentIssue}</strong>
+            <p>{displayText(student.abilityPoint, "知识点待观察")}</p>
+          </article>
+
+          <article className="teacher-evidence-card">
+            <span>评测证据</span>
+            <strong>{verdictLabel(student.latestVerdict)}</strong>
+            <p>{student.latestSubmittedAt ? `${formatDateTime(student.latestSubmittedAt)} 的最近一次提交。` : "还没有可展示的提交时间。"}</p>
           </article>
 
           <article className="teacher-evidence-card teacher-trajectory-card">
@@ -519,6 +566,10 @@ function StudentProblemView({
           <p className="eyebrow">教师动作</p>
           <h2>{student.needsAttention ? "优先处理" : "保持观察"}</h2>
           <p>{student.latestHintAction || student.latestProgressSignal || "让学生先补一次可见提交，再判断是否需要讲解。"}</p>
+          <article className="teacher-action-note">
+            <strong>给学生的下一步问题</strong>
+            <p>{student.latestHintAction || `先让学生解释：这次结果为什么是${verdictLabel(student.latestVerdict)}？`}</p>
+          </article>
           <Button
             type="button"
             variant="secondary"

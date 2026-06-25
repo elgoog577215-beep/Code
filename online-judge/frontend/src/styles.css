@@ -9124,6 +9124,360 @@ tr:last-child td {
   }
 }
 
+/* Teacher mature workflow pass */
+.teacher-workflow-home {
+  width: min(100%, 1120px);
+}
+
+.teacher-home-status-strip {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(180px, 1.25fr) repeat(4, minmax(96px, 0.65fr));
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.teacher-home-status-strip > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.58rem 0.68rem;
+  border-right: 1px solid var(--line);
+}
+
+.teacher-home-status-strip > div:last-child {
+  border-right: 0;
+}
+
+.teacher-home-status-strip span {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  font-weight: 820;
+}
+
+.teacher-home-status-strip strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.96rem;
+}
+
+.teacher-home-workbench {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
+  gap: 0.72rem;
+  align-items: start;
+}
+
+.teacher-section-head--compact {
+  padding: 0.58rem 0.72rem 0.2rem;
+}
+
+.teacher-attention-panel,
+.class-progress-workbench {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.teacher-attention-list {
+  display: grid;
+  gap: 0.34rem;
+  padding: 0.46rem;
+}
+
+.teacher-attention-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.58fr);
+  gap: 0.48rem;
+  padding: 0.56rem 0.62rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface-strong) 74%, transparent);
+  text-decoration: none;
+}
+
+.teacher-attention-row:hover {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 22%, var(--surface));
+}
+
+.teacher-attention-row span {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.teacher-attention-row strong,
+.teacher-attention-row em,
+.teacher-attention-row small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-attention-row em {
+  font-style: normal;
+  font-weight: 850;
+}
+
+.teacher-attention-row small {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+
+.teacher-table--problems .teacher-table-row {
+  grid-template-columns: minmax(220px, 1.2fr) minmax(78px, 0.45fr) minmax(78px, 0.45fr) minmax(84px, 0.45fr) minmax(150px, 0.78fr) minmax(76px, 0.4fr) minmax(120px, 0.6fr);
+}
+
+.teacher-table--students .teacher-table-row {
+  grid-template-columns: minmax(178px, 1.08fr) minmax(64px, 0.34fr) minmax(74px, 0.36fr) minmax(92px, 0.48fr) minmax(92px, 0.48fr) minmax(138px, 0.68fr) minmax(118px, 0.62fr) minmax(108px, 0.54fr);
+}
+
+.teacher-action-note {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.58rem 0.62rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--brand-soft) 22%, var(--surface));
+}
+
+.teacher-action-note strong {
+  font-size: 0.82rem;
+}
+
+.class-progress-page {
+  width: min(100%, 1180px);
+}
+
+.class-progress-command {
+  box-shadow: none;
+}
+
+.class-progress-matrix {
+  margin: 0.36rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.class-progress-grid {
+  min-width: max-content;
+  display: grid;
+  align-items: stretch;
+}
+
+.class-progress-grid > * {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 0.1rem;
+  min-height: 50px;
+  padding: 0.48rem 0.56rem;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.class-progress-grid > *:last-child {
+  border-right: 0;
+}
+
+.class-progress-grid:last-child > * {
+  border-bottom: 0;
+}
+
+.class-progress-grid--head > * {
+  min-height: 42px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+  font-size: 0.74rem;
+  font-weight: 860;
+}
+
+.class-progress-grid strong,
+.class-progress-grid small,
+.class-progress-mobile-row strong,
+.class-progress-mobile-row small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.class-progress-grid small,
+.class-progress-mobile-row small,
+.class-progress-footnote {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+
+.class-progress-student strong {
+  color: var(--ink);
+}
+
+.class-progress-cell--attention {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.class-progress-cell--passed {
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+
+.class-progress-cell--submitted {
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+}
+
+.class-progress-cell--idle,
+.class-progress-cell--empty {
+  background: color-mix(in srgb, var(--surface-strong) 55%, transparent);
+}
+
+.class-progress-cell--attention strong {
+  color: color-mix(in srgb, var(--warning) 72%, var(--ink));
+}
+
+.class-progress-cell--passed strong {
+  color: color-mix(in srgb, var(--success) 76%, var(--ink));
+}
+
+.class-progress-mobile-list {
+  display: none;
+}
+
+.class-progress-footnote {
+  margin: 0;
+  padding-inline: 0.1rem;
+}
+
+.standard-library-growth-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  padding: 0.46rem 0.54rem;
+}
+
+.standard-library-growth-card__head,
+.standard-library-growth-card__meta,
+.standard-library-growth-card__note,
+.standard-library-growth-card__evidence,
+.standard-library-growth-card details,
+.standard-library-growth-card pre {
+  grid-column: 1 / -1;
+}
+
+:root[data-theme="dark"] .teacher-home-status-strip,
+:root[data-theme="dark"] .teacher-attention-panel,
+:root[data-theme="dark"] .teacher-attention-row,
+:root[data-theme="dark"] .class-progress-workbench,
+:root[data-theme="dark"] .class-progress-matrix,
+:root[data-theme="dark"] .teacher-action-note {
+  background: #12161d;
+  border-color: #2f3745;
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .teacher-attention-row:hover {
+  background: #162027;
+}
+
+@media (max-width: 1080px) {
+  .teacher-home-workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .teacher-home-status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-home-status-strip > div {
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .teacher-home-status-strip > div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .teacher-home-status-strip > div:nth-last-child(-n + 1) {
+    border-bottom: 0;
+  }
+
+  .teacher-attention-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-table--problems .teacher-table-row,
+  .teacher-table--students .teacher-table-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .class-progress-matrix--desktop {
+    display: none;
+  }
+
+  .class-progress-mobile-list {
+    display: grid;
+    gap: 0.52rem;
+    padding: 0.52rem;
+  }
+
+  .class-progress-mobile-card {
+    min-width: 0;
+    display: grid;
+    gap: 0.42rem;
+    padding: 0.58rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-strong) 70%, transparent);
+  }
+
+  .class-progress-mobile-card > div {
+    display: grid;
+    gap: 0.32rem;
+  }
+
+  .class-progress-mobile-row {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.44rem;
+    padding: 0.46rem 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .class-progress-mobile-row span {
+    min-width: 0;
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .class-progress-mobile-row em {
+    font-style: normal;
+    font-size: 0.78rem;
+    font-weight: 880;
+  }
+}
+
 @media (max-width: 430px) {
   .teacher-quick-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));

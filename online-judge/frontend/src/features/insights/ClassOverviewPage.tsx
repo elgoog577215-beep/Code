@@ -1,132 +1,335 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { ArrowRight, ClipboardList, Plus } from "lucide-react";
+import { Link } from "react-router-dom";
 import { api } from "../../shared/api/client";
-import type { LeaderboardEntry } from "../../shared/api/types";
-import { difficultyLabel, percent } from "../../shared/format";
+import type { Assignment, AssignmentOverview } from "../../shared/api/types";
+import { assignmentStatusLabel, displayText, issueLabel, looksCorruptText } from "../../shared/format";
+import { ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
-import { Metric } from "../../shared/ui/Metric";
-import { Panel } from "../../shared/ui/Panel";
 import { StatusPill } from "../../shared/ui/StatusPill";
 
+type ProgressCellTone = "empty" | "idle" | "submitted" | "passed" | "attention";
+type ClassAssignment = Assignment & { title: string; className: string };
+type ProgressCell = {
+  assignmentId: number;
+  label: string;
+  detail: string;
+  tone: ProgressCellTone;
+  href?: string;
+};
+type ProgressRow = {
+  studentProfileId: number;
+  displayName: string;
+  studentNo?: string | null;
+  attentionCount: number;
+  cells: ProgressCell[];
+};
+
+function cleanAssignmentTitle(value?: string | null, fallback = "课堂作业") {
+  const title = displayText(value, fallback);
+  return title.includes("试点任务") ? "课堂编程作业" : title;
+}
+
+function recentSubmissionDelta(overview?: AssignmentOverview | null) {
+  const trend = overview?.progressTrend || [];
+  if (trend.length >= 2) {
+    return Math.max(0, trend[trend.length - 1].submissionCount - trend[trend.length - 2].submissionCount);
+  }
+  return trend[0]?.submissionCount ?? 0;
+}
+
+function studentIssue(student: AssignmentOverview["students"][number]) {
+  const evidence = student.attentionEvidence?.[0];
+  const tag = evidence?.fineGrainedTag || student.latestFineGrainedIssue || evidence?.issueTag || student.latestIssueTag || student.repeatedFineGrainedTag || student.repeatedIssueTag;
+  if (student.attentionReason) {
+    return student.attentionReason;
+  }
+  if (evidence?.headline || evidence?.reason) {
+    return evidence.headline || evidence.reason || "需要关注";
+  }
+  return tag ? issueLabel(tag) : student.latestProgressSignal || "暂无明确错因";
+}
+
+function makeCell(assignment: ClassAssignment, student: AssignmentOverview["students"][number]): ProgressCell {
+  const evidence = student.attentionEvidence?.find(item => item.problemId) || student.attentionEvidence?.[0];
+  const href = evidence?.problemId
+    ? `/app/teacher/assignment/${assignment.id}/problems/${evidence.problemId}/students/${student.studentProfileId}`
+    : `/app/teacher/assignment/${assignment.id}`;
+  if (student.needsAttention) {
+    return {
+      assignmentId: assignment.id,
+      label: "需关注",
+      detail: studentIssue(student),
+      tone: "attention",
+      href
+    };
+  }
+  if (student.passedCount > 0) {
+    return {
+      assignmentId: assignment.id,
+      label: "通过",
+      detail: `${student.passedCount}/${student.attemptCount || student.passedCount} 次`,
+      tone: "passed",
+      href
+    };
+  }
+  if (student.attemptCount > 0) {
+    return {
+      assignmentId: assignment.id,
+      label: "已提交",
+      detail: `${student.attemptCount} 次，${studentIssue(student)}`,
+      tone: "submitted",
+      href
+    };
+  }
+  return {
+    assignmentId: assignment.id,
+    label: "未开始",
+    detail: "暂无提交",
+    tone: "idle",
+    href
+  };
+}
+
+function emptyCell(assignmentId: number): ProgressCell {
+  return { assignmentId, label: "-", detail: "缺少可定位数据", tone: "empty" };
+}
+
+function firstStudentHref(row: ProgressRow) {
+  return row.cells.find(cell => cell.tone === "attention" && cell.href)?.href || row.cells.find(cell => cell.href)?.href || "/app/teacher/classes";
+}
+
 export default function ClassOverviewPage() {
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [overviewByAssignment, setOverviewByAssignment] = useState<Record<number, AssignmentOverview | null>>({});
   const [alert, setAlert] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void api
-      .classOverview()
-      .then(setEntries)
-      .catch(error => setAlert(error instanceof Error ? error.message : "班级概览加载失败。"));
+    void loadClassProgress();
   }, []);
 
-  const totals = useMemo(() => {
-    const submissions = entries.reduce((sum, item) => sum + (item.totalSubmissions || 0), 0);
-    const accepted = entries.reduce((sum, item) => sum + (item.acceptedSubmissions || 0), 0);
-    const avg = submissions ? (accepted / submissions) * 100 : 0;
-    return { submissions, accepted, avg };
-  }, [entries]);
-  const reviewEntries = useMemo(() => entries.filter(item => (item.acceptanceRate || 0) < 40).slice(0, 3), [entries]);
-  const stableEntries = useMemo(() => entries.filter(item => (item.acceptanceRate || 0) >= 70).slice(0, 2), [entries]);
-  const idleCount = useMemo(() => entries.filter(item => (item.totalSubmissions || 0) === 0).length, [entries]);
+  async function loadClassProgress() {
+    setLoading(true);
+    setAlert(null);
+    try {
+      const assignmentResult = await api.assignments();
+      setAssignments(assignmentResult);
+      const overviewEntries = await Promise.all(
+        assignmentResult.map(async assignment => {
+          try {
+            return [assignment.id, await api.assignmentOverview(assignment.id)] as const;
+          } catch {
+            return [assignment.id, null] as const;
+          }
+        })
+      );
+      setOverviewByAssignment(Object.fromEntries(overviewEntries));
+    } catch (error) {
+      setAlert(error instanceof Error ? error.message : "班级进度加载失败。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const cleanAssignments = useMemo(
+    () =>
+      assignments
+        .filter(item => !looksCorruptText(item.title))
+        .map(item => ({
+          ...item,
+          title: cleanAssignmentTitle(item.title, `课堂作业 #${item.id}`),
+          className: displayText(item.className, "默认班级")
+        })),
+    [assignments]
+  );
+  const columns = useMemo(() => {
+    const active = cleanAssignments.filter(item => item.status === "ACTIVE");
+    return active.length ? active : cleanAssignments;
+  }, [cleanAssignments]);
+  const progressRows = useMemo(() => {
+    const rowMap = new Map<number, Omit<ProgressRow, "cells"> & { cellMap: Map<number, ProgressCell> }>();
+    columns.forEach(assignment => {
+      const overview = overviewByAssignment[assignment.id];
+      overview?.students.forEach(student => {
+        const row =
+          rowMap.get(student.studentProfileId) ||
+          {
+            studentProfileId: student.studentProfileId,
+            displayName: displayText(student.displayName, `学生 #${student.studentProfileId}`),
+            studentNo: student.studentNo,
+            attentionCount: 0,
+            cellMap: new Map<number, ProgressCell>()
+          };
+        const cell = makeCell(assignment, student);
+        row.cellMap.set(assignment.id, cell);
+        row.attentionCount += cell.tone === "attention" ? 1 : 0;
+        rowMap.set(student.studentProfileId, row);
+      });
+    });
+    return [...rowMap.values()]
+      .map(row => ({
+        studentProfileId: row.studentProfileId,
+        displayName: row.displayName,
+        studentNo: row.studentNo,
+        attentionCount: row.attentionCount,
+        cells: columns.map(assignment => row.cellMap.get(assignment.id) || emptyCell(assignment.id))
+      }))
+      .sort((left, right) => right.attentionCount - left.attentionCount || left.displayName.localeCompare(right.displayName, "zh-Hans-CN"));
+  }, [columns, overviewByAssignment]);
+
+  const summary = useMemo(() => {
+    const overviews = columns.map(assignment => overviewByAssignment[assignment.id]).filter(Boolean) as AssignmentOverview[];
+    const participantCount = overviews.length ? Math.max(...overviews.map(overview => overview.participantCount || 0)) : 0;
+    const attentionStudentIds = new Set(progressRows.filter(row => row.attentionCount > 0).map(row => row.studentProfileId));
+    const recentSubmissions = columns.reduce((sum, assignment) => sum + recentSubmissionDelta(overviewByAssignment[assignment.id]), 0);
+    return {
+      className: columns[0]?.className || "默认班级",
+      assignmentCount: columns.length,
+      participantCount,
+      attentionCount: attentionStudentIds.size,
+      recentSubmissions
+    };
+  }, [columns, overviewByAssignment, progressRows]);
+  const gridStyle: CSSProperties = {
+    gridTemplateColumns: `minmax(190px, 1.05fr) repeat(${Math.max(columns.length, 1)}, minmax(132px, 0.72fr))`
+  };
 
   return (
-    <div className="stack class-overview-page">
-      <section className="overview-command">
+    <div className="stack class-overview-page class-progress-page">
+      <section className="overview-command class-progress-command">
         <div className="overview-command__main">
           <p className="eyebrow">教师查看</p>
-          <h1>班级情况</h1>
+          <h1>班级进度</h1>
         </div>
-        <div className="overview-command__note">
-          <StatusPill tone={reviewEntries.length ? "warning" : "success"}>{reviewEntries.length ? "需要关注" : "正常"}</StatusPill>
-          <strong>{reviewEntries.length ? `${reviewEntries.length} 个任务待讲评` : "正常"}</strong>
+        <div className="teacher-home-actions">
+          <ButtonLink to="/app/teacher" variant="secondary" icon={<ClipboardList size={16} />}>
+            作业
+          </ButtonLink>
+          <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={16} />}>
+            新建作业
+          </ButtonLink>
         </div>
       </section>
 
       {alert && <div className="alert alert--error">{alert}</div>}
 
-      <div className="metric-grid">
-        <Metric label="覆盖任务" value={entries.length} />
-        <Metric label="总提交" value={totals.submissions} />
-        <Metric label="通过提交" value={totals.accepted} />
-        <Metric label="整体通过率" value={percent(totals.avg)} />
-      </div>
-
-      <section className="overview-insight-grid" aria-label="班级数据">
-        <Panel title="需讲评" action={<span className="meta-badge meta-badge--warning">{reviewEntries.length} 个</span>}>
-          <InsightList entries={reviewEntries} emptyTitle="正常" tone="warning" />
-        </Panel>
-        <Panel title="正常推进" action={<span className="meta-badge meta-badge--success">{stableEntries.length} 个</span>}>
-          <InsightList entries={stableEntries} emptyTitle="还没有稳定任务" tone="success" />
-        </Panel>
-        <Panel title="提交情况" action={<span className="meta-badge meta-badge--info">{idleCount ? `${idleCount} 个未提交` : "已覆盖"}</span>}>
-          <div className="overview-coverage-row">
-            <span>任务数</span>
-            <strong>{entries.length}</strong>
-            <span>总提交</span>
-            <strong>{totals.submissions}</strong>
-          </div>
-        </Panel>
+      <section className="teacher-home-status-strip" aria-label="班级状态">
+        <div>
+          <span>默认班级</span>
+          <strong>{summary.className}</strong>
+        </div>
+        <div>
+          <span>进行中作业</span>
+          <strong>{summary.assignmentCount || "-"}</strong>
+        </div>
+        <div>
+          <span>总学生</span>
+          <strong>{summary.participantCount || "-"}</strong>
+        </div>
+        <div>
+          <span>需关注学生</span>
+          <strong>{summary.attentionCount}</strong>
+        </div>
+        <div>
+          <span>最近提交</span>
+          <strong>{summary.recentSubmissions || "-"}</strong>
+        </div>
       </section>
 
-      <details className="overview-compact-details">
-        <summary>
-          <span>任务表现</span>
-          <StatusPill tone="neutral">{entries.length} 个任务</StatusPill>
-        </summary>
-        {!entries.length ? null : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>学习任务</th>
-                  <th>难度</th>
-                  <th>提交</th>
-                  <th>通过</th>
-                  <th>通过率</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map(item => (
-                  <tr key={item.problemId}>
-                    <td data-label="学习任务">{item.problemTitle}</td>
-                    <td data-label="难度">
-                      <span className="meta-badge">{difficultyLabel(item.difficulty)}</span>
-                    </td>
-                    <td data-label="提交">{item.totalSubmissions}</td>
-                    <td data-label="通过">{item.acceptedSubmissions}</td>
-                    <td data-label="通过率">{percent(item.acceptanceRate || 0)}</td>
-                    <td data-label="状态">
-                      <StatusPill tone={(item.acceptanceRate || 0) < 40 ? "warning" : "success"}>
-                        {(item.acceptanceRate || 0) < 40 ? "需讲评" : "正常"}
-                      </StatusPill>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </details>
-    </div>
-  );
-}
-
-function InsightList({ entries, emptyTitle, tone }: { entries: LeaderboardEntry[]; emptyTitle: string; tone: "warning" | "success" | "info" }) {
-  if (!entries.length) {
-    return <EmptyState title={emptyTitle} />;
-  }
-  return (
-    <div className="overview-insight-list">
-      {entries.map(item => (
-        <div className="overview-insight-item" key={`${tone}-${item.problemId}`}>
+      <section className="class-progress-workbench" aria-label="班级进度矩阵">
+        <div className="teacher-section-head teacher-section-head--compact">
           <div>
-            <span className="overview-insight-meta">{difficultyLabel(item.difficulty)}</span>
-            <h3>{item.problemTitle}</h3>
-            <p>{item.totalSubmissions} 次提交 · {item.acceptedSubmissions} 次通过</p>
+            <p className="eyebrow">学生 x 作业</p>
+            <h2>进度矩阵</h2>
           </div>
-          <strong>{percent(item.acceptanceRate || 0)}</strong>
+          <StatusPill tone={summary.attentionCount ? "warning" : "success"}>{summary.attentionCount ? `${summary.attentionCount} 人关注` : "稳定"}</StatusPill>
         </div>
-      ))}
+
+        {loading && !columns.length ? (
+          <EmptyState title="正在读取班级进度" />
+        ) : !columns.length ? (
+          <EmptyState title="暂无作业" description="新建作业后，这里会按学生和作业显示推进状态。" />
+        ) : !progressRows.length ? (
+          <EmptyState title="暂无可定位到学生的提交" description="现有接口还没有返回学生明细，矩阵不会伪造未开始状态。" />
+        ) : (
+          <>
+            <div className="class-progress-matrix class-progress-matrix--desktop">
+              <div className="class-progress-grid class-progress-grid--head" style={gridStyle}>
+                <span>学生</span>
+                {columns.map(assignment => (
+                  <Link to={`/app/teacher/assignment/${assignment.id}`} key={assignment.id}>
+                    <strong>{assignment.title}</strong>
+                    <small>{assignmentStatusLabel(assignment.status)}</small>
+                  </Link>
+                ))}
+              </div>
+              {progressRows.map(row => (
+                <div className="class-progress-grid" style={gridStyle} key={row.studentProfileId}>
+                  <Link className="class-progress-student" to={firstStudentHref(row)}>
+                    <strong>{row.displayName}</strong>
+                    <small>{row.studentNo ? `${row.studentNo} 号` : row.attentionCount ? `${row.attentionCount} 个关注` : "有提交记录"}</small>
+                  </Link>
+                  {row.cells.map(cell =>
+                    cell.href ? (
+                      <Link className={`class-progress-cell class-progress-cell--${cell.tone}`} to={cell.href} key={`${row.studentProfileId}-${cell.assignmentId}`}>
+                        <strong>{cell.label}</strong>
+                        <small>{cell.detail}</small>
+                      </Link>
+                    ) : (
+                      <span className={`class-progress-cell class-progress-cell--${cell.tone}`} key={`${row.studentProfileId}-${cell.assignmentId}`}>
+                        <strong>{cell.label}</strong>
+                        <small>{cell.detail}</small>
+                      </span>
+                    )
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="class-progress-mobile-list">
+              {progressRows.map(row => (
+                <article className="class-progress-mobile-card" key={`mobile-${row.studentProfileId}`}>
+                  <Link className="class-progress-student" to={firstStudentHref(row)}>
+                    <strong>{row.displayName}</strong>
+                    <small>{row.studentNo ? `${row.studentNo} 号` : row.attentionCount ? `${row.attentionCount} 个关注` : "有提交记录"}</small>
+                  </Link>
+                  <div>
+                    {row.cells.map((cell, index) => {
+                      const assignment = columns[index];
+                      const content = (
+                        <>
+                          <span>
+                            <strong>{assignment.title}</strong>
+                            <small>{cell.detail}</small>
+                          </span>
+                          <em>{cell.label}</em>
+                        </>
+                      );
+                      return cell.href ? (
+                        <Link className={`class-progress-mobile-row class-progress-cell--${cell.tone}`} to={cell.href} key={`${row.studentProfileId}-m-${cell.assignmentId}`}>
+                          {content}
+                          <ArrowRight size={15} />
+                        </Link>
+                      ) : (
+                        <span className={`class-progress-mobile-row class-progress-cell--${cell.tone}`} key={`${row.studentProfileId}-m-${cell.assignmentId}`}>
+                          {content}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      {columns.some(assignment => recentSubmissionDelta(overviewByAssignment[assignment.id]) > 0) ? (
+        <p className="class-progress-footnote">
+          最近提交按作业 overview 的最后两个趋势点派生；缺少学生名单关联时显示为 `-`，不推断。
+        </p>
+      ) : null}
     </div>
   );
 }
