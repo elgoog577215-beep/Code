@@ -45,6 +45,7 @@ public class SearchLocationRetrievalService {
                 continue;
             }
             candidates.add(toCandidate(item, textScore, vectorScore, signalScore, finalScore,
+                    shouldUseVector() && "READY".equals(queryEmbedding.status()),
                     matchedSignals(item, tokens, brief, ruleSignals)));
         }
         List<SearchLocationCandidate> ranked = candidates.stream()
@@ -52,7 +53,14 @@ public class SearchLocationRetrievalService {
                                 Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(SearchLocationCandidate::getLayer)
                         .thenComparing(SearchLocationCandidate::getId))
-                .limit(Math.max(20, properties.getCandidateLimit()))
+                .limit(candidateLimit())
+                .toList();
+        ranked = withTreeContext(ranked);
+        List<String> recallSources = ranked.stream()
+                .flatMap(candidate -> candidate.getRecallSources() == null
+                        ? java.util.stream.Stream.empty()
+                        : candidate.getRecallSources().stream())
+                .distinct()
                 .toList();
         if (shouldUseVector() && !"READY".equals(embeddingStatus)) {
             embeddingStatus = "VECTOR_DEGRADED:" + queryEmbedding.failureReason();
@@ -62,10 +70,15 @@ public class SearchLocationRetrievalService {
                 .mode(normalizeMode())
                 .embeddingStatus(embeddingStatus)
                 .fallbackReason(queryEmbedding.failureReason())
+                .recallSources(recallSources)
                 .totalAvailableCount(items.size())
                 .candidateCount(ranked.size())
                 .candidates(ranked)
                 .build();
+    }
+
+    private int candidateLimit() {
+        return Math.max(20, Math.min(properties.getCandidateLimit(), 40));
     }
 
     private boolean shouldUseVector() {
@@ -171,6 +184,7 @@ public class SearchLocationRetrievalService {
                                                 double vectorScore,
                                                 double signalScore,
                                                 double finalScore,
+                                                boolean vectorReady,
                                                 List<String> matchedSignals) {
         return SearchLocationCandidate.builder()
                 .itemId(item.getId())
@@ -183,12 +197,99 @@ public class SearchLocationRetrievalService {
                 .mistakeType(item.getMistakeType())
                 .knowledgeNodeCodes(lines(item.getKnowledgeNodeCodes()))
                 .applicableLanguages(lines(item.getApplicableLanguages()))
+                .recallSources(recallSources(item, textScore, vectorScore, signalScore, vectorReady))
+                .parentKnowledgePath(parentKnowledgePath(item))
+                .siblingMistakePointIds(List.of())
+                .extensionCandidateIds(List.of())
                 .textScore(round(textScore))
                 .vectorScore(round(vectorScore))
                 .signalScore(round(signalScore))
                 .finalScore(round(finalScore))
                 .matchedSignals(matchedSignals)
                 .build();
+    }
+
+    private List<SearchLocationCandidate> withTreeContext(List<SearchLocationCandidate> candidates) {
+        return candidates.stream()
+                .map(candidate -> candidate.toBuilder()
+                        .siblingMistakePointIds(siblingMistakePointIds(candidate, candidates))
+                        .extensionCandidateIds(extensionCandidateIds(candidate, candidates))
+                        .build())
+                .toList();
+    }
+
+    private List<String> siblingMistakePointIds(SearchLocationCandidate target,
+                                                List<SearchLocationCandidate> candidates) {
+        String skillUnit = safe(target.getSkillUnitCode());
+        if (skillUnit.isBlank()) {
+            return List.of();
+        }
+        return candidates.stream()
+                .filter(candidate -> candidate != target)
+                .filter(candidate -> "MISTAKE_POINT".equals(candidate.getLayer()))
+                .filter(candidate -> skillUnit.equals(safe(candidate.getSkillUnitCode())))
+                .map(SearchLocationCandidate::getId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .limit(6)
+                .toList();
+    }
+
+    private List<String> extensionCandidateIds(SearchLocationCandidate target,
+                                               List<SearchLocationCandidate> candidates) {
+        List<String> path = target.getKnowledgeNodeCodes() == null ? List.of() : target.getKnowledgeNodeCodes();
+        if (path.isEmpty()) {
+            return List.of();
+        }
+        return candidates.stream()
+                .filter(candidate -> candidate != target)
+                .filter(candidate -> "IMPROVEMENT_POINT".equals(candidate.getLayer())
+                        || "SKILL_UNIT".equals(candidate.getLayer()))
+                .filter(candidate -> sharesKnowledgePath(path, candidate.getKnowledgeNodeCodes()))
+                .map(SearchLocationCandidate::getId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .limit(5)
+                .toList();
+    }
+
+    private boolean sharesKnowledgePath(List<String> left, List<String> right) {
+        if (left == null || right == null || left.isEmpty() || right.isEmpty()) {
+            return false;
+        }
+        return left.stream().anyMatch(right::contains);
+    }
+
+    private List<String> recallSources(AiStandardLibraryItem item,
+                                       double textScore,
+                                       double vectorScore,
+                                       double signalScore,
+                                       boolean vectorReady) {
+        LinkedHashSet<String> sources = new LinkedHashSet<>();
+        if (!safe(item.getKnowledgeNodeCodes()).isBlank() || !safe(item.getSkillUnitCode()).isBlank()) {
+            sources.add("STRUCTURE");
+        }
+        if (textScore > 0) {
+            sources.add("KEYWORD");
+        }
+        if (signalScore > 0) {
+            sources.add("RULE_SIGNAL");
+        }
+        if (vectorReady && vectorScore > 0) {
+            sources.add("VECTOR");
+        }
+        if (sources.isEmpty()) {
+            sources.add("STRUCTURE");
+        }
+        return sources.stream().toList();
+    }
+
+    private String parentKnowledgePath(AiStandardLibraryItem item) {
+        List<String> paths = lines(item.getKnowledgeNodeCodes());
+        if (paths.isEmpty()) {
+            return safe(item.getCategory());
+        }
+        return paths.get(0).replace(".", " > ");
     }
 
     private List<String> matchedSignals(AiStandardLibraryItem item,

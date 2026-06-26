@@ -1692,7 +1692,16 @@ export interface AiStandardLibraryItemPayload {
   libraryVersion?: string | null;
 }
 
-export type AiStandardLibraryGrowthCandidateStatus = "PROPOSED" | "NEEDS_REVIEW" | "BLOCKED" | "MERGED" | "IGNORED" | string;
+export type AiStandardLibraryGrowthCandidateStatus =
+  | "PROPOSED"
+  | "NEEDS_REVIEW"
+  | "BLOCKED"
+  | "MERGED_SIMILAR"
+  | "TEACHER_APPROVED"
+  | "REJECTED"
+  | "MERGED"
+  | "IGNORED"
+  | string;
 
 export interface AiStandardLibraryGrowthCandidate {
   id: number;
@@ -1708,6 +1717,9 @@ export interface AiStandardLibraryGrowthCandidate {
   status: AiStandardLibraryGrowthCandidateStatus;
   precheckMessage?: string | null;
   confidence?: number | null;
+  occurrenceCount?: number | null;
+  lastObservedAt?: string | null;
+  teacherNote?: string | null;
   beforeSnapshot?: string | null;
   diffSummary?: string | null;
   rollbackInfo?: string | null;

@@ -1,8 +1,5 @@
-# ai-diagnosis-orchestrator-v2 Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Purpose after archive.
-## Requirements
 ### Requirement: 诊断编排默认跳过外部搜索定位 Agent
 系统 SHALL 默认使用本地召回候选进入正式诊断报告阶段；外部搜索定位模型调用 SHALL 仅作为显式开启的对照或调试路径。
 
@@ -18,6 +15,8 @@ TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Pur
 - **WHEN** 配置显式开启外部搜索定位模型调用
 - **THEN** 系统 MAY 调用 `search-location-v1` 作为对照路径，并 MUST 在 trace 中记录该阶段状态
 
+## ADDED Requirements
+
 ### Requirement: 本地召回提供树形候选上下文
 系统 SHALL 在默认链路中用本地召回构造树形标准库候选包，候选包包含召回来源、父级路径、关联能力点、同层易错点和少量延伸点。
 
@@ -28,4 +27,3 @@ TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Pur
 #### Scenario: 向量召回不可用
 - **WHEN** 向量召回失败或未配置
 - **THEN** 系统 SHALL 使用结构、关键词和规则信号召回继续诊断，并在 trace 中标记降级
-

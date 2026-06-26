@@ -20,6 +20,7 @@ public class SearchLocationCandidatePack {
     private String mode;
     private String embeddingStatus;
     private String fallbackReason;
+    private List<String> recallSources;
     private int totalAvailableCount;
     private int candidateCount;
     private List<SearchLocationCandidate> candidates;

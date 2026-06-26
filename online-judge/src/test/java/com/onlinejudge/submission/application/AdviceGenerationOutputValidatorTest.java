@@ -206,6 +206,28 @@ class AdviceGenerationOutputValidatorTest {
         assertThat(result.isValid()).isTrue();
     }
 
+    @Test
+    void rejectsOverlongDiagnosisReportV2StudentText() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：".repeat(220))
+                        .improvementLayerText("提高层：修好后做边界测试。")
+                        .nextActionText("下一步：手推一个最小样例。")
+                        .build())
+                .studentSummary("报告过长。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getMessage()).contains("basicLayerText is too long");
+    }
+
     private AdviceGenerationOutput validOutput() {
         return AdviceGenerationOutput.builder()
                 .caseUnderstanding(AdviceGenerationOutput.CaseUnderstanding.builder()

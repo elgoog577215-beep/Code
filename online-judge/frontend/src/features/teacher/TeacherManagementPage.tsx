@@ -251,14 +251,14 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
   async function mergeGrowthCandidate(candidate: AiStandardLibraryGrowthCandidate) {
     setLibraryBusy(true);
     try {
-      const updated = await api.mergeAiStandardLibraryGrowthCandidate(candidate.id);
+      const updated = await api.approveAiStandardLibraryGrowthCandidate(candidate.id);
       setAlert({
-        type: updated.status === "MERGED" ? "success" : "error",
-        message: updated.status === "MERGED" ? "候选已合并到正式标准库。" : updated.precheckMessage || "候选需要继续人工处理。"
+        type: ["TEACHER_APPROVED", "MERGED"].includes(updated.status) ? "success" : "error",
+        message: ["TEACHER_APPROVED", "MERGED"].includes(updated.status) ? "候选已由教师批准入库。" : updated.precheckMessage || "候选需要继续人工处理。"
       });
       await loadStandardLibrary(libraryFilters);
     } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "候选合并失败。" });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "候选批准失败。" });
     } finally {
       setLibraryBusy(false);
     }
@@ -267,11 +267,11 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
   async function ignoreGrowthCandidate(candidate: AiStandardLibraryGrowthCandidate) {
     setLibraryBusy(true);
     try {
-      await api.ignoreAiStandardLibraryGrowthCandidate(candidate.id, "教师在管理后台忽略。");
-      setAlert({ type: "success", message: "候选已忽略。" });
+      await api.rejectAiStandardLibraryGrowthCandidate(candidate.id, "教师在管理后台拒绝。");
+      setAlert({ type: "success", message: "候选已拒绝。" });
       await loadStandardLibrary(libraryFilters);
     } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "候选忽略失败。" });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "候选拒绝失败。" });
     } finally {
       setLibraryBusy(false);
     }
@@ -1131,7 +1131,7 @@ function GrowthCandidatePanel({
   onIgnore: (candidate: AiStandardLibraryGrowthCandidate) => void;
   onEdit: (candidate: AiStandardLibraryGrowthCandidate) => void;
 }) {
-  const activeCandidates = candidates.filter(candidate => candidate.status !== "IGNORED");
+  const activeCandidates = candidates.filter(candidate => !["IGNORED", "REJECTED", "MERGED", "TEACHER_APPROVED"].includes(candidate.status));
   const visibleCandidates = activeCandidates.slice(0, 12);
   return (
     <section className="standard-library-editor__section standard-library-growth-panel">
@@ -1154,9 +1154,11 @@ function GrowthCandidatePanel({
               <div className="standard-library-growth-card__meta">
                 <span>路径：{candidate.suggestedPath.join(" / ") || "未指定"}</span>
                 <span>置信度：{candidate.confidence == null ? "未知" : `${Math.round(candidate.confidence * 100)}%`}</span>
+                <span>出现次数：{candidate.occurrenceCount || 1}</span>
                 <span>来源：题目 {candidate.sourceProblemId || "-"} · 提交 {candidate.sourceSubmissionId || "-"}</span>
               </div>
               {candidate.precheckMessage ? <p className="standard-library-growth-card__note">{candidate.precheckMessage}</p> : null}
+              {candidate.teacherNote ? <p className="standard-library-growth-card__note">教师备注：{candidate.teacherNote}</p> : null}
               {candidate.evidenceRefs.length ? (
                 <div className="standard-library-growth-card__evidence">
                   {candidate.evidenceRefs.slice(0, 4).map(ref => (
@@ -1173,16 +1175,16 @@ function GrowthCandidatePanel({
                   type="button"
                   variant="primary"
                   icon={<CheckCircle2 size={16} />}
-                  disabled={busy || candidate.status === "MERGED" || candidate.status === "BLOCKED"}
+                  disabled={busy || ["MERGED", "TEACHER_APPROVED", "REJECTED", "IGNORED", "BLOCKED"].includes(candidate.status)}
                   onClick={() => onMerge(candidate)}
                 >
-                  合并
+                  批准入库
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
                   icon={<PencilLine size={16} />}
-                  disabled={busy || candidate.status === "MERGED"}
+                  disabled={busy || ["MERGED", "TEACHER_APPROVED", "REJECTED"].includes(candidate.status)}
                   onClick={() => onEdit(candidate)}
                 >
                   编辑
@@ -1191,10 +1193,10 @@ function GrowthCandidatePanel({
                   type="button"
                   variant="secondary"
                   icon={<XCircle size={16} />}
-                  disabled={busy || candidate.status === "MERGED" || candidate.status === "IGNORED"}
+                  disabled={busy || ["MERGED", "TEACHER_APPROVED", "REJECTED", "IGNORED"].includes(candidate.status)}
                   onClick={() => onIgnore(candidate)}
                 >
-                  忽略
+                  拒绝
                 </Button>
               </div>
             </article>
@@ -1378,16 +1380,19 @@ function growthCandidateStatusLabel(status: string) {
   if (status === "PROPOSED") return "待确认";
   if (status === "NEEDS_REVIEW") return "需复核";
   if (status === "BLOCKED") return "阻断";
+  if (status === "MERGED_SIMILAR") return "已聚合";
+  if (status === "TEACHER_APPROVED") return "教师已批准";
+  if (status === "REJECTED") return "已拒绝";
   if (status === "MERGED") return "已合并";
   if (status === "IGNORED") return "已忽略";
   return status || "未知";
 }
 
 function growthCandidateTone(status: string): "neutral" | "success" | "warning" | "danger" | "info" {
-  if (status === "MERGED") return "success";
-  if (status === "BLOCKED") return "danger";
+  if (status === "MERGED" || status === "TEACHER_APPROVED") return "success";
+  if (status === "BLOCKED" || status === "REJECTED") return "danger";
   if (status === "NEEDS_REVIEW") return "warning";
-  if (status === "PROPOSED") return "info";
+  if (status === "PROPOSED" || status === "MERGED_SIMILAR") return "info";
   return "neutral";
 }
 

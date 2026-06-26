@@ -11,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -31,6 +33,12 @@ public class AiStandardLibraryGrowthAgentService {
     public AiStandardLibraryGrowthCandidate propose(StandardLibraryGrowthProposal proposal) {
         String code = normalizeCode(proposal == null ? "" : proposal.getSuggestedCode());
         AiStandardLibraryLayer layer = proposal == null ? null : proposal.getLayer();
+        Optional<AiStandardLibraryGrowthCandidate> duplicateCandidate = layer == null || code.isBlank()
+                ? Optional.empty()
+                : candidateRepository.findByLayerAndSuggestedCode(layer, code);
+        if (duplicateCandidate.isPresent()) {
+            return aggregateDuplicate(duplicateCandidate.get(), proposal);
+        }
         List<String> precheckErrors = precheck(proposal, layer, code);
         AiStandardLibraryGrowthCandidateStatus status = precheckErrors.isEmpty()
                 ? AiStandardLibraryGrowthCandidateStatus.PROPOSED
@@ -49,6 +57,8 @@ public class AiStandardLibraryGrowthAgentService {
                 .confidence(proposal == null ? null : proposal.getConfidence())
                 .status(status)
                 .precheckMessage(String.join("；", precheckErrors))
+                .occurrenceCount(1)
+                .lastObservedAt(LocalDateTime.now())
                 .beforeSnapshot(beforeSnapshot(layer, code))
                 .diffSummary(diffSummary(proposal, status))
                 .rollbackInfo(rollbackInfo(status))
@@ -117,10 +127,34 @@ public class AiStandardLibraryGrowthAgentService {
     public AiStandardLibraryGrowthCandidate ignore(Long id, String teacherNote) {
         AiStandardLibraryGrowthCandidate candidate = findCandidate(id);
         candidate.setStatus(AiStandardLibraryGrowthCandidateStatus.IGNORED);
+        candidate.setTeacherNote(requiredText(teacherNote, "教师已忽略该候选。"));
         candidate.setPrecheckMessage(requiredText(teacherNote, "教师已忽略该候选。"));
         candidate.setRollbackInfo("未写入正式标准库；恢复时将状态改回 PROPOSED 后重新处理。");
         candidate.setDiffSummary(candidate.getDiffSummary() + "\nignoredReason=" + candidate.getPrecheckMessage());
         return candidateRepository.save(candidate);
+    }
+
+    @Transactional
+    public AiStandardLibraryGrowthCandidate reject(Long id, String teacherNote) {
+        AiStandardLibraryGrowthCandidate candidate = findCandidate(id);
+        candidate.setStatus(AiStandardLibraryGrowthCandidateStatus.REJECTED);
+        candidate.setTeacherNote(requiredText(teacherNote, "教师拒绝该候选。"));
+        candidate.setPrecheckMessage(candidate.getTeacherNote());
+        candidate.setRollbackInfo("未写入正式标准库；同类低质候选会优先聚合到本记录，避免反复推荐。");
+        candidate.setDiffSummary(candidate.getDiffSummary() + "\nrejectedReason=" + candidate.getPrecheckMessage());
+        return candidateRepository.save(candidate);
+    }
+
+    @Transactional
+    public AiStandardLibraryGrowthCandidate approve(Long id, StandardLibraryGrowthProposal overrideProposal) {
+        AiStandardLibraryGrowthCandidate candidate = mergeToFormalLibrary(id, overrideProposal);
+        if (candidate.getStatus() == AiStandardLibraryGrowthCandidateStatus.MERGED) {
+            candidate.setStatus(AiStandardLibraryGrowthCandidateStatus.TEACHER_APPROVED);
+            candidate.setPrecheckMessage(candidate.getPrecheckMessage() + "；教师已批准。");
+            candidate.setRollbackInfo(candidate.getRollbackInfo() + " 本状态表示由教师审核批准入库。");
+            return candidateRepository.save(candidate);
+        }
+        return candidate;
     }
 
     @Transactional
@@ -141,7 +175,8 @@ public class AiStandardLibraryGrowthAgentService {
     @Transactional
     public AiStandardLibraryGrowthCandidate mergeToFormalLibrary(Long id, StandardLibraryGrowthProposal overrideProposal) {
         AiStandardLibraryGrowthCandidate candidate = findCandidate(id);
-        if (candidate.getStatus() == AiStandardLibraryGrowthCandidateStatus.MERGED) {
+        if (candidate.getStatus() == AiStandardLibraryGrowthCandidateStatus.MERGED
+                || candidate.getStatus() == AiStandardLibraryGrowthCandidateStatus.TEACHER_APPROVED) {
             return candidate;
         }
         StandardLibraryGrowthProposal proposal = overrideProposal == null ? proposalFrom(candidate) : overrideProposal;
@@ -172,6 +207,35 @@ public class AiStandardLibraryGrowthAgentService {
 
     private List<String> precheck(StandardLibraryGrowthProposal proposal, AiStandardLibraryLayer layer, String code) {
         return precheckForCandidate(proposal, layer, code, null);
+    }
+
+    private AiStandardLibraryGrowthCandidate aggregateDuplicate(AiStandardLibraryGrowthCandidate existing,
+                                                                StandardLibraryGrowthProposal proposal) {
+        int count = existing.getOccurrenceCount() == null ? 1 : existing.getOccurrenceCount();
+        existing.setOccurrenceCount(count + 1);
+        existing.setLastObservedAt(LocalDateTime.now());
+        existing.setEvidenceRefs(joinLines(mergeLines(lines(existing.getEvidenceRefs()),
+                proposal == null ? List.of() : proposal.getEvidenceRefs())));
+        existing.setSimilarExistingItems(joinLines(mergeLines(lines(existing.getSimilarExistingItems()),
+                proposal == null ? List.of() : proposal.getSimilarExistingItemCodes())));
+        String reason = requiredText(proposal == null ? "" : proposal.getChangeReason(), "");
+        String existingReason = requiredText(existing.getChangeReason(), "");
+        if (!reason.isBlank() && !existingReason.contains(reason)) {
+            existing.setChangeReason(existingReason.isBlank() ? reason : existingReason + "\n再次出现：" + reason);
+        }
+        if (List.of(
+                AiStandardLibraryGrowthCandidateStatus.PROPOSED,
+                AiStandardLibraryGrowthCandidateStatus.NEEDS_REVIEW,
+                AiStandardLibraryGrowthCandidateStatus.BLOCKED,
+                AiStandardLibraryGrowthCandidateStatus.MERGED_SIMILAR
+        ).contains(existing.getStatus())) {
+            existing.setStatus(AiStandardLibraryGrowthCandidateStatus.MERGED_SIMILAR);
+        }
+        existing.setPrecheckMessage("相似库外发现已聚合，出现次数=" + existing.getOccurrenceCount());
+        existing.setDiffSummary(diffSummary(existing, existing.getStatus())
+                + "\noccurrenceCount=" + existing.getOccurrenceCount());
+        existing.setRollbackInfo("未自动写入正式标准库；该记录用于教师按频次审核。");
+        return candidateRepository.save(existing);
     }
 
     private List<String> precheckForCandidate(StandardLibraryGrowthProposal proposal,
@@ -348,6 +412,17 @@ public class AiStandardLibraryGrowthAgentService {
                 .map(this::normalizeText)
                 .filter(line -> !line.isBlank())
                 .toList();
+    }
+
+    private List<String> mergeLines(List<String> first, List<String> second) {
+        LinkedHashSet<String> merged = new LinkedHashSet<>();
+        if (first != null) {
+            merged.addAll(first);
+        }
+        if (second != null) {
+            second.stream().map(this::normalizeText).filter(value -> !value.isBlank()).forEach(merged::add);
+        }
+        return merged.stream().toList();
     }
 
     private String joinPath(List<String> values) {

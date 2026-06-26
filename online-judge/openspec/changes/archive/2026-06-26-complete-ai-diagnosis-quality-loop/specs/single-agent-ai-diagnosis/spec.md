@@ -1,8 +1,5 @@
-# single-agent-ai-diagnosis Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Purpose after archive.
-## Requirements
 ### Requirement: 实时诊断使用单诊断 Agent
 系统 SHALL 在默认实时 AI 诊断链路中只调用一次外部大模型，由单诊断 Agent 完成问题定位、候选取舍、学生反馈和结构化元数据输出。
 
@@ -35,4 +32,3 @@ TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Pur
 #### Scenario: 基础层优先
 - **WHEN** 提交未通过且存在基础层阻塞问题
 - **THEN** 学生反馈 SHALL 先说明基础层问题，再给出次要提高层建议
-

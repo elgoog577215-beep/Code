@@ -10,6 +10,10 @@ import java.util.Set;
 @Component
 public class AdviceGenerationOutputValidator {
 
+    private static final int MAX_BASIC_REPORT_LENGTH = 360;
+    private static final int MAX_IMPROVEMENT_REPORT_LENGTH = 300;
+    private static final int MAX_NEXT_ACTION_LENGTH = 220;
+
     public ExternalModelStagePayloads.StageValidationResult validate(AdviceGenerationOutput output,
                                                                      ModelDiagnosisBrief brief,
                                                                      StandardLibraryPack standardLibraryPack) {
@@ -143,6 +147,10 @@ public class AdviceGenerationOutputValidator {
         }
         if (unsafe(report.getBasicLayerText(), report.getImprovementLayerText(), report.getNextActionText(), output.getStudentSummary())) {
             return invalid(ModelStageFailureReason.SAFETY_RISK, "studentReport contains answer leak.");
+        }
+        String lengthFailure = studentReportLengthFailure(report);
+        if (!lengthFailure.isBlank()) {
+            return invalid(ModelStageFailureReason.INVALID_JSON, lengthFailure);
         }
 
         Set<String> evidenceRefs = evidenceRefs(brief);
@@ -327,6 +335,23 @@ public class AdviceGenerationOutputValidator {
 
     private boolean invalidConfidence(Double confidence) {
         return confidence == null || confidence < 0 || confidence > 1;
+    }
+
+    private String studentReportLengthFailure(AdviceGenerationOutput.StudentReport report) {
+        if (length(report.getBasicLayerText()) > MAX_BASIC_REPORT_LENGTH) {
+            return "studentReport.basicLayerText is too long.";
+        }
+        if (length(report.getImprovementLayerText()) > MAX_IMPROVEMENT_REPORT_LENGTH) {
+            return "studentReport.improvementLayerText is too long.";
+        }
+        if (length(report.getNextActionText()) > MAX_NEXT_ACTION_LENGTH) {
+            return "studentReport.nextActionText is too long.";
+        }
+        return "";
+    }
+
+    private int length(String value) {
+        return value == null ? 0 : value.trim().length();
     }
 
     private boolean isAccepted(ModelDiagnosisBrief brief) {

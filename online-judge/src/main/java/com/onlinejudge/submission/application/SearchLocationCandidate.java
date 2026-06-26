@@ -24,6 +24,10 @@ public class SearchLocationCandidate {
     private String mistakeType;
     private List<String> knowledgeNodeCodes;
     private List<String> applicableLanguages;
+    private List<String> recallSources;
+    private String parentKnowledgePath;
+    private List<String> siblingMistakePointIds;
+    private List<String> extensionCandidateIds;
     private Double textScore;
     private Double vectorScore;
     private Double signalScore;

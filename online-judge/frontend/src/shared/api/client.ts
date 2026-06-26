@@ -293,6 +293,16 @@ export const api = {
       method: "POST",
       body: payload ? jsonBody(payload) : undefined
     }),
+  approveAiStandardLibraryGrowthCandidate: (id: number, payload?: AiStandardLibraryGrowthCandidatePayload) =>
+    request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}/approve`, {
+      method: "POST",
+      body: payload ? jsonBody(payload) : undefined
+    }),
+  rejectAiStandardLibraryGrowthCandidate: (id: number, teacherNote?: string) =>
+    request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}/reject`, {
+      method: "POST",
+      body: jsonBody({ teacherNote })
+    }),
   ignoreAiStandardLibraryGrowthCandidate: (id: number, teacherNote?: string) =>
     request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}/ignore`, {
       method: "POST",

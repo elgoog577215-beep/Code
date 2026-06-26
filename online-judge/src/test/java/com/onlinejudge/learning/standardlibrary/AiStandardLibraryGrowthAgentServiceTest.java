@@ -159,6 +159,88 @@ class AiStandardLibraryGrowthAgentServiceTest {
     }
 
     @Test
+    void duplicateOutOfLibraryFindingsAreAggregatedInsteadOfCreatingFragments() {
+        StandardLibraryGrowthProposal proposal = StandardLibraryGrowthProposal.builder()
+                .suggestedCode("MP_AGGREGATED_BOUNDARY_PATTERN")
+                .suggestedName("边界错因聚合候选")
+                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .suggestedPath(List.of("BASIC", "LOOP", "BOUNDARY"))
+                .sourceProblemId(5L)
+                .sourceSubmissionId(55L)
+                .changeReason("第一次发现。")
+                .evidenceRefs(List.of("code:first"))
+                .similarExistingItemCodes(List.of("MP_RANGE_RIGHT_ENDPOINT_MISSING"))
+                .confidence(0.82)
+                .build();
+        AiStandardLibraryGrowthCandidate first = service.propose(proposal);
+
+        AiStandardLibraryGrowthCandidate second = service.propose(StandardLibraryGrowthProposal.builder()
+                .suggestedCode("MP_AGGREGATED_BOUNDARY_PATTERN")
+                .suggestedName("边界错因聚合候选")
+                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .suggestedPath(List.of("BASIC", "LOOP", "BOUNDARY"))
+                .sourceProblemId(6L)
+                .sourceSubmissionId(66L)
+                .changeReason("第二次发现。")
+                .evidenceRefs(List.of("code:second"))
+                .similarExistingItemCodes(List.of("MP_LOOP_CONDITION_OFF_BY_ONE"))
+                .confidence(0.84)
+                .build());
+
+        assertThat(second.getId()).isEqualTo(first.getId());
+        assertThat(second.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.MERGED_SIMILAR);
+        assertThat(second.getOccurrenceCount()).isEqualTo(2);
+        assertThat(second.getEvidenceRefs()).contains("code:first").contains("code:second");
+        assertThat(candidateRepository.findAll())
+                .filteredOn(candidate -> candidate.getSuggestedCode().equals("MP_AGGREGATED_BOUNDARY_PATTERN"))
+                .hasSize(1);
+    }
+
+    @Test
+    void teacherApproveWritesFormalLibraryAndMarksApproved() {
+        AiStandardLibraryGrowthCandidate candidate = service.propose(StandardLibraryGrowthProposal.builder()
+                .suggestedCode("MP_TEACHER_APPROVED_GROWTH")
+                .suggestedName("教师批准的成长条目")
+                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .suggestedPath(List.of("BASIC", "ARRAY", "BOUNDARY"))
+                .sourceProblemId(7L)
+                .sourceSubmissionId(77L)
+                .changeReason("真实错题反复出现，需要入库。")
+                .evidenceRefs(List.of("code:array_boundary"))
+                .confidence(0.9)
+                .build());
+
+        AiStandardLibraryGrowthCandidate approved = service.approve(candidate.getId(), null);
+
+        assertThat(approved.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.TEACHER_APPROVED);
+        assertThat(itemRepository.existsByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, "MP_TEACHER_APPROVED_GROWTH"))
+                .isTrue();
+        assertThat(approved.getPrecheckMessage()).contains("教师已批准");
+    }
+
+    @Test
+    void teacherRejectKeepsCandidateOutOfFormalLibrary() {
+        AiStandardLibraryGrowthCandidate candidate = service.propose(StandardLibraryGrowthProposal.builder()
+                .suggestedCode("MP_REJECTED_GROWTH")
+                .suggestedName("教师拒绝的成长条目")
+                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .suggestedPath(List.of("BASIC", "IO"))
+                .sourceProblemId(8L)
+                .sourceSubmissionId(88L)
+                .changeReason("模型误把正常输出格式当错因。")
+                .evidenceRefs(List.of("judge:wa"))
+                .confidence(0.81)
+                .build());
+
+        AiStandardLibraryGrowthCandidate rejected = service.reject(candidate.getId(), "这个不是可复用错因");
+
+        assertThat(rejected.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.REJECTED);
+        assertThat(rejected.getTeacherNote()).contains("不是可复用错因");
+        assertThat(itemRepository.existsByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, "MP_REJECTED_GROWTH"))
+                .isFalse();
+    }
+
+    @Test
     void ignoresCandidateWithoutChangingFormalLibrary() {
         AiStandardLibraryGrowthCandidate candidate = service.propose(StandardLibraryGrowthProposal.builder()
                 .suggestedCode("MP_IGNORE_CANDIDATE")

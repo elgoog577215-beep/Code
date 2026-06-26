@@ -53,6 +53,25 @@ public class AiStandardLibraryGrowthCandidateController {
         ));
     }
 
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<AiStandardLibraryGrowthCandidateResponse> reject(@PathVariable Long id,
+                                                                           @RequestBody(required = false) AiStandardLibraryGrowthCandidateRequest request) {
+        return ResponseEntity.ok(AiStandardLibraryGrowthCandidateResponse.from(
+                service.reject(id, request == null ? "" : request.getTeacherNote())
+        ));
+    }
+
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<AiStandardLibraryGrowthCandidateResponse> approve(@PathVariable Long id,
+                                                                            @RequestBody(required = false) AiStandardLibraryGrowthCandidateRequest request) {
+        StandardLibraryGrowthProposal proposal = request == null || request.getSuggestedCode() == null
+                ? null
+                : toProposal(request);
+        return ResponseEntity.ok(AiStandardLibraryGrowthCandidateResponse.from(
+                service.approve(id, proposal)
+        ));
+    }
+
     @PostMapping("/{id}/merge")
     public ResponseEntity<AiStandardLibraryGrowthCandidateResponse> merge(@PathVariable Long id,
                                                                           @RequestBody(required = false) AiStandardLibraryGrowthCandidateRequest request) {

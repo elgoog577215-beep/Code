@@ -643,9 +643,9 @@ public class AiReportService {
                 : candidatePack.getCandidates();
         return SearchLocationOutput.builder()
                 .libraryFit(candidates.isEmpty() ? "MISS" : "PARTIAL")
-                .basicCandidates(localSelectedCandidates(candidates, List.of("MISTAKE_POINT", "BASIC_CAUSE"), 6))
-                .improvementCandidates(localSelectedCandidates(candidates, List.of("IMPROVEMENT_POINT"), 4))
-                .knowledgeAnchors(localSelectedCandidates(candidates, List.of("SKILL_UNIT", "KNOWLEDGE_NODE"), 5))
+                .basicCandidates(localSelectedCandidates(candidates, List.of("MISTAKE_POINT", "BASIC_CAUSE"), 14))
+                .improvementCandidates(localSelectedCandidates(candidates, List.of("IMPROVEMENT_POINT"), 8))
+                .knowledgeAnchors(localSelectedCandidates(candidates, List.of("SKILL_UNIT", "KNOWLEDGE_NODE"), 8))
                 .uncertainty("本地召回候选，最终诊断由单诊断 Agent 完成。")
                 .needsMoreEvidence(false)
                 .build();
@@ -1919,16 +1919,55 @@ public class AiReportService {
                 .searchLocationCandidateCount(searchLocation(runtimePlan).candidateCount())
                 .searchLocationSelectedCount(searchLocation(runtimePlan).selectedCount())
                 .searchLocationFallbackReason(searchLocation(runtimePlan).fallbackReason())
+                .recallSources(recallSources(runtimePlan))
                 .embeddingStatus(searchLocation(runtimePlan).embeddingStatus())
                 .adviceGenerationStatus(adviceGeneration(runtimePlan).status())
                 .adviceGenerationFallbackReason(adviceGeneration(runtimePlan).fallbackReason())
                 .basicAdviceCount(adviceGeneration(runtimePlan).basicAdviceCount())
                 .improvementAdviceCount(adviceGeneration(runtimePlan).improvementAdviceCount())
                 .advicePromptVersion(adviceGeneration(runtimePlan).promptVersion())
+                .diagnosisPromptVersion(promptVersion)
+                .studentReportLength(studentReportLength(runtimePlan))
+                .answerLeakRisk(answerLeakRisk(runtimePlan))
+                .libraryFit(diagnosisLibraryFit(runtimePlan))
                 .diagnosisLibraryFit(diagnosisLibraryFit(runtimePlan))
                 .diagnosisSoftFixes(diagnosisSoftFixes(runtimePlan))
                 .diagnosisHardFailures(diagnosisHardFailures(runtimePlan))
                 .build();
+    }
+
+    private List<String> recallSources(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        SearchLocationCandidatePack candidatePack = searchLocation(runtimePlan).candidatePack();
+        return candidatePack == null || candidatePack.getRecallSources() == null
+                ? List.of()
+                : candidatePack.getRecallSources();
+    }
+
+    private Integer studentReportLength(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        AdviceGenerationOutput.StudentReport report = studentReport(runtimePlan);
+        if (report == null) {
+            return 0;
+        }
+        return cleanupAiText(report.getBasicLayerText()).length()
+                + cleanupAiText(report.getImprovementLayerText()).length()
+                + cleanupAiText(report.getNextActionText()).length();
+    }
+
+    private String answerLeakRisk(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        AdviceGenerationOutput.StudentReport report = studentReport(runtimePlan);
+        if (report == null) {
+            return "UNKNOWN";
+        }
+        return ModelOutputSafetyPolicy.containsUnsafeLeak(
+                report.getBasicLayerText(),
+                report.getImprovementLayerText(),
+                report.getNextActionText()
+        ) ? "HIGH" : "LOW";
+    }
+
+    private AdviceGenerationOutput.StudentReport studentReport(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        AdviceGenerationOutput output = adviceGeneration(runtimePlan).output();
+        return output == null ? null : output.getStudentReport();
     }
 
     private String diagnosisLibraryFit(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {

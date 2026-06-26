@@ -65,6 +65,13 @@ public class AiStandardLibraryGrowthCandidate {
 
     private Double confidence;
 
+    private Integer occurrenceCount;
+
+    private LocalDateTime lastObservedAt;
+
+    @Column(length = 1600)
+    private String teacherNote;
+
     @Lob
     private String beforeSnapshot;
 
@@ -88,10 +95,22 @@ public class AiStandardLibraryGrowthCandidate {
         if (status == null) {
             status = AiStandardLibraryGrowthCandidateStatus.PROPOSED;
         }
+        if (occurrenceCount == null || occurrenceCount < 1) {
+            occurrenceCount = 1;
+        }
+        if (lastObservedAt == null) {
+            lastObservedAt = now;
+        }
     }
 
     @PreUpdate
     void preUpdate() {
         updatedAt = LocalDateTime.now();
+        if (occurrenceCount == null || occurrenceCount < 1) {
+            occurrenceCount = 1;
+        }
+        if (lastObservedAt == null) {
+            lastObservedAt = updatedAt;
+        }
     }
 }

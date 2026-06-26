@@ -23,6 +23,9 @@ public class AiStandardLibraryGrowthCandidateResponse {
     private String status;
     private String precheckMessage;
     private Double confidence;
+    private Integer occurrenceCount;
+    private LocalDateTime lastObservedAt;
+    private String teacherNote;
     private String beforeSnapshot;
     private String diffSummary;
     private String rollbackInfo;
@@ -44,6 +47,9 @@ public class AiStandardLibraryGrowthCandidateResponse {
                 .status(candidate.getStatus().name())
                 .precheckMessage(candidate.getPrecheckMessage())
                 .confidence(candidate.getConfidence())
+                .occurrenceCount(candidate.getOccurrenceCount())
+                .lastObservedAt(candidate.getLastObservedAt())
+                .teacherNote(candidate.getTeacherNote())
                 .beforeSnapshot(candidate.getBeforeSnapshot())
                 .diffSummary(candidate.getDiffSummary())
                 .rollbackInfo(candidate.getRollbackInfo())

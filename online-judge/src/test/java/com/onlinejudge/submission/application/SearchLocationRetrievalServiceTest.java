@@ -19,9 +19,11 @@ class SearchLocationRetrievalServiceTest {
         AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
         when(libraryService.enabledSearchLocationItems()).thenReturn(List.of(
                 item("MP_RANGE_RIGHT_ENDPOINT_MISSING", AiStandardLibraryLayer.MISTAKE_POINT,
-                        "循环边界", "Python range 右端不包含 n，导致闭区间最后一项漏处理。"),
+                        "循环边界", "Python range 右端不包含 n，导致闭区间最后一项漏处理。", "SK_RANGE_BOUNDARY"),
+                item("MP_RANGE_LEFT_ENDPOINT_EXTRA", AiStandardLibraryLayer.MISTAKE_POINT,
+                        "循环边界", "循环左端点多取或少取，导致范围和题目不一致。", "SK_RANGE_BOUNDARY"),
                 item("SK_COMPLEXITY_ESTIMATION", AiStandardLibraryLayer.SKILL_UNIT,
-                        "复杂度估算", "根据数据范围估算循环次数。")
+                        "复杂度估算", "根据数据范围估算循环次数。", "SK_COMPLEXITY_ESTIMATION")
         ));
         SearchLocationProperties properties = new SearchLocationProperties();
         properties.setMode("text");
@@ -35,9 +37,12 @@ class SearchLocationRetrievalServiceTest {
         SearchLocationCandidatePack pack = service.retrieve(brief(), ruleSignals());
 
         assertThat(pack.getEmbeddingStatus()).isEqualTo("DISABLED");
+        assertThat(pack.getRecallSources()).contains("STRUCTURE", "KEYWORD", "RULE_SIGNAL");
         assertThat(pack.getCandidates()).isNotEmpty();
         assertThat(pack.getCandidates().get(0).getId()).isEqualTo("MP_RANGE_RIGHT_ENDPOINT_MISSING");
         assertThat(pack.getCandidates().get(0).getMatchedSignals()).contains("verdict:WRONG_ANSWER");
+        assertThat(pack.getCandidates().get(0).getParentKnowledgePath()).isEqualTo("BASIC > LOOP > BOUNDARY");
+        assertThat(pack.getCandidates().get(0).getSiblingMistakePointIds()).contains("MP_RANGE_LEFT_ENDPOINT_EXTRA");
     }
 
     @Test
@@ -45,9 +50,9 @@ class SearchLocationRetrievalServiceTest {
         AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
         when(libraryService.enabledSearchLocationItems()).thenReturn(List.of(
                 item("MP_RANGE_RIGHT_ENDPOINT_MISSING", AiStandardLibraryLayer.MISTAKE_POINT,
-                        "循环边界", "Python range 右端不包含 n，导致闭区间最后一项漏处理。"),
+                        "循环边界", "Python range 右端不包含 n，导致闭区间最后一项漏处理。", "SK_RANGE_BOUNDARY"),
                 item("SK_COMPLEXITY_ESTIMATION", AiStandardLibraryLayer.SKILL_UNIT,
-                        "复杂度估算", "根据数据范围估算循环次数。")
+                        "复杂度估算", "根据数据范围估算循环次数。", "SK_COMPLEXITY_ESTIMATION")
         ));
         EmbeddingClient embeddingClient = mock(EmbeddingClient.class);
         when(embeddingClient.embed(anyString()))
@@ -70,7 +75,11 @@ class SearchLocationRetrievalServiceTest {
         assertThat(pack.getCandidates().get(0).getId()).isEqualTo("MP_RANGE_RIGHT_ENDPOINT_MISSING");
     }
 
-    private AiStandardLibraryItem item(String code, AiStandardLibraryLayer layer, String category, String description) {
+    private AiStandardLibraryItem item(String code,
+                                       AiStandardLibraryLayer layer,
+                                       String category,
+                                       String description,
+                                       String skillUnitCode) {
         return AiStandardLibraryItem.builder()
                 .id((long) Math.abs(code.hashCode()))
                 .layer(layer)
@@ -78,6 +87,7 @@ class SearchLocationRetrievalServiceTest {
                 .category(category)
                 .name(description)
                 .description(description)
+                .skillUnitCode(skillUnitCode)
                 .knowledgeNodeCodes("BASIC.LOOP.BOUNDARY")
                 .enabled(true)
                 .libraryVersion("test")

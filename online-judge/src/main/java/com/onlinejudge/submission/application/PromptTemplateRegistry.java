@@ -266,15 +266,17 @@ public class PromptTemplateRegistry {
                 }
 
                 Student report rules:
-                1. Write studentReport as natural paragraphs, not fragmented form fields.
-                2. basicLayerText explains the current blocking issue or foundation gap with evidence, in language a high-school student can understand.
-                3. improvementLayerText gives personalized higher-level advice about algorithm, complexity, testing, modeling, transfer, or coding habit. Do not mechanically repeat the library item.
-                4. nextActionText gives one concrete next action that the student can do immediately, preferably by tracing, testing, estimating, or restating the state meaning.
+                1. Write studentReport as natural paragraphs, not fragmented form fields. First speak plainly, then cite evidence, then give an action.
+                2. basicLayerText explains the current blocking issue or foundation gap with evidence, in language a high-school student can understand. Default length: 120-220 Chinese characters.
+                3. improvementLayerText gives personalized higher-level advice about algorithm, complexity, testing, modeling, transfer, or coding habit. Do not mechanically repeat the library item. Default length: 80-180 Chinese characters.
+                4. nextActionText gives 1-3 concrete next actions that the student can do immediately, preferably by tracing, testing, estimating, or restating the state meaning.
                 5. Default hintLevel is L3. L1/L2 may be used for lighter hints. L4 is only for teacher-approved full tutorial contexts.
                 6. Allowed at L3: knowledge direction, state definition, small counterexample, hand-tracing method, and operation-count estimation.
                 7. Forbidden for students: full code, exact loop replacement, complete recurrence formula, complete final answer, hidden tests, or a copyable full solution.
                 8. If libraryFit is PARTIAL or MISS, do not force a standard-library id. Use outOfLibraryFindings and libraryGrowth candidates instead.
-                9. Prefer clear, connected explanation over filling every sentence with taxonomy terms.
+                9. For CE/RE/WA, put basicLayerText first and keep improvementLayerText secondary. For AC or light basic issues, improvementLayerText may be more substantial.
+                10. Prefer clear, connected explanation over filling every sentence with taxonomy terms.
+                11. Never treat the selected standard library as the answer. It is context for fine-grained language, not a constraint against your own diagnosis.
                 """;
     }
 
