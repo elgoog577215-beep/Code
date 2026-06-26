@@ -15138,3 +15138,566 @@ pre,
     min-height: var(--tap-size);
   }
 }
+
+/* UI polish pass: shared fixes for density, overflow, focus, and contrast. */
+:root {
+  --tap-size: 44px;
+  --content-narrow: 980px;
+  --scroll-shadow: inset -14px 0 16px -18px color-mix(in srgb, var(--ink) 42%, transparent);
+}
+
+button,
+a,
+summary,
+label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(a, button, summary, input, select, textarea, .problem-last-result, .standard-library-list__item, .teacher-assignment-item):focus-visible {
+  outline: 0;
+  box-shadow: var(--focus);
+}
+
+summary:focus-visible {
+  border-radius: var(--radius-sm);
+}
+
+.ui-button,
+.theme-toggle,
+.header-login-link,
+.header-student-chip,
+.nav-toggle,
+.problem-result-modal__status button {
+  min-height: var(--tap-size);
+}
+
+.ui-button > span,
+.theme-toggle span,
+.top-nav__link span,
+.header-student-chip span,
+.header-login-link span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-button.is-disabled {
+  cursor: not-allowed;
+}
+
+.brand,
+.panel__header > div,
+.teacher-workflow-header > div,
+.teacher-section-head > div,
+.teacher-assignment-row__title,
+.teacher-attention-row span,
+.student-entry-link__main,
+.problem-task-item__main,
+.problem-result-section__head,
+.standard-library-editor__head > div,
+.management-console__brand > div {
+  min-width: 0;
+}
+
+.page-title h1,
+.role-entry h1,
+.management-command h1,
+.student-home-command h1,
+.teacher-workflow-header h1,
+.teacher-section-head h2,
+.panel__header h2,
+.teacher-studio-topbar h1,
+.problem-task-sidebar__head strong,
+.problem-result-modal__header h2,
+.standard-library-editor__head h3,
+.management-console__brand h1 {
+  overflow-wrap: anywhere;
+}
+
+.student-home--assignments {
+  width: min(100%, var(--content-narrow));
+  gap: 0.7rem;
+  padding-block: clamp(0.8rem, 5vh, 3.4rem);
+}
+
+.student-home-command--entry {
+  width: 100%;
+}
+
+.student-home-command__note {
+  max-width: 28ch;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.student-entry-list {
+  width: 100%;
+}
+
+.student-entry-link {
+  min-height: 72px;
+}
+
+.student-entry-link__main strong {
+  font-size: clamp(1rem, 1.8vw, 1.16rem);
+}
+
+.student-entry-link svg,
+.problem-back-link svg,
+.teacher-shell-nav__links a svg,
+.ui-button svg {
+  flex: 0 0 auto;
+}
+
+.status-pill,
+.meta-badge,
+.code-label {
+  min-width: 0;
+}
+
+.metric {
+  min-width: 0;
+}
+
+.metric__label,
+.metric__value,
+.metric small {
+  min-width: 0;
+}
+
+.metric__label,
+.metric small {
+  overflow-wrap: anywhere;
+}
+
+.metric__value {
+  font-variant-numeric: tabular-nums;
+}
+
+.teacher-home-status-strip,
+.teacher-kpi-strip,
+.teacher-command__metrics,
+.teacher-ai-quality__metrics,
+.teacher-student-feedback-observability__metrics,
+.teacher-coach-quality__metrics,
+.teacher-ai-trend__metrics,
+.teacher-recommendation-effect__metrics,
+.assignment-focus-strip,
+.practice-focus-strip,
+.signal-strip,
+.problem-result-compact {
+  min-width: 0;
+}
+
+.teacher-home-status-strip > div,
+.teacher-kpi-strip > div,
+.teacher-command__metrics .metric,
+.teacher-ai-quality__metrics > div,
+.teacher-student-feedback-observability__metrics > div,
+.teacher-coach-quality__metrics > div,
+.teacher-ai-trend__metrics > div,
+.teacher-recommendation-effect__metrics > div,
+.assignment-focus-strip article,
+.practice-focus-strip > div,
+.signal-strip > div {
+  min-width: 0;
+}
+
+.teacher-home-workbench,
+.teacher-workflow-panel,
+.teacher-attention-panel,
+.teacher-assignment-row,
+.teacher-attention-row,
+.standard-library-manager,
+.standard-library-editor,
+.management-console,
+.panel,
+.empty-state,
+.alert {
+  min-width: 0;
+}
+
+.teacher-home-actions,
+.teacher-stage-toolbar,
+.assignment-detail-actions,
+.editor-command__actions,
+.standard-library-editor__head .actions,
+.actions {
+  min-width: 0;
+}
+
+.teacher-home-actions .ui-button,
+.teacher-stage-toolbar .ui-button,
+.assignment-detail-actions .ui-button,
+.editor-command__actions .ui-button,
+.standard-library-editor__head .ui-button,
+.actions .ui-button {
+  flex: 0 1 auto;
+}
+
+.teacher-home-actions .ui-button {
+  min-height: var(--tap-size);
+  padding-block: 0.58rem;
+}
+
+.teacher-assignment-row__action .ui-button {
+  min-height: var(--tap-size);
+  padding-block: 0.58rem;
+}
+
+.table-wrap,
+.teacher-table-wrap,
+.management-object-table,
+.standard-library-list,
+.problem-task-list,
+.problem-result-section,
+.panel__body {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--brand) 42%, var(--line)) transparent;
+}
+
+.table-wrap,
+.teacher-table-wrap,
+.management-object-table {
+  box-shadow: var(--scroll-shadow);
+}
+
+.teacher-table-row,
+.management-object-row {
+  min-width: 880px;
+}
+
+.statement p,
+.panel__header p:not(.eyebrow),
+.teacher-workflow-header p:not(.eyebrow),
+.student-feedback-item p,
+.teacher-attention-row small,
+.teacher-assignment-row__meta {
+  line-height: 1.55;
+}
+
+.statement pre,
+.code-block,
+.teacher-fixture-draft-preview__body pre,
+.teacher-eval-candidate pre,
+.standard-library-growth-card pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.problem-task-item {
+  min-height: 46px;
+}
+
+.problem-task-item.is-active {
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.problem-layout--workbench > .panel--statement .panel__body,
+.problem-layout--workbench > .panel--editor .panel__body,
+.problem-task-list {
+  scroll-padding: 0.75rem;
+}
+
+.problem-result-modal-backdrop {
+  backdrop-filter: blur(3px);
+}
+
+.problem-result-modal__status .status-pill {
+  max-width: min(42vw, 14rem);
+}
+
+.problem-result-section {
+  min-height: 0;
+}
+
+.problem-result-modal__footer .ui-button {
+  min-width: 8rem;
+}
+
+.teacher-shell-nav__links a {
+  min-height: var(--tap-size);
+}
+
+.standard-library-filters,
+.management-form-row,
+.student-start__form {
+  min-width: 0;
+}
+
+.standard-library-list {
+  padding-right: 0.32rem;
+}
+
+:root[data-theme="dark"] .empty-state,
+:root[data-theme="dark"] .metric,
+:root[data-theme="dark"] .task-card,
+:root[data-theme="dark"] .list-row,
+:root[data-theme="dark"] .student-entry-link,
+:root[data-theme="dark"] .status-pill,
+:root[data-theme="dark"] .meta-badge,
+:root[data-theme="dark"] .code-label {
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .student-home-command__note,
+:root[data-theme="dark"] .teacher-attention-row small,
+:root[data-theme="dark"] .teacher-assignment-row__meta,
+:root[data-theme="dark"] .panel__header p:not(.eyebrow),
+:root[data-theme="dark"] .student-feedback-item p,
+:root[data-theme="dark"] .statement {
+  color: #c7d0dc;
+}
+
+:root[data-theme="dark"] .problem-result-modal {
+  background: var(--bg);
+}
+
+:root[data-theme="dark"] .problem-result-modal__header,
+:root[data-theme="dark"] .problem-result-modal__footer {
+  background: #0b0c10;
+}
+
+:root[data-theme="dark"] .problem-result-section,
+:root[data-theme="dark"] .problem-last-result {
+  background: #11141a;
+  border-color: var(--line);
+}
+
+@media (min-width: 761px) {
+  .teacher-home-status-strip,
+  .teacher-command__metrics,
+  .teacher-ai-quality__metrics,
+  .teacher-student-feedback-observability__metrics {
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  }
+
+  .teacher-coach-quality__metrics,
+  .teacher-ai-trend__metrics,
+  .teacher-recommendation-effect__metrics {
+    grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  }
+
+  .standard-library-filters {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .problem-layout--workbench > .panel--statement .panel__body,
+  .problem-layout--workbench > .panel--editor .panel__body {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .problem-task-sidebar {
+    max-height: 42vh;
+  }
+
+  .teacher-table-row,
+  .management-object-row {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 760px) {
+  body {
+    background:
+      radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--brand) 5%, transparent), transparent 18rem),
+      linear-gradient(180deg, var(--bg-plain), var(--bg));
+  }
+
+  .app-shell::before {
+    opacity: 0.42;
+  }
+
+  .app-header {
+    position: sticky;
+  }
+
+  .brand {
+    max-width: 100%;
+  }
+
+  .header-actions {
+    gap: 0.38rem;
+  }
+
+  .theme-toggle,
+  .header-login-link,
+  .header-student-chip,
+  .header-signout-button {
+    padding-inline: 0.55rem;
+  }
+
+  .theme-toggle span {
+    max-width: 3.2rem;
+  }
+
+  .header-student-chip span {
+    max-width: none;
+  }
+
+  .role-entry h1,
+  .management-command h1,
+  .student-home-command h1,
+  .teacher-workflow-header h1,
+  .practice-command__main h1,
+  .overview-command h1,
+  .assignment-detail-command h1 {
+    font-size: clamp(1.45rem, 9vw, 2.1rem);
+  }
+
+  .student-home--assignments {
+    padding-block: 0.45rem 1rem;
+  }
+
+  .student-home-command__note {
+    max-width: none;
+    text-align: left;
+  }
+
+  .student-entry-link {
+    min-height: 76px;
+    align-items: center;
+  }
+
+  .student-entry-link svg {
+    justify-self: end;
+  }
+
+  .teacher-home-status-strip,
+  .teacher-kpi-strip,
+  .teacher-command__metrics,
+  .teacher-ai-quality__metrics,
+  .teacher-student-feedback-observability__metrics,
+  .teacher-coach-quality__metrics,
+  .teacher-ai-trend__metrics,
+  .teacher-recommendation-effect__metrics,
+  .assignment-focus-strip,
+  .practice-focus-strip,
+  .signal-strip {
+    overflow: visible;
+  }
+
+  .teacher-home-actions,
+  .actions,
+  .teacher-stage-toolbar,
+  .assignment-detail-actions,
+  .editor-command__actions,
+  .standard-library-editor__head .actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .actions .ui-button,
+  .teacher-home-actions .ui-button,
+  .teacher-stage-toolbar .ui-button,
+  .assignment-detail-actions .ui-button,
+  .editor-command__actions .ui-button,
+  .standard-library-editor__head .ui-button {
+    width: 100%;
+  }
+
+  .teacher-table-row,
+  .management-object-row {
+    min-width: 680px;
+  }
+
+  .problem-task-sidebar {
+    max-height: 48vh;
+  }
+
+  .problem-task-item {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .problem-task-item > .status-pill {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .problem-layout--workbench .panel--editor .stack {
+    grid-template-rows: auto auto auto;
+  }
+
+  .problem-mobile-jump {
+    display: inline-flex;
+  }
+
+  .problem-result-modal {
+    height: 100dvh;
+  }
+
+  .problem-result-modal__header,
+  .problem-result-modal__footer {
+    align-items: stretch;
+  }
+
+  .problem-result-modal__status {
+    justify-content: flex-start;
+  }
+
+  .problem-result-modal__status .status-pill {
+    max-width: 100%;
+  }
+
+  .problem-result-section {
+    min-height: 180px;
+  }
+
+  .problem-result-modal__footer .ui-button {
+    width: 100%;
+  }
+
+  .standard-library-list {
+    max-height: 42vh;
+  }
+}
+
+@media (max-width: 430px) {
+  :root {
+    --tap-size: 44px;
+  }
+
+  .brand__mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .brand strong {
+    max-width: 12rem;
+  }
+
+  .panel__body,
+  .teacher-workflow-panel,
+  .standard-library-editor,
+  .management-task-card {
+    padding-inline: 0.6rem;
+  }
+
+  .student-entry-link,
+  .problem-task-item,
+  .teacher-attention-row,
+  .teacher-assignment-row {
+    gap: 0.5rem;
+  }
+
+  .problem-result-modal__header h2 {
+    font-size: 1.32rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

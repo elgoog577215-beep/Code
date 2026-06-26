@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, MouseEvent, ReactNode } from "react";
 import { Link, type LinkProps } from "react-router-dom";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -23,9 +23,23 @@ type ButtonLinkProps = LinkProps & {
   disabled?: boolean;
 };
 
-export function ButtonLink({ className = "", variant = "secondary", icon, children, disabled, ...props }: ButtonLinkProps) {
+export function ButtonLink({ className = "", variant = "secondary", icon, children, disabled, onClick, tabIndex, ...props }: ButtonLinkProps) {
+  function handleClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (disabled) {
+      event.preventDefault();
+      return;
+    }
+    onClick?.(event);
+  }
+
   return (
-    <Link className={`ui-button ui-button--${variant} ${disabled ? "is-disabled" : ""} ${className}`} aria-disabled={disabled} {...props}>
+    <Link
+      className={`ui-button ui-button--${variant} ${disabled ? "is-disabled" : ""} ${className}`}
+      aria-disabled={disabled || undefined}
+      tabIndex={disabled ? -1 : tabIndex}
+      onClick={handleClick}
+      {...props}
+    >
       {icon}
       <span>{children}</span>
     </Link>

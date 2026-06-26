@@ -104,6 +104,16 @@ export default function StudentPage() {
     <div className="student-page student-home student-home--assignments">
       {failed && <div className="alert alert--error">{failed}</div>}
 
+      <section className="student-home-command student-home-command--compact student-home-command--entry">
+        <div>
+          <p className="eyebrow">学生端</p>
+          <h1>选择练习入口</h1>
+        </div>
+        <span className="student-home-command__note">
+          {student ? `${student.displayName}，继续当前任务。` : "可先刷公共题库，登录后查看课堂作业。"}
+        </span>
+      </section>
+
       <nav id="assignments" className="student-entry-list" aria-label="学生入口">
         <Link className="student-entry-link" to="/app/student/assignments/public">
           <span className="student-entry-link__main">

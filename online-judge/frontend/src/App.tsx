@@ -156,10 +156,17 @@ function Header() {
       </NavLink>
       {hasNav ? (
         <>
-          <button type="button" className="nav-toggle" aria-label={open ? "收起导航" : "展开导航"} onClick={() => setOpen(value => !value)}>
+          <button
+            type="button"
+            className="nav-toggle"
+            aria-label={open ? "收起导航" : "展开导航"}
+            aria-expanded={open}
+            aria-controls="main-navigation"
+            onClick={() => setOpen(value => !value)}
+          >
             {open ? <X size={19} /> : <Menu size={19} />}
           </button>
-          <nav className="top-nav" aria-label="主导航">
+          <nav className="top-nav" id="main-navigation" aria-label="主导航">
             {navItems.map(item => (
               <NavLink
                 key={`${item.label}-${item.to}`}
@@ -198,6 +205,7 @@ function Header() {
           type="button"
           className="theme-toggle"
           aria-label="切换主题"
+          title={theme === "dark" ? "切换到白天模式" : "切换到夜间模式"}
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
         >
           {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
