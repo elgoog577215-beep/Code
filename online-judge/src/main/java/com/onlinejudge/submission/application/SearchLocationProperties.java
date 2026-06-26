@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "ai.search-location")
 public class SearchLocationProperties {
-    private boolean enabled = true;
+    private boolean enabled = false;
     private String mode = "hybrid";
     private int candidateLimit = 120;
     private int selectedLimit = 15;

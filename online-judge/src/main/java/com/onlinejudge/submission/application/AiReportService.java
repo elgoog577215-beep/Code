@@ -525,13 +525,14 @@ public class AiReportService {
     private ExternalModelAgentRuntime.RuntimePlan applySearchLocationIfAvailable(
             ExternalModelAgentRuntime.RuntimePlan runtimePlan,
             RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
-        if (runtimePlan == null || !searchLocationProperties.isEnabled()) {
-            if (runtimePlan != null) {
-                runtimePlan.setSearchLocationResult(SearchLocationResult.disabled());
-            }
+        if (runtimePlan == null) {
             return runtimePlan;
         }
         if (searchLocationRetrievalService == null || searchLocationPackSelector == null) {
+            if (!searchLocationProperties.isEnabled()) {
+                runtimePlan.setSearchLocationResult(SearchLocationResult.disabled());
+                return runtimePlan;
+            }
             runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
                     "FALLBACK_USED",
                     "UNAVAILABLE",
@@ -544,12 +545,42 @@ public class AiReportService {
         try {
             candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief(), ruleSignals);
             if (candidatePack.getCandidates() == null || candidatePack.getCandidates().isEmpty()) {
+                if (!searchLocationProperties.isEnabled()) {
+                    runtimePlan.setSearchLocationResult(SearchLocationResult.localOnly(
+                            candidatePack.getEmbeddingStatus(),
+                            candidatePack,
+                            runtimePlan.getStandardLibraryPack()
+                    ));
+                    return runtimePlan;
+                }
                 runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
                         "FALLBACK_USED",
                         candidatePack.getEmbeddingStatus(),
                         "NO_SEARCH_LOCATION_CANDIDATES",
                         candidatePack
                 ));
+                return runtimePlan;
+            }
+            if (!searchLocationProperties.isEnabled()) {
+                SearchLocationOutput localOutput = localSearchLocationOutput(candidatePack);
+                StandardLibraryPack selectedPack = searchLocationPackSelector.select(
+                        localOutput,
+                        candidatePack,
+                        runtimePlan.getStandardLibraryPack()
+                );
+                SearchLocationResult result = SearchLocationResult.builder()
+                        .enabled(false)
+                        .status("LOCAL_RECALL")
+                        .embeddingStatus(candidatePack.getEmbeddingStatus())
+                        .fallbackReason("")
+                        .candidateCount(candidatePack.getCandidateCount())
+                        .selectedCount(selectedCount(localOutput))
+                        .candidatePack(candidatePack)
+                        .output(localOutput)
+                        .selectedPack(selectedPack)
+                        .build();
+                runtimePlan.setSearchLocationResult(result);
+                runtimePlan.setStandardLibraryPack(selectedPack);
                 return runtimePlan;
             }
             if (searchLocationProperties.isRequireVector()
@@ -604,6 +635,49 @@ public class AiReportService {
             ));
             return runtimePlan;
         }
+    }
+
+    private SearchLocationOutput localSearchLocationOutput(SearchLocationCandidatePack candidatePack) {
+        List<SearchLocationCandidate> candidates = candidatePack == null || candidatePack.getCandidates() == null
+                ? List.of()
+                : candidatePack.getCandidates();
+        return SearchLocationOutput.builder()
+                .libraryFit(candidates.isEmpty() ? "MISS" : "PARTIAL")
+                .basicCandidates(localSelectedCandidates(candidates, List.of("MISTAKE_POINT", "BASIC_CAUSE"), 6))
+                .improvementCandidates(localSelectedCandidates(candidates, List.of("IMPROVEMENT_POINT"), 4))
+                .knowledgeAnchors(localSelectedCandidates(candidates, List.of("SKILL_UNIT", "KNOWLEDGE_NODE"), 5))
+                .uncertainty("本地召回候选，最终诊断由单诊断 Agent 完成。")
+                .needsMoreEvidence(false)
+                .build();
+    }
+
+    private List<SearchLocationOutput.SelectedCandidate> localSelectedCandidates(List<SearchLocationCandidate> candidates,
+                                                                                 List<String> layers,
+                                                                                 int limit) {
+        return candidates.stream()
+                .filter(candidate -> candidate != null && layers.contains(candidate.getLayer()))
+                .limit(limit)
+                .map(this::toLocalSelectedCandidate)
+                .toList();
+    }
+
+    private SearchLocationOutput.SelectedCandidate toLocalSelectedCandidate(SearchLocationCandidate candidate) {
+        String layer = candidate.getLayer();
+        String id = candidate.getId();
+        return SearchLocationOutput.SelectedCandidate.builder()
+                .id(id)
+                .layer(layer)
+                .skillUnitId("SKILL_UNIT".equals(layer) ? id : candidate.getSkillUnitCode())
+                .mistakePointId("MISTAKE_POINT".equals(layer) ? id : null)
+                .libraryFit("PARTIAL")
+                .priority(1)
+                .confidence(candidate.getFinalScore() == null ? 0.5 : Math.max(0.0, Math.min(1.0, candidate.getFinalScore())))
+                .evidenceRefs(List.of())
+                .reason("本地召回命中：" + candidate.getName())
+                .recallReason(String.join(", ", candidate.getMatchedSignals() == null ? List.of() : candidate.getMatchedSignals()))
+                .evidenceSource("LOCAL_RECALL")
+                .uncertainty("需要单诊断 Agent 结合题目、代码和判题结果确认。")
+                .build();
     }
 
     private SearchLocationOutput callSearchLocationStage(ExternalModelAgentRuntime.RuntimePlan runtimePlan,

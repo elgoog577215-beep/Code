@@ -96,7 +96,7 @@ class AiReportServiceSearchLocationRuntimeTest {
     }
 
     @Test
-    void searchLocationDisabledStillUsesAdviceGeneration() {
+    void externalSearchLocationDisabledUsesLocalRecallBeforeAdviceGeneration() {
         StubAiReportService service = newService(validAdviceResponse());
         service.searchLocationProperties.setEnabled(false);
 
@@ -111,7 +111,7 @@ class AiReportServiceSearchLocationRuntimeTest {
         assertThat(service.callCount()).isEqualTo(1);
         assertThat(service.userPrompt(0)).doesNotContain("candidatePack");
         assertThat(analysis.getAiInvocation().getSearchLocationEnabled()).isFalse();
-        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("DISABLED");
+        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("LOCAL_RECALL");
         assertThat(analysis.getAiInvocation().getEmbeddingStatus()).isEqualTo("DISABLED");
         assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
     }
@@ -120,6 +120,7 @@ class AiReportServiceSearchLocationRuntimeTest {
         AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
         when(libraryService.enabledSearchLocationItems()).thenReturn(searchLocationItems());
         SearchLocationProperties properties = new SearchLocationProperties();
+        properties.setEnabled(true);
         properties.setMode("text");
         properties.setCandidateLimit(3);
         SearchLocationRetrievalService retrievalService = new SearchLocationRetrievalService(

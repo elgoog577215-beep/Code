@@ -53,7 +53,7 @@ ai:
   structured-retry-enabled: ${AI_STRUCTURED_RETRY_ENABLED:true}
   structured-retry-output-tokens: ${AI_STRUCTURED_RETRY_OUTPUT_TOKENS:2600}
   search-location:
-    enabled: ${AI_SEARCH_LOCATION_ENABLED:true}
+    enabled: ${AI_SEARCH_LOCATION_ENABLED:false}
     mode: ${AI_SEARCH_LOCATION_MODE:hybrid}
     candidate-limit: ${AI_SEARCH_LOCATION_CANDIDATE_LIMIT:120}
     selected-limit: ${AI_SEARCH_LOCATION_SELECTED_LIMIT:15}

@@ -44,6 +44,8 @@ class PromptTemplateRegistryTest {
         assertThat(report.getStage()).isEqualTo("DIAGNOSIS_REPORT");
         assertThat(report.getSystemPrompt())
                 .contains("diagnosis report v2")
+                .contains("single diagnosis Agent")
+                .contains("candidate map")
                 .contains("studentReport")
                 .contains("basicLayerText")
                 .contains("improvementLayerText")

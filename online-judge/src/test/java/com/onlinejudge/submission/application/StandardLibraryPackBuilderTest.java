@@ -167,6 +167,7 @@ class StandardLibraryPackBuilderTest {
         assertThat(lowLatencyPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
         assertThat(lowLatencyPlan.getAdvicePrompt().getSystemPrompt())
                 .contains("diagnosis report v2")
+                .contains("single diagnosis Agent")
                 .contains("studentReport")
                 .contains("basicLayerText")
                 .contains("improvementLayerText")

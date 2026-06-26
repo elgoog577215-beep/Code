@@ -53,6 +53,7 @@ class SearchLocationRetrievalServiceTest {
         when(embeddingClient.embed(anyString()))
                 .thenReturn(EmbeddingClient.EmbeddingResponse.failed("EMBEDDING_HTTP_429", List.of()));
         SearchLocationProperties properties = new SearchLocationProperties();
+        properties.setEnabled(true);
         properties.setMode("hybrid");
         properties.setCandidateLimit(10);
         SearchLocationRetrievalService service = new SearchLocationRetrievalService(

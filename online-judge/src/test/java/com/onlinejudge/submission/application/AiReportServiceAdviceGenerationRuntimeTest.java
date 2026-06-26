@@ -28,11 +28,38 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void defaultRuntimeGeneratesStructuredAdviceAfterSearchLocation() {
+    void defaultRuntimeGeneratesStructuredAdviceWithSingleDiagnosisCall() {
+        StubAiReportService service = newService(validAdviceResponse());
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(service.callCount()).isEqualTo(1);
+        assertThat(service.userPrompt(0))
+                .contains("brief", "standardLibrary", "searchLocationSummary")
+                .contains("mistakePoints")
+                .contains("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                .doesNotContain("candidatePack");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("LOCAL_RECALL");
+        assertThat(analysis.getBasicLayerAdvice()).hasSize(1);
+        assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getTitle())
+                .contains("循环右边界");
+    }
+
+    @Test
+    void explicitSearchLocationRuntimeGeneratesStructuredAdviceAfterSearchLocation() {
         StubAiReportService service = newService(
                 validSearchLocationResponse(),
                 validAdviceResponse()
         );
+        service.enableSearchLocation();
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -66,7 +93,6 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     @Test
     void adviceValidationFailureFallsBackWithoutPretendingSuccess() {
         StubAiReportService service = newService(
-                validSearchLocationResponse(),
                 """
                 {
                   "caseUnderstanding": {
@@ -117,7 +143,6 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     @Test
     void safetyRiskAdviceIsRewrittenBeforeFallback() {
         StubAiReportService service = newService(
-                validSearchLocationResponse(),
                 unsafeAdviceResponse(),
                 validAdviceResponse()
         );
@@ -130,12 +155,12 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 ruleSignals()
         );
 
-        assertThat(service.callCount()).isEqualTo(3);
-        assertThat(service.userPrompt(2)).contains("previousOutput", "validationFailure");
+        assertThat(service.callCount()).isEqualTo(2);
+        assertThat(service.userPrompt(1)).contains("previousOutput", "validationFailure");
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
-        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("LOCAL_RECALL");
         assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
         assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getNextAction())
                 .doesNotContain("直接改成", "range(1, n + 1)");
@@ -143,10 +168,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
     @Test
     void diagnosisReportV2SoftFixesAreVisibleInInvocationTrace() {
-        StubAiReportService service = newService(
-                validSearchLocationResponse(),
-                diagnosisReportV2WithSoftFixesResponse()
-        );
+        StubAiReportService service = newService(diagnosisReportV2WithSoftFixesResponse());
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -173,7 +195,6 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         AiStandardLibraryGrowthAgentService growthAgentService = mock(AiStandardLibraryGrowthAgentService.class);
         StubAiReportService service = newService(
                 growthAgentService,
-                validSearchLocationResponse(),
                 diagnosisReportV2WithGrowthCandidateResponse()
         );
 
@@ -651,6 +672,14 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
         String userPrompt(int index) {
             return userPrompts.get(index);
+        }
+
+        void enableSearchLocation() {
+            SearchLocationProperties properties =
+                    (SearchLocationProperties) ReflectionTestUtils.getField(this, "searchLocationProperties");
+            if (properties != null) {
+                properties.setEnabled(true);
+            }
         }
     }
 }
