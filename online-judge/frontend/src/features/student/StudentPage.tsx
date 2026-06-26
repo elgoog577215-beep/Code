@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, LogIn } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { Assignment, ClassGroup, StudentProfile } from "../../shared/api/types";
-import { loadStudent } from "../../shared/storage";
+import { loadStudent, onActiveStudentChange } from "../../shared/storage";
 
 function visibleAssignmentTitle(assignment: Assignment) {
   return assignment.title.includes("试点任务") ? "课堂编程作业" : assignment.title;
@@ -20,6 +20,10 @@ export default function StudentPage() {
   const [problemCount, setProblemCount] = useState<number | null>(null);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+
+  useEffect(() => {
+    return onActiveStudentChange(() => setStudent(loadStudent()));
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -56,6 +60,7 @@ export default function StudentPage() {
   useEffect(() => {
     if (!student) {
       setAssignments([]);
+      setAssignmentLoading(false);
       return;
     }
     let ignore = false;
@@ -93,9 +98,10 @@ export default function StudentPage() {
   }, [classes]);
 
   function assignmentDetails(assignment: Assignment) {
+    const taskCount = assignment.tasks?.length || 0;
     return [
       assignment.className,
-      `${assignment.tasks.length} 题`,
+      `${taskCount} 题`,
       assignment.classGroupId ? teacherByClassId.get(assignment.classGroupId) : null
     ].filter(Boolean);
   }
@@ -118,22 +124,44 @@ export default function StudentPage() {
         <Link className="student-entry-link" to="/app/student/assignments/public">
           <span className="student-entry-link__main">
             <strong>公共题库</strong>
-            {problemCount !== null ? <small>{problemCount} 题</small> : null}
+            <small>{problemCount !== null ? `${problemCount} 题` : "正在读取"}</small>
           </span>
           <ArrowRight size={18} aria-hidden="true" />
         </Link>
 
-        {student && !assignmentLoading
-          ? visibleAssignments.map(assignment => (
-              <Link className="student-entry-link" to={`/app/student/assignments/${assignment.id}`} key={assignment.id}>
-                <span className="student-entry-link__main">
-                  <strong>{visibleAssignmentTitle(assignment)}</strong>
-                  <small>{assignmentDetails(assignment).join(" · ")}</small>
-                </span>
-                <ArrowRight size={18} aria-hidden="true" />
-              </Link>
-            ))
-          : null}
+        {!student ? (
+          <Link className="student-entry-link" to="/app/student/login">
+            <span className="student-entry-link__main">
+              <strong>登录查看课堂作业</strong>
+              <small>班级作业和个人记录会出现在这里</small>
+            </span>
+            <LogIn size={18} aria-hidden="true" />
+          </Link>
+        ) : assignmentLoading ? (
+          <div className="student-entry-link student-entry-link--muted" role="status" aria-live="polite">
+            <span className="student-entry-link__main">
+              <strong>正在读取课堂作业</strong>
+              <small>公共题库可先进入练习</small>
+            </span>
+          </div>
+        ) : visibleAssignments.length ? (
+          visibleAssignments.map(assignment => (
+            <Link className="student-entry-link" to={`/app/student/assignments/${assignment.id}`} key={assignment.id}>
+              <span className="student-entry-link__main">
+                <strong>{visibleAssignmentTitle(assignment)}</strong>
+                <small>{assignmentDetails(assignment).join(" · ")}</small>
+              </span>
+              <ArrowRight size={18} aria-hidden="true" />
+            </Link>
+          ))
+        ) : (
+          <div className="student-entry-link student-entry-link--muted">
+            <span className="student-entry-link__main">
+              <strong>暂无课堂作业</strong>
+              <small>老师发布后会自动出现在这里</small>
+            </span>
+          </div>
+        )}
       </nav>
     </div>
   );

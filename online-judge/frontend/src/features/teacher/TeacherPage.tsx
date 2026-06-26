@@ -95,6 +95,11 @@ function buildAttentionItems(assignments: TeacherHomeAssignment[], overviews: Re
   });
 }
 
+function overviewTargets(assignments: Assignment[]) {
+  const active = assignments.filter(assignment => assignment.status === "ACTIVE");
+  return active.length ? active : assignments.filter(assignment => assignment.status !== "DRAFT");
+}
+
 export default function TeacherPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [overviewByAssignment, setOverviewByAssignment] = useState<Record<number, AssignmentOverview | null>>({});
@@ -146,7 +151,7 @@ export default function TeacherPage() {
         return;
       }
       const overviewEntries = await Promise.all(
-        assignmentResult.map(async assignment => {
+        overviewTargets(assignmentResult).map(async assignment => {
           try {
             return [assignment.id, await api.assignmentOverview(assignment.id)] as const;
           } catch {
@@ -181,7 +186,7 @@ export default function TeacherPage() {
         </div>
       </section>
 
-      <section className="teacher-home-status-strip" aria-label="班级当前状态">
+      <section className="teacher-home-status-strip" aria-label="班级当前状态" aria-busy={loading}>
         <div>
           <span>默认班级</span>
           <strong>{teacherHomeSummary.className}</strong>
@@ -205,7 +210,7 @@ export default function TeacherPage() {
       </section>
 
       <section className="teacher-home-workbench">
-        <div className="teacher-workflow-panel" aria-label="进行中作业">
+        <div className="teacher-workflow-panel" aria-label="进行中作业" aria-busy={loading}>
           <div className="teacher-section-head teacher-section-head--compact">
             <div>
               <p className="eyebrow">查看</p>
@@ -241,7 +246,7 @@ export default function TeacherPage() {
               })}
             </div>
           ) : (
-            <EmptyState title="暂无作业" />
+            <EmptyState title="暂无作业" description="新建作业后，这里会显示课堂入口和学生状态。" />
           )}
         </div>
 

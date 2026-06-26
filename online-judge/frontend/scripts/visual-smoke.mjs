@@ -38,23 +38,24 @@ const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, fi
 
 [
   ".student-assignment-grid",
-  ".teacher-mode-tabs",
-  ".teacher-compact-details",
+  ".teacher-shell-nav",
+  ".teacher-home-status-strip",
+  ".teacher-assignment-list",
   ".problem-compact-details",
   ".editor-workbench",
-  ".overview-compact-details",
+  ".management-home-grid",
   "@media(max-width:760px)",
   "[data-theme=dark]"
 ].forEach(selector => ok(`css contains ${selector}`, cssText.includes(selector)));
 
 [
-  "wzai:lastInviteCode",
-  "WZAI01",
+  "wzai:student-change",
+  "wzai:theme",
   "教师",
-  "讲评参考",
-  "作业记录",
-  "保存检查",
-  "任务表现",
+  "登录查看课堂作业",
+  "暂无课堂作业",
+  "班级查看",
+  "学生摘要",
   "/api/teacher/assignments/",
   "class-review-feedback",
   "ENTERED_PROBLEM"

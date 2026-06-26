@@ -5,7 +5,7 @@ import { BookOpenCheck, LogIn, Menu, Moon, Sun, UserRound, UsersRound, X } from 
 import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
 import { TeacherShell } from "./features/teacher/TeacherShell";
-import { clearActiveStudent, loadStudent } from "./shared/storage";
+import { clearActiveStudent, loadStudent, onActiveStudentChange } from "./shared/storage";
 import { Button } from "./shared/ui/Button";
 import { EmptyState } from "./shared/ui/EmptyState";
 
@@ -27,15 +27,28 @@ type NavItem = {
   noActive?: boolean;
 };
 
+function loadTheme(): Theme {
+  try {
+    return localStorage.getItem("wzai:theme") === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+function saveTheme(theme: Theme): void {
+  try {
+    localStorage.setItem("wzai:theme", theme);
+  } catch {
+    // Theme still applies for the current page even when storage is blocked.
+  }
+}
+
 function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem("wzai:theme");
-    return saved === "dark" ? "dark" : "light";
-  });
+  const [theme, setTheme] = useState<Theme>(loadTheme);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("wzai:theme", theme);
+    saveTheme(theme);
   }, [theme]);
 
   return { theme, setTheme };
@@ -128,6 +141,8 @@ function Header() {
     setOpen(false);
     setStudent(loadStudent());
   }, [location.pathname]);
+
+  useEffect(() => onActiveStudentChange(() => setStudent(loadStudent())), []);
 
   function signOut() {
     clearActiveStudent();

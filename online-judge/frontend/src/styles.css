@@ -15242,6 +15242,18 @@ summary:focus-visible {
   min-height: 72px;
 }
 
+.student-entry-link--muted {
+  cursor: default;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.student-entry-link--muted:hover {
+  transform: none;
+  border-color: var(--border);
+  box-shadow: var(--shadow-xs);
+}
+
 .student-entry-link__main strong {
   font-size: clamp(1rem, 1.8vw, 1.16rem);
 }
