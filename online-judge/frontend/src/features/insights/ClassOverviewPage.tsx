@@ -247,7 +247,7 @@ export default function ClassOverviewPage() {
         </div>
 
         {loading && !columns.length ? (
-          <EmptyState title="正在读取班级进度" />
+          <EmptyState title="正在读取班级进度" live />
         ) : !columns.length ? (
           <EmptyState title="暂无作业" description="新建作业后，这里会按学生和作业显示推进状态。" />
         ) : !progressRows.length ? (

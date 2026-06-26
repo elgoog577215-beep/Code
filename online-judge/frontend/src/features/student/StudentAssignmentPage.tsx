@@ -101,7 +101,7 @@ export default function StudentAssignmentPage() {
   if (loading) {
     return (
       <div className="stack student-page">
-        <EmptyState title="正在进入作业" />
+        <EmptyState title="正在进入作业" live />
       </div>
     );
   }

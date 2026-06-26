@@ -179,7 +179,7 @@ export default function AssignmentCreatePage() {
       </section>
 
       {loading ? (
-        <EmptyState title="正在准备新建作业" />
+        <EmptyState title="正在准备新建作业" live />
       ) : (
         <div className="assignment-builder assignment-builder--minimal">
           <section className="assignment-builder-section" aria-label="基本信息">

@@ -757,6 +757,20 @@ const scenarios = [
       }
       record("student home has no horizontal overflow", overflow <= 1, `overflow ${overflow}`);
       record("student no longer starts with invite", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
+      await page.locator(".header-signout-button").first().click();
+      await page.locator(".student-entry-link").filter({ hasText: "登录查看课堂作业" }).first().waitFor({ state: "visible", timeout: 5000 });
+      const studentKeysAfterSignOut = await page.evaluate(() =>
+        Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index)).filter(key => key?.startsWith("wzai:student"))
+      );
+      const signedOutHomeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
+      record("student sign out clears student session keys", studentKeysAfterSignOut.length === 0, studentKeysAfterSignOut.join("|"));
+      record("student sign out returns classroom entry to login", signedOutHomeText.includes("登录查看课堂作业") && !signedOutHomeText.includes("课堂编程作业"), signedOutHomeText);
+      await page.evaluate(studentJson => {
+        window.sessionStorage.setItem("wzai:student", studentJson);
+        window.sessionStorage.setItem("wzai:student:7", studentJson);
+        window.dispatchEvent(new Event("wzai:student-change"));
+      }, JSON.stringify(student));
+      await page.locator(".student-entry-link").filter({ hasText: "课堂编程作业" }).first().waitFor({ state: "visible", timeout: 5000 });
     },
     selectors: [
       [".header-login-link, .header-student-chip", "student header identity"],

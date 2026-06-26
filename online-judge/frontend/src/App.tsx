@@ -236,7 +236,7 @@ export default function App() {
     <div className="app-shell">
       <Header />
       <main className="main-shell">
-        <Suspense fallback={<EmptyState title="正在加载页面" />}>
+        <Suspense fallback={<EmptyState title="正在加载页面" live />}>
           <Routes>
             <Route path="/" element={<Navigate to="/app" replace />} />
             <Route path="/app" element={<RouteHubPage />} />

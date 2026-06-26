@@ -93,7 +93,7 @@ export default function StudentLoginPage() {
         action={<StatusPill tone={classes.length ? "info" : "neutral"}>{loading ? "加载中" : `${classes.length} 个班级`}</StatusPill>}
       >
         {loading ? (
-          <EmptyState title="正在加载班级" />
+          <EmptyState title="正在加载班级" live />
         ) : classes.length === 0 ? (
           <EmptyState title="暂无班级" />
         ) : (

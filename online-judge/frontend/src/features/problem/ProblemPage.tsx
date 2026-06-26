@@ -651,7 +651,7 @@ export default function ProblemPage() {
   }
 
   if (!problem) {
-    return <EmptyState title="正在加载题目" />;
+    return <EmptyState title="正在加载题目" live />;
   }
 
   const passed = latest?.testCaseResults?.filter(item => item.passed).length || 0;

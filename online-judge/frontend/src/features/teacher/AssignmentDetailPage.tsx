@@ -205,7 +205,7 @@ export default function AssignmentDetailPage() {
   }
 
   if (loading) {
-    return <EmptyState title="正在加载作业详情" />;
+    return <EmptyState title="正在加载作业详情" live />;
   }
 
   if (!overview) {

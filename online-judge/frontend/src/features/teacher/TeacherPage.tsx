@@ -218,7 +218,7 @@ export default function TeacherPage() {
             </div>
           </div>
           {loading && !cleanAssignments.length ? (
-            <EmptyState title="正在读取作业" />
+            <EmptyState title="正在读取作业" live />
           ) : cleanAssignments.length ? (
             <div className="teacher-assignment-list" aria-label="教师作业入口">
               {activeAssignments.map(assignment => {

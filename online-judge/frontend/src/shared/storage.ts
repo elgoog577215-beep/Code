@@ -1,6 +1,7 @@
 import type { StudentProfile } from "./api/types";
 
 const GLOBAL_STUDENT_KEY = "wzai:student";
+const ASSIGNMENT_STUDENT_PREFIX = "wzai:student:";
 const LAST_INVITE_CODE_KEY = "wzai:lastInviteCode";
 const STUDENT_CHANGE_EVENT = "wzai:student-change";
 
@@ -35,6 +36,18 @@ function storageRemove(kind: "local" | "session", key: string): void {
   }
 }
 
+function storageKeys(kind: "local" | "session"): string[] {
+  try {
+    const area = storageArea(kind);
+    if (!area) {
+      return [];
+    }
+    return Array.from({ length: area.length }, (_, index) => area.key(index)).filter((key): key is string => Boolean(key));
+  } catch {
+    return [];
+  }
+}
+
 function emitStudentChange(): void {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(STUDENT_CHANGE_EVENT));
@@ -48,16 +61,21 @@ export function saveActiveStudent(student: StudentProfile): void {
 
 export function clearActiveStudent(): void {
   storageRemove("session", GLOBAL_STUDENT_KEY);
+  for (const key of storageKeys("session")) {
+    if (key.startsWith(ASSIGNMENT_STUDENT_PREFIX)) {
+      storageRemove("session", key);
+    }
+  }
   emitStudentChange();
 }
 
 export function saveStudent(assignmentId: number, student: StudentProfile): void {
   saveActiveStudent(student);
-  storageSet("session", `wzai:student:${assignmentId}`, JSON.stringify(student));
+  storageSet("session", `${ASSIGNMENT_STUDENT_PREFIX}${assignmentId}`, JSON.stringify(student));
 }
 
 export function loadStudent(assignmentId?: number | null): StudentProfile | null {
-  const keys = assignmentId ? [`wzai:student:${assignmentId}`, GLOBAL_STUDENT_KEY] : [GLOBAL_STUDENT_KEY];
+  const keys = assignmentId ? [`${ASSIGNMENT_STUDENT_PREFIX}${assignmentId}`, GLOBAL_STUDENT_KEY] : [GLOBAL_STUDENT_KEY];
   for (const key of keys) {
     const raw = storageGet("session", key);
     if (!raw) {

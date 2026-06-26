@@ -58,7 +58,7 @@ export default function TeacherAuthGate({ children }: Props) {
   }
 
   if (authenticated === null) {
-    return <EmptyState title="正在确认教师身份" />;
+    return <EmptyState title="正在确认教师身份" live />;
   }
 
   if (authenticated) {
