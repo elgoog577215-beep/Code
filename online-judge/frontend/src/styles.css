@@ -15619,8 +15619,20 @@ summary:focus-visible {
     min-width: 680px;
   }
 
+  .problem-layout--workbench {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "tasks"
+      "statement"
+      "editor";
+  }
+
   .problem-task-sidebar {
     max-height: 48vh;
+  }
+
+  .problem-task-list {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
   .problem-task-item {

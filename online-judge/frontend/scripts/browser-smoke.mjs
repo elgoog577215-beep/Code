@@ -785,11 +785,14 @@ const scenarios = [
       const navCount = await page.locator(".top-nav__link").count();
       const workbenchText = ((await page.locator(".problem-workbench").first().textContent()) || "").replace(/\s+/g, "");
       const taskItemHeight = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().height);
+      const taskSidebarWidth = await page.locator(".problem-task-sidebar").first().evaluate(element => element.getBoundingClientRect().width);
+      const taskItemWidth = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().width);
       record("student assignment has no business top nav", navCount === 0, `nav count ${navCount}`);
       record("student assignment redirects to workbench", page.url().includes("/app/student/assignments/7/problems/101"), page.url());
       record("student assignment workbench has task list", workbenchText.includes("求和边界") && workbenchText.includes("循环边界"), workbenchText);
       record("student assignment task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
       if (viewport.name === "mobile") {
+        record("student assignment mobile task list is readable", taskSidebarWidth >= viewport.width - 24 && taskItemWidth >= 140, `sidebar ${taskSidebarWidth}; item ${taskItemWidth}; viewport ${viewport.width}`);
         await checkVisible(page, ".problem-mobile-jump", "student assignment mobile code jump");
       }
     },
@@ -817,10 +820,15 @@ const scenarios = [
       const commandCount = await page.locator(".practice-command--workbench").count();
       const statementTitle = ((await page.locator(".panel--statement .panel__header h2").first().textContent()) || "").trim();
       const taskItemHeight = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().height);
+      const taskSidebarWidth = await page.locator(".problem-task-sidebar").first().evaluate(element => element.getBoundingClientRect().width);
+      const taskItemWidth = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().width);
       record("problem has no business top nav", navCount === 0, navLabels.join("|"));
       record("problem removes duplicate command banner", commandCount === 0, `command banner count ${commandCount}`);
       record("problem statement title is the current problem", statementTitle.includes("求和边界"), statementTitle);
       record("problem task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
+      if (viewport.name === "mobile") {
+        record("problem mobile task list is readable", taskSidebarWidth >= viewport.width - 24 && taskItemWidth >= 140, `sidebar ${taskSidebarWidth}; item ${taskItemWidth}; viewport ${viewport.width}`);
+      }
       record("problem modal shows pending AI feedback state first", modalText.includes("AI分析中"), modalText);
       record(
         "problem modal does not invent guidance while analysis pending",
