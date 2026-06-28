@@ -18,9 +18,9 @@ export default defineConfig({
             ["/app", "/app/"],
             ["/student", "/app/student"],
             ["/teacher", "/app/teacher"],
-            ["/teacher-management", "/app/teacher-management"],
+            ["/teacher-management", "/app/teacher/manage"],
             ["/task-editor", "/app/task-editor"],
-            ["/class-overview", "/app/class-overview"],
+            ["/class-overview", "/app/teacher/classes"],
             ["/problems", "/app/student/assignments/public"]
           ]);
           let target = redirectMap.get(pathname);

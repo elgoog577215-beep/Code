@@ -17,6 +17,7 @@ const AssignmentDetailPage = lazy(() => import("./features/teacher/AssignmentDet
 const AssignmentCreatePage = lazy(() => import("./features/teacher/AssignmentCreatePage"));
 const TeacherManagementPage = lazy(() => import("./features/teacher/TeacherManagementPage"));
 const ClassOverviewPage = lazy(() => import("./features/insights/ClassOverviewPage"));
+const TaskEditorPage = lazy(() => import("./features/task-editor/TaskEditorPage"));
 
 type Theme = "light" | "dark";
 type NavItem = {
@@ -251,6 +252,9 @@ export default function App() {
             <Route path="/app/teacher/manage/classes" element={<TeacherRoute><TeacherManagementPage section="classes" /></TeacherRoute>} />
             <Route path="/app/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
             <Route path="/app/teacher/manage/ai-library" element={<TeacherRoute><TeacherManagementPage section="ai-library" /></TeacherRoute>} />
+            <Route path="/app/teacher-management" element={<Navigate to="/app/teacher/manage" replace />} />
+            <Route path="/app/class-overview" element={<Navigate to="/app/teacher/classes" replace />} />
+            <Route path="/app/task-editor" element={<TeacherRoute><TaskEditorPage /></TeacherRoute>} />
             <Route path="/app/teacher/assignment/new" element={<TeacherRoute><AssignmentCreatePage /></TeacherRoute>} />
             <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherRoute><AssignmentDetailPage /></TeacherRoute>} />
             <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherRoute><AssignmentDetailPage /></TeacherRoute>} />

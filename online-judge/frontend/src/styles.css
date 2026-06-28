@@ -1299,6 +1299,99 @@ a {
   border-color: #2d6970;
 }
 
+.student-public-page {
+  width: min(100%, 920px);
+  display: grid;
+  gap: 0.75rem;
+  margin-inline: auto;
+  padding-block: clamp(0.8rem, 3vh, 2.4rem);
+}
+
+.public-problem-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.public-problem-search {
+  min-width: 0;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.48rem;
+  padding-inline: 0.72rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+  background: var(--surface);
+}
+
+.public-problem-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+}
+
+.public-problem-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.public-problem-filter button {
+  min-height: 38px;
+  padding: 0.42rem 0.68rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.public-problem-filter button:hover,
+.public-problem-filter button.is-active {
+  color: var(--brand-strong);
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
+  background: var(--brand-soft);
+}
+
+.public-problem-link {
+  min-height: 74px;
+}
+
+.public-problem-link .student-entry-link__main small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  line-height: 1.36;
+}
+
+:root[data-theme="dark"] .public-problem-search,
+:root[data-theme="dark"] .public-problem-filter button {
+  background: #12161d;
+  border-color: #2f3745;
+}
+
+:root[data-theme="dark"] .public-problem-filter button:hover,
+:root[data-theme="dark"] .public-problem-filter button.is-active {
+  color: #d4fff7;
+  background: #123139;
+  border-color: #2d6970;
+}
+
 .student-work-panel .panel__body,
 .student-login-panel .panel__body {
   display: grid;
@@ -7489,9 +7582,9 @@ tr:last-child td {
 
   .problem-layout--workbench {
     grid-template-areas:
-      "tasks"
       "statement"
-      "editor";
+      "editor"
+      "tasks";
   }
 
   .problem-layout--workbench > .panel--statement,
@@ -9362,21 +9455,6 @@ tr:last-child td {
 .class-progress-footnote {
   margin: 0;
   padding-inline: 0.1rem;
-}
-
-.standard-library-growth-card {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  padding: 0.46rem 0.54rem;
-}
-
-.standard-library-growth-card__head,
-.standard-library-growth-card__meta,
-.standard-library-growth-card__note,
-.standard-library-growth-card__evidence,
-.standard-library-growth-card details,
-.standard-library-growth-card pre {
-  grid-column: 1 / -1;
 }
 
 :root[data-theme="dark"] .teacher-home-status-strip,
@@ -13464,70 +13542,6 @@ details.standard-library-editor__section > summary::-webkit-details-marker {
   display: none;
 }
 
-.standard-library-growth-panel__head,
-.standard-library-growth-card__head,
-.standard-library-growth-card__meta,
-.standard-library-growth-card__evidence {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.standard-library-growth-panel__head,
-.standard-library-growth-card__head {
-  justify-content: space-between;
-}
-
-.standard-library-growth-panel__list {
-  display: grid;
-  gap: 0.58rem;
-}
-
-.standard-library-growth-card {
-  display: grid;
-  gap: 0.46rem;
-  padding: 0.58rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-muted);
-}
-
-.standard-library-growth-card strong,
-.standard-library-growth-card small,
-.standard-library-growth-card p {
-  margin: 0;
-}
-
-.standard-library-growth-card small,
-.standard-library-growth-card__meta,
-.standard-library-growth-card__note {
-  color: var(--muted);
-}
-
-.standard-library-growth-card__note {
-  padding: 0.45rem;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warning) 10%, transparent);
-}
-
-.standard-library-growth-card details > summary {
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.standard-library-growth-card pre {
-  max-height: 180px;
-  overflow: auto;
-  margin: 0.35rem 0 0;
-  padding: 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  white-space: pre-wrap;
-  font-size: 0.78rem;
-}
-
 :root[data-theme="dark"] .app-header,
 :root[data-theme="dark"] .top-nav,
 :root[data-theme="dark"] .teacher-shell-nav,
@@ -14074,7 +14088,6 @@ body {
 .management-object-main,
 .standard-library-editor__head,
 .standard-library-editor__section,
-.standard-library-growth-card,
 .student-entry-panel,
 .student-context-panel,
 .role-entry-card,
@@ -14198,8 +14211,7 @@ body {
 .teacher-rank-panel,
 .teacher-action-rail,
 .teacher-evidence-card,
-.standard-library-editor__section,
-.standard-library-growth-card {
+.standard-library-editor__section {
   padding: var(--clarity-pad);
 }
 
@@ -14216,9 +14228,7 @@ body {
 }
 
 .teacher-manage-status-strip__main > span:not(.status-pill),
-.teacher-manage-status-strip__details span,
-.standard-library-growth-card__meta,
-.standard-library-growth-card__note {
+.teacher-manage-status-strip__details span {
   font-size: 0.72rem;
   line-height: 1.25;
 }
@@ -14290,31 +14300,6 @@ body {
   height: clamp(92px, 14vh, 142px);
 }
 
-.standard-library-growth-panel__list {
-  gap: 0.34rem;
-}
-
-.standard-library-growth-card {
-  gap: 0.32rem;
-}
-
-.standard-library-growth-card__head,
-.standard-library-growth-card__meta,
-.standard-library-growth-card__evidence {
-  gap: 0.26rem;
-}
-
-.standard-library-growth-card p {
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.35;
-}
-
-.standard-library-growth-card pre {
-  max-height: 120px;
-  font-size: 0.72rem;
-}
-
 .table-wrap,
 .teacher-table,
 .editor-shell,
@@ -14341,8 +14326,7 @@ pre {
   .teacher-rank-panel,
   .teacher-action-rail,
   .teacher-evidence-card,
-  .standard-library-editor__section,
-  .standard-library-growth-card {
+  .standard-library-editor__section {
     padding: var(--clarity-pad-tight);
   }
 
@@ -14758,8 +14742,7 @@ select.control {
 .teacher-ai-dimension,
 .teacher-recommendation-signal,
 .teacher-recommendation-segment,
-.teacher-eval-candidate,
-.standard-library-growth-card {
+.teacher-eval-candidate {
   overflow-wrap: anywhere;
 }
 
@@ -15395,8 +15378,7 @@ summary:focus-visible {
 .statement pre,
 .code-block,
 .teacher-fixture-draft-preview__body pre,
-.teacher-eval-candidate pre,
-.standard-library-growth-card pre {
+.teacher-eval-candidate pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -15582,6 +15564,14 @@ summary:focus-visible {
     justify-self: end;
   }
 
+  .public-problem-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-problem-filter {
+    justify-content: flex-start;
+  }
+
   .teacher-home-status-strip,
   .teacher-kpi-strip,
   .teacher-command__metrics,
@@ -15622,13 +15612,13 @@ summary:focus-visible {
   .problem-layout--workbench {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "tasks"
       "statement"
-      "editor";
+      "editor"
+      "tasks";
   }
 
   .problem-task-sidebar {
-    max-height: 48vh;
+    max-height: 38vh;
   }
 
   .problem-task-list {
