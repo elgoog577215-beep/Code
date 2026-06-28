@@ -172,6 +172,10 @@ function initialSourceFor(problem: Problem | null, problemId: number, languageId
   return languageTemplate;
 }
 
+function defaultSourceFor(problem: Problem | null, languageId: number) {
+  return problem?.starterCode?.trim() ? problem.starterCode : contestLanguageById(languageId).template;
+}
+
 function isLegacyStarterDraft(draft: string, languageTemplate: string) {
   const normalized = draft.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
   return (
@@ -276,11 +280,13 @@ export default function ProblemPage() {
   const studentFromAny = loadStudent();
   const studentProfileId = normalizeNumber(searchParams.get("studentProfileId")) ?? studentFromAssignment?.id ?? studentFromAny?.id ?? null;
   const recommendationToken = searchParams.get("recommendationToken");
-  const backTo = "/app/student";
+  const backTo = isPublicWorkbench ? "/app/student/assignments/public" : "/app/student";
+  const backLabel = isPublicWorkbench ? "返回题目列表" : "返回学生端";
 
   const [problem, setProblem] = useState<Problem | null>(null);
   const [languageId, setLanguageId] = useState(DEFAULT_CONTEST_LANGUAGE_ID);
   const [sourceCode, setSourceCode] = useState(() => contestLanguageById(DEFAULT_CONTEST_LANGUAGE_ID).template);
+  const [editorResetVersion, setEditorResetVersion] = useState(0);
   const [latest, setLatest] = useState<SubmissionResult | null>(null);
   const [history, setHistory] = useState<SubmissionHistorySummary[]>([]);
   const [trajectory, setTrajectory] = useState<StudentTrajectory | null>(null);
@@ -486,6 +492,11 @@ export default function ProblemPage() {
     }
   }
 
+  function resetCode() {
+    updateCode(defaultSourceFor(problem, languageId));
+    setEditorResetVersion(version => version + 1);
+  }
+
   async function submit() {
     if (!problem) {
       return;
@@ -678,6 +689,7 @@ export default function ProblemPage() {
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
   const feedbackReady = Boolean(latest);
   const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;
+  const passedLatest = latest?.verdict === "ACCEPTED";
   const lastResultText = modelFeedbackReady
     ? "AI 已生成"
     : isFeedbackBackground
@@ -686,6 +698,8 @@ export default function ProblemPage() {
         ? "AI 分析中"
         : testCaseSummary;
   const selectedLanguage = contestLanguageById(languageId);
+  const draftChanged = sourceCode !== defaultSourceFor(problem, languageId);
+  const codeLineCount = sourceCode ? sourceCode.split(/\r?\n/).length : 0;
   const repairCheckQuestion = modelFeedbackReady ? studentAiFeedback.nextQuestion || "" : "";
   const showRepairSection = isFeedbackWaiting || isFeedbackBackground || feedbackFailed || repairViewItems.length > 0 || Boolean(repairCheckQuestion) || Boolean(coachPrompt);
   const showGrowthSection = isFeedbackWaiting || isFeedbackBackground || feedbackFailed || improvementViewItems.length > 0;
@@ -782,7 +796,7 @@ export default function ProblemPage() {
       <section className="problem-layout problem-layout--workbench">
         <aside className="problem-task-sidebar" aria-label="题目列表">
           <Link to={backTo} className="problem-back-link">
-            <ArrowLeft size={14} /> 返回作业
+            <ArrowLeft size={14} /> {backLabel}
           </Link>
           <div className="problem-task-sidebar__head">
             <div>
@@ -874,9 +888,10 @@ export default function ProblemPage() {
             <div className="editor-shell">
               <div className="editor-toolbar" aria-label="编辑器状态">
                 <span>{selectedLanguage.sourceFileName}</span>
+                <strong>{draftChanged ? `已保存草稿 · ${codeLineCount} 行` : "初始代码"}</strong>
               </div>
               <Suspense fallback={<div className="editor-loading">正在准备代码编辑器</div>}>
-                <CodeEditor languageId={languageId} sourceCode={sourceCode} onChange={updateCode} />
+                <CodeEditor key={`${problem.id}-${languageId}-${editorResetVersion}`} languageId={languageId} sourceCode={sourceCode} onChange={updateCode} />
               </Suspense>
             </div>
             {latest && (
@@ -895,10 +910,10 @@ export default function ProblemPage() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => updateCode(selectedLanguage.template)}
+                onClick={resetCode}
                 icon={<RotateCcw size={18} />}
               >
-                恢复模板
+                恢复初始代码
               </Button>
             </div>
           </div>
@@ -1048,10 +1063,10 @@ export default function ProblemPage() {
                 </Button>
               )}
               <Button type="button" variant="primary" onClick={() => setResultOpen(false)}>
-                继续修改
+                {passedLatest && nextTaskLink ? "留在本题" : "继续修改"}
               </Button>
               {nextTaskLink && (
-                <ButtonLink to={nextTaskLink} variant="secondary" icon={<ArrowRight size={16} />}>
+                <ButtonLink to={nextTaskLink} variant={passedLatest ? "primary" : "secondary"} icon={<ArrowRight size={16} />}>
                   下一题
                 </ButtonLink>
               )}
