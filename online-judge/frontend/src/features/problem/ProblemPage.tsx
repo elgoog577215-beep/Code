@@ -14,7 +14,7 @@ import type {
   SubmissionResult
 } from "../../shared/api/types";
 import { difficultyLabel, verdictLabel } from "../../shared/format";
-import { loadDraft, loadStudent, saveDraft } from "../../shared/storage";
+import { clearDraft, loadDraft, loadStudent, saveDraft, saveLastPublicProblem } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea } from "../../shared/ui/Field";
@@ -319,6 +319,12 @@ export default function ProblemPage() {
   }, []);
 
   useEffect(() => {
+    if (isPublicWorkbench && Number.isFinite(problemId)) {
+      saveLastPublicProblem(problemId);
+    }
+  }, [isPublicWorkbench, problemId]);
+
+  useEffect(() => {
     async function load() {
       try {
         setLatest(null);
@@ -493,7 +499,10 @@ export default function ProblemPage() {
   }
 
   function resetCode() {
-    updateCode(defaultSourceFor(problem, languageId));
+    setSourceCode(defaultSourceFor(problem, languageId));
+    if (Number.isFinite(problemId)) {
+      clearDraft(problemId, languageId);
+    }
     setEditorResetVersion(version => version + 1);
   }
 

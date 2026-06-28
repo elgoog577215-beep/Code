@@ -4,7 +4,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, ProblemCatalogItem, StudentProfile, StudentTrajectory } from "../../shared/api/types";
 import { difficultyLabel } from "../../shared/format";
-import { loadStudent, saveStudent } from "../../shared/storage";
+import { hasDraft, loadLastPublicProblem, loadStudent, saveStudent } from "../../shared/storage";
 import { ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 
@@ -97,16 +97,34 @@ export default function StudentAssignmentPage() {
     };
   }, [assignmentId, isPublic, numericAssignmentId, student]);
 
+  const draftProblemIds = useMemo(() => new Set(problems.filter(problem => hasDraft(problem.id)).map(problem => problem.id)), [problems]);
   const visiblePublicProblems = useMemo(() => {
     const normalizedQuery = publicQuery.trim().toLowerCase();
+    const normalizedProblemIdQuery = normalizedQuery.replace(/^#/, "");
+    const queryProblemId = /^\d+$/.test(normalizedProblemIdQuery) ? Number(normalizedProblemIdQuery) : null;
     return [...problems]
       .sort((left, right) => left.id - right.id)
       .filter(problem => {
         const matchesDifficulty = !publicDifficulty || String(problem.difficulty).toUpperCase() === publicDifficulty;
-        const searchable = [problem.title, problem.summary, difficultyLabel(problem.difficulty)].filter(Boolean).join(" ").toLowerCase();
-        return matchesDifficulty && (!normalizedQuery || searchable.includes(normalizedQuery));
+        const searchable = [
+          String(problem.id),
+          `#${problem.id}`,
+          problem.title,
+          problem.summary,
+          difficultyLabel(problem.difficulty),
+          draftProblemIds.has(problem.id) ? "有草稿" : null
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const matchesQuery = !normalizedQuery || (queryProblemId !== null ? problem.id === queryProblemId : searchable.includes(normalizedQuery));
+        return matchesDifficulty && matchesQuery;
       });
-  }, [problems, publicDifficulty, publicQuery]);
+  }, [draftProblemIds, problems, publicDifficulty, publicQuery]);
+  const lastPublicProblem = useMemo(() => {
+    const lastProblemId = loadLastPublicProblem();
+    return lastProblemId ? problems.find(problem => problem.id === lastProblemId) || null : null;
+  }, [problems]);
   const nextTask = useMemo(() => pickNextTask(assignment, trajectory), [assignment, trajectory]);
 
   if (loading) {
@@ -141,7 +159,7 @@ export default function StudentAssignmentPage() {
                 <input
                   type="search"
                   aria-label="搜索公共题目"
-                  placeholder="搜索题目或知识点"
+                  placeholder="搜索题号、题目或知识点"
                   value={publicQuery}
                   onChange={event => setPublicQuery(event.target.value)}
                 />
@@ -163,6 +181,23 @@ export default function StudentAssignmentPage() {
               </div>
             </section>
 
+            {lastPublicProblem ? (
+              <Link
+                className="student-entry-link public-problem-link public-problem-link--resume"
+                to={`/app/student/assignments/public/problems/${lastPublicProblem.id}${studentParam}`}
+              >
+                <span className="student-entry-link__main">
+                  <strong>继续上次：{lastPublicProblem.title}</strong>
+                  <small>
+                    {[`#${lastPublicProblem.id}`, difficultyLabel(lastPublicProblem.difficulty), draftProblemIds.has(lastPublicProblem.id) ? "有草稿" : null]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </small>
+                </span>
+                <ArrowRight size={18} aria-hidden="true" />
+              </Link>
+            ) : null}
+
             {visiblePublicProblems.length ? (
               <nav className="student-entry-list public-problem-list" aria-label="公共题目">
                 {visiblePublicProblems.map(problem => (
@@ -174,7 +209,14 @@ export default function StudentAssignmentPage() {
                     <span className="student-entry-link__main">
                       <strong>{problem.title}</strong>
                       <small>
-                        {[problem.summary, difficultyLabel(problem.difficulty), `${problem.timeLimit} ms`, `${Math.round(problem.memoryLimit / 1024)} MB`]
+                        {[
+                          `#${problem.id}`,
+                          difficultyLabel(problem.difficulty),
+                          draftProblemIds.has(problem.id) ? "有草稿" : null,
+                          problem.summary,
+                          `${problem.timeLimit} ms`,
+                          `${Math.round(problem.memoryLimit / 1024)} MB`
+                        ]
                           .filter(Boolean)
                           .join(" · ")}
                       </small>

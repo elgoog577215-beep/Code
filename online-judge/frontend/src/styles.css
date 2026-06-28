@@ -1370,6 +1370,15 @@ a {
   min-height: 74px;
 }
 
+.public-problem-link--resume {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 34%, var(--surface));
+}
+
+.public-problem-link--resume .student-entry-link__main strong {
+  color: var(--brand-strong);
+}
+
 .public-problem-link .student-entry-link__main small {
   display: -webkit-box;
   overflow: hidden;
@@ -1389,6 +1398,11 @@ a {
 :root[data-theme="dark"] .public-problem-filter button.is-active {
   color: #d4fff7;
   background: #123139;
+  border-color: #2d6970;
+}
+
+:root[data-theme="dark"] .public-problem-link--resume {
+  background: #13232b;
   border-color: #2d6970;
 }
 

@@ -3,6 +3,8 @@ import type { StudentProfile } from "./api/types";
 const GLOBAL_STUDENT_KEY = "wzai:student";
 const ASSIGNMENT_STUDENT_PREFIX = "wzai:student:";
 const LAST_INVITE_CODE_KEY = "wzai:lastInviteCode";
+const LAST_PUBLIC_PROBLEM_KEY = "wzai:lastPublicProblem";
+const DRAFT_PREFIX = "wzai:draft:";
 const STUDENT_CHANGE_EVENT = "wzai:student-change";
 
 function storageArea(kind: "local" | "session"): Storage | null {
@@ -117,10 +119,30 @@ export function loadInviteCode(): string | null {
   return saved?.trim().toUpperCase() || null;
 }
 
+export function saveLastPublicProblem(problemId: number): void {
+  if (Number.isFinite(problemId)) {
+    storageSet("local", LAST_PUBLIC_PROBLEM_KEY, String(problemId));
+  }
+}
+
+export function loadLastPublicProblem(): number | null {
+  const saved = Number(storageGet("local", LAST_PUBLIC_PROBLEM_KEY));
+  return Number.isFinite(saved) && saved > 0 ? saved : null;
+}
+
 export function saveDraft(problemId: number, languageId: number, sourceCode: string): void {
-  storageSet("local", `wzai:draft:${problemId}:${languageId}`, sourceCode);
+  storageSet("local", `${DRAFT_PREFIX}${problemId}:${languageId}`, sourceCode);
 }
 
 export function loadDraft(problemId: number, languageId: number): string | null {
-  return storageGet("local", `wzai:draft:${problemId}:${languageId}`);
+  return storageGet("local", `${DRAFT_PREFIX}${problemId}:${languageId}`);
+}
+
+export function clearDraft(problemId: number, languageId: number): void {
+  storageRemove("local", `${DRAFT_PREFIX}${problemId}:${languageId}`);
+}
+
+export function hasDraft(problemId: number): boolean {
+  const prefix = `${DRAFT_PREFIX}${problemId}:`;
+  return storageKeys("local").some(key => key.startsWith(prefix) && Boolean(storageGet("local", key)?.trim()));
 }
