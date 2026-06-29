@@ -148,10 +148,7 @@ public class AdviceGenerationOutputValidator {
         if (unsafe(report.getBasicLayerText(), report.getImprovementLayerText(), report.getNextActionText(), output.getStudentSummary())) {
             return invalid(ModelStageFailureReason.SAFETY_RISK, "studentReport contains answer leak.");
         }
-        String lengthFailure = studentReportLengthFailure(report);
-        if (!lengthFailure.isBlank()) {
-            return invalid(ModelStageFailureReason.INVALID_JSON, lengthFailure);
-        }
+        trimStudentReport(report, softFixes);
 
         Set<String> evidenceRefs = evidenceRefs(brief);
         List<String> orderedEvidenceRefs = evidenceRefs.stream().toList();
@@ -324,7 +321,9 @@ public class AdviceGenerationOutputValidator {
         if (List.of("PROBLEMCONSTRAINTS", "CONSTRAINTS", "PROBLEM").contains(normalized)) {
             return firstEvidenceWithPrefix(orderedValidRefs, "judge:");
         }
-        if (List.of("JUDGERESULT", "JUDGE", "VERDICT").contains(normalized)) {
+        if (List.of("JUDGERESULT", "JUDGE", "VERDICT", "RESULT").contains(normalized)
+                || normalized.startsWith("VERDICT:")
+                || normalized.startsWith("RESULT:")) {
             return firstEvidenceWithPrefix(orderedValidRefs, "judge:");
         }
         return "";
@@ -353,17 +352,21 @@ public class AdviceGenerationOutputValidator {
         return confidence == null || confidence < 0 || confidence > 1;
     }
 
-    private String studentReportLengthFailure(AdviceGenerationOutput.StudentReport report) {
-        if (length(report.getBasicLayerText()) > MAX_BASIC_REPORT_LENGTH) {
-            return "studentReport.basicLayerText is too long.";
+    private void trimStudentReport(AdviceGenerationOutput.StudentReport report, List<String> softFixes) {
+        report.setBasicLayerText(trimToLength(report.getBasicLayerText(), MAX_BASIC_REPORT_LENGTH,
+                "studentReport.basicLayerText", softFixes));
+        report.setImprovementLayerText(trimToLength(report.getImprovementLayerText(), MAX_IMPROVEMENT_REPORT_LENGTH,
+                "studentReport.improvementLayerText", softFixes));
+        report.setNextActionText(trimToLength(report.getNextActionText(), MAX_NEXT_ACTION_LENGTH,
+                "studentReport.nextActionText", softFixes));
+    }
+
+    private String trimToLength(String value, int maxLength, String field, List<String> softFixes) {
+        if (length(value) <= maxLength) {
+            return value;
         }
-        if (length(report.getImprovementLayerText()) > MAX_IMPROVEMENT_REPORT_LENGTH) {
-            return "studentReport.improvementLayerText is too long.";
-        }
-        if (length(report.getNextActionText()) > MAX_NEXT_ACTION_LENGTH) {
-            return "studentReport.nextActionText is too long.";
-        }
-        return "";
+        softFixes.add(field + " trimmed to " + maxLength + " chars");
+        return value.trim().substring(0, Math.max(0, maxLength - 1)) + "…";
     }
 
     private int length(String value) {

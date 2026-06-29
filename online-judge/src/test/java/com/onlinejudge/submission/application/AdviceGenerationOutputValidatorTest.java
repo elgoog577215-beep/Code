@@ -142,6 +142,41 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
+    void softRepairsVerdictEvidenceAliasForDiagnosisReportV2() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .diagnosisDecision(AdviceGenerationOutput.DiagnosisDecision.builder()
+                        .libraryFit("HIT")
+                        .anchors(List.of(AdviceGenerationOutput.DiagnosisAnchor.builder()
+                                .id("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                                .type("MISTAKE_POINT")
+                                .role("PRIMARY")
+                                .confidence(0.9)
+                                .evidenceRefs(List.of("verdict:wrong-answer"))
+                                .reason("判题结果显示当前行为与期望不一致。")
+                                .build()))
+                        .build())
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：循环取值范围和题目要求的端点没有对齐。")
+                        .improvementLayerText("提高层：修好后补充最小值和端点值自测。")
+                        .nextActionText("下一步：手推一个最小样例，确认循环变量是否覆盖端点。")
+                        .build())
+                .studentSummary("这次重点是循环边界。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).contains("evidenceRef alias verdict:wrong-answer -> judge:first_failed_case");
+        assertThat(output.getDiagnosisDecision().getAnchors()).singleElement()
+                .satisfies(anchor -> assertThat(anchor.getEvidenceRefs()).containsExactly("judge:first_failed_case"));
+    }
+
+    @Test
     void rejectsUnknownStandardLibraryId() {
         AdviceGenerationOutput output = validOutput();
         output.getBasicLayerAdvice().get(0).setMistakePointId("MP_UNKNOWN");
@@ -245,7 +280,7 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void rejectsOverlongDiagnosisReportV2StudentText() {
+    void softTrimsOverlongDiagnosisReportV2StudentText() {
         AdviceGenerationOutput output = AdviceGenerationOutput.builder()
                 .studentReport(AdviceGenerationOutput.StudentReport.builder()
                         .hintLevel("L3")
@@ -262,8 +297,10 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getMessage()).contains("basicLayerText is too long");
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getStudentReport().getBasicLayerText()).hasSize(360);
+        assertThat(output.getStudentReport().getBasicLayerText()).endsWith("…");
+        assertThat(result.getSoftFixes()).contains("studentReport.basicLayerText trimmed to 360 chars");
     }
 
     private AdviceGenerationOutput validOutput() {
