@@ -314,6 +314,10 @@ public class AdviceGenerationOutputValidator {
         if (orderedValidRefs == null || orderedValidRefs.isEmpty()) {
             return "";
         }
+        String byPrefix = firstEvidenceThatMatchesRelaxedRef(orderedValidRefs, ref);
+        if (!byPrefix.isBlank()) {
+            return byPrefix;
+        }
         if (List.of("SOURCECODE", "CODE", "SOURCE").contains(normalized)) {
             return firstEvidenceWithPrefix(orderedValidRefs, "code:");
         }
@@ -324,6 +328,18 @@ public class AdviceGenerationOutputValidator {
             return firstEvidenceWithPrefix(orderedValidRefs, "judge:");
         }
         return "";
+    }
+
+    private String firstEvidenceThatMatchesRelaxedRef(List<String> evidenceRefs, String rawRef) {
+        if (rawRef == null || rawRef.isBlank()) {
+            return "";
+        }
+        String trimmed = rawRef.trim();
+        return evidenceRefs.stream()
+                .filter(ref -> ref != null && !ref.isBlank())
+                .filter(ref -> trimmed.startsWith(ref + ":") || ref.startsWith(trimmed + ":"))
+                .findFirst()
+                .orElse("");
     }
 
     private String firstEvidenceWithPrefix(List<String> evidenceRefs, String prefix) {

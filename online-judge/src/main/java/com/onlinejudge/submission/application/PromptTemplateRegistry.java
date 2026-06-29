@@ -277,6 +277,8 @@ public class PromptTemplateRegistry {
                 9. For CE/RE/WA, put basicLayerText first and keep improvementLayerText secondary. For AC or light basic issues, improvementLayerText may be more substantial.
                 10. Prefer clear, connected explanation over filling every sentence with taxonomy terms.
                 11. Never treat the selected standard library as the answer. It is context for fine-grained language, not a constraint against your own diagnosis.
+                12. Every evidenceRefs value MUST be copied exactly from brief.evidenceRefs or brief.candidateSignals.evidenceRef. Do not append line numbers, output previews, or explanations inside evidenceRefs.
+                13. The output must be valid JSON. Escape any double quote inside Chinese text or code fragments, and avoid raw examples that contain unescaped quotes.
                 """;
     }
 

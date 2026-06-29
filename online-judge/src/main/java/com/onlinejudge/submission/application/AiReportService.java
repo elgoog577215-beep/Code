@@ -1709,6 +1709,9 @@ public class AiReportService {
 
     private List<String> cleanList(List<String> candidate, List<String> fallback) {
         List<String> source = candidate == null || candidate.isEmpty() ? fallback : candidate;
+        if (source == null || source.isEmpty()) {
+            return List.of();
+        }
         Set<String> unique = new LinkedHashSet<>();
         for (String item : source) {
             if (item == null) {
