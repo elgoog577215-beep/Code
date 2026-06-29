@@ -799,6 +799,14 @@ public class AiReportService {
         }
         StringBuilder builder = new StringBuilder();
         builder.append("## AI 完整诊断与建议\n\n");
+        if (output.getStudentReport() != null) {
+            AdviceGenerationOutput.StudentReport report = output.getStudentReport();
+            appendStudentReportSection(builder, "基础层", report.getBasicLayerText());
+            appendStudentReportSection(builder, "提高层", report.getImprovementLayerText());
+            appendStudentReportSection(builder, "下一步行动", report.getNextActionText());
+            String markdown = builder.toString().trim();
+            return markdown.isBlank() ? fallbackMarkdown : markdown;
+        }
         if (output.getCaseUnderstanding() != null) {
             AdviceGenerationOutput.CaseUnderstanding understanding = output.getCaseUnderstanding();
             builder.append("### 题目与代码理解\n\n");
@@ -858,6 +866,15 @@ public class AiReportService {
         }
         String markdown = builder.toString().trim();
         return markdown.isBlank() ? fallbackMarkdown : markdown;
+    }
+
+    private void appendStudentReportSection(StringBuilder builder, String title, String value) {
+        String cleaned = cleanupAiText(value);
+        if (!cleaned.isBlank()) {
+            builder.append("### ").append(title).append("\n\n")
+                    .append(cleaned)
+                    .append("\n\n");
+        }
     }
 
     private void appendMarkdownLine(StringBuilder builder, String label, String value) {

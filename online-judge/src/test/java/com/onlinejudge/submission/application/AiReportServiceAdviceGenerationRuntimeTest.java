@@ -91,6 +91,25 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
+    void diagnosisReportV2MarkdownPrefersNaturalStudentReport() {
+        StubAiReportService service = newService(diagnosisReportV2WithSoftFixesResponse());
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getReportMarkdown())
+                .contains("### 基础层", "循环范围和题目边界要求没有完全对齐")
+                .contains("### 提高层", "固定自测清单")
+                .contains("### 下一步行动", "写出循环变量序列")
+                .doesNotContain("发生了什么", "为什么重要");
+    }
+
+    @Test
     void adviceValidationFailureFallsBackWithoutPretendingSuccess() {
         StubAiReportService service = newService(
                 """
