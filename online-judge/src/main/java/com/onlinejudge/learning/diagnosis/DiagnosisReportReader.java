@@ -58,6 +58,14 @@ public class DiagnosisReportReader {
         return value == null ? "" : String.valueOf(value);
     }
 
+    public List<String> abilityPoints(SubmissionAnalysis analysis) {
+        return stringListValue(payloadValue(analysis, "abilityPoints"));
+    }
+
+    public List<String> focusPoints(SubmissionAnalysis analysis) {
+        return stringListValue(payloadValue(analysis, "focusPoints"));
+    }
+
     public StudentHintPlanSnapshot studentHintPlan(SubmissionAnalysis analysis) {
         Object value = payloadValue(analysis, "studentHintPlan");
         if (!(value instanceof Map<?, ?> map)) {

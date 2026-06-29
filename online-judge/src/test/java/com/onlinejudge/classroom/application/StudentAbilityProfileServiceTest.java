@@ -56,7 +56,8 @@ class StudentAbilityProfileServiceTest {
                     taxonomy,
                     new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
             ),
-            new TeachingActionOrchestrator()
+            new TeachingActionOrchestrator(),
+            new DiagnosisReportReader(objectMapper, taxonomy)
     );
 
     @Test
@@ -336,6 +337,39 @@ class StudentAbilityProfileServiceTest {
         assertThat(profile.getMasteryGrowthSignal().getRecommendedAction()).contains("螺旋复习");
     }
 
+    @Test
+    void profileExposesFineGrainedLearningContextAndReviewCards() {
+        StudentProfile student = student(1L, 9L, "张三", "08");
+        studentProfileRepository.items.put(1L, student);
+        problemRepository.items.put(101L, problem(101L, "区间求和", List.of("循环"), List.of("右端漏取"), List.of("最小值")));
+        submissionRepository.items.add(submission(71L, 1L, 101L, 7L, Submission.Verdict.WRONG_ANSWER, 1));
+        analysisRepository.save(analysisWithLearningProfile(
+                71L,
+                "[\"BOUNDARY_CONDITION\"]",
+                "[\"OFF_BY_ONE\"]",
+                "[\"循环与边界\"]",
+                "[\"range 右端不包含\"]"
+        ));
+
+        var profile = service.buildProfile(1L);
+
+        assertThat(profile.getFineGrainedProfile()).isNotNull();
+        assertThat(profile.getFineGrainedProfile().getIssueTagFocus()).extracting("label").contains("BOUNDARY_CONDITION");
+        assertThat(profile.getFineGrainedProfile().getFineGrainedTagFocus()).extracting("label").contains("OFF_BY_ONE");
+        assertThat(profile.getFineGrainedProfile().getAbilityPointFocus()).extracting("label").contains("循环与边界");
+        assertThat(profile.getFineGrainedProfile().getFocusPointFocus()).extracting("label").contains("range 右端不包含");
+        assertThat(profile.getFineGrainedProfile().getAiContextSummary()).contains("OFF_BY_ONE", "循环与边界");
+        assertThat(profile.getReviewCards()).singleElement().satisfies(card -> {
+            assertThat(card.getSubmissionId()).isEqualTo(71L);
+            assertThat(card.getProblemTitle()).isEqualTo("区间求和");
+            assertThat(card.getPrimaryIssueTag()).isEqualTo("BOUNDARY_CONDITION");
+            assertThat(card.getPrimaryFineGrainedTag()).isEqualTo("OFF_BY_ONE");
+            assertThat(card.getAbilityPoint()).isEqualTo("循环与边界");
+            assertThat(card.getNextAction()).contains("手推");
+            assertThat(card.getEvidenceRefs()).contains("code:range_stop");
+        });
+    }
+
     private StudentProfile student(Long id, Long classGroupId, String displayName, String studentNo) {
         return StudentProfile.builder()
                 .id(id)
@@ -389,6 +423,33 @@ class StudentAbilityProfileServiceTest {
                           "fineGrainedTags": %s
                         }
                         """.formatted(issueTags, fineTags))
+                .build();
+    }
+
+    private SubmissionAnalysis analysisWithLearningProfile(Long submissionId,
+                                                           String issueTags,
+                                                           String fineTags,
+                                                           String abilityPoints,
+                                                           String focusPoints) {
+        return SubmissionAnalysis.builder()
+                .submissionId(submissionId)
+                .analysisSource("TEST")
+                .scenario("WA")
+                .headline("循环边界")
+                .summary("循环没有覆盖右端点。")
+                .reportMarkdown("markdown")
+                .reportJson("""
+                        {
+                          "issueTags": %s,
+                          "fineGrainedTags": %s,
+                          "abilityPoints": %s,
+                          "focusPoints": %s,
+                          "evidenceRefs": ["code:range_stop"],
+                          "studentHintPlan": {
+                            "nextAction": "先手推 n=1 时循环变量实际出现过哪些值。"
+                          }
+                        }
+                        """.formatted(issueTags, fineTags, abilityPoints, focusPoints))
                 .build();
     }
 

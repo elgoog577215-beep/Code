@@ -7,6 +7,7 @@ import com.onlinejudge.classroom.dto.StudentAbilityProfileResponse;
 import com.onlinejudge.classroom.dto.StudentProfileResponse;
 import com.onlinejudge.classroom.persistence.StudentRecommendationEventRepository;
 import com.onlinejudge.classroom.persistence.StudentProfileRepository;
+import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.domain.Submission;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 public class StudentAbilityProfileService {
 
     private static final int RECENT_WINDOW = 40;
+    private static final int REVIEW_CARD_LIMIT = 5;
 
     private final StudentProfileRepository studentProfileRepository;
     private final SubmissionRepository submissionRepository;
@@ -47,6 +49,7 @@ public class StudentAbilityProfileService {
     private final AiDependencyAnalyzer aiDependencyAnalyzer;
     private final MasteryGrowthAnalyzer masteryGrowthAnalyzer;
     private final TeachingActionOrchestrator teachingActionOrchestrator;
+    private final DiagnosisReportReader diagnosisReportReader;
 
     public StudentAbilityProfileResponse buildProfile(Long studentProfileId) {
         StudentProfile student = studentProfileRepository.findById(studentProfileId)
@@ -152,6 +155,8 @@ public class StudentAbilityProfileService {
                 .knowledgeFocus(summarizeProblemTags(submissions, problems, Problem::getKnowledgePoints))
                 .commonMistakeFocus(summarizeProblemTags(submissions, problems, Problem::getCommonMistakes))
                 .boundaryFocus(summarizeProblemTags(submissions, problems, Problem::getBoundaryTypes))
+                .fineGrainedProfile(buildFineGrainedProfile(submissions, analyses))
+                .reviewCards(buildReviewCards(submissions, analyses, problems))
                 .build();
     }
 
@@ -288,6 +293,150 @@ public class StudentAbilityProfileService {
             return "同一能力点多次出现，下一轮应验证是否真正理解，而不是只改代码。";
         }
         return "趋势还在形成中，继续用下一次提交补充证据。";
+    }
+
+    private StudentAbilityProfileResponse.FineGrainedLearningProfile buildFineGrainedProfile(
+            List<Submission> submissions,
+            Map<Long, SubmissionAnalysis> analyses) {
+        List<Submission> source = profileEvidenceSubmissions(submissions);
+        List<StudentAbilityProfileResponse.ProfileStat> issueTags =
+                summarizeAnalysisTags(source, analyses, diagnosisReportReader::issueTags);
+        List<StudentAbilityProfileResponse.ProfileStat> fineTags =
+                summarizeAnalysisTags(source, analyses, diagnosisReportReader::fineGrainedTags);
+        List<StudentAbilityProfileResponse.ProfileStat> abilityPoints =
+                summarizeAnalysisTags(source, analyses, this::abilityPoints);
+        List<StudentAbilityProfileResponse.ProfileStat> focusPoints =
+                summarizeAnalysisTags(source, analyses, this::focusPoints);
+        return StudentAbilityProfileResponse.FineGrainedLearningProfile.builder()
+                .issueTagFocus(issueTags)
+                .fineGrainedTagFocus(fineTags)
+                .abilityPointFocus(abilityPoints)
+                .focusPointFocus(focusPoints)
+                .aiContextSummary(buildAiContextSummary(issueTags, fineTags, abilityPoints))
+                .build();
+    }
+
+    private List<StudentAbilityProfileResponse.ReviewCard> buildReviewCards(
+            List<Submission> submissions,
+            Map<Long, SubmissionAnalysis> analyses,
+            Map<Long, Problem> problems) {
+        if (submissions == null || submissions.isEmpty()) {
+            return List.of();
+        }
+        return submissions.stream()
+                .filter(submission -> submission.getVerdict() != Submission.Verdict.ACCEPTED)
+                .map(submission -> toReviewCard(submission, analyses.get(submission.getId()), problems.get(submission.getProblemId())))
+                .filter(Objects::nonNull)
+                .limit(REVIEW_CARD_LIMIT)
+                .toList();
+    }
+
+    private StudentAbilityProfileResponse.ReviewCard toReviewCard(Submission submission,
+                                                                  SubmissionAnalysis analysis,
+                                                                  Problem problem) {
+        if (submission == null || analysis == null) {
+            return null;
+        }
+        List<String> issueTags = diagnosisReportReader.issueTags(analysis);
+        List<String> fineTags = diagnosisReportReader.fineGrainedTags(analysis);
+        DiagnosisReportReader.StudentHintPlanSnapshot hintPlan = diagnosisReportReader.studentHintPlan(analysis);
+        List<String> abilityPoints = abilityPoints(analysis);
+        String nextAction = hintPlan == null ? diagnosisReportReader.studentHint(analysis) : hintPlan.nextAction();
+        return StudentAbilityProfileResponse.ReviewCard.builder()
+                .submissionId(submission.getId())
+                .problemId(submission.getProblemId())
+                .problemTitle(problem == null ? "" : problem.getTitle())
+                .verdict(submission.getVerdict() == null ? "" : submission.getVerdict().name())
+                .primaryIssueTag(first(issueTags))
+                .primaryFineGrainedTag(first(fineTags))
+                .abilityPoint(first(abilityPoints))
+                .summary(defaultIfBlank(analysis.getSummary(), analysis.getHeadline()))
+                .nextAction(defaultIfBlank(nextAction, "先复盘本题的第一处失败证据，再写一句下次自查点。"))
+                .evidenceRefs(diagnosisReportReader.evidenceRefs(analysis).stream().limit(5).toList())
+                .build();
+    }
+
+    private List<Submission> profileEvidenceSubmissions(List<Submission> submissions) {
+        if (submissions == null || submissions.isEmpty()) {
+            return List.of();
+        }
+        boolean hasFailed = submissions.stream().anyMatch(submission -> submission.getVerdict() != Submission.Verdict.ACCEPTED);
+        return submissions.stream()
+                .filter(submission -> !hasFailed || submission.getVerdict() != Submission.Verdict.ACCEPTED)
+                .limit(RECENT_WINDOW)
+                .toList();
+    }
+
+    private List<StudentAbilityProfileResponse.ProfileStat> summarizeAnalysisTags(
+            List<Submission> submissions,
+            Map<Long, SubmissionAnalysis> analyses,
+            Function<SubmissionAnalysis, List<String>> extractor) {
+        if (submissions == null || submissions.isEmpty() || analyses == null || analyses.isEmpty()) {
+            return List.of();
+        }
+        Map<String, TagAccumulator> accumulators = new LinkedHashMap<>();
+        submissions.forEach(submission -> {
+            SubmissionAnalysis analysis = analyses.get(submission.getId());
+            if (analysis == null) {
+                return;
+            }
+            List<String> tags = extractor.apply(analysis);
+            if (tags == null) {
+                return;
+            }
+            tags.stream()
+                    .map(this::normalize)
+                    .filter(value -> !value.isBlank())
+                    .distinct()
+                    .forEach(value -> {
+                        TagAccumulator accumulator = accumulators.computeIfAbsent(value, TagAccumulator::new);
+                        accumulator.count++;
+                        if (submission.getProblemId() != null) {
+                            accumulator.problemIds.add(submission.getProblemId());
+                        }
+                    });
+        });
+        return accumulators.values().stream()
+                .sorted(Comparator.comparing(TagAccumulator::getCount).reversed()
+                        .thenComparing(TagAccumulator::getLabel))
+                .limit(5)
+                .map(TagAccumulator::toStat)
+                .toList();
+    }
+
+    private List<String> abilityPoints(SubmissionAnalysis analysis) {
+        return diagnosisReportReader.abilityPoints(analysis);
+    }
+
+    private List<String> focusPoints(SubmissionAnalysis analysis) {
+        return diagnosisReportReader.focusPoints(analysis);
+    }
+
+    private String buildAiContextSummary(List<StudentAbilityProfileResponse.ProfileStat> issueTags,
+                                         List<StudentAbilityProfileResponse.ProfileStat> fineTags,
+                                         List<StudentAbilityProfileResponse.ProfileStat> abilityPoints) {
+        String fine = firstLabel(fineTags);
+        String ability = firstLabel(abilityPoints);
+        String issue = firstLabel(issueTags);
+        if (!fine.isBlank()) {
+            return "AI 助手应优先关注细颗粒错因：" + fine + "，结合能力点：" + defaultIfBlank(ability, issue) + "。";
+        }
+        if (!ability.isBlank()) {
+            return "AI 助手应优先关注能力点：" + ability + "，结合最近提交证据提问。";
+        }
+        return "画像证据仍少，AI 助手应先围绕最近一次提交做最小失败样例追问。";
+    }
+
+    private String firstLabel(List<StudentAbilityProfileResponse.ProfileStat> stats) {
+        return stats == null || stats.isEmpty() ? "" : defaultIfBlank(stats.get(0).getLabel(), "");
+    }
+
+    private String first(List<String> values) {
+        return values == null || values.isEmpty() ? "" : defaultIfBlank(values.get(0), "");
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private String buildRecommendationEffectSummary(List<Long> profileIds) {

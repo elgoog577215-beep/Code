@@ -56,7 +56,8 @@ class StudentRecommendationServiceTest {
                     taxonomy,
                     new AbilitySignalAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
             ),
-            new TeachingActionOrchestrator()
+            new TeachingActionOrchestrator(),
+            new DiagnosisReportReader(objectMapper, taxonomy)
     );
     private final StudentRecommendationEventService recommendationEventService = new StudentRecommendationEventService(
             recommendationEventRepository,

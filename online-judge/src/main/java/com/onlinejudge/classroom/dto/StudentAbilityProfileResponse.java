@@ -30,6 +30,8 @@ public class StudentAbilityProfileResponse {
     private List<ProfileStat> knowledgeFocus;
     private List<ProfileStat> commonMistakeFocus;
     private List<ProfileStat> boundaryFocus;
+    private FineGrainedLearningProfile fineGrainedProfile;
+    private List<ReviewCard> reviewCards;
 
     @Data
     @Builder
@@ -46,6 +48,31 @@ public class StudentAbilityProfileResponse {
         private String label;
         private long count;
         private List<Long> evidenceProblemIds;
+    }
+
+    @Data
+    @Builder
+    public static class FineGrainedLearningProfile {
+        private String aiContextSummary;
+        private List<ProfileStat> issueTagFocus;
+        private List<ProfileStat> fineGrainedTagFocus;
+        private List<ProfileStat> abilityPointFocus;
+        private List<ProfileStat> focusPointFocus;
+    }
+
+    @Data
+    @Builder
+    public static class ReviewCard {
+        private Long submissionId;
+        private Long problemId;
+        private String problemTitle;
+        private String verdict;
+        private String primaryIssueTag;
+        private String primaryFineGrainedTag;
+        private String abilityPoint;
+        private String summary;
+        private String nextAction;
+        private List<String> evidenceRefs;
     }
 
     @Data
