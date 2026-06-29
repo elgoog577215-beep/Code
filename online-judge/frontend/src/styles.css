@@ -15262,6 +15262,134 @@ summary:focus-visible {
   flex: 0 0 auto;
 }
 
+.student-review-panel {
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+.student-review-panel__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.student-review-panel__head h2 {
+  margin: 0.16rem 0 0;
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
+.student-review-panel__head span {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.student-review-summary {
+  display: grid;
+  gap: 0.24rem;
+  padding: 0.74rem 0.78rem;
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in srgb, var(--brand-soft) 24%, transparent);
+}
+
+.student-review-summary strong {
+  font-size: 0.92rem;
+}
+
+.student-review-summary p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.student-review-cards {
+  display: grid;
+  gap: 0.48rem;
+}
+
+.student-review-card {
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.68rem;
+  padding: 0.72rem;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 2px);
+  color: var(--ink);
+  background: var(--surface);
+  text-decoration: none;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.student-review-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand) 32%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 18%, var(--surface));
+}
+
+.student-review-card__icon {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 34%, transparent);
+}
+
+.student-review-card__body {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.student-review-card__body strong,
+.student-review-card__body small,
+.student-review-card__body p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.student-review-card__body strong {
+  font-size: 0.95rem;
+  line-height: 1.28;
+}
+
+.student-review-card__body small {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.student-review-card__body p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.42;
+}
+
+.student-review-empty {
+  padding: 0.84rem;
+  border: 1px dashed var(--line);
+  border-radius: calc(var(--radius) - 2px);
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .status-pill,
 .meta-badge,
 .code-label {

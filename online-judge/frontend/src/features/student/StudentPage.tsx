@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, LogIn } from "lucide-react";
+import { ArrowRight, LogIn, RotateCcw } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { Assignment, ClassGroup, StudentProfile } from "../../shared/api/types";
+import type { Assignment, ClassGroup, ReviewCard, StudentAbilityProfile, StudentProfile } from "../../shared/api/types";
+import { verdictLabel } from "../../shared/format";
 import { loadStudent, onActiveStudentChange } from "../../shared/storage";
 
 function visibleAssignmentTitle(assignment: Assignment) {
@@ -13,12 +14,18 @@ function latestTeacherAssignments(assignments: Assignment[]) {
   return assignments.filter(item => item.status !== "DRAFT");
 }
 
+function reviewCardLink(card: ReviewCard, studentId: number) {
+  return `/app/student/assignments/public/problems/${card.problemId}?studentProfileId=${studentId}`;
+}
+
 export default function StudentPage() {
   const [student, setStudent] = useState<StudentProfile | null>(() => loadStudent());
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [abilityProfile, setAbilityProfile] = useState<StudentAbilityProfile | null>(null);
   const [problemCount, setProblemCount] = useState<number | null>(null);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,11 +67,14 @@ export default function StudentPage() {
   useEffect(() => {
     if (!student) {
       setAssignments([]);
+      setAbilityProfile(null);
       setAssignmentLoading(false);
+      setProfileLoading(false);
       return;
     }
     let ignore = false;
     setAssignmentLoading(true);
+    setProfileLoading(true);
     api.studentAssignments(student.id)
       .then(result => {
         if (!ignore) {
@@ -81,12 +91,31 @@ export default function StudentPage() {
           setAssignmentLoading(false);
         }
       });
+    api.studentAbilityProfile(student.id)
+      .then(result => {
+        if (!ignore) {
+          setAbilityProfile(result);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setAbilityProfile(null);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setProfileLoading(false);
+        }
+      });
     return () => {
       ignore = true;
     };
   }, [student]);
 
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
+  const reviewCards = useMemo(() => (abilityProfile?.reviewCards || []).slice(0, 3), [abilityProfile]);
+  const fineFocus = abilityProfile?.fineGrainedProfile?.fineGrainedTagFocus?.[0]?.label || null;
+  const abilityFocus = abilityProfile?.fineGrainedProfile?.abilityPointFocus?.[0]?.label || abilityProfile?.primaryAbilityFocus || null;
   const teacherByClassId = useMemo(() => {
     const lookup = new Map<number, string>();
     classes.forEach(item => {
@@ -163,6 +192,51 @@ export default function StudentPage() {
           </div>
         )}
       </nav>
+
+      {student ? (
+        <section className="student-review-panel" aria-label="我的错题复盘">
+          <div className="student-review-panel__head">
+            <div>
+              <p className="eyebrow">我的复盘</p>
+              <h2>最近该回看的题</h2>
+            </div>
+            <span>{profileLoading ? "正在读取画像" : abilityProfile?.failedSubmissionCount ? `${abilityProfile.failedSubmissionCount} 次未通过记录` : "等待更多提交"}</span>
+          </div>
+
+          {abilityProfile?.fineGrainedProfile?.aiContextSummary || abilityFocus || fineFocus ? (
+            <div className="student-review-summary">
+              <strong>{abilityFocus || "画像仍在形成"}</strong>
+              <p>{abilityProfile?.fineGrainedProfile?.aiContextSummary || `先围绕 ${fineFocus || abilityFocus} 做一次错题复盘。`}</p>
+            </div>
+          ) : null}
+
+          {reviewCards.length ? (
+            <div className="student-review-cards">
+              {reviewCards.map(card => (
+                <Link className="student-review-card" to={reviewCardLink(card, student.id)} key={card.submissionId}>
+                  <span className="student-review-card__icon">
+                    <RotateCcw size={17} aria-hidden="true" />
+                  </span>
+                  <span className="student-review-card__body">
+                    <strong>{card.problemTitle || `题目 #${card.problemId}`}</strong>
+                    <small>
+                      {[card.verdict ? verdictLabel(card.verdict) : null, card.primaryFineGrainedTag, card.abilityPoint]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </small>
+                    {card.nextAction ? <p>{card.nextAction}</p> : null}
+                  </span>
+                  <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="student-review-empty">
+              {profileLoading ? "正在整理最近错题。" : "完成几次提交后，这里会出现可复盘的错题卡片。"}
+            </div>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -193,6 +193,27 @@ export interface ProfileStat {
   evidenceProblemIds?: number[];
 }
 
+export interface FineGrainedLearningProfile {
+  aiContextSummary?: string | null;
+  issueTagFocus?: ProfileStat[];
+  fineGrainedTagFocus?: ProfileStat[];
+  abilityPointFocus?: ProfileStat[];
+  focusPointFocus?: ProfileStat[];
+}
+
+export interface ReviewCard {
+  submissionId: number;
+  problemId: number;
+  problemTitle?: string | null;
+  verdict?: Verdict | string | null;
+  primaryIssueTag?: string | null;
+  primaryFineGrainedTag?: string | null;
+  abilityPoint?: string | null;
+  summary?: string | null;
+  nextAction?: string | null;
+  evidenceRefs?: string[];
+}
+
 export interface StudentAbilityProfile {
   student: StudentProfile;
   mergedStudentProfileIds: number[];
@@ -216,6 +237,8 @@ export interface StudentAbilityProfile {
   knowledgeFocus?: ProfileStat[];
   commonMistakeFocus?: ProfileStat[];
   boundaryFocus?: ProfileStat[];
+  fineGrainedProfile?: FineGrainedLearningProfile | null;
+  reviewCards?: ReviewCard[];
 }
 
 export interface StudentRecommendationItem {
