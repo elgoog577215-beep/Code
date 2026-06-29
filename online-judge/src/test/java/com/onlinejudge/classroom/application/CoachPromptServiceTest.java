@@ -183,6 +183,34 @@ class CoachPromptServiceTest {
     }
 
     @Test
+    void coachPromptCarriesFineGrainedStudentProfileContext() {
+        createAssignment(7L, Assignment.HintPolicy.L2);
+        createSubmission(21L, 7L, Submission.Verdict.WRONG_ANSWER);
+        createSubmission(20L, 7L, Submission.Verdict.WRONG_ANSWER);
+        createAnalysis(21L, "[\"LOOP_BOUNDARY\"]", "[\"OFF_BY_ONE\"]", "[\"code:range_stop\"]", null, """
+                "abilityPoints": ["循环与边界"],
+                "focusPoints": ["range 右端不包含"]
+                """);
+        createAnalysis(20L, "[\"LOOP_BOUNDARY\"]", "[\"OFF_BY_ONE\"]", "[\"code:old_range_stop\"]", null, """
+                "abilityPoints": ["循环与边界"],
+                "focusPoints": ["range 右端不包含"]
+                """);
+
+        CoachPromptResponse response = service.generateNextQuestion(21L);
+
+        assertThat(response.getContextSummary()).contains("学生画像");
+        assertThat(response.getContextSummary()).contains("循环与边界");
+        assertThat(response.getContextSummary()).contains("range 右端不包含");
+        assertThat(response.getContextSummary()).contains("最近复盘题");
+        assertThat(response.getEvidenceRefs()).contains(
+                "student-profile:fine-tag:OFF_BY_ONE",
+                "student-profile:ability:循环与边界",
+                "student-profile:review-submission:21"
+        );
+        assertThat(promptRepository.saved.get(0).getContextSummary()).contains("学生画像");
+    }
+
+    @Test
     void storesStudentAnswerAndGeneratesFollowUpTurn() {
         createAssignment(7L, Assignment.HintPolicy.L2);
         createSubmission(14L, 7L, Submission.Verdict.WRONG_ANSWER);

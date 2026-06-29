@@ -222,6 +222,8 @@ public class CoachPromptService {
         String repeatedFineTag = repeatedTag(recentSubmissions, analyses, true);
         String repeatedIssueTag = repeatedTag(recentSubmissions, analyses, false);
         String transition = buildTransition(recentSubmissions);
+        StudentProfileContext studentProfileContext = buildStudentProfileContext(recentSubmissions, analyses);
+        evidenceRefs = mergeRefs(evidenceRefs, studentProfileContext.evidenceRefs());
         DiagnosisReportReader.LearningActionEvidenceSnapshot actionEvidence = diagnosisReportReader.learningActionEvidence(analysis);
         CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal = selectAdaptiveStrategy(
                 submission,
@@ -242,7 +244,8 @@ public class CoachPromptService {
                 transition,
                 evidenceRefs,
                 evidenceSummary,
-                adaptiveStrategySignal
+                adaptiveStrategySignal,
+                studentProfileContext
         );
         return new LearningContext(summary, evidenceRefs, adaptiveStrategySignal);
     }
@@ -430,13 +433,89 @@ public class CoachPromptService {
         return "最近评测阶段从“" + readableVerdict(previous) + "”变为“" + readableVerdict(latest) + "”。";
     }
 
+    private StudentProfileContext buildStudentProfileContext(List<Submission> submissions,
+                                                             Map<Long, SubmissionAnalysis> analyses) {
+        if (submissions == null || submissions.isEmpty() || analyses == null || analyses.isEmpty()) {
+            return StudentProfileContext.empty();
+        }
+        List<Submission> source = submissions.stream()
+                .filter(submission -> submission.getVerdict() != Submission.Verdict.ACCEPTED)
+                .toList();
+        if (source.isEmpty()) {
+            source = submissions;
+        }
+        List<String> fineTags = topAnalysisValues(source, analyses, diagnosisReportReader::fineGrainedTags, 3);
+        List<String> issueTags = topAnalysisValues(source, analyses, diagnosisReportReader::issueTags, 2);
+        List<String> abilityPoints = topAnalysisValues(source, analyses, diagnosisReportReader::abilityPoints, 2);
+        List<String> focusPoints = topAnalysisValues(source, analyses, diagnosisReportReader::focusPoints, 2);
+        if (fineTags.isEmpty() && issueTags.isEmpty() && abilityPoints.isEmpty() && focusPoints.isEmpty()) {
+            return StudentProfileContext.empty();
+        }
+        StringBuilder summary = new StringBuilder("学生画像：");
+        if (!fineTags.isEmpty()) {
+            summary.append("近期高频细颗粒错因“")
+                    .append(fineTags.stream().map(diagnosisTaxonomy::label).collect(Collectors.joining("、")))
+                    .append("”；");
+        } else if (!issueTags.isEmpty()) {
+            summary.append("近期高频问题“")
+                    .append(issueTags.stream().map(diagnosisTaxonomy::label).collect(Collectors.joining("、")))
+                    .append("”；");
+        }
+        if (!abilityPoints.isEmpty()) {
+            summary.append("能力点“").append(String.join("、", abilityPoints)).append("”；");
+        }
+        if (!focusPoints.isEmpty()) {
+            summary.append("学习焦点“").append(String.join("、", focusPoints)).append("”；");
+        }
+        List<String> reviewHints = source.stream()
+                .filter(submission -> submission.getId() != null)
+                .limit(2)
+                .map(submission -> "题目#" + submission.getProblemId() + " " + readableVerdict(verdictName(submission)))
+                .toList();
+        if (!reviewHints.isEmpty()) {
+            summary.append("最近复盘题：").append(String.join("，", reviewHints)).append("。");
+        }
+        List<String> evidenceRefs = mergeRefs(
+                mergeRefs(
+                        fineTags.stream().map(tag -> "student-profile:fine-tag:" + tag).toList(),
+                        abilityPoints.stream().map(point -> "student-profile:ability:" + point).toList()
+                ),
+                source.stream()
+                        .filter(submission -> submission.getId() != null)
+                        .limit(2)
+                        .map(submission -> "student-profile:review-submission:" + submission.getId())
+                        .toList()
+        );
+        return new StudentProfileContext(summary.toString(), evidenceRefs);
+    }
+
+    private List<String> topAnalysisValues(List<Submission> submissions,
+                                           Map<Long, SubmissionAnalysis> analyses,
+                                           Function<SubmissionAnalysis, List<String>> extractor,
+                                           int limit) {
+        return submissions.stream()
+                .map(submission -> analyses.get(submission.getId()))
+                .filter(Objects::nonNull)
+                .flatMap(analysis -> extractor.apply(analysis).stream())
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                .entrySet()
+                .stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+                .limit(limit)
+                .map(Map.Entry::getKey)
+                .toList();
+    }
+
     private String buildContextSummary(String primaryTag,
                                        String repeatedFineTag,
                                        String repeatedIssueTag,
                                        String transition,
                                        List<String> evidenceRefs,
                                        DiagnosisEvidencePackageReader.EvidenceSummary evidenceSummary,
-                                       CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal) {
+                                       CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal,
+                                       StudentProfileContext studentProfileContext) {
         StringBuilder summary = new StringBuilder("本次追问基于“")
                 .append(diagnosisTaxonomy.label(primaryTag))
                 .append("”。");
@@ -450,6 +529,9 @@ public class CoachPromptService {
         }
         if (evidenceRefs != null && evidenceRefs.size() > 3) {
             summary.append(" 已引用 ").append(evidenceRefs.size()).append(" 条诊断证据。");
+        }
+        if (studentProfileContext != null && hasText(studentProfileContext.summary())) {
+            summary.append(" ").append(studentProfileContext.summary());
         }
         if (evidenceSummary != null && evidenceSummary.detailLines() != null && !evidenceSummary.detailLines().isEmpty()) {
             summary.append(" 证据包摘要：")
@@ -779,6 +861,12 @@ public class CoachPromptService {
     private record LearningContext(String summary,
                                    List<String> evidenceRefs,
                                    CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal) {
+    }
+
+    private record StudentProfileContext(String summary, List<String> evidenceRefs) {
+        private static StudentProfileContext empty() {
+            return new StudentProfileContext("", List.of());
+        }
     }
 
     private record StrategyDecision(String strategy,
