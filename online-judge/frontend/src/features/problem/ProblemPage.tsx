@@ -680,6 +680,10 @@ export default function ProblemPage() {
   const modelFeedbackReady = studentAiFeedback?.status === "READY" && studentAiFeedback.source === "MODEL";
   const repairViewItems = modelFeedbackReady ? studentAiFeedback.repairItems?.filter(item => item.body || item.title) || [] : [];
   const improvementViewItems = modelFeedbackReady ? studentAiFeedback.improvementItems?.filter(item => item.body || item.title) || [] : [];
+  const studentReport = modelFeedbackReady ? studentAiFeedback.studentReport || null : null;
+  const basicReportText = studentReport?.basicLayerText?.trim() || "";
+  const improvementReportText = studentReport?.improvementLayerText?.trim() || "";
+  const nextActionReportText = studentReport?.nextActionText?.trim() || "";
   const feedbackStatus = String(studentAiFeedback?.status || "").toUpperCase();
   const isFeedbackWaiting = Boolean(
     latest &&
@@ -709,9 +713,16 @@ export default function ProblemPage() {
   const selectedLanguage = contestLanguageById(languageId);
   const draftChanged = sourceCode !== defaultSourceFor(problem, languageId);
   const codeLineCount = sourceCode ? sourceCode.split(/\r?\n/).length : 0;
-  const repairCheckQuestion = modelFeedbackReady ? studentAiFeedback.nextQuestion || "" : "";
-  const showRepairSection = isFeedbackWaiting || isFeedbackBackground || feedbackFailed || repairViewItems.length > 0 || Boolean(repairCheckQuestion) || Boolean(coachPrompt);
-  const showGrowthSection = isFeedbackWaiting || isFeedbackBackground || feedbackFailed || improvementViewItems.length > 0;
+  const repairCheckQuestion = modelFeedbackReady ? nextActionReportText || studentAiFeedback.nextQuestion || "" : "";
+  const showRepairSection =
+    isFeedbackWaiting ||
+    isFeedbackBackground ||
+    feedbackFailed ||
+    Boolean(basicReportText) ||
+    repairViewItems.length > 0 ||
+    Boolean(repairCheckQuestion) ||
+    Boolean(coachPrompt);
+  const showGrowthSection = isFeedbackWaiting || isFeedbackBackground || feedbackFailed || Boolean(improvementReportText) || improvementViewItems.length > 0;
   const showFeedbackRefreshAction = Boolean(
     latest && (isFeedbackBackground || feedbackFailed || feedbackPollState === "slow" || feedbackPollState === "refreshing")
   );
@@ -734,8 +745,8 @@ export default function ProblemPage() {
     (firstFailedCase && !firstFailedCase.hidden
       ? (firstFailedCase.expectedOutput?.length || 0) + (firstFailedCase.actualOutput?.length || 0) + 90
       : 0);
-  const repairTextWeight = feedbackTextWeight(repairViewItems) + repairCheckQuestion.length + (coachPrompt?.question?.length || 0);
-  const growthTextWeight = feedbackTextWeight(improvementViewItems);
+  const repairTextWeight = feedbackTextWeight(repairViewItems) + basicReportText.length + repairCheckQuestion.length + (coachPrompt?.question?.length || 0);
+  const growthTextWeight = feedbackTextWeight(improvementViewItems) + improvementReportText.length;
   const resultLayoutMode = isFeedbackWaiting
     ? "waiting"
     : judgeTextWeight > Math.max(520, repairTextWeight + growthTextWeight)
@@ -1010,6 +1021,10 @@ export default function ProblemPage() {
                       <FeedbackLoadingPanel mode="repair" state={feedbackPollState} />
                     ) : feedbackFailed ? (
                       <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
+                    ) : basicReportText ? (
+                      <article className="student-feedback-report student-feedback-report--basic">
+                        <p>{basicReportText}</p>
+                      </article>
                     ) : repairViewItems.length ? (
                       <div className="student-feedback-list">
                         {repairViewItems.slice(0, 1).map((item, index) => (
@@ -1044,6 +1059,10 @@ export default function ProblemPage() {
                       <FeedbackLoadingPanel mode="growth" state={feedbackPollState} />
                     ) : feedbackFailed ? (
                       <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
+                    ) : improvementReportText ? (
+                      <article className="student-feedback-report student-feedback-report--growth">
+                        <p>{improvementReportText}</p>
+                      </article>
                     ) : improvementViewItems.length ? (
                       <div className="student-feedback-list">
                         {improvementViewItems.slice(0, 3).map((item, index) => (

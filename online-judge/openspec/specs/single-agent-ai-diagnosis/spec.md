@@ -10,9 +10,19 @@ TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Pur
 - **WHEN** 学生提交代码且外部 AI 可用
 - **THEN** 系统 SHALL 只调用正式诊断报告模型阶段，不调用外部搜索定位模型阶段
 
+#### Scenario: 默认配置关闭实时搜索 Agent
+- **WHEN** 未显式开启 `AI_SEARCH_LOCATION_ENABLED`
+- **THEN** 系统 SHALL 不调用 `search-location-v1`
+- **AND** trace SHALL 将召回状态标记为 `LOCAL_RECALL`
+
 #### Scenario: 单诊断 Agent 接收本地召回候选
 - **WHEN** 后端已从标准库本地召回候选条目
 - **THEN** 单诊断 Agent 的输入 MUST 包含题目、代码、判题结果、证据和树形候选标准库上下文
+
+#### Scenario: 显式打开搜索 Agent 对照路线
+- **WHEN** 配置显式设置 `AI_SEARCH_LOCATION_ENABLED=true`
+- **THEN** 系统 MAY 运行搜索 Agent 对照路线
+- **AND** trace SHALL 清楚标记该路线不是默认教学路线
 
 ### Requirement: 标准库作为候选地图而不是强制答案
 系统 SHALL 允许单诊断 Agent 对本地召回候选标记命中、部分命中或未命中，并允许输出库外发现。
@@ -28,6 +38,11 @@ TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Pur
 - **WHEN** 单诊断 Agent 输出有效报告
 - **THEN** 学生端 SHALL 优先展示 `studentReport` 的自然语言报告，而不是碎字段拼接文本
 
+#### Scenario: 结构化字段服务机器消费
+- **WHEN** 单诊断 Agent 输出 `studentReport` 和元数据
+- **THEN** 学生端 SHALL 以 `studentReport` 作为主展示
+- **AND** `libraryFit`、标签、证据、泄题风险等元数据 SHALL 用于校验、画像、推荐、教师追踪和评测
+
 #### Scenario: 学生反馈长度受控
 - **WHEN** 单诊断 Agent 生成学生可见反馈
 - **THEN** 系统 SHALL 要求基础层、提高层和下一步行动保持短句、明确证据和可执行动作，且不得生成长篇完整教程
@@ -35,4 +50,3 @@ TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Pur
 #### Scenario: 基础层优先
 - **WHEN** 提交未通过且存在基础层阻塞问题
 - **THEN** 学生反馈 SHALL 先说明基础层问题，再给出次要提高层建议
-

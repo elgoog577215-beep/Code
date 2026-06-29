@@ -20,6 +20,7 @@ public class StudentAiFeedbackResponse {
     private Long latencyMs;
     private List<FeedbackItem> repairItems;
     private List<FeedbackItem> improvementItems;
+    private StudentReport studentReport;
     private String nextQuestion;
     private Safety safety;
     private List<String> evidenceRefs;
@@ -34,6 +35,16 @@ public class StudentAiFeedbackResponse {
         private String kind;
         private List<String> evidenceRefs;
         private List<String> qualitySignals;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StudentReport {
+        private String basicLayerText;
+        private String improvementLayerText;
+        private String nextActionText;
     }
 
     @Data

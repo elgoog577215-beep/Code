@@ -560,6 +560,12 @@ export interface StudentAiFeedbackItem {
   qualitySignals?: string[];
 }
 
+export interface StudentAiFeedbackReport {
+  basicLayerText?: string | null;
+  improvementLayerText?: string | null;
+  nextActionText?: string | null;
+}
+
 export interface StudentAiFeedback {
   submissionId?: number | null;
   status: StudentAiFeedbackStatus;
@@ -568,6 +574,7 @@ export interface StudentAiFeedback {
   latencyMs?: number | null;
   repairItems?: StudentAiFeedbackItem[];
   improvementItems?: StudentAiFeedbackItem[];
+  studentReport?: StudentAiFeedbackReport | null;
   nextQuestion?: string | null;
   safety?: {
     answerLeakRisk?: "LOW" | "MEDIUM" | "HIGH" | string | null;

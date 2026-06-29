@@ -20,6 +20,11 @@ class StudentAiFeedbackModelTest {
     void generatesStudentFastFeedbackDirectlyFromStructuredModelOutput() {
         StubStudentFeedbackAiReportService service = newService("""
                 {
+                  "studentReport": {
+                    "basicLayerText": "这次主要不是算法不会，而是输入格式和代码读取方式没对齐。题面给的是两个整数，但代码只按一个整数读取，所以公开失败点一进来就会报 ValueError。你可以先拿 3 5 手推 input 实际读到了什么。",
+                    "improvementLayerText": "修完读取方式后，不要只测样例。再补一个不同的最小输入，检查代码是不是理解了题面输入结构，而不是记住了某个样例。",
+                    "nextActionText": "先写下这道题每一行输入分别包含什么，再对照代码每一次 input 读到了什么。"
+                  },
                   "repairItems": [{
                     "title": "先核对输入读取",
                     "body": "用公开失败点手推每一次 input，确认代码是否读取到了题面要求的两个整数。",
@@ -49,6 +54,9 @@ class StudentAiFeedbackModelTest {
 
         assertThat(feedback.getStatus()).isEqualTo("READY");
         assertThat(feedback.getSource()).isEqualTo("MODEL");
+        assertThat(feedback.getStudentReport().getBasicLayerText()).contains("输入格式");
+        assertThat(feedback.getStudentReport().getImprovementLayerText()).contains("最小输入");
+        assertThat(feedback.getStudentReport().getNextActionText()).contains("每一次 input");
         assertThat(feedback.getRepairItems()).singleElement().satisfies(item -> {
             assertThat(item.getBody()).contains("手推");
             assertThat(item.getEvidenceRefs()).contains("judge:first_failed_case:1");
@@ -57,10 +65,10 @@ class StudentAiFeedbackModelTest {
                 assertThat(item.getTitle()).isEqualTo("测试习惯"));
         assertThat(feedback.getNextQuestion()).contains("第二个整数");
         assertThat(feedback.getSafety().getAnswerLeakRisk()).isEqualTo("LOW");
-        assertThat(service.lastSystemPrompt()).contains("fast student-facing OJ coach");
+        assertThat(service.lastSystemPrompt()).contains("student-facing OJ review coach", "studentReport");
         assertThat(service.lastUserPrompt()).contains("judgeFacts", "candidateSignals", "sourceExcerpt");
         assertThat(service.lastUserPrompt()).doesNotContain("sourceCodeWithLineNumbers", "sourceCodeForLineAnalysis");
-        assertThat(service.lastOutputTokens()).isLessThanOrEqualTo(520);
+        assertThat(service.lastOutputTokens()).isLessThanOrEqualTo(900);
     }
 
     @Test

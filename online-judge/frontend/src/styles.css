@@ -5810,6 +5810,26 @@ button.list-row:hover {
   background: color-mix(in srgb, var(--surface) 76%, transparent);
 }
 
+.student-feedback-report {
+  display: grid;
+  gap: 0.42rem;
+  min-width: 0;
+  padding: 0.7rem 0.74rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.student-feedback-report--basic {
+  border-color: color-mix(in srgb, var(--warning) 24%, var(--line));
+  background: color-mix(in srgb, var(--warning-soft) 18%, var(--surface));
+}
+
+.student-feedback-report--growth {
+  border-color: color-mix(in srgb, var(--blue) 22%, var(--line));
+  background: color-mix(in srgb, var(--blue-soft) 24%, var(--surface));
+}
+
 .student-feedback-item--primary {
   border-color: color-mix(in srgb, var(--warning) 22%, var(--line));
   background: color-mix(in srgb, var(--warning-soft) 24%, var(--surface));
@@ -5828,6 +5848,7 @@ button.list-row:hover {
 .student-feedback-item p,
 .student-feedback-item small,
 .student-feedback-item em,
+.student-feedback-report p,
 .student-feedback-next p {
   margin: 0;
   color: var(--ink-soft);
@@ -9286,6 +9307,7 @@ tr:last-child td {
 }
 
 .teacher-attention-panel,
+.class-weakness-panel,
 .class-progress-workbench {
   min-width: 0;
   overflow: hidden;
@@ -9363,6 +9385,59 @@ tr:last-child td {
 
 .teacher-action-note strong {
   font-size: 0.82rem;
+}
+
+.class-weakness-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.46rem;
+  padding: 0.46rem;
+}
+
+.class-weakness-card {
+  min-width: 0;
+  display: grid;
+  gap: 0.34rem;
+  padding: 0.62rem 0.68rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
+}
+
+.class-weakness-card--issue {
+  border-color: color-mix(in srgb, var(--warning) 20%, var(--line));
+}
+
+.class-weakness-card--ability {
+  border-color: color-mix(in srgb, var(--blue) 22%, var(--line));
+}
+
+.class-weakness-card div {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.class-weakness-card span,
+.class-weakness-card small {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.class-weakness-card strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+}
+
+.class-weakness-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.42;
 }
 
 .class-progress-page {
@@ -9474,6 +9549,8 @@ tr:last-child td {
 :root[data-theme="dark"] .teacher-home-status-strip,
 :root[data-theme="dark"] .teacher-attention-panel,
 :root[data-theme="dark"] .teacher-attention-row,
+:root[data-theme="dark"] .class-weakness-panel,
+:root[data-theme="dark"] .class-weakness-card,
 :root[data-theme="dark"] .class-progress-workbench,
 :root[data-theme="dark"] .class-progress-matrix,
 :root[data-theme="dark"] .teacher-action-note {
@@ -9511,6 +9588,10 @@ tr:last-child td {
   }
 
   .teacher-attention-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .class-weakness-list {
     grid-template-columns: minmax(0, 1fr);
   }
 

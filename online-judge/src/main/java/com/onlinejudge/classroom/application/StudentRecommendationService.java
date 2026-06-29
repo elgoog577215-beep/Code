@@ -640,9 +640,16 @@ public class StudentRecommendationService {
                                          Long latestAssignmentId,
                                          List<StudentRecommendationResponse.RecommendationItem> items,
                                          boolean hasUnresolvedLearningSignal) {
+        List<StudentAbilityProfileResponse.ReviewCard> reviewCards = safeReviewCards(profile.getReviewCards());
+        StudentAbilityProfileResponse.ReviewCard primaryReviewCard = reviewCards.isEmpty() ? null : reviewCards.get(0);
         List<String> tags = new ArrayList<>();
         if (profile.getPrimaryAbilityFocus() != null && !profile.getPrimaryAbilityFocus().isBlank()) {
             tags.add(profile.getPrimaryAbilityFocus());
+        }
+        if (primaryReviewCard != null) {
+            addIfPresent(tags, primaryReviewCard.getPrimaryFineGrainedTag());
+            addIfPresent(tags, primaryReviewCard.getPrimaryIssueTag());
+            addIfPresent(tags, primaryReviewCard.getAbilityPoint());
         }
         safeStats(profile.getKnowledgeFocus()).stream()
                 .limit(2)
@@ -658,6 +665,8 @@ public class StudentRecommendationService {
                 .reason(buildReviewReason(profile, hasUnresolvedLearningSignal))
                 .actionLabel(hasUnresolvedLearningSignal ? "先复盘" : "按提示复盘")
                 .assignmentId(latestAssignmentId)
+                .problemId(primaryReviewCard == null ? null : primaryReviewCard.getProblemId())
+                .problemTitle(primaryReviewCard == null ? null : primaryReviewCard.getProblemTitle())
                 .focusAbility(profile.getPrimaryAbilityFocus())
                 .focusTags(tags.stream().distinct().toList())
                 .evidenceProblemIds(collectEvidenceProblemIds(profile))
@@ -734,10 +743,18 @@ public class StudentRecommendationService {
 
     private List<Long> collectEvidenceProblemIds(StudentAbilityProfileResponse profile) {
         LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        safeReviewCards(profile.getReviewCards()).stream()
+                .map(StudentAbilityProfileResponse.ReviewCard::getProblemId)
+                .filter(Objects::nonNull)
+                .forEach(ids::add);
         collectEvidenceIds(ids, profile.getKnowledgeFocus());
         collectEvidenceIds(ids, profile.getCommonMistakeFocus());
         collectEvidenceIds(ids, profile.getBoundaryFocus());
         return ids.stream().limit(5).toList();
+    }
+
+    private List<StudentAbilityProfileResponse.ReviewCard> safeReviewCards(List<StudentAbilityProfileResponse.ReviewCard> reviewCards) {
+        return reviewCards == null ? List.of() : reviewCards;
     }
 
     private List<Long> collectEvidenceProblemIdsFromRefs(List<String> refs) {
@@ -824,8 +841,20 @@ public class StudentRecommendationService {
     }
 
     private String buildReviewReason(StudentAbilityProfileResponse profile, boolean hasUnresolvedLearningSignal) {
+        StudentAbilityProfileResponse.ReviewCard reviewCard = safeReviewCards(profile.getReviewCards()).stream()
+                .findFirst()
+                .orElse(null);
         if (hasUnresolvedLearningSignal) {
             return "最近推荐后的提交仍命中同类错因，先用最小样例和自己的解释补齐证据，再继续练新题。";
+        }
+        if (reviewCard != null) {
+            String title = firstNonBlank(reviewCard.getProblemTitle(), "最近错题");
+            String issue = firstNonBlank(reviewCard.getPrimaryFineGrainedTag(), reviewCard.getPrimaryIssueTag(), reviewCard.getAbilityPoint());
+            String action = firstNonBlank(reviewCard.getNextAction(), "先写出最小失败样例和下一次自查点。");
+            if (!issue.isBlank()) {
+                return "最近在《" + title + "》暴露出“" + issue + "”，" + action;
+            }
+            return "最近在《" + title + "》还有未完成复盘，" + action;
         }
         if (profile.getLatestCoachInteraction() != null && profile.getLatestCoachInteraction().isPrompted()
                 && !profile.getLatestCoachInteraction().isAnswered()) {
@@ -894,6 +923,12 @@ public class StudentRecommendationService {
             return "推荐围绕“" + profile.getPrimaryAbilityFocus() + "”安排，先验证旧问题，再迁移到新题。";
         }
         return "推荐先用复盘任务补齐证据，再进入下一题。";
+    }
+
+    private void addIfPresent(List<String> target, String value) {
+        if (target != null && value != null && !value.isBlank()) {
+            target.add(value.trim());
+        }
     }
 
     private String firstNonBlank(String... values) {

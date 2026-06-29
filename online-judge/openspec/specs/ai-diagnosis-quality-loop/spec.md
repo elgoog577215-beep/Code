@@ -10,9 +10,14 @@ TBD - created by archiving change complete-ai-diagnosis-quality-loop. Update Pur
 - **WHEN** 诊断质量评测运行完成
 - **THEN** 系统 SHALL 输出 JSON 机器结果和 Markdown 人类报告，并保留每道题的学生端 `studentReport`
 
+#### Scenario: 学生体验维度进入评测
+- **WHEN** 诊断质量评测运行完成
+- **THEN** 系统 SHALL 记录主因命中、标准库误用、文案通俗度、长度、答案泄露、基础层和提高层主次、库外判断是否合理
+
 #### Scenario: 失败分类稳定
 - **WHEN** 样例诊断未达到质量要求
 - **THEN** 系统 SHALL 将失败归入 `RECALL_MISS`、`MODEL_MISREAD`、`TEXT_BAD`、`ANSWER_LEAK`、`TOO_LONG`、`LIBRARY_GAP`、`VALIDATOR_TOO_STRICT` 或 `VALIDATOR_TOO_LOOSE`
+- **AND** 分类 SHALL 能指向召回、模型、提示词、标准库或后端校验中的具体责任层
 
 ### Requirement: 标准库成长候选池
 系统 SHALL 将库外发现写入标准库成长候选池，并要求教师审核后才进入正式标准库。
@@ -28,4 +33,3 @@ TBD - created by archiving change complete-ai-diagnosis-quality-loop. Update Pur
 #### Scenario: 教师批准候选
 - **WHEN** 教师批准一个成长候选
 - **THEN** 系统 SHALL 创建或更新正式标准库条目，并标记相关 embedding 过期
-

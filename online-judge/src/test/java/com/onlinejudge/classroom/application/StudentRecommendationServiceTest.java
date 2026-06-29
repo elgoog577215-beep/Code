@@ -101,6 +101,12 @@ class StudentRecommendationServiceTest {
         assertThat(response.getRecommendations().get(0).getAssignmentId()).isEqualTo(7L);
         assertThat(response.getRecommendations().get(1).getProblemId()).isEqualTo(102L);
         assertThat(response.getRecommendations().get(1).getFocusTags()).contains("数组", "边界漏判");
+        assertThat(response.getRecommendations().get(2)).satisfies(item -> {
+            assertThat(item.getProblemId()).isEqualTo(101L);
+            assertThat(item.getProblemTitle()).contains("数组边界");
+            assertThat(item.getReason()).contains("OFF_BY_ONE", "先复盘本题");
+            assertThat(item.getFocusTags()).contains("OFF_BY_ONE", "BOUNDARY_CONDITION");
+        });
         assertThat(response.getRecommendations()).allSatisfy(item -> {
             assertThat(item.getLearningHypothesis()).isNotBlank();
             assertThat(item.getExpectedCompletionSignal()).isNotBlank();

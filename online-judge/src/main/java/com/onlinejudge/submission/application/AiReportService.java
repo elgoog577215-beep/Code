@@ -261,21 +261,24 @@ public class AiReportService {
             Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, ruleSignals);
 
             String systemPrompt = """
-                    You are a fast student-facing OJ coach. Return strict minified JSON only. No markdown. No chain-of-thought.
+                    You are a student-facing OJ review coach. Return strict minified JSON only. No markdown. No chain-of-thought.
                     All visible strings must be Simplified Chinese.
 
                     Shape:
-                    {"repairItems":[{"title":"","body":"","kind":"","evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
+                    {"studentReport":{"basicLayerText":"","improvementLayerText":"","nextActionText":""},"repairItems":[{"title":"","body":"","kind":"","evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
 
                     Rules:
-                    1. repairItems max 1, body <= 70 Chinese chars. Teach where/how to verify the first fix; never give final code or full answer.
-                    2. improvementItems max 1, body <= 60 Chinese chars. Prefer testing habit, boundary awareness, or code clarity.
-                    3. nextQuestion <= 35 Chinese chars and must be a self-check question.
-                    4. Use only evidenceRefs from input. Do not guess hidden tests.
-                    5. If evidence is insufficient or leak risk is HIGH, return empty items and explain in blockedReasons.
+                    1. studentReport is the main student-visible output. Speak naturally: first explain the problem in plain words, then point to evidence, then give an action.
+                    2. basicLayerText 120-220 Chinese chars. Focus on the first issue blocking AC or basic ability.
+                    3. improvementLayerText 80-180 Chinese chars. Give a personalized improvement after the basic issue is checked.
+                    4. nextActionText contains 1-3 concrete self-check actions, <= 120 Chinese chars.
+                    5. repairItems max 1 and improvementItems max 1. They are metadata summaries; keep them shorter than studentReport.
+                    6. Use only evidenceRefs from input. Do not guess hidden tests.
+                    7. Never give final code, full answer, or copyable full modification.
+                    8. If evidence is insufficient or leak risk is HIGH, return empty advice and explain in blockedReasons.
                     """;
             String userPrompt = "Generate StudentAiFeedback from this context: " + objectMapper.writeValueAsString(context);
-            int fastFeedbackOutputTokens = Math.min(Math.max(320, maxOutputTokens), 520);
+            int fastFeedbackOutputTokens = Math.min(Math.max(640, maxOutputTokens), 900);
             String content = chatCompletionForStudentFeedback(systemPrompt, userPrompt, fastFeedbackOutputTokens);
             StudentFastFeedbackPayload payload = parseModelStagePayload(content, StudentFastFeedbackPayload.class);
             StudentAiFeedbackResponse response = normalizeStudentFastFeedback(payload, submission, startedAt);
@@ -2362,6 +2365,7 @@ public class AiReportService {
                     .latencyMs(elapsedMs(startedAt))
                     .repairItems(List.of())
                     .improvementItems(List.of())
+                    .studentReport(null)
                     .nextQuestion(null)
                     .safety(StudentAiFeedbackResponse.Safety.builder()
                             .answerLeakRisk("HIGH")
@@ -2373,11 +2377,30 @@ public class AiReportService {
         List<StudentAiFeedbackResponse.FeedbackItem> repairItems = normalizeFeedbackItems(payload.repairItems, 1);
         List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = normalizeFeedbackItems(payload.improvementItems, 2);
         String nextQuestion = cleanStudentFeedbackText(payload.nextQuestion);
+        StudentAiFeedbackResponse.StudentReport studentReport =
+                normalizeStudentReport(payload.studentReport, repairItems, improvementItems, nextQuestion);
+        if (studentReportLeaksAnswer(studentReport)) {
+            return StudentAiFeedbackResponse.builder()
+                    .submissionId(submission == null ? null : submission.getId())
+                    .status("SAFETY_REJECTED")
+                    .source("MODEL")
+                    .latencyMs(elapsedMs(startedAt))
+                    .repairItems(List.of())
+                    .improvementItems(List.of())
+                    .studentReport(null)
+                    .nextQuestion(null)
+                    .safety(StudentAiFeedbackResponse.Safety.builder()
+                            .answerLeakRisk("HIGH")
+                            .blockedReasons(mergeStringLists(safety.getBlockedReasons(), List.of("ANSWER_LEAK_RISK")))
+                            .build())
+                    .evidenceRefs(cleanList(payload.evidenceRefs, List.of()))
+                    .build();
+        }
         List<String> evidenceRefs = mergeStringLists(
                 payload.evidenceRefs,
                 mergeItemRefs(repairItems, improvementItems)
         );
-        if (repairItems.isEmpty() && improvementItems.isEmpty() && nextQuestion.isBlank()) {
+        if (!hasStudentReportText(studentReport) && repairItems.isEmpty() && improvementItems.isEmpty() && nextQuestion.isBlank()) {
             return feedbackFailure(submission, "FAILED", "EMPTY_MODEL_FEEDBACK", startedAt);
         }
         return StudentAiFeedbackResponse.builder()
@@ -2387,9 +2410,44 @@ public class AiReportService {
                 .latencyMs(elapsedMs(startedAt))
                 .repairItems(repairItems)
                 .improvementItems(improvementItems)
+                .studentReport(studentReport)
                 .nextQuestion(nextQuestion.isBlank() ? null : nextQuestion)
                 .safety(safety)
                 .evidenceRefs(evidenceRefs)
+                .build();
+    }
+
+    private StudentAiFeedbackResponse.StudentReport normalizeStudentReport(StudentReportPayload payload,
+                                                                           List<StudentAiFeedbackResponse.FeedbackItem> repairItems,
+                                                                           List<StudentAiFeedbackResponse.FeedbackItem> improvementItems,
+                                                                           String nextQuestion) {
+        String basicLayerText = cleanStudentReportText(payload == null ? null : payload.basicLayerText);
+        String improvementLayerText = cleanStudentReportText(payload == null ? null : payload.improvementLayerText);
+        String nextActionText = cleanStudentReportText(payload == null ? null : payload.nextActionText);
+        if (basicLayerText.isBlank() && repairItems != null && !repairItems.isEmpty()) {
+            basicLayerText = repairItems.stream()
+                    .map(StudentAiFeedbackResponse.FeedbackItem::getBody)
+                    .filter(text -> text != null && !text.isBlank())
+                    .findFirst()
+                    .orElse("");
+        }
+        if (improvementLayerText.isBlank() && improvementItems != null && !improvementItems.isEmpty()) {
+            improvementLayerText = improvementItems.stream()
+                    .map(StudentAiFeedbackResponse.FeedbackItem::getBody)
+                    .filter(text -> text != null && !text.isBlank())
+                    .findFirst()
+                    .orElse("");
+        }
+        if (nextActionText.isBlank()) {
+            nextActionText = cleanStudentReportText(nextQuestion);
+        }
+        if (basicLayerText.isBlank() && improvementLayerText.isBlank() && nextActionText.isBlank()) {
+            return null;
+        }
+        return StudentAiFeedbackResponse.StudentReport.builder()
+                .basicLayerText(basicLayerText.isBlank() ? null : basicLayerText)
+                .improvementLayerText(improvementLayerText.isBlank() ? null : improvementLayerText)
+                .nextActionText(nextActionText.isBlank() ? null : nextActionText)
                 .build();
     }
 
@@ -2469,6 +2527,7 @@ public class AiReportService {
                 .latencyMs(elapsedMs(startedAt))
                 .repairItems(List.of())
                 .improvementItems(List.of())
+                .studentReport(null)
                 .nextQuestion(null)
                 .safety(StudentAiFeedbackResponse.Safety.builder()
                         .answerLeakRisk("LOW")
@@ -2507,6 +2566,26 @@ public class AiReportService {
         return text;
     }
 
+    private String cleanStudentReportText(String value) {
+        String text = cleanupAiText(value).trim();
+        if (text.length() > 420) {
+            text = text.substring(0, 420).trim();
+        }
+        return text;
+    }
+
+    private boolean hasStudentReportText(StudentAiFeedbackResponse.StudentReport report) {
+        return report != null && (!defaultIfBlank(report.getBasicLayerText(), "").isBlank()
+                || !defaultIfBlank(report.getImprovementLayerText(), "").isBlank()
+                || !defaultIfBlank(report.getNextActionText(), "").isBlank());
+    }
+
+    private boolean studentReportLeaksAnswer(StudentAiFeedbackResponse.StudentReport report) {
+        return report != null && (leaksAnswer(report.getBasicLayerText())
+                || leaksAnswer(report.getImprovementLayerText())
+                || leaksAnswer(report.getNextActionText()));
+    }
+
     private boolean leaksAnswer(String text) {
         String compact = defaultIfBlank(text, "").replaceAll("\\s+", "");
         return compact.contains("完整代码")
@@ -2528,11 +2607,19 @@ public class AiReportService {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private static class StudentFastFeedbackPayload {
+        public StudentReportPayload studentReport;
         public List<StudentFeedbackItemPayload> repairItems;
         public List<StudentFeedbackItemPayload> improvementItems;
         public String nextQuestion;
         public StudentFeedbackSafetyPayload safety;
         public List<String> evidenceRefs;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class StudentReportPayload {
+        public String basicLayerText;
+        public String improvementLayerText;
+        public String nextActionText;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

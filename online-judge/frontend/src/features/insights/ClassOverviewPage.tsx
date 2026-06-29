@@ -7,6 +7,7 @@ import { assignmentStatusLabel, displayText, issueLabel, looksCorruptText } from
 import { ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { StatusPill } from "../../shared/ui/StatusPill";
+import { buildClassWeaknessInsights } from "./classWeaknessInsights";
 
 type ProgressCellTone = "empty" | "idle" | "submitted" | "passed" | "attention";
 type ClassAssignment = Assignment & { title: string; className: string };
@@ -191,6 +192,7 @@ export default function ClassOverviewPage() {
       recentSubmissions
     };
   }, [columns, overviewByAssignment, progressRows]);
+  const classWeaknessInsights = useMemo(() => buildClassWeaknessInsights(columns, overviewByAssignment), [columns, overviewByAssignment]);
   const gridStyle: CSSProperties = {
     gridTemplateColumns: `minmax(190px, 1.05fr) repeat(${Math.max(columns.length, 1)}, minmax(132px, 0.72fr))`
   };
@@ -236,6 +238,30 @@ export default function ClassOverviewPage() {
           <strong>{summary.recentSubmissions || "-"}</strong>
         </div>
       </section>
+
+      {classWeaknessInsights.length ? (
+        <section className="class-weakness-panel" aria-label="班级薄弱点">
+          <div className="teacher-section-head teacher-section-head--compact">
+            <div>
+              <p className="eyebrow">细颗粒画像</p>
+              <h2>班级薄弱点</h2>
+            </div>
+            <StatusPill tone="warning">{classWeaknessInsights.length} 个方向</StatusPill>
+          </div>
+          <div className="class-weakness-list">
+            {classWeaknessInsights.map(item => (
+              <article className={`class-weakness-card class-weakness-card--${item.kind}`} key={`${item.kind}-${item.label}`}>
+                <div>
+                  <span>{item.kind === "issue" ? "高频错因" : "能力薄弱"}</span>
+                  <strong>{issueLabel(item.label)}</strong>
+                </div>
+                <p>{item.action || "建议选一题代表题做共同样例、边界和变量轨迹复盘。"}</p>
+                <small>{item.count} 条证据 · {item.assignmentTitles.slice(0, 2).join("、")}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="class-progress-workbench" aria-label="班级进度矩阵">
         <div className="teacher-section-head teacher-section-head--compact">
