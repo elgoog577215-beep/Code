@@ -21,6 +21,8 @@ public class AssistantLiveEvalReport {
     private Integer safetyFailureCount;
     private Integer expectedSignalHitCount;
     private Integer evidenceValidCount;
+    private Integer studentVisibleQualityPassCount;
+    private Integer studentVisibleQualityRiskCount;
     private Integer runtimeFixtureDraftCount;
     private Integer qualityBaselineDraftCount;
     private List<Entry> entries;
@@ -54,6 +56,12 @@ public class AssistantLiveEvalReport {
         private String teacherExpectation;
         private String outputSummary;
         private String outputDetail;
+        private String studentVisibleBasicText;
+        private String studentVisibleImprovementText;
+        private String studentVisibleNextActionText;
+        private String studentVisibleText;
+        private Boolean studentVisibleQualityPassed;
+        private List<String> studentVisibleQualityFlags;
         private String aiBetterThanTeacher;
         private String teacherBetterThanAi;
         private String iterationSuggestion;

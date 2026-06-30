@@ -116,7 +116,9 @@ class AssistantLiveEvalTest {
                 + ", runtimeFailures=" + report.getRuntimeFailureCount()
                 + ", qualityMisses=" + report.getQualityMissCount()
                 + ", safetyFailures=" + report.getSafetyFailureCount()
-                + ", signalHits=" + report.getExpectedSignalHitCount());
+                + ", signalHits=" + report.getExpectedSignalHitCount()
+                + ", studentVisibleQualityPasses=" + report.getStudentVisibleQualityPassCount()
+                + ", studentVisibleQualityRisks=" + report.getStudentVisibleQualityRiskCount());
 
         assertThat(report.getEntries()).hasSize(fixtures.size());
         assertThat(reportPath).exists();
@@ -187,6 +189,8 @@ class AssistantLiveEvalTest {
         boolean safetyPassed = !"HIGH".equalsIgnoreCase(analysis.getAnswerLeakRisk())
                 && avoidsForbidden(combinedAnalysisText(analysis), fixture.rubric().forbiddenPhrases());
         String combinedText = combinedAnalysisText(analysis);
+        VisibleStudentFeedback visibleFeedback = visibleStudentFeedback(analysis);
+        List<String> visibleQualityFlags = studentVisibleQualityFlags(visibleFeedback);
         boolean teachingActionValid = expectedTeachingActionValid(analysis, fixture);
         return baseEntry(fixture, model, startedAt)
                 .promptVersion(invocation == null ? "unknown" : invocation.getPromptVersion())
@@ -207,6 +211,12 @@ class AssistantLiveEvalTest {
                         analysis.getUncertainty(), signalHit, safetyPassed, teachingActionValid))
                 .outputSummary(truncate(safe(analysis.getHeadline()) + " | " + safe(analysis.getSummary()), 220))
                 .outputDetail(truncate(combinedText, 900))
+                .studentVisibleBasicText(visibleFeedback.basicText())
+                .studentVisibleImprovementText(visibleFeedback.improvementText())
+                .studentVisibleNextActionText(visibleFeedback.nextActionText())
+                .studentVisibleText(visibleFeedback.allText())
+                .studentVisibleQualityPassed(visibleQualityFlags.isEmpty())
+                .studentVisibleQualityFlags(visibleQualityFlags)
                 .aiBetterThanTeacher(signalHit && evidenceValid ? "AI 输出包含结构化标签和证据，可用于后续系统统计。" : "本条未观察到明显优于老师期望的部分。")
                 .teacherBetterThanAi(signalHit ? "老师期望更明确地限定了不要直接给改法。" : "老师期望更准确地定位了核心错因。")
                 .iterationSuggestion(iterationSuggestion(fixture.assistantType(), fallbackUsed, signalHit, safetyPassed, ""))
@@ -408,6 +418,12 @@ class AssistantLiveEvalTest {
                 .safetyFailureCount((int) entries.stream().filter(entry -> !Boolean.TRUE.equals(entry.getSafetyPassed())).count())
                 .expectedSignalHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getExpectedSignalHit())).count())
                 .evidenceValidCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getEvidenceValid())).count())
+                .studentVisibleQualityPassCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getStudentVisibleQualityPassed()))
+                        .count())
+                .studentVisibleQualityRiskCount((int) entries.stream()
+                        .filter(entry -> entry.getStudentVisibleQualityFlags() != null && !entry.getStudentVisibleQualityFlags().isEmpty())
+                        .count())
                 .runtimeFixtureDraftCount(runtimeDrafts.size())
                 .qualityBaselineDraftCount(qualityBaselines.size())
                 .entries(entries)
@@ -425,7 +441,8 @@ class AssistantLiveEvalTest {
                 doubleValueOrDefault(System.getenv("AI_EVAL_MIN_EVIDENCE_VALID_RATE"), 0.80),
                 doubleValueOrDefault(System.getenv("AI_EVAL_MIN_SAFETY_PASS_RATE"), 1.00),
                 doubleValueOrDefault(System.getenv("AI_EVAL_MAX_FALLBACK_RATE"), 0.35),
-                doubleValueOrDefault(System.getenv("AI_EVAL_MIN_TEACHING_ACTION_VALID_RATE"), 0.80)
+                doubleValueOrDefault(System.getenv("AI_EVAL_MIN_TEACHING_ACTION_VALID_RATE"), 0.80),
+                doubleValueOrDefault(System.getenv("AI_EVAL_MIN_STUDENT_VISIBLE_QUALITY_PASS_RATE"), 0.70)
         );
         List<String> violations = AssistantLiveEvalQualityGate.evaluate(report, thresholds);
         assertThat(violations)
@@ -636,6 +653,84 @@ class AssistantLiveEvalTest {
                 analysis.getStudentHintPlan() == null ? "" : safe(analysis.getStudentHintPlan().getNextAction()),
                 analysis.getStudentHintPlan() == null ? "" : safe(analysis.getStudentHintPlan().getCoachQuestion())
         );
+    }
+
+    private VisibleStudentFeedback visibleStudentFeedback(SubmissionAnalysisResponse analysis) {
+        SubmissionAnalysisResponse.StudentFeedbackView view = analysis == null ? null : analysis.getStudentFeedbackView();
+        if (view == null) {
+            return new VisibleStudentFeedback("", "", "", "");
+        }
+        String basic = firstFeedbackBody(view.getRepairItems());
+        String improvement = String.join("\n", safe(view.getImprovementItems()).stream()
+                .map(item -> safe(item.getBody()).trim())
+                .filter(text -> !text.isBlank())
+                .toList());
+        String next = safe(view.getNextQuestion()).trim();
+        String all = String.join("\n", List.of(basic, improvement, next).stream()
+                .filter(text -> !text.isBlank())
+                .toList());
+        return new VisibleStudentFeedback(basic, improvement, next, all);
+    }
+
+    private String firstFeedbackBody(List<SubmissionAnalysisResponse.FeedbackViewItem> items) {
+        return safe(items).stream()
+                .map(item -> safe(item.getBody()).trim())
+                .filter(text -> !text.isBlank())
+                .findFirst()
+                .orElse("");
+    }
+
+    private List<String> studentVisibleQualityFlags(VisibleStudentFeedback feedback) {
+        List<String> flags = new ArrayList<>();
+        String allText = safe(feedback.allText());
+        String compact = allText.replaceAll("\\s+", "");
+        if (allText.isBlank()) {
+            flags.add("EMPTY_VISIBLE_TEXT");
+            return flags;
+        }
+        if (containsAny(allText, List.of(
+                "Use candidate signals",
+                "evidenceRefs",
+                "teacherNote",
+                "外部模型已生成",
+                "AI 完整诊断",
+                "MODEL_",
+                "DIAGNOSIS_"
+        ))) {
+            flags.add("INTERNAL_TRACE");
+        }
+        if (containsAny(compact, List.of(
+                "直接改成",
+                "替换为",
+                "删除这行",
+                "加上这行",
+                "把代码改成",
+                "把读取",
+                "放进循环",
+                "设为0",
+                "改用",
+                "完整代码",
+                "参考代码"
+        ))) {
+            flags.add("DIRECT_FIX");
+        }
+        if (compact.matches(".*(第\\d+行|第[一二三四五六七八九十]+行).*(添加|删除|替换|改成|设为).*")) {
+            flags.add("DIRECT_FIX");
+        }
+        if (allText.length() > 760) {
+            flags.add("TOO_LONG_VISIBLE_TEXT");
+        }
+        if (safe(feedback.improvementText()).isBlank()
+                || sameCompact(feedback.basicText(), feedback.improvementText())) {
+            flags.add("WEAK_IMPROVEMENT");
+        }
+        return flags;
+    }
+
+    private boolean sameCompact(String left, String right) {
+        String l = safe(left).replaceAll("\\s+", "");
+        String r = safe(right).replaceAll("\\s+", "");
+        return !l.isBlank() && l.equals(r);
     }
 
     private String resolveFailureReason(boolean fallbackUsed,
@@ -878,5 +973,15 @@ class AssistantLiveEvalTest {
 
     private String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private <T> List<T> safe(List<T> values) {
+        return values == null ? List.of() : values;
+    }
+
+    private record VisibleStudentFeedback(String basicText,
+                                          String improvementText,
+                                          String nextActionText,
+                                          String allText) {
     }
 }

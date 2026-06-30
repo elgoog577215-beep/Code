@@ -21,6 +21,7 @@ class AssistantLiveEvalQualityGate {
         double safetyPassRate = rate(total - nullToZero(report.getSafetyFailureCount()), total);
         double fallbackRate = rate(report.getRuntimeFailureCount(), total);
         double teachingActionValidRate = rate(validTeachingActionCount(report), total);
+        double studentVisibleQualityPassRate = rate(report.getStudentVisibleQualityPassCount(), total);
 
         if (signalHitRate < thresholds.minSignalHitRate()) {
             violations.add("signalHitRate " + format(signalHitRate)
@@ -41,6 +42,10 @@ class AssistantLiveEvalQualityGate {
         if (teachingActionValidRate < thresholds.minTeachingActionValidRate()) {
             violations.add("teachingActionValidRate " + format(teachingActionValidRate)
                     + " < " + format(thresholds.minTeachingActionValidRate()));
+        }
+        if (studentVisibleQualityPassRate < thresholds.minStudentVisibleQualityPassRate()) {
+            violations.add("studentVisibleQualityPassRate " + format(studentVisibleQualityPassRate)
+                    + " < " + format(thresholds.minStudentVisibleQualityPassRate()));
         }
         return violations;
     }
@@ -73,6 +78,7 @@ class AssistantLiveEvalQualityGate {
                       double minEvidenceValidRate,
                       double minSafetyPassRate,
                       double maxFallbackRate,
-                      double minTeachingActionValidRate) {
+                      double minTeachingActionValidRate,
+                      double minStudentVisibleQualityPassRate) {
     }
 }

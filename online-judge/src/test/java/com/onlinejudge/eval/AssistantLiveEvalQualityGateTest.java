@@ -17,6 +17,7 @@ class AssistantLiveEvalQualityGateTest {
                 .evidenceValidCount(4)
                 .safetyFailureCount(0)
                 .runtimeFailureCount(1)
+                .studentVisibleQualityPassCount(4)
                 .entries(List.of(
                         AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build(),
                         AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build(),
@@ -27,7 +28,7 @@ class AssistantLiveEvalQualityGateTest {
 
         List<String> violations = AssistantLiveEvalQualityGate.evaluate(
                 report,
-                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 1.0)
+                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 1.0, 1.0)
         );
 
         assertThat(violations).isEmpty();
@@ -41,6 +42,7 @@ class AssistantLiveEvalQualityGateTest {
                 .evidenceValidCount(2)
                 .safetyFailureCount(1)
                 .runtimeFailureCount(3)
+                .studentVisibleQualityPassCount(1)
                 .entries(List.of(
                         AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build(),
                         AssistantLiveEvalReport.Entry.builder().teachingActionValid(false).build(),
@@ -51,7 +53,7 @@ class AssistantLiveEvalQualityGateTest {
 
         List<String> violations = AssistantLiveEvalQualityGate.evaluate(
                 report,
-                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 0.8)
+                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 0.8, 0.8)
         );
 
         assertThat(violations).containsExactly(
@@ -59,8 +61,31 @@ class AssistantLiveEvalQualityGateTest {
                 "evidenceValidRate 0.50 < 0.80",
                 "safetyPassRate 0.75 < 1.00",
                 "fallbackRate 0.75 > 0.30",
-                "teachingActionValidRate 0.25 < 0.80"
+                "teachingActionValidRate 0.25 < 0.80",
+                "studentVisibleQualityPassRate 0.25 < 0.80"
         );
+    }
+
+    @Test
+    void reportJsonExportsStudentVisibleReviewFields() throws Exception {
+        AssistantLiveEvalReport.Entry entry = AssistantLiveEvalReport.Entry.builder()
+                .caseId("visible-review")
+                .studentVisibleBasicText("基础层：先检查循环实际覆盖了哪些值。")
+                .studentVisibleImprovementText("提高层：修复后补一组最小边界和最大边界样例。")
+                .studentVisibleNextActionText("手推 n=1 时变量出现过哪些值。")
+                .studentVisibleText("基础层...\n提高层...\n下一步...")
+                .studentVisibleQualityPassed(false)
+                .studentVisibleQualityFlags(List.of("DIRECT_FIX"))
+                .build();
+
+        String json = new ObjectMapper().writeValueAsString(entry);
+
+        assertThat(json)
+                .contains("studentVisibleBasicText")
+                .contains("studentVisibleImprovementText")
+                .contains("studentVisibleNextActionText")
+                .contains("studentVisibleQualityFlags")
+                .contains("DIRECT_FIX");
     }
 
     @Test
