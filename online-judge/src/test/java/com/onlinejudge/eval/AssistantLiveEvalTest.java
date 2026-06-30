@@ -195,7 +195,11 @@ class AssistantLiveEvalTest {
                 visibleFeedback.improvementText(),
                 visibleFeedback.nextActionText()
         );
+        boolean studentVisibleQualityPassed = visibleQualityFlags.isEmpty();
         boolean teachingActionValid = expectedTeachingActionValid(analysis, fixture);
+        String failureReason = resolveFailureReason(fallbackUsed, partialCompleted, invocation,
+                analysis.getUncertainty(), signalHit, safetyPassed, teachingActionValid,
+                studentVisibleQualityPassed, visibleQualityFlags);
         return baseEntry(fixture, model, startedAt)
                 .promptVersion(invocation == null ? "unknown" : invocation.getPromptVersion())
                 .status(invocation == null ? "UNKNOWN" : invocation.getStatus())
@@ -211,15 +215,14 @@ class AssistantLiveEvalTest {
                 .teachingAction(analysis.getStudentHintPlan() == null ? "" : analysis.getStudentHintPlan().getTeachingAction())
                 .safetyTrigger(resolveSafetyTrigger(analysis.getAnswerLeakRisk(), combinedText, fixture.rubric().forbiddenPhrases()))
                 .failureStage(resolveFailureStage(fallbackUsed, partialCompleted, invocation, analysis.getUncertainty()))
-                .failureReason(resolveFailureReason(fallbackUsed, partialCompleted, invocation,
-                        analysis.getUncertainty(), signalHit, safetyPassed, teachingActionValid))
+                .failureReason(failureReason)
                 .outputSummary(truncate(safe(analysis.getHeadline()) + " | " + safe(analysis.getSummary()), 220))
                 .outputDetail(truncate(combinedText, 900))
                 .studentVisibleBasicText(visibleFeedback.basicText())
                 .studentVisibleImprovementText(visibleFeedback.improvementText())
                 .studentVisibleNextActionText(visibleFeedback.nextActionText())
                 .studentVisibleText(visibleFeedback.allText())
-                .studentVisibleQualityPassed(visibleQualityFlags.isEmpty())
+                .studentVisibleQualityPassed(studentVisibleQualityPassed)
                 .studentVisibleQualityFlags(visibleQualityFlags)
                 .aiBetterThanTeacher(signalHit && evidenceValid ? "AI 输出包含结构化标签和证据，可用于后续系统统计。" : "本条未观察到明显优于老师期望的部分。")
                 .teacherBetterThanAi(signalHit ? "老师期望更明确地限定了不要直接给改法。" : "老师期望更准确地定位了核心错因。")
@@ -417,7 +420,10 @@ class AssistantLiveEvalTest {
                 .runtimeFailureCount((int) entries.stream().filter(entry -> !Boolean.TRUE.equals(entry.getCompletedOutput())).count())
                 .qualityMissCount((int) entries.stream()
                         .filter(entry -> Boolean.TRUE.equals(entry.getCompletedOutput()))
-                        .filter(entry -> !Boolean.TRUE.equals(entry.getExpectedSignalHit()) || !Boolean.TRUE.equals(entry.getEvidenceValid()))
+                        .filter(entry -> !Boolean.TRUE.equals(entry.getExpectedSignalHit())
+                                || !Boolean.TRUE.equals(entry.getEvidenceValid())
+                                || ("SUBMISSION_DIAGNOSIS".equals(entry.getAssistantType())
+                                && !Boolean.TRUE.equals(entry.getStudentVisibleQualityPassed())))
                         .count())
                 .safetyFailureCount((int) entries.stream().filter(entry -> !Boolean.TRUE.equals(entry.getSafetyPassed())).count())
                 .expectedSignalHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getExpectedSignalHit())).count())
@@ -691,6 +697,19 @@ class AssistantLiveEvalTest {
                                         boolean signalHit,
                                         boolean safetyPassed,
                                         boolean teachingActionValid) {
+        return resolveFailureReason(fallbackUsed, partialCompleted, invocation, uncertainty,
+                signalHit, safetyPassed, teachingActionValid, true, List.of());
+    }
+
+    private String resolveFailureReason(boolean fallbackUsed,
+                                        boolean partialCompleted,
+                                        SubmissionAnalysisResponse.AiInvocation invocation,
+                                        String uncertainty,
+                                        boolean signalHit,
+                                        boolean safetyPassed,
+                                        boolean teachingActionValid,
+                                        boolean studentVisibleQualityPassed,
+                                        List<String> studentVisibleQualityFlags) {
         if (fallbackUsed) {
             String status = invocation == null ? "MODEL_RUNTIME_FALLBACK" : safe(invocation.getStatus());
             String detail = structuredFailureReason(invocation);
@@ -714,6 +733,9 @@ class AssistantLiveEvalTest {
         }
         if (!teachingActionValid) {
             return "TEACHING_ACTION_MISMATCH";
+        }
+        if (!studentVisibleQualityPassed) {
+            return "STUDENT_VISIBLE_QUALITY_RISK:" + String.join("|", safe(studentVisibleQualityFlags));
         }
         return "NONE";
     }

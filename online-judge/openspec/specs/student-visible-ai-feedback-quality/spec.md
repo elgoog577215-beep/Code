@@ -31,6 +31,11 @@
 - **WHEN** 学生可见文本超过配置的评测阈值
 - **THEN** 报告条目 SHALL 标记 `TOO_LONG_VISIBLE_TEXT` 风险
 
+#### Scenario: 学生可见质量风险进入失败归因
+- **WHEN** 提交诊断已完成但学生可见反馈存在质量风险
+- **THEN** 报告条目 SHALL 将失败原因标记为 `STUDENT_VISIBLE_QUALITY_RISK`
+- **AND** 该样例 SHALL 计入诊断质量失败，而不是只作为附属风险字段
+
 ### Requirement: 学生可见质量统计进入报告汇总
 系统 SHALL 在 live eval 报告汇总中统计学生可见反馈质量通过数量和风险数量。
 

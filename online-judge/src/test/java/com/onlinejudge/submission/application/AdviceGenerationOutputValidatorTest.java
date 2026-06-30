@@ -251,6 +251,28 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
+    void rejectsDiagnosisReportV2DirectLineEditText() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：第 3 行把读取放进循环，就能覆盖所有查询。")
+                        .improvementLayerText("提高层：修好后补充边界样例。")
+                        .nextActionText("下一步：第 3 行设为0后再提交。")
+                        .build())
+                .studentSummary("这次重点是输入读取。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
     void rejectsEmptyBasicAdviceForNonAcceptedSubmission() {
         AdviceGenerationOutput output = validOutput();
         output.setBasicLayerAdvice(List.of());

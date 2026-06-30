@@ -43,7 +43,8 @@ public class LiveEvalQualityBaselineDraftFactory {
                 && Boolean.TRUE.equals(entry.getExpectedSignalHit())
                 && Boolean.TRUE.equals(entry.getEvidenceValid())
                 && Boolean.TRUE.equals(entry.getSafetyPassed())
-                && !Boolean.FALSE.equals(entry.getTeachingActionValid());
+                && !Boolean.FALSE.equals(entry.getTeachingActionValid())
+                && !Boolean.FALSE.equals(entry.getStudentVisibleQualityPassed());
     }
 
     private boolean modelBaselineCandidate(LiveModelEvalReport.Entry entry) {

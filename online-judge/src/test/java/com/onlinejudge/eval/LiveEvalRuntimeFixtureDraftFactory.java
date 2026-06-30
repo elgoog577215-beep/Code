@@ -65,6 +65,7 @@ public class LiveEvalRuntimeFixtureDraftFactory {
                 || isStatus(entry.getStatus(), "EXCEPTION")
                 || containsFailureReason(entry.getFailureReason(), "SAFETY_REJECTED")
                 || containsFailureReason(entry.getFailureReason(), "QUALITY_MISS")
+                || containsFailureReason(entry.getFailureReason(), "STUDENT_VISIBLE_QUALITY_RISK")
                 || containsFailureReason(entry.getFailureReason(), "TEACHING_ACTION_MISMATCH");
     }
 
@@ -232,6 +233,9 @@ public class LiveEvalRuntimeFixtureDraftFactory {
         }
         if (reason.contains("TEACHING_ACTION_MISMATCH")) {
             return "TEACHING_ACTION_MISMATCH";
+        }
+        if (reason.contains("STUDENT_VISIBLE_QUALITY_RISK")) {
+            return "QUALITY_MISS";
         }
         if (reason.contains("QUALITY_MISS")) {
             return "QUALITY_MISS";

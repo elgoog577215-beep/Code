@@ -15,6 +15,9 @@ final class ModelOutputSafetyPolicy {
             "改成",
             "改为",
             "替换为",
+            "把读取",
+            "放进循环",
+            "设为0",
             "hidden test",
             "for _ in range",
             "while q",
@@ -68,6 +71,10 @@ final class ModelOutputSafetyPolicy {
 
     static String unsafeLeakTrigger(String text) {
         String normalized = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        String compact = normalized.replaceAll("\\s+", "");
+        if (compact.matches(".*第[0-9一二三四五六七八九十]+行.*(添加|删除|替换|改成|改为|设为|放进).*")) {
+            return "direct line edit";
+        }
         for (String marker : UNSAFE_LEAK_MARKERS) {
             if (normalized.contains(marker)) {
                 return marker;

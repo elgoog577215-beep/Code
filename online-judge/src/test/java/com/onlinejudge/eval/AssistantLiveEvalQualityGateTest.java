@@ -160,15 +160,30 @@ class AssistantLiveEvalQualityGateTest {
                         .failureReason("QUALITY_MISS")
                         .actualEvidenceRefs(List.of("case:3"))
                         .teacherExpectation("命中输入读取错因")
+                        .build(),
+                AssistantLiveEvalReport.Entry.builder()
+                        .caseId("diagnosis-visible-risk")
+                        .assistantType("SUBMISSION_DIAGNOSIS")
+                        .model("deepseek-ai/DeepSeek-V4-Pro")
+                        .promptVersion("diagnosis-report-v2")
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .completedOutput(true)
+                        .failureStage("NONE")
+                        .failureReason("STUDENT_VISIBLE_QUALITY_RISK:DIRECT_FIX")
+                        .actualEvidenceRefs(List.of("case:4"))
+                        .teacherExpectation("学生可见文案不能直接给改法")
+                        .studentVisibleQualityPassed(false)
+                        .studentVisibleQualityFlags(List.of("DIRECT_FIX"))
                         .build()
         );
 
         List<LiveEvalRuntimeFixtureDraft> drafts =
                 new LiveEvalRuntimeFixtureDraftFactory().fromAssistantEntries(entries);
 
-        assertThat(drafts).hasSize(3);
+        assertThat(drafts).hasSize(4);
         assertThat(drafts).extracting(LiveEvalRuntimeFixtureDraft::getFailureType)
-                .containsExactly("BUDGET_GUARD", "PARTIAL_COMPLETION", "QUALITY_MISS");
+                .containsExactly("BUDGET_GUARD", "PARTIAL_COMPLETION", "QUALITY_MISS", "QUALITY_MISS");
         assertThat(drafts.get(0))
                 .satisfies(draft -> {
                     assertThat(draft.getName()).contains("assistant-live-eval-coach-budget-limited-budget-guard");
