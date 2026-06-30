@@ -44,20 +44,24 @@ class PromptTemplateRegistryTest {
         assertThat(report.getStage()).isEqualTo("DIAGNOSIS_REPORT");
         assertThat(report.getSystemPrompt())
                 .contains("diagnosis report v2")
-                .contains("single diagnosis Agent")
-                .contains("candidate map")
+                .contains("单诊断 Agent")
+                .contains("标准库的作用")
+                .contains("不是唯一答案来源")
+                .contains("不能限制你对题目、代码和判题结果的整体判断")
                 .contains("studentReport")
                 .contains("basicLayerText")
                 .contains("improvementLayerText")
                 .contains("nextActionText")
-                .contains("120-220 Chinese characters")
-                .contains("80-180 Chinese characters")
+                .contains("先讲人话")
+                .contains("基础层优先")
+                .contains("120-220 个中文字符")
+                .contains("80-180 个中文字符")
                 .contains("OUT_OF_LIBRARY")
                 .contains("HIT")
                 .contains("PARTIAL")
                 .contains("MISS")
-                .contains("full code")
-                .contains("state definition");
+                .contains("禁止给完整代码")
+                .contains("不要写出替换表达式或精确循环头");
     }
 
     @Test

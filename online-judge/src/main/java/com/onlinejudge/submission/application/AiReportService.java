@@ -261,23 +261,25 @@ public class AiReportService {
             Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, ruleSignals);
 
             String systemPrompt = """
-                    You are a student-facing OJ review coach. Return strict minified JSON only. No markdown. No chain-of-thought.
-                    All visible strings must be Simplified Chinese.
+                    你是高中信息学在线判题系统的学生快反馈教练。
+                    只返回严格压缩 JSON。不要输出 markdown、思维链、解释性前后缀或额外文本。
+                    所有学生可见文字必须使用简体中文。
 
                     Shape:
                     {"studentReport":{"basicLayerText":"","improvementLayerText":"","nextActionText":""},"repairItems":[{"title":"","body":"","kind":"","evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
 
-                    Rules:
-                    1. studentReport is the main student-visible output. Speak naturally: first explain the problem in plain words, then point to evidence, then give an action.
-                    2. basicLayerText 120-220 Chinese chars. Focus on the first issue blocking AC or basic ability.
-                    3. improvementLayerText 80-180 Chinese chars. Give a personalized improvement after the basic issue is checked.
-                    4. nextActionText contains 1-3 concrete self-check actions, <= 120 Chinese chars.
-                    5. repairItems max 1 and improvementItems max 1. They are metadata summaries; keep them shorter than studentReport.
-                    6. Use only evidenceRefs from input. Do not guess hidden tests.
-                    7. Never give final code, full answer, or copyable full modification.
-                    8. If evidence is insufficient or leak risk is HIGH, return empty advice and explain in blockedReasons.
+                    规则:
+                    1. studentReport 是学生真正看到的主输出。先用人话说明问题，再指出证据，再给一个行动。
+                    2. basicLayerText 120-220 个中文字符，聚焦第一个阻塞 AC 或基础能力缺口。
+                    3. improvementLayerText 80-180 个中文字符，只写修复基础问题后值得提升的一个方向，不要复述基础层。
+                    4. nextActionText 写 1-3 个学生马上能做的自查动作，不超过 120 个中文字符。
+                    5. repairItems 最多 1 条，improvementItems 最多 1 条。它们是元数据摘要，必须短于 studentReport。
+                    6. 只能使用输入里已有的 evidenceRefs。不能猜隐藏测试。
+                    7. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达。
+                    8. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
                     """;
-            String userPrompt = "Generate StudentAiFeedback from this context: " + objectMapper.writeValueAsString(context);
+            String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
+                    + objectMapper.writeValueAsString(context);
             int fastFeedbackOutputTokens = Math.min(Math.max(640, maxOutputTokens), 900);
             String content = chatCompletionForStudentFeedback(systemPrompt, userPrompt, fastFeedbackOutputTokens);
             StudentFastFeedbackPayload payload = parseModelStagePayload(content, StudentFastFeedbackPayload.class);
@@ -427,6 +429,12 @@ public class AiReportService {
     private AdviceGenerationOutput callAdviceGenerationStage(
             ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
         Map<String, Object> request = new LinkedHashMap<>();
+        request.put("task", "请完成一次高中信息学提交诊断：先整体理解题目、代码和判题结果，再参考标准库候选，最后生成 studentReport 和结构化元数据。");
+        request.put("contextPolicy", List.of(
+                "standardLibrary 是树形候选包，用于细颗粒定位和标准化命名，不是强制答案。",
+                "如果候选不匹配，允许 OUT_OF_LIBRARY，并给出可审核的库外发现。",
+                "学生可见反馈要自然、具体、可行动，但不能给完整答案或逐行改法。"
+        ));
         request.put("brief", runtimePlan.getBrief());
         request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
         request.put("searchLocationSummary", runtimePlan.getStandardLibraryPack() == null
@@ -455,6 +463,12 @@ public class AiReportService {
             ExternalModelStagePayloads.StageValidationResult failure)
             throws JsonProcessingException, IOException, InterruptedException {
         Map<String, Object> request = new LinkedHashMap<>();
+        request.put("task", "重写上一轮学生可见反馈，保留正确诊断，但去掉过度直接的答案式表达。");
+        request.put("contextPolicy", List.of(
+                "可以保留有效 evidenceRefs 和仍然匹配的标准库 id。",
+                "只把直接答案改写成观察动作、手推方法或检查问题。",
+                "不要给完整代码、替换表达式、逐行改法或隐藏测试推测。"
+        ));
         request.put("brief", runtimePlan.getBrief());
         request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
         request.put("searchLocationSummary", runtimePlan.getStandardLibraryPack() == null
@@ -469,13 +483,13 @@ public class AiReportService {
                 "message", failure == null ? "" : cleanupAiText(failure.getMessage())
         ));
         String systemPrompt = runtimePlan.getAdvicePrompt().getSystemPrompt()
-                + "\n\nSafety rewrite retry:\n"
-                + "The previous JSON was rejected because a student-facing field was too close to a direct answer.\n"
-                + "Return the same output schema again, but rewrite unsafe student-facing text into diagnostic prompts only.\n"
-                + "Keep valid evidenceRefs and valid standard library ids when they still match.\n"
-                + "Do not use phrases meaning directly change to, replace with, final answer, complete code, or exact executable expressions.\n"
-                + "For boundary issues, ask the student to trace included values, compare the target interval, and inspect whether the endpoint enters the loop.\n"
-                + "Do not state the replacement expression or exact loop header.\n";
+                + "\n\n安全重写重试:\n"
+                + "上一轮 JSON 被拒绝，因为学生可见字段太接近直接答案。\n"
+                + "请返回同一个输出 schema，但把不安全的学生可见文本改写为诊断式提示。\n"
+                + "保留仍然有效的 evidenceRefs 和标准库 id。\n"
+                + "不要使用直接改成、替换为、最终答案、完整代码、精确可执行表达式等表达。\n"
+                + "边界问题只能引导学生手推取值、比较目标区间、检查端点是否进入循环。\n"
+                + "不要写出替换表达式或精确循环头。\n";
         activateRuntimePlan(runtimePlan);
         String content = chatCompletion(systemPrompt, objectMapper.writeValueAsString(request));
         lastCallTelemetry.set(lastCallTelemetry.get().withFallbackRetryUsed(true));

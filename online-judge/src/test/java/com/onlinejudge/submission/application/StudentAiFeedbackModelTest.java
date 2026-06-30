@@ -65,8 +65,11 @@ class StudentAiFeedbackModelTest {
                 assertThat(item.getTitle()).isEqualTo("测试习惯"));
         assertThat(feedback.getNextQuestion()).contains("第二个整数");
         assertThat(feedback.getSafety().getAnswerLeakRisk()).isEqualTo("LOW");
-        assertThat(service.lastSystemPrompt()).contains("student-facing OJ review coach", "studentReport");
-        assertThat(service.lastUserPrompt()).contains("judgeFacts", "candidateSignals", "sourceExcerpt");
+        assertThat(service.lastSystemPrompt())
+                .contains("学生快反馈教练", "studentReport", "禁止给最终代码");
+        assertThat(service.lastUserPrompt())
+                .contains("judgeFacts", "candidateSignals", "sourceExcerpt")
+                .contains("不要把内部字段名写进学生反馈");
         assertThat(service.lastUserPrompt()).doesNotContain("sourceCodeWithLineNumbers", "sourceCodeForLineAnalysis");
         assertThat(service.lastOutputTokens()).isLessThanOrEqualTo(900);
     }

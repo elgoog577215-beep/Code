@@ -37,7 +37,11 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(service.lastSystemPrompt())
                 .contains("diagnosisDecision")
                 .doesNotContain("teachingHint");
-        assertThat(service.lastUserPrompt()).contains("brief", "standardLibrary");
+        assertThat(service.lastUserPrompt())
+                .contains("task", "contextPolicy", "brief", "standardLibrary")
+                .contains("标准库")
+                .contains("不是强制答案")
+                .contains("OUT_OF_LIBRARY");
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
