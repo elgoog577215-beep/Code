@@ -89,6 +89,17 @@ class AssistantLiveEvalQualityGateTest {
     }
 
     @Test
+    void studentVisibleQualityFlagsCatchReviewRisks() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：第 3 行直接改成读取所有查询。",
+                "基础层：第 3 行直接改成读取所有查询。",
+                "MODEL_RUNTIME_FALLBACK evidenceRefs"
+        );
+
+        assertThat(flags).contains("DIRECT_FIX", "INTERNAL_TRACE", "WEAK_IMPROVEMENT");
+    }
+
+    @Test
     void budgetLimitedRuntimeFailuresAreNotQualityMisses() {
         AssistantLiveEvalReport.Entry entry = AssistantLiveEvalReport.Entry.builder()
                 .caseId("coach-budget-limited")

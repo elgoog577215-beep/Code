@@ -190,7 +190,11 @@ class AssistantLiveEvalTest {
                 && avoidsForbidden(combinedAnalysisText(analysis), fixture.rubric().forbiddenPhrases());
         String combinedText = combinedAnalysisText(analysis);
         VisibleStudentFeedback visibleFeedback = visibleStudentFeedback(analysis);
-        List<String> visibleQualityFlags = studentVisibleQualityFlags(visibleFeedback);
+        List<String> visibleQualityFlags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                visibleFeedback.basicText(),
+                visibleFeedback.improvementText(),
+                visibleFeedback.nextActionText()
+        );
         boolean teachingActionValid = expectedTeachingActionValid(analysis, fixture);
         return baseEntry(fixture, model, startedAt)
                 .promptVersion(invocation == null ? "unknown" : invocation.getPromptVersion())
@@ -678,59 +682,6 @@ class AssistantLiveEvalTest {
                 .filter(text -> !text.isBlank())
                 .findFirst()
                 .orElse("");
-    }
-
-    private List<String> studentVisibleQualityFlags(VisibleStudentFeedback feedback) {
-        List<String> flags = new ArrayList<>();
-        String allText = safe(feedback.allText());
-        String compact = allText.replaceAll("\\s+", "");
-        if (allText.isBlank()) {
-            flags.add("EMPTY_VISIBLE_TEXT");
-            return flags;
-        }
-        if (containsAny(allText, List.of(
-                "Use candidate signals",
-                "evidenceRefs",
-                "teacherNote",
-                "外部模型已生成",
-                "AI 完整诊断",
-                "MODEL_",
-                "DIAGNOSIS_"
-        ))) {
-            flags.add("INTERNAL_TRACE");
-        }
-        if (containsAny(compact, List.of(
-                "直接改成",
-                "替换为",
-                "删除这行",
-                "加上这行",
-                "把代码改成",
-                "把读取",
-                "放进循环",
-                "设为0",
-                "改用",
-                "完整代码",
-                "参考代码"
-        ))) {
-            flags.add("DIRECT_FIX");
-        }
-        if (compact.matches(".*(第\\d+行|第[一二三四五六七八九十]+行).*(添加|删除|替换|改成|设为).*")) {
-            flags.add("DIRECT_FIX");
-        }
-        if (allText.length() > 760) {
-            flags.add("TOO_LONG_VISIBLE_TEXT");
-        }
-        if (safe(feedback.improvementText()).isBlank()
-                || sameCompact(feedback.basicText(), feedback.improvementText())) {
-            flags.add("WEAK_IMPROVEMENT");
-        }
-        return flags;
-    }
-
-    private boolean sameCompact(String left, String right) {
-        String l = safe(left).replaceAll("\\s+", "");
-        String r = safe(right).replaceAll("\\s+", "");
-        return !l.isBlank() && l.equals(r);
     }
 
     private String resolveFailureReason(boolean fallbackUsed,
