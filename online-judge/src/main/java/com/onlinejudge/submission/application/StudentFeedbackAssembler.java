@@ -137,13 +137,25 @@ public class StudentFeedbackAssembler {
                 || "OVER_SIMULATION".equals(teachingTag)) {
             return "当前提交的主要风险在最大规模下操作次数过多，先估算核心循环在上限输入下会运行多少次。";
         }
+        if ("DP_STATE_DESIGN".equals(teachingTag) || "STATE_TRANSITION".equals(teachingTag)) {
+            return "这次更像是动态规划的状态含义没有先定清楚，先用一句话写出每个状态表示什么，再检查它依赖的信息是否已经算好。";
+        }
+        if ("GREEDY_ASSUMPTION".equals(teachingTag)) {
+            return "当前风险在贪心选择的依据还不够稳，先找一个小反例验证：每一步看起来最优，是否一定能推出整体最优。";
+        }
+        if ("SORT_KEY".equals(teachingTag)) {
+            return "这次重点不是排序函数本身，而是排序依据是否和题目真正要求一致，先拿两个容易混淆的元素手动比较。";
+        }
+        if ("UNINITIALIZED_VARIABLE".equals(teachingTag)) {
+            return "当前代码里有变量可能在赋值前就参与判断或输出，先确认每个计数器、答案变量和标志变量都有明确初始值。";
+        }
         if ("RUNTIME_STABILITY".equals(teachingTag) || "EMPTY_INPUT".equals(teachingTag)) {
             return "当前代码存在运行稳定性风险，先定位最小触发场景，再检查下标、空输入或除零。";
         }
         if ("SYNTAX_ERROR".equals(teachingTag)) {
             return "当前代码还没有进入运行阶段，先只处理第一条编译或语法报错。";
         }
-        if (lowerSummary.contains("通过")) {
+        if ("AC".equalsIgnoreCase(safe(analysis.getScenario())) || lowerSummary.contains("已经通过")) {
             return "这次已经通过，当前重点从修错转为复盘：确认代码为什么能覆盖更多边界。";
         }
         return "当前最需要先处理的是“" + label + "”，先用已有失败证据验证它是否解释了当前结果。";
@@ -225,19 +237,23 @@ public class StudentFeedbackAssembler {
         String source = evidencePackage == null || evidencePackage.getSubmission() == null
                 ? ""
                 : safe(evidencePackage.getSubmission().getSourceCode());
-        if ("TIME_COMPLEXITY".equals(primaryIssueTag) || "ALGORITHM_STRATEGY".equals(primaryIssueTag) || "TLE".equals(scenario)) {
+        addFocusedImprovement(opportunities, primaryIssueTag, fineGrainedTag, evidenceRefs);
+        boolean hasFocusedImprovement = !opportunities.isEmpty();
+        if (!hasFocusedImprovement
+                && ("TIME_COMPLEXITY".equals(primaryIssueTag) || "ALGORITHM_STRATEGY".equals(primaryIssueTag) || "TLE".equals(scenario))) {
             opportunities.add(improvement("COMPLEXITY",
                     "修正当前问题后，可以用最大输入规模估算一次核心操作次数。",
                     "这能帮助你判断算法是否只是样例能过，还是在上限下也站得住。",
                     evidenceRefs));
         }
-        if (source.contains("for ") || source.contains("while ") || "WA".equals(scenario)) {
+        if (!hasFocusedImprovement && (source.contains("for ") || source.contains("while ") || "WA".equals(scenario))) {
             opportunities.add(improvement("TESTING_HABIT",
                     "给自己补一个和样例结构不同的小测试，尤其覆盖多组输入、边界值或重复元素。",
                     "自测习惯能提前暴露只适配样例或漏处理输入结构的问题。",
                     evidenceRefs));
         }
-        if (source.length() > 900 || source.contains("debug") || source.contains("print(") || source.contains("System.out")) {
+        if (!hasFocusedImprovement
+                && (source.length() > 900 || source.contains("debug") || source.contains("print(") || source.contains("System.out"))) {
             opportunities.add(improvement("CODE_CLARITY",
                     "通过当前错误后，可以把读取输入、核心计算和输出整理成更清楚的几个步骤。",
                     "结构清楚后，漏读、漏输出和调试残留会更容易被自己发现。",
@@ -265,6 +281,33 @@ public class StudentFeedbackAssembler {
         return filterDuplicateImprovements(opportunities, primaryIssueTag, fineGrainedTag).stream()
                 .limit(3)
                 .toList();
+    }
+
+    private void addFocusedImprovement(List<SubmissionAnalysisResponse.ImprovementOpportunity> opportunities,
+                                       String primaryIssueTag,
+                                       String fineGrainedTag,
+                                       List<String> evidenceRefs) {
+        String tag = blank(fineGrainedTag) ? primaryIssueTag : fineGrainedTag;
+        switch (tag) {
+            case "DP_STATE_DESIGN", "STATE_TRANSITION" -> opportunities.add(improvement("DP_MODELING",
+                    "修正后，把状态含义、初始状态和依赖信息分别写成一句话，再用最小样例逐格核对。",
+                    "这样能避免只会写转移式，却说不清每个状态到底代表什么。",
+                    evidenceRefs));
+            case "GREEDY_ASSUMPTION" -> opportunities.add(improvement("GREEDY_PROOF",
+                    "修正后，给自己的贪心规则补一个反例检查或交换理由，不要只用样例判断它对不对。",
+                    "贪心题最容易错在局部最优看起来合理，但整体并不保证最优。",
+                    evidenceRefs));
+            case "SORT_KEY" -> opportunities.add(improvement("SORTING_MODEL",
+                    "修正后，专门补测相同前缀、不同位数或排序依据相近的数据。",
+                    "这些样例能逼你确认比较规则服务的是题意，而不是默认字典序或数值直觉。",
+                    evidenceRefs));
+            case "UNINITIALIZED_VARIABLE" -> opportunities.add(improvement("INITIALIZATION_HABIT",
+                    "通过后回看所有变量，把“定义时就有合理初值”当作固定检查项。",
+                    "初始化习惯能减少本地偶尔能跑、评测机结果却不稳定的问题。",
+                    evidenceRefs));
+            default -> {
+            }
+        }
     }
 
     private SubmissionAnalysisResponse.ImprovementOpportunity improvement(String category,

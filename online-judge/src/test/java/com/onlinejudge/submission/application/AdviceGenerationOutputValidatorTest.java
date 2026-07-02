@@ -62,12 +62,12 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void softRepairsEvidenceAliasesAndUnknownAnchorIdsForDiagnosisReportV2() {
+    void softRepairsEvidenceAliasesForDiagnosisReportV2() {
         AdviceGenerationOutput output = AdviceGenerationOutput.builder()
                 .diagnosisDecision(AdviceGenerationOutput.DiagnosisDecision.builder()
                         .libraryFit("PARTIAL")
                         .anchors(List.of(AdviceGenerationOutput.DiagnosisAnchor.builder()
-                                .id("MP_LIBRARY_GAP_NEW_BOUNDARY_CASE")
+                                .id("MP_RANGE_RIGHT_ENDPOINT_MISSING")
                                 .type("MISTAKE_POINT")
                                 .role("PRIMARY")
                                 .confidence(0.82)
@@ -94,13 +94,172 @@ class AdviceGenerationOutputValidatorTest {
         assertThat(result.getSoftFixes())
                 .contains("evidenceRef alias sourceCode -> code:range_excludes_n")
                 .contains("evidenceRef alias problemConstraints -> judge:first_failed_case")
-                .anySatisfy(item -> assertThat(item).contains("unknown anchor id"));
+                .doesNotContain("unknown anchor id");
         assertThat(output.getDiagnosisDecision().getAnchors()).singleElement()
-                .satisfies(anchor -> {
-                    assertThat(anchor.getType()).isEqualTo("OUT_OF_LIBRARY");
-                    assertThat(anchor.getId()).isNull();
-                    assertThat(anchor.getEvidenceRefs()).containsExactly("code:range_excludes_n", "judge:first_failed_case");
-                });
+                .satisfies(anchor -> assertThat(anchor.getEvidenceRefs())
+                        .containsExactly("code:range_excludes_n", "judge:first_failed_case"));
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2HitWithoutKnownAnchorId() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("HIT", null, "OUT_OF_LIBRARY");
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
+        assertThat(result.getMessage()).contains("HIT diagnosisDecision requires");
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2UnknownAnchorId() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_UNKNOWN_MODEL_HALLUCINATION", "MISTAKE_POINT");
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
+        assertThat(result.getMessage()).contains("Unknown diagnosisDecision anchor id");
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2MissWithKnownAnchorId() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("MISS", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
+        assertThat(result.getMessage()).contains("MISS diagnosisDecision cannot include");
+    }
+
+    @Test
+    void acceptsDiagnosisReportV2DiagnosisCandidatesWithKnownAndOutOfLibraryItems() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
+        output.setDiagnosisCandidates(List.of(
+                AdviceGenerationOutput.DiagnosisCandidate.builder()
+                        .name("循环边界没有覆盖题目端点")
+                        .layer("BASIC")
+                        .libraryFit("HIT")
+                        .anchorId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                        .anchorType("MISTAKE_POINT")
+                        .role("PRIMARY")
+                        .evidenceRefs(List.of("code:range_excludes_n"))
+                        .reason("代码证据显示循环范围和题目端点不一致。")
+                        .confidence(0.91)
+                        .build(),
+                AdviceGenerationOutput.DiagnosisCandidate.builder()
+                        .name("边界自测意识不足")
+                        .layer("IMPROVEMENT")
+                        .libraryFit("OUT_OF_LIBRARY")
+                        .anchorId(null)
+                        .anchorType("OUT_OF_LIBRARY")
+                        .role("SECONDARY")
+                        .evidenceRefs(List.of("judge:first_failed_case"))
+                        .reason("当前标准库没有精确覆盖这类自测习惯表达。")
+                        .confidence(0.7)
+                        .build()
+        ));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2UnknownDiagnosisCandidateAnchorId() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
+        output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
+                .name("模型自己编造的错因")
+                .layer("BASIC")
+                .libraryFit("HIT")
+                .anchorId("MP_MODEL_MADE_UP")
+                .anchorType("MISTAKE_POINT")
+                .role("PRIMARY")
+                .evidenceRefs(List.of("code:range_excludes_n"))
+                .reason("这个 id 不在标准库里。")
+                .confidence(0.8)
+                .build()));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
+        assertThat(result.getMessage()).contains("Unknown diagnosisCandidate anchorId");
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2OutOfLibraryDiagnosisCandidateWithAnchorId() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
+        output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
+                .name("库外发现不应绑定旧 id")
+                .layer("BASIC")
+                .libraryFit("OUT_OF_LIBRARY")
+                .anchorId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                .anchorType("OUT_OF_LIBRARY")
+                .role("PRIMARY")
+                .evidenceRefs(List.of("code:range_excludes_n"))
+                .reason("库外发现必须留空 id。")
+                .confidence(0.8)
+                .build()));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
+        assertThat(result.getMessage()).contains("OUT_OF_LIBRARY diagnosisCandidate anchorId must be null");
+    }
+
+    @Test
+    void softRepairsEvidenceAliasesForDiagnosisCandidates() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
+        output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
+                .name("循环边界没有覆盖题目端点")
+                .layer("BASIC")
+                .libraryFit("HIT")
+                .anchorId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                .anchorType("MISTAKE_POINT")
+                .role("PRIMARY")
+                .evidenceRefs(List.of("sourceCode"))
+                .reason("代码证据显示循环范围和题目端点不一致。")
+                .confidence(0.91)
+                .build()));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).contains("evidenceRef alias sourceCode -> code:range_excludes_n");
+        assertThat(output.getDiagnosisCandidates()).singleElement()
+                .satisfies(candidate -> assertThat(candidate.getEvidenceRefs())
+                        .containsExactly("code:range_excludes_n"));
     }
 
     @Test
@@ -273,6 +432,204 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
+    void rejectsDiagnosisReportV2InventedNumericExample() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：你的程序在输入 [3,5,4] 时输出 9，但预期是 12。")
+                        .improvementLayerText("提高层：描述相邻大数这类反例形态即可。")
+                        .nextActionText("下一步：重述 dp[i] 的含义。")
+                        .build())
+                .studentSummary("这次重点是状态定义。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_JSON);
+        assertThat(result.getMessage()).contains("numeric example");
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2ChineseDpFormulaLeak() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：选择当前位置时要加上前前位置的最大和。")
+                        .improvementLayerText("提高层：先描述状态含义。")
+                        .nextActionText("下一步：手推状态含义。")
+                        .build())
+                .studentSummary("这次重点是状态定义。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2DpFormulaFragments() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：你写了 skip_current = dp[i-1] 和 take_current = values[i]。")
+                        .improvementLayerText("提高层：之后可以做空间压缩。")
+                        .nextActionText("下一步：检查转移来源。")
+                        .build())
+                .studentSummary("这次重点是状态定义。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2NaturalLanguageDirectFixesFromLiveReview() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：在每组处理开始之前手动把 best 和 cur 都设回 0。")
+                        .improvementLayerText("提高层：之后再整理多组数据习惯。")
+                        .nextActionText("下一步：拿题目样例再测一次。")
+                        .build())
+                .studentSummary("这次重点是状态重置。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2InitializationLocationFixes() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：检查状态变量是否残留。")
+                        .improvementLayerText("提高层：建议养成在循环内部初始化局部状态的习惯，或者在每轮循环开始时显式清空全局状态。")
+                        .nextActionText("下一步：手推第二组开始时变量的值。")
+                        .build())
+                .studentSummary("这次重点是变量生命周期。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2DpSelectOrSkipModelingHint() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：你只比较了不选当前和只选当前这两种情况。")
+                        .improvementLayerText("提高层：之后可以用两个变量滚动更新。")
+                        .nextActionText("下一步：手推可见失败样例。")
+                        .build())
+                .studentSummary("这次重点是状态定义。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2GreedyOptimalCombinationAndAlternativeTutorial() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：可见样例正确最少只需2枚，用两个3。")
+                        .improvementLayerText("提高层：可以定义状态表示凑到某金额所需的最少硬币数，然后从小到大枚举金额和每种面值进行转移。")
+                        .nextActionText("下一步：手推局部选择是否可靠。")
+                        .build())
+                .studentSummary("这次重点是验证贪心假设。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2HiddenCaseSpecificLogicLeak() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：你的代码目前只验证了字符串首尾字符是否相同。")
+                        .improvementLayerText("提高层：构造首尾相同但中间不同的测试数据。")
+                        .nextActionText("下一步：检查中间字符是否也被纳入比较范围。")
+                        .build())
+                .studentSummary("这次重点是隐藏测试泛化。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+    }
+
+    @Test
+    void acceptsDiagnosisReportV2VisibleInputNumericExample() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：可见输入包含 [2,7,9,3,1]，实际输出与预期不一致。")
+                        .improvementLayerText("提高层：描述相邻大数这类反例形态即可。")
+                        .nextActionText("下一步：手推可见输入中的状态变化。")
+                        .build())
+                .studentSummary("这次重点是状态定义。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
     void rejectsEmptyBasicAdviceForNonAcceptedSubmission() {
         AdviceGenerationOutput output = validOutput();
         output.setBasicLayerAdvice(List.of());
@@ -364,10 +721,40 @@ class AdviceGenerationOutputValidatorTest {
                 .build();
     }
 
+    private AdviceGenerationOutput validDiagnosisReportV2(String libraryFit, String anchorId, String anchorType) {
+        return AdviceGenerationOutput.builder()
+                .diagnosisDecision(AdviceGenerationOutput.DiagnosisDecision.builder()
+                        .libraryFit(libraryFit)
+                        .anchors(List.of(AdviceGenerationOutput.DiagnosisAnchor.builder()
+                                .id(anchorId)
+                                .type(anchorType)
+                                .role("PRIMARY")
+                                .confidence(0.86)
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .reason("循环范围和题目端点要求不一致。")
+                                .build()))
+                        .build())
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：循环范围和题目边界要求没有完全对齐。")
+                        .improvementLayerText("提高层：修好后补充端点附近的自测。")
+                        .nextActionText("下一步：手推一个最小样例，确认循环变量是否覆盖端点。")
+                        .build())
+                .studentSummary("这次重点是循环边界。")
+                .build();
+    }
+
     private ModelDiagnosisBrief brief(String verdict) {
         return ModelDiagnosisBrief.builder()
                 .schemaVersion(ModelDiagnosisBrief.SCHEMA_VERSION)
                 .verdict(verdict)
+                .visibleCaseFacts(List.of(ModelDiagnosisBrief.VisibleCaseFact.builder()
+                        .testCaseNumber(1)
+                        .hidden(false)
+                        .inputPreview("5\n2 7 9 3 1")
+                        .actualOutputPreview("9")
+                        .expectedOutputPreview("12")
+                        .build()))
                 .evidenceRefs(List.of("code:range_excludes_n", "judge:first_failed_case"))
                 .candidateSignals(List.of(ModelDiagnosisBrief.CandidateSignal.builder()
                         .evidenceRef("code:range_excludes_n")

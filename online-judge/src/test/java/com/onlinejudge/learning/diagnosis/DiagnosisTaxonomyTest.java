@@ -39,4 +39,29 @@ class DiagnosisTaxonomyTest {
         assertThat(taxonomy.teachingAction("GREEDY_ASSUMPTION")).isEqualTo("CHECK_INVARIANT");
         assertThat(taxonomy.teachingAction("UNKNOWN_TAG")).isEqualTo("TRACE_VARIABLES");
     }
+
+    @Test
+    void includesNewFineGrainedTagsFromLiveEvaluationGaps() {
+        assertThat(taxonomy.normalizeFineGrainedTags(List.of(
+                "RECURSION_BASE_CASE",
+                "BINARY_SEARCH_BOUNDARY",
+                "SORT_KEY",
+                "INTEGER_DIVISION_PRECISION",
+                "ARRAY_INDEX_OUT_OF_BOUNDS",
+                "UNINITIALIZED_VARIABLE"
+        ))).containsExactly(
+                "RECURSION_BASE_CASE",
+                "BINARY_SEARCH_BOUNDARY",
+                "SORT_KEY",
+                "INTEGER_DIVISION_PRECISION",
+                "ARRAY_INDEX_OUT_OF_BOUNDS",
+                "UNINITIALIZED_VARIABLE"
+        );
+        assertThat(taxonomy.get("RECURSION_BASE_CASE").getParentTag()).isEqualTo("RECURSION_EXIT");
+        assertThat(taxonomy.get("BINARY_SEARCH_BOUNDARY").getParentTag()).isEqualTo("LOOP_BOUNDARY");
+        assertThat(taxonomy.get("SORT_KEY").getParentTag()).isEqualTo("ALGORITHM_STRATEGY");
+        assertThat(taxonomy.get("INTEGER_DIVISION_PRECISION").getParentTag()).isEqualTo("BOUNDARY_CONDITION");
+        assertThat(taxonomy.get("ARRAY_INDEX_OUT_OF_BOUNDS").getParentTag()).isEqualTo("RUNTIME_STABILITY");
+        assertThat(taxonomy.get("UNINITIALIZED_VARIABLE").getParentTag()).isEqualTo("VARIABLE_INITIALIZATION");
+    }
 }

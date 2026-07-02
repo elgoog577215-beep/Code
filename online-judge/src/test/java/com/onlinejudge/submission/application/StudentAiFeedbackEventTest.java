@@ -1,14 +1,13 @@
 package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.domain.StudentAiFeedback;
 import com.onlinejudge.submission.domain.StudentAiFeedbackEvent;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
+import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackRepository;
-import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -21,22 +20,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 class StudentAiFeedbackEventTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final SubmissionRepository submissionRepository = mock(SubmissionRepository.class);
     private final StudentAiFeedbackRepository feedbackRepository = mock(StudentAiFeedbackRepository.class);
     private final StudentAiFeedbackEventRepository eventRepository = mock(StudentAiFeedbackEventRepository.class);
+    private final SubmissionAnalysisService submissionAnalysisService = mock(SubmissionAnalysisService.class);
     private final StudentAiFeedbackService service = new StudentAiFeedbackService(
             submissionRepository,
-            mock(ProblemRepository.class),
-            mock(SubmissionCaseResultRepository.class),
             feedbackRepository,
             eventRepository,
-            mock(DiagnosisEvidencePackageBuilder.class),
-            mock(RuleSignalAnalyzer.class),
-            mock(AiReportService.class),
+            submissionAnalysisService,
             objectMapper
     );
 
@@ -81,6 +79,57 @@ class StudentAiFeedbackEventTest {
         verify(eventRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void generateAndStoreReusesFormalDiagnosisStudentView() {
+        when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
+        when(submissionAnalysisService.generateAndStoreAnalysisForSubmission(7L))
+                .thenReturn(analysisWithStudentView());
+        when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
+        when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_READY)))
+                .thenReturn(Optional.empty());
+
+        StudentAiFeedbackResponse response = service.generateAndStore(7L);
+
+        assertThat(response.getStatus()).isEqualTo("READY");
+        assertThat(response.getSource()).isEqualTo("MODEL");
+        assertThat(response.getStudentReport().getBasicLayerText()).contains("循环边界");
+        assertThat(response.getStudentReport().getImprovementLayerText()).contains("补测");
+        assertThat(response.getStudentReport().getNextActionText()).contains("手推");
+    }
+
+    @Test
+    void generateAndStoreKeepsFallbackSourceWhenFormalDiagnosisIsNotModel() {
+        when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
+        when(submissionAnalysisService.generateAndStoreAnalysisForSubmission(7L))
+                .thenReturn(analysisWithStudentView("RULE_BASED_V1"));
+        when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
+        when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_READY)))
+                .thenReturn(Optional.empty());
+
+        StudentAiFeedbackResponse response = service.generateAndStore(7L);
+
+        assertThat(response.getStatus()).isEqualTo("READY");
+        assertThat(response.getSource()).isEqualTo("RULE_FALLBACK");
+    }
+
+    @Test
+    void generateAndStoreFailsClearlyWhenFormalDiagnosisHasNoStudentView() {
+        when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
+        when(submissionAnalysisService.generateAndStoreAnalysisForSubmission(7L))
+                .thenReturn(SubmissionAnalysisResponse.builder().sourceType("AI_MODEL").build());
+        when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
+        when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_FAILED)))
+                .thenReturn(Optional.empty());
+
+        StudentAiFeedbackResponse response = service.generateAndStore(7L);
+
+        assertThat(response.getStatus()).isEqualTo("FAILED");
+        assertThat(response.getSafety().getBlockedReasons()).contains("STUDENT_FEEDBACK_VIEW_MISSING");
+    }
+
     private Submission submission() {
         return Submission.builder()
                 .id(7L)
@@ -106,6 +155,32 @@ class StudentAiFeedbackEventTest {
                         .blockedReasons(List.of())
                         .build())
                 .evidenceRefs(List.of("judge:first_failed_case:1"))
+                .build();
+    }
+
+    private SubmissionAnalysisResponse analysisWithStudentView() {
+        return analysisWithStudentView("AI_MODEL");
+    }
+
+    private SubmissionAnalysisResponse analysisWithStudentView(String sourceType) {
+        return SubmissionAnalysisResponse.builder()
+                .sourceType(sourceType)
+                .studentFeedbackView(SubmissionAnalysisResponse.StudentFeedbackView.builder()
+                        .repairItems(List.of(SubmissionAnalysisResponse.FeedbackViewItem.builder()
+                                .title("循环边界")
+                                .body("基础层：这里主要是循环边界没有和题意对齐。")
+                                .kind("basic")
+                                .evidenceRefs(List.of("code:loop_range"))
+                                .build()))
+                        .improvementItems(List.of(SubmissionAnalysisResponse.FeedbackViewItem.builder()
+                                .title("边界测试")
+                                .body("提高层：修完后补测最小值和右端点附近的数据。")
+                                .kind("improvement")
+                                .evidenceRefs(List.of("code:loop_range"))
+                                .build()))
+                        .nextQuestion("先手推 n=1 时循环变量有没有出现。")
+                        .evidenceRefs(List.of("code:loop_range"))
+                        .build())
                 .build();
     }
 }

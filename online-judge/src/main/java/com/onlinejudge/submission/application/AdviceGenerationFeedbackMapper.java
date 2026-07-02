@@ -96,7 +96,7 @@ public class AdviceGenerationFeedbackMapper {
                         : List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
                                 .category(firstImprovementCategory(standardLibraryPack))
                                 .studentMessage(report.getImprovementLayerText())
-                                .benefit("帮助你把这次问题迁移到后续题目。")
+                                .benefit(report.getImprovementLayerText())
                                 .evidenceRefs(evidenceRefs)
                                 .build());
 
@@ -109,7 +109,7 @@ public class AdviceGenerationFeedbackMapper {
                         .hintLevel(defaultIfBlank(report.getHintLevel(), "L3"))
                         .action(firstTeachingAction(standardLibraryPack))
                         .task(nextAction)
-                        .checkQuestion("你能用一个小样例验证这条判断吗？")
+                        .checkQuestion(nextAction)
                         .evidenceRefs(evidenceRefs)
                         .answerLeakRisk("LOW")
                         .build())

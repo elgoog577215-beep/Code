@@ -176,6 +176,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
         assertThat(service.callCount()).isEqualTo(2);
         assertThat(service.userPrompt(1)).contains("previousOutput", "validationFailure");
+        assertThat(service.systemPrompt(1)).contains("DP 或状态设计问题", "不要写前驱状态", "空间压缩");
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
@@ -203,7 +204,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getAiInvocation().getDiagnosisSoftFixes())
                 .contains("evidenceRef alias sourceCode -> code:range_excludes_n")
                 .contains("evidenceRef alias problemConstraints -> judge:first_failed_case")
-                .anySatisfy(item -> assertThat(item).contains("unknown anchor id"));
+                .noneSatisfy(item -> assertThat(item).contains("unknown anchor id"));
         assertThat(analysis.getAiInvocation().getDiagnosisHardFailures()).isEmpty();
         assertThat(analysis.getStudentFeedback().getBlockingIssues()).singleElement()
                 .satisfies(item -> assertThat(item.getStudentMessage()).contains("基础层：循环范围"));
@@ -586,7 +587,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                   "diagnosisDecision": {
                     "libraryFit": "PARTIAL",
                     "anchors": [{
-                      "id": "MP_LIBRARY_GAP_NEW_BOUNDARY_CASE",
+                      "id": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
                       "type": "MISTAKE_POINT",
                       "role": "PRIMARY",
                       "confidence": 0.82,
@@ -648,6 +649,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
     private static class StubAiReportService extends AiReportService {
         private final Queue<String> responses = new ArrayDeque<>();
+        private final List<String> systemPrompts = new ArrayList<>();
         private final List<String> userPrompts = new ArrayList<>();
         private int callCount;
 
@@ -677,6 +679,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         @Override
         protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException {
             callCount++;
+            systemPrompts.add(systemPrompt);
             userPrompts.add(userPrompt);
             String response = responses.poll();
             if (response == null) {
@@ -691,6 +694,10 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
         String userPrompt(int index) {
             return userPrompts.get(index);
+        }
+
+        String systemPrompt(int index) {
+            return systemPrompts.get(index);
         }
 
         void enableSearchLocation() {

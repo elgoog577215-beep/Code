@@ -134,6 +134,12 @@ public class DiagnosisTaxonomy {
         addFine(map, "DP_STATE_DESIGN", "状态定义不清", "动态规划或递推状态可能没有覆盖题目所需信息。", "适合先用自然语言定义状态含义。", "状态建模", Assignment.HintPolicy.L3);
         addFine(map, "IN_PLACE_STATE_PROGRESS", "原地状态推进", "原地修改过程中，当前位置的新值或新状态可能还没有继续处理到稳定。", "适合让学生跟踪一次交换或更新后，当前状态是否已经满足循环不变量。", "状态建模", Assignment.HintPolicy.L3);
         addFine(map, "SAMPLE_OVERFIT", "样例过拟合", "代码可能只覆盖样例或常规路径，没有泛化到隐藏场景。", "适合让学生构造不同于样例的最小反例。", "迁移泛化", Assignment.HintPolicy.L2);
+        addFine(map, "RECURSION_BASE_CASE", "递归出口缺失", "递归遇到空节点、最小规模或终止状态时可能没有安全返回。", "适合让学生先手推递归函数收到空状态时第一步会做什么。", "递归与搜索", Assignment.HintPolicy.L2);
+        addFine(map, "BINARY_SEARCH_BOUNDARY", "二分边界推进", "二分循环中的左右边界可能没有稳定缩小，导致死循环或漏解。", "适合让学生记录 left、right、mid 的变化，检查区间是否变短。", "循环与边界", Assignment.HintPolicy.L2);
+        addFine(map, "SORT_KEY", "排序比较规则", "排序时使用的数据表示或比较规则可能和题意不一致。", "适合让学生对比字符串顺序和数值顺序等不同规则。", "数据表示与排序", Assignment.HintPolicy.L2);
+        addFine(map, "INTEGER_DIVISION_PRECISION", "整数除法精度", "除法表达式可能先按整数计算，导致小数部分被截断。", "适合让学生手推表达式中每个值的类型和中间结果。", "数据类型与表达式", Assignment.HintPolicy.L2);
+        addFine(map, "ARRAY_INDEX_OUT_OF_BOUNDS", "数组下标越界", "访问数组或容器时可能使用了不存在的位置。", "适合让学生核对合法下标范围和循环终点。", "数组与边界", Assignment.HintPolicy.L2);
+        addFine(map, "UNINITIALIZED_VARIABLE", "变量未初始化", "变量在第一次使用前可能没有被赋予确定初值。", "适合让学生追踪变量从声明到第一次参与计算的路径。", "状态维护", Assignment.HintPolicy.L2);
         addFine(map, "PARTIAL_FIX_REGRESSION", "局部修复回退", "一次局部修改可能修好旧问题但引入新问题。", "适合对比两次提交差异和首个失败点变化。", "问题定位", Assignment.HintPolicy.L2);
         return map;
     }
@@ -192,6 +198,12 @@ public class DiagnosisTaxonomy {
             case "OVER_SIMULATION", "BRUTE_FORCE_LIMIT" -> "TIME_COMPLEXITY";
             case "GREEDY_ASSUMPTION", "DP_STATE_DESIGN" -> "ALGORITHM_STRATEGY";
             case "IN_PLACE_STATE_PROGRESS" -> "STATE_TRANSITION";
+            case "RECURSION_BASE_CASE" -> "RECURSION_EXIT";
+            case "BINARY_SEARCH_BOUNDARY" -> "LOOP_BOUNDARY";
+            case "SORT_KEY" -> "ALGORITHM_STRATEGY";
+            case "INTEGER_DIVISION_PRECISION" -> "BOUNDARY_CONDITION";
+            case "ARRAY_INDEX_OUT_OF_BOUNDS" -> "RUNTIME_STABILITY";
+            case "UNINITIALIZED_VARIABLE" -> "VARIABLE_INITIALIZATION";
             case "SAMPLE_OVERFIT" -> "SAMPLE_ONLY";
             case "PARTIAL_FIX_REGRESSION" -> "NEEDS_MORE_EVIDENCE";
             default -> null;
@@ -204,15 +216,17 @@ public class DiagnosisTaxonomy {
             case "IO_FORMAT", "OUTPUT_FORMAT_DETAIL" -> "COMPARE_OUTPUT";
             case "BOUNDARY_CONDITION", "EMPTY_INPUT", "MAX_BOUNDARY", "DUPLICATE_CASE" -> "ASK_MIN_CASE";
             case "CONDITION_BRANCH" -> "CHECK_BRANCH_COVERAGE";
-            case "LOOP_BOUNDARY", "OFF_BY_ONE" -> "TRACE_VARIABLES";
+            case "LOOP_BOUNDARY", "OFF_BY_ONE", "ARRAY_INDEX_OUT_OF_BOUNDS" -> "TRACE_VARIABLES";
             case "DATA_STRUCTURE_CHOICE", "SPACE_COMPLEXITY" -> "COMPARE_STRUCTURES";
             case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION" -> "COUNT_COMPLEXITY";
-            case "VARIABLE_INITIALIZATION", "INITIAL_STATE", "STATE_RESET" -> "TRACE_STATE";
+            case "VARIABLE_INITIALIZATION", "INITIAL_STATE", "STATE_RESET", "UNINITIALIZED_VARIABLE" -> "TRACE_STATE";
             case "STATE_TRANSITION", "DP_STATE_DESIGN", "IN_PLACE_STATE_PROGRESS" -> "DEFINE_STATE";
-            case "RECURSION_EXIT" -> "DRAW_RECURSION_TREE";
+            case "RECURSION_EXIT", "RECURSION_BASE_CASE" -> "DRAW_RECURSION_TREE";
             case "CODE_READABILITY", "CODE_QUALITY", "GENERALIZATION_CHECK" -> "EXPLAIN_GENERALITY";
             case "SAMPLE_ONLY", "SAMPLE_OVERFIT" -> "BUILD_COUNTEREXAMPLE";
-            case "ALGORITHM_STRATEGY", "GREEDY_ASSUMPTION" -> "CHECK_INVARIANT";
+            case "ALGORITHM_STRATEGY", "GREEDY_ASSUMPTION", "SORT_KEY" -> "CHECK_INVARIANT";
+            case "BINARY_SEARCH_BOUNDARY" -> "TRACE_VARIABLES";
+            case "INTEGER_DIVISION_PRECISION" -> "TRACE_VARIABLES";
             case "RUNTIME_STABILITY" -> "CHECK_RUNTIME_GUARDS";
             case "INPUT_PARSING" -> "COMPARE_INPUT_SPEC";
             case "PARTIAL_FIX_REGRESSION" -> "COMPARE_SUBMISSIONS";

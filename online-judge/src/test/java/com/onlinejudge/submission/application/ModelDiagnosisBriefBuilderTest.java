@@ -30,6 +30,7 @@ class ModelDiagnosisBriefBuilderTest {
                                 .testCaseNumber(7)
                                 .hidden(true)
                                 .passed(false)
+                                .inputPreview("secret input")
                                 .actualOutputPreview("secret actual")
                                 .expectedOutputPreview("secret expected")
                                 .build()))
@@ -46,6 +47,7 @@ class ModelDiagnosisBriefBuilderTest {
         assertThat(brief.getVisibleCaseFacts()).singleElement()
                 .satisfies(fact -> {
                     assertThat(fact.getHidden()).isTrue();
+                    assertThat(fact.getInputPreview()).isNull();
                     assertThat(fact.getActualOutputPreview()).isNull();
                     assertThat(fact.getExpectedOutputPreview()).isNull();
                 });
@@ -84,6 +86,31 @@ class ModelDiagnosisBriefBuilderTest {
         assertThat(brief.getAllowedFineGrainedTags()).contains("OFF_BY_ONE");
         assertThat(brief.getEvidenceRefs()).contains("code:range_excludes_n", "judge:first_failed_case", "baseline:teacher");
         assertThat(brief.getKeyCodeExcerpt()).contains("1:");
+    }
+
+    @Test
+    void briefCarriesVisibleInputPreviewForFailedCases() {
+        ModelDiagnosisBrief brief = briefBuilder.build(
+                DiagnosisEvidencePackage.builder()
+                        .problem(problem())
+                        .submission(submission())
+                        .judgeFacts(DiagnosisEvidencePackage.JudgeFacts.builder()
+                                .caseResultsSummary(List.of(DiagnosisEvidencePackage.CaseSummary.builder()
+                                        .testCaseNumber(1)
+                                        .hidden(false)
+                                        .passed(false)
+                                        .inputPreview("5\n2 7 9 3 1")
+                                        .actualOutputPreview("9")
+                                        .expectedOutputPreview("12")
+                                        .build()))
+                                .build())
+                        .build(),
+                ruleSignals(),
+                null
+        );
+
+        assertThat(brief.getVisibleCaseFacts()).singleElement()
+                .satisfies(fact -> assertThat(fact.getInputPreview()).isEqualTo("5\n2 7 9 3 1"));
     }
 
     @Test

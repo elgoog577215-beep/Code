@@ -34,8 +34,42 @@ class StudentFeedbackViewAssemblerTest {
     }
 
     @Test
-    void hidesViewWhenModelFellBack() {
-        assertThat(assembler.assemble(analysis(true))).isNull();
+    void showsRuleFallbackViewWhenModelFellBack() {
+        SubmissionAnalysisResponse.StudentFeedbackView view = assembler.assemble(analysis(true));
+
+        assertThat(view).isNotNull();
+        assertThat(view.getStatus()).isEqualTo("RULE_FALLBACK");
+        assertThat(view.getRepairItems()).singleElement()
+                .satisfies(item -> assertThat(item.getBody()).contains("外部 AI 暂不可用", "公开样例"));
+        assertThat(view.getNextQuestion()).contains("第二次读取");
+    }
+
+    @Test
+    void showsNaturalDpFallbackToStudent() {
+        SubmissionAnalysisResponse analysis = analysis(true);
+        analysis.getStudentFeedback().getBlockingIssues().get(0)
+                .setTitle("当前最需要先处理的问题");
+        analysis.getStudentFeedback().getBlockingIssues().get(0)
+                .setStudentMessage("这次更像是动态规划的状态含义或转移来源没有先定清楚，先用一句话写出每个状态表示什么。");
+        analysis.getStudentFeedback().getBlockingIssues().get(0)
+                .setNextAction("先用一句话写出每个状态表示什么，再检查转移是否只依赖已经算好的状态。");
+        analysis.getStudentFeedback().getImprovementOpportunities().get(0)
+                .setCategory("DP_MODELING");
+        analysis.getStudentFeedback().getImprovementOpportunities().get(0)
+                .setStudentMessage("修正后，把状态含义、初始状态和转移来源分别写成一句话，再用最小样例逐格核对。");
+        analysis.getStudentFeedback().getImprovementOpportunities().get(0)
+                .setBenefit("这样能避免只会写转移式，却说不清每个状态到底代表什么。");
+
+        SubmissionAnalysisResponse.StudentFeedbackView view = assembler.assemble(analysis);
+
+        assertThat(view).isNotNull();
+        assertThat(view.getStatus()).isEqualTo("RULE_FALLBACK");
+        assertThat(view.getRepairItems()).singleElement()
+                .satisfies(item -> assertThat(item.getBody())
+                        .contains("外部 AI 暂不可用", "状态表示什么", "转移")
+                        .doesNotContain("当前最需要先处理的是"));
+        assertThat(view.getImprovementItems()).singleElement()
+                .satisfies(item -> assertThat(item.getBody()).contains("初始状态", "最小样例"));
     }
 
     @Test
@@ -76,6 +110,25 @@ class StudentFeedbackViewAssemblerTest {
     }
 
     @Test
+    void filtersModelSafetyLeakMarkersFromStudentView() {
+        SubmissionAnalysisResponse analysis = analysis(false);
+        analysis.getStudentFeedback().getBlockingIssues().get(0)
+                .setStudentMessage("你的代码目前只验证了字符串首尾字符是否相同。");
+        analysis.getStudentFeedback().getBlockingIssues().get(0)
+                .setNextAction("检查首尾相同但中间不同的情况。");
+        analysis.getStudentFeedback().getImprovementOpportunities().get(0)
+                .setStudentMessage("构造首尾相同但中间不同的测试数据。");
+
+        SubmissionAnalysisResponse.StudentFeedbackView view = assembler.assemble(analysis);
+
+        assertThat(view).isNotNull();
+        assertThat(view.getRepairItems()).isEmpty();
+        assertThat(view.getImprovementItems()).isEmpty();
+        assertThat(view.getPrimaryAction()).contains("先确认输入结构");
+        assertThat(viewText(view)).doesNotContain("只验证了字符串首尾字符是否相同", "首尾相同但中间不同");
+    }
+
+    @Test
     void remainsStableUnderConcurrentAssembly() throws Exception {
         var executor = Executors.newFixedThreadPool(8);
         try {
@@ -94,11 +147,17 @@ class StudentFeedbackViewAssemblerTest {
                     })
                     .toList();
 
-            assertThat(views).filteredOn(view -> view == null).hasSize(32);
-            assertThat(views).filteredOn(view -> view != null).allSatisfy(view -> {
-                assertThat(view.getStatus()).isEqualTo("READY");
+            assertThat(views).allSatisfy(view -> {
+                assertThat(view).isNotNull();
+                assertThat(view.getStatus()).isIn("READY", "RULE_FALLBACK");
                 assertThat(viewText(view)).doesNotContain("本地可验证反馈", "完整代码", "答案如下");
+                if ("RULE_FALLBACK".equals(view.getStatus())) {
+                    assertThat(viewText(view)).contains("外部 AI 暂不可用");
+                } else {
+                    assertThat(viewText(view)).doesNotContain("外部 AI 暂不可用");
+                }
             });
+            assertThat(views).filteredOn(view -> "RULE_FALLBACK".equals(view.getStatus())).hasSize(32);
         } finally {
             executor.shutdownNow();
         }

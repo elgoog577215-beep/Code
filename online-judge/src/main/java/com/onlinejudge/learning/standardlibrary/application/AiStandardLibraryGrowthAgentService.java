@@ -71,6 +71,9 @@ public class AiStandardLibraryGrowthAgentService {
         if (output == null || output.getLibraryGrowth() == null || output.getLibraryGrowth().getCandidates() == null) {
             return List.of();
         }
+        if (!diagnosisAllowsGrowth(output)) {
+            return List.of();
+        }
         return output.getLibraryGrowth().getCandidates().stream()
                 .filter(candidate -> candidate != null)
                 .map(candidate -> propose(StandardLibraryGrowthProposal.builder()
@@ -85,6 +88,19 @@ public class AiStandardLibraryGrowthAgentService {
                         .confidence(candidate.getConfidence())
                         .build()))
                 .toList();
+    }
+
+    private boolean diagnosisAllowsGrowth(AdviceGenerationOutput output) {
+        AdviceGenerationOutput.DiagnosisDecision decision = output.getDiagnosisDecision();
+        if (decision == null || decision.getLibraryFit() == null) {
+            return true;
+        }
+        String fit = decision.getLibraryFit().trim().toUpperCase(Locale.ROOT);
+        if ("PARTIAL".equals(fit) || "MISS".equals(fit)) {
+            return true;
+        }
+        return decision.getAnchors() != null && decision.getAnchors().stream()
+                .anyMatch(anchor -> anchor != null && "OUT_OF_LIBRARY".equalsIgnoreCase(anchor.getType()));
     }
 
     @Transactional(readOnly = true)

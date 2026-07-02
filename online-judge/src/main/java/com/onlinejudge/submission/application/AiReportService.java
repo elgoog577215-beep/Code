@@ -272,11 +272,12 @@ public class AiReportService {
                     1. studentReport 是学生真正看到的主输出。先用人话说明问题，再指出证据，再给一个行动。
                     2. basicLayerText 120-220 个中文字符，聚焦第一个阻塞 AC 或基础能力缺口。
                     3. improvementLayerText 80-180 个中文字符，只写修复基础问题后值得提升的一个方向，不要复述基础层。
-                    4. nextActionText 写 1-3 个学生马上能做的自查动作，不超过 120 个中文字符。
+                    4. nextActionText 只写 1 个学生马上能做的自查动作，用一句话表达，不要编号，不超过 90 个中文字符。
                     5. repairItems 最多 1 条，improvementItems 最多 1 条。它们是元数据摘要，必须短于 studentReport。
                     6. 只能使用输入里已有的 evidenceRefs。不能猜隐藏测试。
                     7. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达。
-                    8. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
+                    8. 学生可见文字不能复述 verdict:、code:、evidenceRefs、judgeFacts、candidateSignals 等内部字段名或证据标记。
+                    9. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);
@@ -432,6 +433,7 @@ public class AiReportService {
         request.put("task", "请完成一次高中信息学提交诊断：先整体理解题目、代码和判题结果，再参考标准库候选，最后生成 studentReport 和结构化元数据。");
         request.put("contextPolicy", List.of(
                 "standardLibrary 是树形候选包，用于细颗粒定位和标准化命名，不是强制答案。",
+                "先输出 diagnosisCandidates：自由列出真实问题，再评判它们对标准库是 HIT、PARTIAL、MISS 还是 OUT_OF_LIBRARY。",
                 "如果候选不匹配，允许 OUT_OF_LIBRARY，并给出可审核的库外发现。",
                 "学生可见反馈要自然、具体、可行动，但不能给完整答案或逐行改法。"
         ));
@@ -489,6 +491,7 @@ public class AiReportService {
                 + "保留仍然有效的 evidenceRefs 和标准库 id。\n"
                 + "不要使用直接改成、替换为、最终答案、完整代码、精确可执行表达式等表达。\n"
                 + "边界问题只能引导学生手推取值、比较目标区间、检查端点是否进入循环。\n"
+                + "DP 或状态设计问题只能提示学生重述状态含义、核对转移来源、手推可见失败样例；不要写前驱状态、具体下标组合、dp[i-1]、skip_current、take_current、两状态、多一维、空间压缩。\n"
                 + "不要写出替换表达式或精确循环头。\n";
         activateRuntimePlan(runtimePlan);
         String content = chatCompletion(systemPrompt, objectMapper.writeValueAsString(request));
@@ -2248,7 +2251,7 @@ public class AiReportService {
         context.put("safetyRules", List.of(
                 "只给定位和验证动作，不给完整代码或完整答案。",
                 "不猜隐藏测试数据。",
-                "每条建议必须引用输入 evidenceRefs。"
+                "每条建议必须基于输入 evidenceRefs，但学生可见文字不能复述内部字段名或证据标记。"
         ));
         return context;
     }
@@ -2437,7 +2440,7 @@ public class AiReportService {
                                                                            String nextQuestion) {
         String basicLayerText = cleanStudentReportText(payload == null ? null : payload.basicLayerText);
         String improvementLayerText = cleanStudentReportText(payload == null ? null : payload.improvementLayerText);
-        String nextActionText = cleanStudentReportText(payload == null ? null : payload.nextActionText);
+        String nextActionText = cleanNextActionText(payload == null ? null : payload.nextActionText);
         if (basicLayerText.isBlank() && repairItems != null && !repairItems.isEmpty()) {
             basicLayerText = repairItems.stream()
                     .map(StudentAiFeedbackResponse.FeedbackItem::getBody)
@@ -2453,7 +2456,7 @@ public class AiReportService {
                     .orElse("");
         }
         if (nextActionText.isBlank()) {
-            nextActionText = cleanStudentReportText(nextQuestion);
+            nextActionText = cleanNextActionText(nextQuestion);
         }
         if (basicLayerText.isBlank() && improvementLayerText.isBlank() && nextActionText.isBlank()) {
             return null;
@@ -2582,8 +2585,26 @@ public class AiReportService {
 
     private String cleanStudentReportText(String value) {
         String text = cleanupAiText(value).trim();
+        text = text.replaceAll("（?\\(?\\s*(?:verdict|code|evidenceRefs?|judgeFacts|candidateSignals)\\s*:[^）)；;。\\n]*(?:，\\s*(?:verdict|code|evidenceRefs?|judgeFacts|candidateSignals)\\s*:[^）)；;。\\n]*)*\\s*\\)?）?", "").trim();
         if (text.length() > 420) {
             text = text.substring(0, 420).trim();
+        }
+        return text;
+    }
+
+    private String cleanNextActionText(String value) {
+        String text = cleanStudentReportText(value);
+        text = text.replaceFirst("^\\s*1[.、)]\\s*", "").trim();
+        String[] laterSteps = {" 2.", " 2、", " 2)", "；2.", "；2、", ";2.", ";2、", "\n2.", "\n2、", " ②", "；②", "\n②"};
+        for (String marker : laterSteps) {
+            int index = text.indexOf(marker);
+            if (index > 0) {
+                text = text.substring(0, index).trim();
+                break;
+            }
+        }
+        if (text.length() > 90) {
+            text = text.substring(0, 90).trim();
         }
         return text;
     }

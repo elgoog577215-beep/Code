@@ -106,6 +106,63 @@ class StudentAiFeedbackModelTest {
     }
 
     @Test
+    void trimsStudentReportNextActionToOneAction() {
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "你的程序当前卡在排序比较规则上。公开样例里 10 排在了 2 前面，说明代码比较的不是数值大小。",
+                    "improvementLayerText": "修复后可以补测不同位数的数字，确认数据表示和排序语义一致。",
+                    "nextActionText": "1. 打印读取后列表的元素类型；2. 思考如何转换为整数；3. 验证 join 输出。"
+                  },
+                  "repairItems": [],
+                  "improvementItems": [],
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["judge:first_failed_case:1"]
+                }
+                """);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                submission(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(feedback.getStudentReport().getNextActionText())
+                .isEqualTo("打印读取后列表的元素类型");
+    }
+
+    @Test
+    void removesInternalTraceMarkersFromStudentReport() {
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "题目要求按数值排序，但当前输出把 10 放在 2 前面（verdict:wrong_answer, code:input_parsing_observed）。请检查排序时比较的是数值还是字符串。",
+                    "improvementLayerText": "修复后可以继续关注数据类型和排序依据是否一致。",
+                    "nextActionText": "检查排序前元素当前是字符串还是整数。"
+                  },
+                  "repairItems": [],
+                  "improvementItems": [],
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["judge:first_failed_case:1"]
+                }
+                """);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                submission(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(feedback.getStudentReport().getBasicLayerText())
+                .contains("题目要求按数值排序")
+                .doesNotContain("verdict:", "code:");
+    }
+
+    @Test
     void modelUnavailableReturnsFailedWithoutLocalAdvice() {
         AiReportService service = new AiReportService(objectMapper, new AiCodeAssistSupport());
         ReflectionTestUtils.setField(service, "enabled", false);

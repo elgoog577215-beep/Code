@@ -10,6 +10,7 @@ import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +32,11 @@ class AssistantEvalFixtureLoader {
             return objectMapper.readValue(inputStream, new TypeReference<>() {
             });
         }
+    }
+
+    List<Fixture> load(Path path) throws IOException {
+        return objectMapper.readValue(path.toFile(), new TypeReference<>() {
+        });
     }
 
     record Fixture(String caseId,

@@ -9,10 +9,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AssistantLiveEvalQualityGateTest {
 
+    private static final long DEFAULT_LATENCY_BUDGET_MS = 35_000L;
+
     @Test
     void returnsNoViolationsWhenReportPassesThresholds() {
         AssistantLiveEvalReport report = AssistantLiveEvalReport.builder()
                 .totalCount(4)
+                .completedCount(4)
                 .expectedSignalHitCount(3)
                 .evidenceValidCount(4)
                 .safetyFailureCount(0)
@@ -28,7 +31,7 @@ class AssistantLiveEvalQualityGateTest {
 
         List<String> violations = AssistantLiveEvalQualityGate.evaluate(
                 report,
-                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 1.0, 1.0)
+                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 1.0, 1.0, DEFAULT_LATENCY_BUDGET_MS)
         );
 
         assertThat(violations).isEmpty();
@@ -38,6 +41,7 @@ class AssistantLiveEvalQualityGateTest {
     void reportsConcreteViolationsWhenReportMissesThresholds() {
         AssistantLiveEvalReport report = AssistantLiveEvalReport.builder()
                 .totalCount(4)
+                .completedCount(4)
                 .expectedSignalHitCount(1)
                 .evidenceValidCount(2)
                 .safetyFailureCount(1)
@@ -53,7 +57,7 @@ class AssistantLiveEvalQualityGateTest {
 
         List<String> violations = AssistantLiveEvalQualityGate.evaluate(
                 report,
-                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 0.8, 0.8)
+                new AssistantLiveEvalQualityGate.Thresholds(0.7, 0.8, 1.0, 0.3, 0.8, 0.8, DEFAULT_LATENCY_BUDGET_MS)
         );
 
         assertThat(violations).containsExactly(
@@ -67,6 +71,56 @@ class AssistantLiveEvalQualityGateTest {
     }
 
     @Test
+    void studentVisibleQualityRateIgnoresRuntimeFallbackOutputs() {
+        AssistantLiveEvalReport report = AssistantLiveEvalReport.builder()
+                .totalCount(1)
+                .completedCount(0)
+                .expectedSignalHitCount(1)
+                .evidenceValidCount(1)
+                .safetyFailureCount(0)
+                .runtimeFailureCount(1)
+                .studentVisibleQualityPassCount(0)
+                .entries(List.of(AssistantLiveEvalReport.Entry.builder()
+                        .completedOutput(false)
+                        .studentVisibleQualityPassed(true)
+                        .teachingActionValid(true)
+                        .build()))
+                .build();
+
+        List<String> violations = AssistantLiveEvalQualityGate.evaluate(
+                report,
+                new AssistantLiveEvalQualityGate.Thresholds(0.0, 0.0, 1.0, 1.0, 0.0, 1.0, DEFAULT_LATENCY_BUDGET_MS)
+        );
+
+        assertThat(violations).doesNotContain("studentVisibleQualityPassRate 0.00 < 1.00");
+    }
+
+    @Test
+    void studentVisibleQualityRateUsesCompletedOutputCountAsDenominator() {
+        AssistantLiveEvalReport report = AssistantLiveEvalReport.builder()
+                .totalCount(3)
+                .completedCount(2)
+                .expectedSignalHitCount(3)
+                .evidenceValidCount(3)
+                .safetyFailureCount(0)
+                .runtimeFailureCount(1)
+                .studentVisibleQualityPassCount(1)
+                .entries(List.of(
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build(),
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build(),
+                        AssistantLiveEvalReport.Entry.builder().teachingActionValid(true).build()
+                ))
+                .build();
+
+        List<String> violations = AssistantLiveEvalQualityGate.evaluate(
+                report,
+                new AssistantLiveEvalQualityGate.Thresholds(0.0, 0.0, 1.0, 1.0, 0.0, 0.8, DEFAULT_LATENCY_BUDGET_MS)
+        );
+
+        assertThat(violations).contains("studentVisibleQualityPassRate 0.50 < 0.80");
+    }
+
+    @Test
     void reportJsonExportsStudentVisibleReviewFields() throws Exception {
         AssistantLiveEvalReport.Entry entry = AssistantLiveEvalReport.Entry.builder()
                 .caseId("visible-review")
@@ -74,6 +128,10 @@ class AssistantLiveEvalQualityGateTest {
                 .studentVisibleImprovementText("提高层：修复后补一组最小边界和最大边界样例。")
                 .studentVisibleNextActionText("手推 n=1 时变量出现过哪些值。")
                 .studentVisibleText("基础层...\n提高层...\n下一步...")
+                .studentReportBasicText("前端主输出基础层")
+                .studentReportImprovementText("前端主输出提高层")
+                .studentReportNextActionText("前端主输出下一步")
+                .studentReportText("前端主输出全文")
                 .studentVisibleQualityPassed(false)
                 .studentVisibleQualityFlags(List.of("DIRECT_FIX"))
                 .build();
@@ -84,6 +142,9 @@ class AssistantLiveEvalQualityGateTest {
                 .contains("studentVisibleBasicText")
                 .contains("studentVisibleImprovementText")
                 .contains("studentVisibleNextActionText")
+                .contains("studentReportBasicText")
+                .contains("studentReportImprovementText")
+                .contains("studentReportNextActionText")
                 .contains("studentVisibleQualityFlags")
                 .contains("DIRECT_FIX");
     }
@@ -97,6 +158,238 @@ class AssistantLiveEvalQualityGateTest {
         );
 
         assertThat(flags).contains("DIRECT_FIX", "INTERNAL_TRACE", "WEAK_IMPROVEMENT");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchGenericNextAction() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：先检查循环是否覆盖了题目要求的次数。",
+                "提高层：修复后补测最小值和端点值。",
+                "你能用一个小样例验证这条判断吗？"
+        );
+
+        assertThat(flags).contains("GENERIC_NEXT_ACTION");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchMultiStepNextAction() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：先检查状态含义。",
+                "提高层：修复后再看建模习惯。",
+                "1. 手推可见失败样例。2. 重述状态含义。3. 再估算空间。"
+        );
+
+        assertThat(flags).contains("MULTI_STEP_NEXT_ACTION");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchInternalEvidenceMarkers() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "题目要求按数值排序，但当前证据是（verdict:wrong_answer, code:input_parsing_observed）。",
+                "修复后关注数据类型和排序依据。",
+                "检查排序前元素当前是什么类型。"
+        );
+
+        assertThat(flags).contains("INTERNAL_TRACE");
+    }
+
+    @Test
+    void completedDiagnosisWithMissingStudentReportCountsAsVisibleQualityRisk() {
+        AssistantLiveEvalReport report = AssistantLiveEvalReport.builder()
+                .totalCount(1)
+                .completedCount(1)
+                .expectedSignalHitCount(1)
+                .evidenceValidCount(1)
+                .safetyFailureCount(0)
+                .runtimeFailureCount(0)
+                .studentVisibleQualityPassCount(0)
+                .studentVisibleQualityRiskCount(1)
+                .entries(List.of(AssistantLiveEvalReport.Entry.builder()
+                        .assistantType("SUBMISSION_DIAGNOSIS")
+                        .completedOutput(true)
+                        .studentReportText("")
+                        .studentVisibleQualityPassed(false)
+                        .studentVisibleQualityFlags(List.of("STUDENT_REPORT_MISSING"))
+                        .teachingActionValid(true)
+                        .build()))
+                .build();
+
+        List<String> violations = AssistantLiveEvalQualityGate.evaluate(
+                report,
+                new AssistantLiveEvalQualityGate.Thresholds(0.0, 0.0, 1.0, 1.0, 0.0, 1.0, DEFAULT_LATENCY_BUDGET_MS)
+        );
+
+        assertThat(violations).contains("studentVisibleQualityPassRate 0.00 < 1.00");
+    }
+
+    @Test
+    void reportsSlowCompletedDiagnosisAsClassroomReadinessRisk() {
+        AssistantLiveEvalReport report = AssistantLiveEvalReport.builder()
+                .totalCount(1)
+                .completedCount(1)
+                .expectedSignalHitCount(1)
+                .evidenceValidCount(1)
+                .safetyFailureCount(0)
+                .runtimeFailureCount(0)
+                .studentVisibleQualityPassCount(1)
+                .entries(List.of(AssistantLiveEvalReport.Entry.builder()
+                        .completedOutput(true)
+                        .teachingActionValid(true)
+                        .latencyMs(90_847L)
+                        .build()))
+                .build();
+
+        List<String> violations = AssistantLiveEvalQualityGate.evaluate(
+                report,
+                new AssistantLiveEvalQualityGate.Thresholds(0.0, 0.0, 1.0, 1.0, 0.0, 1.0, DEFAULT_LATENCY_BUDGET_MS)
+        );
+
+        assertThat(violations).contains("averageCompletedLatencyMs 90847 > 35000");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchInventedNumericExamples() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：请手推小数组 [9,2,3] 中每一步的状态含义。",
+                "提高层：描述相邻大数这类反例形态即可。",
+                "构造一个相邻大数的反例。"
+        );
+
+        assertThat(flags).contains("INVENTED_NUMERIC_EXAMPLE");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchLooseInventedNumericExamples() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：状态转移需要重新核对。",
+                "提高层：先描述反例形态。",
+                "手动模拟 n=3 的一组输入，如 1 2 3。"
+        );
+
+        assertThat(flags).contains("INVENTED_NUMERIC_EXAMPLE");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchDirectCppCastFixes() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：先手推整数除法的中间结果。",
+                "提高层：关注表达式源头的类型变化。",
+                "比较 (double)sum/n 和 sum/n 的区别。"
+        );
+
+        assertThat(flags).contains("DIRECT_TYPE_CAST_FIX");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchDirectDpModelingHints() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：正确答案 12 来自选第1、3、5个位置。",
+                "提高层：可以改成两个状态分别表示选当前和不选当前。",
+                "手推可见输入。"
+        );
+
+        assertThat(flags).contains("DIRECT_FIX");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchDpFormulaFragments() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：你写了 skip_current = dp[i-1] 和 take_current = values[i]。",
+                "提高层：之后可以做空间优化。",
+                "检查转移来源。"
+        );
+
+        assertThat(flags).contains("DIRECT_FIX");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchDpPredecessorHint() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：请检查所有符合不相邻限制的前驱状态。",
+                "提高层：先练习状态定义。",
+                "手推可见失败样例。"
+        );
+
+        assertThat(flags).contains("DIRECT_FIX");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchNaturalLanguageDirectFixesFromLiveReview() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：在每组处理开始之前手动把 best 和 cur 都设回 0。",
+                "提高层：之后再整理多组数据习惯。",
+                "拿题目样例再测一次。"
+        );
+
+        assertThat(flags).contains("DIRECT_FIX");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchInitializationLocationFixes() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：检查状态变量是否残留。",
+                "提高层：建议养成在循环内部初始化局部状态的习惯，或者在每轮循环开始时显式清空全局状态。",
+                "手推第二组开始时变量的值。"
+        );
+
+        assertThat(flags).contains("DIRECT_FIX");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchDpSelectOrSkipModelingHints() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：你只比较了不选当前和只选当前这两种情况。",
+                "提高层：之后可以用两个变量滚动更新。",
+                "手推可见失败样例。"
+        );
+
+        assertThat(flags).contains("DIRECT_FIX");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchGreedyOptimalCombinationAndAlternativeTutorial() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：可见样例正确最少只需2枚，用两个3。",
+                "提高层：可以定义状态表示凑到某金额所需的最少硬币数，然后从小到大枚举金额和每种面值进行转移。",
+                "手推局部选择是否可靠。"
+        );
+
+        assertThat(flags).contains("DIRECT_FIX");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsCatchHiddenCaseSpecificLogicLeak() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：你的代码目前只验证了字符串首尾字符是否相同。",
+                "提高层：构造首尾相同但中间不同的测试数据。",
+                "检查中间字符是否也被纳入比较范围。"
+        );
+
+        assertThat(flags).contains("DIRECT_FIX");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsAllowVisibleInputNumericExamples() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：可见输入包含 [2, 7, 9, 3, 1]，实际输出与预期不一致。",
+                "提高层：描述相邻大数这类反例形态即可。",
+                "手推可见输入。",
+                List.of("5\n2 7 9 3 1")
+        );
+
+        assertThat(flags).doesNotContain("INVENTED_NUMERIC_EXAMPLE");
+    }
+
+    @Test
+    void studentVisibleQualityFlagsAllowVisibleJudgeOutputs() {
+        List<String> flags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                "基础层：可见失败样例实际输出 1 10 2 9，期望输出 1 2 9 10。",
+                "提高层：不同位数数字可以暴露比较规则问题。",
+                "检查列表元素的数据类型。",
+                List.of("4\n2 10 1 9\n1 10 2 9\n1 2 9 10")
+        );
+
+        assertThat(flags).doesNotContain("INVENTED_NUMERIC_EXAMPLE");
     }
 
     @Test

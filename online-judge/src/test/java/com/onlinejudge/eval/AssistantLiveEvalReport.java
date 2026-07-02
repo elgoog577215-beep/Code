@@ -60,6 +60,10 @@ public class AssistantLiveEvalReport {
         private String studentVisibleImprovementText;
         private String studentVisibleNextActionText;
         private String studentVisibleText;
+        private String studentReportBasicText;
+        private String studentReportImprovementText;
+        private String studentReportNextActionText;
+        private String studentReportText;
         private Boolean studentVisibleQualityPassed;
         private List<String> studentVisibleQualityFlags;
         private String aiBetterThanTeacher;

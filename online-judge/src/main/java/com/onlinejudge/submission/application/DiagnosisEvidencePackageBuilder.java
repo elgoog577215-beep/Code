@@ -116,6 +116,7 @@ public class DiagnosisEvidencePackageBuilder {
                 .hidden(hidden)
                 .executionTime(result.getExecutionTime())
                 .memoryUsed(result.getMemoryUsed())
+                .inputPreview(hidden ? "[隐藏测试点]" : truncate(result.getInputSnapshot(), PREVIEW_LIMIT))
                 .actualOutputPreview(hidden ? "[隐藏测试点]" : truncate(result.getActualOutput(), PREVIEW_LIMIT))
                 .expectedOutputPreview(hidden ? "[隐藏测试点]" : truncate(result.getExpectedOutput(), PREVIEW_LIMIT))
                 .build();

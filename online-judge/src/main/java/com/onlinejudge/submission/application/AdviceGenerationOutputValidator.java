@@ -6,6 +6,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class AdviceGenerationOutputValidator {
@@ -13,6 +15,7 @@ public class AdviceGenerationOutputValidator {
     private static final int MAX_BASIC_REPORT_LENGTH = 360;
     private static final int MAX_IMPROVEMENT_REPORT_LENGTH = 300;
     private static final int MAX_NEXT_ACTION_LENGTH = 220;
+    private static final Pattern NUMERIC_ARRAY = Pattern.compile("\\[[0-9]+(?:\\s*,\\s*[0-9]+)+\\]");
 
     public ExternalModelStagePayloads.StageValidationResult validate(AdviceGenerationOutput output,
                                                                      ModelDiagnosisBrief brief,
@@ -148,6 +151,14 @@ public class AdviceGenerationOutputValidator {
         if (unsafe(report.getBasicLayerText(), report.getImprovementLayerText(), report.getNextActionText(), output.getStudentSummary())) {
             return invalid(ModelStageFailureReason.SAFETY_RISK, "studentReport contains answer leak.");
         }
+        if (containsUnsupportedNumericArray(brief,
+                report.getBasicLayerText(),
+                report.getImprovementLayerText(),
+                report.getNextActionText(),
+                output.getStudentSummary())) {
+            return invalid(ModelStageFailureReason.INVALID_JSON,
+                    "studentReport contains numeric example not present in visible input.");
+        }
         trimStudentReport(report, softFixes);
 
         Set<String> evidenceRefs = evidenceRefs(brief);
@@ -157,22 +168,40 @@ public class AdviceGenerationOutputValidator {
         allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getSkillUnits()));
         allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getImprovementPoints()));
 
+        ExternalModelStagePayloads.StageValidationResult candidateValidation = validateDiagnosisCandidates(
+                output, allowedIds, evidenceRefs, orderedEvidenceRefs, softFixes);
+        if (candidateValidation != null) {
+            return candidateValidation;
+        }
+
         AdviceGenerationOutput.DiagnosisDecision decision = output.getDiagnosisDecision();
         if (decision != null) {
             String fit = normalize(decision.getLibraryFit());
             if (!fit.isBlank() && !List.of("HIT", "PARTIAL", "MISS").contains(fit)) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisDecision.libraryFit is invalid.");
             }
+            boolean hasKnownAnchor = false;
             for (AdviceGenerationOutput.DiagnosisAnchor anchor : safe(decision.getAnchors())) {
                 if (anchor == null) {
                     return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisDecision.anchors contains null item.");
                 }
                 String type = normalize(anchor.getType());
                 boolean outOfLibrary = "OUT_OF_LIBRARY".equals(type);
-                if (!outOfLibrary && !blank(anchor.getId()) && !allowedIds.contains(normalize(anchor.getId()))) {
-                    softFixes.add("unknown anchor id converted to OUT_OF_LIBRARY: " + anchor.getId());
-                    anchor.setId(null);
-                    anchor.setType("OUT_OF_LIBRARY");
+                String anchorId = normalize(anchor.getId());
+                if (outOfLibrary && !anchorId.isBlank()) {
+                    return invalid(ModelStageFailureReason.INVALID_TAG,
+                            "OUT_OF_LIBRARY anchor id must be null: " + anchor.getId());
+                }
+                if (!outOfLibrary && !anchorId.isBlank() && !allowedIds.contains(anchorId)) {
+                    return invalid(ModelStageFailureReason.INVALID_TAG,
+                            "Unknown diagnosisDecision anchor id: " + anchor.getId());
+                }
+                if (!outOfLibrary && !anchorId.isBlank()) {
+                    hasKnownAnchor = true;
+                }
+                if ("MISS".equals(fit) && !outOfLibrary && !anchorId.isBlank()) {
+                    return invalid(ModelStageFailureReason.INVALID_TAG,
+                            "MISS diagnosisDecision cannot include known standard library anchor id: " + anchor.getId());
                 }
                 anchor.setEvidenceRefs(normalizeEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
                 String invalidEvidence = invalidEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs,
@@ -186,6 +215,10 @@ public class AdviceGenerationOutputValidator {
                 if (unsafe(anchor.getReason())) {
                     return invalid(ModelStageFailureReason.SAFETY_RISK, "diagnosisDecision anchor contains answer leak.");
                 }
+            }
+            if ("HIT".equals(fit) && !hasKnownAnchor) {
+                return invalid(ModelStageFailureReason.INVALID_TAG,
+                        "HIT diagnosisDecision requires at least one known standard library anchor id.");
             }
             for (AdviceGenerationOutput.OutOfLibraryFinding finding : safe(decision.getOutOfLibraryFindings())) {
                 if (finding == null || blank(finding.getName()) || blank(finding.getReason())) {
@@ -213,6 +246,60 @@ public class AdviceGenerationOutputValidator {
                 .softFixes(softFixes)
                 .hardFailures(List.of())
                 .build();
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult validateDiagnosisCandidates(
+            AdviceGenerationOutput output,
+            Set<String> allowedIds,
+            Set<String> evidenceRefs,
+            List<String> orderedEvidenceRefs,
+            List<String> softFixes
+    ) {
+        for (AdviceGenerationOutput.DiagnosisCandidate candidate : safe(output.getDiagnosisCandidates())) {
+            if (candidate == null) {
+                return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisCandidates contains null item.");
+            }
+            if (blank(candidate.getName()) || blank(candidate.getReason())) {
+                return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisCandidates item is incomplete.");
+            }
+            String fit = normalize(candidate.getLibraryFit());
+            if (fit.isBlank() || !List.of("HIT", "PARTIAL", "MISS", "OUT_OF_LIBRARY").contains(fit)) {
+                return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisCandidates.libraryFit is invalid.");
+            }
+            String anchorType = normalize(candidate.getAnchorType());
+            String anchorId = normalize(candidate.getAnchorId());
+            boolean outOfLibrary = "OUT_OF_LIBRARY".equals(fit) || "OUT_OF_LIBRARY".equals(anchorType);
+            if (outOfLibrary && !anchorId.isBlank()) {
+                return invalid(ModelStageFailureReason.INVALID_TAG,
+                        "OUT_OF_LIBRARY diagnosisCandidate anchorId must be null: " + candidate.getAnchorId());
+            }
+            if ("HIT".equals(fit) && anchorId.isBlank()) {
+                return invalid(ModelStageFailureReason.INVALID_TAG,
+                        "HIT diagnosisCandidate requires a known standard library anchorId.");
+            }
+            if ("MISS".equals(fit) && !anchorId.isBlank()) {
+                return invalid(ModelStageFailureReason.INVALID_TAG,
+                        "MISS diagnosisCandidate cannot include standard library anchorId: " + candidate.getAnchorId());
+            }
+            if (!outOfLibrary && !anchorId.isBlank() && !allowedIds.contains(anchorId)) {
+                return invalid(ModelStageFailureReason.INVALID_TAG,
+                        "Unknown diagnosisCandidate anchorId: " + candidate.getAnchorId());
+            }
+            candidate.setEvidenceRefs(normalizeEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
+                    orderedEvidenceRefs, softFixes));
+            String invalidEvidence = invalidEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
+                    "diagnosisCandidates.evidenceRefs");
+            if (!invalidEvidence.isBlank()) {
+                return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
+            }
+            if (invalidConfidence(candidate.getConfidence())) {
+                return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisCandidates confidence is invalid.");
+            }
+            if (unsafe(candidate.getName(), candidate.getReason())) {
+                return invalid(ModelStageFailureReason.SAFETY_RISK, "diagnosisCandidates contains answer leak.");
+            }
+        }
+        return null;
     }
 
     private void attachValidationTrace(AdviceGenerationOutput output, List<String> softFixes, List<String> hardFailures) {
@@ -388,6 +475,47 @@ public class AdviceGenerationOutputValidator {
 
     private boolean unsafe(String... values) {
         return ModelOutputSafetyPolicy.containsUnsafeLeak(values);
+    }
+
+    private boolean containsUnsupportedNumericArray(ModelDiagnosisBrief brief, String... values) {
+        List<String> visibleInputs = visibleInputPreviews(brief);
+        if (visibleInputs.isEmpty()) {
+            return false;
+        }
+        for (String value : values) {
+            Matcher matcher = NUMERIC_ARRAY.matcher(value == null ? "" : value);
+            while (matcher.find()) {
+                if (!visibleInputContainsArray(matcher.group(), visibleInputs)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private List<String> visibleInputPreviews(ModelDiagnosisBrief brief) {
+        if (brief == null || brief.getVisibleCaseFacts() == null) {
+            return List.of();
+        }
+        return brief.getVisibleCaseFacts().stream()
+                .filter(item -> item != null && !Boolean.TRUE.equals(item.getHidden()))
+                .map(ModelDiagnosisBrief.VisibleCaseFact::getInputPreview)
+                .filter(input -> input != null && !input.isBlank())
+                .toList();
+    }
+
+    private boolean visibleInputContainsArray(String arrayText, List<String> visibleInputs) {
+        String normalizedArray = normalizeNumbers(arrayText);
+        if (normalizedArray.isBlank()) {
+            return false;
+        }
+        return visibleInputs.stream()
+                .map(this::normalizeNumbers)
+                .anyMatch(input -> !input.isBlank() && input.contains(normalizedArray));
+    }
+
+    private String normalizeNumbers(String value) {
+        return value == null ? "" : value.replaceAll("[^0-9]+", " ").trim().replaceAll("\\s+", " ");
     }
 
     private String normalize(String value) {

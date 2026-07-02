@@ -19,6 +19,7 @@ public class AdviceGenerationOutput {
     private StudentReport studentReport;
     private TeacherTrace teacherTrace;
     private LibraryGrowth libraryGrowth;
+    private List<DiagnosisCandidate> diagnosisCandidates;
     private CaseUnderstanding caseUnderstanding;
     private List<BasicLayerAdvice> basicLayerAdvice;
     private List<ImprovementLayerAdvice> improvementLayerAdvice;
@@ -72,6 +73,23 @@ public class AdviceGenerationOutput {
         private List<String> suggestedPath;
         private String reason;
         private List<String> evidenceRefs;
+        private Double confidence;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class DiagnosisCandidate {
+        private String name;
+        private String layer;
+        private String libraryFit;
+        private String anchorId;
+        private String anchorType;
+        private String role;
+        private List<String> evidenceRefs;
+        private String reason;
         private Double confidence;
     }
 

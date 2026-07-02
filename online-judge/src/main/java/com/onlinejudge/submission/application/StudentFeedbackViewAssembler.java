@@ -12,8 +12,10 @@ import java.util.Set;
 @Component
 public class StudentFeedbackViewAssembler {
 
+    private static final String RULE_FALLBACK_NOTICE = "外部 AI 暂不可用，下面是规则诊断。";
+
     public SubmissionAnalysisResponse.StudentFeedbackView assemble(SubmissionAnalysisResponse analysis) {
-        if (analysis == null || !isModelReadyForStudent(analysis)) {
+        if (analysis == null) {
             return null;
         }
         SubmissionAnalysisResponse.StudentFeedback feedback = analysis.getStudentFeedback();
@@ -31,8 +33,13 @@ public class StudentFeedbackViewAssembler {
             return null;
         }
 
+        String status = viewStatus(analysis);
+        if ("RULE_FALLBACK".equals(status)) {
+            repairItems = withFallbackNotice(repairItems);
+        }
+
         return SubmissionAnalysisResponse.StudentFeedbackView.builder()
-                .status("READY")
+                .status(status)
                 .primaryAction(primaryAction(feedback, repairItems, nextQuestion))
                 .repairItems(repairItems)
                 .improvementItems(improvementItems)
@@ -44,16 +51,40 @@ public class StudentFeedbackViewAssembler {
                 .build();
     }
 
-    private boolean isModelReadyForStudent(SubmissionAnalysisResponse analysis) {
+    private String viewStatus(SubmissionAnalysisResponse analysis) {
         SubmissionAnalysisResponse.AiInvocation invocation = analysis.getAiInvocation();
         if (invocation == null) {
-            return true;
+            return "READY";
         }
         String status = safe(invocation.getStatus()).toUpperCase(Locale.ROOT);
         if (invocation.isFallbackUsed() || status.contains("FALLBACK")) {
-            return false;
+            return "RULE_FALLBACK";
         }
-        return status.isBlank() || status.contains("COMPLETED");
+        return "READY";
+    }
+
+    private List<SubmissionAnalysisResponse.FeedbackViewItem> withFallbackNotice(List<SubmissionAnalysisResponse.FeedbackViewItem> repairItems) {
+        if (repairItems == null || repairItems.isEmpty()) {
+            return List.of(SubmissionAnalysisResponse.FeedbackViewItem.builder()
+                    .title("规则诊断")
+                    .body(RULE_FALLBACK_NOTICE)
+                    .kind("RULE_FALLBACK")
+                    .evidenceRefs(List.of())
+                    .build());
+        }
+        SubmissionAnalysisResponse.FeedbackViewItem first = repairItems.get(0);
+        String body = safe(first.getBody());
+        if (body.startsWith(RULE_FALLBACK_NOTICE)) {
+            return repairItems;
+        }
+        List<SubmissionAnalysisResponse.FeedbackViewItem> updated = new ArrayList<>(repairItems);
+        updated.set(0, SubmissionAnalysisResponse.FeedbackViewItem.builder()
+                .title(first.getTitle())
+                .body(RULE_FALLBACK_NOTICE + body)
+                .kind(first.getKind())
+                .evidenceRefs(first.getEvidenceRefs())
+                .build());
+        return List.copyOf(updated);
     }
 
     private boolean isDiagnosisReportV2(SubmissionAnalysisResponse analysis) {
@@ -165,7 +196,8 @@ public class StudentFeedbackViewAssembler {
 
     private boolean looksUnsafe(String text) {
         String compact = safe(text).replaceAll("\\s+", "");
-        return compact.contains("完整代码")
+        return ModelOutputSafetyPolicy.containsUnsafeLeak(text)
+                || compact.contains("完整代码")
                 || compact.contains("参考代码")
                 || compact.contains("答案如下")
                 || compact.contains("直接改成")

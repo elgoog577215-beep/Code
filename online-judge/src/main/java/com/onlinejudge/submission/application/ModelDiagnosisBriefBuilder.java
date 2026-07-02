@@ -117,6 +117,7 @@ public class ModelDiagnosisBriefBuilder {
                         .hidden(item.getHidden())
                         .executionTime(item.getExecutionTime())
                         .memoryUsed(item.getMemoryUsed())
+                        .inputPreview(Boolean.TRUE.equals(item.getHidden()) ? null : item.getInputPreview())
                         .actualOutputPreview(Boolean.TRUE.equals(item.getHidden()) ? null : item.getActualOutputPreview())
                         .expectedOutputPreview(Boolean.TRUE.equals(item.getHidden()) ? null : item.getExpectedOutputPreview())
                         .build())

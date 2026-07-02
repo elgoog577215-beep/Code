@@ -44,6 +44,29 @@ class AdviceGenerationOutputNormalizerTest {
         assertThat(validator.validate(normalized, brief(), pack()).isValid()).isTrue();
     }
 
+    @Test
+    void rewritesDpStudentReportLeakIntoSafePrompt() {
+        AdviceGenerationOutput output = validOutput();
+        output.setStudentReport(AdviceGenerationOutput.StudentReport.builder()
+                .hintLevel("L3")
+                .basicLayerText("基础层：你写了 skip_current = dp[i-1] 和 take_current = values[i]。")
+                .improvementLayerText("提高层：之后可以做空间压缩。")
+                .nextActionText("下一步：检查前驱状态。")
+                .build());
+        output.setStudentSummary("这次重点是状态定义。");
+
+        AdviceGenerationOutput normalized = normalizer.normalize(output, pack());
+
+        assertThat(normalized.getStudentReport().getBasicLayerText())
+                .contains("状态含义")
+                .doesNotContain("dp[i", "skip_current", "take_current", "转移来源");
+        assertThat(normalized.getStudentReport().getImprovementLayerText())
+                .doesNotContain("空间压缩");
+        assertThat(normalized.getStudentReport().getNextActionText())
+                .contains("可见失败样例");
+        assertThat(validator.validate(normalized, brief(), pack()).isValid()).isTrue();
+    }
+
     private AdviceGenerationOutput validOutput() {
         return AdviceGenerationOutput.builder()
                 .caseUnderstanding(AdviceGenerationOutput.CaseUnderstanding.builder()

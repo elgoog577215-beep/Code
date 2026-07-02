@@ -2,18 +2,14 @@ package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.onlinejudge.classroom.domain.Assignment;
-import com.onlinejudge.problem.domain.Problem;
-import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.domain.StudentAiFeedback;
 import com.onlinejudge.submission.domain.StudentAiFeedbackEvent;
 import com.onlinejudge.submission.domain.Submission;
-import com.onlinejudge.submission.domain.SubmissionCaseResult;
 import com.onlinejudge.submission.dto.StudentAiFeedbackLookupResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
+import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackRepository;
-import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,13 +28,9 @@ public class StudentAiFeedbackService {
     private static final String SOURCE_RULE_FALLBACK = "RULE_FALLBACK";
 
     private final SubmissionRepository submissionRepository;
-    private final ProblemRepository problemRepository;
-    private final SubmissionCaseResultRepository submissionCaseResultRepository;
     private final StudentAiFeedbackRepository studentAiFeedbackRepository;
     private final StudentAiFeedbackEventRepository studentAiFeedbackEventRepository;
-    private final DiagnosisEvidencePackageBuilder evidencePackageBuilder;
-    private final RuleSignalAnalyzer ruleSignalAnalyzer;
-    private final AiReportService aiReportService;
+    private final SubmissionAnalysisService submissionAnalysisService;
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
@@ -122,40 +114,131 @@ public class StudentAiFeedbackService {
     public StudentAiFeedbackResponse generateAndStore(Long submissionId) {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + submissionId));
-        Problem problem = problemRepository.findById(submission.getProblemId())
-                .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + submission.getProblemId()));
-        List<SubmissionCaseResult> caseResults = submissionCaseResultRepository
-                .findBySubmissionIdOrderByTestCaseNumberAsc(submissionId);
-
-        DiagnosisEvidencePackage evidencePackage = evidencePackageBuilder.build(
-                problem,
-                submission,
-                caseResults,
-                null,
-                Assignment.HintPolicy.L2
+        StudentAiFeedbackResponse reused = feedbackFromAnalysis(
+                submissionId,
+                submissionAnalysisService.generateAndStoreAnalysisForSubmission(submissionId)
         );
-        RuleSignalAnalyzer.RuleSignalResult ruleSignals = ruleSignalAnalyzer.analyze(evidencePackage);
-        StudentAiFeedbackResponse feedback = aiReportService.generateStudentAiFeedback(
-                problem,
-                submission,
-                evidencePackage,
-                ruleSignals
-        );
-        feedback.setGeneratedAt(LocalDateTime.now());
+        if (reused != null) {
+            return saveFeedback(submission, reused);
+        }
+        return saveFeedback(submission, failedFeedback(submissionId, "STUDENT_FEEDBACK_VIEW_MISSING"));
+    }
 
+    private StudentAiFeedbackResponse saveFeedback(Submission submission, StudentAiFeedbackResponse feedback) {
+        Long submissionId = submission.getId();
+        if (feedback.getGeneratedAt() == null) {
+            feedback.setGeneratedAt(LocalDateTime.now());
+        }
         StudentAiFeedback entity = studentAiFeedbackRepository.findBySubmissionId(submissionId)
                 .orElse(StudentAiFeedback.builder()
                         .submissionId(submissionId)
                         .source(SOURCE_MODEL)
                         .build());
         entity.setStatus(feedback.getStatus());
-        entity.setSource("READY".equals(feedback.getStatus()) ? SOURCE_MODEL : SOURCE_RULE_FALLBACK);
+        entity.setSource(hasText(feedback.getSource()) ? feedback.getSource() : SOURCE_RULE_FALLBACK);
         entity.setFeedbackJson(serialize(feedback));
         entity.setFailureReason(failureReason(feedback));
         StudentAiFeedback saved = studentAiFeedbackRepository.save(entity);
         recordGenerationEvent(submission, saved, feedback);
         feedback.setGeneratedAt(saved.getGeneratedAt());
         return feedback;
+    }
+
+    private StudentAiFeedbackResponse feedbackFromAnalysis(Long submissionId, SubmissionAnalysisResponse analysis) {
+        SubmissionAnalysisResponse.StudentFeedbackView view = analysis == null ? null : analysis.getStudentFeedbackView();
+        if (view == null) {
+            return null;
+        }
+        List<StudentAiFeedbackResponse.FeedbackItem> repairItems = feedbackItems(view.getRepairItems(), List.of("evidence_grounded", "actionable"));
+        List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = feedbackItems(view.getImprovementItems(), List.of("transfer"));
+        String basic = firstFeedbackBody(repairItems);
+        String improvement = firstFeedbackBody(improvementItems);
+        String next = blankToNull(view.getNextQuestion());
+        StudentAiFeedbackResponse feedback = StudentAiFeedbackResponse.builder()
+                .submissionId(submissionId)
+                .status("READY")
+                .source(isModelAnalysis(analysis) ? SOURCE_MODEL : SOURCE_RULE_FALLBACK)
+                .generatedAt(LocalDateTime.now())
+                .repairItems(repairItems)
+                .improvementItems(improvementItems)
+                .studentReport(StudentAiFeedbackResponse.StudentReport.builder()
+                        .basicLayerText(blankToNull(basic))
+                        .improvementLayerText(blankToNull(improvement))
+                        .nextActionText(next)
+                        .build())
+                .nextQuestion(next)
+                .safety(StudentAiFeedbackResponse.Safety.builder()
+                        .answerLeakRisk("LOW")
+                        .blockedReasons(List.of())
+                        .build())
+                .evidenceRefs(view.getEvidenceRefs() == null ? List.of() : view.getEvidenceRefs())
+                .build();
+        return hasStudentVisibleContent(feedback) ? feedback : null;
+    }
+
+    private boolean isModelAnalysis(SubmissionAnalysisResponse analysis) {
+        return analysis != null && "AI_MODEL".equals(analysis.getSourceType());
+    }
+
+    private StudentAiFeedbackResponse failedFeedback(Long submissionId, String reason) {
+        return StudentAiFeedbackResponse.builder()
+                .submissionId(submissionId)
+                .status("FAILED")
+                .source(SOURCE_RULE_FALLBACK)
+                .generatedAt(LocalDateTime.now())
+                .repairItems(List.of())
+                .improvementItems(List.of())
+                .safety(StudentAiFeedbackResponse.Safety.builder()
+                        .answerLeakRisk("LOW")
+                        .blockedReasons(List.of(reason))
+                        .build())
+                .evidenceRefs(List.of())
+                .build();
+    }
+
+    private List<StudentAiFeedbackResponse.FeedbackItem> feedbackItems(
+            List<SubmissionAnalysisResponse.FeedbackViewItem> items,
+            List<String> qualitySignals
+    ) {
+        if (items == null) {
+            return List.of();
+        }
+        return items.stream()
+                .filter(item -> item != null && item.getBody() != null && !item.getBody().isBlank())
+                .map(item -> StudentAiFeedbackResponse.FeedbackItem.builder()
+                        .title(item.getTitle())
+                        .body(item.getBody())
+                        .kind(item.getKind())
+                        .evidenceRefs(item.getEvidenceRefs() == null ? List.of() : item.getEvidenceRefs())
+                        .qualitySignals(qualitySignals)
+                        .build())
+                .toList();
+    }
+
+    private String firstFeedbackBody(List<StudentAiFeedbackResponse.FeedbackItem> items) {
+        return items.stream()
+                .map(StudentAiFeedbackResponse.FeedbackItem::getBody)
+                .filter(this::hasText)
+                .findFirst()
+                .orElse("");
+    }
+
+    private boolean hasStudentVisibleContent(StudentAiFeedbackResponse feedback) {
+        if (feedback == null || feedback.getStudentReport() == null) {
+            return false;
+        }
+        StudentAiFeedbackResponse.StudentReport report = feedback.getStudentReport();
+        return hasText(report.getBasicLayerText())
+                || hasText(report.getImprovementLayerText())
+                || hasText(report.getNextActionText());
+    }
+
+    private String blankToNull(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     @Transactional

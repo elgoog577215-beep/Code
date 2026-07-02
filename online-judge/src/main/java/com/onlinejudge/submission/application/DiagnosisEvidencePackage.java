@@ -79,6 +79,7 @@ public class DiagnosisEvidencePackage {
         private Boolean hidden;
         private Double executionTime;
         private Integer memoryUsed;
+        private String inputPreview;
         private String actualOutputPreview;
         private String expectedOutputPreview;
     }

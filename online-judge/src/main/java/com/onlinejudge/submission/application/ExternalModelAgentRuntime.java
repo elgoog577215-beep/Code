@@ -175,6 +175,9 @@ public class ExternalModelAgentRuntime {
                         .testCaseNumber(item.getTestCaseNumber())
                         .passed(item.getPassed())
                         .hidden(item.getHidden())
+                        .inputPreview(Boolean.TRUE.equals(item.getHidden())
+                                ? null
+                                : truncate(item.getInputPreview(), 160))
                         .actualOutputPreview(Boolean.TRUE.equals(item.getHidden())
                                 ? null
                                 : truncate(item.getActualOutputPreview(), 160))

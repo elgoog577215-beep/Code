@@ -25,7 +25,42 @@ public class AdviceGenerationOutputNormalizer {
         if (output.getImprovementLayerAdvice() != null) {
             output.getImprovementLayerAdvice().forEach(item -> normalizeImprovementAdvice(item, improvementIds, skillIds));
         }
+        normalizeStudentReport(output.getStudentReport());
         return output;
+    }
+
+    private void normalizeStudentReport(AdviceGenerationOutput.StudentReport report) {
+        if (report == null || !containsDpLeak(
+                report.getBasicLayerText(),
+                report.getImprovementLayerText(),
+                report.getNextActionText())) {
+            return;
+        }
+        report.setBasicLayerText("基础层：这次更像是动态规划的状态含义没有先定清楚。先用一句话写出每个状态表示什么，再检查它依赖的信息是否已经算好。");
+        report.setImprovementLayerText("提高层：修正后，先养成“先定义状态、再核对依赖信息、最后用最小样例检查”的习惯，不要急着套公式。");
+        report.setNextActionText("拿可见失败样例手推一遍，记录每个状态的含义和它依赖的信息。");
+    }
+
+    private boolean containsDpLeak(String... values) {
+        if (values == null) {
+            return false;
+        }
+        for (String value : values) {
+            String text = value == null ? "" : value.toLowerCase(Locale.ROOT);
+            String compact = text.replaceAll("\\s+", "");
+            if (compact.contains("dp[i")
+                    || compact.contains("skip_current")
+                    || compact.contains("take_current")
+                    || compact.contains("前驱状态")
+                    || compact.contains("两个状态")
+                    || compact.contains("两状态")
+                    || compact.contains("多一个维度")
+                    || compact.contains("空间优化")
+                    || compact.contains("空间压缩")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void normalizeBasicAdvice(AdviceGenerationOutput.BasicLayerAdvice item,

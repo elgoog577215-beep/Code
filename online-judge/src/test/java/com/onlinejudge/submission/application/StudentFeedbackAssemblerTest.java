@@ -46,7 +46,7 @@ class StudentFeedbackAssemblerTest {
         SubmissionAnalysisResponse analysis = baseAnalysis("WA")
                 .issueTags(List.of("BOUNDARY_CONDITION"))
                 .fineGrainedTags(List.of("EDGE_CASE_MISSING"))
-                .summary("程序首次失败出现在隐藏测试点。")
+                .summary("公开样例通过，但程序首次失败出现在隐藏测试点。")
                 .evidenceRefs(List.of("verdict:wrong_answer"))
                 .firstFailedCase(SubmissionAnalysisResponse.FailedCaseSnapshot.builder()
                         .testCaseNumber(8)
@@ -60,7 +60,30 @@ class StudentFeedbackAssemblerTest {
         assertBasicContract(feedback);
         String text = feedbackText(feedback);
         assertThat(text).contains("边界");
+        assertThat(feedback.getBlockingIssues().get(0).getStudentMessage()).doesNotContain("这次已经通过", "复盘");
         assertThat(text).doesNotContain("隐藏测试是", "隐藏数据", "直接改成", "完整代码");
+        assertStudentSafe(feedback);
+    }
+
+    @Test
+    void givesNaturalRuleFallbackForDpStateIssue() {
+        SubmissionAnalysisResponse analysis = baseAnalysis("WA")
+                .issueTags(List.of("ALGORITHM_STRATEGY"))
+                .fineGrainedTags(List.of("DP_STATE_DESIGN"))
+                .summary("当前状态没有覆盖题目判断所需的信息。")
+                .studentHintPlan(null)
+                .build();
+
+        SubmissionAnalysisResponse.StudentFeedback feedback =
+                assembler.assemble(analysis, null, ruleSignals("ALGORITHM_STRATEGY", "DP_STATE_DESIGN"), true);
+
+        assertBasicContract(feedback);
+        String text = feedbackText(feedback);
+        assertThat(feedback.getBlockingIssues().get(0).getStudentMessage())
+                .contains("状态含义", "依赖的信息")
+                .doesNotContain("当前最需要先处理的是", "转移来源");
+        assertThat(text).contains("DP_MODELING", "初始状态", "最小样例");
+        assertThat(text).doesNotContain("最大输入规模", "样例结构不同", "代码整理成更清楚");
         assertStudentSafe(feedback);
     }
 

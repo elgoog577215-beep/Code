@@ -95,17 +95,27 @@ class AssistantLiveEvalTest {
     }
 
     @Test
+    void liveEvalUsesProviderFriendlyDefaultDelay() {
+        assertThat(defaultLiveEvalCaseDelayMs("Qwen/Qwen3.5-397B-A17B")).isEqualTo(60_000L);
+        assertThat(defaultLiveEvalCaseDelayMs("deepseek-ai/DeepSeek-V4-Flash")).isEqualTo(15_000L);
+        assertThat(defaultLiveEvalCaseDelayMs("local-test-model")).isZero();
+    }
+
+    @Test
     void liveExternalAssistantsProduceComparableReportWhenEnabled() throws IOException {
         String apiKey = System.getenv("AI_EVAL_API_KEY");
         Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(),
                 "Set AI_EVAL_API_KEY to run live external assistant eval.");
 
         List<AssistantEvalFixtureLoader.Fixture> fixtures =
-                new AssistantEvalFixtureLoader(objectMapper).loadDefault().stream()
+                loadFixtures().stream()
                         .filter(fixture -> shouldIncludeAssistantType(fixture, System.getenv("AI_EVAL_ASSISTANT_TYPES")))
                         .filter(fixture -> shouldIncludeCaseId(fixture, System.getenv("AI_EVAL_CASE_IDS")))
                         .limit(Math.max(1, (int) longValueOrDefault(System.getenv("AI_EVAL_ASSISTANT_SMOKE_LIMIT"), 3L)))
                         .toList();
+        assertThat(fixtures)
+                .as("live eval fixture filter should match at least one case")
+                .isNotEmpty();
 
         AssistantLiveEvalReport report = runLiveEval(fixtures, apiKey);
         Path reportPath = writeReport(report);
@@ -126,10 +136,19 @@ class AssistantLiveEvalTest {
         assertBaselineRegressionGateIfEnabled(report, reportPath);
     }
 
+    private List<AssistantEvalFixtureLoader.Fixture> loadFixtures() throws IOException {
+        AssistantEvalFixtureLoader loader = new AssistantEvalFixtureLoader(objectMapper);
+        String fixturePath = System.getenv("AI_EVAL_FIXTURE_PATH");
+        if (fixturePath == null || fixturePath.isBlank()) {
+            return loader.loadDefault();
+        }
+        return loader.load(Path.of(fixturePath));
+    }
+
     private AssistantLiveEvalReport runLiveEval(List<AssistantEvalFixtureLoader.Fixture> fixtures,
                                                 String apiKey) {
         String model = valueOrDefault(System.getenv("AI_EVAL_MODEL"), "deepseek-ai/DeepSeek-V4-Pro");
-        long caseDelayMs = Math.max(0, longValueOrDefault(System.getenv("AI_EVAL_CASE_DELAY_MS"), 0L));
+        long caseDelayMs = liveEvalCaseDelayMs(model);
         AiReportService aiReportService = newLiveAiReportService(apiKey);
         DiagnosticAgentService diagnosticAgentService = newDiagnosticAgentService(aiReportService);
         CoachAgentService coachAgentService = newLiveCoachAgentService(apiKey);
@@ -166,6 +185,25 @@ class AssistantLiveEvalTest {
         }
     }
 
+    long liveEvalCaseDelayMs(String model) {
+        String configured = System.getenv("AI_EVAL_CASE_DELAY_MS");
+        if (configured != null && !configured.isBlank()) {
+            return Math.max(0, longValueOrDefault(configured, 0L));
+        }
+        return defaultLiveEvalCaseDelayMs(model);
+    }
+
+    private long defaultLiveEvalCaseDelayMs(String model) {
+        String normalized = safe(model).toLowerCase(Locale.ROOT);
+        if (normalized.contains("qwen")) {
+            return 60_000L;
+        }
+        if (normalized.contains("modelscope") || normalized.contains("/") || normalized.contains("deepseek")) {
+            return 15_000L;
+        }
+        return 0L;
+    }
+
     private AssistantLiveEvalReport.Entry evaluateDiagnosis(AssistantEvalFixtureLoader.Fixture fixture,
                                                             DiagnosticAgentService service,
                                                             String model,
@@ -193,13 +231,27 @@ class AssistantLiveEvalTest {
         List<String> visibleQualityFlags = AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
                 visibleFeedback.basicText(),
                 visibleFeedback.improvementText(),
-                visibleFeedback.nextActionText()
+                visibleFeedback.nextActionText(),
+                visibleInputSnapshots(fixture)
         );
-        boolean studentVisibleQualityPassed = visibleQualityFlags.isEmpty();
+        VisibleStudentFeedback studentReportFeedback = studentReportFeedback(visibleFeedback);
+        List<String> studentReportQualityFlags = studentReportFeedback.allText().isBlank()
+                ? studentReportFeedback.enabled() ? List.of("STUDENT_REPORT_MISSING") : List.of()
+                : AssistantLiveEvalQualityGate.studentVisibleQualityFlags(
+                        studentReportFeedback.basicText(),
+                        studentReportFeedback.improvementText(),
+                        studentReportFeedback.nextActionText(),
+                        visibleInputSnapshots(fixture)
+                );
+        List<String> allVisibleQualityFlags = List.of(visibleQualityFlags, studentReportQualityFlags).stream()
+                .flatMap(List::stream)
+                .distinct()
+                .toList();
+        boolean studentVisibleQualityPassed = allVisibleQualityFlags.isEmpty();
         boolean teachingActionValid = expectedTeachingActionValid(analysis, fixture);
         String failureReason = resolveFailureReason(fallbackUsed, partialCompleted, invocation,
                 analysis.getUncertainty(), signalHit, safetyPassed, teachingActionValid,
-                studentVisibleQualityPassed, visibleQualityFlags);
+                studentVisibleQualityPassed, allVisibleQualityFlags);
         return baseEntry(fixture, model, startedAt)
                 .promptVersion(invocation == null ? "unknown" : invocation.getPromptVersion())
                 .status(invocation == null ? "UNKNOWN" : invocation.getStatus())
@@ -222,8 +274,12 @@ class AssistantLiveEvalTest {
                 .studentVisibleImprovementText(visibleFeedback.improvementText())
                 .studentVisibleNextActionText(visibleFeedback.nextActionText())
                 .studentVisibleText(visibleFeedback.allText())
+                .studentReportBasicText(studentReportFeedback.basicText())
+                .studentReportImprovementText(studentReportFeedback.improvementText())
+                .studentReportNextActionText(studentReportFeedback.nextActionText())
+                .studentReportText(studentReportFeedback.allText())
                 .studentVisibleQualityPassed(studentVisibleQualityPassed)
-                .studentVisibleQualityFlags(visibleQualityFlags)
+                .studentVisibleQualityFlags(allVisibleQualityFlags)
                 .aiBetterThanTeacher(signalHit && evidenceValid ? "AI 输出包含结构化标签和证据，可用于后续系统统计。" : "本条未观察到明显优于老师期望的部分。")
                 .teacherBetterThanAi(signalHit ? "老师期望更明确地限定了不要直接给改法。" : "老师期望更准确地定位了核心错因。")
                 .iterationSuggestion(iterationSuggestion(fixture.assistantType(), fallbackUsed, signalHit, safetyPassed, ""))
@@ -429,9 +485,11 @@ class AssistantLiveEvalTest {
                 .expectedSignalHitCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getExpectedSignalHit())).count())
                 .evidenceValidCount((int) entries.stream().filter(entry -> Boolean.TRUE.equals(entry.getEvidenceValid())).count())
                 .studentVisibleQualityPassCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getCompletedOutput()))
                         .filter(entry -> Boolean.TRUE.equals(entry.getStudentVisibleQualityPassed()))
                         .count())
                 .studentVisibleQualityRiskCount((int) entries.stream()
+                        .filter(entry -> Boolean.TRUE.equals(entry.getCompletedOutput()))
                         .filter(entry -> entry.getStudentVisibleQualityFlags() != null && !entry.getStudentVisibleQualityFlags().isEmpty())
                         .count())
                 .runtimeFixtureDraftCount(runtimeDrafts.size())
@@ -443,7 +501,9 @@ class AssistantLiveEvalTest {
     }
 
     private void assertLiveEvalQualityGateIfEnabled(AssistantLiveEvalReport report) {
-        if (!Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_ENFORCE_THRESHOLDS"), "false"))) {
+        if (!Boolean.parseBoolean(valueOrDefault(
+                System.getenv("AI_EVAL_ENFORCE_THRESHOLDS"),
+                valueOrDefault(System.getenv("AI_LIVE_EVAL_STRICT"), "false")))) {
             return;
         }
         AssistantLiveEvalQualityGate.Thresholds thresholds = new AssistantLiveEvalQualityGate.Thresholds(
@@ -452,7 +512,8 @@ class AssistantLiveEvalTest {
                 doubleValueOrDefault(System.getenv("AI_EVAL_MIN_SAFETY_PASS_RATE"), 1.00),
                 doubleValueOrDefault(System.getenv("AI_EVAL_MAX_FALLBACK_RATE"), 0.35),
                 doubleValueOrDefault(System.getenv("AI_EVAL_MIN_TEACHING_ACTION_VALID_RATE"), 0.80),
-                doubleValueOrDefault(System.getenv("AI_EVAL_MIN_STUDENT_VISIBLE_QUALITY_PASS_RATE"), 0.70)
+                doubleValueOrDefault(System.getenv("AI_EVAL_MIN_STUDENT_VISIBLE_QUALITY_PASS_RATE"), 0.70),
+                longValueOrDefault(System.getenv("AI_EVAL_MAX_AVERAGE_COMPLETED_LATENCY_MS"), 35_000L)
         );
         List<String> violations = AssistantLiveEvalQualityGate.evaluate(report, thresholds);
         assertThat(violations)
@@ -552,14 +613,16 @@ class AssistantLiveEvalTest {
 
     private String expectedTeachingAction(String tag) {
         return switch (tag == null ? "" : tag.toUpperCase(Locale.ROOT)) {
-            case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "TRACE_VARIABLES";
+            case "OFF_BY_ONE", "LOOP_BOUNDARY", "BINARY_SEARCH_BOUNDARY",
+                    "ARRAY_INDEX_OUT_OF_BOUNDS", "INTEGER_DIVISION_PRECISION" -> "TRACE_VARIABLES";
             case "INPUT_PARSING", "IO_FORMAT" -> "COMPARE_INPUT_SPEC";
             case "OUTPUT_FORMAT_DETAIL" -> "COMPARE_OUTPUT";
             case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "OVER_SIMULATION", "MAX_BOUNDARY" -> "COUNT_COMPLEXITY";
             case "EMPTY_INPUT", "BOUNDARY_CONDITION" -> "ASK_MIN_CASE";
-            case "STATE_RESET", "INITIAL_STATE", "VARIABLE_INITIALIZATION" -> "TRACE_STATE";
+            case "STATE_RESET", "INITIAL_STATE", "VARIABLE_INITIALIZATION", "UNINITIALIZED_VARIABLE" -> "TRACE_STATE";
             case "DP_STATE_DESIGN", "STATE_TRANSITION", "IN_PLACE_STATE_PROGRESS" -> "DEFINE_STATE";
-            case "GREEDY_ASSUMPTION", "ALGORITHM_STRATEGY" -> "CHECK_INVARIANT";
+            case "RECURSION_BASE_CASE" -> "DRAW_RECURSION_TREE";
+            case "GREEDY_ASSUMPTION", "ALGORITHM_STRATEGY", "SORT_KEY" -> "CHECK_INVARIANT";
             case "RUNTIME_STABILITY" -> "CHECK_RUNTIME_GUARDS";
             case "SAMPLE_OVERFIT", "SAMPLE_ONLY" -> "BUILD_COUNTEREXAMPLE";
             case "PARTIAL_FIX_REGRESSION" -> "COMPARE_SUBMISSIONS";
@@ -688,6 +751,34 @@ class AssistantLiveEvalTest {
                 .filter(text -> !text.isBlank())
                 .findFirst()
                 .orElse("");
+    }
+
+    private VisibleStudentFeedback studentReportFeedback(VisibleStudentFeedback visibleFeedback) {
+        if (!Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_INCLUDE_STUDENT_AI_FEEDBACK"), "false"))) {
+            return new VisibleStudentFeedback("", "", "", "", false);
+        }
+        return new VisibleStudentFeedback(
+                visibleFeedback.basicText(),
+                visibleFeedback.improvementText(),
+                visibleFeedback.nextActionText(),
+                visibleFeedback.allText(),
+                true
+        );
+    }
+
+    private List<String> visibleInputSnapshots(AssistantEvalFixtureLoader.Fixture fixture) {
+        if (fixture == null || fixture.diagnosis() == null || fixture.diagnosis().caseResults() == null) {
+            return List.of();
+        }
+        return fixture.diagnosis().caseResults().stream()
+                .filter(item -> item != null && !Boolean.TRUE.equals(item.hidden()))
+                .map(item -> String.join("\n", List.of(
+                        safe(item.inputSnapshot()),
+                        safe(item.actualOutput()),
+                        safe(item.expectedOutput())
+                )))
+                .filter(text -> !text.isBlank())
+                .toList();
     }
 
     private String resolveFailureReason(boolean fallbackUsed,
@@ -955,6 +1046,13 @@ class AssistantLiveEvalTest {
     private record VisibleStudentFeedback(String basicText,
                                           String improvementText,
                                           String nextActionText,
-                                          String allText) {
+                                          String allText,
+                                          boolean enabled) {
+        private VisibleStudentFeedback(String basicText,
+                                       String improvementText,
+                                       String nextActionText,
+                                       String allText) {
+            this(basicText, improvementText, nextActionText, allText, false);
+        }
     }
 }

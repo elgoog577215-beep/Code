@@ -110,6 +110,9 @@ class AiStandardLibraryGrowthAgentServiceTest {
     @Test
     void proposesCandidatesFromDiagnosisReportOutput() {
         var output = com.onlinejudge.submission.application.AdviceGenerationOutput.builder()
+                .diagnosisDecision(com.onlinejudge.submission.application.AdviceGenerationOutput.DiagnosisDecision.builder()
+                        .libraryFit("MISS")
+                        .build())
                 .libraryGrowth(com.onlinejudge.submission.application.AdviceGenerationOutput.LibraryGrowth.builder()
                         .candidates(List.of(com.onlinejudge.submission.application.AdviceGenerationOutput.LibraryGrowthCandidate.builder()
                                 .name("滑动窗口右端扩张后未及时更新答案")
@@ -134,6 +137,35 @@ class AiStandardLibraryGrowthAgentServiceTest {
                     assertThat(candidate.getSourceSubmissionId()).isEqualTo(22L);
                     assertThat(candidate.getChangeReason()).contains("PARTIAL");
                 });
+    }
+
+    @Test
+    void ignoresGrowthCandidatesWhenDiagnosisIsHit() {
+        var output = com.onlinejudge.submission.application.AdviceGenerationOutput.builder()
+                .diagnosisDecision(com.onlinejudge.submission.application.AdviceGenerationOutput.DiagnosisDecision.builder()
+                        .libraryFit("HIT")
+                        .anchors(List.of(com.onlinejudge.submission.application.AdviceGenerationOutput.DiagnosisAnchor.builder()
+                                .id("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                                .type("MISTAKE_POINT")
+                                .build()))
+                        .build())
+                .libraryGrowth(com.onlinejudge.submission.application.AdviceGenerationOutput.LibraryGrowth.builder()
+                        .candidates(List.of(com.onlinejudge.submission.application.AdviceGenerationOutput.LibraryGrowthCandidate.builder()
+                                .name("不应该入池的命中候选")
+                                .suggestedPath(List.of("BASIC", "LOOP"))
+                                .sourceProblemId(9L)
+                                .sourceSubmissionId(99L)
+                                .reason("HIT 场景不应该制造成长候选。")
+                                .confidence(0.91)
+                                .build()))
+                        .build())
+                .build();
+
+        List<AiStandardLibraryGrowthCandidate> saved = service.proposeFromDiagnosisOutput(output);
+
+        assertThat(saved).isEmpty();
+        assertThat(candidateRepository.findAll())
+                .noneMatch(candidate -> candidate.getSuggestedName().contains("不应该入池"));
     }
 
     @Test
