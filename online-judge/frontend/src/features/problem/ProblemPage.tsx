@@ -602,9 +602,9 @@ export default function ProblemPage() {
       const nextElapsedMs = Date.now() - startedAt;
       if (nextElapsedMs >= FEEDBACK_BACKGROUND_AFTER_MS) {
         setFeedbackPollState("background");
-        return;
+      } else {
+        setFeedbackPollState(nextElapsedMs >= FEEDBACK_SLOW_AFTER_MS ? "slow" : "checking");
       }
-      setFeedbackPollState(nextElapsedMs >= FEEDBACK_SLOW_AFTER_MS ? "slow" : "checking");
       pollStudentAiFeedback(id, token, startedAt);
     }, delay);
   }
