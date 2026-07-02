@@ -1,16 +1,29 @@
 package com.onlinejudge.problem.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.problem.domain.Problem;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class PublicProblemSeedCatalog {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final List<PublicProblemSeed> SEEDS = buildSeeds();
 
     private PublicProblemSeedCatalog() {
     }
 
     public static List<PublicProblemSeed> seeds() {
-        return List.of(
+        return SEEDS;
+    }
+
+    private static List<PublicProblemSeed> buildSeeds() {
+        List<PublicProblemSeed> seeds = new ArrayList<>(List.of(
                 tidalRoads(),
                 adjacentStoneMerge(),
                 treeCoursePlan(),
@@ -21,7 +34,9 @@ public final class PublicProblemSeedCatalog {
                 parallelAssembly(),
                 energyField(),
                 subarrayMinimumContribution()
-        );
+        ));
+        seeds.addAll(hardEvaluationSeeds());
+        return List.copyOf(seeds);
     }
 
     private static PublicProblemSeed tidalRoads() {
@@ -1164,6 +1179,103 @@ public final class PublicProblemSeedCatalog {
                 boundaryTypes,
                 testCases
         );
+    }
+
+    private static List<PublicProblemSeed> hardEvaluationSeeds() {
+        try (InputStream input = PublicProblemSeedCatalog.class.getResourceAsStream(
+                "/public-problem-seeds/hard-30-long-code-cases.json")) {
+            if (input == null) {
+                throw new IllegalStateException("Missing hard public problem seed resource.");
+            }
+            JsonNode root = OBJECT_MAPPER.readTree(input);
+            List<PublicProblemSeed> seeds = new ArrayList<>();
+            for (JsonNode node : root) {
+                seeds.add(hardEvaluationSeed(node));
+            }
+            return seeds;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static PublicProblemSeed hardEvaluationSeed(JsonNode node) {
+        JsonNode diagnosis = node.path("diagnosis");
+        JsonNode problem = diagnosis.path("problem");
+        JsonNode submission = diagnosis.path("submission");
+        String title = "AI评测题：" + problem.path("title").asText();
+        return problem(
+                title,
+                hardEvaluationDescription(problem, submission),
+                Problem.Difficulty.valueOf(problem.path("difficulty").asText("HARD")),
+                problem.path("timeLimit").asInt(1000),
+                problem.path("memoryLimit").asInt(65536),
+                hardEvaluationPromptDirection(node, problem),
+                submission.path("sourceCode").asText(),
+                textList(problem.path("knowledgePoints")),
+                textList(problem.path("algorithmStrategies")),
+                textList(problem.path("commonMistakes")),
+                textList(problem.path("boundaryTypes")),
+                List.of(
+                        sample("""
+                                3
+                                1 2 3
+                                """, "6\n"),
+                        hidden("""
+                                0
+                                """, "0\n")
+                )
+        );
+    }
+
+    private static String hardEvaluationDescription(JsonNode problem, JsonNode submission) {
+        return """
+                ## 题目描述
+
+                这是一道 AI 长代码诊断训练题，来自 30 道高难度评测样例集。原始评测主题：%s。
+
+                题库中保留了原评测样例的长 starter code（语言：%s），用于训练学生和 AI 在大量干扰代码中定位真实错误。
+                当前公共题库版本先提供一个可判题的基础壳任务：给定 `n` 和 `n` 个整数，输出这些整数的和。
+
+                原始主题说明：%s
+
+                ## 输入格式
+
+                第一行一个整数 `n`。
+                第二行包含 `n` 个整数。`n` 可以为 0；当 `n = 0` 时，第二行可以为空。
+
+                ## 输出格式
+
+                输出一个整数，表示所有输入整数的和。
+
+                ## 训练目标
+
+                这批题的重点不是刷标准答案，而是观察：面对 300 行以上的代码、无关辅助函数和局部边界错误时，能否先抓住最小可复现问题，再把错误说清楚。
+                后续如果要把它升级成正式竞赛题，需要为原始主题补齐完整题面、标准数据和与主题严格一致的错误代码。
+                """.formatted(
+                problem.path("title").asText(),
+                submission.path("languageName").asText("Python 3"),
+                problem.path("description").asText()
+        );
+    }
+
+    private static String hardEvaluationPromptDirection(JsonNode node, JsonNode problem) {
+        return String.join("\n",
+                "这是 AI 长代码诊断训练题，不是已经人工打磨完的正式竞赛题。",
+                node.path("teacherExpectation").asText(),
+                node.path("qualityNotes").asText(),
+                "原始主题：" + problem.path("title").asText(),
+                "公共题库判题任务：读入 n 和 n 个整数，输出整数和；重点观察长代码中的边界和执行错误。"
+        ).stripTrailing();
+    }
+
+    private static List<String> textList(JsonNode array) {
+        List<String> values = new ArrayList<>();
+        for (JsonNode item : array) {
+            if (!item.asText().isBlank()) {
+                values.add(item.asText());
+            }
+        }
+        return List.copyOf(values);
     }
 
     private static PublicProblemSeed.TestCaseSeed sample(String input, String expectedOutput) {

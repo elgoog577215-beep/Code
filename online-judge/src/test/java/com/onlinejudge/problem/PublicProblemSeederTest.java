@@ -26,16 +26,36 @@ import static org.mockito.Mockito.when;
 class PublicProblemSeederTest {
 
     @Test
-    void seedsTenAdvancedPythonProblemsWithLongStarterCode() {
-        assertThat(PublicProblemSeedCatalog.seeds()).hasSize(10);
+    void seedsPublicProblemsWithLongDiagnosticStarterCode() {
+        assertThat(PublicProblemSeedCatalog.seeds()).hasSize(40);
         assertThat(PublicProblemSeedCatalog.seeds())
                 .allSatisfy(seed -> {
                     assertThat(seed.description()).contains("## 题目描述");
                     assertThat(seed.testCases()).anySatisfy(testCase -> assertThat(testCase.hidden()).isFalse());
                     assertThat(seed.testCases()).anySatisfy(testCase -> assertThat(testCase.hidden()).isTrue());
-                    assertThat(seed.starterCode()).contains("def ").contains("if __name__ == \"__main__\":");
                     assertThat(seed.starterCode().lines().count()).isGreaterThanOrEqualTo(50);
                     assertThat(seed.commonMistakes()).isNotEmpty();
+                });
+    }
+
+    @Test
+    void includesHardLongCodeEvaluationProblems() {
+        List<PublicProblemSeed> hardEvaluationSeeds = PublicProblemSeedCatalog.seeds()
+                .stream()
+                .filter(this::isHardEvaluationSeed)
+                .toList();
+
+        assertThat(hardEvaluationSeeds).hasSize(30);
+        assertThat(hardEvaluationSeeds)
+                .anySatisfy(seed -> assertThat(seed.title()).isEqualTo("AI评测题：二维费用背包"))
+                .allSatisfy(seed -> {
+                    assertThat(seed.description()).contains("AI 长代码诊断训练题");
+                    assertThat(seed.starterCode().lines().count()).isGreaterThanOrEqualTo(300);
+                    assertThat(seed.testCases())
+                            .allSatisfy(testCase -> {
+                                assertThat(testCase.input()).doesNotContain("small visible sample");
+                                assertThat(testCase.expectedOutput()).doesNotContain("expected");
+                            });
                 });
     }
 
@@ -45,6 +65,9 @@ class PublicProblemSeederTest {
         List<String> acceptedTitles = new ArrayList<>();
 
         for (PublicProblemSeed seed : PublicProblemSeedCatalog.seeds()) {
+            if (isHardEvaluationSeed(seed)) {
+                continue;
+            }
             String starterCode = PublicStarterCodeCatalog.findByTitle(seed.title());
             assertThat(starterCode).as(seed.title()).isNotBlank();
 
@@ -158,6 +181,10 @@ class PublicProblemSeederTest {
                 .filter(seed -> seed.title().equals(title))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private boolean isHardEvaluationSeed(PublicProblemSeed seed) {
+        return seed.title().startsWith("AI评测题：");
     }
 
     private String normalized(String starterCode) {

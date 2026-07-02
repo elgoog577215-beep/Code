@@ -25,7 +25,7 @@ import java.util.stream.IntStream;
 public class ProblemService {
 
     private static final Pattern CODE_BLOCK_PATTERN = Pattern.compile("```[\\s\\S]*?```");
-    private static final Pattern MARKDOWN_PATTERN = Pattern.compile("[#>*`_\\-\\n]");
+    private static final Pattern MARKDOWN_PATTERN = Pattern.compile("[#>*`_\\n]");
 
     private final ProblemRepository problemRepository;
     private final TestCaseRepository testCaseRepository;
