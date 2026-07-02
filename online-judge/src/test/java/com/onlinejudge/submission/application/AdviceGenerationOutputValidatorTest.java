@@ -101,7 +101,7 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void rejectsDiagnosisReportV2HitWithoutKnownAnchorId() {
+    void softDowngradesDiagnosisReportV2HitWithoutKnownAnchorId() {
         AdviceGenerationOutput output = validDiagnosisReportV2("HIT", null, "OUT_OF_LIBRARY");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
@@ -110,13 +110,14 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
-        assertThat(result.getMessage()).contains("HIT diagnosisDecision requires");
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getDiagnosisDecision().getLibraryFit()).isEqualTo("PARTIAL");
+        assertThat(result.getSoftFixes())
+                .contains("diagnosisDecision.libraryFit downgraded HIT -> PARTIAL because no known anchor remained");
     }
 
     @Test
-    void rejectsDiagnosisReportV2UnknownAnchorId() {
+    void softConvertsDiagnosisReportV2UnknownAnchorIdToOutOfLibrary() {
         AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_UNKNOWN_MODEL_HALLUCINATION", "MISTAKE_POINT");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
@@ -125,13 +126,18 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
-        assertThat(result.getMessage()).contains("Unknown diagnosisDecision anchor id");
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes())
+                .contains("diagnosisDecision anchor converted to OUT_OF_LIBRARY: MP_UNKNOWN_MODEL_HALLUCINATION");
+        assertThat(output.getDiagnosisDecision().getAnchors()).singleElement()
+                .satisfies(anchor -> {
+                    assertThat(anchor.getType()).isEqualTo("OUT_OF_LIBRARY");
+                    assertThat(anchor.getId()).isNull();
+                });
     }
 
     @Test
-    void rejectsDiagnosisReportV2MissWithKnownAnchorId() {
+    void softNormalizesDiagnosisReportV2MissWithKnownAnchorIdToPartial() {
         AdviceGenerationOutput output = validDiagnosisReportV2("MISS", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
@@ -140,9 +146,67 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
-        assertThat(result.getMessage()).contains("MISS diagnosisDecision cannot include");
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getDiagnosisDecision().getLibraryFit()).isEqualTo("PARTIAL");
+        assertThat(result.getSoftFixes())
+                .contains("diagnosisDecision.libraryFit normalized: MISS -> PARTIAL because known anchor exists");
+    }
+
+    @Test
+    void normalizesDiagnosisReportV2ConceptAliasToStandardLibraryId() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("HIT", "RECURSION_BASE_CASE", "MISTAKE_POINT");
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                richPack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getDiagnosisDecision().getAnchors()).singleElement()
+                .satisfies(anchor -> assertThat(anchor.getId()).isEqualTo("MP_RECURSION_EXIT_MISSING"));
+        assertThat(result.getSoftFixes())
+                .contains("diagnosisDecision anchor id normalized: RECURSION_BASE_CASE -> MP_RECURSION_EXIT_MISSING");
+    }
+
+    @Test
+    void normalizesDiagnosisReportV2LibraryFitSynonyms() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("OUT_OF_LIBRARY", null, "OUT_OF_LIBRARY");
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getDiagnosisDecision().getLibraryFit()).isEqualTo("MISS");
+        assertThat(result.getSoftFixes())
+                .contains("diagnosisDecision.libraryFit normalized: OUT_OF_LIBRARY -> MISS");
+    }
+
+    @Test
+    void softDropsOutOfLibraryFindingWithInvalidEvidence() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
+        output.getDiagnosisDecision().setOutOfLibraryFindings(List.of(
+                AdviceGenerationOutput.OutOfLibraryFinding.builder()
+                        .name("模型发现的库外错因")
+                        .reason("这个发现本身可以保留给候选池，但证据引用写坏了。")
+                        .evidenceRefs(List.of("keyCodeExcerpt"))
+                        .confidence(0.7)
+                        .build()
+        ));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getDiagnosisDecision().getOutOfLibraryFindings()).isEmpty();
+        assertThat(result.getSoftFixes()).contains(
+                "diagnosisDecision.outOfLibraryFinding dropped: diagnosisDecision.outOfLibraryFindings.evidenceRefs contains invalid evidenceRef=keyCodeExcerpt");
     }
 
     @Test
@@ -183,7 +247,7 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void rejectsDiagnosisReportV2UnknownDiagnosisCandidateAnchorId() {
+    void softConvertsUnknownDiagnosisCandidateAnchorIdToOutOfLibrary() {
         AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
         output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
                 .name("模型自己编造的错因")
@@ -203,13 +267,18 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
-        assertThat(result.getMessage()).contains("Unknown diagnosisCandidate anchorId");
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).contains("diagnosisCandidate converted to OUT_OF_LIBRARY: MP_MODEL_MADE_UP");
+        assertThat(output.getDiagnosisCandidates()).singleElement()
+                .satisfies(candidate -> {
+                    assertThat(candidate.getLibraryFit()).isEqualTo("OUT_OF_LIBRARY");
+                    assertThat(candidate.getAnchorType()).isEqualTo("OUT_OF_LIBRARY");
+                    assertThat(candidate.getAnchorId()).isNull();
+                });
     }
 
     @Test
-    void rejectsDiagnosisReportV2OutOfLibraryDiagnosisCandidateWithAnchorId() {
+    void softClearsOutOfLibraryDiagnosisCandidateAnchorId() {
         AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
         output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
                 .name("库外发现不应绑定旧 id")
@@ -229,9 +298,38 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
-        assertThat(result.getMessage()).contains("OUT_OF_LIBRARY diagnosisCandidate anchorId must be null");
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes())
+                .contains("diagnosisCandidate anchorId cleared for OUT_OF_LIBRARY: MP_RANGE_RIGHT_ENDPOINT_MISSING");
+        assertThat(output.getDiagnosisCandidates()).singleElement()
+                .satisfies(candidate -> assertThat(candidate.getAnchorId()).isNull());
+    }
+
+    @Test
+    void softDropsDiagnosisCandidateWithInvalidEvidenceWithoutFailingStudentReport() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
+        output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
+                .name("候选证据引用不合法")
+                .layer("BASIC")
+                .libraryFit("HIT")
+                .anchorId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                .anchorType("MISTAKE_POINT")
+                .role("PRIMARY")
+                .evidenceRefs(List.of("keyCodeExcerpt"))
+                .reason("模型把证据说明当成 evidenceRef。")
+                .confidence(0.8)
+                .build()));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).contains(
+                "diagnosisCandidate dropped: diagnosisCandidates.evidenceRefs contains invalid evidenceRef=keyCodeExcerpt");
+        assertThat(output.getDiagnosisCandidates()).isEmpty();
     }
 
     @Test
@@ -778,6 +876,38 @@ class AdviceGenerationOutputValidatorTest {
                         .id("SK_RANGE_BOUNDARY")
                         .name("循环边界")
                         .build()))
+                .improvementPoints(List.of(StandardLibraryPack.ImprovementPointOption.builder()
+                        .id("TESTING_HABIT")
+                        .name("自测与反例构造")
+                        .build()))
+                .build();
+    }
+
+    private StandardLibraryPack richPack() {
+        return StandardLibraryPack.builder()
+                .schemaVersion(StandardLibraryPack.SCHEMA_VERSION)
+                .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
+                .mistakePoints(List.of(
+                        StandardLibraryPack.MistakePointOption.builder()
+                                .id("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                                .name("循环右边界漏取")
+                                .build(),
+                        StandardLibraryPack.MistakePointOption.builder()
+                                .id("MP_RECURSION_EXIT_MISSING")
+                                .name("递归出口缺失")
+                                .description("递归没有正确处理终止条件或最小子问题。")
+                                .build()
+                ))
+                .skillUnits(List.of(
+                        StandardLibraryPack.SkillUnitOption.builder()
+                                .id("SK_RANGE_BOUNDARY")
+                                .name("循环边界")
+                                .build(),
+                        StandardLibraryPack.SkillUnitOption.builder()
+                                .id("SK_RECURSION_BASE_CASE")
+                                .name("递归终止条件")
+                                .build()
+                ))
                 .improvementPoints(List.of(StandardLibraryPack.ImprovementPointOption.builder()
                         .id("TESTING_HABIT")
                         .name("自测与反例构造")

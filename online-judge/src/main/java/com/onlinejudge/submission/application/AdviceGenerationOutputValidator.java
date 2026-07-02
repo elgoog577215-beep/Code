@@ -2,9 +2,11 @@ package com.onlinejudge.submission.application;
 
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -167,16 +169,18 @@ public class AdviceGenerationOutputValidator {
         allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getBasicCauses()));
         allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getSkillUnits()));
         allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getImprovementPoints()));
+        allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getKnowledgeAnchors()));
+        Map<String, String> standardLibraryAliases = standardLibraryAliases(standardLibraryPack);
 
-        ExternalModelStagePayloads.StageValidationResult candidateValidation = validateDiagnosisCandidates(
-                output, allowedIds, evidenceRefs, orderedEvidenceRefs, softFixes);
-        if (candidateValidation != null) {
-            return candidateValidation;
-        }
+        sanitizeDiagnosisCandidates(output, allowedIds, evidenceRefs, orderedEvidenceRefs, softFixes);
 
         AdviceGenerationOutput.DiagnosisDecision decision = output.getDiagnosisDecision();
         if (decision != null) {
-            String fit = normalize(decision.getLibraryFit());
+            String fit = normalizeLibraryFit(decision.getLibraryFit());
+            if (!fit.equals(normalize(decision.getLibraryFit()))) {
+                softFixes.add("diagnosisDecision.libraryFit normalized: " + decision.getLibraryFit() + " -> " + fit);
+                decision.setLibraryFit(fit);
+            }
             if (!fit.isBlank() && !List.of("HIT", "PARTIAL", "MISS").contains(fit)) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisDecision.libraryFit is invalid.");
             }
@@ -189,19 +193,32 @@ public class AdviceGenerationOutputValidator {
                 boolean outOfLibrary = "OUT_OF_LIBRARY".equals(type);
                 String anchorId = normalize(anchor.getId());
                 if (outOfLibrary && !anchorId.isBlank()) {
-                    return invalid(ModelStageFailureReason.INVALID_TAG,
-                            "OUT_OF_LIBRARY anchor id must be null: " + anchor.getId());
+                    anchor.setId(null);
+                    softFixes.add("diagnosisDecision anchor id cleared for OUT_OF_LIBRARY: " + anchorId);
+                    anchorId = "";
                 }
                 if (!outOfLibrary && !anchorId.isBlank() && !allowedIds.contains(anchorId)) {
-                    return invalid(ModelStageFailureReason.INVALID_TAG,
-                            "Unknown diagnosisDecision anchor id: " + anchor.getId());
+                    String resolvedId = resolveStandardLibraryId(anchor.getId(), anchor.getType(),
+                            standardLibraryAliases, allowedIds);
+                    if (!resolvedId.isBlank()) {
+                        anchor.setId(resolvedId);
+                        softFixes.add("diagnosisDecision anchor id normalized: " + anchorId + " -> " + resolvedId);
+                        anchorId = resolvedId;
+                    } else {
+                        anchor.setId(null);
+                        anchor.setType("OUT_OF_LIBRARY");
+                        outOfLibrary = true;
+                        softFixes.add("diagnosisDecision anchor converted to OUT_OF_LIBRARY: " + anchorId);
+                        anchorId = "";
+                    }
                 }
                 if (!outOfLibrary && !anchorId.isBlank()) {
                     hasKnownAnchor = true;
                 }
                 if ("MISS".equals(fit) && !outOfLibrary && !anchorId.isBlank()) {
-                    return invalid(ModelStageFailureReason.INVALID_TAG,
-                            "MISS diagnosisDecision cannot include known standard library anchor id: " + anchor.getId());
+                    fit = "PARTIAL";
+                    decision.setLibraryFit(fit);
+                    softFixes.add("diagnosisDecision.libraryFit normalized: MISS -> PARTIAL because known anchor exists");
                 }
                 anchor.setEvidenceRefs(normalizeEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
                 String invalidEvidence = invalidEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs,
@@ -217,24 +234,35 @@ public class AdviceGenerationOutputValidator {
                 }
             }
             if ("HIT".equals(fit) && !hasKnownAnchor) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "HIT diagnosisDecision requires at least one known standard library anchor id.");
+                fit = "PARTIAL";
+                decision.setLibraryFit(fit);
+                softFixes.add("diagnosisDecision.libraryFit downgraded HIT -> PARTIAL because no known anchor remained");
             }
+            List<AdviceGenerationOutput.OutOfLibraryFinding> validFindings = new java.util.ArrayList<>();
             for (AdviceGenerationOutput.OutOfLibraryFinding finding : safe(decision.getOutOfLibraryFindings())) {
                 if (finding == null || blank(finding.getName()) || blank(finding.getReason())) {
-                    return invalid(ModelStageFailureReason.INVALID_JSON,
-                            "diagnosisDecision.outOfLibraryFindings item is incomplete.");
+                    softFixes.add("diagnosisDecision.outOfLibraryFinding dropped: incomplete item");
+                    continue;
                 }
                 finding.setEvidenceRefs(normalizeEvidenceRefs(finding.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
                 String invalidEvidence = invalidEvidenceRefs(finding.getEvidenceRefs(), evidenceRefs,
                         "diagnosisDecision.outOfLibraryFindings.evidenceRefs");
                 if (!invalidEvidence.isBlank()) {
-                    return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
+                    softFixes.add("diagnosisDecision.outOfLibraryFinding dropped: " + invalidEvidence);
+                    continue;
                 }
                 if (invalidConfidence(finding.getConfidence())) {
-                    return invalid(ModelStageFailureReason.INVALID_JSON,
-                            "diagnosisDecision outOfLibraryFinding confidence is invalid.");
+                    softFixes.add("diagnosisDecision.outOfLibraryFinding dropped: invalid confidence");
+                    continue;
                 }
+                if (unsafe(finding.getName(), finding.getReason())) {
+                    softFixes.add("diagnosisDecision.outOfLibraryFinding dropped: safety risk");
+                    continue;
+                }
+                validFindings.add(finding);
+            }
+            if (decision.getOutOfLibraryFindings() != null) {
+                decision.setOutOfLibraryFindings(validFindings);
             }
         }
         attachValidationTrace(output, softFixes, List.of());
@@ -248,58 +276,72 @@ public class AdviceGenerationOutputValidator {
                 .build();
     }
 
-    private ExternalModelStagePayloads.StageValidationResult validateDiagnosisCandidates(
+    private void sanitizeDiagnosisCandidates(
             AdviceGenerationOutput output,
             Set<String> allowedIds,
             Set<String> evidenceRefs,
             List<String> orderedEvidenceRefs,
             List<String> softFixes
     ) {
+        List<AdviceGenerationOutput.DiagnosisCandidate> validCandidates = new java.util.ArrayList<>();
         for (AdviceGenerationOutput.DiagnosisCandidate candidate : safe(output.getDiagnosisCandidates())) {
             if (candidate == null) {
-                return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisCandidates contains null item.");
+                softFixes.add("diagnosisCandidate dropped: null item");
+                continue;
             }
             if (blank(candidate.getName()) || blank(candidate.getReason())) {
-                return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisCandidates item is incomplete.");
+                softFixes.add("diagnosisCandidate dropped: incomplete item");
+                continue;
             }
             String fit = normalize(candidate.getLibraryFit());
             if (fit.isBlank() || !List.of("HIT", "PARTIAL", "MISS", "OUT_OF_LIBRARY").contains(fit)) {
-                return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisCandidates.libraryFit is invalid.");
+                softFixes.add("diagnosisCandidate dropped: invalid libraryFit " + candidate.getLibraryFit());
+                continue;
             }
             String anchorType = normalize(candidate.getAnchorType());
             String anchorId = normalize(candidate.getAnchorId());
             boolean outOfLibrary = "OUT_OF_LIBRARY".equals(fit) || "OUT_OF_LIBRARY".equals(anchorType);
             if (outOfLibrary && !anchorId.isBlank()) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "OUT_OF_LIBRARY diagnosisCandidate anchorId must be null: " + candidate.getAnchorId());
+                candidate.setAnchorId(null);
+                softFixes.add("diagnosisCandidate anchorId cleared for OUT_OF_LIBRARY: " + anchorId);
+                anchorId = "";
             }
             if ("HIT".equals(fit) && anchorId.isBlank()) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "HIT diagnosisCandidate requires a known standard library anchorId.");
+                softFixes.add("diagnosisCandidate dropped: HIT without anchorId");
+                continue;
             }
             if ("MISS".equals(fit) && !anchorId.isBlank()) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "MISS diagnosisCandidate cannot include standard library anchorId: " + candidate.getAnchorId());
+                candidate.setAnchorId(null);
+                softFixes.add("diagnosisCandidate anchorId cleared for MISS: " + anchorId);
+                anchorId = "";
             }
             if (!outOfLibrary && !anchorId.isBlank() && !allowedIds.contains(anchorId)) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "Unknown diagnosisCandidate anchorId: " + candidate.getAnchorId());
+                candidate.setAnchorId(null);
+                candidate.setAnchorType("OUT_OF_LIBRARY");
+                candidate.setLibraryFit("OUT_OF_LIBRARY");
+                softFixes.add("diagnosisCandidate converted to OUT_OF_LIBRARY: " + anchorId);
             }
             candidate.setEvidenceRefs(normalizeEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
                     orderedEvidenceRefs, softFixes));
             String invalidEvidence = invalidEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
                     "diagnosisCandidates.evidenceRefs");
             if (!invalidEvidence.isBlank()) {
-                return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
+                softFixes.add("diagnosisCandidate dropped: " + invalidEvidence);
+                continue;
             }
             if (invalidConfidence(candidate.getConfidence())) {
-                return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisCandidates confidence is invalid.");
+                softFixes.add("diagnosisCandidate dropped: invalid confidence");
+                continue;
             }
             if (unsafe(candidate.getName(), candidate.getReason())) {
-                return invalid(ModelStageFailureReason.SAFETY_RISK, "diagnosisCandidates contains answer leak.");
+                softFixes.add("diagnosisCandidate dropped: safety risk");
+                continue;
             }
+            validCandidates.add(candidate);
         }
-        return null;
+        if (output.getDiagnosisCandidates() != null) {
+            output.setDiagnosisCandidates(validCandidates);
+        }
     }
 
     private void attachValidationTrace(AdviceGenerationOutput output, List<String> softFixes, List<String> hardFailures) {
@@ -353,10 +395,197 @@ public class AdviceGenerationOutputValidator {
                 ids.add(normalize(option.getId()));
             } else if (value instanceof StandardLibraryPack.ImprovementPointOption option) {
                 ids.add(normalize(option.getId()));
+            } else if (value instanceof StandardLibraryPack.KnowledgeAnchorOption option) {
+                ids.add(normalize(option.getId()));
             }
         }
         ids.remove("");
         return ids;
+    }
+
+    private Map<String, String> standardLibraryAliases(StandardLibraryPack pack) {
+        LinkedHashMap<String, String> aliases = new LinkedHashMap<>();
+        if (pack == null) {
+            return aliases;
+        }
+        addAliases(aliases, pack.getMistakePoints());
+        addAliases(aliases, pack.getBasicCauses());
+        addAliases(aliases, pack.getSkillUnits());
+        addAliases(aliases, pack.getImprovementPoints());
+        addAliases(aliases, pack.getKnowledgeAnchors());
+        return aliases;
+    }
+
+    private void addAliases(Map<String, String> aliases, List<?> values) {
+        if (values == null) {
+            return;
+        }
+        for (Object value : values) {
+            if (value instanceof StandardLibraryPack.MistakePointOption option) {
+                addAlias(aliases, option.getId(), option.getId());
+                addAlias(aliases, option.getName(), option.getId());
+                addAlias(aliases, option.getCategory(), option.getId());
+                addAlias(aliases, option.getDescription(), option.getId());
+                addAlias(aliases, option.getMistakeType(), option.getId());
+                addAlias(aliases, option.getCommonMisconception(), option.getId());
+            } else if (value instanceof StandardLibraryPack.BasicCauseOption option) {
+                addAlias(aliases, option.getId(), option.getId());
+                addAlias(aliases, option.getName(), option.getId());
+                addAlias(aliases, option.getCategory(), option.getId());
+                addAlias(aliases, option.getDescription(), option.getId());
+                addAlias(aliases, option.getAbilityPoint(), option.getId());
+            } else if (value instanceof StandardLibraryPack.SkillUnitOption option) {
+                addAlias(aliases, option.getId(), option.getId());
+                addAlias(aliases, option.getName(), option.getId());
+                addAlias(aliases, option.getCategory(), option.getId());
+                addAlias(aliases, option.getDescription(), option.getId());
+            } else if (value instanceof StandardLibraryPack.ImprovementPointOption option) {
+                addAlias(aliases, option.getId(), option.getId());
+                addAlias(aliases, option.getName(), option.getId());
+                addAlias(aliases, option.getCategory(), option.getId());
+                addAlias(aliases, option.getDescription(), option.getId());
+                addAlias(aliases, option.getAbilityPoint(), option.getId());
+            } else if (value instanceof StandardLibraryPack.KnowledgeAnchorOption option) {
+                addAlias(aliases, option.getId(), option.getId());
+                addAlias(aliases, option.getName(), option.getId());
+                addAlias(aliases, option.getPath(), option.getId());
+                addAlias(aliases, option.getDescription(), option.getId());
+            }
+        }
+    }
+
+    private void addAlias(Map<String, String> aliases, String alias, String id) {
+        String aliasKey = normalizeAlias(alias);
+        String normalizedId = normalize(id);
+        if (!aliasKey.isBlank() && !normalizedId.isBlank()) {
+            aliases.putIfAbsent(aliasKey, normalizedId);
+        }
+    }
+
+    private String resolveStandardLibraryId(String rawId,
+                                            String rawType,
+                                            Map<String, String> aliases,
+                                            Set<String> allowedIds) {
+        String normalizedId = normalize(rawId);
+        List<String> preferredPrefixes = preferredAnchorPrefixes(rawType);
+        if (normalizedId.isBlank()) {
+            return "";
+        }
+        if (allowedIds.contains(normalizedId)) {
+            return normalizedId;
+        }
+        List<String> candidates = new java.util.ArrayList<>();
+        String exactAlias = aliases.get(normalizeAlias(rawId));
+        if (exactAlias != null && allowedIds.contains(exactAlias)) {
+            candidates.add(exactAlias);
+        }
+        for (String hint : anchorAliasHints(rawId)) {
+            String resolved = aliases.get(normalizeAlias(hint));
+            if (resolved != null && allowedIds.contains(resolved)) {
+                candidates.add(resolved);
+            }
+        }
+        for (String hint : anchorAliasHints(rawId)) {
+            String hintKey = normalizeAlias(hint);
+            if (hintKey.length() < 4) {
+                continue;
+            }
+            for (Map.Entry<String, String> entry : aliases.entrySet()) {
+                if (allowedIds.contains(entry.getValue())
+                        && (entry.getKey().contains(hintKey) || hintKey.contains(entry.getKey()))) {
+                    candidates.add(entry.getValue());
+                }
+            }
+        }
+        return choosePreferredCandidate(candidates, preferredPrefixes);
+    }
+
+    private List<String> preferredAnchorPrefixes(String rawType) {
+        String type = normalize(rawType);
+        if ("MISTAKE_POINT".equals(type) || "BASIC_CAUSE".equals(type)) {
+            return List.of("MP_", "BC_");
+        }
+        if ("SKILL_UNIT".equals(type)) {
+            return List.of("SK_");
+        }
+        if ("IMPROVEMENT_POINT".equals(type)) {
+            return List.of("IP_");
+        }
+        if ("KNOWLEDGE_NODE".equals(type) || "KNOWLEDGE_ANCHOR".equals(type)) {
+            return List.of("KN_", "KA_");
+        }
+        return List.of();
+    }
+
+    private String choosePreferredCandidate(List<String> candidates, List<String> preferredPrefixes) {
+        if (candidates == null || candidates.isEmpty()) {
+            return "";
+        }
+        LinkedHashSet<String> deduped = new LinkedHashSet<>(candidates);
+        for (String prefix : preferredPrefixes) {
+            for (String candidate : deduped) {
+                if (candidate.startsWith(prefix)) {
+                    return candidate;
+                }
+            }
+        }
+        return deduped.iterator().next();
+    }
+
+    private List<String> anchorAliasHints(String rawId) {
+        String key = normalizeAlias(rawId);
+        if (key.contains("DPSTATE") || key.contains("DYNAMICPROGRAMMINGSTATE")) {
+            return List.of("动态规划状态设计", "DP状态设计", "状态定义", "状态含义", "DP_STATE_DESIGN", "DP_STATE_DEFINITION");
+        }
+        if (key.contains("RECURSIONBASE") || key.contains("RECURSIONEXIT") || key.contains("BASECASE")) {
+            return List.of("递归出口", "递归终止条件", "递归边界", "RECURSION_BASE_CASE", "RECURSION_EXIT");
+        }
+        if (key.contains("INTEGEROVERFLOW") || key.contains("OVERFLOW")) {
+            return List.of("整数溢出", "取模前溢出", "数据范围溢出", "INTEGER_OVERFLOW");
+        }
+        if (key.contains("BINARYSEARCH") || key.contains("DICHOTOMY")) {
+            return List.of("二分边界", "二分查找边界", "左右边界更新", "BINARY_SEARCH_BOUNDARY");
+        }
+        if (key.contains("GAMESTATE") || key.contains("GAMEDP")) {
+            return List.of("博弈状态定义", "游戏状态定义", "博弈DP状态", "GAME_STATE_DEFINITION");
+        }
+        if (key.contains("MATCHINGVISITED") || key.contains("AUGMENTVISITED")) {
+            return List.of("匹配访问标记", "增广路访问标记", "visited重置", "MATCHING_VISITED_SCOPE");
+        }
+        if (key.contains("STALEQUEUE") || key.contains("STALEHEAP") || key.contains("DIJKSTRA")) {
+            return List.of("堆中旧状态", "优先队列旧状态", "Dijkstra旧状态", "STALE_QUEUE_ENTRY");
+        }
+        if (key.contains("BOUNDARY") || key.contains("OFFBYONE")) {
+            return List.of("边界条件", "边界处理", "循环边界", "数组边界", "BOUNDARY_CONDITION");
+        }
+        if (key.contains("GRAPHMODEL")) {
+            return List.of("图建模", "建图", "边权建模", "GRAPH_MODELING");
+        }
+        if (key.contains("TOPOLOGICAL") || key.contains("TOPO")) {
+            return List.of("拓扑排序", "拓扑顺序", "TOPOLOGICAL_ORDER");
+        }
+        if (key.contains("MONOTONICQUEUE") || key.contains("SLIDINGWINDOW")) {
+            return List.of("单调队列窗口", "滑动窗口边界", "MONOTONIC_QUEUE_WINDOW");
+        }
+        return List.of(rawId);
+    }
+
+    private String normalizeLibraryFit(String value) {
+        String normalized = normalize(value);
+        if (List.of("HIT", "PARTIAL", "MISS").contains(normalized)) {
+            return normalized;
+        }
+        if (List.of("OUT_OF_LIBRARY", "OUTOFLIBRARY", "NO_MATCH", "NOMATCH", "NOT_FOUND",
+                "NOTFOUND", "UNKNOWN", "LIBRARY_GAP", "LIBRARYGAP").contains(normalized)) {
+            return "MISS";
+        }
+        if (List.of("PARTIAL_MATCH", "PARTIALMATCH", "PARTIALLY_MATCHED", "PARTIALLYMATCHED").contains(normalized)) {
+            return "PARTIAL";
+        }
+        if (List.of("MATCH", "MATCHED", "FOUND", "IN_LIBRARY", "INLIBRARY").contains(normalized)) {
+            return "HIT";
+        }
+        return normalized;
     }
 
     private String invalidEvidenceRefs(List<String> refs, Set<String> validRefs, String field) {
@@ -520,6 +749,12 @@ public class AdviceGenerationOutputValidator {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeAlias(String value) {
+        return value == null ? "" : value.trim()
+                .toUpperCase(Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]+", "");
     }
 
     private ExternalModelStagePayloads.StageValidationResult invalid(ModelStageFailureReason reason, String message) {
