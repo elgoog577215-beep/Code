@@ -38,7 +38,6 @@ class JudgeServiceCpp17Test {
     private final TestCaseRepository testCaseRepository = mock(TestCaseRepository.class);
     private final SubmissionRepository submissionRepository = mock(SubmissionRepository.class);
     private final SubmissionAnalysisService submissionAnalysisService = mock(SubmissionAnalysisService.class);
-    private final SubmissionAnalysisAsyncService submissionAnalysisAsyncService = mock(SubmissionAnalysisAsyncService.class);
     private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService = mock(StudentAiFeedbackAsyncService.class);
     private final ExecutorStatusService executorStatusService = mock(ExecutorStatusService.class);
     private final StudentRecommendationEventService recommendationEventService = mock(StudentRecommendationEventService.class);
@@ -54,7 +53,6 @@ class JudgeServiceCpp17Test {
                 testCaseRepository,
                 submissionRepository,
                 submissionAnalysisService,
-                submissionAnalysisAsyncService,
                 studentAiFeedbackAsyncService,
                 executorStatusService,
                 recommendationEventService
@@ -88,9 +86,8 @@ class JudgeServiceCpp17Test {
                     assertThat(result.isPassed()).isTrue();
                     assertThat(result.getActualOutput()).isEqualTo("7");
                     assertThat(result.getExpectedOutput()).isEqualTo("7");
-                });
+        });
         verify(studentAiFeedbackAsyncService).enqueue(response.getId());
-        verify(submissionAnalysisAsyncService).enqueue(response.getId());
     }
 
     @Test
