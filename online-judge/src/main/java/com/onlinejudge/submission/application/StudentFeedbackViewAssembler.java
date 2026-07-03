@@ -12,7 +12,9 @@ import java.util.Set;
 @Component
 public class StudentFeedbackViewAssembler {
 
-    private static final String RULE_FALLBACK_NOTICE = "外部 AI 暂不可用，下面是规则诊断。";
+    private static final String AI_UNAVAILABLE_TITLE = "AI 暂不可用";
+    private static final String AI_UNAVAILABLE_BODY =
+            "外部 AI 暂不可用，本次不生成深度诊断。你可以先根据编译、运行或判题结果继续排查，稍后刷新 AI 反馈。";
 
     public SubmissionAnalysisResponse.StudentFeedbackView assemble(SubmissionAnalysisResponse analysis) {
         if (analysis == null) {
@@ -35,7 +37,7 @@ public class StudentFeedbackViewAssembler {
 
         String status = viewStatus(analysis);
         if ("RULE_FALLBACK".equals(status)) {
-            repairItems = withFallbackNotice(repairItems);
+            return unavailableView(analysis);
         }
 
         return SubmissionAnalysisResponse.StudentFeedbackView.builder()
@@ -51,6 +53,24 @@ public class StudentFeedbackViewAssembler {
                 .build();
     }
 
+    private SubmissionAnalysisResponse.StudentFeedbackView unavailableView(SubmissionAnalysisResponse analysis) {
+        List<String> evidenceRefs = deduplicate(analysis.getEvidenceRefs());
+        SubmissionAnalysisResponse.FeedbackViewItem item = SubmissionAnalysisResponse.FeedbackViewItem.builder()
+                .title(AI_UNAVAILABLE_TITLE)
+                .body(AI_UNAVAILABLE_BODY)
+                .kind("AI_UNAVAILABLE")
+                .evidenceRefs(evidenceRefs)
+                .build();
+        return SubmissionAnalysisResponse.StudentFeedbackView.builder()
+                .status("RULE_FALLBACK")
+                .primaryAction(AI_UNAVAILABLE_BODY)
+                .repairItems(List.of(item))
+                .improvementItems(List.of())
+                .nextQuestion(null)
+                .evidenceRefs(evidenceRefs)
+                .build();
+    }
+
     private String viewStatus(SubmissionAnalysisResponse analysis) {
         SubmissionAnalysisResponse.AiInvocation invocation = analysis.getAiInvocation();
         if (invocation == null) {
@@ -61,30 +81,6 @@ public class StudentFeedbackViewAssembler {
             return "RULE_FALLBACK";
         }
         return "READY";
-    }
-
-    private List<SubmissionAnalysisResponse.FeedbackViewItem> withFallbackNotice(List<SubmissionAnalysisResponse.FeedbackViewItem> repairItems) {
-        if (repairItems == null || repairItems.isEmpty()) {
-            return List.of(SubmissionAnalysisResponse.FeedbackViewItem.builder()
-                    .title("规则诊断")
-                    .body(RULE_FALLBACK_NOTICE)
-                    .kind("RULE_FALLBACK")
-                    .evidenceRefs(List.of())
-                    .build());
-        }
-        SubmissionAnalysisResponse.FeedbackViewItem first = repairItems.get(0);
-        String body = safe(first.getBody());
-        if (body.startsWith(RULE_FALLBACK_NOTICE)) {
-            return repairItems;
-        }
-        List<SubmissionAnalysisResponse.FeedbackViewItem> updated = new ArrayList<>(repairItems);
-        updated.set(0, SubmissionAnalysisResponse.FeedbackViewItem.builder()
-                .title(first.getTitle())
-                .body(RULE_FALLBACK_NOTICE + body)
-                .kind(first.getKind())
-                .evidenceRefs(first.getEvidenceRefs())
-                .build());
-        return List.copyOf(updated);
     }
 
     private boolean isDiagnosisReportV2(SubmissionAnalysisResponse analysis) {

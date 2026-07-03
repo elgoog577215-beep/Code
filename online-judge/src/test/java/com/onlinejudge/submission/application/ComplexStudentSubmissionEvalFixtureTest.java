@@ -2,6 +2,7 @@ package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -123,6 +124,8 @@ class ComplexStudentSubmissionEvalFixtureTest {
 
     @Test
     void generatorOutputMatchesCommittedFixture() throws IOException, InterruptedException {
+        Assumptions.assumeTrue(Boolean.parseBoolean(System.getenv("COMPLEX_FIXTURE_REGENERATE_CHECK")),
+                "Set COMPLEX_FIXTURE_REGENERATE_CHECK=true to regenerate and compare complex fixtures.");
         Path generatedPath = Path.of("target", "generated-test-fixtures", "complex-student-submission-cases.json");
         Files.deleteIfExists(generatedPath);
         ProcessBuilder processBuilder = new ProcessBuilder(

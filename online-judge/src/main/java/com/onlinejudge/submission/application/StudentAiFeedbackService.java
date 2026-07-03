@@ -149,17 +149,18 @@ public class StudentAiFeedbackService {
         if (view == null) {
             return null;
         }
+        boolean modelAnalysis = isModelAnalysis(analysis);
         List<StudentAiFeedbackResponse.FeedbackItem> repairItems = feedbackItems(view.getRepairItems(), List.of("evidence_grounded", "actionable"));
         List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = feedbackItems(view.getImprovementItems(), List.of("transfer"));
-        String basic = isModelAnalysis(analysis) && hasText(analysis.getSummary())
+        String basic = modelAnalysis && hasText(analysis.getSummary())
                 ? analysis.getSummary()
                 : firstFeedbackBody(repairItems);
         String improvement = firstFeedbackBody(improvementItems);
         String next = blankToNull(view.getNextQuestion());
         StudentAiFeedbackResponse feedback = StudentAiFeedbackResponse.builder()
                 .submissionId(submissionId)
-                .status("READY")
-                .source(isModelAnalysis(analysis) ? SOURCE_MODEL : SOURCE_RULE_FALLBACK)
+                .status(modelAnalysis ? "READY" : "FAILED")
+                .source(modelAnalysis ? SOURCE_MODEL : SOURCE_RULE_FALLBACK)
                 .generatedAt(LocalDateTime.now())
                 .repairItems(repairItems)
                 .improvementItems(improvementItems)
@@ -171,7 +172,7 @@ public class StudentAiFeedbackService {
                 .nextQuestion(next)
                 .safety(StudentAiFeedbackResponse.Safety.builder()
                         .answerLeakRisk("LOW")
-                        .blockedReasons(List.of())
+                        .blockedReasons(modelAnalysis ? List.of() : List.of("AI_UNAVAILABLE"))
                         .build())
                 .evidenceRefs(view.getEvidenceRefs() == null ? List.of() : view.getEvidenceRefs())
                 .build();

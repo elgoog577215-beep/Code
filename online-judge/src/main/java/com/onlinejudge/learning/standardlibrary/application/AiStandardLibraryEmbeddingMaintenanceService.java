@@ -9,6 +9,7 @@ import com.onlinejudge.submission.application.EmbeddingClient;
 import com.onlinejudge.submission.application.EmbeddingProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,11 +33,14 @@ public class AiStandardLibraryEmbeddingMaintenanceService {
     private final EmbeddingProperties embeddingProperties;
     private final ObjectMapper objectMapper;
 
+    @Value("${ai.embedding.maintenance-enabled:false}")
+    private boolean maintenanceEnabled;
+
     @Scheduled(fixedDelayString = "${ai.embedding.rebuild-delay-ms:60000}",
             initialDelayString = "${ai.embedding.initial-delay-ms:15000}")
     @Transactional
     public void rebuildStaleEmbeddings() {
-        if (!embeddingProperties.isEnabled()) {
+        if (!maintenanceEnabled || !embeddingProperties.isEnabled()) {
             return;
         }
         String model = normalizeModel();

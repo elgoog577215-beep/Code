@@ -40,8 +40,14 @@ class StudentFeedbackViewAssemblerTest {
         assertThat(view).isNotNull();
         assertThat(view.getStatus()).isEqualTo("RULE_FALLBACK");
         assertThat(view.getRepairItems()).singleElement()
-                .satisfies(item -> assertThat(item.getBody()).contains("外部 AI 暂不可用", "公开样例"));
-        assertThat(view.getNextQuestion()).contains("第二次读取");
+                .satisfies(item -> {
+                    assertThat(item.getTitle()).isEqualTo("AI 暂不可用");
+                    assertThat(item.getBody())
+                            .contains("外部 AI 暂不可用", "本次不生成深度诊断")
+                            .doesNotContain("公开样例");
+                });
+        assertThat(view.getImprovementItems()).isEmpty();
+        assertThat(view.getNextQuestion()).isNull();
     }
 
     @Test
@@ -66,10 +72,9 @@ class StudentFeedbackViewAssemblerTest {
         assertThat(view.getStatus()).isEqualTo("RULE_FALLBACK");
         assertThat(view.getRepairItems()).singleElement()
                 .satisfies(item -> assertThat(item.getBody())
-                        .contains("外部 AI 暂不可用", "状态表示什么", "转移")
-                        .doesNotContain("当前最需要先处理的是"));
-        assertThat(view.getImprovementItems()).singleElement()
-                .satisfies(item -> assertThat(item.getBody()).contains("初始状态", "最小样例"));
+                        .contains("外部 AI 暂不可用", "本次不生成深度诊断")
+                        .doesNotContain("状态表示什么", "转移", "当前最需要先处理的是"));
+        assertThat(view.getImprovementItems()).isEmpty();
     }
 
     @Test

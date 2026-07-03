@@ -61,6 +61,8 @@ class ModelDiagnosisEvalTest {
     @Test
     void liveModelKeepsDiagnosisWithinExpectedTagsWhenEnabled() {
         String apiKey = System.getenv("AI_EVAL_API_KEY");
+        Assumptions.assumeTrue(Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_LIVE_ENABLED"), "false")),
+                "Set AI_EVAL_LIVE_ENABLED=true to run live model diagnosis eval.");
         Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "Set AI_EVAL_API_KEY to run live model diagnosis eval.");
         Assumptions.assumeTrue(Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_FULL"), "false")),
                 "Set AI_EVAL_FULL=true to run the full live model diagnosis eval.");
@@ -104,6 +106,8 @@ class ModelDiagnosisEvalTest {
     @Test
     void liveModelSmokeProducesPerCaseReportWhenEnabled() throws IOException {
         String apiKey = System.getenv("AI_EVAL_API_KEY");
+        Assumptions.assumeTrue(Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_LIVE_ENABLED"), "false")),
+                "Set AI_EVAL_LIVE_ENABLED=true to run live model smoke eval.");
         Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "Set AI_EVAL_API_KEY to run live model smoke eval.");
 
         DiagnosticAgentService service = newLiveService(apiKey);

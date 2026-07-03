@@ -104,6 +104,8 @@ class AssistantLiveEvalTest {
     @Test
     void liveExternalAssistantsProduceComparableReportWhenEnabled() throws IOException {
         String apiKey = System.getenv("AI_EVAL_API_KEY");
+        Assumptions.assumeTrue(Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_LIVE_ENABLED"), "false")),
+                "Set AI_EVAL_LIVE_ENABLED=true to run live external assistant eval.");
         Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(),
                 "Set AI_EVAL_API_KEY to run live external assistant eval.");
 

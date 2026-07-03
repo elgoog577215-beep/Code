@@ -65,7 +65,8 @@ ai:
     vector-weight: ${AI_SEARCH_VECTOR_WEIGHT:0.35}
     signal-weight: ${AI_SEARCH_SIGNAL_WEIGHT:0.20}
   embedding:
-    enabled: ${AI_EMBEDDING_ENABLED:true}
+    enabled: ${AI_EMBEDDING_ENABLED:false}
+    maintenance-enabled: ${AI_EMBEDDING_MAINTENANCE_ENABLED:false}
     base-url: ${AI_EMBEDDING_BASE_URL:${OJ_AI_BASE_URL:${AI_BASE_URL:https://api-inference.modelscope.cn/v1}}}
     api-key: ${AI_EMBEDDING_API_KEY:${OJ_MODELSCOPE_API_KEY:${MODELSCOPE_API_KEY:}}}
     model: ${AI_EMBEDDING_MODEL:Qwen/Qwen3-Embedding-0.6B}

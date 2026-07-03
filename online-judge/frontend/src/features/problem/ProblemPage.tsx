@@ -614,7 +614,8 @@ export default function ProblemPage() {
       return;
     }
     const shouldRetry =
-      studentAiFeedback?.source === "MODEL" && terminalFeedbackStatus(studentAiFeedback.status) && studentAiFeedback.status !== "READY";
+      terminalFeedbackStatus(studentAiFeedback?.status) &&
+      (studentAiFeedback?.status !== "READY" || String(studentAiFeedback?.source || "").toUpperCase() === "RULE_FALLBACK");
     const feedbackToken = startFeedbackPollingState(true);
     setFeedbackPollState("refreshing");
     try {
@@ -685,6 +686,7 @@ export default function ProblemPage() {
   const improvementReportText = studentReport?.improvementLayerText?.trim() || "";
   const nextActionReportText = studentReport?.nextActionText?.trim() || "";
   const feedbackStatus = String(studentAiFeedback?.status || "").toUpperCase();
+  const feedbackSource = String(studentAiFeedback?.source || "").toUpperCase();
   const isFeedbackWaiting = Boolean(
     latest &&
       feedbackPollState !== "idle" &&
@@ -693,11 +695,11 @@ export default function ProblemPage() {
   const isFeedbackBackground = Boolean(latest && feedbackPollState === "background" && (!studentAiFeedback || inFlightFeedbackStatus(feedbackStatus)));
   const feedbackFailed = Boolean(
     latest &&
-      studentAiFeedback &&
-      ["TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(String(studentAiFeedback.status))
+    studentAiFeedback &&
+      (["TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(feedbackStatus) || feedbackSource === "RULE_FALLBACK")
   );
   const feedbackFallbackMessage = studentAiFeedback?.source === "RULE_FALLBACK"
-    ? "外部 AI 暂不可用，已使用规则诊断。"
+    ? "外部 AI 暂不可用，本次不生成深度诊断。请稍后重试 AI。"
     : "AI 暂未生成";
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
   const feedbackReady = Boolean(latest);
@@ -727,7 +729,7 @@ export default function ProblemPage() {
     latest && (isFeedbackBackground || feedbackFailed || feedbackPollState === "slow" || feedbackPollState === "refreshing")
   );
   const feedbackRefreshLabel = feedbackPollState === "refreshing" ? "刷新中" : feedbackFailed ? "重试 AI" : "刷新 AI";
-  const feedbackCompleted = Boolean(latest && studentAiFeedback?.status === "READY");
+  const feedbackCompleted = Boolean(latest && modelFeedbackReady);
   const showFeedbackDock = Boolean(
     feedbackReady && !resultOpen && latest && (isFeedbackWaiting || isFeedbackBackground || feedbackCompleted || feedbackFailed)
   );

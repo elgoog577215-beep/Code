@@ -99,19 +99,20 @@ class StudentAiFeedbackEventTest {
     }
 
     @Test
-    void generateAndStoreKeepsFallbackSourceWhenFormalDiagnosisIsNotModel() {
+    void generateAndStoreMarksFallbackAsFailedWhenFormalDiagnosisIsNotModel() {
         when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
         when(submissionAnalysisService.generateAndStoreAnalysisForSubmission(7L))
                 .thenReturn(analysisWithStudentView("RULE_BASED_V1"));
         when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
         when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_READY)))
+        when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_FAILED)))
                 .thenReturn(Optional.empty());
 
         StudentAiFeedbackResponse response = service.generateAndStore(7L);
 
-        assertThat(response.getStatus()).isEqualTo("READY");
+        assertThat(response.getStatus()).isEqualTo("FAILED");
         assertThat(response.getSource()).isEqualTo("RULE_FALLBACK");
+        assertThat(response.getSafety().getBlockedReasons()).contains("AI_UNAVAILABLE");
     }
 
     @Test
