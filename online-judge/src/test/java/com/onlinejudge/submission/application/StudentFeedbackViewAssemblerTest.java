@@ -82,6 +82,8 @@ class StudentFeedbackViewAssemblerTest {
                 .setNextAction("下一步：用 n=1 和 n=2 写出循环变量序列，再和题目要求逐项对照。");
         analysis.getStudentFeedback().getImprovementOpportunities().get(0)
                 .setStudentMessage("提高层：修好后把最小值、端点值、最大值附近样例加入固定自测清单。");
+        analysis.getStudentFeedback().getImprovementOpportunities().get(0)
+                .setTitle("边界样例意识");
 
         SubmissionAnalysisResponse.StudentFeedbackView view = assembler.assemble(analysis);
 
@@ -91,6 +93,8 @@ class StudentFeedbackViewAssemblerTest {
                         .doesNotContain("下一步："));
         assertThat(view.getPrimaryAction()).contains("基础层：循环范围");
         assertThat(view.getNextQuestion()).contains("第二次读取");
+        assertThat(view.getImprovementItems()).singleElement()
+                .satisfies(item -> assertThat(item.getTitle()).isEqualTo("边界样例意识"));
     }
 
     @Test

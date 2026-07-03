@@ -108,6 +108,39 @@ class ModelOutputValidatorTest {
         assertThat(largePlan.getBrief().getKeyCodeExcerpt()).contains("truncated for model");
     }
 
+    @Test
+    void lowLatencyCompactsSelectedPackAfterLocalRecall() {
+        ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
+                new ModelDiagnosisBriefBuilder(),
+                new StandardLibraryPackBuilder(new DiagnosisTaxonomy()),
+                new PromptTemplateRegistry(),
+                validator
+        );
+        ExternalModelAgentRuntime.RuntimePlan plan = ExternalModelAgentRuntime.RuntimePlan.builder()
+                .requestCompact(true)
+                .build();
+        StandardLibraryPack selectedPack = StandardLibraryPack.builder()
+                .schemaVersion(StandardLibraryPack.SCHEMA_VERSION)
+                .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
+                .basicCauses(List.of(StandardLibraryPack.BasicCauseOption.builder()
+                        .id("MP_LONG_CONTEXT")
+                        .category("循环")
+                        .name("长上下文测试")
+                        .description("这是一段会被压缩的描述。".repeat(20))
+                        .studentExplanation("学生解释。".repeat(20))
+                        .teacherExplanation("教师解释不应进入低延迟模型上下文。")
+                        .evidenceSignals(List.of("a", "b", "c", "d"))
+                        .build()))
+                .build();
+
+        StandardLibraryPack compacted = runtime.compactSelectedPack(selectedPack, plan);
+
+        StandardLibraryPack.BasicCauseOption cause = compacted.getBasicCauses().get(0);
+        assertThat(cause.getDescription()).contains("truncated for model");
+        assertThat(cause.getTeacherExplanation()).isNull();
+        assertThat(cause.getEvidenceSignals()).containsExactly("a", "b", "c");
+    }
+
     private SubmissionAnalysisResponse.StudentFeedback validStudentFeedback(String improvementCategory,
                                                                             String nextAction) {
         return SubmissionAnalysisResponse.StudentFeedback.builder()

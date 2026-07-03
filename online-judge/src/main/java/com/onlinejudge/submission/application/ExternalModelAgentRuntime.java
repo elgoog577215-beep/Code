@@ -100,6 +100,13 @@ public class ExternalModelAgentRuntime {
                 .build();
     }
 
+    public StandardLibraryPack compactSelectedPack(StandardLibraryPack source, RuntimePlan runtimePlan) {
+        if (runtimePlan == null || !runtimePlan.isRequestCompact()) {
+            return source;
+        }
+        return compactStandardLibraryPack(source);
+    }
+
     private String normalizeRuntimeProfile(String runtimeProfile) {
         if (runtimeProfile != null && RUNTIME_PROFILE_LOW_LATENCY.equalsIgnoreCase(runtimeProfile.trim())) {
             return RUNTIME_PROFILE_LOW_LATENCY;

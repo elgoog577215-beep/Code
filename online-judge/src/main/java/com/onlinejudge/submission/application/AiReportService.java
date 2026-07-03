@@ -588,6 +588,7 @@ public class AiReportService {
                         candidatePack,
                         runtimePlan.getStandardLibraryPack()
                 );
+                selectedPack = externalModelAgentRuntime.compactSelectedPack(selectedPack, runtimePlan);
                 SearchLocationResult result = SearchLocationResult.builder()
                         .enabled(false)
                         .status("LOCAL_RECALL")
@@ -632,6 +633,7 @@ public class AiReportService {
                     candidatePack,
                     runtimePlan.getStandardLibraryPack()
             );
+            selectedPack = externalModelAgentRuntime.compactSelectedPack(selectedPack, runtimePlan);
             SearchLocationResult result = SearchLocationResult.builder()
                     .enabled(true)
                     .status("SUCCESS")
@@ -663,9 +665,9 @@ public class AiReportService {
                 : candidatePack.getCandidates();
         return SearchLocationOutput.builder()
                 .libraryFit(candidates.isEmpty() ? "MISS" : "PARTIAL")
-                .basicCandidates(localSelectedCandidates(candidates, List.of("MISTAKE_POINT", "BASIC_CAUSE"), 14))
-                .improvementCandidates(localSelectedCandidates(candidates, List.of("IMPROVEMENT_POINT"), 8))
-                .knowledgeAnchors(localSelectedCandidates(candidates, List.of("SKILL_UNIT", "KNOWLEDGE_NODE"), 8))
+                .basicCandidates(localSelectedCandidates(candidates, List.of("MISTAKE_POINT", "BASIC_CAUSE"), 8))
+                .improvementCandidates(localSelectedCandidates(candidates, List.of("IMPROVEMENT_POINT"), 4))
+                .knowledgeAnchors(localSelectedCandidates(candidates, List.of("SKILL_UNIT", "KNOWLEDGE_NODE"), 5))
                 .uncertainty("本地召回候选，最终诊断由单诊断 Agent 完成。")
                 .needsMoreEvidence(false)
                 .build();
@@ -693,10 +695,12 @@ public class AiReportService {
                 .priority(1)
                 .confidence(candidate.getFinalScore() == null ? 0.5 : Math.max(0.0, Math.min(1.0, candidate.getFinalScore())))
                 .evidenceRefs(List.of())
-                .reason("本地召回命中：" + candidate.getName())
-                .recallReason(String.join(", ", candidate.getMatchedSignals() == null ? List.of() : candidate.getMatchedSignals()))
+                .reason("召回：" + candidate.getName())
+                .recallReason(String.join(", ", candidate.getMatchedSignals() == null
+                        ? List.of()
+                        : candidate.getMatchedSignals().stream().limit(3).toList()))
                 .evidenceSource("LOCAL_RECALL")
-                .uncertainty("需要单诊断 Agent 结合题目、代码和判题结果确认。")
+                .uncertainty("由单诊断 Agent 最终确认。")
                 .build();
     }
 

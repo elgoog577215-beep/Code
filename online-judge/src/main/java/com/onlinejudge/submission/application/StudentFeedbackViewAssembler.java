@@ -143,7 +143,7 @@ public class StudentFeedbackViewAssembler {
                 body = body + " " + benefit;
             }
             items.add(SubmissionAnalysisResponse.FeedbackViewItem.builder()
-                    .title(improvementTitle(opportunity.getCategory()))
+                    .title(defaultIfBlank(cleanTitle(opportunity.getTitle()), improvementTitle(opportunity.getCategory())))
                     .body(body)
                     .kind(defaultIfBlank(opportunity.getCategory(), "IMPROVEMENT"))
                     .evidenceRefs(deduplicate(opportunity.getEvidenceRefs()))

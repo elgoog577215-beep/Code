@@ -134,6 +134,7 @@ public class SubmissionAnalysisResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ImprovementOpportunity {
+        private String title;
         private String category;
         private String studentMessage;
         private String benefit;
