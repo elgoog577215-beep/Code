@@ -121,11 +121,11 @@ class ModelDiagnosisEvalTest {
     }
 
     @Test
-    void liveServiceDefaultsRuntimeProfileToAutoWithoutEnvOverride() {
+    void liveServiceDefaultsRuntimeProfileToLowLatencyWithoutEnvOverride() {
         DiagnosticAgentService service = newLiveService("");
         Object aiReportService = ReflectionTestUtils.getField(service, "aiReportService");
 
-        assertThat(ReflectionTestUtils.getField(aiReportService, "externalRuntimeProfile")).isEqualTo("auto");
+        assertThat(ReflectionTestUtils.getField(aiReportService, "externalRuntimeProfile")).isEqualTo("low-latency");
     }
 
     @Test
@@ -1467,15 +1467,18 @@ class ModelDiagnosisEvalTest {
         ReflectionTestUtils.setField(aiReportService, "enabled", true);
         ReflectionTestUtils.setField(aiReportService, "apiKey", apiKey);
         ReflectionTestUtils.setField(aiReportService, "baseUrl", valueOrDefault(System.getenv("AI_EVAL_BASE_URL"), "https://api-inference.modelscope.cn/v1"));
-        ReflectionTestUtils.setField(aiReportService, "model", valueOrDefault(System.getenv("AI_EVAL_MODEL"), "deepseek-ai/DeepSeek-V4-Pro"));
-        ReflectionTestUtils.setField(aiReportService, "timeoutSeconds", longValueOrDefault(System.getenv("AI_EVAL_TIMEOUT_SECONDS"), 35L));
+        ReflectionTestUtils.setField(aiReportService, "model", valueOrDefault(System.getenv("AI_EVAL_MODEL"), "deepseek-ai/DeepSeek-V4-Flash"));
+        ReflectionTestUtils.setField(aiReportService, "timeoutSeconds", longValueOrDefault(System.getenv("AI_EVAL_TIMEOUT_SECONDS"), 30L));
         ReflectionTestUtils.setField(aiReportService, "externalRuntimeEnabled",
-                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_ENABLED"), "true")));        ReflectionTestUtils.setField(aiReportService, "externalRuntimeProfile",
-                valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "auto"));        ReflectionTestUtils.setField(aiReportService, "maxOutputTokens", (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
+                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_EXTERNAL_RUNTIME_ENABLED"), "true")));
+        ReflectionTestUtils.setField(aiReportService, "externalRuntimeProfile",
+                valueOrDefault(System.getenv("AI_EVAL_RUNTIME_PROFILE"), "low-latency"));
+        ReflectionTestUtils.setField(aiReportService, "maxOutputTokens",
+                (int) longValueOrDefault(System.getenv("AI_EVAL_MAX_OUTPUT_TOKENS"), 900L));
         ReflectionTestUtils.setField(aiReportService, "streamEnabled",
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_ENABLED"), "true")));
         ReflectionTestUtils.setField(aiReportService, "streamFallbackEnabled",
-                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_FALLBACK_ENABLED"), "true")));
+                Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_FALLBACK_ENABLED"), "false")));
         return new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
                 new RuleSignalAnalyzer(),

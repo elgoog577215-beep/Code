@@ -151,7 +151,9 @@ public class StudentAiFeedbackService {
         }
         List<StudentAiFeedbackResponse.FeedbackItem> repairItems = feedbackItems(view.getRepairItems(), List.of("evidence_grounded", "actionable"));
         List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = feedbackItems(view.getImprovementItems(), List.of("transfer"));
-        String basic = firstFeedbackBody(repairItems);
+        String basic = isModelAnalysis(analysis) && hasText(analysis.getSummary())
+                ? analysis.getSummary()
+                : firstFeedbackBody(repairItems);
         String improvement = firstFeedbackBody(improvementItems);
         String next = blankToNull(view.getNextQuestion());
         StudentAiFeedbackResponse feedback = StudentAiFeedbackResponse.builder()
@@ -177,7 +179,7 @@ public class StudentAiFeedbackService {
     }
 
     private boolean isModelAnalysis(SubmissionAnalysisResponse analysis) {
-        return analysis != null && "AI_MODEL".equals(analysis.getSourceType());
+        return analysis != null && "MODEL_SCOPE_EXTERNAL_MODEL".equals(analysis.getSourceType());
     }
 
     private StudentAiFeedbackResponse failedFeedback(Long submissionId, String reason) {

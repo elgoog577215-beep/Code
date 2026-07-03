@@ -162,20 +162,20 @@ public class AiReportService {
     @Value("${ai.api-key:}")
     private String apiKey;
 
-    @Value("${ai.model:deepseek-ai/DeepSeek-V4-Pro}")
+    @Value("${ai.model:deepseek-ai/DeepSeek-V4-Flash}")
     private String model;
 
     @Value("${ai.modelscope-compatible-request:auto}")
     private String modelScopeCompatibleRequest = "auto";
 
-    @Value("${ai.timeout-seconds:25}")
+    @Value("${ai.timeout-seconds:30}")
     private long timeoutSeconds;
 
     @Value("${ai.external-runtime-enabled:true}")
     private boolean externalRuntimeEnabled;
 
-    @Value("${ai.external-runtime-profile:auto}")
-    private String externalRuntimeProfile = ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO;
+    @Value("${ai.external-runtime-profile:low-latency}")
+    private String externalRuntimeProfile = ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY;
 
     @Value("${ai.max-output-tokens:1800}")
     private int maxOutputTokens = 1800;
@@ -186,13 +186,13 @@ public class AiReportService {
     @Value("${ai.stream-enabled:true}")
     private boolean streamEnabled;
 
-    @Value("${ai.stream-fallback-enabled:true}")
-    private boolean streamFallbackEnabled = true;
+    @Value("${ai.stream-fallback-enabled:false}")
+    private boolean streamFallbackEnabled = false;
 
-    @Value("${ai.structured-retry-enabled:true}")
-    private boolean structuredRetryEnabled = true;
+    @Value("${ai.structured-retry-enabled:false}")
+    private boolean structuredRetryEnabled = false;
 
-    @Value("${ai.retry.max-attempts:2}")
+    @Value("${ai.retry.max-attempts:1}")
     private int retryMaxAttempts;
 
     @Value("${ai.retry.backoff-ms:700}")

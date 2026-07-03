@@ -93,7 +93,7 @@ class StudentAiFeedbackEventTest {
 
         assertThat(response.getStatus()).isEqualTo("READY");
         assertThat(response.getSource()).isEqualTo("MODEL");
-        assertThat(response.getStudentReport().getBasicLayerText()).contains("循环边界");
+        assertThat(response.getStudentReport().getBasicLayerText()).contains("模型摘要");
         assertThat(response.getStudentReport().getImprovementLayerText()).contains("补测");
         assertThat(response.getStudentReport().getNextActionText()).contains("手推");
     }
@@ -118,7 +118,7 @@ class StudentAiFeedbackEventTest {
     void generateAndStoreFailsClearlyWhenFormalDiagnosisHasNoStudentView() {
         when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
         when(submissionAnalysisService.generateAndStoreAnalysisForSubmission(7L))
-                .thenReturn(SubmissionAnalysisResponse.builder().sourceType("AI_MODEL").build());
+                .thenReturn(SubmissionAnalysisResponse.builder().sourceType("MODEL_SCOPE_EXTERNAL_MODEL").build());
         when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
         when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_FAILED)))
@@ -159,12 +159,13 @@ class StudentAiFeedbackEventTest {
     }
 
     private SubmissionAnalysisResponse analysisWithStudentView() {
-        return analysisWithStudentView("AI_MODEL");
+        return analysisWithStudentView("MODEL_SCOPE_EXTERNAL_MODEL");
     }
 
     private SubmissionAnalysisResponse analysisWithStudentView(String sourceType) {
         return SubmissionAnalysisResponse.builder()
                 .sourceType(sourceType)
+                .summary("模型摘要：代码使用了不可靠的局部选择，需要先定位主因。")
                 .studentFeedbackView(SubmissionAnalysisResponse.StudentFeedbackView.builder()
                         .repairItems(List.of(SubmissionAnalysisResponse.FeedbackViewItem.builder()
                                 .title("循环边界")
