@@ -716,6 +716,10 @@ const scenarios = [
   {
     name: "public-assignment",
     path: "/app/student/assignments/public",
+    beforeChecks: async page => {
+      await page.locator(".public-problem-link").filter({ hasText: "求和边界" }).first().click();
+      await page.locator(".problem-workbench").first().waitFor({ state: "visible", timeout: 10000 });
+    },
     afterChecks: async (page, viewport) => {
       const navCount = await page.locator(".top-nav__link").count();
       const workbenchText = ((await page.locator(".problem-workbench").first().textContent()) || "").replace(/\s+/g, "");
@@ -894,6 +898,11 @@ const scenarios = [
       record("problem modal records model feedback view", studentFeedbackViewCount === 1, `student feedback view count ${studentFeedbackViewCount}`);
       await page.locator(".problem-result-modal__footer button").filter({ hasText: "继续修改" }).click();
       await checkVisible(page, ".problem-last-result", "problem last result entry after modal close");
+      await checkVisible(page, ".problem-feedback-dock", "problem AI feedback dock after modal close");
+      const dockText = ((await page.locator(".problem-feedback-dock").first().textContent()) || "").replace(/\s+/g, "");
+      record("problem AI feedback dock keeps completed result", dockText.includes("AI分析完成") && dockText.includes("点开查看建议"), dockText);
+      await page.locator(".problem-feedback-dock").click();
+      await checkVisible(page, ".problem-result-modal", "problem AI feedback dock reopens result");
       if (viewport.name === "mobile") {
         await checkVisible(page, ".problem-mobile-jump", "problem mobile code jump");
       }
