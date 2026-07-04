@@ -35,6 +35,8 @@ class ExternalModelFailureClassifierTest {
     void exposesGuardAndRetryPolicies() {
         assertThat(classifier.shouldOpenBudgetGuard(ModelStageFailureReason.INSUFFICIENT_QUOTA)).isTrue();
         assertThat(classifier.shouldOpenBudgetGuard(ModelStageFailureReason.RATE_LIMITED)).isTrue();
+        assertThat(classifier.shouldOpenBudgetGuard(ModelStageFailureReason.AUTHENTICATION_FAILED)).isTrue();
+        assertThat(classifier.shouldOpenBudgetGuard(ModelStageFailureReason.MODEL_UNSUPPORTED)).isTrue();
         assertThat(classifier.shouldOpenBudgetGuard(ModelStageFailureReason.TIMEOUT)).isFalse();
 
         assertThat(classifier.isRetryable(ModelStageFailureReason.INSUFFICIENT_QUOTA, "")).isFalse();

@@ -33,6 +33,24 @@ class ExternalModelBudgetGuardTest {
     }
 
     @Test
+    void opensAfterHardConfigurationFailures() {
+        ExternalModelBudgetGuard guard = new ExternalModelBudgetGuard();
+
+        guard.recordFailure("ModelScope", "deepseek-pro", ModelStageFailureReason.AUTHENTICATION_FAILED);
+        assertThat(guard.check("ModelScope", "deepseek-pro")).satisfies(decision -> {
+            assertThat(decision.allowed()).isFalse();
+            assertThat(decision.reason()).isEqualTo(ModelStageFailureReason.AUTHENTICATION_FAILED);
+        });
+
+        guard.recordSuccess("ModelScope", "deepseek-pro");
+        guard.recordFailure("ModelScope", "missing-model", ModelStageFailureReason.MODEL_UNSUPPORTED);
+        assertThat(guard.check("ModelScope", "missing-model")).satisfies(decision -> {
+            assertThat(decision.allowed()).isFalse();
+            assertThat(decision.reason()).isEqualTo(ModelStageFailureReason.MODEL_UNSUPPORTED);
+        });
+    }
+
+    @Test
     void expiresAfterCooldown() {
         MutableClock clock = new MutableClock(Instant.parse("2026-05-24T06:00:00Z"));
         ExternalModelBudgetGuard guard = new ExternalModelBudgetGuard(clock);

@@ -26,7 +26,9 @@ public class ExternalModelFailureClassifier {
 
     public boolean shouldOpenBudgetGuard(ModelStageFailureReason reason) {
         return reason == ModelStageFailureReason.INSUFFICIENT_QUOTA
-                || reason == ModelStageFailureReason.RATE_LIMITED;
+                || reason == ModelStageFailureReason.RATE_LIMITED
+                || reason == ModelStageFailureReason.AUTHENTICATION_FAILED
+                || reason == ModelStageFailureReason.MODEL_UNSUPPORTED;
     }
 
     public boolean isRetryable(ModelStageFailureReason reason, String text) {

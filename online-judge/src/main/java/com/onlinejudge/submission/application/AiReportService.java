@@ -274,10 +274,11 @@ public class AiReportService {
                     3. improvementLayerText 80-180 个中文字符，只写修复基础问题后值得提升的一个方向，不要复述基础层。
                     4. nextActionText 只写 1 个学生马上能做的自查动作，用一句话表达，不要编号，不超过 90 个中文字符。
                     5. repairItems 最多 1 条，improvementItems 最多 1 条。它们是元数据摘要，必须短于 studentReport。
-                    6. 只能使用输入里已有的 evidenceRefs。不能猜隐藏测试。
-                    7. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达。
-                    8. 学生可见文字不能复述 verdict:、code:、evidenceRefs、judgeFacts、candidateSignals 等内部字段名或证据标记。
-                    9. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
+                    6. 不要把 candidateSignals 或 ruleSignals 当成结论；必须让题目目标、代码行为、评测结果三者能对上。
+                    7. 只能使用输入里已有的 evidenceRefs。不能猜隐藏测试。
+                    8. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达。
+                    9. 学生可见文字不能复述 verdict:、code:、evidenceRefs、judgeFacts、candidateSignals 等内部字段名或证据标记。
+                    10. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);
