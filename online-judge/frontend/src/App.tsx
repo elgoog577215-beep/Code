@@ -235,8 +235,11 @@ function Header() {
 export default function App() {
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        跳到主要内容
+      </a>
       <Header />
-      <main className="main-shell">
+      <main className="main-shell" id="main-content">
         <Suspense fallback={<EmptyState title="正在加载页面" live />}>
           <Routes>
             <Route path="/" element={<Navigate to="/app" replace />} />

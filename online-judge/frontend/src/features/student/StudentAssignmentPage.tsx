@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search, X } from "lucide-react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, ProblemCatalogItem, StudentProfile, StudentTrajectory } from "../../shared/api/types";
 import { difficultyLabel } from "../../shared/format";
 import { hasDraft, loadLastPublicProblem, loadStudent, saveStudent } from "../../shared/storage";
-import { ButtonLink } from "../../shared/ui/Button";
+import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 
 const PUBLIC_DIFFICULTIES = ["EASY", "MEDIUM", "HARD"] as const;
@@ -126,6 +126,13 @@ export default function StudentAssignmentPage() {
     return lastProblemId ? problems.find(problem => problem.id === lastProblemId) || null : null;
   }, [problems]);
   const nextTask = useMemo(() => pickNextTask(assignment, trajectory), [assignment, trajectory]);
+  const publicFiltersActive = Boolean(publicQuery.trim() || publicDifficulty);
+  const publicDraftCount = draftProblemIds.size;
+
+  function clearPublicFilters() {
+    setPublicQuery("");
+    setPublicDifficulty("");
+  }
 
   if (loading) {
     return (
@@ -154,7 +161,7 @@ export default function StudentAssignmentPage() {
         ) : (
           <>
             <section className="public-problem-toolbar" aria-label="公共题库筛选">
-              <label className="public-problem-search">
+              <div className="public-problem-search">
                 <Search size={17} aria-hidden="true" />
                 <input
                   type="search"
@@ -163,7 +170,12 @@ export default function StudentAssignmentPage() {
                   value={publicQuery}
                   onChange={event => setPublicQuery(event.target.value)}
                 />
-              </label>
+                {publicQuery ? (
+                  <button type="button" className="public-problem-search__clear" aria-label="清空搜索" onClick={() => setPublicQuery("")}>
+                    <X size={15} />
+                  </button>
+                ) : null}
+              </div>
               <div className="public-problem-filter" role="group" aria-label="按难度筛选">
                 <button type="button" className={!publicDifficulty ? "is-active" : ""} onClick={() => setPublicDifficulty("")}>
                   全部
@@ -180,6 +192,17 @@ export default function StudentAssignmentPage() {
                 ))}
               </div>
             </section>
+            <div className="public-problem-status" aria-live="polite">
+              <span>
+                显示 {visiblePublicProblems.length}/{problems.length} 题
+                {publicDraftCount ? ` · ${publicDraftCount} 题有草稿` : ""}
+              </span>
+              {publicFiltersActive ? (
+                <Button type="button" variant="ghost" onClick={clearPublicFilters}>
+                  清空筛选
+                </Button>
+              ) : null}
+            </div>
 
             {lastPublicProblem ? (
               <Link
@@ -226,7 +249,14 @@ export default function StudentAssignmentPage() {
                 ))}
               </nav>
             ) : (
-              <EmptyState title={problems.length ? "没有匹配的题目" : "暂无公共题目"} />
+              <div className="empty-state-with-action">
+                <EmptyState title={problems.length ? "没有匹配的题目" : "暂无公共题目"} />
+                {publicFiltersActive ? (
+                  <Button type="button" variant="secondary" onClick={clearPublicFilters}>
+                    清空筛选
+                  </Button>
+                ) : null}
+              </div>
             )}
           </>
         )}

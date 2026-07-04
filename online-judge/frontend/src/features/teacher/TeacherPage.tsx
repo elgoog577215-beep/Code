@@ -226,7 +226,11 @@ export default function TeacherPage() {
                 const taskCount = assignment.tasks?.length || 0;
                 const count = attentionCount(overview);
                 return (
-                  <article className="teacher-assignment-row teacher-assignment-row--simple teacher-assignment-row--entry" key={assignment.id}>
+                  <Link
+                    className="teacher-assignment-row teacher-assignment-row--simple teacher-assignment-row--entry"
+                    to={`/app/teacher/assignment/${assignment.id}`}
+                    key={assignment.id}
+                  >
                     <div className="teacher-assignment-row__title">
                       <strong>{assignment.title}</strong>
                       <small className="teacher-assignment-row__meta">
@@ -236,12 +240,11 @@ export default function TeacherPage() {
                     <StatusPill tone={count ? "warning" : assignment.status === "ACTIVE" ? "success" : "neutral"}>
                       {count ? `${count} 关注` : assignmentStatusLabel(assignment.status)}
                     </StatusPill>
-                    <div className="teacher-assignment-row__action">
-                      <ButtonLink to={`/app/teacher/assignment/${assignment.id}`} variant="primary" icon={<ArrowRight size={17} />}>
-                        进入
-                      </ButtonLink>
-                    </div>
-                  </article>
+                    <span className="teacher-row-enter" aria-hidden="true">
+                      <span>进入</span>
+                      <ArrowRight size={17} />
+                    </span>
+                  </Link>
                 );
               })}
             </div>

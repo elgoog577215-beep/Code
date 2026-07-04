@@ -31,10 +31,11 @@ type WorkbenchTask = {
   orderIndex?: number;
 };
 
-type FeedbackPollState = "idle" | "checking" | "slow" | "background" | "refreshing";
+type FeedbackPollState = "idle" | "checking" | "slow" | "background" | "refreshing" | "stalled";
 
 const FEEDBACK_SLOW_AFTER_MS = 30_000;
 const FEEDBACK_BACKGROUND_AFTER_MS = 95_000;
+const FEEDBACK_STALLED_AFTER_MS = 150_000;
 
 function renderInline(text: string) {
   const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter(Boolean);
@@ -312,6 +313,19 @@ export default function ProblemPage() {
   }, [resultOpen]);
 
   useEffect(() => {
+    if (!resultOpen) {
+      return;
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setResultOpen(false);
+      }
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [resultOpen]);
+
+  useEffect(() => {
     return () => {
       feedbackPollTokenRef.current += 1;
       clearFeedbackTimer();
@@ -506,6 +520,10 @@ export default function ProblemPage() {
     setEditorResetVersion(version => version + 1);
   }
 
+  function closeResult() {
+    setResultOpen(false);
+  }
+
   async function submit() {
     if (!problem) {
       return;
@@ -600,6 +618,10 @@ export default function ProblemPage() {
         return;
       }
       const nextElapsedMs = Date.now() - startedAt;
+      if (nextElapsedMs >= FEEDBACK_STALLED_AFTER_MS) {
+        setFeedbackPollState("stalled");
+        return;
+      }
       if (nextElapsedMs >= FEEDBACK_BACKGROUND_AFTER_MS) {
         setFeedbackPollState("background");
       } else {
@@ -690,15 +712,22 @@ export default function ProblemPage() {
   const isFeedbackWaiting = Boolean(
     latest &&
       feedbackPollState !== "idle" &&
+      feedbackPollState !== "stalled" &&
       (!studentAiFeedback || inFlightFeedbackStatus(feedbackStatus))
   );
   const isFeedbackBackground = Boolean(latest && feedbackPollState === "background" && (!studentAiFeedback || inFlightFeedbackStatus(feedbackStatus)));
   const feedbackFailed = Boolean(
-    latest &&
-    studentAiFeedback &&
-      (["TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(feedbackStatus) || feedbackSource === "RULE_FALLBACK")
+    latest && (
+      (
+        studentAiFeedback &&
+        (["TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(feedbackStatus) || feedbackSource === "RULE_FALLBACK")
+      ) ||
+      feedbackPollState === "stalled"
+    )
   );
-  const feedbackFallbackMessage = studentAiFeedback?.source === "RULE_FALLBACK"
+  const feedbackFallbackMessage = feedbackPollState === "stalled"
+    ? "AI 分析暂未完成，可能是模型排队或配置异常。请稍后重试 AI。"
+    : studentAiFeedback?.source === "RULE_FALLBACK"
     ? "外部 AI 暂不可用，本次不生成深度诊断。请稍后重试 AI。"
     : "AI 暂未生成";
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
@@ -714,6 +743,7 @@ export default function ProblemPage() {
         : testCaseSummary;
   const selectedLanguage = contestLanguageById(languageId);
   const draftChanged = sourceCode !== defaultSourceFor(problem, languageId);
+  const canSubmit = Boolean(sourceCode.trim()) && !busy;
   const codeLineCount = sourceCode ? sourceCode.split(/\r?\n/).length : 0;
   const repairCheckQuestion = modelFeedbackReady ? nextActionReportText || studentAiFeedback.nextQuestion || "" : "";
   const showRepairSection =
@@ -835,7 +865,7 @@ export default function ProblemPage() {
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
       <section className="problem-layout problem-layout--workbench">
-        <aside className="problem-task-sidebar" aria-label="题目列表">
+        <aside className="problem-task-sidebar" aria-label="题目列表" aria-busy={tasksLoading}>
           <Link to={backTo} className="problem-back-link">
             <ArrowLeft size={14} /> {backLabel}
           </Link>
@@ -850,12 +880,15 @@ export default function ProblemPage() {
           <div className="problem-task-list">
             {tasksLoading ? (
               <EmptyState title="加载中" />
+            ) : !taskRows.length ? (
+              <EmptyState title="暂无题目" description="返回列表重新选择题目。" />
             ) : (
               taskRows.map((task, index) => (
                 <Link
                   className={`problem-task-item ${task.problemId === problemId ? "is-active" : ""} ${task.passed ? "is-passed" : ""}`}
                   to={buildTaskLink(task.problemId)}
                   key={task.problemId}
+                  aria-current={task.problemId === problemId ? "page" : undefined}
                 >
                   <span className="problem-task-item__index">{index + 1}</span>
                   <span className="problem-task-item__main">
@@ -945,13 +978,22 @@ export default function ProblemPage() {
               </button>
             )}
             <div className="actions">
-              <Button type="button" variant="primary" onClick={() => void submit()} disabled={busy} icon={<Play size={18} />}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => void submit()}
+                disabled={!canSubmit}
+                title={!sourceCode.trim() ? "先写代码再提交" : undefined}
+                icon={<Play size={18} />}
+              >
                 {busy ? "提交中" : "提交代码"}
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 onClick={resetCode}
+                disabled={!draftChanged}
+                title={draftChanged ? undefined : "当前已经是初始代码"}
                 icon={<RotateCcw size={18} />}
               >
                 恢复初始代码
@@ -979,8 +1021,8 @@ export default function ProblemPage() {
       )}
 
       {feedbackReady && resultOpen && latest && (
-        <div className="problem-result-modal-backdrop" role="presentation">
-          <section className="problem-result-modal" role="dialog" aria-modal="true" aria-labelledby="problem-result-title">
+        <div className="problem-result-modal-backdrop" role="presentation" onClick={closeResult}>
+          <section className="problem-result-modal" role="dialog" aria-modal="true" aria-labelledby="problem-result-title" onClick={event => event.stopPropagation()}>
             <div className="problem-result-modal__header">
               <div>
                 <h2 id="problem-result-title">{verdictLabel(latest.verdict)}</h2>
@@ -990,7 +1032,7 @@ export default function ProblemPage() {
                 {(isFeedbackWaiting || isFeedbackBackground) && (
                   <StatusPill tone="neutral">{isFeedbackBackground ? "后台生成中" : feedbackPollState === "slow" ? "AI 较慢" : "AI 分析中"}</StatusPill>
                 )}
-                <button type="button" aria-label="关闭结果" onClick={() => setResultOpen(false)}>
+                <button type="button" aria-label="关闭结果" onClick={closeResult}>
                   <X size={18} />
                 </button>
               </div>

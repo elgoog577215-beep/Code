@@ -160,6 +160,18 @@ export default function AssignmentCreatePage() {
   }
 
   const selectedClass = classes.find(item => String(item.id) === form.classGroupId) || classes[0];
+  const publishIssues = [
+    !form.title.trim() ? "填写作业名称" : null,
+    !selectedProblems.length ? "至少选择 1 道题" : null,
+    !selectedClass ? "默认班级未就绪" : null
+  ].filter(Boolean);
+  const canPublish = publishIssues.length === 0 && !saving;
+
+  function resetForm() {
+    setForm({ ...EMPTY_ASSIGNMENT, classGroupId: classes[0] ? String(classes[0].id) : "" });
+    setQuery("");
+    setDifficulty("ALL");
+  }
 
   return (
     <div className="teacher-page teacher-workflow assignment-builder-page">
@@ -173,7 +185,14 @@ export default function AssignmentCreatePage() {
           <p className="eyebrow">新建作业</p>
           <h1>布置课堂练习</h1>
         </div>
-        <Button type="button" variant="primary" onClick={() => void saveAssignment()} disabled={saving} icon={<CheckCircle2 size={17} />}>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={() => void saveAssignment()}
+          disabled={!canPublish}
+          title={publishIssues.join("、") || undefined}
+          icon={<CheckCircle2 size={17} />}
+        >
           {saving ? "保存中" : "发布作业"}
         </Button>
       </section>
@@ -313,11 +332,21 @@ export default function AssignmentCreatePage() {
                 </StatusPill>
               </div>
             </div>
+            <p className={`assignment-publish-hint ${publishIssues.length ? "is-warning" : "is-ready"}`}>
+              {publishIssues.length ? `还差：${publishIssues.join("、")}` : "信息完整，可以发布给学生。"}
+            </p>
             <div className="actions assignment-builder-actions">
-              <Button type="button" variant="primary" onClick={() => void saveAssignment()} disabled={saving} icon={<CheckCircle2 size={17} />}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => void saveAssignment()}
+                disabled={!canPublish}
+                title={publishIssues.join("、") || undefined}
+                icon={<CheckCircle2 size={17} />}
+              >
                 {saving ? "保存中" : "发布作业"}
               </Button>
-              <Button type="button" variant="ghost" onClick={() => setForm(EMPTY_ASSIGNMENT)} disabled={saving}>
+              <Button type="button" variant="ghost" onClick={resetForm} disabled={saving}>
                 清空
               </Button>
             </div>
