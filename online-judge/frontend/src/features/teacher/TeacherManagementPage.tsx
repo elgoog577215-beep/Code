@@ -984,8 +984,29 @@ function StandardLibraryManager({
     setEditorOpen(true);
   }
 
-  function openExistingItem(item: AiStandardLibraryItem) {
+  function selectTreeItem(item: AiStandardLibraryItem) {
     onSelect(item);
+    setEditorOpen(false);
+  }
+
+  function openSelectedEditor() {
+    if (selectedItem) {
+      onSelect(selectedItem);
+      setEditorOpen(true);
+    }
+  }
+
+  function openChildDraft() {
+    if (!selectedItem) {
+      return;
+    }
+    onNew();
+    onDraftChange({
+      ...emptyLibraryDraft(),
+      category: selectedItem.category,
+      skillUnitCode: selectedItem.layer === "SKILL_UNIT" ? selectedItem.code : selectedItem.skillUnitCode || "",
+      knowledgeNodeCodes: linesToText(selectedItem.knowledgeNodeCodes)
+    });
     setEditorOpen(true);
   }
 
@@ -996,7 +1017,7 @@ function StandardLibraryManager({
         key={item.id}
         className={`management-object-row standard-library-list__item standard-library-tree__item ${item.id === selectedId ? "is-active" : ""}`}
         aria-current={item.id === selectedId ? "true" : undefined}
-        onClick={() => openExistingItem(item)}
+        onClick={() => selectTreeItem(item)}
       >
         <span className="standard-library-tree__item-main">
           <strong>{item.name}</strong>
@@ -1136,6 +1157,37 @@ function StandardLibraryManager({
         ) : (
           <EmptyState title="暂无条目" description="换一个筛选条件，或新建一个标准库条目。" />
         )}
+        {selectedItem && !editorOpen ? (
+          <section className="standard-library-action-panel" aria-label="当前条目操作">
+            <div className="standard-library-action-panel__main">
+              <span>
+                <StatusPill tone={selectedItem.layer === "SKILL_UNIT" ? "info" : "warning"}>{layerLabel(selectedItem.layer)}</StatusPill>
+                <StatusPill tone={selectedItem.enabled ? "success" : "neutral"}>{selectedItem.enabled ? "启用" : "停用"}</StatusPill>
+              </span>
+              <strong>{selectedItem.name}</strong>
+              <small>{[selectedItem.code, selectedItem.category].filter(Boolean).join(" · ")}</small>
+            </div>
+            <div className="standard-library-action-panel__actions">
+              <Button type="button" variant="secondary" icon={<BookOpen size={16} />} onClick={openSelectedEditor} disabled={busy}>
+                编辑
+              </Button>
+              {selectedItem.layer === "SKILL_UNIT" ? (
+                <Button type="button" variant="secondary" icon={<Plus size={16} />} onClick={openChildDraft} disabled={busy}>
+                  新增易错点
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant={selectedItem.enabled ? "secondary" : "primary"}
+                icon={selectedItem.enabled ? <PowerOff size={16} /> : <Power size={16} />}
+                onClick={() => onToggle(selectedItem)}
+                disabled={busy}
+              >
+                {selectedItem.enabled ? "停用" : "启用"}
+              </Button>
+            </div>
+          </section>
+        ) : null}
       </div>
 
       {editorOpen ? (

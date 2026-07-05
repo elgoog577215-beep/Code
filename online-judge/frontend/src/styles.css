@@ -16747,8 +16747,10 @@ summary:focus-visible {
 
 .standard-library-canvas {
   min-width: 0;
+  min-height: clamp(360px, calc(100vh - 248px), 640px);
   display: grid;
   gap: 0.54rem;
+  align-content: start;
   padding: 0.58rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -16881,10 +16883,22 @@ summary:focus-visible {
 
 .standard-library-command__select {
   min-height: 38px;
-  padding-block: 0.34rem;
+  padding: 0.34rem 2rem 0.34rem 0.62rem;
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+    linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+  background-position:
+    calc(100% - 0.95rem) 50%,
+    calc(100% - 0.72rem) 50%;
+  background-repeat: no-repeat;
+  background-size: 0.28rem 0.28rem, 0.28rem 0.28rem;
 }
 
 .standard-library-tree--canvas {
+  min-height: 280px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
   gap: 0.52rem;
@@ -17033,6 +17047,72 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+.standard-library-canvas > .empty-state {
+  min-height: 260px;
+  align-content: center;
+  border-style: dashed;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-strong) 72%, transparent), color-mix(in srgb, var(--surface-muted) 70%, transparent)),
+    var(--surface);
+}
+
+.standard-library-action-panel {
+  width: min(620px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.64rem;
+  align-items: center;
+  justify-self: end;
+  position: sticky;
+  bottom: 0.7rem;
+  z-index: 5;
+  margin-top: 0.12rem;
+  padding: 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 18px 46px rgba(7, 8, 11, 0.16);
+  backdrop-filter: blur(10px);
+}
+
+.standard-library-action-panel__main {
+  min-width: 0;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.standard-library-action-panel__main > span,
+.standard-library-action-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.standard-library-action-panel__main strong,
+.standard-library-action-panel__main small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.standard-library-action-panel__main strong {
+  color: var(--ink);
+  font-size: 0.96rem;
+  font-weight: 920;
+}
+
+.standard-library-action-panel__main small {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 760;
+}
+
+.standard-library-action-panel__actions {
+  justify-content: flex-end;
+}
+
 .standard-library-editor-backdrop {
   position: fixed;
   inset: 0;
@@ -17095,6 +17175,11 @@ summary:focus-visible {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.58);
 }
 
+:root[data-theme="dark"] .standard-library-action-panel {
+  background: color-mix(in srgb, var(--surface) 92%, #05070a);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.42);
+}
+
 @media (max-width: 1080px) {
   .standard-library-command {
     grid-template-columns: minmax(0, 1fr) minmax(130px, 0.45fr);
@@ -17107,6 +17192,7 @@ summary:focus-visible {
 
 @media (max-width: 760px) {
   .standard-library-canvas {
+    min-height: 420px;
     padding: 0.44rem;
   }
 
@@ -17141,7 +17227,25 @@ summary:focus-visible {
   }
 
   .standard-library-tree--canvas {
+    min-height: 220px;
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .standard-library-action-panel {
+    grid-template-columns: minmax(0, 1fr);
+    justify-self: stretch;
+    padding: 0.52rem;
+  }
+
+  .standard-library-action-panel__actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    justify-content: stretch;
+  }
+
+  .standard-library-action-panel__actions .ui-button {
+    width: 100%;
+    justify-content: center;
   }
 
   .standard-library-tree__branch {
