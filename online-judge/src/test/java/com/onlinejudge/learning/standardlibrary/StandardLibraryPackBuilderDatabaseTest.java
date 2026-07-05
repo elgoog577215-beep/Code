@@ -1,13 +1,18 @@
 package com.onlinejudge.learning.standardlibrary;
 
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
 import com.onlinejudge.submission.application.ModelDiagnosisBrief;
 import com.onlinejudge.submission.application.StandardLibraryPack;
 import com.onlinejudge.submission.application.StandardLibraryPackBuilder;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 
 import java.util.List;
@@ -34,11 +39,65 @@ class StandardLibraryPackBuilderDatabaseTest {
     @Autowired
     AiStandardLibraryItemRepository repository;
 
+    @Autowired
+    AiStandardLibraryService standardLibraryService;
+
+    @Autowired
+    AiStandardSkillUnitRepository skillUnitRepository;
+
+    @Autowired
+    AiStandardMistakePointRepository mistakePointRepository;
+
+    @Autowired
+    AiStandardImprovementPointRepository improvementPointRepository;
+
     @Test
-    void packBuilderReadsEnabledItemsFromDatabaseBeforeBuiltinFallback() {
+    void packBuilderReadsNormalizedItemsBeforeLegacyFlatTable() {
+        var mistake = mistakePointRepository.findByCode("IO_FORMAT").orElseThrow();
+        mistake.setName("规范库输入输出易错点");
+        mistake.setMisconception("先确认规范结构易错点是否被读取。");
+        mistakePointRepository.saveAndFlush(mistake);
+
+        StandardLibraryPack pack = builder.build(ModelDiagnosisBrief.builder()
+                .allowedIssueTags(List.of("IO_FORMAT"))
+                .build(), null);
+
+        assertThat(pack.getBasicCauses())
+                .filteredOn(cause -> "IO_FORMAT".equals(cause.getId()))
+                .singleElement()
+                .satisfies(cause -> {
+                    assertThat(cause.getName()).isEqualTo("规范库输入输出易错点");
+                    assertThat(cause.getStudentExplanation()).isEqualTo("先确认规范结构易错点是否被读取。");
+                });
+    }
+
+    @Test
+    void searchLocationItemsPreferNormalizedStructure() {
+        var legacySkill = repository.findByLayerAndCode(AiStandardLibraryLayer.SKILL_UNIT,
+                "SK_BINARY_ANSWER_CHECK").orElseThrow();
+        legacySkill.setName("旧表二分答案能力");
+        repository.saveAndFlush(legacySkill);
+
+        var normalizedSkill = skillUnitRepository.findByCode("SK_BINARY_ANSWER_CHECK").orElseThrow();
+        normalizedSkill.setName("规范结构二分答案能力");
+        skillUnitRepository.saveAndFlush(normalizedSkill);
+
+        assertThat(standardLibraryService.enabledSearchLocationItems())
+                .filteredOn(item -> "SK_BINARY_ANSWER_CHECK".equals(item.getCode()))
+                .singleElement()
+                .satisfies(item -> assertThat(item.getName()).isEqualTo("规范结构二分答案能力"));
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void packBuilderFallsBackToLegacyFlatTableWhenNormalizedTablesAreEmpty() {
+        improvementPointRepository.deleteAll();
+        mistakePointRepository.deleteAll();
+        skillUnitRepository.deleteAll();
+
         var item = repository.findByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, "IO_FORMAT").orElseThrow();
-        item.setName("数据库输入输出易错点");
-        item.setCommonMisconception("先确认数据库 v3 易错点是否被读取。");
+        item.setName("旧扁平表输入输出易错点");
+        item.setCommonMisconception("规范表为空时允许回退旧表。");
         repository.saveAndFlush(item);
 
         StandardLibraryPack pack = builder.build(ModelDiagnosisBrief.builder()
@@ -49,8 +108,8 @@ class StandardLibraryPackBuilderDatabaseTest {
                 .filteredOn(cause -> "IO_FORMAT".equals(cause.getId()))
                 .singleElement()
                 .satisfies(cause -> {
-                    assertThat(cause.getName()).isEqualTo("数据库输入输出易错点");
-                    assertThat(cause.getStudentExplanation()).isEqualTo("先确认数据库 v3 易错点是否被读取。");
+                    assertThat(cause.getName()).isEqualTo("旧扁平表输入输出易错点");
+                    assertThat(cause.getStudentExplanation()).isEqualTo("规范表为空时允许回退旧表。");
                 });
     }
 

@@ -2,15 +2,23 @@ package com.onlinejudge.learning.standardlibrary.application;
 
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardImprovementPoint;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardMistakePoint;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardSkillUnit;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRequest;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemResponse;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryEmbeddingRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
 import com.onlinejudge.submission.application.StandardLibraryPack;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -22,6 +30,9 @@ public class AiStandardLibraryService {
 
     private final AiStandardLibraryItemRepository repository;
     private final AiStandardLibraryEmbeddingRepository embeddingRepository;
+    private final AiStandardSkillUnitRepository skillUnitRepository;
+    private final AiStandardMistakePointRepository mistakePointRepository;
+    private final AiStandardImprovementPointRepository improvementPointRepository;
 
     @Transactional(readOnly = true)
     public List<AiStandardLibraryItemResponse> list(String layer, String category, String enabled, String query) {
@@ -89,6 +100,14 @@ public class AiStandardLibraryService {
 
     @Transactional(readOnly = true)
     public List<StandardLibraryPack.BasicCauseOption> enabledBasicCauses() {
+        List<AiStandardMistakePoint> normalizedMistakes = mistakePointRepository.findByEnabledTrueOrderByCategoryAscCodeAsc();
+        if (!normalizedMistakes.isEmpty()) {
+            return normalizedMistakes.stream()
+                    .sorted(Comparator.comparing(AiStandardMistakePoint::getCategory)
+                            .thenComparing(AiStandardMistakePoint::getCode))
+                    .map(this::toBasicCause)
+                    .toList();
+        }
         return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
                         || item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
@@ -99,6 +118,15 @@ public class AiStandardLibraryService {
 
     @Transactional(readOnly = true)
     public List<StandardLibraryPack.ImprovementPointOption> enabledImprovementPoints() {
+        List<AiStandardImprovementPoint> normalizedImprovements =
+                improvementPointRepository.findByEnabledTrueOrderByCategoryAscCodeAsc();
+        if (!normalizedImprovements.isEmpty()) {
+            return normalizedImprovements.stream()
+                    .sorted(Comparator.comparing(AiStandardImprovementPoint::getCategory)
+                            .thenComparing(AiStandardImprovementPoint::getCode))
+                    .map(this::toImprovementPoint)
+                    .toList();
+        }
         return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT)
                 .sorted(Comparator.comparing(AiStandardLibraryItem::getCategory).thenComparing(AiStandardLibraryItem::getCode))
@@ -108,11 +136,18 @@ public class AiStandardLibraryService {
 
     @Transactional(readOnly = true)
     public boolean hasEnabledKnowledge() {
+        if (!normalizedSearchLocationItems().isEmpty()) {
+            return true;
+        }
         return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream().findAny().isPresent();
     }
 
     @Transactional(readOnly = true)
     public List<AiStandardLibraryItem> enabledSearchLocationItems() {
+        List<AiStandardLibraryItem> normalizedItems = normalizedSearchLocationItems();
+        if (!normalizedItems.isEmpty()) {
+            return normalizedItems;
+        }
         return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT
                         || item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
@@ -178,6 +213,28 @@ public class AiStandardLibraryService {
                 .build();
     }
 
+    StandardLibraryPack.BasicCauseOption toBasicCause(AiStandardMistakePoint item) {
+        return StandardLibraryPack.BasicCauseOption.builder()
+                .id(item.getCode())
+                .category(item.getCategory())
+                .name(item.getName())
+                .description(item.getDescription())
+                .studentExplanation(item.getMisconception())
+                .teacherExplanation(item.getRepairStrategy())
+                .evidenceSignals(List.of())
+                .commonCodePatterns(List.of())
+                .judgeSignals(List.of())
+                .hintL1("")
+                .hintL2("")
+                .hintL3("")
+                .abilityPoint(item.getSkillUnitCode())
+                .severity(item.getSeverity())
+                .applicableLanguages(lines(item.getApplicableLanguages()))
+                .relatedFineTags(lines(item.getKnowledgeNodeCodes()))
+                .teachingAction("")
+                .build();
+    }
+
     StandardLibraryPack.ImprovementPointOption toImprovementPoint(AiStandardLibraryItem item) {
         return StandardLibraryPack.ImprovementPointOption.builder()
                 .id(item.getCode())
@@ -194,6 +251,151 @@ public class AiStandardLibraryService {
                 .abilityPoint(item.getAbilityPoint())
                 .relatedBasicCauses(lines(item.getRelatedItems()))
                 .build();
+    }
+
+    StandardLibraryPack.ImprovementPointOption toImprovementPoint(AiStandardImprovementPoint item) {
+        return StandardLibraryPack.ImprovementPointOption.builder()
+                .id(item.getCode())
+                .category(item.getCategory())
+                .name(item.getName())
+                .description(item.getDescription())
+                .whenToUse(item.getImprovementGoal())
+                .studentBenefit(item.getStudentBenefit())
+                .teacherExplanation(item.getTeacherExplanation())
+                .requiredEvidence(List.of())
+                .hintL1("")
+                .hintL2("")
+                .hintL3("")
+                .abilityPoint(item.getSkillUnitCode())
+                .relatedBasicCauses(lines(item.getRelatedMistakeCodes()))
+                .build();
+    }
+
+    private List<AiStandardLibraryItem> normalizedSearchLocationItems() {
+        List<AiStandardSkillUnit> skills = skillUnitRepository.findByEnabledTrueOrderByCategoryAscCodeAsc();
+        List<AiStandardMistakePoint> mistakes = mistakePointRepository.findByEnabledTrueOrderByCategoryAscCodeAsc();
+        List<AiStandardImprovementPoint> improvements =
+                improvementPointRepository.findByEnabledTrueOrderByCategoryAscCodeAsc();
+        if (skills.isEmpty() && mistakes.isEmpty() && improvements.isEmpty()) {
+            return List.of();
+        }
+        List<AiStandardLibraryItem> items = new ArrayList<>();
+        skills.stream().map(this::toLegacySearchItem).forEach(items::add);
+        mistakes.stream().map(this::toLegacySearchItem).forEach(items::add);
+        improvements.stream().map(this::toLegacySearchItem).forEach(items::add);
+        return items;
+    }
+
+    private AiStandardLibraryItem toLegacySearchItem(AiStandardSkillUnit item) {
+        return AiStandardLibraryItem.builder()
+                .id(item.getId())
+                .layer(AiStandardLibraryLayer.SKILL_UNIT)
+                .code(item.getCode())
+                .category(item.getCategory())
+                .name(item.getName())
+                .description(item.getDescription())
+                .studentExplanation(item.getLearningGoal())
+                .teacherExplanation("")
+                .skillUnitCode("")
+                .mistakeType("")
+                .commonMisconception("")
+                .evidenceSignals("")
+                .commonCodePatterns("")
+                .judgeSignals("")
+                .requiredEvidence("")
+                .whenToUse("")
+                .studentBenefit("")
+                .hintL1("")
+                .hintL2("")
+                .hintL3("")
+                .abilityPoint(item.getName())
+                .severity(item.getMasteryLevel())
+                .applicableLanguages(item.getApplicableLanguages())
+                .relatedItems("")
+                .knowledgeNodeCodes(item.getKnowledgeNodeCodes())
+                .prerequisiteKnowledgeCodes(item.getPrerequisiteKnowledgeCodes())
+                .teachingAction("")
+                .enabled(true)
+                .libraryVersion(item.getLibraryVersion())
+                .createdAt(orNow(item.getCreatedAt()))
+                .updatedAt(orNow(item.getUpdatedAt()))
+                .build();
+    }
+
+    private AiStandardLibraryItem toLegacySearchItem(AiStandardMistakePoint item) {
+        return AiStandardLibraryItem.builder()
+                .id(item.getId())
+                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .code(item.getCode())
+                .category(item.getCategory())
+                .name(item.getName())
+                .description(item.getDescription())
+                .studentExplanation("")
+                .teacherExplanation(item.getRepairStrategy())
+                .skillUnitCode(item.getSkillUnitCode())
+                .mistakeType(item.getMistakeType())
+                .commonMisconception(item.getMisconception())
+                .evidenceSignals("")
+                .commonCodePatterns("")
+                .judgeSignals("")
+                .requiredEvidence("")
+                .whenToUse("")
+                .studentBenefit("")
+                .hintL1("")
+                .hintL2("")
+                .hintL3("")
+                .abilityPoint(item.getSkillUnitCode())
+                .severity(item.getSeverity())
+                .applicableLanguages(item.getApplicableLanguages())
+                .relatedItems(item.getSkillUnitCode())
+                .knowledgeNodeCodes(item.getKnowledgeNodeCodes())
+                .prerequisiteKnowledgeCodes(item.getPrerequisiteKnowledgeCodes())
+                .teachingAction("")
+                .enabled(true)
+                .libraryVersion(item.getLibraryVersion())
+                .createdAt(orNow(item.getCreatedAt()))
+                .updatedAt(orNow(item.getUpdatedAt()))
+                .build();
+    }
+
+    private AiStandardLibraryItem toLegacySearchItem(AiStandardImprovementPoint item) {
+        return AiStandardLibraryItem.builder()
+                .id(item.getId())
+                .layer(AiStandardLibraryLayer.IMPROVEMENT_POINT)
+                .code(item.getCode())
+                .category(item.getCategory())
+                .name(item.getName())
+                .description(item.getDescription())
+                .studentExplanation("")
+                .teacherExplanation(item.getTeacherExplanation())
+                .skillUnitCode(item.getSkillUnitCode())
+                .mistakeType("")
+                .commonMisconception("")
+                .evidenceSignals("")
+                .commonCodePatterns("")
+                .judgeSignals("")
+                .requiredEvidence("")
+                .whenToUse(item.getImprovementGoal())
+                .studentBenefit(item.getStudentBenefit())
+                .hintL1("")
+                .hintL2("")
+                .hintL3("")
+                .abilityPoint(item.getSkillUnitCode())
+                .severity("")
+                .applicableLanguages(item.getApplicableLanguages())
+                .relatedItems(item.getRelatedMistakeCodes())
+                .knowledgeNodeCodes(item.getKnowledgeNodeCodes())
+                .prerequisiteKnowledgeCodes("")
+                .teachingAction("")
+                .enabled(true)
+                .libraryVersion(item.getLibraryVersion())
+                .createdAt(orNow(item.getCreatedAt()))
+                .updatedAt(orNow(item.getUpdatedAt()))
+                .build();
+    }
+
+    private LocalDateTime orNow(LocalDateTime value) {
+        return value == null ? LocalDateTime.now() : value;
     }
 
     private AiStandardLibraryItem find(Long id) {
