@@ -131,7 +131,7 @@ public class ReadinessService {
                 aiStatus,
                 aiBlocking && !"PASS".equals(aiStatus),
                 aiStatusMessage(aiEnabled, aiConfigured, smoke),
-                "教师端执行 AI smoke；若出现 401/429/超时，请修正 key、额度、限流或网络后再开课。"
+                "执行 AI smoke；失败时检查 key、额度和网络。"
         ));
 
         checks.add(check(
@@ -140,8 +140,8 @@ public class ReadinessService {
                 diagnosisReportV2Enabled ? "PASS" : "FAIL",
                 true,
                 diagnosisReportV2Enabled
-                        ? "建议层使用 " + PromptTemplateRegistry.DIAGNOSIS_REPORT_V2 + "，学生反馈按基础层、提高层、下一步行动输出。"
-                        : "诊断报告 v2 已关闭，当前链路不能满足正式 AI 诊断方案。",
+                        ? "诊断报告 v2 已开启。"
+                        : "诊断报告 v2 已关闭。",
                 "设置 AI_DIAGNOSIS_REPORT_V2_ENABLED=true。"
         ));
 
@@ -152,10 +152,10 @@ public class ReadinessService {
                 false,
                 growthProperties.isEnabled()
                         ? growthProperties.isAutoMergeEnabled()
-                        ? "成长 Agent 已启用，且允许自动正式入库；请确认学校已接受该权限。"
-                        : "成长 Agent 已启用，默认只写入候选池，等待教师处理。"
-                        : "成长 Agent 已关闭；库外错因不会沉淀为候选。",
-                "默认建议开启候选池，自动入库仅在小范围审核后开启。"
+                        ? "成长 Agent 已开启，允许自动入库。"
+                        : "成长 Agent 已开启，只写入候选池。"
+                        : "成长 Agent 已关闭。",
+                "自动入库前请先小范围审核。"
         ));
 
         checks.add(check(
@@ -164,8 +164,8 @@ public class ReadinessService {
                 modelFailureDegradeEnabled ? "PASS" : "WARN",
                 false,
                 modelFailureDegradeEnabled
-                        ? "模型 429、超时、无效 JSON 等失败会在 trace/readiness 中明确暴露，并保留非伪装降级。"
-                        : "模型失败降级开关关闭；外部 AI 异常时体验风险更高。",
+                        ? "模型失败会记录原因，并使用本地反馈。"
+                        : "模型失败降级未开启。",
                 "建议保持 AI_MODEL_FAILURE_DEGRADE_ENABLED=true。"
         ));
 
@@ -179,13 +179,13 @@ public class ReadinessService {
 
     private String aiStatusMessage(boolean enabled, boolean configured, AiSmokeResponse smoke) {
         if (!enabled) {
-            return "AI 已关闭；高中 AI 试点版不能宣称 AI 能力可用。";
+            return "AI 已关闭。";
         }
         if (!configured) {
-            return "AI 已启用但未配置 API key，外部模型不可用。";
+            return "API key 未配置。";
         }
         if ("READY".equals(smoke.getStatus())) {
-            return "外部 AI 最近一次 smoke 通过。";
+            return "AI smoke 通过。";
         }
         return smoke.getMessage();
     }

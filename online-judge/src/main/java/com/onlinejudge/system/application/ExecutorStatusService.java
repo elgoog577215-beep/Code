@@ -38,15 +38,15 @@ public class ExecutorStatusService {
 
         String message;
         if ("docker".equals(normalizedMode) && !dockerAvailable) {
-            message = "容器沙箱未就绪：未检测到 Docker，Python 3/C++17 容器评测暂不可用。";
+            message = "评测环境未就绪：Docker 未启动。";
         } else if ("docker".equals(normalizedMode) && !cpp17DockerImageAvailable) {
-            message = "容器沙箱未就绪：未检测到 C++17 runner 镜像 " + cpp17DockerImage + "，请先运行项目内构建脚本。";
+            message = "评测环境未就绪：缺少 C++17 runner 镜像。";
         } else if ("docker".equals(normalizedMode)) {
-            message = "容器沙箱已就绪，Python 3/C++17 可通过 Docker 执行；C++17 runner 镜像为 " + cpp17DockerImage + "。";
+            message = "评测环境已就绪。";
         } else if (!cpp17Available) {
-            message = "当前为本机执行模式：Python 可用性已检测，未检测到可编译 bits/stdc++.h 的 GNU C++17 编译器。";
+            message = "本机模式缺少 C++17 编译器。";
         } else {
-            message = "当前执行环境可用，" + ContestLanguageRegistry.supportedLanguageNames() + " 可提交。";
+            message = "评测环境可用。";
         }
 
         return ExecutorStatusResponse.builder()

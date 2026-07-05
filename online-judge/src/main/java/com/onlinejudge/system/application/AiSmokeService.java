@@ -68,14 +68,14 @@ public class AiSmokeService {
 
     private String message(ModelStageFailureReason reason) {
         return switch (reason) {
-            case INSUFFICIENT_QUOTA -> "外部模型额度不足，AI 能力当前不可用。";
-            case RATE_LIMITED -> "外部模型请求被限流，建议稍后重试或降低并发。";
-            case TIMEOUT -> "外部模型响应超时，建议检查网络或降低超时风险。";
-            case AUTHENTICATION_FAILED -> "外部模型认证失败，请检查 OJ_MODELSCOPE_API_KEY。";
-            case INVALID_JSON -> "外部模型输出格式异常，AI 能力当前不可用。";
-            case MODEL_UNSUPPORTED -> "当前模型不可用或不支持，请检查 OJ_AI_MODEL。";
-            case BUDGET_GUARD_OPEN -> "外部模型预算保护已打开，暂时停止调用。";
-            default -> "外部模型调用失败，AI 能力当前不可用。";
+            case INSUFFICIENT_QUOTA -> "模型额度不足。";
+            case RATE_LIMITED -> "模型请求被限流，请稍后重试。";
+            case TIMEOUT -> "模型响应超时。";
+            case AUTHENTICATION_FAILED -> "模型认证失败，请检查 API key。";
+            case INVALID_JSON -> "模型返回格式异常。";
+            case MODEL_UNSUPPORTED -> "模型不可用，请检查配置。";
+            case BUDGET_GUARD_OPEN -> "预算保护已开启。";
+            default -> "模型调用失败。";
         };
     }
 }

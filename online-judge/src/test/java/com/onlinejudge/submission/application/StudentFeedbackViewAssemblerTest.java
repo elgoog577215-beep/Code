@@ -43,7 +43,8 @@ class StudentFeedbackViewAssemblerTest {
                 .satisfies(item -> {
                     assertThat(item.getTitle()).isEqualTo("AI 暂不可用");
                     assertThat(item.getBody())
-                            .contains("外部 AI 暂不可用", "本次不生成深度诊断")
+                            .contains("AI 暂不可用", "稍后重试")
+                            .doesNotContain("深度诊断", "伪装")
                             .doesNotContain("公开样例");
                 });
         assertThat(view.getImprovementItems()).isEmpty();
@@ -72,7 +73,8 @@ class StudentFeedbackViewAssemblerTest {
         assertThat(view.getStatus()).isEqualTo("RULE_FALLBACK");
         assertThat(view.getRepairItems()).singleElement()
                 .satisfies(item -> assertThat(item.getBody())
-                        .contains("外部 AI 暂不可用", "本次不生成深度诊断")
+                        .contains("AI 暂不可用", "稍后重试")
+                        .doesNotContain("深度诊断", "伪装")
                         .doesNotContain("状态表示什么", "转移", "当前最需要先处理的是"));
         assertThat(view.getImprovementItems()).isEmpty();
     }
@@ -161,9 +163,9 @@ class StudentFeedbackViewAssemblerTest {
                 assertThat(view.getStatus()).isIn("READY", "RULE_FALLBACK");
                 assertThat(viewText(view)).doesNotContain("本地可验证反馈", "完整代码", "答案如下");
                 if ("RULE_FALLBACK".equals(view.getStatus())) {
-                    assertThat(viewText(view)).contains("外部 AI 暂不可用");
+                    assertThat(viewText(view)).contains("AI 暂不可用");
                 } else {
-                    assertThat(viewText(view)).doesNotContain("外部 AI 暂不可用");
+                    assertThat(viewText(view)).doesNotContain("AI 暂不可用");
                 }
             });
             assertThat(views).filteredOn(view -> "RULE_FALLBACK".equals(view.getStatus())).hasSize(32);
@@ -181,7 +183,7 @@ class StudentFeedbackViewAssemblerTest {
                         .fallbackUsed(fallbackUsed)
                         .build())
                 .studentFeedback(SubmissionAnalysisResponse.StudentFeedback.builder()
-                        .summary("当前先给出本地可验证反馈，外接模型结果未作为学生端结论。")
+                        .summary("AI 暂不可用，先看本地反馈。")
                         .blockingIssues(List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
                                 .title("输入没有完整读取")
                                 .studentMessage("当前最需要先处理的问题是输入读取。")

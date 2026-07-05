@@ -14,7 +14,7 @@ public class StudentFeedbackViewAssembler {
 
     private static final String AI_UNAVAILABLE_TITLE = "AI 暂不可用";
     private static final String AI_UNAVAILABLE_BODY =
-            "外部 AI 暂不可用，本次不生成深度诊断。你可以先根据编译、运行或判题结果继续排查，稍后刷新 AI 反馈。";
+            "AI 暂不可用。先看评测结果，稍后重试。";
 
     public SubmissionAnalysisResponse.StudentFeedbackView assemble(SubmissionAnalysisResponse analysis) {
         if (analysis == null) {

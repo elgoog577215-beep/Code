@@ -871,10 +871,10 @@ export default function ProblemPage() {
   const improvementReportText = studentReport?.improvementLayerText?.trim() || "";
   const nextActionReportText = studentReport?.nextActionText?.trim() || "";
   const feedbackFallbackMessage = feedbackPollState === "stalled"
-    ? "AI 分析暂未完成，可能是模型排队或配置异常。请稍后重试 AI。"
+    ? "AI 生成超时，请稍后重试。"
     : studentAiFeedback?.source === "RULE_FALLBACK"
-    ? "外部 AI 暂不可用，本次不生成深度诊断。请稍后重试 AI。"
-    : "AI 暂未生成";
+    ? "AI 暂不可用，请稍后重试。"
+    : "AI 暂无反馈";
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
   const feedbackReady = Boolean(latest);
   const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;

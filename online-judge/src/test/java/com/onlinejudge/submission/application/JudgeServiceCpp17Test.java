@@ -111,7 +111,7 @@ class JudgeServiceCpp17Test {
 
         assertThat(response.getLanguageName()).isEqualTo("C++17");
         assertThat(response.getVerdict()).isEqualTo(Submission.Verdict.INTERNAL_ERROR);
-        assertThat(response.getErrorMessage()).contains("C++17 执行环境未就绪", "后端服务器", "学生 Windows 电脑无需安装编译器", "联系老师");
+        assertThat(response.getErrorMessage()).contains("C++17 评测环境未就绪", "联系老师");
         verify(codeExecutor, never()).execute(any(), eq(ContestLanguageRegistry.CPP17_ID), any(), anyInt(), anyInt());
         verify(testCaseRepository, never()).findByProblemIdOrderByOrderIndexAsc(any());
     }

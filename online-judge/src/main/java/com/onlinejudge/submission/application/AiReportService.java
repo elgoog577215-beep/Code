@@ -3190,14 +3190,14 @@ public class AiReportService {
 
     private StudentAiFeedbackResponse.StudentReport failureStudentReport(String reason) {
         String normalizedReason = defaultIfBlank(reason, "GENERATION_FAILED");
-        String basic = "外部 AI 暂不可用，本次没有生成深度诊断。系统没有把规则结果伪装成模型分析，你可以先根据评测结果继续修改，稍后点击重试 AI。";
+        String basic = "AI 暂不可用。先根据评测结果修改代码，稍后重试。";
         if (normalizedReason.toLowerCase().contains("limit") || normalizedReason.toLowerCase().contains("429")) {
-            basic = "外部 AI 当前被限流，本次没有生成深度诊断。系统已保留评测结果，你可以先继续修改代码，稍后点击重试 AI 获取完整分析。";
+            basic = "AI 请求受限。先根据评测结果修改代码，稍后重试。";
         }
         return StudentAiFeedbackResponse.StudentReport.builder()
                 .basicLayerText(basic)
-                .improvementLayerText("本次不生成提高层建议，避免在外部模型不可用时给出不可靠结论。")
-                .nextActionText("先查看首个失败测试点和错误输出，修完后再重试 AI。")
+                .improvementLayerText("AI 暂不可用，暂无提升建议。")
+                .nextActionText("先查看首个失败测试点，修完后重试 AI。")
                 .build();
     }
 
