@@ -906,25 +906,6 @@ export default function ProblemPage() {
     latest && (isFeedbackBackground || feedbackFailed || feedbackPollState === "slow" || feedbackPollState === "refreshing")
   );
   const feedbackRefreshLabel = feedbackPollState === "refreshing" ? "刷新中" : feedbackFailed ? "重试 AI" : "刷新 AI";
-  const feedbackCompleted = Boolean(latest && modelFeedbackReady);
-  const showFeedbackDock = Boolean(
-    feedbackReady && !resultOpen && latest && (isFeedbackWaiting || isFeedbackBackground || feedbackCompleted || feedbackFailed)
-  );
-  const feedbackDockTone = feedbackFailed ? "is-failed" : feedbackCompleted ? "is-ready" : "is-running";
-  const feedbackDockTitle = feedbackFailed
-    ? "AI 分析未完成"
-    : feedbackCompleted
-      ? "AI 分析完成"
-      : isFeedbackBackground
-        ? "AI 后台分析中"
-        : "AI 正在分析";
-  const feedbackDockNote = feedbackFailed
-    ? "点开结果页重试"
-    : feedbackCompleted
-      ? "点开查看建议"
-      : isFeedbackBackground
-        ? "可以继续写代码"
-        : "关闭弹窗后仍会继续";
   const rawJudgeOutputs = Array.from(
     new Set(
       [
@@ -1156,23 +1137,6 @@ export default function ProblemPage() {
           </div>
         </Panel>
       </section>
-
-      {showFeedbackDock && (
-        <button
-          type="button"
-          className={`problem-feedback-dock ${feedbackDockTone}`}
-          onClick={() => setResultOpen(true)}
-          aria-live="polite"
-        >
-          <span className="problem-feedback-dock__mark" aria-hidden="true">
-            <RefreshCw size={18} />
-          </span>
-          <span className="problem-feedback-dock__body">
-            <strong>{feedbackDockTitle}</strong>
-            <small>{feedbackDockNote}</small>
-          </span>
-        </button>
-      )}
 
       {feedbackReady && resultOpen && latest && (
         <div className="problem-result-modal-backdrop" role="presentation" onClick={closeResult}>
