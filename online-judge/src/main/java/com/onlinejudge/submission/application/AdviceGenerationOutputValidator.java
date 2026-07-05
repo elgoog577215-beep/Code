@@ -170,9 +170,25 @@ public class AdviceGenerationOutputValidator {
         allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getSkillUnits()));
         allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getImprovementPoints()));
         allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getKnowledgeAnchors()));
+        Set<String> mistakeIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getMistakePoints());
+        mistakeIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getBasicCauses()));
+        Set<String> skillIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getSkillUnits());
+        Set<String> improvementIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getImprovementPoints());
         Map<String, String> standardLibraryAliases = standardLibraryAliases(standardLibraryPack);
 
         sanitizeDiagnosisCandidates(output, allowedIds, evidenceRefs, orderedEvidenceRefs, softFixes);
+        ExternalModelStagePayloads.StageValidationResult adviceItemsFailure = validateReportAdviceItems(
+                output,
+                evidenceRefs,
+                orderedEvidenceRefs,
+                mistakeIds,
+                skillIds,
+                improvementIds,
+                softFixes
+        );
+        if (adviceItemsFailure != null) {
+            return adviceItemsFailure;
+        }
 
         AdviceGenerationOutput.DiagnosisDecision decision = output.getDiagnosisDecision();
         if (decision != null) {
@@ -274,6 +290,76 @@ public class AdviceGenerationOutputValidator {
                 .softFixes(softFixes)
                 .hardFailures(List.of())
                 .build();
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult validateReportAdviceItems(
+            AdviceGenerationOutput output,
+            Set<String> evidenceRefs,
+            List<String> orderedEvidenceRefs,
+            Set<String> mistakeIds,
+            Set<String> skillIds,
+            Set<String> improvementIds,
+            List<String> softFixes
+    ) {
+        for (AdviceGenerationOutput.BasicLayerAdvice item : safe(output.getBasicLayerAdvice())) {
+            if (item == null) {
+                return invalid(ModelStageFailureReason.INVALID_JSON, "basicLayerAdvice contains null item.");
+            }
+            if (blank(item.getTitle()) || blank(item.getStudentAction()) || blank(item.getCheckQuestion())) {
+                return invalid(ModelStageFailureReason.INVALID_JSON, "basicLayerAdvice is missing title/action/question.");
+            }
+            if (!blank(item.getMistakePointId()) && !mistakeIds.contains(normalize(item.getMistakePointId()))) {
+                return invalid(ModelStageFailureReason.INVALID_TAG,
+                        "Unknown mistakePointId: " + item.getMistakePointId());
+            }
+            if (!blank(item.getSkillUnitId()) && !skillIds.contains(normalize(item.getSkillUnitId()))) {
+                return invalid(ModelStageFailureReason.INVALID_TAG,
+                        "Unknown skillUnitId: " + item.getSkillUnitId());
+            }
+            item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
+            String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
+                    "basicLayerAdvice.evidenceRefs");
+            if (!invalidEvidence.isBlank()) {
+                return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
+            }
+            if (invalidConfidence(item.getConfidence())) {
+                return invalid(ModelStageFailureReason.INVALID_JSON, "basicLayerAdvice confidence is invalid.");
+            }
+            if (unsafe(item.getTitle(), item.getWhatHappened(), item.getWhyItMatters(),
+                    item.getStudentAction(), item.getCheckQuestion())) {
+                return invalid(ModelStageFailureReason.SAFETY_RISK, "basicLayerAdvice contains answer leak.");
+            }
+        }
+        for (AdviceGenerationOutput.ImprovementLayerAdvice item : safe(output.getImprovementLayerAdvice())) {
+            if (item == null) {
+                continue;
+            }
+            if (blank(item.getTitle()) || blank(item.getSuggestion()) || blank(item.getStudentBenefit())) {
+                return invalid(ModelStageFailureReason.INVALID_JSON,
+                        "improvementLayerAdvice is missing title/suggestion/benefit.");
+            }
+            if (!blank(item.getImprovementPointId()) && !improvementIds.contains(normalize(item.getImprovementPointId()))) {
+                return invalid(ModelStageFailureReason.INVALID_TAG,
+                        "Unknown improvementPointId: " + item.getImprovementPointId());
+            }
+            if (!blank(item.getSkillUnitId()) && !skillIds.contains(normalize(item.getSkillUnitId()))) {
+                return invalid(ModelStageFailureReason.INVALID_TAG,
+                        "Unknown improvement skillUnitId: " + item.getSkillUnitId());
+            }
+            item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
+            String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
+                    "improvementLayerAdvice.evidenceRefs");
+            if (!invalidEvidence.isBlank()) {
+                return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
+            }
+            if (invalidConfidence(item.getConfidence())) {
+                return invalid(ModelStageFailureReason.INVALID_JSON, "improvementLayerAdvice confidence is invalid.");
+            }
+            if (unsafe(item.getTitle(), item.getCurrentLimit(), item.getSuggestion(), item.getStudentBenefit())) {
+                return invalid(ModelStageFailureReason.SAFETY_RISK, "improvementLayerAdvice contains answer leak.");
+            }
+        }
+        return null;
     }
 
     private void sanitizeDiagnosisCandidates(

@@ -110,6 +110,39 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
+    void diagnosisReportV2KeepsMultipleStructuredAdviceItems() {
+        StubAiReportService service = newService(diagnosisReportV2WithMultipleAdviceResponse());
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getAiInvocation().getBasicAdviceCount()).isEqualTo(2);
+        assertThat(analysis.getAiInvocation().getImprovementAdviceCount()).isEqualTo(2);
+        assertThat(analysis.getBasicLayerAdvice())
+                .hasSize(2)
+                .extracting(SubmissionAnalysisResponse.BasicLayerAdvice::getTitle)
+                .containsExactly("循环右边界漏取", "失败样例对照不足");
+        assertThat(analysis.getImprovementLayerAdvice())
+                .hasSize(2)
+                .extracting(SubmissionAnalysisResponse.ImprovementLayerAdvice::getTitle)
+                .containsExactly("补充边界样例意识", "保留手推记录");
+        assertThat(analysis.getStudentFeedback().getBlockingIssues())
+                .hasSize(2)
+                .extracting(SubmissionAnalysisResponse.FeedbackIssue::getTitle)
+                .containsExactly("循环右边界漏取", "失败样例对照不足");
+        assertThat(analysis.getStudentFeedback().getImprovementOpportunities()).hasSize(2);
+        assertThat(analysis.getReportMarkdown())
+                .contains("### 基础层", "### 基础层明细", "循环右边界漏取", "失败样例对照不足")
+                .contains("### 提高层明细", "补充边界样例意识", "保留手推记录");
+    }
+
+    @Test
     void adviceValidationFailureFallsBackWithoutPretendingSuccess() {
         StubAiReportService service = newService(
                 """
@@ -602,6 +635,71 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "nextActionText": "下一步：用 n=1 和 n=2 写出循环变量序列，再和题目要求逐项对照。"
                   },
                   "studentSummary": "这次重点是循环边界和边界自测。"
+                }
+                """;
+    }
+
+    private String diagnosisReportV2WithMultipleAdviceResponse() {
+        return """
+                {
+                  "diagnosisDecision": {
+                    "libraryFit": "HIT",
+                    "anchors": [{
+                      "id": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                      "type": "MISTAKE_POINT",
+                      "role": "PRIMARY",
+                      "confidence": 0.88,
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "reason": "循环范围没有覆盖闭区间末端。"
+                    }]
+                  },
+                  "basicLayerAdvice": [{
+                    "mistakePointId": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "循环右边界漏取",
+                    "whatHappened": "当前循环范围没有覆盖题目要求的最后一个数。",
+                    "whyItMatters": "端点漏处理会让求和结果偏小。",
+                    "studentAction": "先手推循环变量实际出现过哪些值。",
+                    "checkQuestion": "最后一个应该被处理的数有没有进入循环？",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.92
+                  }, {
+                    "mistakePointId": null,
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "失败样例对照不足",
+                    "whatHappened": "可见失败样例已经显示实际输出与预期不一致。",
+                    "whyItMatters": "不对照差异就容易只凭感觉修改。",
+                    "studentAction": "把实际输出和预期输出逐项写在旁边。",
+                    "checkQuestion": "第一处差异来自哪个循环取值？",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.76
+                  }],
+                  "improvementLayerAdvice": [{
+                    "improvementPointId": "TESTING_HABIT",
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "补充边界样例意识",
+                    "currentLimit": "这类问题不是算法方向错，而是边界验证不足。",
+                    "suggestion": "修复后补测最小值、端点值和最大值附近样例。",
+                    "studentBenefit": "能更早发现开闭区间和下标边界问题。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.8
+                  }, {
+                    "improvementPointId": null,
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "保留手推记录",
+                    "currentLimit": "目前缺少可复盘的变量取值记录。",
+                    "suggestion": "修复前后都写一遍循环变量序列。",
+                    "studentBenefit": "能看出修改是否真的覆盖了同类边界。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.72
+                  }],
+                  "studentReport": {
+                    "hintLevel": "L3",
+                    "basicLayerText": "基础层：这次重点是循环范围和失败样例对照。",
+                    "improvementLayerText": "提高层：修复后补充边界自测和手推记录。",
+                    "nextActionText": "先写出循环变量序列。"
+                  },
+                  "studentSummary": "这次有多个可独立检查的点。"
                 }
                 """;
     }

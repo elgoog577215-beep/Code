@@ -20,30 +20,9 @@ public class AdviceGenerationFeedbackMapper {
         if (hasStudentReport(output)) {
             return toStudentFeedbackFromReportV2(output, standardLibraryPack);
         }
-        List<SubmissionAnalysisResponse.FeedbackIssue> blockingIssues = safe(output.getBasicLayerAdvice()).stream()
-                .filter(item -> item != null)
-                .map(item -> SubmissionAnalysisResponse.FeedbackIssue.builder()
-                        .priority(priorityOf(output.getBasicLayerAdvice(), item))
-                        .title(defaultIfBlank(item.getTitle(), "基础层问题"))
-                        .studentMessage(joinNonBlank(item.getWhatHappened(), item.getWhyItMatters()))
-                        .evidence(firstOrDefault(item.getEvidenceRefs(), "模型引用了当前提交证据。"))
-                        .nextAction(item.getStudentAction())
-                        .issueTag(defaultIfBlank(item.getSkillUnitId(), item.getMistakePointId()))
-                        .fineGrainedTag(item.getMistakePointId())
-                        .evidenceRefs(item.getEvidenceRefs())
-                        .build())
-                .toList();
+        List<SubmissionAnalysisResponse.FeedbackIssue> blockingIssues = toBlockingIssues(output);
         List<SubmissionAnalysisResponse.ImprovementOpportunity> improvementOpportunities =
-                safe(output.getImprovementLayerAdvice()).stream()
-                        .filter(item -> item != null)
-                        .map(item -> SubmissionAnalysisResponse.ImprovementOpportunity.builder()
-                                .title(defaultIfBlank(item.getTitle(), "提高层"))
-                                .category(toImprovementCategory(item, standardLibraryPack))
-                                .studentMessage(defaultIfBlank(item.getSuggestion(), item.getCurrentLimit()))
-                                .benefit(defaultIfBlank(item.getStudentBenefit(), "帮助你把同类问题迁移到下一题。"))
-                                .evidenceRefs(item.getEvidenceRefs())
-                                .build())
-                        .toList();
+                toImprovementOpportunities(output, standardLibraryPack);
         AdviceGenerationOutput.NextStepAdvice firstStep = safe(output.getNextStepPlan()).stream()
                 .filter(item -> item != null)
                 .findFirst()
@@ -78,29 +57,35 @@ public class AdviceGenerationFeedbackMapper {
         String anchorId = anchor == null ? "" : anchor.getId();
         String nextAction = defaultIfBlank(report.getNextActionText(), "先复核模型指出的证据。");
 
-        List<SubmissionAnalysisResponse.FeedbackIssue> blockingIssues = blank(report.getBasicLayerText())
-                ? List.of()
-                : List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
+        List<SubmissionAnalysisResponse.FeedbackIssue> blockingIssues = toBlockingIssues(output);
+        if (blockingIssues.isEmpty() && !blank(report.getBasicLayerText())) {
+            List<String> basicEvidenceRefs = evidenceRefs.isEmpty() ? firstBasicEvidenceRefs(output) : evidenceRefs;
+            blockingIssues = List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
                         .priority(1)
                         .title("基础层")
                         .studentMessage(report.getBasicLayerText())
-                        .evidence(firstOrDefault(evidenceRefs, "模型引用了当前提交证据。"))
+                        .evidence(firstOrDefault(basicEvidenceRefs, "模型引用了当前提交证据。"))
                         .nextAction(nextAction)
                         .issueTag(defaultIfBlank(anchorId, "BASIC_LAYER"))
                         .fineGrainedTag(anchorId)
-                        .evidenceRefs(evidenceRefs)
+                        .evidenceRefs(basicEvidenceRefs)
                         .build());
+        }
 
         List<SubmissionAnalysisResponse.ImprovementOpportunity> improvementOpportunities =
-                blank(report.getImprovementLayerText())
-                        ? List.of()
-                        : List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                toImprovementOpportunities(output, standardLibraryPack);
+        if (improvementOpportunities.isEmpty() && !blank(report.getImprovementLayerText())) {
+            List<String> improvementEvidenceRefs = evidenceRefs.isEmpty() ? firstBasicEvidenceRefs(output) : evidenceRefs;
+            improvementOpportunities = List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
                                 .title("提高层")
                                 .category(firstImprovementCategory(standardLibraryPack))
                                 .studentMessage(report.getImprovementLayerText())
                                 .benefit(report.getImprovementLayerText())
-                                .evidenceRefs(evidenceRefs)
+                                .evidenceRefs(improvementEvidenceRefs)
                                 .build());
+        }
+
+        List<String> nextEvidenceRefs = evidenceRefs.isEmpty() ? firstBasicEvidenceRefs(output) : evidenceRefs;
 
         return SubmissionAnalysisResponse.StudentFeedback.builder()
                 .summary(defaultIfBlank(output.getStudentSummary(), report.getBasicLayerText()))
@@ -112,10 +97,42 @@ public class AdviceGenerationFeedbackMapper {
                         .action(firstTeachingAction(standardLibraryPack))
                         .task(nextAction)
                         .checkQuestion(nextAction)
-                        .evidenceRefs(evidenceRefs)
+                        .evidenceRefs(nextEvidenceRefs)
                         .answerLeakRisk("LOW")
                         .build())
                 .build();
+    }
+
+    private List<SubmissionAnalysisResponse.FeedbackIssue> toBlockingIssues(AdviceGenerationOutput output) {
+        return safe(output == null ? null : output.getBasicLayerAdvice()).stream()
+                .filter(item -> item != null)
+                .map(item -> SubmissionAnalysisResponse.FeedbackIssue.builder()
+                        .priority(priorityOf(output.getBasicLayerAdvice(), item))
+                        .title(defaultIfBlank(item.getTitle(), "基础层问题"))
+                        .studentMessage(joinNonBlank(item.getWhatHappened(), item.getWhyItMatters()))
+                        .evidence(firstOrDefault(item.getEvidenceRefs(), "模型引用了当前提交证据。"))
+                        .nextAction(item.getStudentAction())
+                        .issueTag(defaultIfBlank(item.getSkillUnitId(), item.getMistakePointId()))
+                        .fineGrainedTag(item.getMistakePointId())
+                        .evidenceRefs(item.getEvidenceRefs())
+                        .build())
+                .toList();
+    }
+
+    private List<SubmissionAnalysisResponse.ImprovementOpportunity> toImprovementOpportunities(
+            AdviceGenerationOutput output,
+            StandardLibraryPack standardLibraryPack
+    ) {
+        return safe(output == null ? null : output.getImprovementLayerAdvice()).stream()
+                .filter(item -> item != null)
+                .map(item -> SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                        .title(defaultIfBlank(item.getTitle(), "提高层"))
+                        .category(toImprovementCategory(item, standardLibraryPack))
+                        .studentMessage(defaultIfBlank(item.getSuggestion(), item.getCurrentLimit()))
+                        .benefit(defaultIfBlank(item.getStudentBenefit(), "帮助你把同类问题迁移到下一题。"))
+                        .evidenceRefs(item.getEvidenceRefs())
+                        .build())
+                .toList();
     }
 
     private boolean hasStudentReport(AdviceGenerationOutput output) {

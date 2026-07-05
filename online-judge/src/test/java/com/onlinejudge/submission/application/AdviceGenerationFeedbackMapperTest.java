@@ -62,6 +62,117 @@ class AdviceGenerationFeedbackMapperTest {
     }
 
     @Test
+    void diagnosisReportV2KeepsMultipleStructuredAdviceItems() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .diagnosisDecision(AdviceGenerationOutput.DiagnosisDecision.builder()
+                        .libraryFit("PARTIAL")
+                        .anchors(List.of(AdviceGenerationOutput.DiagnosisAnchor.builder()
+                                .id("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                                .type("MISTAKE_POINT")
+                                .role("PRIMARY")
+                                .confidence(0.86)
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .reason("循环边界证据明确。")
+                                .build()))
+                        .build())
+                .basicLayerAdvice(List.of(
+                        AdviceGenerationOutput.BasicLayerAdvice.builder()
+                                .mistakePointId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                                .skillUnitId("SK_RANGE_BOUNDARY")
+                                .title("循环右边界漏取")
+                                .whatHappened("循环没有覆盖题目要求的末端。")
+                                .whyItMatters("端点漏处理会让结果偏小。")
+                                .studentAction("先手推循环变量实际出现过哪些值。")
+                                .checkQuestion("最后一个数有没有进入循环？")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .confidence(0.9)
+                                .build(),
+                        AdviceGenerationOutput.BasicLayerAdvice.builder()
+                                .mistakePointId(null)
+                                .skillUnitId("SK_RANGE_BOUNDARY")
+                                .title("失败样例没有被对照")
+                                .whatHappened("可见失败样例已经暴露实际输出与期望不一致。")
+                                .whyItMatters("不对照样例就容易只凭感觉修改。")
+                                .studentAction("把实际输出和期望输出逐项写在旁边。")
+                                .checkQuestion("第一处差异来自哪个循环取值？")
+                                .evidenceRefs(List.of("judge:first_failed_case"))
+                                .confidence(0.78)
+                                .build()
+                ))
+                .improvementLayerAdvice(List.of(
+                        AdviceGenerationOutput.ImprovementLayerAdvice.builder()
+                                .improvementPointId("IP_BOUNDARY_MIN_CASE_TEST")
+                                .skillUnitId("SK_RANGE_BOUNDARY")
+                                .title("补充端点自测")
+                                .currentLimit("当前缺少端点意识。")
+                                .suggestion("修复后加入最小值和端点附近自测。")
+                                .studentBenefit("更容易发现开闭区间问题。")
+                                .evidenceRefs(List.of("code:range_excludes_n"))
+                                .confidence(0.8)
+                                .build(),
+                        AdviceGenerationOutput.ImprovementLayerAdvice.builder()
+                                .improvementPointId("IP_VISIBLE_CASE_TRACE")
+                                .skillUnitId("SK_RANGE_BOUNDARY")
+                                .title("保留手推记录")
+                                .currentLimit("调试时缺少可复盘的变量序列。")
+                                .suggestion("每次改动前后保留一份变量取值记录。")
+                                .studentBenefit("能判断修改是否真的解决同一类问题。")
+                                .evidenceRefs(List.of("judge:first_failed_case"))
+                                .confidence(0.74)
+                                .build()
+                ))
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：这次重点是循环范围和失败样例对照。")
+                        .improvementLayerText("提高层：修复后补充边界自测和手推记录。")
+                        .nextActionText("先写出循环变量序列。")
+                        .build())
+                .studentSummary("这次有两个基础层检查点和两个提高层方向。")
+                .build();
+
+        StandardLibraryPack pack = StandardLibraryPack.builder()
+                .improvementPoints(List.of(
+                        StandardLibraryPack.ImprovementPointOption.builder()
+                                .id("IP_BOUNDARY_MIN_CASE_TEST")
+                                .category("TESTING_HABIT")
+                                .name("端点自测")
+                                .build(),
+                        StandardLibraryPack.ImprovementPointOption.builder()
+                                .id("IP_VISIBLE_CASE_TRACE")
+                                .category("TRACE_REVIEW")
+                                .name("手推记录")
+                                .build()
+                ))
+                .improvementTags(List.of(
+                        StandardLibraryPack.ImprovementTagOption.builder()
+                                .id("TESTING_HABIT")
+                                .label("自测习惯")
+                                .build(),
+                        StandardLibraryPack.ImprovementTagOption.builder()
+                                .id("TRACE_REVIEW")
+                                .label("复盘追踪")
+                                .build()
+                ))
+                .teachingActions(List.of(StandardLibraryPack.TeachingActionOption.builder()
+                        .id("TRACE_VARIABLES")
+                        .label("手推变量")
+                        .build()))
+                .build();
+
+        SubmissionAnalysisResponse.StudentFeedback feedback = mapper.toStudentFeedback(output, pack);
+
+        assertThat(feedback.getBlockingIssues())
+                .hasSize(2)
+                .extracting(SubmissionAnalysisResponse.FeedbackIssue::getTitle)
+                .containsExactly("循环右边界漏取", "失败样例没有被对照");
+        assertThat(feedback.getImprovementOpportunities())
+                .hasSize(2)
+                .extracting(SubmissionAnalysisResponse.ImprovementOpportunity::getCategory)
+                .containsExactly("TESTING_HABIT", "TRACE_REVIEW");
+        assertThat(feedback.getNextLearningAction().getTask()).isEqualTo("先写出循环变量序列。");
+    }
+
+    @Test
     void mapsFineGrainedImprovementPointToLegacyImprovementTagCategory() {
         AdviceGenerationOutput output = AdviceGenerationOutput.builder()
                 .caseUnderstanding(AdviceGenerationOutput.CaseUnderstanding.builder()

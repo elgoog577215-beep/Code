@@ -76,7 +76,81 @@ class StudentAiFeedbackModelTest {
                 .contains("judgeFacts", "candidateSignals", "sourceExcerpt", "evidenceCandidates")
                 .contains("不要把内部字段名写进学生反馈");
         assertThat(service.lastUserPrompt()).doesNotContain("sourceCodeWithLineNumbers", "sourceCodeForLineAnalysis");
-        assertThat(service.lastOutputTokens()).isLessThanOrEqualTo(900);
+        assertThat(service.lastOutputTokens()).isEqualTo(1800);
+    }
+
+    @Test
+    void keepsAllStructuredRepairAndImprovementItemsFromModel() {
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "这次有多个可独立检查的问题：先核对输入读取，再核对输出表达。",
+                    "improvementLayerText": "修复后可以从自测、变量追踪和题面复述三个方向提升。",
+                    "nextActionText": "先写下每一次 input 应该读到什么。"
+                  },
+                  "repairItems": [{
+                    "title": "输入读取不匹配",
+                    "body": "先检查读取语句是否覆盖题面要求的两个整数。",
+                    "kind": "INPUT_PARSING",
+                    "evidenceRefs": ["E1"],
+                    "qualitySignals": ["evidence_grounded", "actionable"]
+                  }, {
+                    "title": "输出目标要复核",
+                    "body": "再确认程序最终输出的是题目要求的目标量。",
+                    "kind": "OUTPUT_GOAL",
+                    "evidenceRefs": ["judge:first_failed_case:1"],
+                    "qualitySignals": ["evidence_grounded", "actionable"]
+                  }, {
+                    "title": "异常信息先定位",
+                    "body": "保留报错类型和触发行，先解释为什么会在读取阶段失败。",
+                    "kind": "RUNTIME_TRACE",
+                    "evidenceRefs": ["code:line:1"],
+                    "qualitySignals": ["evidence_grounded", "actionable"]
+                  }],
+                  "improvementItems": [{
+                    "title": "输入结构自测",
+                    "body": "修复后补一个和样例格式不同的小输入。",
+                    "kind": "IMPROVEMENT",
+                    "evidenceRefs": ["E1"],
+                    "qualitySignals": ["transfer"]
+                  }, {
+                    "title": "变量追踪",
+                    "body": "记录读取后的变量值，确认它们对应题面含义。",
+                    "kind": "IMPROVEMENT",
+                    "evidenceRefs": ["code:line:1"],
+                    "qualitySignals": ["transfer"]
+                  }, {
+                    "title": "题面复述",
+                    "body": "修改前先用一句话复述输入和输出分别是什么。",
+                    "kind": "IMPROVEMENT",
+                    "evidenceRefs": ["judge:first_failed_case:1"],
+                    "qualitySignals": ["transfer"]
+                  }],
+                  "nextQuestion": "这段代码读到的第一个值对应题面里的哪个量？",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["E1", "judge:first_failed_case:1"]
+                }
+                """);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                submission(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(feedback.getStatus()).isEqualTo("READY");
+        assertThat(feedback.getRepairItems())
+                .hasSize(3)
+                .extracting(StudentAiFeedbackResponse.FeedbackItem::getTitle)
+                .containsExactly("输入读取不匹配", "输出目标要复核", "异常信息先定位");
+        assertThat(feedback.getImprovementItems())
+                .hasSize(3)
+                .extracting(StudentAiFeedbackResponse.FeedbackItem::getTitle)
+                .containsExactly("输入结构自测", "变量追踪", "题面复述");
+        assertThat(feedback.getEvidenceRefs()).contains("code:line:1", "judge:first_failed_case:1");
+        assertThat(service.lastOutputTokens()).isEqualTo(1800);
+        assertThat(service.lastSystemPrompt()).contains("0 到多条");
     }
 
     @Test

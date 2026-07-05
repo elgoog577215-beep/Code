@@ -280,11 +280,11 @@ public class AiReportService {
                     {"studentReport":{"basicLayerText":"","improvementLayerText":"","nextActionText":""},"repairItems":[{"title":"","body":"","kind":"","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
 
                     规则:
-                    1. studentReport 是学生真正看到的主输出。用自然短句写：先说现象，再说可能原因，再给检查动作。
-                    2. basicLayerText 写 2-3 个短句，90-170 个中文字符，聚焦当前最可能阻塞 AC 的主因；不要堆成一个长句。
-                    3. improvementLayerText 写 1-2 个短句，70-140 个中文字符，只写修复基础问题后值得提升的方向，不要复述基础层。
+                    1. studentReport 是学生真正看到的摘要。用自然短句写：先说现象，再说可能原因，再给检查动作。
+                    2. basicLayerText 写 2-3 个短句，90-170 个中文字符，概括当前基础层重点；不要把多条独立错误硬塞成一个长句。
+                    3. improvementLayerText 写 1-2 个短句，70-140 个中文字符，概括修复基础问题后值得提升的方向；不要复述基础层。
                     4. nextActionText 只写 1 个学生马上能做的自查动作，用一句话表达，不要编号，不超过 60 个中文字符。
-                    5. repairItems 允许 1-2 条，只有存在彼此独立的错误才给第 2 条；improvementItems 允许 1-2 条。不要为了显得丰富而凑数。
+                    5. repairItems 和 improvementItems 都按真实证据返回 0 到多条：有几个彼此独立的错误就给几条 repairItems，有几个真实提升方向就给几条 improvementItems；不要强行合并成一条，也不要为了显得丰富而凑数。
                     6. 不要把 candidateSignals 或 ruleSignals 当成结论；必须让题目目标、代码行为、评测结果三者能对上。
                     7. 每条建议的 evidenceRefs 优先填写 evidenceCandidates 里的 E1/E2 这类证据 ID；也可以填写已有 code:line/code:range。不能猜隐藏测试。
                     8. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达。
@@ -297,7 +297,7 @@ public class AiReportService {
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);
-            int fastFeedbackOutputTokens = Math.min(Math.max(520, maxOutputTokens), 720);
+            int fastFeedbackOutputTokens = Math.max(700, maxOutputTokens);
             String content = chatCompletionForStudentFeedback(systemPrompt, userPrompt, fastFeedbackOutputTokens);
             StudentFastFeedbackPayload payload = parseModelStagePayload(content, StudentFastFeedbackPayload.class);
             StudentAiFeedbackResponse response = normalizeStudentFastFeedback(payload, submission, startedAt, evidenceCandidateRefs);
@@ -844,8 +844,6 @@ public class AiReportService {
             appendStudentReportSection(builder, "基础层", report.getBasicLayerText());
             appendStudentReportSection(builder, "提高层", report.getImprovementLayerText());
             appendStudentReportSection(builder, "下一步行动", report.getNextActionText());
-            String markdown = builder.toString().trim();
-            return markdown.isBlank() ? fallbackMarkdown : markdown;
         }
         if (output.getCaseUnderstanding() != null) {
             AdviceGenerationOutput.CaseUnderstanding understanding = output.getCaseUnderstanding();
@@ -857,7 +855,7 @@ public class AiReportService {
             builder.append('\n');
         }
         if (output.getBasicLayerAdvice() != null && !output.getBasicLayerAdvice().isEmpty()) {
-            builder.append("### 基础层\n\n");
+            builder.append(output.getStudentReport() == null ? "### 基础层\n\n" : "### 基础层明细\n\n");
             int index = 1;
             for (AdviceGenerationOutput.BasicLayerAdvice item : output.getBasicLayerAdvice()) {
                 if (item == null) {
@@ -877,7 +875,7 @@ public class AiReportService {
             }
         }
         if (output.getImprovementLayerAdvice() != null && !output.getImprovementLayerAdvice().isEmpty()) {
-            builder.append("### 提高层\n\n");
+            builder.append(output.getStudentReport() == null ? "### 提高层\n\n" : "### 提高层明细\n\n");
             int index = 1;
             for (AdviceGenerationOutput.ImprovementLayerAdvice item : output.getImprovementLayerAdvice()) {
                 if (item == null) {
@@ -2675,9 +2673,9 @@ public class AiReportService {
                     .build();
         }
         List<StudentAiFeedbackResponse.FeedbackItem> repairItems =
-                enrichFeedbackItems(normalizeFeedbackItems(payload.repairItems, 2, evidenceCandidateRefs), submission);
+                enrichFeedbackItems(normalizeFeedbackItems(payload.repairItems, evidenceCandidateRefs), submission);
         List<StudentAiFeedbackResponse.FeedbackItem> improvementItems =
-                enrichFeedbackItems(normalizeFeedbackItems(payload.improvementItems, 2, evidenceCandidateRefs), submission);
+                enrichFeedbackItems(normalizeFeedbackItems(payload.improvementItems, evidenceCandidateRefs), submission);
         String nextQuestion = cleanStudentFeedbackText(payload.nextQuestion);
         StudentAiFeedbackResponse.StudentReport studentReport =
                 normalizeStudentReport(payload.studentReport, repairItems, improvementItems, nextQuestion);
@@ -2947,7 +2945,6 @@ public class AiReportService {
     }
 
     private List<StudentAiFeedbackResponse.FeedbackItem> normalizeFeedbackItems(List<StudentFeedbackItemPayload> payloadItems,
-                                                                                int maxItems,
                                                                                 Map<String, String> evidenceCandidateRefs) {
         if (payloadItems == null || payloadItems.isEmpty()) {
             return List.of();
@@ -2955,7 +2952,7 @@ public class AiReportService {
         List<StudentAiFeedbackResponse.FeedbackItem> items = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (StudentFeedbackItemPayload payload : payloadItems) {
-            if (payload == null || items.size() >= maxItems) {
+            if (payload == null) {
                 continue;
             }
             String title = cleanStudentFeedbackText(payload.title);

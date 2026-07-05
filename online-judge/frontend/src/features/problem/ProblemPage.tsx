@@ -847,8 +847,8 @@ export default function ProblemPage() {
   const improvementViewItems = modelFeedbackReady ? studentAiFeedback?.improvementItems?.filter(item => item.body || item.title) || [] : [];
   const primaryRepairItem = repairViewItems[0] || null;
   const primaryImprovementItem = improvementViewItems[0] || null;
-  const secondaryRepairItems = repairViewItems.slice(1, 3);
-  const secondaryImprovementItems = improvementViewItems.slice(1, 3);
+  const secondaryRepairItems = repairViewItems;
+  const secondaryImprovementItems = improvementViewItems;
   const isFeedbackWaiting = Boolean(
     latest &&
       feedbackPollState !== "idle" &&
@@ -1222,8 +1222,8 @@ export default function ProblemPage() {
                         <FeedbackTextBlock text={basicReportText} />
                         <FeedbackEvidenceMeta item={primaryRepairItem} onJumpToLine={jumpToEvidenceLine} />
                         {secondaryRepairItems.length ? (
-                          <div className="student-feedback-secondary-list" aria-label="补充检查">
-                            <span>补充检查</span>
+                          <div className="student-feedback-secondary-list" aria-label="逐条检查">
+                            <span>逐条检查</span>
                             {secondaryRepairItems.map((item, index) => (
                               <article key={`${item.kind || "repair-extra"}-${index}`}>
                                 {item.title && <strong>{item.title}</strong>}
@@ -1238,8 +1238,8 @@ export default function ProblemPage() {
                       <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
                     ) : repairViewItems.length ? (
                       <div className="student-feedback-list">
-                        {repairViewItems.slice(0, 1).map((item, index) => (
-                          <article className="student-feedback-item student-feedback-item--primary" key={`${item.kind || "repair"}-${index}`}>
+                        {repairViewItems.map((item, index) => (
+                          <article className={`student-feedback-item${index === 0 ? " student-feedback-item--primary" : ""}`} key={`${item.kind || "repair"}-${index}`}>
                             {item.title && <strong>{item.title}</strong>}
                             <FeedbackTextBlock text={item.body} maxLines={2} />
                             <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} />
@@ -1274,8 +1274,8 @@ export default function ProblemPage() {
                         <FeedbackTextBlock text={improvementReportText} />
                         <FeedbackEvidenceMeta item={primaryImprovementItem} onJumpToLine={jumpToEvidenceLine} />
                         {secondaryImprovementItems.length ? (
-                          <div className="student-feedback-secondary-list" aria-label="补充提升">
-                            <span>补充提升</span>
+                          <div className="student-feedback-secondary-list" aria-label="逐条提升">
+                            <span>逐条提升</span>
                             {secondaryImprovementItems.map((item, index) => (
                               <article key={`${item.kind || "growth-extra"}-${index}`}>
                                 {item.title && <strong>{item.title}</strong>}
@@ -1290,7 +1290,7 @@ export default function ProblemPage() {
                       <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
                     ) : improvementViewItems.length ? (
                       <div className="student-feedback-list">
-                        {improvementViewItems.slice(0, 3).map((item, index) => (
+                        {improvementViewItems.map((item, index) => (
                           <article className="student-feedback-item student-feedback-item--growth" key={`${item.kind || "improvement"}-${index}`}>
                             {item.title && <span>{item.title}</span>}
                             <FeedbackTextBlock text={item.body} maxLines={2} />
