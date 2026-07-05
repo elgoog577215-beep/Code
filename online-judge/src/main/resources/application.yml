@@ -55,6 +55,8 @@ ai:
   retry:
     max-attempts: ${AI_RETRY_MAX_ATTEMPTS:1}
     backoff-ms: ${AI_RETRY_BACKOFF_MS:700}
+  student-feedback:
+    min-request-interval-ms: ${AI_STUDENT_FEEDBACK_MIN_REQUEST_INTERVAL_MS:2000}
   search-location:
     enabled: ${AI_SEARCH_LOCATION_ENABLED:false}
     mode: ${AI_SEARCH_LOCATION_MODE:hybrid}

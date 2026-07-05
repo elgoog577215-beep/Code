@@ -178,7 +178,28 @@ class StudentAiFeedbackModelTest {
         assertThat(feedback.getSource()).isEqualTo("RULE_FALLBACK");
         assertThat(feedback.getRepairItems()).isEmpty();
         assertThat(feedback.getImprovementItems()).isEmpty();
+        assertThat(feedback.getStudentReport().getBasicLayerText()).contains("外部 AI 暂不可用");
+        assertThat(feedback.getStudentReport().getNextActionText()).contains("重试 AI");
         assertThat(feedback.getSafety().getBlockedReasons()).contains("AI_UNAVAILABLE");
+    }
+
+    @Test
+    void callFailureReturnsDisplayableDegradedMessageWithoutLocalAdvice() {
+        StubStudentFeedbackAiReportService service = newService(null);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                submission(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(feedback.getStatus()).isEqualTo("FAILED");
+        assertThat(feedback.getSource()).isEqualTo("RULE_FALLBACK");
+        assertThat(feedback.getRepairItems()).isEmpty();
+        assertThat(feedback.getImprovementItems()).isEmpty();
+        assertThat(feedback.getStudentReport().getBasicLayerText()).contains("外部 AI 暂不可用");
+        assertThat(feedback.getStudentReport().getImprovementLayerText()).contains("不可靠结论");
     }
 
     private StubStudentFeedbackAiReportService newService(String response) {

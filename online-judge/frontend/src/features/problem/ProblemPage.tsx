@@ -700,15 +700,11 @@ export default function ProblemPage() {
   const passed = latest?.testCaseResults?.filter(item => item.passed).length || 0;
   const total = latest?.testCaseResults?.length || 0;
   const firstFailedCase = latest?.testCaseResults?.find(item => !item.passed) || null;
-  const modelFeedbackReady = studentAiFeedback?.status === "READY" && studentAiFeedback.source === "MODEL";
-  const repairViewItems = modelFeedbackReady ? studentAiFeedback.repairItems?.filter(item => item.body || item.title) || [] : [];
-  const improvementViewItems = modelFeedbackReady ? studentAiFeedback.improvementItems?.filter(item => item.body || item.title) || [] : [];
-  const studentReport = modelFeedbackReady ? studentAiFeedback.studentReport || null : null;
-  const basicReportText = studentReport?.basicLayerText?.trim() || "";
-  const improvementReportText = studentReport?.improvementLayerText?.trim() || "";
-  const nextActionReportText = studentReport?.nextActionText?.trim() || "";
   const feedbackStatus = String(studentAiFeedback?.status || "").toUpperCase();
   const feedbackSource = String(studentAiFeedback?.source || "").toUpperCase();
+  const modelFeedbackReady = feedbackStatus === "READY" && feedbackSource === "MODEL";
+  const repairViewItems = modelFeedbackReady ? studentAiFeedback?.repairItems?.filter(item => item.body || item.title) || [] : [];
+  const improvementViewItems = modelFeedbackReady ? studentAiFeedback?.improvementItems?.filter(item => item.body || item.title) || [] : [];
   const isFeedbackWaiting = Boolean(
     latest &&
       feedbackPollState !== "idle" &&
@@ -720,11 +716,16 @@ export default function ProblemPage() {
     latest && (
       (
         studentAiFeedback &&
-        (["TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(feedbackStatus) || feedbackSource === "RULE_FALLBACK")
+        (["TIMEOUT", "FAILED", "SAFETY_REJECTED"].includes(feedbackStatus) || (terminalFeedbackStatus(feedbackStatus) && feedbackSource === "RULE_FALLBACK"))
       ) ||
       feedbackPollState === "stalled"
     )
   );
+  const canShowStudentReport = modelFeedbackReady || Boolean(feedbackFailed && studentAiFeedback?.studentReport);
+  const studentReport = canShowStudentReport ? studentAiFeedback?.studentReport || null : null;
+  const basicReportText = studentReport?.basicLayerText?.trim() || "";
+  const improvementReportText = studentReport?.improvementLayerText?.trim() || "";
+  const nextActionReportText = studentReport?.nextActionText?.trim() || "";
   const feedbackFallbackMessage = feedbackPollState === "stalled"
     ? "AI 分析暂未完成，可能是模型排队或配置异常。请稍后重试 AI。"
     : studentAiFeedback?.source === "RULE_FALLBACK"
@@ -740,12 +741,14 @@ export default function ProblemPage() {
       ? "AI 后台生成中"
       : isFeedbackWaiting
         ? "AI 分析中"
-        : testCaseSummary;
+        : feedbackFailed
+          ? "AI 未完成"
+          : testCaseSummary;
   const selectedLanguage = contestLanguageById(languageId);
   const draftChanged = sourceCode !== defaultSourceFor(problem, languageId);
   const canSubmit = Boolean(sourceCode.trim()) && !busy;
   const codeLineCount = sourceCode ? sourceCode.split(/\r?\n/).length : 0;
-  const repairCheckQuestion = modelFeedbackReady ? nextActionReportText || studentAiFeedback.nextQuestion || "" : "";
+  const repairCheckQuestion = canShowStudentReport ? nextActionReportText || (modelFeedbackReady ? studentAiFeedback?.nextQuestion || "" : "") : "";
   const showRepairSection =
     isFeedbackWaiting ||
     isFeedbackBackground ||
@@ -1099,12 +1102,12 @@ export default function ProblemPage() {
                     </div>
                     {isFeedbackWaiting || isFeedbackBackground ? (
                       <FeedbackLoadingPanel mode="repair" state={feedbackPollState} />
-                    ) : feedbackFailed ? (
-                      <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
                     ) : basicReportText ? (
                       <article className="student-feedback-report student-feedback-report--basic">
                         <p>{basicReportText}</p>
                       </article>
+                    ) : feedbackFailed ? (
+                      <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
                     ) : repairViewItems.length ? (
                       <div className="student-feedback-list">
                         {repairViewItems.slice(0, 1).map((item, index) => (
@@ -1116,7 +1119,7 @@ export default function ProblemPage() {
                       </div>
                     ) : null}
 
-                    {modelFeedbackReady && repairCheckQuestion ? (
+                    {canShowStudentReport && repairCheckQuestion ? (
                       <section className="student-feedback-next" aria-label="下一步">
                         <p>{repairCheckQuestion}</p>
                       </section>
@@ -1137,12 +1140,12 @@ export default function ProblemPage() {
                     </div>
                     {isFeedbackWaiting || isFeedbackBackground ? (
                       <FeedbackLoadingPanel mode="growth" state={feedbackPollState} />
-                    ) : feedbackFailed ? (
-                      <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
                     ) : improvementReportText ? (
                       <article className="student-feedback-report student-feedback-report--growth">
                         <p>{improvementReportText}</p>
                       </article>
+                    ) : feedbackFailed ? (
+                      <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
                     ) : improvementViewItems.length ? (
                       <div className="student-feedback-list">
                         {improvementViewItems.slice(0, 3).map((item, index) => (

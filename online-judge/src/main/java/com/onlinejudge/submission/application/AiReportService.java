@@ -198,6 +198,12 @@ public class AiReportService {
     @Value("${ai.retry.backoff-ms:700}")
     private long retryBackoffMs;
 
+    @Value("${ai.student-feedback.min-request-interval-ms:2000}")
+    private long studentFeedbackMinRequestIntervalMs;
+
+    private final Object studentFeedbackThrottle = new Object();
+    private long lastStudentFeedbackRequestAtMs = 0L;
+
     public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                 Submission submission,
                                                                 SubmissionAnalysisResponse fallback) {
@@ -282,7 +288,7 @@ public class AiReportService {
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);
-            int fastFeedbackOutputTokens = Math.min(Math.max(640, maxOutputTokens), 900);
+            int fastFeedbackOutputTokens = Math.min(Math.max(520, maxOutputTokens), 720);
             String content = chatCompletionForStudentFeedback(systemPrompt, userPrompt, fastFeedbackOutputTokens);
             StudentFastFeedbackPayload payload = parseModelStagePayload(content, StudentFastFeedbackPayload.class);
             StudentAiFeedbackResponse response = normalizeStudentFastFeedback(payload, submission, startedAt);
@@ -1419,7 +1425,24 @@ public class AiReportService {
     protected String chatCompletionForStudentFeedback(String systemPrompt,
                                                       String userPrompt,
                                                       int outputTokens) throws IOException, InterruptedException {
+        throttleStudentFeedbackRequest();
         return chatCompletionWithOverrides(systemPrompt, userPrompt, streamEnabled, outputTokens);
+    }
+
+    private void throttleStudentFeedbackRequest() throws InterruptedException {
+        long intervalMs = Math.max(0, studentFeedbackMinRequestIntervalMs);
+        if (intervalMs <= 0) {
+            return;
+        }
+        synchronized (studentFeedbackThrottle) {
+            long now = System.currentTimeMillis();
+            long waitMs = lastStudentFeedbackRequestAtMs + intervalMs - now;
+            if (waitMs > 0) {
+                Thread.sleep(waitMs);
+                now = System.currentTimeMillis();
+            }
+            lastStudentFeedbackRequestAtMs = now;
+        }
     }
 
     private String chatCompletionWithOverrides(String systemPrompt,
@@ -2549,13 +2572,26 @@ public class AiReportService {
                 .latencyMs(elapsedMs(startedAt))
                 .repairItems(List.of())
                 .improvementItems(List.of())
-                .studentReport(null)
+                .studentReport(failureStudentReport(reason))
                 .nextQuestion(null)
                 .safety(StudentAiFeedbackResponse.Safety.builder()
                         .answerLeakRisk("LOW")
                         .blockedReasons(reason == null || reason.isBlank() ? List.of() : List.of(reason))
                         .build())
                 .evidenceRefs(List.of())
+                .build();
+    }
+
+    private StudentAiFeedbackResponse.StudentReport failureStudentReport(String reason) {
+        String normalizedReason = defaultIfBlank(reason, "GENERATION_FAILED");
+        String basic = "外部 AI 暂不可用，本次没有生成深度诊断。系统没有把规则结果伪装成模型分析，你可以先根据评测结果继续修改，稍后点击重试 AI。";
+        if (normalizedReason.toLowerCase().contains("limit") || normalizedReason.toLowerCase().contains("429")) {
+            basic = "外部 AI 当前被限流，本次没有生成深度诊断。系统已保留评测结果，你可以先继续修改代码，稍后点击重试 AI 获取完整分析。";
+        }
+        return StudentAiFeedbackResponse.StudentReport.builder()
+                .basicLayerText(basic)
+                .improvementLayerText("本次不生成提高层建议，避免在外部模型不可用时给出不可靠结论。")
+                .nextActionText("先查看首个失败测试点和错误输出，修完后再重试 AI。")
                 .build();
     }
 
