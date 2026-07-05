@@ -278,20 +278,20 @@ public class AiReportService {
                     {"studentReport":{"basicLayerText":"","improvementLayerText":"","nextActionText":""},"repairItems":[{"title":"","body":"","kind":"","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
 
                     规则:
-                    1. studentReport 是学生真正看到的主输出。先用人话说明问题，再指出证据，再给一个行动。
-                    2. basicLayerText 120-220 个中文字符，聚焦第一个阻塞 AC 或基础能力缺口。
-                    3. improvementLayerText 80-180 个中文字符，只写修复基础问题后值得提升的一个方向，不要复述基础层。
-                    4. nextActionText 只写 1 个学生马上能做的自查动作，用一句话表达，不要编号，不超过 90 个中文字符。
-                    5. repairItems 最多 1 条，improvementItems 最多 1 条。它们是元数据摘要，必须短于 studentReport。
+                    1. studentReport 是学生真正看到的主输出。用自然短句写：先说现象，再说可能原因，再给检查动作。
+                    2. basicLayerText 写 2-3 个短句，90-170 个中文字符，聚焦当前最可能阻塞 AC 的主因；不要堆成一个长句。
+                    3. improvementLayerText 写 1-2 个短句，70-140 个中文字符，只写修复基础问题后值得提升的方向，不要复述基础层。
+                    4. nextActionText 只写 1 个学生马上能做的自查动作，用一句话表达，不要编号，不超过 60 个中文字符。
+                    5. repairItems 允许 1-2 条，只有存在彼此独立的错误才给第 2 条；improvementItems 允许 1-2 条。不要为了显得丰富而凑数。
                     6. 不要把 candidateSignals 或 ruleSignals 当成结论；必须让题目目标、代码行为、评测结果三者能对上。
-                    7. 只能使用输入里已有的 evidenceRefs。不能猜隐藏测试。
+                    7. 只能使用输入里已有的 evidenceRefs。优先选择 code:line 或 code:range 作为每条建议的 evidenceRefs；不能猜隐藏测试。
                     8. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达。
                     9. 学生可见文字不能复述 verdict:、code:、evidenceRefs、judgeFacts、candidateSignals 等内部字段名或证据标记。
                     10. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
                     11. 如果 submission.primaryRuntimeEvidence 存在，基础层必须优先解释其中的异常类型、行号和 lineText；不要把“代码很长、helper 太多、需要精简”当作主因，除非它直接导致这一行异常。
                     12. 如果异常是 IndexError/list index out of range，基础层必须围绕“下标访问范围”和“容器长度”解释，不要只给代码整理建议。
                     13. 如果基础层是下标越界，提高层优先写边界样例、循环边界、数组长度核对等迁移能力；不要把“精简代码/删除 helper”作为唯一提高层。
-                    14. knowledgePath 使用 3-5 段中文知识树路径，例如 ["程序基础","数组/列表","下标访问","越界检查"]；不确定时可以留空，由后端兜底。
+                    14. knowledgePath 是父子关系路径，不是独立标签；使用 3-5 段中文知识树路径，例如 ["程序基础","数组/列表","下标访问","越界检查"]；不确定时可以留空，由后端兜底。
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);
@@ -2546,7 +2546,7 @@ public class AiReportService {
                     .build();
         }
         List<StudentAiFeedbackResponse.FeedbackItem> repairItems =
-                enrichFeedbackItems(normalizeFeedbackItems(payload.repairItems, 1), submission);
+                enrichFeedbackItems(normalizeFeedbackItems(payload.repairItems, 2), submission);
         List<StudentAiFeedbackResponse.FeedbackItem> improvementItems =
                 enrichFeedbackItems(normalizeFeedbackItems(payload.improvementItems, 2), submission);
         String nextQuestion = cleanStudentFeedbackText(payload.nextQuestion);
@@ -3083,8 +3083,8 @@ public class AiReportService {
     private String cleanStudentReportText(String value) {
         String text = cleanupAiText(value).trim();
         text = text.replaceAll("（?\\(?\\s*(?:verdict|code|evidenceRefs?|judgeFacts|candidateSignals)\\s*:[^）)；;。\\n]*(?:，\\s*(?:verdict|code|evidenceRefs?|judgeFacts|candidateSignals)\\s*:[^）)；;。\\n]*)*\\s*\\)?）?", "").trim();
-        if (text.length() > 420) {
-            text = text.substring(0, 420).trim();
+        if (text.length() > 320) {
+            text = text.substring(0, 320).trim();
         }
         return text;
     }
@@ -3100,8 +3100,8 @@ public class AiReportService {
                 break;
             }
         }
-        if (text.length() > 90) {
-            text = text.substring(0, 90).trim();
+        if (text.length() > 70) {
+            text = text.substring(0, 70).trim();
         }
         return text;
     }

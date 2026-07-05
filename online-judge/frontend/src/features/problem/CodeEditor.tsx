@@ -29,7 +29,15 @@ function lineHighlightExtension(line?: number | null) {
     },
     provide: fieldRef => EditorView.decorations.from(fieldRef)
   });
-  return [field, EditorView.baseTheme({ ".cm-line-evidence-highlight": { backgroundColor: "rgba(45, 212, 191, 0.18)" } })];
+  return [
+    field,
+    EditorView.baseTheme({
+      ".cm-line-evidence-highlight": {
+        backgroundColor: "rgba(45, 212, 191, 0.2)",
+        boxShadow: "inset 4px 0 0 #2dd4bf"
+      }
+    })
+  ];
 }
 
 export default function CodeEditor({ languageId, sourceCode, onChange, highlightLine, highlightNonce = 0 }: CodeEditorProps) {

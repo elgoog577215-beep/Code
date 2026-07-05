@@ -243,6 +243,68 @@ function evidenceLineFromItem(item?: StudentAiFeedbackItem | null) {
   return ref ? Number(ref.split(":").pop()) : null;
 }
 
+function splitFeedbackSentence(text: string, maxChars = 74) {
+  const sentence = text.trim();
+  if (sentence.length <= maxChars) {
+    return sentence ? [sentence] : [];
+  }
+  const softParts = sentence.match(/[^，,、]+[，,、]?/g)?.map(part => part.trim()).filter(Boolean) || [sentence];
+  const chunks: string[] = [];
+  let current = "";
+  softParts.forEach(part => {
+    if (!current) {
+      current = part;
+      return;
+    }
+    if ((current + part).length <= maxChars) {
+      current += part;
+      return;
+    }
+    chunks.push(current);
+    current = part;
+  });
+  if (current) {
+    chunks.push(current);
+  }
+  return chunks.flatMap(chunk => {
+    if (chunk.length <= maxChars + 10) {
+      return [chunk];
+    }
+    const hardChunks: string[] = [];
+    for (let start = 0; start < chunk.length; start += maxChars) {
+      hardChunks.push(chunk.slice(start, start + maxChars));
+    }
+    return hardChunks;
+  });
+}
+
+function feedbackTextLines(text?: string | null, maxLines = 4) {
+  const cleaned = (text || "").replace(/\s+/g, " ").trim();
+  if (!cleaned) {
+    return [];
+  }
+  const sentenceParts = cleaned.match(/[^。！？；;]+[。！？；;]?/g)?.map(part => part.trim()).filter(Boolean) || [cleaned];
+  const lines = sentenceParts.flatMap(part => splitFeedbackSentence(part));
+  if (lines.length <= maxLines) {
+    return lines;
+  }
+  return [...lines.slice(0, maxLines - 1), lines.slice(maxLines - 1).join("")];
+}
+
+function FeedbackTextBlock({ text, maxLines = 4 }: { text?: string | null; maxLines?: number }) {
+  const lines = feedbackTextLines(text, maxLines);
+  if (!lines.length) {
+    return null;
+  }
+  return (
+    <div className="student-feedback-text">
+      {lines.map((line, index) => (
+        <p key={`${line}-${index}`}>{line}</p>
+      ))}
+    </div>
+  );
+}
+
 function FeedbackEvidenceMeta({
   item,
   onJumpToLine
@@ -260,17 +322,25 @@ function FeedbackEvidenceMeta({
     <div className="student-feedback-meta">
       {knowledgePath.length ? (
         <div className="student-feedback-knowledge" aria-label="知识点路径">
-          {knowledgePath.map((segment, index) => (
-            <span key={`${segment}-${index}`}>{segment}</span>
-          ))}
+          <span className="student-feedback-meta__label">知识路径</span>
+          <div className="student-feedback-knowledge__path">
+            {knowledgePath.map((segment, index) => (
+              <span key={`${segment}-${index}`}>
+                {index > 0 ? <i aria-hidden="true">›</i> : null}
+                <b>{segment}</b>
+              </span>
+            ))}
+          </div>
         </div>
       ) : null}
       {snippets.length ? (
         <div className="student-feedback-evidence" aria-label="错误证据">
+          <span className="student-feedback-meta__label">代码证据 · 点击跳到对应行</span>
           {snippets.map(snippet => (
             <button
               type="button"
               key={snippet.evidenceRef || `${snippet.lineNumber}-${snippet.code}`}
+              title="点击后回到编辑器并高亮这行代码"
               onClick={() => snippet.lineNumber && onJumpToLine(snippet.lineNumber)}
             >
               <span>{snippet.lineEnd && snippet.lineEnd !== snippet.lineNumber ? `第 ${snippet.lineNumber}-${snippet.lineEnd} 行` : `第 ${snippet.lineNumber} 行`}</span>
@@ -280,12 +350,18 @@ function FeedbackEvidenceMeta({
         </div>
       ) : fallbackLine ? (
         <div className="student-feedback-evidence" aria-label="错误证据">
-          <button type="button" onClick={() => onJumpToLine(fallbackLine)}>
+          <span className="student-feedback-meta__label">代码证据 · 点击跳到对应行</span>
+          <button type="button" title="点击后回到编辑器并高亮这行代码" onClick={() => onJumpToLine(fallbackLine)}>
             <span>第 {fallbackLine} 行</span>
             <code>查看对应代码位置</code>
           </button>
         </div>
-      ) : null}
+      ) : (
+        <div className="student-feedback-evidence student-feedback-evidence--empty" aria-label="错误证据">
+          <span className="student-feedback-meta__label">代码证据</span>
+          <em>本次 AI 没有返回可跳转的代码行。重新生成或新提交后会继续尝试定位。</em>
+        </div>
+      )}
     </div>
   );
 }
@@ -771,6 +847,8 @@ export default function ProblemPage() {
   const improvementViewItems = modelFeedbackReady ? studentAiFeedback?.improvementItems?.filter(item => item.body || item.title) || [] : [];
   const primaryRepairItem = repairViewItems[0] || null;
   const primaryImprovementItem = improvementViewItems[0] || null;
+  const secondaryRepairItems = repairViewItems.slice(1, 3);
+  const secondaryImprovementItems = improvementViewItems.slice(1, 3);
   const isFeedbackWaiting = Boolean(
     latest &&
       feedbackPollState !== "idle" &&
@@ -1177,8 +1255,20 @@ export default function ProblemPage() {
                       <FeedbackLoadingPanel mode="repair" state={feedbackPollState} />
                     ) : basicReportText ? (
                       <article className="student-feedback-report student-feedback-report--basic">
-                        <p>{basicReportText}</p>
+                        <FeedbackTextBlock text={basicReportText} />
                         <FeedbackEvidenceMeta item={primaryRepairItem} onJumpToLine={jumpToEvidenceLine} />
+                        {secondaryRepairItems.length ? (
+                          <div className="student-feedback-secondary-list" aria-label="补充检查">
+                            <span>补充检查</span>
+                            {secondaryRepairItems.map((item, index) => (
+                              <article key={`${item.kind || "repair-extra"}-${index}`}>
+                                {item.title && <strong>{item.title}</strong>}
+                                <FeedbackTextBlock text={item.body} maxLines={2} />
+                                <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} />
+                              </article>
+                            ))}
+                          </div>
+                        ) : null}
                       </article>
                     ) : feedbackFailed ? (
                       <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
@@ -1187,7 +1277,7 @@ export default function ProblemPage() {
                         {repairViewItems.slice(0, 1).map((item, index) => (
                           <article className="student-feedback-item student-feedback-item--primary" key={`${item.kind || "repair"}-${index}`}>
                             {item.title && <strong>{item.title}</strong>}
-                            {item.body && <p>{item.body}</p>}
+                            <FeedbackTextBlock text={item.body} maxLines={2} />
                             <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} />
                           </article>
                         ))}
@@ -1217,8 +1307,20 @@ export default function ProblemPage() {
                       <FeedbackLoadingPanel mode="growth" state={feedbackPollState} />
                     ) : improvementReportText ? (
                       <article className="student-feedback-report student-feedback-report--growth">
-                        <p>{improvementReportText}</p>
+                        <FeedbackTextBlock text={improvementReportText} />
                         <FeedbackEvidenceMeta item={primaryImprovementItem} onJumpToLine={jumpToEvidenceLine} />
+                        {secondaryImprovementItems.length ? (
+                          <div className="student-feedback-secondary-list" aria-label="补充提升">
+                            <span>补充提升</span>
+                            {secondaryImprovementItems.map((item, index) => (
+                              <article key={`${item.kind || "growth-extra"}-${index}`}>
+                                {item.title && <strong>{item.title}</strong>}
+                                <FeedbackTextBlock text={item.body} maxLines={2} />
+                                <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} />
+                              </article>
+                            ))}
+                          </div>
+                        ) : null}
                       </article>
                     ) : feedbackFailed ? (
                       <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
@@ -1227,7 +1329,7 @@ export default function ProblemPage() {
                         {improvementViewItems.slice(0, 3).map((item, index) => (
                           <article className="student-feedback-item student-feedback-item--growth" key={`${item.kind || "improvement"}-${index}`}>
                             {item.title && <span>{item.title}</span>}
-                            {item.body && <strong>{item.body}</strong>}
+                            <FeedbackTextBlock text={item.body} maxLines={2} />
                             <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} />
                           </article>
                         ))}

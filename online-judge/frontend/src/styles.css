@@ -5890,28 +5890,84 @@ button.list-row:hover {
   background: color-mix(in srgb, var(--blue-soft) 24%, var(--surface));
 }
 
+.student-feedback-text {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.student-feedback-secondary-list {
+  display: grid;
+  gap: 0.34rem;
+  padding-top: 0.14rem;
+}
+
+.student-feedback-secondary-list > span {
+  color: var(--ink-faint);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.student-feedback-secondary-list article {
+  display: grid;
+  gap: 0.26rem;
+  padding: 0.48rem 0.52rem;
+  border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-strong) 66%, transparent);
+}
+
+.student-feedback-secondary-list strong {
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
 .student-feedback-meta {
   display: grid;
   gap: 0.42rem;
 }
 
+.student-feedback-meta__label {
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
 .student-feedback-knowledge {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 0.24rem;
 }
 
-.student-feedback-knowledge span {
+.student-feedback-knowledge__path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.18rem;
+}
+
+.student-feedback-knowledge__path span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  min-height: 24px;
+}
+
+.student-feedback-knowledge__path b {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  padding: 0.14rem 0.44rem;
+  padding: 0.12rem 0.38rem;
   border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
   border-radius: 999px;
   color: var(--ink-soft);
   background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
   font-size: 0.72rem;
   font-weight: 850;
+}
+
+.student-feedback-knowledge__path i {
+  color: var(--ink-faint);
+  font-style: normal;
+  font-weight: 900;
 }
 
 .student-feedback-evidence {
@@ -5953,6 +6009,13 @@ button.list-row:hover {
   color: var(--ink);
   font-size: 0.78rem;
   line-height: 1.42;
+}
+
+.student-feedback-evidence--empty em {
+  color: var(--ink-faint);
+  font-size: 0.78rem;
+  font-style: normal;
+  line-height: 1.45;
 }
 
 .student-feedback-item--primary {
