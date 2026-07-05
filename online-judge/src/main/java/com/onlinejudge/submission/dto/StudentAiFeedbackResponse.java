@@ -33,8 +33,21 @@ public class StudentAiFeedbackResponse {
         private String title;
         private String body;
         private String kind;
+        private List<String> knowledgePath;
+        private List<EvidenceSnippet> evidenceSnippets;
         private List<String> evidenceRefs;
         private List<String> qualitySignals;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class EvidenceSnippet {
+        private String evidenceRef;
+        private Integer lineNumber;
+        private Integer lineEnd;
+        private String code;
     }
 
     @Data

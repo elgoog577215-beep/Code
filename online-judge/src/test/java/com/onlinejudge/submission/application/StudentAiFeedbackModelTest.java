@@ -60,6 +60,11 @@ class StudentAiFeedbackModelTest {
         assertThat(feedback.getRepairItems()).singleElement().satisfies(item -> {
             assertThat(item.getBody()).contains("手推");
             assertThat(item.getEvidenceRefs()).contains("judge:first_failed_case:1");
+            assertThat(item.getKnowledgePath()).contains("程序基础", "输入输出", "输入解析", "格式匹配");
+            assertThat(item.getEvidenceSnippets()).singleElement().satisfies(snippet -> {
+                assertThat(snippet.getLineNumber()).isEqualTo(1);
+                assertThat(snippet.getCode()).contains("n = int(input())");
+            });
         });
         assertThat(feedback.getImprovementItems()).singleElement().satisfies(item ->
                 assertThat(item.getTitle()).isEqualTo("测试习惯"));
@@ -229,6 +234,11 @@ class StudentAiFeedbackModelTest {
         assertThat(feedback.getRepairItems()).singleElement().satisfies(item -> {
             assertThat(item.getTitle()).isEqualTo("列表下标越界");
             assertThat(item.getEvidenceRefs()).contains("code:line:622", "verdict:runtime_error");
+            assertThat(item.getKnowledgePath()).contains("数组/列表", "下标访问", "越界检查");
+            assertThat(item.getEvidenceSnippets()).singleElement().satisfies(snippet -> {
+                assertThat(snippet.getLineNumber()).isEqualTo(622);
+                assertThat(snippet.getCode()).contains("total += arr[i]");
+            });
         });
     }
 

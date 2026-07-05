@@ -5890,6 +5890,71 @@ button.list-row:hover {
   background: color-mix(in srgb, var(--blue-soft) 24%, var(--surface));
 }
 
+.student-feedback-meta {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.student-feedback-knowledge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.24rem;
+}
+
+.student-feedback-knowledge span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0.14rem 0.44rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.student-feedback-evidence {
+  display: grid;
+  gap: 0.34rem;
+}
+
+.student-feedback-evidence button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.45rem;
+  padding: 0.42rem 0.48rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 26%, var(--line));
+  border-radius: var(--radius-sm);
+  color: inherit;
+  background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+  cursor: pointer;
+  text-align: left;
+}
+
+.student-feedback-evidence button:hover {
+  border-color: color-mix(in srgb, var(--brand) 48%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 30%, var(--surface-strong));
+}
+
+.student-feedback-evidence span {
+  color: var(--brand-strong);
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.student-feedback-evidence code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--ink);
+  font-size: 0.78rem;
+  line-height: 1.42;
+}
+
 .student-feedback-item--primary {
   border-color: color-mix(in srgb, var(--warning) 22%, var(--line));
   background: color-mix(in srgb, var(--warning-soft) 24%, var(--surface));

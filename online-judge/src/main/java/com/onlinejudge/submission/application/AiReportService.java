@@ -275,7 +275,7 @@ public class AiReportService {
                     所有学生可见文字必须使用简体中文。
 
                     Shape:
-                    {"studentReport":{"basicLayerText":"","improvementLayerText":"","nextActionText":""},"repairItems":[{"title":"","body":"","kind":"","evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
+                    {"studentReport":{"basicLayerText":"","improvementLayerText":"","nextActionText":""},"repairItems":[{"title":"","body":"","kind":"","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
 
                     规则:
                     1. studentReport 是学生真正看到的主输出。先用人话说明问题，再指出证据，再给一个行动。
@@ -291,6 +291,7 @@ public class AiReportService {
                     11. 如果 submission.primaryRuntimeEvidence 存在，基础层必须优先解释其中的异常类型、行号和 lineText；不要把“代码很长、helper 太多、需要精简”当作主因，除非它直接导致这一行异常。
                     12. 如果异常是 IndexError/list index out of range，基础层必须围绕“下标访问范围”和“容器长度”解释，不要只给代码整理建议。
                     13. 如果基础层是下标越界，提高层优先写边界样例、循环边界、数组长度核对等迁移能力；不要把“精简代码/删除 helper”作为唯一提高层。
+                    14. knowledgePath 使用 3-5 段中文知识树路径，例如 ["程序基础","数组/列表","下标访问","越界检查"]；不确定时可以留空，由后端兜底。
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);
@@ -2544,8 +2545,10 @@ public class AiReportService {
                     .evidenceRefs(cleanList(payload.evidenceRefs, List.of()))
                     .build();
         }
-        List<StudentAiFeedbackResponse.FeedbackItem> repairItems = normalizeFeedbackItems(payload.repairItems, 1);
-        List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = normalizeFeedbackItems(payload.improvementItems, 2);
+        List<StudentAiFeedbackResponse.FeedbackItem> repairItems =
+                enrichFeedbackItems(normalizeFeedbackItems(payload.repairItems, 1), submission);
+        List<StudentAiFeedbackResponse.FeedbackItem> improvementItems =
+                enrichFeedbackItems(normalizeFeedbackItems(payload.improvementItems, 2), submission);
         String nextQuestion = cleanStudentFeedbackText(payload.nextQuestion);
         StudentAiFeedbackResponse.StudentReport studentReport =
                 normalizeStudentReport(payload.studentReport, repairItems, improvementItems, nextQuestion);
@@ -2623,6 +2626,8 @@ public class AiReportService {
                 .title("列表下标越界")
                 .body("traceback 已经指到一次数组访问越界；先核对循环次数和数组长度的关系。")
                 .kind("REPAIR")
+                .knowledgePath(List.of("程序基础", "数组/列表", "下标访问", "越界检查"))
+                .evidenceSnippets(evidenceSnippets(List.of(evidenceRef), submission))
                 .evidenceRefs(List.of(evidenceRef, "verdict:runtime_error"))
                 .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
                 .build());
@@ -2630,6 +2635,8 @@ public class AiReportService {
                 .title("边界样例意识")
                 .body("修复后用最小 n 和普通样例复测，专门检查循环边界是否多处理或少处理。")
                 .kind("IMPROVEMENT")
+                .knowledgePath(List.of("调试能力", "测试设计", "边界样例", "错误复现"))
+                .evidenceSnippets(evidenceSnippets(List.of(evidenceRef), submission))
                 .evidenceRefs(List.of(evidenceRef))
                 .qualitySignals(List.of("transfer"))
                 .build());
@@ -2672,6 +2679,10 @@ public class AiReportService {
                         .title("边界样例意识")
                         .body("修复后用最小 n、普通样例和边界样例复测，观察是否仍有多访问或少访问。")
                         .kind("IMPROVEMENT")
+                        .knowledgePath(List.of("调试能力", "测试设计", "边界样例", "错误复现"))
+                        .evidenceSnippets(response.getRepairItems() == null || response.getRepairItems().isEmpty()
+                                ? List.of()
+                                : response.getRepairItems().get(0).getEvidenceSnippets())
                         .evidenceRefs(List.of(evidenceRef))
                         .qualitySignals(List.of("transfer"))
                         .build())
@@ -2830,11 +2841,146 @@ public class AiReportService {
                     .title(title.isBlank() ? null : title)
                     .body(body)
                     .kind(defaultIfBlank(cleanupAiText(payload.kind).toUpperCase(), "GUIDANCE"))
+                    .knowledgePath(cleanList(payload.knowledgePath, List.of()).stream().limit(5).toList())
                     .evidenceRefs(cleanList(payload.evidenceRefs, List.of()).stream().limit(4).toList())
                     .qualitySignals(cleanList(payload.qualitySignals, List.of()).stream().limit(5).toList())
                     .build());
         }
         return items;
+    }
+
+    private List<StudentAiFeedbackResponse.FeedbackItem> enrichFeedbackItems(List<StudentAiFeedbackResponse.FeedbackItem> items,
+                                                                             Submission submission) {
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+        return items.stream()
+                .filter(item -> item != null)
+                .map(item -> enrichFeedbackItem(item, submission))
+                .toList();
+    }
+
+    private StudentAiFeedbackResponse.FeedbackItem enrichFeedbackItem(StudentAiFeedbackResponse.FeedbackItem item,
+                                                                      Submission submission) {
+        List<String> knowledgePath = cleanList(item.getKnowledgePath(), List.of());
+        if (knowledgePath.isEmpty()) {
+            knowledgePath = inferredKnowledgePath(item);
+        }
+        List<StudentAiFeedbackResponse.EvidenceSnippet> snippets = evidenceSnippets(item.getEvidenceRefs(), submission);
+        return StudentAiFeedbackResponse.FeedbackItem.builder()
+                .title(item.getTitle())
+                .body(item.getBody())
+                .kind(item.getKind())
+                .knowledgePath(knowledgePath)
+                .evidenceSnippets(snippets)
+                .evidenceRefs(item.getEvidenceRefs())
+                .qualitySignals(item.getQualitySignals())
+                .build();
+    }
+
+    private List<StudentAiFeedbackResponse.EvidenceSnippet> evidenceSnippets(List<String> evidenceRefs,
+                                                                             Submission submission) {
+        if (submission == null || submission.getSourceCode() == null || evidenceRefs == null || evidenceRefs.isEmpty()) {
+            return List.of();
+        }
+        List<StudentAiFeedbackResponse.EvidenceSnippet> snippets = new ArrayList<>();
+        for (String ref : evidenceRefs) {
+            if (snippets.size() >= 3) {
+                break;
+            }
+            StudentAiFeedbackResponse.EvidenceSnippet snippet = evidenceSnippet(ref, submission.getSourceCode());
+            if (snippet != null) {
+                snippets.add(snippet);
+            }
+        }
+        return snippets;
+    }
+
+    private StudentAiFeedbackResponse.EvidenceSnippet evidenceSnippet(String evidenceRef, String sourceCode) {
+        String ref = cleanupAiText(evidenceRef);
+        if (ref.isBlank() || sourceCode == null) {
+            return null;
+        }
+        Matcher lineMatcher = Pattern.compile("^code:line:(\\d+)$").matcher(ref);
+        if (lineMatcher.find()) {
+            int line = parsePositiveInt(lineMatcher.group(1));
+            String code = sourceLine(sourceCode, line);
+            if (line > 0 && !code.isBlank()) {
+                return StudentAiFeedbackResponse.EvidenceSnippet.builder()
+                        .evidenceRef(ref)
+                        .lineNumber(line)
+                        .lineEnd(line)
+                        .code(code)
+                        .build();
+            }
+        }
+        Matcher rangeMatcher = Pattern.compile("^code:range:(\\d+)-(\\d+)$").matcher(ref);
+        if (rangeMatcher.find()) {
+            int start = parsePositiveInt(rangeMatcher.group(1));
+            int end = Math.min(start + 4, parsePositiveInt(rangeMatcher.group(2)));
+            String code = sourceLines(sourceCode, start, end);
+            if (start > 0 && end >= start && !code.isBlank()) {
+                return StudentAiFeedbackResponse.EvidenceSnippet.builder()
+                        .evidenceRef(ref)
+                        .lineNumber(start)
+                        .lineEnd(end)
+                        .code(code)
+                        .build();
+            }
+        }
+        return null;
+    }
+
+    private int parsePositiveInt(String value) {
+        try {
+            return Math.max(0, Integer.parseInt(value));
+        } catch (NumberFormatException exception) {
+            return 0;
+        }
+    }
+
+    private String sourceLines(String sourceCode, int startLine, int endLine) {
+        if (sourceCode == null || startLine <= 0 || endLine < startLine) {
+            return "";
+        }
+        String[] lines = sourceCode.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
+        if (startLine > lines.length) {
+            return "";
+        }
+        int end = Math.min(endLine, lines.length);
+        StringBuilder builder = new StringBuilder();
+        for (int line = startLine; line <= end; line++) {
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(line).append(": ").append(lines[line - 1]);
+        }
+        return cleanupAiText(builder.toString());
+    }
+
+    private List<String> inferredKnowledgePath(StudentAiFeedbackResponse.FeedbackItem item) {
+        String text = (defaultIfBlank(item.getKind(), "") + "\n"
+                + defaultIfBlank(item.getTitle(), "") + "\n"
+                + defaultIfBlank(item.getBody(), "")).toLowerCase();
+        if (text.contains("indexerror") || text.contains("下标") || text.contains("索引") || text.contains("越界")) {
+            return List.of("程序基础", "数组/列表", "下标访问", "越界检查");
+        }
+        if (text.contains("二分") || text.contains("边界更新") || text.contains("搜索范围")) {
+            return List.of("算法基础", "二分查找", "边界更新", "可行区间维护");
+        }
+        if (text.contains("输入") || text.contains("读取") || text.contains("格式")) {
+            return List.of("程序基础", "输入输出", "输入解析", "格式匹配");
+        }
+        if (text.contains("循环") || text.contains("range") || text.contains("边界")) {
+            return List.of("程序基础", "循环结构", "循环边界", "端点取值");
+        }
+        if (text.contains("字符串") || text.contains("子串") || text.contains("哈希")) {
+            return List.of("算法提高", "字符串", "子串查找", "重复判断");
+        }
+        if (text.contains("测试") || text.contains("样例")) {
+            return List.of("调试能力", "测试设计", "边界样例", "错误复现");
+        }
+        return List.of();
     }
 
     private List<String> mergeItemRefs(List<StudentAiFeedbackResponse.FeedbackItem> repairItems,
@@ -3013,6 +3159,7 @@ public class AiReportService {
         public String title;
         public String body;
         public String kind;
+        public List<String> knowledgePath;
         public List<String> evidenceRefs;
         public List<String> qualitySignals;
     }
