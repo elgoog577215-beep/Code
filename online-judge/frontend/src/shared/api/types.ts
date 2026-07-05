@@ -1731,6 +1731,28 @@ export interface AiStandardLibraryItemPayload {
   libraryVersion?: string | null;
 }
 
+export interface InformaticsKnowledgeNode {
+  id: number;
+  code: string;
+  parentCode?: string | null;
+  type: string;
+  name: string;
+  description?: string | null;
+  path?: string | null;
+  stage?: string | null;
+  difficulty?: string | null;
+  aliases: string[];
+  prerequisites: string[];
+  learningObjectives: string[];
+  typicalProblems: string[];
+  sortOrder: number;
+  enabled: boolean;
+  libraryVersion?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  children: InformaticsKnowledgeNode[];
+}
+
 export interface ImportPreview {
   importType: string;
   totalRows: number;

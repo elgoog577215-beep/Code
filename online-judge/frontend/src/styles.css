@@ -10082,6 +10082,132 @@ tr:last-child td {
   }
 }
 
+.standard-library-tree {
+  min-width: 0;
+  display: grid;
+  gap: 0.22rem;
+  padding-right: 0.08rem;
+  overflow: auto;
+}
+
+.standard-library-tree__node {
+  min-width: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.standard-library-tree__node > summary {
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.34rem;
+  padding: 0.32rem 0.22rem;
+  border-radius: 7px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.standard-library-tree__node > summary:hover {
+  background: color-mix(in srgb, var(--brand-soft) 34%, transparent);
+}
+
+.standard-library-tree__node > summary::-webkit-details-marker {
+  display: none;
+}
+
+.standard-library-tree__node > summary::before {
+  content: ">";
+  color: var(--muted);
+  font-weight: 900;
+  transition: transform 0.16s ease;
+}
+
+.standard-library-tree__node[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.standard-library-tree__node > summary > span {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.38rem;
+}
+
+.standard-library-tree__node > summary strong,
+.standard-library-tree__node > summary small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.standard-library-tree__node > summary strong {
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.standard-library-tree__node > summary small {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.standard-library-tree__children {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+  margin: 0.04rem 0 0.38rem 1.1rem;
+}
+
+.standard-library-tree .management-object-row,
+.standard-library-tree .standard-library-list__item {
+  min-height: 40px;
+  min-width: 0;
+  width: 100%;
+  padding: 0.36rem 0.42rem;
+  border: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-strong) 58%, transparent);
+}
+
+.standard-library-tree .standard-library-list__item strong {
+  font-size: 0.82rem;
+}
+
+.standard-library-tree .standard-library-list__item small {
+  font-size: 0.7rem;
+}
+
+.standard-library-tree .status-pill {
+  min-height: 22px;
+  padding: 0.1rem 0.36rem;
+  font-size: 0.68rem;
+}
+
+.standard-library-tree .standard-library-list__item > span:last-child {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+:root[data-theme="dark"] .standard-library-tree__node {
+  border-color: #2f3745;
+}
+
+:root[data-theme="dark"] .standard-library-tree .standard-library-list__item {
+  background: color-mix(in srgb, var(--surface) 72%, #05070a);
+}
+
+@media (max-width: 760px) {
+  .standard-library-tree__children {
+    margin-left: 0.5rem;
+  }
+
+  .standard-library-tree .management-object-row,
+  .standard-library-tree .standard-library-list__item {
+    min-width: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

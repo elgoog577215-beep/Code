@@ -14,6 +14,7 @@ import type {
   DiagnosisEvalFixtureDraft,
   DiagnosisTag,
   ExecutorStatus,
+  InformaticsKnowledgeNode,
   ImportCommit,
   ImportPreview,
   LeaderboardEntry,
@@ -279,6 +280,7 @@ export const api = {
     request<AiStandardLibraryItem>(`/api/teacher/ai-standard-library/items/${id}/enable`, { method: "POST" }),
   disableAiStandardLibraryItem: (id: number) =>
     request<AiStandardLibraryItem>(`/api/teacher/ai-standard-library/items/${id}/disable`, { method: "POST" }),
+  informaticsKnowledgeTree: () => request<InformaticsKnowledgeNode[]>("/api/teacher/informatics-knowledge/tree"),
 
   executorStatus: () => request<ExecutorStatus>("/api/system/executor-status"),
   readiness: () => request<Readiness>("/api/system/readiness"),

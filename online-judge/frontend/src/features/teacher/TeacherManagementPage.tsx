@@ -7,6 +7,7 @@ import type {
   AiStandardLibraryItemPayload,
   AiStandardLibraryLayer,
   ClassGroup,
+  InformaticsKnowledgeNode,
   ImportCommit,
   ImportPreview,
   ProblemCatalogItem,
@@ -110,6 +111,7 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [aiSmokeBusy, setAiSmokeBusy] = useState(false);
   const [libraryItems, setLibraryItems] = useState<AiStandardLibraryItem[]>([]);
+  const [knowledgeTree, setKnowledgeTree] = useState<InformaticsKnowledgeNode[]>([]);
   const [libraryFilters, setLibraryFilters] = useState<LibraryFilters>(DEFAULT_LIBRARY_FILTERS);
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
   const [libraryDraft, setLibraryDraft] = useState<LibraryDraft>(() => emptyLibraryDraft());
@@ -119,6 +121,7 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
   useEffect(() => {
     void loadData();
     void loadReadiness();
+    void loadKnowledgeTree();
   }, []);
 
   useEffect(() => {
@@ -169,6 +172,14 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
       setReadiness(await api.readiness());
     } catch {
       setReadiness(null);
+    }
+  }
+
+  async function loadKnowledgeTree() {
+    try {
+      setKnowledgeTree(await api.informaticsKnowledgeTree());
+    } catch {
+      setKnowledgeTree([]);
     }
   }
 
@@ -427,6 +438,7 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
           {section === "ai-library" ? (
             <StandardLibraryManager
               items={libraryItems}
+              knowledgeTree={knowledgeTree}
               filters={libraryFilters}
               draft={libraryDraft}
               busy={libraryBusy}
@@ -814,8 +826,17 @@ function ReadinessPanel({
   );
 }
 
+type LibraryCodeGroup = {
+  code: string;
+  label: string;
+  path: string;
+  known: boolean;
+  items: AiStandardLibraryItem[];
+};
+
 function StandardLibraryManager({
   items,
+  knowledgeTree,
   filters,
   draft,
   busy,
@@ -829,6 +850,7 @@ function StandardLibraryManager({
   onToggle
 }: {
   items: AiStandardLibraryItem[];
+  knowledgeTree: InformaticsKnowledgeNode[];
   filters: LibraryFilters;
   draft: LibraryDraft;
   busy: boolean;
@@ -846,9 +868,46 @@ function StandardLibraryManager({
   const mistakeCount = visibleItems.filter(item => item.layer === "MISTAKE_POINT").length;
   const categoryOptions = Array.from(new Set(items.map(item => item.category).filter(Boolean))).sort((left, right) => left.localeCompare(right, "zh-Hans-CN"));
   const selectedItem = visibleItems.find(item => item.id === selectedId) || items.find(item => item.id === selectedId) || null;
+  const knowledgeGroups = buildKnowledgePathGroups(visibleItems, knowledgeTree);
+  const unlinkedItems = visibleItems.filter(item => !knowledgeCodes(item).length);
 
   function patchDraft(values: Partial<LibraryDraft>) {
     onDraftChange({ ...draft, ...values });
+  }
+
+  function renderLibraryItem(item: AiStandardLibraryItem) {
+    return (
+      <button
+        type="button"
+        key={item.id}
+        className={`management-object-row standard-library-list__item ${item.id === selectedId ? "is-active" : ""}`}
+        onClick={() => onSelect(item)}
+      >
+        <span>
+          <strong>{item.name}</strong>
+          <small>{item.code}</small>
+        </span>
+        <span>
+          <StatusPill tone={item.layer === "SKILL_UNIT" ? "info" : "warning"}>{layerLabel(item.layer)}</StatusPill>
+          <StatusPill tone={item.enabled ? "success" : "neutral"}>{item.enabled ? "启用" : "停用"}</StatusPill>
+        </span>
+      </button>
+    );
+  }
+
+  function renderKnowledgeGroup(group: LibraryCodeGroup) {
+    return (
+      <details className={`standard-library-tree__node ${group.known ? "" : "standard-library-tree__node--loose"}`} open={group.items.some(item => item.id === selectedId)} key={group.code}>
+        <summary>
+          <span>
+            <strong>{group.label}</strong>
+            <small>{group.path}</small>
+          </span>
+          <StatusPill tone={group.known ? "neutral" : "warning"}>{group.items.length} 条</StatusPill>
+        </summary>
+        <div className="standard-library-tree__children">{group.items.map(renderLibraryItem)}</div>
+      </details>
+    );
   }
 
   return (
@@ -908,27 +967,25 @@ function StandardLibraryManager({
             </div>
           </details>
         </div>
-          {visibleItems.length ? (
-            visibleItems.slice(0, 160).map(item => (
-              <button
-                type="button"
-                key={item.id}
-                className={`management-object-row standard-library-list__item ${item.id === selectedId ? "is-active" : ""}`}
-                onClick={() => onSelect(item)}
-              >
-                <span>
-                  <strong>{item.name}</strong>
-                  <small>{item.code}</small>
-                </span>
-                <span>
-                  <StatusPill tone={item.layer === "SKILL_UNIT" ? "info" : "warning"}>{layerLabel(item.layer)}</StatusPill>
-                  <StatusPill tone={item.enabled ? "success" : "neutral"}>{item.enabled ? "启用" : "停用"}</StatusPill>
-                </span>
-              </button>
-            ))
-          ) : (
-            <EmptyState title="暂无条目" description="换一个筛选条件，或新建一个标准库条目。" />
-          )}
+        {visibleItems.length ? (
+          <div className="standard-library-tree" role="tree" aria-label="按知识树管理 AI 标准库">
+            {knowledgeGroups.map(renderKnowledgeGroup)}
+            {unlinkedItems.length ? (
+              <details className="standard-library-tree__node standard-library-tree__node--loose" open={unlinkedItems.some(item => item.id === selectedId)}>
+                <summary>
+                  <span>
+                    <strong>未关联知识点</strong>
+                    <small>需要补充 knowledgeNodeCodes</small>
+                  </span>
+                  <StatusPill tone="warning">{unlinkedItems.length} 条</StatusPill>
+                </summary>
+                <div className="standard-library-tree__children">{unlinkedItems.map(renderLibraryItem)}</div>
+              </details>
+            ) : null}
+          </div>
+        ) : (
+          <EmptyState title="暂无条目" description="换一个筛选条件，或新建一个标准库条目。" />
+        )}
       </aside>
 
       <section className="management-object-main">
@@ -1056,6 +1113,43 @@ function StandardLibraryManager({
       </section>
     </section>
   );
+}
+
+function buildKnowledgePathGroups(items: AiStandardLibraryItem[], knowledgeTree: InformaticsKnowledgeNode[]): LibraryCodeGroup[] {
+  const index = buildKnowledgeIndex(knowledgeTree);
+  const groups = new Map<string, AiStandardLibraryItem[]>();
+  items.forEach(item => {
+    knowledgeCodes(item).forEach(code => {
+      groups.set(code, [...(groups.get(code) || []), item]);
+    });
+  });
+  return Array.from(groups, ([code, groupItems]) => {
+    const meta = index.get(code);
+    return {
+      code,
+      label: meta?.name || code,
+      path: meta?.path || "未在知识树中找到",
+      known: Boolean(meta),
+      items: sortLibraryItems(groupItems)
+    };
+  }).sort((left, right) => left.path.localeCompare(right.path, "zh-Hans-CN") || left.code.localeCompare(right.code));
+}
+
+function buildKnowledgeIndex(nodes: InformaticsKnowledgeNode[], parents: string[] = [], index = new Map<string, { name: string; path: string }>()) {
+  nodes.forEach(node => {
+    const path = [...parents, node.name];
+    index.set(node.code, { name: node.name, path: path.join(" / ") });
+    buildKnowledgeIndex(node.children || [], path, index);
+  });
+  return index;
+}
+
+function knowledgeCodes(item: AiStandardLibraryItem) {
+  return Array.from(new Set((item.knowledgeNodeCodes || []).map(code => code.trim()).filter(Boolean)));
+}
+
+function sortLibraryItems(items: AiStandardLibraryItem[]) {
+  return [...items].sort((left, right) => left.layer.localeCompare(right.layer) || left.category.localeCompare(right.category, "zh-Hans-CN") || left.code.localeCompare(right.code));
 }
 
 function FilePicker({
