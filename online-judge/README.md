@@ -93,7 +93,7 @@ cp .env.example .env
 - `OJ_JRE_BASE_IMAGE`: 运行应用使用的 Java 17 JRE 基础镜像。
 - `OJ_DOCKER_CLI_IMAGE`: 提供 Docker CLI 的基础镜像，应用容器会从该镜像复制 `docker` 命令。
 - `AI_ENABLED`: 是否启用模型反馈。
-- `OJ_MODELSCOPE_API_KEY`: 模型 API Key。
+- `OJ_MODELSCOPE_API_KEY`: 模型 API Key，推荐用于学校 Docker 部署；旧名 `MODELSCOPE_API_KEY` 仍兼容。
 - `AI_READINESS_BLOCKING`: 是否要求 AI smoke 通过才允许 readiness 为 `READY`。
 
 更多投用要求见 [高中单校内网投用清单](docs/school-readiness-checklist.md)。
