@@ -23,6 +23,7 @@ public final class AiStandardLibrarySeedCatalog {
         highQualitySamples(seeds);
         compatibilityMistakePoints(seeds);
         AiStandardLibraryV6ExpansionSeeds.addTo(seeds);
+        AiStandardLibraryV7DetailSeeds.addTo(seeds);
         generatedFullCoverage(seeds);
         return dedupe(seeds);
     }
