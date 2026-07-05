@@ -178,7 +178,7 @@ export default function TeacherPage() {
         </div>
         <div className="teacher-home-actions">
           <ButtonLink to="/app/teacher/classes" variant="secondary" icon={<UsersRound size={16} />}>
-            班级查看
+            班级进度
           </ButtonLink>
           <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
             新建作业

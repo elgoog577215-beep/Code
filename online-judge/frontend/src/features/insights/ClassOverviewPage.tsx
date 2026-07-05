@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { ArrowRight, ClipboardList, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, AssignmentOverview } from "../../shared/api/types";
@@ -201,12 +201,15 @@ export default function ClassOverviewPage() {
     <div className="stack class-overview-page class-progress-page">
       <section className="overview-command class-progress-command">
         <div className="overview-command__main">
-          <p className="eyebrow">教师查看</p>
+          <Link to="/app/teacher" className="teacher-page-breadcrumb">
+            <ArrowLeft size={15} /> 作业
+          </Link>
           <h1>班级进度</h1>
+          <p>按学生和作业查看推进状态，优先处理需关注学生。</p>
         </div>
         <div className="teacher-home-actions">
-          <ButtonLink to="/app/teacher" variant="secondary" icon={<ClipboardList size={16} />}>
-            作业
+          <ButtonLink to="/app/teacher" variant="secondary" icon={<ArrowLeft size={16} />}>
+            返回作业
           </ButtonLink>
           <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={16} />}>
             新建作业

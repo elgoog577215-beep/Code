@@ -506,63 +506,41 @@ function StudentProblemView({
 
       <section className="teacher-student-problem-layout">
         <main className="teacher-student-evidence">
-          <div className="teacher-drill-strip">
-            <Metric label="提交次数" value={student.attemptCount} />
-            <Metric label="通过次数" value={student.passedCount} />
-            <Metric label="最新结果" value={verdictLabel(student.latestVerdict)} />
-            <Metric label="提示层级" value={student.latestHintLevel ? hintPolicyLabel(student.latestHintLevel) : "-"} />
-            <Metric label="最近提交" value={student.latestSubmittedAt ? formatDateTime(student.latestSubmittedAt) : "-"} />
-          </div>
-
-          <article className="teacher-evidence-card">
+          <article className="teacher-evidence-card teacher-evidence-card--decision">
             <span>当前卡点</span>
             <strong>{currentIssue}</strong>
             <p>{student.latestIssue || student.latestProgressSignal || "这名学生在这道题上还没有形成明确错因。"}</p>
-          </article>
-
-          <article className="teacher-evidence-card">
-            <span>AI 判断</span>
-            <strong>{confidenceLabel(student.latestConfidence)}</strong>
-            <p>{student.latestProgressSignal || student.latestHintAction || "AI 还没有形成稳定判断。"}</p>
-          </article>
-
-          <article className="teacher-evidence-card">
-            <span>错因标签</span>
-            <strong>{currentIssue}</strong>
-            <p>{displayText(student.abilityPoint, "知识点待观察")}</p>
-          </article>
-
-          <article className="teacher-evidence-card">
-            <span>评测证据</span>
-            <strong>{verdictLabel(student.latestVerdict)}</strong>
-            <p>{student.latestSubmittedAt ? `${formatDateTime(student.latestSubmittedAt)} 的最近一次提交。` : "还没有可展示的提交时间。"}</p>
-          </article>
-
-          <article className="teacher-evidence-card teacher-trajectory-card">
-            <span>提交轨迹摘要</span>
-            <div className="teacher-trajectory-grid">
-              <div>
-                <small>提交</small>
-                <strong>{student.attemptCount} 次</strong>
-              </div>
-              <div>
-                <small>通过</small>
-                <strong>{student.passedCount} 次</strong>
-              </div>
-              <div>
-                <small>最新</small>
-                <strong>{verdictLabel(student.latestVerdict)}</strong>
-              </div>
-              <div>
-                <small>提示</small>
-                <strong>{student.latestHintLevel ? hintPolicyLabel(student.latestHintLevel) : "待定"}</strong>
-              </div>
+            <div className="teacher-decision-facts">
+              <Metric label="提交次数" value={student.attemptCount} />
+              <Metric label="通过次数" value={student.passedCount} />
+              <Metric label="最新结果" value={verdictLabel(student.latestVerdict)} />
+              <Metric label="提示层级" value={student.latestHintLevel ? hintPolicyLabel(student.latestHintLevel) : "-"} />
+              <Metric label="最近提交" value={student.latestSubmittedAt ? formatDateTime(student.latestSubmittedAt) : "-"} />
             </div>
-            <p>{student.latestSubmittedAt ? `${formatDateTime(student.latestSubmittedAt)}，当前卡点：${currentIssue}。` : `当前卡点：${currentIssue}。`}</p>
           </article>
+
+          <div className="teacher-evidence-grid">
+            <article className="teacher-evidence-card">
+              <span>AI 判断</span>
+              <strong>{confidenceLabel(student.latestConfidence)}</strong>
+              <p>{student.latestProgressSignal || student.latestHintAction || "AI 还没有形成稳定判断。"}</p>
+            </article>
+
+            <article className="teacher-evidence-card">
+              <span>错因标签</span>
+              <strong>{currentIssue}</strong>
+              <p>{displayText(student.abilityPoint, "知识点待观察")}</p>
+            </article>
+
+            <article className="teacher-evidence-card">
+              <span>评测证据</span>
+              <strong>{verdictLabel(student.latestVerdict)}</strong>
+              <p>{student.latestSubmittedAt ? `${formatDateTime(student.latestSubmittedAt)} 的最近一次提交。` : "还没有可展示的提交时间。"}</p>
+            </article>
+          </div>
         </main>
 
-        <aside className="teacher-action-rail">
+        <aside className="teacher-action-rail teacher-action-rail--primary">
           <p className="eyebrow">教师动作</p>
           <h2>{student.needsAttention ? "优先处理" : "保持观察"}</h2>
           <p>{student.latestHintAction || student.latestProgressSignal || "让学生先补一次可见提交，再判断是否需要讲解。"}</p>

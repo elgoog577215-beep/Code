@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, Database, Plus, Power, PowerOff, Save, Search, UploadCloud, UsersRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Database, Plus, Power, PowerOff, Save, Search, UploadCloud, UsersRound } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   AiStandardLibraryItem,
@@ -68,25 +68,50 @@ type TeacherManagementToolsProps = {
 };
 type ManagementSection = "home" | "classes" | "problems" | "ai-library";
 
+const MANAGEMENT_SECTION_META = {
+  home: {
+    eyebrow: "教师端",
+    title: "管理",
+    description: "管理班级名单、题库、AI 标准库和 AI 配置状态。"
+  },
+  classes: {
+    eyebrow: "管理 / 班级名单",
+    title: "班级名单",
+    description: "创建默认班级，导入或更新学生名单。"
+  },
+  problems: {
+    eyebrow: "管理 / 题库",
+    title: "题库",
+    description: "导入题目、维护题面、测试点和教学增强信息。"
+  },
+  "ai-library": {
+    eyebrow: "管理 / AI 标准库",
+    title: "AI 标准库",
+    description: "维护能力点、易错点和 AI 教学解释标准。"
+  }
+} satisfies Record<ManagementSection, { eyebrow: string; title: string; description: string }>;
+
 export default function TeacherManagementPage({ section = "home" }: { section?: ManagementSection }) {
+  const meta = MANAGEMENT_SECTION_META[section];
   return (
     <div className="teacher-page teacher-workflow teacher-manage-page">
       <section className="teacher-workflow-header teacher-workflow-header--simple teacher-manage-header">
         <div>
-          <p className="eyebrow">教师端</p>
-          <h1>管理</h1>
+          {section === "home" ? (
+            <p className="eyebrow">{meta.eyebrow}</p>
+          ) : (
+            <Link to="/app/teacher/manage" className="teacher-manage-breadcrumb">
+              <ArrowLeft size={15} /> 管理
+            </Link>
+          )}
+          <h1>{meta.title}</h1>
+          <p>{meta.description}</p>
         </div>
-        <div className="teacher-manage-tabs" aria-label="管理分类">
-          <ButtonLink to="/app/teacher/manage/classes" variant={section === "classes" ? "primary" : "secondary"} icon={<UsersRound size={16} />}>
-            班级名单
+        {section === "home" ? null : (
+          <ButtonLink to="/app/teacher/manage" variant="secondary" icon={<ArrowLeft size={16} />}>
+            返回管理
           </ButtonLink>
-          <ButtonLink to="/app/teacher/manage/problems" variant={section === "problems" ? "primary" : "secondary"} icon={<BookOpen size={16} />}>
-            题库
-          </ButtonLink>
-          <ButtonLink to="/app/teacher/manage/ai-library" variant={section === "ai-library" ? "primary" : "secondary"} icon={<Database size={16} />}>
-            AI 标准库
-          </ButtonLink>
-        </div>
+        )}
       </section>
       <TeacherManagementTools section={section} />
     </div>
@@ -360,16 +385,18 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
       <section className="management-console">
-        <ManagementStatusStrip
-          readiness={readiness}
-          busy={aiSmokeBusy}
-          summary={statusPill}
-          classCount={cleanClasses.length}
-          problemCount={problems.length}
-          libraryCount={libraryItems.length}
-          onRefresh={loadReadiness}
-          onAiSmoke={runAiSmoke}
-        />
+        {section === "home" ? null : (
+          <ManagementStatusStrip
+            readiness={readiness}
+            busy={aiSmokeBusy}
+            summary={statusPill}
+            classCount={cleanClasses.length}
+            problemCount={problems.length}
+            libraryCount={libraryItems.length}
+            onRefresh={loadReadiness}
+            onAiSmoke={runAiSmoke}
+          />
+        )}
 
         <main className="management-workspace">
           {section === "home" ? (
@@ -394,6 +421,12 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
                 title="AI 标准库"
                 meta={`${libraryItems.length || 0} 条`}
                 description="维护能力点、易错点和 AI 教学解释标准。"
+              />
+              <ManagementAiEntry
+                readiness={readiness}
+                busy={aiSmokeBusy}
+                onRefresh={loadReadiness}
+                onAiSmoke={runAiSmoke}
               />
             </section>
           ) : null}
@@ -469,6 +502,42 @@ function ManagementEntry({ to, icon, title, meta, description }: { to: string; i
       <StatusPill tone="neutral">{meta}</StatusPill>
       <ArrowRight size={16} />
     </Link>
+  );
+}
+
+function ManagementAiEntry({
+  readiness,
+  busy,
+  onRefresh,
+  onAiSmoke
+}: {
+  readiness: Readiness | null;
+  busy: boolean;
+  onRefresh: () => void;
+  onAiSmoke: () => void;
+}) {
+  const status = readiness?.status || "UNKNOWN";
+  const tone = status === "READY" ? "success" : status === "BLOCKED" ? "danger" : "warning";
+  const blocking = readiness?.checks.filter(item => item.blocking && item.status !== "PASS").length || 0;
+  return (
+    <article className="management-home-entry management-home-entry--ai">
+      <span className="management-home-entry__icon">
+        <Power size={18} />
+      </span>
+      <span>
+        <strong>AI 配置扫描</strong>
+        <small>{blocking ? `${blocking} 个阻断需要处理` : "检查模型、密钥和调用链是否可用。"}</small>
+      </span>
+      <StatusPill tone={tone}>{status}</StatusPill>
+      <div className="management-home-entry__actions">
+        <Button type="button" variant="secondary" onClick={() => void onRefresh()}>
+          刷新
+        </Button>
+        <Button type="button" variant="primary" onClick={() => void onAiSmoke()} disabled={busy}>
+          {busy ? "检测中" : "检测 AI"}
+        </Button>
+      </div>
+    </article>
   );
 }
 

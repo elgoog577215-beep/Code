@@ -16,7 +16,7 @@ export function TeacherShell({ children }: { children: ReactNode }) {
         <div className="teacher-shell-nav__links">
           <NavLink to="/app/teacher" end className={({ isActive }) => (isActive || (!inManage && location.pathname.startsWith("/app/teacher")) ? "is-active" : "")}>
             <BookOpenCheck size={16} />
-            <span>查看</span>
+            <span>作业</span>
           </NavLink>
           <NavLink to="/app/teacher/manage" className={({ isActive }) => (isActive || inManage ? "is-active" : "")}>
             <Database size={16} />
