@@ -27,6 +27,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
@@ -37,6 +39,7 @@ public class AiReportService {
     private static final String PROVIDER = "ModelScope";
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
     private static final String STUDENT_FAST_FEEDBACK_PROMPT_VERSION = "student-fast-feedback-v2";
+    private static final Pattern RUNTIME_LINE_PATTERN = Pattern.compile("\\bline\\s+(\\d+)\\b");
 
     private final ObjectMapper objectMapper;
     private final AiCodeAssistSupport aiCodeAssistSupport;
@@ -285,6 +288,9 @@ public class AiReportService {
                     8. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达。
                     9. 学生可见文字不能复述 verdict:、code:、evidenceRefs、judgeFacts、candidateSignals 等内部字段名或证据标记。
                     10. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
+                    11. 如果 submission.primaryRuntimeEvidence 存在，基础层必须优先解释其中的异常类型、行号和 lineText；不要把“代码很长、helper 太多、需要精简”当作主因，除非它直接导致这一行异常。
+                    12. 如果异常是 IndexError/list index out of range，基础层必须围绕“下标访问范围”和“容器长度”解释，不要只给代码整理建议。
+                    13. 如果基础层是下标越界，提高层优先写边界样例、循环边界、数组长度核对等迁移能力；不要把“精简代码/删除 helper”作为唯一提高层。
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);
@@ -1835,6 +1841,118 @@ public class AiReportService {
         return builder.toString();
     }
 
+    private String compactLineAwareSourceExcerpt(String numberedSourceCode, String diagnosticText, int maxLines, int maxChars) {
+        Integer targetLine = lastReferencedLineNumber(diagnosticText);
+        if (targetLine == null) {
+            return compactLineAwareSourceExcerpt(numberedSourceCode, maxLines, maxChars);
+        }
+        String normalized = cleanupAiText(numberedSourceCode);
+        if (normalized.isBlank()) {
+            return "";
+        }
+        String[] lines = normalized.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
+        int lineLimit = Math.max(1, maxLines);
+        int charLimit = Math.max(160, maxChars);
+        int start = Math.max(0, targetLine - 1 - lineLimit / 2);
+        int end = Math.min(lines.length, start + lineLimit);
+        if (end - start < lineLimit) {
+            start = Math.max(0, end - lineLimit);
+        }
+        StringBuilder builder = new StringBuilder();
+        if (start > 0) {
+            builder.append("... omitted before line ").append(start + 1).append(" ...\n");
+        }
+        for (int index = start; index < end; index++) {
+            String line = lines[index];
+            if (builder.length() > 0 && builder.length() + line.length() + 1 > charLimit) {
+                builder.append("\n... truncated ...");
+                break;
+            }
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(line);
+        }
+        if (end < lines.length && builder.length() + 40 <= charLimit) {
+            builder.append("\n... omitted after line ").append(end).append(" ...");
+        }
+        return builder.toString();
+    }
+
+    private Map<String, Object> primaryRuntimeEvidence(String numberedSourceCode, String diagnosticText) {
+        Integer targetLine = lastReferencedLineNumber(diagnosticText);
+        String exceptionSummary = runtimeExceptionSummary(diagnosticText);
+        if (targetLine == null && exceptionSummary.isBlank()) {
+            return Map.of();
+        }
+        String lineText = targetLine == null ? "" : numberedSourceLine(numberedSourceCode, targetLine);
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        if (targetLine != null) {
+            evidence.put("lineNumber", targetLine);
+            evidence.put("evidenceRef", "code:line:" + targetLine);
+        }
+        if (!lineText.isBlank()) {
+            evidence.put("lineText", lineText);
+        }
+        if (!exceptionSummary.isBlank()) {
+            evidence.put("exception", exceptionSummary);
+        }
+        evidence.put("diagnosisPriority", "先解释这一条 traceback 指向的具体错误，再谈代码整理或提高层建议。");
+        return evidence;
+    }
+
+    private String numberedSourceLine(String numberedSourceCode, int targetLine) {
+        String normalized = cleanupAiText(numberedSourceCode);
+        if (normalized.isBlank() || targetLine <= 0) {
+            return "";
+        }
+        String[] lines = normalized.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
+        if (targetLine > lines.length) {
+            return "";
+        }
+        String line = lines[targetLine - 1];
+        return line.replaceFirst("^\\s*" + targetLine + "\\s*:\\s?", "").trim();
+    }
+
+    private String sourceLine(String sourceCode, int targetLine) {
+        if (sourceCode == null || targetLine <= 0) {
+            return "";
+        }
+        String[] lines = sourceCode.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
+        if (targetLine > lines.length) {
+            return "";
+        }
+        return cleanupAiText(lines[targetLine - 1]).trim();
+    }
+
+    private String runtimeExceptionSummary(String diagnosticText) {
+        String normalized = cleanupAiText(diagnosticText);
+        if (normalized.isBlank()) {
+            return "";
+        }
+        String[] lines = normalized.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
+        for (int index = lines.length - 1; index >= 0; index--) {
+            String line = lines[index] == null ? "" : lines[index].trim();
+            if (!line.isBlank() && !line.startsWith("~") && !line.startsWith("^")) {
+                return truncateText(line, 160);
+            }
+        }
+        return "";
+    }
+
+    private Integer lastReferencedLineNumber(String text) {
+        Matcher matcher = RUNTIME_LINE_PATTERN.matcher(defaultIfBlank(text, ""));
+        Integer line = null;
+        while (matcher.find()) {
+            try {
+                line = Integer.parseInt(matcher.group(1));
+            } catch (NumberFormatException ignored) {
+                // Ignore malformed traceback fragments.
+            }
+        }
+        return line;
+    }
+
     private String buildLineAwareSourceCode(String sourceCode) {
         if (sourceCode == null || sourceCode.isBlank()) {
             return "";
@@ -2321,7 +2439,14 @@ public class AiReportService {
         context.put("sourceCodeLineCount", evidence == null || evidence.getSourceCodeLineCount() == null
                 ? countSourceLines(sourceCode)
                 : evidence.getSourceCodeLineCount());
-        context.put("sourceExcerpt", compactLineAwareSourceExcerpt(numberedSource, 8, 520));
+        String diagnosticText = firstNonBlank(
+                submission == null ? "" : submission.getErrorMessage(),
+                evidencePackage == null || evidencePackage.getJudgeFacts() == null
+                        ? ""
+                        : evidencePackage.getJudgeFacts().getRuntimeErrorMessage()
+        );
+        context.put("primaryRuntimeEvidence", primaryRuntimeEvidence(numberedSource, diagnosticText));
+        context.put("sourceExcerpt", compactLineAwareSourceExcerpt(numberedSource, diagnosticText, 10, 900));
         context.put("compileOutput", truncateText(submission == null ? "" : submission.getCompileOutput(), 220));
         context.put("runtimeErrorMessage", truncateText(submission == null ? "" : submission.getErrorMessage(), 220));
         return context;
@@ -2448,7 +2573,7 @@ public class AiReportService {
         if (!hasStudentReportText(studentReport) && repairItems.isEmpty() && improvementItems.isEmpty() && nextQuestion.isBlank()) {
             return feedbackFailure(submission, "FAILED", "EMPTY_MODEL_FEEDBACK", startedAt);
         }
-        return StudentAiFeedbackResponse.builder()
+        StudentAiFeedbackResponse response = StudentAiFeedbackResponse.builder()
                 .submissionId(submission == null ? null : submission.getId())
                 .status("READY")
                 .source("MODEL")
@@ -2460,6 +2585,191 @@ public class AiReportService {
                 .safety(safety)
                 .evidenceRefs(evidenceRefs)
                 .build();
+        return enforceRuntimeEvidenceGrounding(response, submission);
+    }
+
+    private StudentAiFeedbackResponse enforceRuntimeEvidenceGrounding(StudentAiFeedbackResponse response,
+                                                                      Submission submission) {
+        if (response == null || submission == null || !"READY".equals(response.getStatus())) {
+            return response;
+        }
+        String errorMessage = defaultIfBlank(submission.getErrorMessage(), "");
+        if (submission.getVerdict() != Submission.Verdict.RUNTIME_ERROR
+                || !errorMessage.toLowerCase().contains("indexerror")
+                || !errorMessage.toLowerCase().contains("list index out of range")) {
+            return response;
+        }
+        Integer lineNumber = lastReferencedLineNumber(errorMessage);
+        String lineText = lineNumber == null
+                ? ""
+                : sourceLine(submission.getSourceCode(), lineNumber);
+        String evidenceRef = lineNumber == null ? "verdict:runtime_error" : "code:line:" + lineNumber;
+        if (mentionsIndexRuntimeCause(response)) {
+            return alignIndexRuntimeImprovement(response, evidenceRef);
+        }
+        if (lineNumber == null && lineText.isBlank()) {
+            return response;
+        }
+        String linePhrase = lineText.isBlank()
+                ? "traceback 指向的列表访问位置"
+                : "第 " + lineNumber + " 行 `" + truncateText(lineText, 70) + "`";
+        StudentAiFeedbackResponse.StudentReport groundedReport = StudentAiFeedbackResponse.StudentReport.builder()
+                .basicLayerText("这次运行错误的主因不是代码长本身，而是 " + linePhrase
+                        + " 发生了列表下标越界。IndexError: list index out of range 表示某次访问时，下标已经不在数组的合法范围内。先手推数组长度、循环最后一次下标取值和题目要求处理的个数是否一致。")
+                .improvementLayerText("修复越界后，再补测最小规模、普通样例和边界样例。这样能更早发现循环次数、数组长度、左右端点没有对齐的问题。")
+                .nextActionText("手推循环最后一次下标是否仍小于数组长度。")
+                .build();
+        List<StudentAiFeedbackResponse.FeedbackItem> repairItems = List.of(StudentAiFeedbackResponse.FeedbackItem.builder()
+                .title("列表下标越界")
+                .body("traceback 已经指到一次数组访问越界；先核对循环次数和数组长度的关系。")
+                .kind("REPAIR")
+                .evidenceRefs(List.of(evidenceRef, "verdict:runtime_error"))
+                .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
+                .build());
+        List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = List.of(StudentAiFeedbackResponse.FeedbackItem.builder()
+                .title("边界样例意识")
+                .body("修复后用最小 n 和普通样例复测，专门检查循环边界是否多处理或少处理。")
+                .kind("IMPROVEMENT")
+                .evidenceRefs(List.of(evidenceRef))
+                .qualitySignals(List.of("transfer"))
+                .build());
+        return StudentAiFeedbackResponse.builder()
+                .submissionId(response.getSubmissionId())
+                .status(response.getStatus())
+                .source(response.getSource())
+                .generatedAt(response.getGeneratedAt())
+                .latencyMs(response.getLatencyMs())
+                .repairItems(repairItems)
+                .improvementItems(improvementItems)
+                .studentReport(groundedReport)
+                .nextQuestion(response.getNextQuestion())
+                .safety(response.getSafety())
+                .evidenceRefs(mergeStringLists(response.getEvidenceRefs(), List.of(evidenceRef, "verdict:runtime_error")))
+                .build();
+    }
+
+    private StudentAiFeedbackResponse alignIndexRuntimeImprovement(StudentAiFeedbackResponse response,
+                                                                   String evidenceRef) {
+        StudentAiFeedbackResponse.StudentReport originalReport = response.getStudentReport();
+        String basicLayerText = originalReport == null
+                ? null
+                : removeCodeCleanupDriftSentence(originalReport.getBasicLayerText());
+        boolean improvementDrifts = indexImprovementDriftsToCodeCleanup(response);
+        boolean basicChanged = originalReport != null && !defaultIfBlank(originalReport.getBasicLayerText(), "")
+                .equals(defaultIfBlank(basicLayerText, ""));
+        if (!improvementDrifts && !basicChanged) {
+            return response;
+        }
+        StudentAiFeedbackResponse.StudentReport alignedReport = StudentAiFeedbackResponse.StudentReport.builder()
+                .basicLayerText(basicLayerText)
+                .improvementLayerText(improvementDrifts
+                        ? "修复越界后，重点补强边界样例意识：用最小规模、普通样例和最大边界附近数据，专门检查循环次数、数组长度和左右端点是否对齐。"
+                        : originalReport == null ? null : originalReport.getImprovementLayerText())
+                .nextActionText(originalReport == null ? null : originalReport.getNextActionText())
+                .build();
+        List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = improvementDrifts
+                ? List.of(StudentAiFeedbackResponse.FeedbackItem.builder()
+                        .title("边界样例意识")
+                        .body("修复后用最小 n、普通样例和边界样例复测，观察是否仍有多访问或少访问。")
+                        .kind("IMPROVEMENT")
+                        .evidenceRefs(List.of(evidenceRef))
+                        .qualitySignals(List.of("transfer"))
+                        .build())
+                : response.getImprovementItems();
+        return StudentAiFeedbackResponse.builder()
+                .submissionId(response.getSubmissionId())
+                .status(response.getStatus())
+                .source(response.getSource())
+                .generatedAt(response.getGeneratedAt())
+                .latencyMs(response.getLatencyMs())
+                .repairItems(response.getRepairItems())
+                .improvementItems(improvementItems)
+                .studentReport(alignedReport)
+                .nextQuestion(response.getNextQuestion())
+                .safety(response.getSafety())
+                .evidenceRefs(mergeStringLists(response.getEvidenceRefs(), List.of(evidenceRef)))
+                .build();
+    }
+
+    private String removeCodeCleanupDriftSentence(String text) {
+        String normalized = cleanupAiText(text);
+        if (normalized.isBlank()) {
+            return normalized;
+        }
+        String[] sentences = normalized.split("(?<=[。！？])");
+        StringBuilder builder = new StringBuilder();
+        for (String sentence : sentences) {
+            String item = cleanupAiText(sentence);
+            if (item.isBlank()) {
+                continue;
+            }
+            String lower = item.toLowerCase();
+            boolean codeCleanup = lower.contains("helper")
+                    || lower.contains("辅助函数")
+                    || lower.contains("无关函数")
+                    || lower.contains("代码长")
+                    || lower.contains("代码过长")
+                    || lower.contains("精简代码");
+            boolean runtimeCause = lower.contains("下标")
+                    || lower.contains("索引")
+                    || lower.contains("越界")
+                    || lower.contains("indexerror")
+                    || lower.contains("list index");
+            if (codeCleanup && !runtimeCause) {
+                continue;
+            }
+            builder.append(item);
+        }
+        String cleaned = builder.toString().trim();
+        return cleaned.isBlank() ? normalized : cleaned;
+    }
+
+    private boolean indexImprovementDriftsToCodeCleanup(StudentAiFeedbackResponse response) {
+        String text = "";
+        if (response != null && response.getStudentReport() != null) {
+            text = defaultIfBlank(response.getStudentReport().getImprovementLayerText(), "");
+        }
+        if (response != null && response.getImprovementItems() != null) {
+            for (StudentAiFeedbackResponse.FeedbackItem item : response.getImprovementItems()) {
+                if (item != null) {
+                    text += "\n" + defaultIfBlank(item.getTitle(), "") + "\n" + defaultIfBlank(item.getBody(), "");
+                }
+            }
+        }
+        String normalized = text.toLowerCase();
+        boolean codeCleanup = normalized.contains("helper")
+                || normalized.contains("辅助函数")
+                || normalized.contains("冗余")
+                || normalized.contains("精简")
+                || normalized.contains("代码结构");
+        boolean boundaryAware = normalized.contains("边界")
+                || normalized.contains("下标")
+                || normalized.contains("索引")
+                || normalized.contains("循环")
+                || normalized.contains("数组长度");
+        return codeCleanup && !boundaryAware;
+    }
+
+    private boolean mentionsIndexRuntimeCause(StudentAiFeedbackResponse response) {
+        StringBuilder builder = new StringBuilder();
+        if (response.getStudentReport() != null) {
+            builder.append(defaultIfBlank(response.getStudentReport().getBasicLayerText(), "")).append('\n')
+                    .append(defaultIfBlank(response.getStudentReport().getImprovementLayerText(), "")).append('\n')
+                    .append(defaultIfBlank(response.getStudentReport().getNextActionText(), "")).append('\n');
+        }
+        if (response.getRepairItems() != null) {
+            response.getRepairItems().stream()
+                    .filter(item -> item != null)
+                    .forEach(item -> builder.append(defaultIfBlank(item.getTitle(), "")).append('\n')
+                            .append(defaultIfBlank(item.getBody(), "")).append('\n'));
+        }
+        String text = builder.toString().toLowerCase();
+        return text.contains("下标")
+                || text.contains("索引")
+                || text.contains("越界")
+                || text.contains("数组外")
+                || text.contains("indexerror")
+                || text.contains("list index");
     }
 
     private StudentAiFeedbackResponse.StudentReport normalizeStudentReport(StudentReportPayload payload,

@@ -163,6 +163,121 @@ class StudentAiFeedbackModelTest {
     }
 
     @Test
+    void longRuntimeErrorContextIncludesFailingLineWindow() {
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "循环多走了一次，最后一次访问了数组外的位置。",
+                    "improvementLayerText": "修复后补测 n=0、n=1 和普通样例。",
+                    "nextActionText": "手推 i 的最后一个取值是否仍在数组范围内。"
+                  },
+                  "repairItems": [],
+                  "improvementItems": [],
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["judge:first_failed_case:1"]
+                }
+                """);
+
+        service.generateStudentAiFeedback(
+                problem(),
+                longRuntimeSubmission(),
+                longRuntimeEvidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(service.lastUserPrompt())
+                .contains("primaryRuntimeEvidence", "\"lineNumber\":622", "for i in range(n + 1)", "total += arr[i]")
+                .doesNotContain("helper_1(x)");
+    }
+
+    @Test
+    void correctsModelWhenRuntimeIndexErrorIsNotGrounded() {
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "你的代码太长，包含大量 helper 函数，请先精简代码。",
+                    "improvementLayerText": "修复后可以继续学习代码组织。",
+                    "nextActionText": "删除无关 helper 函数后再提交。"
+                  },
+                  "repairItems": [{
+                    "title": "代码过长",
+                    "body": "大量无关 helper 干扰了 solve。",
+                    "kind": "REPAIR",
+                    "evidenceRefs": ["verdict:runtime_error"],
+                    "qualitySignals": ["evidence_grounded"]
+                  }],
+                  "improvementItems": [],
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["verdict:runtime_error"]
+                }
+                """);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                longRuntimeSubmission(),
+                longRuntimeEvidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(feedback.getStatus()).isEqualTo("READY");
+        assertThat(feedback.getStudentReport().getBasicLayerText())
+                .contains("列表下标越界", "IndexError", "第 622 行")
+                .doesNotContain("大量 helper");
+        assertThat(feedback.getStudentReport().getNextActionText()).contains("下标", "数组长度");
+        assertThat(feedback.getRepairItems()).singleElement().satisfies(item -> {
+            assertThat(item.getTitle()).isEqualTo("列表下标越界");
+            assertThat(item.getEvidenceRefs()).contains("code:line:622", "verdict:runtime_error");
+        });
+    }
+
+    @Test
+    void alignsImprovementWhenIndexErrorDiagnosisIsGroundedButImprovementDrifts() {
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "第622行发生索引越界，访问列表时下标超出范围。代码包含大量无关 helper 函数，干扰了核心逻辑。",
+                    "improvementLayerText": "修复后建议精简代码结构，删除无关 helper 函数。",
+                    "nextActionText": "检查下标是否小于数组长度。"
+                  },
+                  "repairItems": [{
+                    "title": "索引越界",
+                    "body": "第622行访问列表越界。",
+                    "kind": "REPAIR",
+                    "evidenceRefs": ["code:line:622"],
+                    "qualitySignals": ["evidence_grounded"]
+                  }],
+                  "improvementItems": [{
+                    "title": "精简冗余代码",
+                    "body": "删除无关辅助函数。",
+                    "kind": "IMPROVEMENT",
+                    "evidenceRefs": [],
+                    "qualitySignals": ["transfer"]
+                  }],
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["code:line:622"]
+                }
+                """);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                longRuntimeSubmission(),
+                longRuntimeEvidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(feedback.getStudentReport().getBasicLayerText()).contains("索引越界");
+        assertThat(feedback.getStudentReport().getBasicLayerText()).doesNotContain("helper", "无关");
+        assertThat(feedback.getStudentReport().getImprovementLayerText())
+                .contains("边界样例", "循环次数", "数组长度")
+                .doesNotContain("删除无关");
+        assertThat(feedback.getImprovementItems()).singleElement().satisfies(item ->
+                assertThat(item.getTitle()).isEqualTo("边界样例意识"));
+    }
+
+    @Test
     void modelUnavailableReturnsFailedWithoutLocalAdvice() {
         AiReportService service = new AiReportService(objectMapper, new AiCodeAssistSupport());
         ReflectionTestUtils.setField(service, "enabled", false);
@@ -261,6 +376,91 @@ class StudentAiFeedbackModelTest {
                                 .build()))
                         .build())
                 .build();
+    }
+
+    private Submission longRuntimeSubmission() {
+        return Submission.builder()
+                .id(8L)
+                .problemId(1L)
+                .languageName("Python 3")
+                .verdict(Submission.Verdict.RUNTIME_ERROR)
+                .sourceCode(longSourceCode())
+                .errorMessage("""
+                        Traceback (most recent call last):
+                          File "solution.py", line 625, in <module>
+                            solve()
+                          File "solution.py", line 622, in solve
+                            total += arr[i]
+                        IndexError: list index out of range
+                        """)
+                .build();
+    }
+
+    private DiagnosisEvidencePackage longRuntimeEvidencePackage() {
+        String source = longSourceCode();
+        return DiagnosisEvidencePackage.builder()
+                .submission(DiagnosisEvidencePackage.SubmissionEvidence.builder()
+                        .id(8L)
+                        .language("Python 3")
+                        .verdict("RUNTIME_ERROR")
+                        .sourceCode(source)
+                        .sourceCodeWithLineNumbers(numbered(source))
+                        .sourceCodeLineCount(source.split("\\R", -1).length)
+                        .build())
+                .problem(DiagnosisEvidencePackage.ProblemEvidence.builder()
+                        .id(1L)
+                        .title("长代码求和")
+                        .description("给定 n 和 n 个整数，输出它们的和。")
+                        .build())
+                .judgeFacts(DiagnosisEvidencePackage.JudgeFacts.builder()
+                        .passedCount(0)
+                        .totalCount(1)
+                        .hiddenFailureObserved(false)
+                        .runtimeErrorMessage(longRuntimeSubmission().getErrorMessage())
+                        .caseResultsSummary(List.of(DiagnosisEvidencePackage.CaseSummary.builder()
+                                .testCaseNumber(1)
+                                .passed(false)
+                                .hidden(false)
+                                .actualOutputPreview("IndexError: list index out of range")
+                                .expectedOutputPreview("6")
+                                .build()))
+                        .build())
+                .build();
+    }
+
+    private String longSourceCode() {
+        StringBuilder builder = new StringBuilder("import sys\n");
+        for (int i = 1; i <= 611; i++) {
+            builder.append("def helper_").append(i).append("(x): return x\n");
+        }
+        builder.append("""
+                def read_ints():
+                    return list(map(int, sys.stdin.readline().split()))
+
+                def solve():
+                    data = read_ints()
+                    n = data[0]
+                    arr = read_ints()
+                    total = 0
+                    for i in range(n + 1):
+                        total += arr[i]
+                    print(total)
+
+                solve()
+                """);
+        return builder.toString();
+    }
+
+    private String numbered(String source) {
+        String[] lines = source.split("\\R", -1);
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) {
+                builder.append('\n');
+            }
+            builder.append(i + 1).append(": ").append(lines[i]);
+        }
+        return builder.toString();
     }
 
     private RuleSignalAnalyzer.RuleSignalResult ruleSignals() {
