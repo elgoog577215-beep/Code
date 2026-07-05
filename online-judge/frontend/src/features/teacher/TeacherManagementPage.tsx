@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BookOpen, Database, Plus, Power, PowerOff, Save, Search, UploadCloud, UsersRound, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Database, Plus, Power, PowerOff, RefreshCw, Save, Search, UploadCloud, UsersRound, X } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   AiStandardLibraryItem,
@@ -946,6 +946,17 @@ function StandardLibraryManager({
   const knowledgeGroups = buildKnowledgePathGroups(visibleItems, knowledgeTree);
   const knowledgeBranches = buildKnowledgeBranches(knowledgeGroups);
   const unlinkedItems = visibleItems.filter(item => !knowledgeCodes(item).length);
+  const hasActiveLibraryFilters = Boolean(filters.query.trim() || filters.layer || filters.category || filters.enabled);
+  const layerOptions: Array<{ value: LibraryFilters["layer"]; label: string }> = [
+    { value: "", label: "全部" },
+    { value: "SKILL_UNIT", label: "能力点" },
+    { value: "MISTAKE_POINT", label: "易错点" }
+  ];
+  const enabledOptions: Array<{ value: LibraryEnabledFilter; label: string }> = [
+    { value: "", label: "全部" },
+    { value: "true", label: "启用" },
+    { value: "false", label: "停用" }
+  ];
 
   useEffect(() => {
     if (!editorOpen) {
@@ -962,6 +973,10 @@ function StandardLibraryManager({
 
   function patchDraft(values: Partial<LibraryDraft>) {
     onDraftChange({ ...draft, ...values });
+  }
+
+  function updateFilters(values: Partial<LibraryFilters>) {
+    onFiltersChange({ ...filters, ...values });
   }
 
   function openNewDraft() {
@@ -989,19 +1004,20 @@ function StandardLibraryManager({
         </span>
         <span className="standard-library-tree__item-meta">
           <StatusPill tone={item.layer === "SKILL_UNIT" ? "info" : "warning"}>{layerLabel(item.layer)}</StatusPill>
-          <StatusPill tone={item.enabled ? "success" : "neutral"}>{item.enabled ? "启用" : "停用"}</StatusPill>
+          {item.enabled ? null : <StatusPill tone="neutral">停用</StatusPill>}
         </span>
       </button>
     );
   }
 
   function renderKnowledgeGroup(group: LibraryCodeGroup) {
+    const groupOpen = hasActiveLibraryFilters || group.items.some(item => item.id === selectedId);
     return (
-      <details className={`standard-library-tree__node ${group.known ? "" : "standard-library-tree__node--loose"}`} open={group.items.some(item => item.id === selectedId)} key={group.code}>
+      <details className={`standard-library-tree__node ${group.known ? "" : "standard-library-tree__node--loose"}`} open={groupOpen} key={group.code}>
         <summary>
           <span>
             <strong>{group.label}</strong>
-            <small>{group.path}</small>
+            <small>{group.known ? group.code : group.path}</small>
           </span>
           <StatusPill tone={group.known ? "neutral" : "warning"}>{group.items.length} 条</StatusPill>
         </summary>
@@ -1029,64 +1045,77 @@ function StandardLibraryManager({
     <section className={`management-object-workbench management-object-workbench--ai standard-library-manager ${editorOpen ? "is-editor-open" : ""}`}>
       <div className="standard-library-canvas" aria-label="AI 标准库知识树">
         <div className="standard-library-canvas__bar">
-          <div>
-            <p className="eyebrow">知识树视图</p>
-            <h2>AI 标准库</h2>
-            <p>能力点 {skillCount} · 易错点 {mistakeCount} · 当前 {visibleItems.length} 条</p>
+          <div className="standard-library-canvas__summary" aria-label="当前筛选结果">
+            <StatusPill tone="info">能力点 {skillCount}</StatusPill>
+            <StatusPill tone="warning">易错点 {mistakeCount}</StatusPill>
+            <StatusPill tone="neutral">当前 {visibleItems.length}</StatusPill>
           </div>
           <div className="actions">
-            <Button type="button" variant="secondary" icon={<Search size={16} />} onClick={() => onReload(filters)} disabled={busy}>
-              刷新
-            </Button>
+            <button type="button" className="standard-library-icon-button" aria-label="刷新标准库" title="刷新标准库" onClick={() => onReload(filters)} disabled={busy}>
+              <RefreshCw size={17} />
+            </button>
             <Button type="button" variant="primary" icon={<Plus size={16} />} onClick={openNewDraft} disabled={busy}>
               新建
             </Button>
           </div>
         </div>
-        <div className="standard-library-filters standard-library-filters--canvas">
-          <Field label="搜索">
+        <div className="standard-library-command" role="search" aria-label="筛选 AI 标准库">
+          <label className="standard-library-search">
+            <Search size={16} aria-hidden="true" />
             <TextInput
+              aria-label="搜索条目 ID、名称或知识点"
+              className="control standard-library-search__input"
               name="query"
               value={filters.query}
-              onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}
+              onChange={event => updateFilters({ query: event.target.value })}
               onKeyDown={event => {
                 if (event.key === "Enter") {
-                  onReload(readFiltersFromElement(event.currentTarget));
+                  onReload({ ...filters, query: event.currentTarget.value });
                 }
               }}
               placeholder="ID、名称、知识点"
             />
-          </Field>
-          <Field label="类型">
-            <Select name="layer" value={filters.layer} onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}>
-              <option value="">全部</option>
-              <option value="SKILL_UNIT">能力点</option>
-              <option value="MISTAKE_POINT">易错点</option>
-            </Select>
-          </Field>
-          <Field label="状态">
-            <Select name="enabled" value={filters.enabled} onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}>
-              <option value="">全部</option>
-              <option value="true">启用</option>
-              <option value="false">停用</option>
-            </Select>
-          </Field>
-          <details className="management-import-drawer standard-library-category-filter">
-            <summary>分类</summary>
-            <div className="management-import-drawer__body">
-              <Select name="category" value={filters.category} onChange={event => onFiltersChange(readFiltersFromElement(event.currentTarget))}>
-                <option value="">全部分类</option>
-                {categoryOptions.map(category => (
-                  <option value={category} key={category}>
-                    {category}
-                  </option>
-                ))}
-              </Select>
-              <Button type="button" variant="secondary" icon={<Search size={16} />} onClick={event => onReload(readFiltersFromElement(event.currentTarget))} disabled={busy}>
-                筛选
-              </Button>
-            </div>
-          </details>
+          </label>
+          <div className="standard-library-segments" aria-label="类型筛选">
+            {layerOptions.map(option => (
+              <button
+                type="button"
+                className={`standard-library-chip ${filters.layer === option.value ? "is-active" : ""}`}
+                aria-pressed={filters.layer === option.value}
+                key={`layer-${option.value || "all"}`}
+                onClick={() => updateFilters({ layer: option.value })}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="standard-library-segments" aria-label="状态筛选">
+            {enabledOptions.map(option => (
+              <button
+                type="button"
+                className={`standard-library-chip ${filters.enabled === option.value ? "is-active" : ""}`}
+                aria-pressed={filters.enabled === option.value}
+                key={`enabled-${option.value || "all"}`}
+                onClick={() => updateFilters({ enabled: option.value })}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <Select
+            aria-label="分类筛选"
+            className="control standard-library-command__select"
+            name="category"
+            value={filters.category}
+            onChange={event => updateFilters({ category: event.target.value })}
+          >
+            <option value="">全部分类</option>
+            {categoryOptions.map(category => (
+              <option value={category} key={category}>
+                {category}
+              </option>
+            ))}
+          </Select>
         </div>
         {visibleItems.length ? (
           <div className="standard-library-tree standard-library-tree--canvas" role="tree" aria-label="按知识树管理 AI 标准库">
@@ -1479,20 +1508,6 @@ function libraryItemMatchesFilters(item: AiStandardLibraryItem, filters: Library
     .join("\n")
     .toLowerCase();
   return haystack.includes(query);
-}
-
-function readFiltersFromElement(element: HTMLElement): LibraryFilters {
-  const form = element.closest(".standard-library-filters");
-  const value = (name: string) => {
-    const field = form?.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
-    return field?.value || "";
-  };
-  return {
-    query: value("query"),
-    layer: value("layer") as AiStandardLibraryLayer | "",
-    category: value("category"),
-    enabled: value("enabled") as LibraryEnabledFilter
-  };
 }
 
 function readDraftFromElement(element: HTMLElement, fallback: LibraryDraft): LibraryDraft {
