@@ -12,34 +12,22 @@ final class ModelOutputSafetyPolicy {
             "参考答案",
             "答案如下",
             "直接改成",
-            "改成",
-            "改为",
             "替换为",
             "把读取",
             "放进循环",
             "设为0",
             "设回0",
             "设回 0",
-            "从0开始",
-            "从 0 开始",
             "循环内部初始化",
             "每轮循环开始时显式清空",
             "显式清空全局状态",
-            "选或不选",
-            "不选当前",
-            "选当前",
-            "滚动更新",
             "正确最少只需",
-            "用两个",
             "只比较了字符串的第一个和最后一个字符",
             "只验证了字符串首尾字符是否相同",
             "首尾相同但中间内容不同",
             "首尾相同但中间不同",
             "中间字符是否也被纳入比较范围",
             "遗漏了对内部字符",
-            "定义状态表示",
-            "从小到大枚举",
-            "进行转移",
             "hidden test",
             "for _ in range",
             "while q",
@@ -57,12 +45,6 @@ final class ModelOutputSafetyPolicy {
             "take_current",
             "前前位置的最大和",
             "前前位置最大和",
-            "两个状态",
-            "两种情况",
-            "多一个维度",
-            "空间优化",
-            "空间压缩",
-            "前驱状态",
             "```",
             "def ",
             "#include",
@@ -108,6 +90,12 @@ final class ModelOutputSafetyPolicy {
         String compact = normalized.replaceAll("\\s+", "");
         if (compact.matches(".*第[0-9一二三四五六七八九十]+行.*(添加|删除|替换|改成|改为|设为|放进).*")) {
             return "direct line edit";
+        }
+        if (compact.matches(".*(把|将).{0,24}(改成|改为|替换为|设为|放进|移到|初始化|清空).*")) {
+            return "direct replacement instruction";
+        }
+        if (compact.matches(".*(用|使用).{0,8}(变量|状态).{0,8}滚动更新.*")) {
+            return "direct optimization recipe";
         }
         for (String marker : UNSAFE_LEAK_MARKERS) {
             if (normalized.contains(marker)) {

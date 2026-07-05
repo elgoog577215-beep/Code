@@ -2,7 +2,6 @@
 
 ## Purpose
 把学生端真实看到的 AI 反馈纳入评测与人工审查。该能力关注反馈是否自然、是否过度直接、是否混入内部痕迹、提高层是否有真实学习价值，避免只用标签命中率判断诊断质量。
-
 ## Requirements
 ### Requirement: 导出学生真实可见反馈
 系统 SHALL 在 AI live eval 报告中为每个提交诊断样例导出学生真实可见反馈文本，该文本 MUST 与学生端优先展示的 `studentReport` 内容一致，不得混入 teacher trace、内部 prompt 规则或调试说明。
@@ -42,3 +41,14 @@
 #### Scenario: 汇总质量风险
 - **WHEN** live eval 报告写出
 - **THEN** 报告 SHALL 包含学生可见反馈质量通过数和每类风险计数
+
+### Requirement: 安全校验应区分答案泄露与合理诊断
+系统 SHALL 拦截完整答案、逐行改法、可复制替换表达式和隐藏测试推测；系统 SHALL NOT 仅因学生反馈使用正常算法诊断词而判定答案泄露。
+
+#### Scenario: 合理状态诊断
+- **WHEN** 学生可见反馈提示检查状态维度、窗口状态、枚举顺序或边界手推
+- **THEN** 安全校验 SHALL 不仅因这些诊断词出现而返回 `SAFETY_RISK`
+
+#### Scenario: 直接替换改法
+- **WHEN** 学生可见反馈包含直接替换、逐行改法、完整代码或可复制答案
+- **THEN** 安全校验 SHALL 返回 `SAFETY_RISK`

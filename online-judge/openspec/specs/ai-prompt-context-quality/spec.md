@@ -2,7 +2,6 @@
 
 ## Purpose
 保证正式发给外部模型的提示词和上下文能服务高中信息学诊断：既给模型足够方向和标准化约束，又保留模型对代码、题目和判题结果的整体判断能力。
-
 ## Requirements
 ### Requirement: 标准库不得制约模型判断
 系统 SHALL 在正式诊断提示词中说明标准库候选是参考和命名约束，而不是唯一答案来源。
@@ -35,3 +34,16 @@
 #### Scenario: 避免直接给答案
 - **WHEN** 模型生成学生可见反馈
 - **THEN** 输出 MUST NOT 包含完整代码、完整答案、隐藏测试推测或可复制的逐行改法
+
+### Requirement: 诊断报告提示词应分离学生报告与后端元数据
+系统 SHALL 在正式诊断提示词中要求模型先生成学生自然语言报告，再提供后端审计和标准库 metadata；学生可见报告 SHALL NOT 机械堆叠内部结构字段。
+
+#### Scenario: 生成正式诊断报告
+- **WHEN** 模型使用 `diagnosis-report-v2` 生成诊断结果
+- **THEN** prompt SHALL 明确 `studentReport` 是学生优先阅读的自然反馈
+- **AND** prompt SHALL 明确 `diagnosisDecision`、`diagnosisCandidates`、`teacherTrace` 和 `libraryGrowth` 是后端审计与标准库成长信息
+
+#### Scenario: 多条建议存在
+- **WHEN** 当前提交存在多个独立错因或提升方向
+- **THEN** prompt SHALL 要求逐条列表由证据决定数量
+- **AND** prompt SHALL NOT 要求固定一条或把多条问题硬塞进单个字符串

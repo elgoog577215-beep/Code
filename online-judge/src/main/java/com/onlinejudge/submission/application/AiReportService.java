@@ -165,7 +165,7 @@ public class AiReportService {
     @Value("${ai.api-key:}")
     private String apiKey;
 
-    @Value("${ai.model:deepseek-ai/DeepSeek-V4-Flash}")
+    @Value("${ai.model:Qwen/Qwen3-235B-A22B-Instruct-2507}")
     private String model;
 
     @Value("${ai.modelscope-compatible-request:auto}")

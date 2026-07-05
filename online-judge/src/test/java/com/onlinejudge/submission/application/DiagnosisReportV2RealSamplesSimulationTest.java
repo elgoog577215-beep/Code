@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.enabled=true",
         "ai.api-key=${AI_EVAL_API_KEY:${MODELSCOPE_API_KEY:}}",
         "ai.base-url=${AI_EVAL_BASE_URL:${AI_BASE_URL:https://api-inference.modelscope.cn/v1}}",
-        "ai.model=${AI_EVAL_MODEL:${AI_MODEL:deepseek-ai/DeepSeek-V4-Pro}}",
+        "ai.model=${AI_EVAL_MODEL:${AI_MODEL:Qwen/Qwen3-235B-A22B-Instruct-2507}}",
         "ai.timeout-seconds=${AI_EVAL_TIMEOUT_SECONDS:45}",
         "ai.external-runtime-enabled=true",
         "ai.external-runtime-profile=${AI_EVAL_RUNTIME_PROFILE:low-latency}",

@@ -233,6 +233,8 @@ public class PromptTemplateRegistry {
                 - 命中候选时用 HIT；只命中方向但不够精确时用 PARTIAL；候选解释不了真实问题时用 MISS。
                 - 候选不匹配时必须允许 OUT_OF_LIBRARY，并在 outOfLibraryFindings 和 libraryGrowth 中留下可审核线索，不要硬套一个弱 id。
                 - studentReport 面向学生，要自然易懂；diagnosisDecision 面向教师、评测和标准库成长，必须结构化、可校验。
+                - 输出优先级是：先保证 studentReport 像老师写给学生的自然反馈，再保证后端 metadata 可审计；不要为了填满后台字段而牺牲学生可读性。
+                - 后端 metadata 包括 diagnosisDecision、diagnosisCandidates、teacherTrace 和 libraryGrowth，只服务审计、质量评测、教师复核和标准库成长，不要把这些字段名或内部判断过程写进学生可见文案。
                 - diagnosisCandidates 是后台审计用的诊断候选摘要，不是思维链，不展示给学生；它用于说明你自由发现了哪些问题，以及每个问题如何映射标准库。
                 - libraryFit=HIT 时，anchors 至少要有一个来自 standardLibrary 的合法非空 id，不能只在学生文案里说对。
                 - libraryFit=PARTIAL 时，可以带相近的合法 anchor id，也可以补 OUT_OF_LIBRARY finding 说明缺的细颗粒错因。
@@ -337,7 +339,7 @@ public class PromptTemplateRegistry {
                 9. libraryGrowth.candidates 应来自 diagnosisCandidates 中的库外或半命中问题；HIT 场景不要生成成长候选。
 
                 学生可见反馈规则:
-                1. studentReport 是学生摘要；basicLayerAdvice 和 improvementLayerAdvice 是逐条建议列表。不要把多条独立问题硬塞进 studentReport 的单个字符串。
+                1. studentReport 是学生优先阅读的自然反馈，不是后台 metadata 摘要；basicLayerAdvice 和 improvementLayerAdvice 是逐条建议列表。不要把多条独立问题硬塞进 studentReport 的单个字符串，也不要把 diagnosisDecision、diagnosisCandidates、teacherTrace 或 libraryGrowth 的字段名写给学生。
                 2. basicLayerAdvice 按真实问题数量返回：有几个独立基础层错误或阻塞点就返回几条，没有就返回空数组；每条都要有独立 title、studentAction、checkQuestion 和 evidenceRefs。不要固定只返回一条，也不要为了显得丰富而凑数。
                 3. improvementLayerAdvice 按真实提升方向数量返回：可以为 0 条、1 条或多条；修复基础问题后才成立的提升建议应清楚说明前提。不要复述基础层，也不要和 basicLayerAdvice 合并。
                 4. studentReport 必须像老师写给学生的一段自然反馈，不要把字段说明、生硬标签或标准库术语堆给学生。
