@@ -54,7 +54,7 @@ const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, fi
   "教师",
   "登录查看课堂作业",
   "暂无课堂作业",
-  "班级查看",
+  "班级进度",
   "学生摘要",
   "/api/teacher/assignments/",
   "class-review-feedback",

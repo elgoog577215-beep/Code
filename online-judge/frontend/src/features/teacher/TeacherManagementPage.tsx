@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BookOpen, Database, Plus, Power, PowerOff, Save, Search, UploadCloud, UsersRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Database, Plus, Power, PowerOff, Save, Search, UploadCloud, UsersRound, X } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   AiStandardLibraryItem,
@@ -902,6 +902,11 @@ type LibraryCodeGroup = {
   known: boolean;
   items: AiStandardLibraryItem[];
 };
+type LibraryBranchGroup = {
+  root: string;
+  count: number;
+  groups: LibraryCodeGroup[];
+};
 
 function StandardLibraryManager({
   items,
@@ -932,16 +937,41 @@ function StandardLibraryManager({
   onSave: (draft: LibraryDraft) => void;
   onToggle: (item: AiStandardLibraryItem) => void;
 }) {
+  const [editorOpen, setEditorOpen] = useState(false);
   const visibleItems = items.filter(item => libraryItemMatchesFilters(item, filters));
   const skillCount = visibleItems.filter(item => item.layer === "SKILL_UNIT").length;
   const mistakeCount = visibleItems.filter(item => item.layer === "MISTAKE_POINT").length;
   const categoryOptions = Array.from(new Set(items.map(item => item.category).filter(Boolean))).sort((left, right) => left.localeCompare(right, "zh-Hans-CN"));
   const selectedItem = visibleItems.find(item => item.id === selectedId) || items.find(item => item.id === selectedId) || null;
   const knowledgeGroups = buildKnowledgePathGroups(visibleItems, knowledgeTree);
+  const knowledgeBranches = buildKnowledgeBranches(knowledgeGroups);
   const unlinkedItems = visibleItems.filter(item => !knowledgeCodes(item).length);
+
+  useEffect(() => {
+    if (!editorOpen) {
+      return undefined;
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setEditorOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [editorOpen]);
 
   function patchDraft(values: Partial<LibraryDraft>) {
     onDraftChange({ ...draft, ...values });
+  }
+
+  function openNewDraft() {
+    onNew();
+    setEditorOpen(true);
+  }
+
+  function openExistingItem(item: AiStandardLibraryItem) {
+    onSelect(item);
+    setEditorOpen(true);
   }
 
   function renderLibraryItem(item: AiStandardLibraryItem) {
@@ -949,14 +979,15 @@ function StandardLibraryManager({
       <button
         type="button"
         key={item.id}
-        className={`management-object-row standard-library-list__item ${item.id === selectedId ? "is-active" : ""}`}
-        onClick={() => onSelect(item)}
+        className={`management-object-row standard-library-list__item standard-library-tree__item ${item.id === selectedId ? "is-active" : ""}`}
+        aria-current={item.id === selectedId ? "true" : undefined}
+        onClick={() => openExistingItem(item)}
       >
-        <span>
+        <span className="standard-library-tree__item-main">
           <strong>{item.name}</strong>
           <small>{item.code}</small>
         </span>
-        <span>
+        <span className="standard-library-tree__item-meta">
           <StatusPill tone={item.layer === "SKILL_UNIT" ? "info" : "warning"}>{layerLabel(item.layer)}</StatusPill>
           <StatusPill tone={item.enabled ? "success" : "neutral"}>{item.enabled ? "启用" : "停用"}</StatusPill>
         </span>
@@ -979,19 +1010,40 @@ function StandardLibraryManager({
     );
   }
 
-  return (
-    <section className="management-object-workbench management-object-workbench--ai standard-library-manager">
-      <aside className="management-object-list standard-library-list" aria-label="AI 标准库条目">
-        <div className="management-object-list__head">
+  function renderKnowledgeBranch(branch: LibraryBranchGroup) {
+    return (
+      <section className="standard-library-tree__branch" key={branch.root}>
+        <header className="standard-library-tree__branch-head">
           <span>
-            <strong>AI 标准库</strong>
-            <small>能力点 {skillCount} · 易错点 {mistakeCount}</small>
+            <strong>{branch.root}</strong>
+            <small>{branch.groups.length} 个知识点</small>
           </span>
-          <Button type="button" variant="secondary" icon={<Plus size={16} />} onClick={onNew} disabled={busy}>
-            新建
-          </Button>
+          <StatusPill tone="neutral">{branch.count} 条</StatusPill>
+        </header>
+        <div className="standard-library-tree__branch-body">{branch.groups.map(renderKnowledgeGroup)}</div>
+      </section>
+    );
+  }
+
+  return (
+    <section className={`management-object-workbench management-object-workbench--ai standard-library-manager ${editorOpen ? "is-editor-open" : ""}`}>
+      <div className="standard-library-canvas" aria-label="AI 标准库知识树">
+        <div className="standard-library-canvas__bar">
+          <div>
+            <p className="eyebrow">知识树视图</p>
+            <h2>AI 标准库</h2>
+            <p>能力点 {skillCount} · 易错点 {mistakeCount} · 当前 {visibleItems.length} 条</p>
+          </div>
+          <div className="actions">
+            <Button type="button" variant="secondary" icon={<Search size={16} />} onClick={() => onReload(filters)} disabled={busy}>
+              刷新
+            </Button>
+            <Button type="button" variant="primary" icon={<Plus size={16} />} onClick={openNewDraft} disabled={busy}>
+              新建
+            </Button>
+          </div>
         </div>
-        <div className="standard-library-filters">
+        <div className="standard-library-filters standard-library-filters--canvas">
           <Field label="搜索">
             <TextInput
               name="query"
@@ -1037,32 +1089,35 @@ function StandardLibraryManager({
           </details>
         </div>
         {visibleItems.length ? (
-          <div className="standard-library-tree" role="tree" aria-label="按知识树管理 AI 标准库">
-            {knowledgeGroups.map(renderKnowledgeGroup)}
+          <div className="standard-library-tree standard-library-tree--canvas" role="tree" aria-label="按知识树管理 AI 标准库">
+            {knowledgeBranches.map(renderKnowledgeBranch)}
             {unlinkedItems.length ? (
-              <details className="standard-library-tree__node standard-library-tree__node--loose" open={unlinkedItems.some(item => item.id === selectedId)}>
-                <summary>
+              <section className="standard-library-tree__branch standard-library-tree__branch--loose">
+                <header className="standard-library-tree__branch-head">
                   <span>
                     <strong>未关联知识点</strong>
                     <small>需要补充 knowledgeNodeCodes</small>
                   </span>
                   <StatusPill tone="warning">{unlinkedItems.length} 条</StatusPill>
-                </summary>
-                <div className="standard-library-tree__children">{unlinkedItems.map(renderLibraryItem)}</div>
-              </details>
+                </header>
+                <div className="standard-library-tree__children standard-library-tree__children--loose">{unlinkedItems.map(renderLibraryItem)}</div>
+              </section>
             ) : null}
           </div>
         ) : (
           <EmptyState title="暂无条目" description="换一个筛选条件，或新建一个标准库条目。" />
         )}
-      </aside>
+      </div>
 
-      <section className="management-object-main">
-        <div className="standard-library-editor">
+      {editorOpen ? (
+        <>
+          <button type="button" className="standard-library-editor-backdrop" aria-label="关闭编辑面板" onClick={() => setEditorOpen(false)} />
+          <aside className="standard-library-editor-drawer" role="dialog" aria-modal="true" aria-labelledby="standard-library-editor-title">
+            <div className="standard-library-editor">
           <div className="standard-library-editor__head">
             <div>
               <p className="eyebrow">{draft.layer === "SKILL_UNIT" ? "能力点" : "易错点"}</p>
-              <h3>{draft.id ? draft.name || "编辑条目" : "新建条目"}</h3>
+              <h3 id="standard-library-editor-title">{draft.id ? draft.name || "编辑条目" : "新建条目"}</h3>
               <p>{draft.id ? `${draft.code} · ${draft.category}` : "保存后进入当前学校标准库"}</p>
             </div>
             <div className="actions">
@@ -1080,6 +1135,9 @@ function StandardLibraryManager({
               <Button type="button" variant="primary" icon={<Save size={17} />} onClick={event => onSave(readDraftFromElement(event.currentTarget, draft))} disabled={busy}>
                 保存
               </Button>
+              <button type="button" className="standard-library-editor__close" aria-label="关闭编辑面板" title="关闭编辑面板" onClick={() => setEditorOpen(false)}>
+                <X size={18} />
+              </button>
             </div>
           </div>
 
@@ -1178,8 +1236,10 @@ function StandardLibraryManager({
               </Field>
             </div>
           </details>
-        </div>
-      </section>
+            </div>
+          </aside>
+        </>
+      ) : null}
     </section>
   );
 }
@@ -1202,6 +1262,18 @@ function buildKnowledgePathGroups(items: AiStandardLibraryItem[], knowledgeTree:
       items: sortLibraryItems(groupItems)
     };
   }).sort((left, right) => left.path.localeCompare(right.path, "zh-Hans-CN") || left.code.localeCompare(right.code));
+}
+
+function buildKnowledgeBranches(groups: LibraryCodeGroup[]): LibraryBranchGroup[] {
+  const branches = new Map<string, LibraryBranchGroup>();
+  groups.forEach(group => {
+    const root = group.known ? group.path.split(" / ")[0] || group.label : "未在知识树中找到";
+    const branch = branches.get(root) || { root, count: 0, groups: [] };
+    branch.count += group.items.length;
+    branch.groups.push(group);
+    branches.set(root, branch);
+  });
+  return Array.from(branches.values()).sort((left, right) => left.root.localeCompare(right.root, "zh-Hans-CN"));
 }
 
 function buildKnowledgeIndex(nodes: InformaticsKnowledgeNode[], parents: string[] = [], index = new Map<string, { name: string; path: string }>()) {
