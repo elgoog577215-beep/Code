@@ -1,4 +1,4 @@
-import { lazy, ReactNode, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, ReactNode, Suspense, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import { BookOpenCheck, LogIn, Menu, Moon, Sun, UserRound, UsersRound, X } from "lucide-react";
@@ -115,28 +115,20 @@ function Header() {
   const isProblemPage =
     /^\/app\/student\/assignments\/[^/]+\/problems\//.test(location.pathname);
   const isStudentContext = location.pathname.startsWith("/app/student") || isProblemPage;
-  const isTeacherContext = location.pathname.startsWith("/app/teacher");
-  const navItems = useMemo<NavItem[]>(
-    () => {
-      const teacherItem: NavItem = {
-        to: "/app/teacher",
-        label: "教师端",
-        icon: UsersRound,
-        activeWhen: (pathname: string) => pathname.startsWith("/app/teacher")
-      };
-      if (isStudentContext) {
-        return [];
-      }
-      if (isTeacherContext) {
-        return [teacherItem];
-      }
-      return [
-        { to: "/app/student", label: "学生端", icon: BookOpenCheck },
-        teacherItem
-      ];
+  const navItems: NavItem[] = [
+    {
+      to: "/app/student",
+      label: "学生端",
+      icon: BookOpenCheck,
+      activeWhen: (pathname: string) => pathname.startsWith("/app/student")
     },
-    [isStudentContext, isTeacherContext]
-  );
+    {
+      to: "/app/teacher",
+      label: "教师端",
+      icon: UsersRound,
+      activeWhen: (pathname: string) => pathname.startsWith("/app/teacher")
+    }
+  ];
 
   useEffect(() => {
     setOpen(false);
