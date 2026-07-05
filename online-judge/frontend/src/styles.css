@@ -16144,6 +16144,25 @@ summary:focus-visible {
   }
 }
 
+.teacher-action-hint {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 760;
+  line-height: 1.42;
+}
+
+@media (max-width: 720px) {
+  .assignment-drill-page .teacher-table {
+    overflow-x: visible;
+  }
+
+  .assignment-drill-page .teacher-table-row,
+  .assignment-drill-page .teacher-table--students .teacher-table-row {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 430px) {
   :root {
     --tap-size: 44px;
@@ -16174,6 +16193,302 @@ summary:focus-visible {
 
   .problem-result-modal__header h2 {
     font-size: 1.32rem;
+  }
+}
+
+/* Teacher intuitive layout pass: compact tiles and cards over repeated wide rows. */
+.teacher-home-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.46rem;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+}
+
+.teacher-home-summary-grid > .teacher-home-summary-tile {
+  min-height: 64px;
+  align-content: center;
+  gap: 0.14rem;
+  padding: 0.56rem 0.62rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.teacher-home-summary-grid > .teacher-home-summary-tile:last-child,
+.teacher-home-summary-grid > .teacher-home-summary-tile {
+  border-right: 1px solid var(--line);
+}
+
+.teacher-home-summary-tile--warning {
+  border-color: color-mix(in srgb, var(--warning) 34%, var(--line));
+  background: color-mix(in srgb, var(--warning-soft) 24%, var(--surface));
+}
+
+.teacher-home-summary-tile--success {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--line));
+  background: color-mix(in srgb, var(--success-soft) 22%, var(--surface));
+}
+
+.teacher-assignment-grid,
+.teacher-attention-grid,
+.teacher-problem-card-grid {
+  min-width: 0;
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.52rem;
+}
+
+.teacher-assignment-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.teacher-attention-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.teacher-assignment-card,
+.teacher-attention-card,
+.teacher-problem-card,
+.teacher-priority-card {
+  min-width: 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.teacher-assignment-card,
+.teacher-attention-card,
+.teacher-problem-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  padding: 0.68rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
+  box-shadow: none;
+}
+
+.teacher-assignment-card:hover,
+.teacher-attention-card:hover,
+.teacher-problem-card:hover {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 18%, var(--surface));
+  box-shadow: none;
+}
+
+.teacher-assignment-card__head,
+.teacher-problem-card__head {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.teacher-assignment-card__head strong,
+.teacher-problem-card__head strong,
+.teacher-attention-card strong,
+.teacher-problem-card p,
+.teacher-attention-card em,
+.teacher-attention-card small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.teacher-assignment-card__head strong,
+.teacher-problem-card__head strong {
+  font-size: 0.96rem;
+  line-height: 1.28;
+}
+
+.teacher-assignment-card__facts,
+.teacher-problem-card__facts {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.34rem;
+}
+
+.teacher-assignment-card__facts span,
+.teacher-problem-card__facts span {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+  padding: 0.38rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.teacher-assignment-card__facts small,
+.teacher-problem-card__facts small {
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 820;
+}
+
+.teacher-assignment-card__facts b,
+.teacher-problem-card__facts b {
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.teacher-card-action {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.26rem;
+  color: var(--brand-strong);
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.teacher-attention-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.teacher-attention-card > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.14rem;
+}
+
+.teacher-attention-card > div:first-child {
+  grid-column: 1 / -1;
+}
+
+.teacher-attention-card em {
+  font-style: normal;
+  font-size: 0.86rem;
+  font-weight: 850;
+  line-height: 1.36;
+}
+
+.teacher-attention-card small,
+.teacher-problem-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 760;
+  line-height: 1.42;
+}
+
+.teacher-priority-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.teacher-priority-card {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.56rem;
+  padding: 0.62rem 0.68rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.teacher-priority-card.is-muted {
+  opacity: 0.72;
+}
+
+.teacher-priority-card__icon {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  border-radius: 8px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 20%, var(--surface));
+}
+
+.teacher-priority-card > div {
+  min-width: 0;
+}
+
+.teacher-priority-card h2 {
+  min-width: 0;
+  margin: 0.08rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+  line-height: 1.22;
+}
+
+.teacher-priority-card p:not(.eyebrow) {
+  margin: 0.16rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.teacher-priority-card .ui-button {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.teacher-problem-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.teacher-problem-card__head {
+  flex-wrap: wrap;
+}
+
+:root[data-theme="dark"] .teacher-home-summary-grid > .teacher-home-summary-tile,
+:root[data-theme="dark"] .teacher-assignment-card,
+:root[data-theme="dark"] .teacher-attention-card,
+:root[data-theme="dark"] .teacher-problem-card,
+:root[data-theme="dark"] .teacher-priority-card,
+:root[data-theme="dark"] .teacher-assignment-card__facts span,
+:root[data-theme="dark"] .teacher-problem-card__facts span {
+  background: #12161d;
+  border-color: #2f3745;
+}
+
+@media (max-width: 900px) {
+  .teacher-home-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .teacher-priority-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-priority-card {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .teacher-priority-card .ui-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 520px) {
+  .teacher-home-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-assignment-grid,
+  .teacher-attention-grid,
+  .teacher-problem-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-assignment-card__facts,
+  .teacher-problem-card__facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

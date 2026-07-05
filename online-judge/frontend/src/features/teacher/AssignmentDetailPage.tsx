@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, ChartNoAxesCombined, PenLine } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChartNoAxesCombined, PenLine, Presentation, UserRound } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
 import type { AssignmentOverview, DiagnosisTag } from "../../shared/api/types";
@@ -12,6 +12,7 @@ import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusP
 type Alert = { type: "success" | "error"; message: string };
 type ProblemSummary = NonNullable<AssignmentOverview["problemSummaries"]>[number];
 type ProblemStudent = NonNullable<ProblemSummary["students"]>[number];
+type OverviewStudent = AssignmentOverview["students"][number];
 type TrendPoint = NonNullable<AssignmentOverview["progressTrend"]>[number];
 type CorrectionDraft = {
   submissionId: number;
@@ -130,6 +131,56 @@ function sortedProblemStudents(students: ProblemStudent[]) {
     }
     return displayText(left.displayName, "").localeCompare(displayText(right.displayName, ""), "zh-Hans-CN");
   });
+}
+
+function timeValue(value?: string | null) {
+  const parsed = Date.parse(value || "");
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function problemPriorityScore(problem: ProblemSummary) {
+  const passPenalty = typeof problem.passRate === "number" ? Math.max(0, 1 - problem.passRate) * 100 : 0;
+  const statusWeight = problem.statusLabel === "需讲评" ? 800 : problem.statusLabel === "推进中" ? 220 : 0;
+  return statusWeight + problem.attentionStudentCount * 80 + passPenalty + problem.submissionCount * 0.5;
+}
+
+function priorityProblem(problems: ProblemSummary[]) {
+  const visible = problems.filter(problem => problem.submissionCount > 0 || problem.attentionStudentCount > 0);
+  return [...(visible.length ? visible : problems)].sort((left, right) => problemPriorityScore(right) - problemPriorityScore(left))[0] || null;
+}
+
+function priorityStudentTarget(overview: AssignmentOverview, problems: ProblemSummary[]) {
+  const problemTitleById = new Map(problems.map(problem => [problem.problemId, problem.title]));
+  return overview.students
+    .filter(student => student.needsAttention)
+    .map(student => {
+      const evidence = student.attentionEvidence?.find(item => item.problemId) || student.attentionEvidence?.[0] || null;
+      const submittedAt = evidence?.submittedAt || "";
+      return {
+        student,
+        problemId: evidence?.problemId,
+        problemTitle: evidence?.problemId ? problemTitleById.get(evidence.problemId) : null,
+        submittedAt,
+        score: (student.repeatedIssueCount || 0) * 12 + (evidence?.problemId ? 6 : 0) + (submittedAt ? 3 : 0)
+      };
+    })
+    .sort((left, right) => {
+      const score = right.score - left.score;
+      if (score) {
+        return score;
+      }
+      return timeValue(right.submittedAt) - timeValue(left.submittedAt);
+    })[0] || null;
+}
+
+function priorityStudentCopy(student: OverviewStudent) {
+  if (student.attentionReason) {
+    return student.attentionReason;
+  }
+  if (student.repeatedFineGrainedTag || student.repeatedIssueTag) {
+    return `${issueLabel(student.repeatedFineGrainedTag || student.repeatedIssueTag)}反复出现`;
+  }
+  return student.latestProgressSignal || "有新的卡点需要确认。";
 }
 
 export default function AssignmentDetailPage() {
@@ -254,6 +305,15 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
   const passRate = assignmentPassRate(overview);
   const recentSubmissions = recentTrendDelta(trend);
   const submittedText = `${currentTrend.submitted} 人`;
+  const studentTarget = priorityStudentTarget(overview, problems);
+  const lectureProblem = priorityProblem(problems);
+  const lectureIssue = lectureProblem?.topIssues?.[0] || null;
+  const studentTargetHref = studentTarget?.problemId
+    ? `/app/teacher/assignment/${overview.assignment.id}/problems/${studentTarget.problemId}/students/${studentTarget.student.studentProfileId}`
+    : `/app/teacher/assignment/${overview.assignment.id}`;
+  const lectureHref = lectureProblem
+    ? `/app/teacher/assignment/${overview.assignment.id}/problems/${lectureProblem.problemId}`
+    : `/app/teacher/assignment/${overview.assignment.id}`;
   return (
     <>
       <section className="teacher-drill-header">
@@ -273,6 +333,46 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
       </section>
 
       <section className="teacher-drill-overview">
+        <section className="teacher-priority-grid" aria-label="作业优先处理">
+          <article className={`teacher-priority-card ${studentTarget ? "" : "is-muted"}`}>
+            <span className="teacher-priority-card__icon">
+              <UserRound size={18} />
+            </span>
+            <div>
+              <p className="eyebrow">先看学生</p>
+              <h2>{studentTarget ? displayText(studentTarget.student.displayName, `学生 #${studentTarget.student.studentProfileId}`) : "暂无优先学生"}</h2>
+              <p>
+                {studentTarget
+                  ? `${studentTarget.problemTitle ? `${studentTarget.problemTitle}：` : ""}${priorityStudentCopy(studentTarget.student)}`
+                  : "目前没有被标记为需关注的学生，可以先看题目推进。"}
+              </p>
+            </div>
+            <ButtonLink to={studentTargetHref} variant={studentTarget ? "primary" : "secondary"} disabled={!studentTarget} icon={<ArrowRight size={16} />}>
+              查看学生
+            </ButtonLink>
+          </article>
+
+          <article className={`teacher-priority-card ${lectureProblem ? "" : "is-muted"}`}>
+            <span className="teacher-priority-card__icon">
+              <Presentation size={18} />
+            </span>
+            <div>
+              <p className="eyebrow">先讲题目</p>
+              <h2>{lectureProblem ? lectureProblem.title : "等待提交"}</h2>
+              <p>
+                {lectureProblem
+                  ? lectureIssue?.label
+                    ? `${lectureProblem.attentionStudentCount || 0} 名需关注，主要错因是 ${issueLabel(lectureIssue.label)}。`
+                    : `${lectureProblem.attentionStudentCount || 0} 名需关注，先看学生明细再决定讲评。`
+                  : "学生提交后，这里会自动推荐最需要讲评的题目。"}
+              </p>
+            </div>
+            <ButtonLink to={lectureHref} variant="secondary" disabled={!lectureProblem} icon={<ArrowRight size={16} />}>
+              看题目
+            </ButtonLink>
+          </article>
+        </section>
+
         <div className="teacher-drill-strip">
           <Metric label="提交人数" value={submittedText} />
           <Metric label="通过人数" value={currentTrend.passed || "-"} />
@@ -313,32 +413,34 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
           <div className="teacher-section-head">
             <div>
               <p className="eyebrow">题目</p>
-              <h2>每道题推进情况</h2>
+              <h2>题目推进</h2>
             </div>
           </div>
-          <div className="teacher-table teacher-table--problems">
-            <div className="teacher-table-row teacher-table-row--head">
-              <span>题目</span>
-              <span>提交率</span>
-              <span>通过率</span>
-              <span>人均尝试</span>
-              <span>主要错因</span>
-              <span>需关注</span>
-              <span></span>
-            </div>
+          <div className="teacher-problem-card-grid">
             {problems.map(problem => (
-              <Link className="teacher-table-row teacher-table-row--link" to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`} key={problem.problemId}>
-                <span className="teacher-table-title">
+              <Link className="teacher-problem-card" to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`} key={problem.problemId}>
+                <div className="teacher-problem-card__head">
                   <DifficultyPill difficulty={problem.difficulty} />
                   <strong>{problem.title}</strong>
-                </span>
-                <span data-label="提交率">{formatCountRate(problem.submissionRate)}</span>
-                <span data-label="通过率">{formatCountRate(problem.passRate)}</span>
-                <span data-label="人均尝试">{formatNumber(problem.averageAttempts)}</span>
-                <span data-label="主要错因">{problem.topIssues?.[0]?.label ? issueLabel(problem.topIssues[0].label) : "-"}</span>
-                <span data-label="需关注">{problem.attentionStudentCount || "-"}</span>
-                <span className="teacher-table-action">
                   <StatusPill tone={statusTone(problem.statusLabel)}>{problem.statusLabel || "待提交"}</StatusPill>
+                </div>
+                <div className="teacher-problem-card__facts">
+                  <span>
+                    <small>提交</small>
+                    <b>{formatCountRate(problem.submissionRate)}</b>
+                  </span>
+                  <span>
+                    <small>通过</small>
+                    <b>{formatCountRate(problem.passRate)}</b>
+                  </span>
+                  <span>
+                    <small>需看</small>
+                    <b>{problem.attentionStudentCount || "-"}</b>
+                  </span>
+                </div>
+                <p>{problem.topIssues?.[0]?.label ? issueLabel(problem.topIssues[0].label) : "暂无集中错因"}</p>
+                <span className="teacher-card-action" aria-hidden="true">
+                  <span>看题目</span>
                   <ArrowRight size={16} />
                 </span>
               </Link>
@@ -358,6 +460,7 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
   const hasSubmissions = problem.submissionCount > 0;
   const hasUnlinkedSubmissions = hasSubmissions && !hasStudentRows;
   const latestSubmittedAt = latestStudentSubmission(students);
+  const firstAttentionStudent = students.find(student => student.needsAttention) || null;
   const actionTitle = hasUnlinkedSubmissions ? "先补学生关联" : !hasSubmissions ? "等待提交" : problem.statusLabel === "需讲评" ? "先讲这题" : "继续观察";
   const actionCopy = hasUnlinkedSubmissions
     ? "这道题已有提交证据，但没有可定位到学生的明细；先让提交关联到默认班级名单。"
@@ -456,6 +559,15 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
           <p className="eyebrow">教师动作</p>
           <h2>{actionTitle}</h2>
           <p>{actionCopy}</p>
+          {firstAttentionStudent ? (
+            <ButtonLink
+              to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}/students/${firstAttentionStudent.studentProfileId}`}
+              variant="primary"
+              icon={<UserRound size={16} />}
+            >
+              查看优先学生
+            </ButtonLink>
+          ) : null}
           <ButtonLink to={`/app/teacher/assignment/${overview.assignment.id}`} variant="ghost" icon={<ChartNoAxesCombined size={16} />}>
             看作业推进
           </ButtonLink>
@@ -563,8 +675,9 @@ function StudentProblemView({
               })
             }
           >
-            校正错因
+            校正 AI 错因
           </Button>
+          {!student.latestSubmissionId ? <small className="teacher-action-hint">暂无可校正提交，先等待学生完成一次提交。</small> : null}
 
           {correctionDraft ? (
             <form className="teacher-correction-panel assignment-correction-panel" onSubmit={saveCorrection}>

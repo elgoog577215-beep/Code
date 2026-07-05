@@ -16,11 +16,11 @@ export function TeacherShell({ children }: { children: ReactNode }) {
         <div className="teacher-shell-nav__links">
           <NavLink to="/app/teacher" end className={({ isActive }) => (isActive || (!inManage && location.pathname.startsWith("/app/teacher")) ? "is-active" : "")}>
             <BookOpenCheck size={16} />
-            <span>作业</span>
+            <span>作业中心</span>
           </NavLink>
           <NavLink to="/app/teacher/manage" className={({ isActive }) => (isActive || inManage ? "is-active" : "")}>
             <Database size={16} />
-            <span>管理</span>
+            <span>资源管理</span>
           </NavLink>
         </div>
       </nav>

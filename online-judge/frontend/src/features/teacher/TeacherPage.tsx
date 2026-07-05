@@ -95,6 +95,12 @@ function buildAttentionItems(assignments: TeacherHomeAssignment[], overviews: Re
   });
 }
 
+function attentionTarget(item: AttentionItem) {
+  return item.problemId
+    ? `/app/teacher/assignment/${item.assignmentId}/problems/${item.problemId}/students/${item.studentProfileId}`
+    : `/app/teacher/assignment/${item.assignmentId}`;
+}
+
 function overviewTargets(assignments: Assignment[]) {
   const active = assignments.filter(assignment => assignment.status === "ACTIVE");
   return active.length ? active : assignments.filter(assignment => assignment.status !== "DRAFT");
@@ -139,6 +145,13 @@ export default function TeacherPage() {
       recentSubmissions
     };
   }, [activeAssignments, attentionItems, overviewByAssignment]);
+  const summaryTiles = [
+    { label: "班级", value: teacherHomeSummary.className },
+    { label: "作业", value: teacherHomeSummary.activeCount || "-" },
+    { label: "学生", value: teacherHomeSummary.participantCount || "-" },
+    { label: "需看", value: teacherHomeSummary.attentionCount, tone: teacherHomeSummary.attentionCount ? "warning" : "success" },
+    { label: "新增", value: teacherHomeSummary.recentSubmissions || "-" }
+  ];
 
   async function loadTeacherHome() {
     setLoading(true);
@@ -174,7 +187,8 @@ export default function TeacherPage() {
       <section className="teacher-workflow-header teacher-workflow-header--simple">
         <div>
           <p className="eyebrow">教师端</p>
-          <h1>作业</h1>
+          <h1>作业中心</h1>
+          <p>只保留作业、需关注学生和必要入口。</p>
         </div>
         <div className="teacher-home-actions">
           <ButtonLink to="/app/teacher/classes" variant="secondary" icon={<UsersRound size={16} />}>
@@ -186,62 +200,59 @@ export default function TeacherPage() {
         </div>
       </section>
 
-      <section className="teacher-home-status-strip" aria-label="班级当前状态" aria-busy={loading}>
-        <div>
-          <span>默认班级</span>
-          <strong>{teacherHomeSummary.className}</strong>
-        </div>
-        <div>
-          <span>进行中作业</span>
-          <strong>{teacherHomeSummary.activeCount}</strong>
-        </div>
-        <div>
-          <span>总学生</span>
-          <strong>{teacherHomeSummary.participantCount || "-"}</strong>
-        </div>
-        <div>
-          <span>需关注学生</span>
-          <strong>{teacherHomeSummary.attentionCount}</strong>
-        </div>
-        <div>
-          <span>最近提交</span>
-          <strong>{teacherHomeSummary.recentSubmissions || "-"}</strong>
-        </div>
+      <section className="teacher-home-summary-grid teacher-home-status-strip" aria-label="班级当前状态" aria-busy={loading}>
+        {summaryTiles.map(tile => (
+          <div className={`teacher-home-summary-tile ${tile.tone ? `teacher-home-summary-tile--${tile.tone}` : ""}`} key={tile.label}>
+            <span>{tile.label}</span>
+            <strong>{tile.value}</strong>
+          </div>
+        ))}
       </section>
 
       <section className="teacher-home-workbench">
         <div className="teacher-workflow-panel" aria-label="进行中作业" aria-busy={loading}>
           <div className="teacher-section-head teacher-section-head--compact">
             <div>
-              <p className="eyebrow">查看</p>
-              <h2>进行中作业</h2>
+              <p className="eyebrow">作业</p>
+              <h2>选择要看的作业</h2>
             </div>
           </div>
           {loading && !cleanAssignments.length ? (
             <EmptyState title="正在读取作业" live />
           ) : cleanAssignments.length ? (
-            <div className="teacher-assignment-list" aria-label="教师作业入口">
+            <div className="teacher-assignment-grid teacher-assignment-list" aria-label="教师作业入口">
               {activeAssignments.map(assignment => {
                 const overview = overviewByAssignment[assignment.id];
                 const taskCount = assignment.tasks?.length || 0;
                 const count = attentionCount(overview);
                 return (
                   <Link
-                    className="teacher-assignment-row teacher-assignment-row--simple teacher-assignment-row--entry"
+                    className="teacher-assignment-card teacher-assignment-row--entry"
                     to={`/app/teacher/assignment/${assignment.id}`}
                     key={assignment.id}
                   >
-                    <div className="teacher-assignment-row__title">
+                    <div className="teacher-assignment-card__head">
                       <strong>{assignment.title}</strong>
-                      <small className="teacher-assignment-row__meta">
-                        {taskCount} 题 · {participantText(overview)} · {assignmentStatusLabel(assignment.status)}
-                      </small>
+                      <StatusPill tone={count ? "warning" : assignment.status === "ACTIVE" ? "success" : "neutral"}>
+                        {count ? `需看 ${count}` : assignmentStatusLabel(assignment.status)}
+                      </StatusPill>
                     </div>
-                    <StatusPill tone={count ? "warning" : assignment.status === "ACTIVE" ? "success" : "neutral"}>
-                      {count ? `${count} 关注` : assignmentStatusLabel(assignment.status)}
-                    </StatusPill>
-                    <span className="teacher-row-enter" aria-hidden="true">
-                      <span>进入</span>
+                    <div className="teacher-assignment-card__facts">
+                      <span>
+                        <small>题目</small>
+                        <b>{taskCount}</b>
+                      </span>
+                      <span>
+                        <small>学生</small>
+                        <b>{participantText(overview).replace(" 人", "")}</b>
+                      </span>
+                      <span>
+                        <small>状态</small>
+                        <b>{assignmentStatusLabel(assignment.status)}</b>
+                      </span>
+                    </div>
+                    <span className="teacher-card-action" aria-hidden="true">
+                      <span>查看详情</span>
                       <ArrowRight size={17} />
                     </span>
                   </Link>
@@ -257,26 +268,25 @@ export default function TeacherPage() {
           <div className="teacher-section-head teacher-section-head--compact">
             <div>
               <p className="eyebrow">需关注</p>
-              <h2>学生摘要</h2>
+              <h2>先看这些学生</h2>
             </div>
             <StatusPill tone={attentionItems.length ? "warning" : "success"}>{attentionItems.length || "稳定"}</StatusPill>
           </div>
           {attentionItems.length ? (
-            <div className="teacher-attention-list">
+            <div className="teacher-attention-grid teacher-attention-list">
               {attentionItems.slice(0, 6).map(item => {
-                const target = item.problemId
-                  ? `/app/teacher/assignment/${item.assignmentId}/problems/${item.problemId}/students/${item.studentProfileId}`
-                  : `/app/teacher/assignment/${item.assignmentId}`;
+                const target = attentionTarget(item);
                 return (
-                  <Link className="teacher-attention-row" to={target} key={`${item.assignmentId}-${item.studentProfileId}-${item.problemId || "assignment"}`}>
-                    <span>
+                  <Link className="teacher-attention-card" to={target} key={`${item.assignmentId}-${item.studentProfileId}-${item.problemId || "assignment"}`}>
+                    <div>
                       <strong>{item.displayName}</strong>
                       <small>{item.assignmentTitle}</small>
-                    </span>
-                    <span>
+                    </div>
+                    <div>
                       <em>{item.reason}</em>
                       <small>{item.submittedAt ? formatDateTime(item.submittedAt) : "最近提交待定"}</small>
-                    </span>
+                    </div>
+                    <ArrowRight size={16} aria-hidden="true" />
                   </Link>
                 );
               })}

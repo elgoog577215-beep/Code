@@ -926,11 +926,12 @@ const scenarios = [
       const shellNavLabels = await page.locator(".teacher-shell-nav__links a span").allTextContents();
       const activeShellNav = await page.locator(".teacher-shell-nav__links a.is-active span").allTextContents();
       const teacherText = ((await page.locator(".teacher-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher shell nav is current structure", shellNavLabels.join("|") === "查看|管理", shellNavLabels.join("|"));
-      record("teacher shell nav is active", activeShellNav.includes("查看"), activeShellNav.join("|"));
-      record("teacher home is assignment workflow", teacherText.includes("作业") && teacherText.includes("进行中作业") && teacherText.includes("进入"), teacherText.slice(0, 800));
+      record("teacher shell nav is current structure", shellNavLabels.join("|") === "作业中心|资源管理", shellNavLabels.join("|"));
+      record("teacher shell nav is active", activeShellNav.includes("作业中心"), activeShellNav.join("|"));
+      record("teacher home is assignment workflow", teacherText.includes("作业中心") && teacherText.includes("选择要看的作业") && teacherText.includes("查看详情"), teacherText.slice(0, 800));
+      record("teacher home removes repeated decision copy", !teacherText.includes("下一步") && !teacherText.includes("学生摘要"), teacherText.slice(0, 800));
       record("teacher home hides invite code", !teacherText.includes("邀请码") && !teacherText.includes("WZAI01"), teacherText.slice(0, 800));
-      record("teacher home shows assignment row essentials", teacherText.includes("高一1班") && teacherText.includes("2题") && teacherText.includes("需关注"), teacherText.slice(0, 800));
+      record("teacher home shows compact card essentials", teacherText.includes("高一1班") && teacherText.includes("题目2") && teacherText.includes("需看"), teacherText.slice(0, 800));
       record("teacher home keeps diagnostics out of main flow", !teacherText.includes("Coach") && !teacherText.includes("教师校正") && !teacherText.includes("错因证据"), teacherText.slice(0, 800));
       record("teacher home removes duplicate nav actions", !teacherText.includes("管理班级与题目") && !teacherText.includes("总体统计") && !teacherText.includes("刷新") && !teacherText.includes("编辑题目"), teacherText.slice(0, 800));
       record("teacher assignment rows keep one primary action", !teacherText.includes("编辑作业") && !teacherText.includes("编辑进入作业"), teacherText.slice(0, 800));
@@ -953,7 +954,8 @@ const scenarios = [
       [".teacher-workflow-header", "teacher assignment workflow header"],
       [".teacher-home-status-strip", "teacher assignment status strip"],
       [".teacher-workflow-panel", "teacher assignment workflow panel"],
-      [".teacher-assignment-list", "teacher assignment list"]
+      [".teacher-assignment-card", "teacher assignment card"],
+      [".teacher-attention-card", "teacher attention card"]
     ]
   },
   {
@@ -962,9 +964,9 @@ const scenarios = [
     afterChecks: async (page, viewport) => {
       const activeNav = await page.locator(".teacher-shell-nav__links a.is-active span").allTextContents();
       const assignmentText = ((await page.locator(".assignment-drill-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("assignment detail belongs to view nav", activeNav.includes("查看"), activeNav.join("|"));
+      record("assignment detail belongs to assignment nav", activeNav.includes("作业中心"), activeNav.join("|"));
       record("assignment detail hides invite code", !assignmentText.includes("邀请码") && !assignmentText.includes("WZAI01"), assignmentText.slice(0, 900));
-      record("assignment detail exposes drill overview", assignmentText.includes("作业增长情况") && assignmentText.includes("每道题推进情况"), assignmentText.slice(0, 900));
+      record("assignment detail exposes drill overview", assignmentText.includes("作业增长情况") && assignmentText.includes("题目推进"), assignmentText.slice(0, 900));
       record("assignment detail shows core metrics", assignmentText.includes("提交人数") && assignmentText.includes("通过人数") && assignmentText.includes("需关注"), assignmentText.slice(0, 900));
       record("assignment detail lists problems", assignmentText.includes("求和边界") && assignmentText.includes("循环边界"), assignmentText.slice(0, 900));
       record("assignment detail keeps diagnostics out of overview", !assignmentText.includes("AI/Coach/教师校正") && !assignmentText.includes("教师校正已保存"), assignmentText.slice(0, 900));
@@ -972,14 +974,15 @@ const scenarios = [
         await checkElementMaxWidth(page, ".assignment-drill-page", 1440, "assignment desktop drill width");
       }
       if (viewport.name === "mobile") {
-        await checkMinControlHeight(page, ".teacher-table-row--link", 44, "assignment mobile problem rows stay tappable");
+        await checkMinControlHeight(page, ".teacher-problem-card", 44, "assignment mobile problem cards stay tappable");
       }
     },
     selectors: [
       [".assignment-drill-page", "assignment drill page"],
       [".teacher-drill-header", "assignment drill header"],
+      [".teacher-priority-grid", "assignment priority cards"],
       [".teacher-drill-strip", "assignment drill metrics"],
-      [".teacher-problem-table", "assignment problem table"]
+      [".teacher-problem-card-grid", "assignment problem cards"]
     ]
   },
   {
@@ -988,7 +991,7 @@ const scenarios = [
     afterChecks: async page => {
       const activeNav = await page.locator(".teacher-shell-nav__links a.is-active span").allTextContents();
       const createText = ((await page.locator(".assignment-builder-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("assignment create belongs to view nav", activeNav.includes("查看"), activeNav.join("|"));
+      record("assignment create belongs to assignment nav", activeNav.includes("作业中心"), activeNav.join("|"));
       record("assignment create uses three-step workflow", createText.includes("基本信息") && createText.includes("选择题目") && createText.includes("确认发布"), createText.slice(0, 900));
       const hasProblemSearch = await page.getByPlaceholder("搜索题目").count() === 1;
       record("assignment create has problem bank controls", hasProblemSearch && createText.includes("全部难度") && createText.includes("已选题目"), createText.slice(0, 900));
@@ -1008,8 +1011,8 @@ const scenarios = [
     afterChecks: async (page, viewport) => {
       const activeNav = await page.locator(".teacher-shell-nav__links a.is-active span").allTextContents();
       const managementText = ((await page.locator(".teacher-manage-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher management belongs to management nav", activeNav.includes("管理"), activeNav.join("|"));
-      record("teacher management does not also mark view", !activeNav.includes("查看"), activeNav.join("|"));
+      record("teacher management belongs to management nav", activeNav.includes("资源管理"), activeNav.join("|"));
+      record("teacher management does not also mark assignment center", !activeNav.includes("作业中心"), activeNav.join("|"));
       record("teacher management shows routed management entries", managementText.includes("班级与名单") && managementText.includes("题库") && managementText.includes("AI标准库"), managementText.slice(0, 900));
       record("teacher management exposes status controls", managementText.includes("检测AI") && managementText.includes("班级1") && managementText.includes("题目2"), managementText.slice(0, 900));
       if (viewport.name === "desktop") {
