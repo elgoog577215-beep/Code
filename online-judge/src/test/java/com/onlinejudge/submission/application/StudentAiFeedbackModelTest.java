@@ -73,10 +73,51 @@ class StudentAiFeedbackModelTest {
         assertThat(service.lastSystemPrompt())
                 .contains("学生快反馈教练", "studentReport", "禁止给最终代码");
         assertThat(service.lastUserPrompt())
-                .contains("judgeFacts", "candidateSignals", "sourceExcerpt")
+                .contains("judgeFacts", "candidateSignals", "sourceExcerpt", "evidenceCandidates")
                 .contains("不要把内部字段名写进学生反馈");
         assertThat(service.lastUserPrompt()).doesNotContain("sourceCodeWithLineNumbers", "sourceCodeForLineAnalysis");
         assertThat(service.lastOutputTokens()).isLessThanOrEqualTo(900);
+    }
+
+    @Test
+    void mapsEvidenceCandidateIdsToClickableCodeSnippets() {
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "这次主要卡在输入读取方式。题目给两个整数，但代码只按一个整数读取，所以公开失败点一开始就报错。",
+                    "improvementLayerText": "修复后可以补一个不同格式的小样例，确认读取逻辑不是只记住样例。",
+                    "nextActionText": "对照题面写下每一次 input 应该读到什么。"
+                  },
+                  "repairItems": [{
+                    "title": "输入读取不匹配",
+                    "body": "先检查读取语句是否一次读到了题面要求的两个整数。",
+                    "kind": "INPUT_PARSING",
+                    "evidenceRefs": ["E1"],
+                    "qualitySignals": ["evidence_grounded", "actionable"]
+                  }],
+                  "improvementItems": [],
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["E1"]
+                }
+                """);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                submission(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(service.lastUserPrompt()).contains("\"id\":\"E1\"", "\"evidenceRef\":\"code:line:1\"");
+        assertThat(feedback.getEvidenceRefs()).contains("code:line:1").doesNotContain("E1");
+        assertThat(feedback.getRepairItems()).singleElement().satisfies(item -> {
+            assertThat(item.getEvidenceRefs()).contains("code:line:1").doesNotContain("E1");
+            assertThat(item.getEvidenceSnippets()).singleElement().satisfies(snippet -> {
+                assertThat(snippet.getLineNumber()).isEqualTo(1);
+                assertThat(snippet.getCode()).contains("n = int(input())");
+            });
+        });
     }
 
     @Test

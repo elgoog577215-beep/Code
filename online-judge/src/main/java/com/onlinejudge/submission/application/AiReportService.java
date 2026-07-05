@@ -267,7 +267,9 @@ public class AiReportService {
         }
 
         try {
-            Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, ruleSignals);
+            List<StudentEvidenceCandidate> evidenceCandidates = buildStudentEvidenceCandidates(submission, evidencePackage, ruleSignals);
+            Map<String, String> evidenceCandidateRefs = evidenceCandidateRefs(evidenceCandidates);
+            Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, ruleSignals, evidenceCandidates);
 
             String systemPrompt = """
                     你是高中信息学在线判题系统的学生快反馈教练。
@@ -284,7 +286,7 @@ public class AiReportService {
                     4. nextActionText 只写 1 个学生马上能做的自查动作，用一句话表达，不要编号，不超过 60 个中文字符。
                     5. repairItems 允许 1-2 条，只有存在彼此独立的错误才给第 2 条；improvementItems 允许 1-2 条。不要为了显得丰富而凑数。
                     6. 不要把 candidateSignals 或 ruleSignals 当成结论；必须让题目目标、代码行为、评测结果三者能对上。
-                    7. 只能使用输入里已有的 evidenceRefs。优先选择 code:line 或 code:range 作为每条建议的 evidenceRefs；不能猜隐藏测试。
+                    7. 每条建议的 evidenceRefs 优先填写 evidenceCandidates 里的 E1/E2 这类证据 ID；也可以填写已有 code:line/code:range。不能猜隐藏测试。
                     8. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达。
                     9. 学生可见文字不能复述 verdict:、code:、evidenceRefs、judgeFacts、candidateSignals 等内部字段名或证据标记。
                     10. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
@@ -298,7 +300,7 @@ public class AiReportService {
             int fastFeedbackOutputTokens = Math.min(Math.max(520, maxOutputTokens), 720);
             String content = chatCompletionForStudentFeedback(systemPrompt, userPrompt, fastFeedbackOutputTokens);
             StudentFastFeedbackPayload payload = parseModelStagePayload(content, StudentFastFeedbackPayload.class);
-            StudentAiFeedbackResponse response = normalizeStudentFastFeedback(payload, submission, startedAt);
+            StudentAiFeedbackResponse response = normalizeStudentFastFeedback(payload, submission, startedAt, evidenceCandidateRefs);
             if (!"READY".equals(response.getStatus())) {
                 return response;
             }
@@ -2389,16 +2391,18 @@ public class AiReportService {
     private Map<String, Object> compactStudentFastFeedbackContext(Problem problem,
                                                                   Submission submission,
                                                                   DiagnosisEvidencePackage evidencePackage,
-                                                                  RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                                  RuleSignalAnalyzer.RuleSignalResult ruleSignals,
+                                                                  List<StudentEvidenceCandidate> evidenceCandidates) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("problem", compactStudentProblemContext(problem, evidencePackage));
         context.put("submission", compactStudentSubmissionContext(submission, evidencePackage));
         context.put("judgeFacts", compactStudentJudgeFacts(evidencePackage == null ? null : evidencePackage.getJudgeFacts()));
         context.put("candidateSignals", compactStudentRuleSignals(ruleSignals));
+        context.put("evidenceCandidates", compactStudentEvidenceCandidates(evidenceCandidates));
         context.put("safetyRules", List.of(
                 "只给定位和验证动作，不给完整代码或完整答案。",
                 "不猜隐藏测试数据。",
-                "每条建议必须基于输入 evidenceRefs，但学生可见文字不能复述内部字段名或证据标记。"
+                "每条建议必须绑定 evidenceCandidates 的证据 ID，或绑定输入已有 evidenceRefs；学生可见文字不能复述内部字段名或证据标记。"
         ));
         return context;
     }
@@ -2518,9 +2522,134 @@ public class AiReportService {
         return context;
     }
 
+    private List<Map<String, Object>> compactStudentEvidenceCandidates(List<StudentEvidenceCandidate> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            return List.of();
+        }
+        return candidates.stream()
+                .limit(24)
+                .map(candidate -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("id", candidate.id());
+                    item.put("evidenceRef", candidate.evidenceRef());
+                    item.put("label", candidate.label());
+                    item.put("lineNumber", candidate.lineNumber());
+                    item.put("lineEnd", candidate.lineEnd());
+                    item.put("code", truncateText(candidate.code(), 160));
+                    return item;
+                })
+                .toList();
+    }
+
+    private List<StudentEvidenceCandidate> buildStudentEvidenceCandidates(Submission submission,
+                                                                          DiagnosisEvidencePackage evidencePackage,
+                                                                          RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        String sourceCode = studentFeedbackSourceCode(submission, evidencePackage);
+        if (sourceCode.isBlank()) {
+            return List.of();
+        }
+        List<StudentEvidenceCandidate> candidates = new ArrayList<>();
+        Set<String> seenRefs = new LinkedHashSet<>();
+        String diagnosticText = firstNonBlank(
+                submission == null ? "" : submission.getErrorMessage(),
+                evidencePackage == null || evidencePackage.getJudgeFacts() == null
+                        ? ""
+                        : evidencePackage.getJudgeFacts().getRuntimeErrorMessage()
+        );
+        Integer runtimeLine = lastReferencedLineNumber(diagnosticText);
+        if (runtimeLine != null) {
+            addStudentEvidenceCandidate(candidates, seenRefs, sourceCode, "code:line:" + runtimeLine, "运行错误指向行");
+            if (!candidates.isEmpty()) {
+                return candidates;
+            }
+        }
+        cleanList(ruleSignals == null ? null : ruleSignals.getEvidenceRefs(), List.of()).forEach(ref ->
+                addStudentEvidenceCandidate(candidates, seenRefs, sourceCode, ref, "规则信号定位行"));
+        if (ruleSignals != null && ruleSignals.getSignals() != null) {
+            ruleSignals.getSignals().stream()
+                    .filter(signal -> signal != null)
+                    .map(RuleSignalAnalyzer.Signal::getEvidenceRef)
+                    .forEach(ref -> addStudentEvidenceCandidate(candidates, seenRefs, sourceCode, ref, "规则信号定位行"));
+        }
+        addSourceHeuristicCandidates(candidates, seenRefs, sourceCode);
+        return candidates;
+    }
+
+    private Map<String, String> evidenceCandidateRefs(List<StudentEvidenceCandidate> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> refs = new LinkedHashMap<>();
+        candidates.forEach(candidate -> refs.put(candidate.id(), candidate.evidenceRef()));
+        return refs;
+    }
+
+    private void addSourceHeuristicCandidates(List<StudentEvidenceCandidate> candidates,
+                                              Set<String> seenRefs,
+                                              String sourceCode) {
+        String[] lines = sourceCode.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
+        for (int index = 0; index < lines.length && candidates.size() < 24; index++) {
+            String line = lines[index].trim();
+            if (!looksLikeStudentEvidenceLine(line)) {
+                continue;
+            }
+            addStudentEvidenceCandidate(candidates, seenRefs, sourceCode, "code:line:" + (index + 1), "代码关键位置");
+        }
+    }
+
+    private boolean looksLikeStudentEvidenceLine(String line) {
+        if (line.isBlank() || line.startsWith("#") || line.startsWith("//") || line.startsWith("import ")) {
+            return false;
+        }
+        String normalized = line.toLowerCase();
+        return normalized.contains("input")
+                || normalized.contains("print")
+                || normalized.contains("cin")
+                || normalized.contains("cout")
+                || normalized.contains("for ")
+                || normalized.contains("while ")
+                || normalized.contains("if ")
+                || normalized.contains("return")
+                || normalized.contains("check")
+                || normalized.contains("solve")
+                || normalized.contains("int main");
+    }
+
+    private void addStudentEvidenceCandidate(List<StudentEvidenceCandidate> candidates,
+                                             Set<String> seenRefs,
+                                             String sourceCode,
+                                             String evidenceRef,
+                                             String label) {
+        if (candidates.size() >= 24) {
+            return;
+        }
+        StudentAiFeedbackResponse.EvidenceSnippet snippet = evidenceSnippet(evidenceRef, sourceCode);
+        if (snippet == null || !seenRefs.add(snippet.getEvidenceRef())) {
+            return;
+        }
+        candidates.add(new StudentEvidenceCandidate(
+                "E" + (candidates.size() + 1),
+                snippet.getEvidenceRef(),
+                label,
+                snippet.getLineNumber(),
+                snippet.getLineEnd(),
+                snippet.getCode()
+        ));
+    }
+
+    private String studentFeedbackSourceCode(Submission submission, DiagnosisEvidencePackage evidencePackage) {
+        String sourceCode = defaultIfBlank(submission == null ? "" : submission.getSourceCode(), "");
+        if (!sourceCode.isBlank()) {
+            return sourceCode;
+        }
+        DiagnosisEvidencePackage.SubmissionEvidence evidence = evidencePackage == null ? null : evidencePackage.getSubmission();
+        return defaultIfBlank(evidence == null ? "" : evidence.getSourceCode(), "");
+    }
+
     private StudentAiFeedbackResponse normalizeStudentFastFeedback(StudentFastFeedbackPayload payload,
                                                                    Submission submission,
-                                                                   long startedAt) {
+                                                                   long startedAt,
+                                                                   Map<String, String> evidenceCandidateRefs) {
         if (payload == null) {
             return feedbackFailure(submission, "FAILED", "STRUCTURED_OUTPUT_INVALID", startedAt);
         }
@@ -2542,13 +2671,13 @@ public class AiReportService {
                             .answerLeakRisk("HIGH")
                     .blockedReasons(mergeStringLists(safety.getBlockedReasons(), List.of("ANSWER_LEAK_RISK")))
                             .build())
-                    .evidenceRefs(cleanList(payload.evidenceRefs, List.of()))
+                    .evidenceRefs(resolveStudentEvidenceRefs(payload.evidenceRefs, evidenceCandidateRefs))
                     .build();
         }
         List<StudentAiFeedbackResponse.FeedbackItem> repairItems =
-                enrichFeedbackItems(normalizeFeedbackItems(payload.repairItems, 2), submission);
+                enrichFeedbackItems(normalizeFeedbackItems(payload.repairItems, 2, evidenceCandidateRefs), submission);
         List<StudentAiFeedbackResponse.FeedbackItem> improvementItems =
-                enrichFeedbackItems(normalizeFeedbackItems(payload.improvementItems, 2), submission);
+                enrichFeedbackItems(normalizeFeedbackItems(payload.improvementItems, 2, evidenceCandidateRefs), submission);
         String nextQuestion = cleanStudentFeedbackText(payload.nextQuestion);
         StudentAiFeedbackResponse.StudentReport studentReport =
                 normalizeStudentReport(payload.studentReport, repairItems, improvementItems, nextQuestion);
@@ -2570,7 +2699,7 @@ public class AiReportService {
                     .build();
         }
         List<String> evidenceRefs = mergeStringLists(
-                payload.evidenceRefs,
+                resolveStudentEvidenceRefs(payload.evidenceRefs, evidenceCandidateRefs),
                 mergeItemRefs(repairItems, improvementItems)
         );
         if (!hasStudentReportText(studentReport) && repairItems.isEmpty() && improvementItems.isEmpty() && nextQuestion.isBlank()) {
@@ -2818,7 +2947,8 @@ public class AiReportService {
     }
 
     private List<StudentAiFeedbackResponse.FeedbackItem> normalizeFeedbackItems(List<StudentFeedbackItemPayload> payloadItems,
-                                                                                int maxItems) {
+                                                                                int maxItems,
+                                                                                Map<String, String> evidenceCandidateRefs) {
         if (payloadItems == null || payloadItems.isEmpty()) {
             return List.of();
         }
@@ -2842,11 +2972,31 @@ public class AiReportService {
                     .body(body)
                     .kind(defaultIfBlank(cleanupAiText(payload.kind).toUpperCase(), "GUIDANCE"))
                     .knowledgePath(cleanList(payload.knowledgePath, List.of()).stream().limit(5).toList())
-                    .evidenceRefs(cleanList(payload.evidenceRefs, List.of()).stream().limit(4).toList())
+                    .evidenceRefs(resolveStudentEvidenceRefs(payload.evidenceRefs, evidenceCandidateRefs).stream().limit(4).toList())
                     .qualitySignals(cleanList(payload.qualitySignals, List.of()).stream().limit(5).toList())
                     .build());
         }
         return items;
+    }
+
+    private List<String> resolveStudentEvidenceRefs(List<String> refs, Map<String, String> evidenceCandidateRefs) {
+        if (refs == null || refs.isEmpty()) {
+            return List.of();
+        }
+        return refs.stream()
+                .map(ref -> resolveStudentEvidenceRef(ref, evidenceCandidateRefs))
+                .filter(ref -> !ref.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private String resolveStudentEvidenceRef(String ref, Map<String, String> evidenceCandidateRefs) {
+        String cleaned = cleanupAiText(ref);
+        if (cleaned.isBlank()) {
+            return "";
+        }
+        String mapped = evidenceCandidateRefs == null ? null : evidenceCandidateRefs.get(cleaned);
+        return mapped == null ? cleaned : mapped;
     }
 
     private List<StudentAiFeedbackResponse.FeedbackItem> enrichFeedbackItems(List<StudentAiFeedbackResponse.FeedbackItem> items,
@@ -3135,6 +3285,14 @@ public class AiReportService {
             return normalized;
         }
         return "LOW";
+    }
+
+    private record StudentEvidenceCandidate(String id,
+                                            String evidenceRef,
+                                            String label,
+                                            Integer lineNumber,
+                                            Integer lineEnd,
+                                            String code) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
