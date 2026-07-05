@@ -16,9 +16,12 @@ import java.util.List;
 public class StandardLibraryPack {
 
     public static final String SCHEMA_VERSION = "standard-library-pack-v1";
+    public static final String STRUCTURE_VERSION = "standard-library-structure-v1";
 
     private String schemaVersion;
     private String taxonomyVersion;
+    private String structureVersion;
+    private List<KnowledgeGroupOption> knowledgeGroups;
     private List<BasicCauseOption> basicCauses;
     private List<ImprovementPointOption> improvementPoints;
     private List<KnowledgeAnchorOption> knowledgeAnchors;
@@ -53,6 +56,32 @@ public class StandardLibraryPack {
         private List<String> applicableLanguages;
         private List<String> relatedFineTags;
         private String teachingAction;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class KnowledgeGroupOption {
+        private String id;
+        private String name;
+        private String path;
+        private String description;
+        private List<SkillUnitGroupOption> skillUnits;
+        private List<ImprovementPointOption> improvementPoints;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class SkillUnitGroupOption {
+        private SkillUnitOption skillUnit;
+        private List<MistakePointOption> mistakePoints;
+        private List<ImprovementPointOption> improvementPoints;
+        private List<String> candidateIds;
     }
 
     @Data

@@ -222,6 +222,8 @@ public class ExternalModelAgentRuntime {
         return StandardLibraryPack.builder()
                 .schemaVersion(source.getSchemaVersion())
                 .taxonomyVersion(source.getTaxonomyVersion())
+                .structureVersion(source.getStructureVersion())
+                .knowledgeGroups(compactKnowledgeGroups(source.getKnowledgeGroups()))
                 .basicCauses(compactBasicCauses(source.getBasicCauses()))
                 .improvementPoints(compactImprovementPoints(source.getImprovementPoints()))
                 .knowledgeAnchors(compactKnowledgeAnchors(source.getKnowledgeAnchors()))
@@ -232,6 +234,54 @@ public class ExternalModelAgentRuntime {
                 .fineGrainedTags(compactTags(source.getFineGrainedTags()))
                 .improvementTags(compactImprovementTags(source.getImprovementTags()))
                 .teachingActions(compactTeachingActions(source.getTeachingActions()))
+                .build();
+    }
+
+    private List<StandardLibraryPack.KnowledgeGroupOption> compactKnowledgeGroups(
+            List<StandardLibraryPack.KnowledgeGroupOption> source) {
+        if (source == null || source.isEmpty()) {
+            return List.of();
+        }
+        return source.stream()
+                .limit(6)
+                .map(group -> StandardLibraryPack.KnowledgeGroupOption.builder()
+                        .id(group.getId())
+                        .name(group.getName())
+                        .path(truncate(group.getPath(), 120))
+                        .description(truncate(group.getDescription(), 80))
+                        .skillUnits(compactSkillUnitGroups(group.getSkillUnits()))
+                        .improvementPoints(limit(compactImprovementPoints(group.getImprovementPoints()), 3))
+                        .build())
+                .toList();
+    }
+
+    private List<StandardLibraryPack.SkillUnitGroupOption> compactSkillUnitGroups(
+            List<StandardLibraryPack.SkillUnitGroupOption> source) {
+        if (source == null || source.isEmpty()) {
+            return List.of();
+        }
+        return source.stream()
+                .limit(4)
+                .map(group -> StandardLibraryPack.SkillUnitGroupOption.builder()
+                        .skillUnit(compactSkillUnit(group.getSkillUnit()))
+                        .mistakePoints(limit(compactMistakePoints(group.getMistakePoints()), 5))
+                        .improvementPoints(limit(compactImprovementPoints(group.getImprovementPoints()), 3))
+                        .candidateIds(limit(group.getCandidateIds(), 9))
+                        .build())
+                .toList();
+    }
+
+    private StandardLibraryPack.SkillUnitOption compactSkillUnit(StandardLibraryPack.SkillUnitOption skill) {
+        if (skill == null) {
+            return null;
+        }
+        return StandardLibraryPack.SkillUnitOption.builder()
+                .id(skill.getId())
+                .category(skill.getCategory())
+                .name(skill.getName())
+                .description(truncate(skill.getDescription(), 90))
+                .knowledgeNodeCodes(limit(skill.getKnowledgeNodeCodes(), 5))
+                .applicableLanguages(limit(skill.getApplicableLanguages(), 3))
                 .build();
     }
 
@@ -381,7 +431,7 @@ public class ExternalModelAgentRuntime {
         return value.substring(0, Math.max(0, maxLength - 24)) + "\n...[truncated for model]";
     }
 
-    private List<String> limit(List<String> values, int maxSize) {
+    private <T> List<T> limit(List<T> values, int maxSize) {
         if (values == null || values.isEmpty()) {
             return List.of();
         }

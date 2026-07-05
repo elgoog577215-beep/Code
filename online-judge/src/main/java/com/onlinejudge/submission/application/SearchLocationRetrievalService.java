@@ -55,7 +55,7 @@ public class SearchLocationRetrievalService {
                         .thenComparing(SearchLocationCandidate::getId))
                 .limit(candidateLimit())
                 .toList();
-        ranked = withTreeContext(ranked);
+        ranked = withTreeContext(ranked, items);
         List<String> recallSources = ranked.stream()
                 .flatMap(candidate -> candidate.getRecallSources() == null
                         ? java.util.stream.Stream.empty()
@@ -194,12 +194,17 @@ public class SearchLocationRetrievalService {
                 .name(item.getName())
                 .description(item.getDescription())
                 .skillUnitCode(item.getSkillUnitCode())
+                .parentSkillUnitId(parentSkillUnitId(item))
                 .mistakeType(item.getMistakeType())
+                .primaryKnowledgeNodeCode(primaryKnowledgeNodeCode(item))
                 .knowledgeNodeCodes(lines(item.getKnowledgeNodeCodes()))
+                .structurePath(structurePath(item))
                 .applicableLanguages(lines(item.getApplicableLanguages()))
                 .recallSources(recallSources(item, textScore, vectorScore, signalScore, vectorReady))
                 .parentKnowledgePath(parentKnowledgePath(item))
+                .childMistakePointIds(List.of())
                 .siblingMistakePointIds(List.of())
+                .relatedImprovementPointIds(List.of())
                 .extensionCandidateIds(List.of())
                 .textScore(round(textScore))
                 .vectorScore(round(vectorScore))
@@ -209,55 +214,81 @@ public class SearchLocationRetrievalService {
                 .build();
     }
 
-    private List<SearchLocationCandidate> withTreeContext(List<SearchLocationCandidate> candidates) {
+    private List<SearchLocationCandidate> withTreeContext(List<SearchLocationCandidate> candidates,
+                                                          List<AiStandardLibraryItem> allItems) {
         return candidates.stream()
                 .map(candidate -> candidate.toBuilder()
-                        .siblingMistakePointIds(siblingMistakePointIds(candidate, candidates))
-                        .extensionCandidateIds(extensionCandidateIds(candidate, candidates))
+                        .childMistakePointIds(childMistakePointIds(candidate, allItems))
+                        .siblingMistakePointIds(siblingMistakePointIds(candidate, allItems))
+                        .relatedImprovementPointIds(relatedImprovementPointIds(candidate, allItems))
+                        .extensionCandidateIds(extensionCandidateIds(candidate, allItems))
                         .build())
                 .toList();
     }
 
     private List<String> siblingMistakePointIds(SearchLocationCandidate target,
-                                                List<SearchLocationCandidate> candidates) {
-        String skillUnit = safe(target.getSkillUnitCode());
+                                                List<AiStandardLibraryItem> items) {
+        String skillUnit = safe(firstNonBlank(target.getParentSkillUnitId(), target.getSkillUnitCode()));
         if (skillUnit.isBlank()) {
             return List.of();
         }
-        return candidates.stream()
-                .filter(candidate -> candidate != target)
-                .filter(candidate -> "MISTAKE_POINT".equals(candidate.getLayer()))
-                .filter(candidate -> skillUnit.equals(safe(candidate.getSkillUnitCode())))
-                .map(SearchLocationCandidate::getId)
+        return items.stream()
+                .filter(item -> item != null && item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
+                .filter(item -> !safe(target.getId()).equals(safe(item.getCode())))
+                .filter(item -> skillUnit.equals(safe(item.getSkillUnitCode())))
+                .map(AiStandardLibraryItem::getCode)
                 .filter(id -> id != null && !id.isBlank())
                 .distinct()
                 .limit(6)
                 .toList();
     }
 
-    private List<String> extensionCandidateIds(SearchLocationCandidate target,
-                                               List<SearchLocationCandidate> candidates) {
-        List<String> path = target.getKnowledgeNodeCodes() == null ? List.of() : target.getKnowledgeNodeCodes();
-        if (path.isEmpty()) {
+    private List<String> childMistakePointIds(SearchLocationCandidate target,
+                                              List<AiStandardLibraryItem> items) {
+        if (!"SKILL_UNIT".equals(target.getLayer())) {
             return List.of();
         }
-        return candidates.stream()
-                .filter(candidate -> candidate != target)
-                .filter(candidate -> "IMPROVEMENT_POINT".equals(candidate.getLayer())
-                        || "SKILL_UNIT".equals(candidate.getLayer()))
-                .filter(candidate -> sharesKnowledgePath(path, candidate.getKnowledgeNodeCodes()))
-                .map(SearchLocationCandidate::getId)
+        String skillUnit = safe(target.getId());
+        if (skillUnit.isBlank()) {
+            return List.of();
+        }
+        return items.stream()
+                .filter(item -> item != null && item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
+                .filter(item -> skillUnit.equals(safe(item.getSkillUnitCode())))
+                .map(AiStandardLibraryItem::getCode)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .limit(8)
+                .toList();
+    }
+
+    private List<String> relatedImprovementPointIds(SearchLocationCandidate target,
+                                                    List<AiStandardLibraryItem> items) {
+        String skillUnit = safe(firstNonBlank(target.getParentSkillUnitId(), target.getSkillUnitCode()));
+        if (skillUnit.isBlank()) {
+            return List.of();
+        }
+        return items.stream()
+                .filter(item -> item != null && item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT)
+                .filter(item -> skillUnit.equals(safe(item.getSkillUnitCode())))
+                .map(AiStandardLibraryItem::getCode)
                 .filter(id -> id != null && !id.isBlank())
                 .distinct()
                 .limit(5)
                 .toList();
     }
 
-    private boolean sharesKnowledgePath(List<String> left, List<String> right) {
-        if (left == null || right == null || left.isEmpty() || right.isEmpty()) {
-            return false;
+    private List<String> extensionCandidateIds(SearchLocationCandidate target,
+                                               List<AiStandardLibraryItem> items) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        if (!safe(target.getParentSkillUnitId()).isBlank()
+                && !safe(target.getParentSkillUnitId()).equals(safe(target.getId()))) {
+            ids.add(target.getParentSkillUnitId());
         }
-        return left.stream().anyMatch(right::contains);
+        ids.addAll(childMistakePointIds(target, items));
+        ids.addAll(siblingMistakePointIds(target, items));
+        ids.addAll(relatedImprovementPointIds(target, items));
+        return ids.stream().limit(10).toList();
     }
 
     private List<String> recallSources(AiStandardLibraryItem item,
@@ -290,6 +321,27 @@ public class SearchLocationRetrievalService {
             return safe(item.getCategory());
         }
         return paths.get(0).replace(".", " > ");
+    }
+
+    private String primaryKnowledgeNodeCode(AiStandardLibraryItem item) {
+        return lines(item.getKnowledgeNodeCodes()).stream().findFirst().orElse("");
+    }
+
+    private String parentSkillUnitId(AiStandardLibraryItem item) {
+        if (item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT) {
+            return safe(item.getCode());
+        }
+        return safe(item.getSkillUnitCode());
+    }
+
+    private List<String> structurePath(AiStandardLibraryItem item) {
+        String knowledgePath = parentKnowledgePath(item);
+        String skill = parentSkillUnitId(item);
+        return java.util.stream.Stream.of(knowledgePath, skill, safe(item.getCode()))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toList();
     }
 
     private List<String> matchedSignals(AiStandardLibraryItem item,
@@ -393,6 +445,10 @@ public class SearchLocationRetrievalService {
 
     private String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return safe(first).isBlank() ? safe(second) : safe(first);
     }
 
     private double round(double value) {

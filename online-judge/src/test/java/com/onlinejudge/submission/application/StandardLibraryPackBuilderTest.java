@@ -142,6 +142,77 @@ class StandardLibraryPackBuilderTest {
     }
 
     @Test
+    void compactRuntimeKeepsStructuredKnowledgeGroupsWithinBudget() {
+        ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
+                new ModelDiagnosisBriefBuilder(),
+                builder,
+                new PromptTemplateRegistry(),
+                new ModelOutputValidator()
+        );
+        StandardLibraryPack source = StandardLibraryPack.builder()
+                .schemaVersion(StandardLibraryPack.SCHEMA_VERSION)
+                .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
+                .structureVersion(StandardLibraryPack.STRUCTURE_VERSION)
+                .knowledgeGroups(List.of(StandardLibraryPack.KnowledgeGroupOption.builder()
+                        .id("BASIC.LOOP.BOUNDARY")
+                        .name("循环边界")
+                        .path("BASIC > LOOP > BOUNDARY")
+                        .description("这是一个用于验证 compact 是否保留结构视图的长描述。".repeat(8))
+                        .skillUnits(List.of(StandardLibraryPack.SkillUnitGroupOption.builder()
+                                .skillUnit(StandardLibraryPack.SkillUnitOption.builder()
+                                        .id("SK_RANGE_BOUNDARY")
+                                        .category("循环边界")
+                                        .name("能判断循环区间是否包含答案")
+                                        .description("这是一个很长的能力点定义，用来确认 compact 后仍保留能力点但会限制描述长度。".repeat(8))
+                                        .knowledgeNodeCodes(List.of("BASIC.LOOP.BOUNDARY"))
+                                        .applicableLanguages(List.of("PYTHON", "CPP17", "JAVA", "GO"))
+                                        .build())
+                                .mistakePoints(List.of(
+                                        mistake("MP_BOUNDARY_1"),
+                                        mistake("MP_BOUNDARY_2"),
+                                        mistake("MP_BOUNDARY_3"),
+                                        mistake("MP_BOUNDARY_4"),
+                                        mistake("MP_BOUNDARY_5"),
+                                        mistake("MP_BOUNDARY_6")
+                                ))
+                                .improvementPoints(List.of(
+                                        improvement("IP_BOUNDARY_1"),
+                                        improvement("IP_BOUNDARY_2"),
+                                        improvement("IP_BOUNDARY_3"),
+                                        improvement("IP_BOUNDARY_4")
+                                ))
+                                .candidateIds(List.of(
+                                        "SK_RANGE_BOUNDARY",
+                                        "MP_BOUNDARY_1",
+                                        "MP_BOUNDARY_2",
+                                        "MP_BOUNDARY_3",
+                                        "MP_BOUNDARY_4",
+                                        "MP_BOUNDARY_5",
+                                        "MP_BOUNDARY_6",
+                                        "IP_BOUNDARY_1",
+                                        "IP_BOUNDARY_2",
+                                        "IP_BOUNDARY_3"
+                                ))
+                                .build()))
+                        .build()))
+                .build();
+
+        StandardLibraryPack compactPack = ReflectionTestUtils.invokeMethod(runtime, "compactStandardLibraryPack", source);
+
+        assertThat(compactPack.getStructureVersion()).isEqualTo(StandardLibraryPack.STRUCTURE_VERSION);
+        assertThat(compactPack.getKnowledgeGroups()).singleElement().satisfies(group -> {
+            assertThat(group.getDescription()).hasSizeLessThanOrEqualTo(104);
+            assertThat(group.getSkillUnits()).singleElement().satisfies(skillGroup -> {
+                assertThat(skillGroup.getSkillUnit().getId()).isEqualTo("SK_RANGE_BOUNDARY");
+                assertThat(skillGroup.getSkillUnit().getDescription()).hasSizeLessThanOrEqualTo(114);
+                assertThat(skillGroup.getMistakePoints()).hasSize(5);
+                assertThat(skillGroup.getImprovementPoints()).hasSize(3);
+                assertThat(skillGroup.getCandidateIds()).hasSize(9);
+            });
+        });
+    }
+
+    @Test
     void runtimePlanAlwaysUsesFormalAdvicePrompt() {
         ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
                 new ModelDiagnosisBriefBuilder(),
@@ -174,5 +245,32 @@ class StandardLibraryPackBuilderTest {
                 .contains("improvementLayerText")
                 .contains("diagnosisDecision")
                 .doesNotContain("teachingHint");
+    }
+
+    private StandardLibraryPack.MistakePointOption mistake(String id) {
+        return StandardLibraryPack.MistakePointOption.builder()
+                .id(id)
+                .category("循环边界")
+                .name(id)
+                .description("边界易错点描述".repeat(10))
+                .skillUnitCode("SK_RANGE_BOUNDARY")
+                .mistakeType("OFF_BY_ONE")
+                .commonMisconception("误解循环边界。".repeat(10))
+                .knowledgeNodeCodes(List.of("BASIC.LOOP.BOUNDARY"))
+                .applicableLanguages(List.of("PYTHON", "CPP17", "JAVA", "GO"))
+                .build();
+    }
+
+    private StandardLibraryPack.ImprovementPointOption improvement(String id) {
+        return StandardLibraryPack.ImprovementPointOption.builder()
+                .id(id)
+                .category("边界验证")
+                .name(id)
+                .description("提升点描述".repeat(10))
+                .whenToUse("修复基础问题后，用多类边界样例验证模板。".repeat(8))
+                .studentBenefit("提升迁移能力。".repeat(8))
+                .abilityPoint("SK_RANGE_BOUNDARY")
+                .relatedBasicCauses(List.of("MP_BOUNDARY_1"))
+                .build();
     }
 }

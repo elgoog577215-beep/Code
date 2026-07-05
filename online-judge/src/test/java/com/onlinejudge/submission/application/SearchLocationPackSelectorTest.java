@@ -45,6 +45,48 @@ class SearchLocationPackSelectorTest {
         assertThat(pack.getSearchLocationSummary().getSelectedCount()).isEqualTo(3);
     }
 
+    @Test
+    void selectedMistakeExpandsParentSiblingImprovementAndStructuredView() {
+        AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
+        when(libraryService.enabledSearchLocationItems()).thenReturn(List.of(
+                item("SK_RANGE_BOUNDARY", AiStandardLibraryLayer.SKILL_UNIT),
+                item("MP_RANGE_RIGHT_ENDPOINT_MISSING", AiStandardLibraryLayer.MISTAKE_POINT),
+                item("MP_RANGE_LEFT_ENDPOINT_EXTRA", AiStandardLibraryLayer.MISTAKE_POINT),
+                item("IP_BOUNDARY_TESTING", AiStandardLibraryLayer.IMPROVEMENT_POINT)
+        ));
+        SearchLocationPackSelector selector = new SearchLocationPackSelector(libraryService, new DiagnosisTaxonomy());
+
+        StandardLibraryPack pack = selector.select(outputWithOnlyMistake(), candidatePackWithNeighborhood(), fallbackPack());
+
+        assertThat(pack.getStructureVersion()).isEqualTo(StandardLibraryPack.STRUCTURE_VERSION);
+        assertThat(pack.getSkillUnits()).extracting(StandardLibraryPack.SkillUnitOption::getId)
+                .containsExactly("SK_RANGE_BOUNDARY");
+        assertThat(pack.getMistakePoints()).extracting(StandardLibraryPack.MistakePointOption::getId)
+                .containsExactly("MP_RANGE_RIGHT_ENDPOINT_MISSING", "MP_RANGE_LEFT_ENDPOINT_EXTRA");
+        assertThat(pack.getImprovementPoints()).extracting(StandardLibraryPack.ImprovementPointOption::getId)
+                .containsExactly("IP_BOUNDARY_TESTING");
+        assertThat(pack.getKnowledgeGroups()).singleElement().satisfies(group -> {
+            assertThat(group.getId()).isEqualTo("BASIC.LOOP.BOUNDARY");
+            assertThat(group.getSkillUnits()).singleElement().satisfies(skillGroup -> {
+                assertThat(skillGroup.getSkillUnit().getId()).isEqualTo("SK_RANGE_BOUNDARY");
+                assertThat(skillGroup.getMistakePoints())
+                        .extracting(StandardLibraryPack.MistakePointOption::getId)
+                        .containsExactly("MP_RANGE_RIGHT_ENDPOINT_MISSING", "MP_RANGE_LEFT_ENDPOINT_EXTRA");
+                assertThat(skillGroup.getImprovementPoints())
+                        .extracting(StandardLibraryPack.ImprovementPointOption::getId)
+                        .containsExactly("IP_BOUNDARY_TESTING");
+                assertThat(skillGroup.getCandidateIds())
+                        .containsExactly(
+                                "SK_RANGE_BOUNDARY",
+                                "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                                "MP_RANGE_LEFT_ENDPOINT_EXTRA",
+                                "IP_BOUNDARY_TESTING"
+                        );
+            });
+        });
+        assertThat(pack.getSearchLocationSummary().getSelectedCount()).isEqualTo(4);
+    }
+
     private SearchLocationOutput output() {
         return SearchLocationOutput.builder()
                 .basicCandidates(List.of(SearchLocationOutput.SelectedCandidate.builder()
@@ -70,6 +112,19 @@ class SearchLocationPackSelectorTest {
                 .build();
     }
 
+    private SearchLocationOutput outputWithOnlyMistake() {
+        return SearchLocationOutput.builder()
+                .basicCandidates(List.of(SearchLocationOutput.SelectedCandidate.builder()
+                        .id("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                        .layer("MISTAKE_POINT")
+                        .confidence(0.94)
+                        .evidenceRefs(List.of("code:range_excludes_n"))
+                        .build()))
+                .uncertainty("只命中一个易错点，由结构邻域补齐上下文。")
+                .needsMoreEvidence(false)
+                .build();
+    }
+
     private SearchLocationCandidatePack candidatePack() {
         return SearchLocationCandidatePack.builder()
                 .embeddingStatus("DISABLED")
@@ -79,6 +134,21 @@ class SearchLocationPackSelectorTest {
                         SearchLocationCandidate.builder().id("IP_BOUNDARY_TESTING").layer("IMPROVEMENT_POINT").build(),
                         SearchLocationCandidate.builder().id("SK_RANGE_BOUNDARY").layer("SKILL_UNIT").build()
                 ))
+                .build();
+    }
+
+    private SearchLocationCandidatePack candidatePackWithNeighborhood() {
+        return SearchLocationCandidatePack.builder()
+                .embeddingStatus("DISABLED")
+                .candidateCount(1)
+                .candidates(List.of(SearchLocationCandidate.builder()
+                        .id("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                        .layer("MISTAKE_POINT")
+                        .parentSkillUnitId("SK_RANGE_BOUNDARY")
+                        .siblingMistakePointIds(List.of("MP_RANGE_LEFT_ENDPOINT_EXTRA"))
+                        .relatedImprovementPointIds(List.of("IP_BOUNDARY_TESTING"))
+                        .extensionCandidateIds(List.of("SK_RANGE_BOUNDARY"))
+                        .build()))
                 .build();
     }
 

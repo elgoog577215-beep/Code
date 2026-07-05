@@ -29,6 +29,7 @@ public class SearchLocationPackSelector {
                 .forEach(item -> byCode.put(item.getCode().toUpperCase(Locale.ROOT), item));
 
         LinkedHashSet<String> selectedIds = selectedIds(output);
+        expandSelectedIds(selectedIds, candidatePack, byCode);
         List<AiStandardLibraryItem> selectedItems = selectedIds.stream()
                 .map(id -> byCode.get(id.toUpperCase(Locale.ROOT)))
                 .filter(item -> item != null)
@@ -85,6 +86,8 @@ public class SearchLocationPackSelector {
         return StandardLibraryPack.builder()
                 .schemaVersion(StandardLibraryPack.SCHEMA_VERSION)
                 .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
+                .structureVersion(StandardLibraryPack.STRUCTURE_VERSION)
+                .knowledgeGroups(buildKnowledgeGroups(selectedItems))
                 .basicCauses(basicCauses)
                 .improvementPoints(improvementPoints)
                 .knowledgeAnchors(anchors)
@@ -129,6 +132,51 @@ public class SearchLocationPackSelector {
                     .findFirst()
                     .ifPresent(ids::add);
         }
+    }
+
+    private void expandSelectedIds(LinkedHashSet<String> selectedIds,
+                                   SearchLocationCandidatePack candidatePack,
+                                   Map<String, AiStandardLibraryItem> byCode) {
+        if (selectedIds.isEmpty() || candidatePack == null || candidatePack.getCandidates() == null) {
+            return;
+        }
+        Map<String, SearchLocationCandidate> candidatesById = new LinkedHashMap<>();
+        for (SearchLocationCandidate candidate : candidatePack.getCandidates()) {
+            if (candidate != null && candidate.getId() != null) {
+                candidatesById.put(candidate.getId().toUpperCase(Locale.ROOT), candidate);
+            }
+        }
+        LinkedHashSet<String> additions = new LinkedHashSet<>();
+        for (String selectedId : selectedIds) {
+            SearchLocationCandidate candidate = candidatesById.get(selectedId.toUpperCase(Locale.ROOT));
+            if (candidate == null) {
+                continue;
+            }
+            addIfPresent(additions, candidate.getParentSkillUnitId());
+            addIfPresent(additions, candidate.getSkillUnitCode());
+            addAll(additions, candidate.getChildMistakePointIds());
+            addAll(additions, candidate.getSiblingMistakePointIds());
+            addAll(additions, candidate.getRelatedImprovementPointIds());
+            addAll(additions, candidate.getExtensionCandidateIds());
+        }
+        additions.stream()
+                .filter(id -> byCode.containsKey(id.toUpperCase(Locale.ROOT)))
+                .limit(24)
+                .forEach(selectedIds::add);
+    }
+
+    private void addIfPresent(Set<String> ids, String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.isBlank()) {
+            ids.add(normalized);
+        }
+    }
+
+    private void addAll(Set<String> ids, List<String> values) {
+        if (values == null) {
+            return;
+        }
+        values.forEach(value -> addIfPresent(ids, value));
     }
 
     private List<String> firstPresent(String... values) {
@@ -178,7 +226,7 @@ public class SearchLocationPackSelector {
                 .hintL1(item.getHintL1())
                 .hintL2(item.getHintL2())
                 .hintL3(item.getHintL3())
-                .abilityPoint(item.getAbilityPoint())
+                .abilityPoint(firstNonBlank(item.getSkillUnitCode(), item.getAbilityPoint()))
                 .relatedBasicCauses(lines(item.getRelatedItems()))
                 .build();
     }
@@ -208,6 +256,102 @@ public class SearchLocationPackSelector {
                 .build();
     }
 
+    private List<StandardLibraryPack.KnowledgeGroupOption> buildKnowledgeGroups(List<AiStandardLibraryItem> selectedItems) {
+        if (selectedItems == null || selectedItems.isEmpty()) {
+            return List.of();
+        }
+        List<StandardLibraryPack.SkillUnitOption> skillUnits = selectedItems.stream()
+                .filter(item -> item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT)
+                .map(this::toSkillUnit)
+                .toList();
+        List<StandardLibraryPack.MistakePointOption> mistakes = selectedItems.stream()
+                .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
+                        || item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
+                .map(this::toMistakePoint)
+                .toList();
+        List<StandardLibraryPack.ImprovementPointOption> improvements = selectedItems.stream()
+                .filter(item -> item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT)
+                .map(this::toImprovementPoint)
+                .toList();
+
+        LinkedHashMap<String, List<AiStandardLibraryItem>> itemsByKnowledge = new LinkedHashMap<>();
+        for (AiStandardLibraryItem item : selectedItems) {
+            List<String> knowledgeCodes = lines(item.getKnowledgeNodeCodes());
+            String key = knowledgeCodes.isEmpty() ? firstNonBlank(item.getCategory(), "UNMAPPED") : knowledgeCodes.get(0);
+            itemsByKnowledge.computeIfAbsent(key, ignored -> new java.util.ArrayList<>()).add(item);
+        }
+
+        return itemsByKnowledge.entrySet().stream()
+                .limit(10)
+                .map(entry -> toKnowledgeGroup(entry.getKey(), entry.getValue(), skillUnits, mistakes, improvements))
+                .toList();
+    }
+
+    private StandardLibraryPack.KnowledgeGroupOption toKnowledgeGroup(
+            String knowledgeCode,
+            List<AiStandardLibraryItem> items,
+            List<StandardLibraryPack.SkillUnitOption> allSkills,
+            List<StandardLibraryPack.MistakePointOption> allMistakes,
+            List<StandardLibraryPack.ImprovementPointOption> allImprovements) {
+        LinkedHashSet<String> skillIds = new LinkedHashSet<>();
+        for (AiStandardLibraryItem item : items) {
+            if (item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT) {
+                skillIds.add(item.getCode());
+            }
+            if (!text(item.getSkillUnitCode()).isBlank()) {
+                skillIds.add(item.getSkillUnitCode());
+            }
+        }
+
+        List<StandardLibraryPack.SkillUnitGroupOption> skillGroups = skillIds.stream()
+                .map(skillId -> toSkillGroup(skillId, allSkills, allMistakes, allImprovements))
+                .filter(group -> group.getSkillUnit() != null
+                        || !safe(group.getMistakePoints()).isEmpty()
+                        || !safe(group.getImprovementPoints()).isEmpty())
+                .limit(8)
+                .toList();
+
+        return StandardLibraryPack.KnowledgeGroupOption.builder()
+                .id(knowledgeCode)
+                .name(knowledgeCode)
+                .path(knowledgeCode.replace(".", " > "))
+                .description("标准库结构视图中的知识节点。")
+                .skillUnits(skillGroups)
+                .improvementPoints(List.of())
+                .build();
+    }
+
+    private StandardLibraryPack.SkillUnitGroupOption toSkillGroup(
+            String skillId,
+            List<StandardLibraryPack.SkillUnitOption> allSkills,
+            List<StandardLibraryPack.MistakePointOption> allMistakes,
+            List<StandardLibraryPack.ImprovementPointOption> allImprovements) {
+        StandardLibraryPack.SkillUnitOption skill = allSkills.stream()
+                .filter(item -> skillId.equals(item.getId()))
+                .findFirst()
+                .orElse(null);
+        List<StandardLibraryPack.MistakePointOption> mistakes = allMistakes.stream()
+                .filter(item -> skillId.equals(item.getSkillUnitCode()))
+                .limit(8)
+                .toList();
+        List<StandardLibraryPack.ImprovementPointOption> improvements = allImprovements.stream()
+                .filter(item -> skillId.equals(item.getAbilityPoint()))
+                .limit(5)
+                .toList();
+        LinkedHashSet<String> candidateIds = new LinkedHashSet<>();
+        if (skill != null) {
+            candidateIds.add(skill.getId());
+        }
+        mistakes.stream().map(StandardLibraryPack.MistakePointOption::getId).forEach(candidateIds::add);
+        improvements.stream().map(StandardLibraryPack.ImprovementPointOption::getId).forEach(candidateIds::add);
+        return StandardLibraryPack.SkillUnitGroupOption.builder()
+                .skillUnit(skill)
+                .mistakePoints(mistakes)
+                .improvementPoints(improvements)
+                .candidateIds(candidateIds.stream().toList())
+                .build();
+    }
+
     private <T> List<T> safe(List<T> source) {
         return source == null ? List.of() : source;
     }
@@ -221,5 +365,9 @@ public class SearchLocationPackSelector {
             return List.of();
         }
         return value.lines().map(String::trim).filter(line -> !line.isBlank()).toList();
+    }
+
+    private String text(String value) {
+        return value == null ? "" : value.trim();
     }
 }

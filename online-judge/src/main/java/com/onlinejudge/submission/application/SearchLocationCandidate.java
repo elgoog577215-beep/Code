@@ -21,12 +21,17 @@ public class SearchLocationCandidate {
     private String name;
     private String description;
     private String skillUnitCode;
+    private String parentSkillUnitId;
     private String mistakeType;
+    private String primaryKnowledgeNodeCode;
     private List<String> knowledgeNodeCodes;
+    private List<String> structurePath;
     private List<String> applicableLanguages;
     private List<String> recallSources;
     private String parentKnowledgePath;
+    private List<String> childMistakePointIds;
     private List<String> siblingMistakePointIds;
+    private List<String> relatedImprovementPointIds;
     private List<String> extensionCandidateIds;
     private Double textScore;
     private Double vectorScore;

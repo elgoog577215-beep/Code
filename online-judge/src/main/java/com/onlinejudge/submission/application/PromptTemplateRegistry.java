@@ -45,6 +45,8 @@ public class PromptTemplateRegistry {
                 Return strict JSON only. Do not output markdown fences, XML, chain-of-thought, or extra text.
                 Your job is NOT to write student-facing advice. Your job is to provide a navigation map for the next diagnosis stage.
                 The standard library is a navigation map, not a forced answer. You may mark candidates as HIT, PARTIAL, or MISS.
+                Candidate ids come from a normalized teaching structure: knowledge node -> skill unit -> mistake point / improvement point.
+                Structural fields such as parentSkillUnitId, siblingMistakePointIds, childMistakePointIds, relatedImprovementPointIds, and structurePath are neighborhood hints, not evidence.
 
                 Input schema:
                 {
@@ -109,18 +111,19 @@ public class PromptTemplateRegistry {
 
                 Rules:
                 1. Select only ids that appear in candidatePack.candidates.id.
-                2. Set libraryFit=HIT when a candidate precisely covers the issue.
-                3. Set libraryFit=PARTIAL when the branch is useful but the exact fine-grained cause is missing.
-                4. Set libraryFit=MISS when current candidates do not explain the issue. Keep the closest anchor only if useful for navigation.
-                5. basicCandidates should focus on current blocking causes: syntax, IO, runtime, boundary, state, recursion, DP transition, or other concrete error sources.
-                6. improvementCandidates should focus on non-blocking improvement directions: complexity, data structure choice, modeling, proof, testing habit, or transfer.
-                7. knowledgeAnchors should identify the knowledge/skill branch that explains the selected candidates.
-                8. Every selected item MUST cite at least one brief.evidenceRefs or brief.candidateSignals.evidenceRef value.
-                9. confidence MUST be between 0 and 1.
-                10. Prefer 3-8 basicCandidates, 1-5 improvementCandidates, and 1-5 knowledgeAnchors. Do not pad weak candidates.
-                11. Use judge facts as evidence, but still read the code behavior. Hidden data must not be guessed.
-                12. Do not provide complete code, final answers, executable fixes, hidden test data, or student-facing tutorial text.
-                13. Keep reason concise and evidence-grounded.
+                2. Read structurePath and parentSkillUnitId before deciding whether nearby mistake points are siblings or truly separate issues.
+                3. Set libraryFit=HIT when a candidate precisely covers the current evidence-backed issue.
+                4. Set libraryFit=PARTIAL when the branch is useful but the exact fine-grained cause is missing.
+                5. Set libraryFit=MISS when current candidates do not explain the issue. Keep the closest anchor only if useful for navigation.
+                6. basicCandidates should focus on current blocking causes: syntax, IO, runtime, boundary, state, recursion, DP transition, or other concrete error sources.
+                7. improvementCandidates should focus on non-blocking improvement directions: complexity, data structure choice, modeling, proof, testing habit, or transfer.
+                8. knowledgeAnchors should identify the knowledge/skill branch that explains the selected candidates.
+                9. Every selected item MUST cite at least one brief.evidenceRefs or brief.candidateSignals.evidenceRef value.
+                10. confidence MUST be between 0 and 1.
+                11. Return only the candidates supported by actual evidence. Typical compact output stays within 0-8 basicCandidates, 0-5 improvementCandidates, and 0-5 knowledgeAnchors; these are budget ceilings, not quotas.
+                12. Use judge facts as evidence, but still read the code behavior. Hidden data must not be guessed.
+                13. Do not provide complete code, final answers, executable fixes, hidden test data, or student-facing tutorial text.
+                14. Keep reason concise and evidence-grounded.
                 """;
     }
 
@@ -131,6 +134,9 @@ public class PromptTemplateRegistry {
                 Use only the provided ModelDiagnosisBrief, selected StandardLibraryPack, and searchLocationSummary.
                 All user-facing strings MUST be Simplified Chinese.
                 Do not provide complete code, final answers, hidden test data, replacement loop headers, transition formulas, executable control structures, or a step-by-step full solution.
+                When standardLibrary.knowledgeGroups is present, treat it as the main structure: knowledge node -> skill unit -> mistake point / improvement point.
+                The flat standardLibrary.basicCauses, improvementPoints, skillUnits, and mistakePoints lists are compatibility lists for legal ids.
+                Return one advice item per independent evidence-backed issue or improvement direction; arrays may be empty or contain many items according to the actual evidence.
 
                 Input schema:
                 {
@@ -179,23 +185,24 @@ public class PromptTemplateRegistry {
 
                 Rules:
                 1. First understand the problem goal, then the student's code intent, then the behavior gap.
-                2. basicLayerAdvice is an array of evidence-backed foundation issues. Return one item per independent blocking issue or foundation gap; return [] when there is no real basic-layer issue. Do not collapse unrelated issues into one item and do not pad weak items.
-                3. improvementLayerAdvice MUST be lower priority than basicLayerAdvice unless the submission is already accepted.
-                4. Every advice item MUST cite at least one brief.evidenceRefs or brief.candidateSignals evidenceRef value.
-                5. mistakePointId MUST come from standardLibrary.mistakePoints or be null when no precise mistake point exists.
-                6. skillUnitId MUST come from standardLibrary.skillUnits or be null when no precise skill unit exists.
-                7. improvementPointId MUST come from standardLibrary.improvementPoints or be null when no precise improvement point exists.
-                8. Prefer selected fine-grained IDs from standardLibrary.mistakePoints, skillUnits, and improvementPoints when they match the evidence.
-                9. If verdict is not ACCEPTED, basicLayerAdvice MUST contain the evidence-backed blocking issues that actually exist; usually at least one item, but never invent or merge issues to satisfy a fixed count.
-                10. nextStepPlan[0] MUST be exactly one small observable action for the student. Do not pack multiple numbered actions into one field.
-                11. All confidence values MUST be between 0 and 1.
-                12. Keep each student-facing sentence short, concrete, and evidence-grounded.
-                13. Do not reveal replacement code, exact loop headers, transition formulas, final formulas, full algorithms, full tutorials, complete answers, or hidden tests.
-                14. For hidden failures, state that hidden data is unavailable and ask for a self-made counterexample or boundary check.
-                15. For complexity issues, ask the student to estimate operation counts before naming any optimized method.
-                16. For boundary issues, ask the student to trace values or compare ranges; do not state the replacement expression.
-                17. For syntax or runtime errors, prioritize making the program runnable before improvement advice.
-                18. studentSummary should summarize the learning focus, not the answer.
+                2. Use standardLibrary.knowledgeGroups to understand the selected knowledge branch and parent skill before choosing legal ids.
+                3. basicLayerAdvice is an array of evidence-backed foundation issues. Return one item per independent blocking issue or foundation gap; return [] when there is no real basic-layer issue. Do not collapse unrelated issues into one item and do not pad weak items.
+                4. improvementLayerAdvice MUST be lower priority than basicLayerAdvice unless the submission is already accepted.
+                5. Every advice item MUST cite at least one brief.evidenceRefs or brief.candidateSignals evidenceRef value.
+                6. mistakePointId MUST come from standardLibrary.mistakePoints or be null when no precise mistake point exists.
+                7. skillUnitId MUST come from standardLibrary.skillUnits or be null when no precise skill unit exists.
+                8. improvementPointId MUST come from standardLibrary.improvementPoints or be null when no precise improvement point exists.
+                9. Prefer selected fine-grained IDs from standardLibrary.mistakePoints, skillUnits, and improvementPoints when they match the evidence.
+                10. If verdict is not ACCEPTED, basicLayerAdvice MUST contain the evidence-backed blocking issues that actually exist; usually at least one item, but never invent or merge issues to satisfy a fixed count.
+                11. nextStepPlan[0] MUST be exactly one small observable action for the student. Do not pack multiple numbered actions into one field.
+                12. All confidence values MUST be between 0 and 1.
+                13. Keep each student-facing sentence short, concrete, and evidence-grounded.
+                14. Do not reveal replacement code, exact loop headers, transition formulas, final formulas, full algorithms, full tutorials, complete answers, or hidden tests.
+                15. For hidden failures, state that hidden data is unavailable and ask for a self-made counterexample or boundary check.
+                16. For complexity issues, ask the student to estimate operation counts before naming any optimized method.
+                17. For boundary issues, ask the student to trace values or compare ranges; do not state the replacement expression.
+                18. For syntax or runtime errors, prioritize making the program runnable before improvement advice.
+                19. studentSummary should summarize the learning focus, not the answer.
                 """;
     }
 
@@ -215,9 +222,13 @@ public class PromptTemplateRegistry {
                 5. 最后写出学生能读懂、能行动、但不能直接复制成答案的反馈。
 
                 标准库的作用：
-                - 它是知识树、能力点和易错点的候选地图，用来帮助你细颗粒定位和统一命名。
+                - 它的主结构是 standardLibrary.knowledgeGroups：知识节点 → 能力点 → 易错点 / 提升点。
+                - basicCauses、improvementPoints、skillUnits、mistakePoints 是兼容列表；优先读 knowledgeGroups 理解父子关系，再用兼容列表校验合法 id。
+                - 它是知识树、能力点、易错点和提升点的候选地图，用来帮助你细颗粒定位和统一命名。
                 - 它不是唯一答案来源，也不能限制你对题目、代码和判题结果的整体判断。
                 - 你应先自由列出真实诊断候选，再评判这些候选是否能被标准库覆盖；不要一开始就为了匹配 id 而牺牲判断质量。
+                - 结构邻域只说明“这些能力和易错点相邻”，不是证据；HIT 必须由当前提交 evidenceRefs 支撑。
+                - 同一个能力点下可能有多个独立易错点，也可能只有一个真实命中；按证据返回，不要强行合并或凑数。
                 - 命中候选时用 HIT；只命中方向但不够精确时用 PARTIAL；候选解释不了真实问题时用 MISS。
                 - 候选不匹配时必须允许 OUT_OF_LIBRARY，并在 outOfLibraryFindings 和 libraryGrowth 中留下可审核线索，不要硬套一个弱 id。
                 - studentReport 面向学生，要自然易懂；diagnosisDecision 面向教师、评测和标准库成长，必须结构化、可校验。
@@ -314,14 +325,15 @@ public class PromptTemplateRegistry {
                 }
 
                 命中与成长规则:
-                1. 先填写 diagnosisCandidates：自由列出 3-8 个最有证据的问题候选，可以包含标准库命中项、半命中项和库外发现；不要为了凑数量而添加弱候选。
-                2. 每个 diagnosisCandidates 项都必须引用 evidenceRefs，并说明为什么是 HIT、PARTIAL、MISS 或 OUT_OF_LIBRARY。
-                3. 如果你认为标准库已经精确覆盖主因，libraryFit 必须是 HIT，并且 anchors 至少包含一个合法的 MISTAKE_POINT、SKILL_UNIT、KNOWLEDGE_NODE 或 IMPROVEMENT_POINT id。
-                4. 如果你能说出问题但 standardLibrary 里没有精确 id，不能伪装成 HIT；应使用 PARTIAL 或 MISS。
-                5. OUT_OF_LIBRARY anchor 和 candidate 的 id 必须为 null。
-                6. unknown id、自己编造的 id、看起来像标准库但不在 standardLibrary 中的 id 都禁止输出。
-                7. libraryGrowth 只是候选池，不会直接改正式库；只有 PARTIAL、MISS 或 OUT_OF_LIBRARY 发现才允许生成候选。
-                8. libraryGrowth.candidates 应来自 diagnosisCandidates 中的库外或半命中问题；HIT 场景不要生成成长候选。
+                1. 先填写 diagnosisCandidates：自由列出实际有证据的问题候选，可以包含标准库命中项、半命中项和库外发现；数量由真实独立问题决定，不要为了凑数量而添加弱候选。
+                2. 先用 standardLibrary.knowledgeGroups 判断候选属于哪个知识节点、能力点和易错点，再填写合法 id。
+                3. 每个 diagnosisCandidates 项都必须引用 evidenceRefs，并说明为什么是 HIT、PARTIAL、MISS 或 OUT_OF_LIBRARY。
+                4. 如果你认为标准库已经精确覆盖主因，libraryFit 必须是 HIT，并且 anchors 至少包含一个合法的 MISTAKE_POINT、SKILL_UNIT、KNOWLEDGE_NODE 或 IMPROVEMENT_POINT id。
+                5. 如果你能说出问题但 standardLibrary 里没有精确 id，不能伪装成 HIT；应使用 PARTIAL 或 MISS。
+                6. OUT_OF_LIBRARY anchor 和 candidate 的 id 必须为 null。
+                7. unknown id、自己编造的 id、看起来像标准库但不在 standardLibrary 中的 id 都禁止输出。
+                8. libraryGrowth 只是候选池，不会直接改正式库；只有 PARTIAL、MISS 或 OUT_OF_LIBRARY 发现才允许生成候选。
+                9. libraryGrowth.candidates 应来自 diagnosisCandidates 中的库外或半命中问题；HIT 场景不要生成成长候选。
 
                 学生可见反馈规则:
                 1. studentReport 是学生摘要；basicLayerAdvice 和 improvementLayerAdvice 是逐条建议列表。不要把多条独立问题硬塞进 studentReport 的单个字符串。
