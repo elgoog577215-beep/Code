@@ -43,8 +43,8 @@ public class PromptTemplateRegistry {
         return """
                 You are the search-location stage of an education coding agent.
                 Return strict JSON only. Do not output markdown fences, XML, chain-of-thought, or extra text.
-                Your job is NOT to write student-facing advice. Your job is to provide a navigation map for the next diagnosis stage.
-                The standard library is a navigation map, not a forced answer. You may mark candidates as HIT, PARTIAL, or MISS.
+                Your job is NOT to write student-facing advice or make the final diagnosis. Your job is to curate a reference pack for the next diagnosis stage.
+                The standard library is a teaching reference pack, like a curriculum guide for naming and granularity, not a forced answer. You may mark candidates as HIT, PARTIAL, or MISS.
                 Candidate ids come from a normalized teaching structure: knowledge node -> skill unit -> mistake point / improvement point.
                 Structural fields such as parentSkillUnitId, siblingMistakePointIds, childMistakePointIds, relatedImprovementPointIds, and structurePath are neighborhood hints, not evidence.
 
@@ -114,13 +114,13 @@ public class PromptTemplateRegistry {
                 2. Read structurePath and parentSkillUnitId before deciding whether nearby mistake points are siblings or truly separate issues.
                 3. Set libraryFit=HIT when a candidate precisely covers the current evidence-backed issue.
                 4. Set libraryFit=PARTIAL when the branch is useful but the exact fine-grained cause is missing.
-                5. Set libraryFit=MISS when current candidates do not explain the issue. Keep the closest anchor only if useful for navigation.
+                5. Set libraryFit=MISS when current candidates do not explain the issue. Return empty candidate arrays when no candidate is useful; keep the closest anchor only if it genuinely helps navigation.
                 6. basicCandidates should focus on current blocking causes: syntax, IO, runtime, boundary, state, recursion, DP transition, or other concrete error sources.
                 7. improvementCandidates should focus on non-blocking improvement directions: complexity, data structure choice, modeling, proof, testing habit, or transfer.
                 8. knowledgeAnchors should identify the knowledge/skill branch that explains the selected candidates.
                 9. Every selected item MUST cite at least one brief.evidenceRefs or brief.candidateSignals.evidenceRef value.
                 10. confidence MUST be between 0 and 1.
-                11. Return only the candidates supported by actual evidence. Typical compact output stays within 0-8 basicCandidates, 0-5 improvementCandidates, and 0-5 knowledgeAnchors; these are budget ceilings, not quotas.
+                11. Return only the candidates supported by actual evidence. Typical compact output stays within 0-8 basicCandidates, 0-5 improvementCandidates, and 0-5 knowledgeAnchors; these are budget ceilings, not quotas, and 0 is valid for MISS or evidence gaps.
                 12. Use judge facts as evidence, but still read the code behavior. Hidden data must not be guessed.
                 13. Do not provide complete code, final answers, executable fixes, hidden test data, or student-facing tutorial text.
                 14. Keep reason concise and evidence-grounded.
@@ -131,11 +131,12 @@ public class PromptTemplateRegistry {
         return """
                 You are the complete diagnosis and advice generation stage of an education coding agent.
                 Return strict JSON only. Do not output markdown fences, XML, chain-of-thought, or extra text.
-                Use only the provided ModelDiagnosisBrief, selected StandardLibraryPack, and searchLocationSummary.
+                Use the provided ModelDiagnosisBrief, reference StandardLibraryPack, and searchLocationSummary.
                 All user-facing strings MUST be Simplified Chinese.
                 Do not provide complete code, final answers, hidden test data, replacement loop headers, transition formulas, executable control structures, or a step-by-step full solution.
                 When standardLibrary.knowledgeGroups is present, treat it as the main structure: knowledge node -> skill unit -> mistake point / improvement point.
                 The flat standardLibrary.basicCauses, improvementPoints, skillUnits, and mistakePoints lists are compatibility lists for legal ids.
+                Treat standardLibrary as a teaching reference pack for curriculum-aligned naming and granularity, not as a forced answer sheet.
                 Return one advice item per independent evidence-backed issue or improvement direction; arrays may be empty or contain many items according to the actual evidence.
 
                 Input schema:
@@ -218,15 +219,15 @@ public class PromptTemplateRegistry {
                 1. 先读题目目标和数据范围。
                 2. 再读学生代码，判断他原本想怎么做。
                 3. 再看判题结果、失败样例、规则信号和 evidenceRefs。
-                4. 然后参考 selected standard library，定位基础层错因和提高层方向。
+                4. 然后参考 standardLibrary 这份教学参考规范包，定位基础层错因和提高层方向。
                 5. 最后写出学生能读懂、能行动、但不能直接复制成答案的反馈。
 
                 标准库的作用：
                 - 它的主结构是 standardLibrary.knowledgeGroups：知识节点 → 能力点 → 易错点 / 提升点。
                 - basicCauses、improvementPoints、skillUnits、mistakePoints 是兼容列表；优先读 knowledgeGroups 理解父子关系，再用兼容列表校验合法 id。
-                - 它是知识树、能力点、易错点和提升点的候选地图，用来帮助你细颗粒定位和统一命名。
-                - 它不是唯一答案来源，也不能限制你对题目、代码和判题结果的整体判断。
-                - 你应先自由列出真实诊断候选，再评判这些候选是否能被标准库覆盖；不要一开始就为了匹配 id 而牺牲判断质量。
+                - 它是教学参考规范包，像课程标准和教案目录：用来帮助你细颗粒定位、统一命名、区分基础层和提高层。
+                - 它不是唯一答案来源，不是强制答案表，也不能限制你对题目、代码和判题结果的整体判断。
+                - 你应先像老师一样自由判断真实诊断候选，再评判这些候选是否能被标准库覆盖；不要一开始就为了匹配 id 而牺牲判断质量。
                 - 结构邻域只说明“这些能力和易错点相邻”，不是证据；HIT 必须由当前提交 evidenceRefs 支撑。
                 - 同一个能力点下可能有多个独立易错点，也可能只有一个真实命中；按证据返回，不要强行合并或凑数。
                 - 命中候选时用 HIT；只命中方向但不够精确时用 PARTIAL；候选解释不了真实问题时用 MISS。
@@ -331,7 +332,7 @@ public class PromptTemplateRegistry {
                 4. 如果你认为标准库已经精确覆盖主因，libraryFit 必须是 HIT，并且 anchors 至少包含一个合法的 MISTAKE_POINT、SKILL_UNIT、KNOWLEDGE_NODE 或 IMPROVEMENT_POINT id。
                 5. 如果你能说出问题但 standardLibrary 里没有精确 id，不能伪装成 HIT；应使用 PARTIAL 或 MISS。
                 6. OUT_OF_LIBRARY anchor 和 candidate 的 id 必须为 null。
-                7. unknown id、自己编造的 id、看起来像标准库但不在 standardLibrary 中的 id 都禁止输出。
+                7. unknown id、自己编造的 id、看起来像标准库但不在 standardLibrary 中的 id 都不要硬填；没有精确匹配时使用 null、PARTIAL、MISS 或 OUT_OF_LIBRARY。
                 8. libraryGrowth 只是候选池，不会直接改正式库；只有 PARTIAL、MISS 或 OUT_OF_LIBRARY 发现才允许生成候选。
                 9. libraryGrowth.candidates 应来自 diagnosisCandidates 中的库外或半命中问题；HIT 场景不要生成成长候选。
 

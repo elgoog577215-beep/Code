@@ -47,6 +47,7 @@ public class AdviceGenerationOutputValidator {
         mistakeIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getBasicCauses()));
         Set<String> skillIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getSkillUnits());
         Set<String> improvementIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getImprovementPoints());
+        List<String> softFixes = new java.util.ArrayList<>();
 
         for (AdviceGenerationOutput.BasicLayerAdvice item : safe(output.getBasicLayerAdvice())) {
             if (item == null) {
@@ -55,14 +56,7 @@ public class AdviceGenerationOutputValidator {
             if (blank(item.getTitle()) || blank(item.getStudentAction()) || blank(item.getCheckQuestion())) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "basicLayerAdvice is missing title/action/question.");
             }
-            if (!blank(item.getMistakePointId()) && !mistakeIds.contains(normalize(item.getMistakePointId()))) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "Unknown mistakePointId: " + item.getMistakePointId());
-            }
-            if (!blank(item.getSkillUnitId()) && !skillIds.contains(normalize(item.getSkillUnitId()))) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "Unknown skillUnitId: " + item.getSkillUnitId());
-            }
+            clearUnknownBasicAdviceIds(item, mistakeIds, skillIds, softFixes);
             String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
                     "basicLayerAdvice.evidenceRefs");
             if (!invalidEvidence.isBlank()) {
@@ -85,14 +79,7 @@ public class AdviceGenerationOutputValidator {
                 return invalid(ModelStageFailureReason.INVALID_JSON,
                         "improvementLayerAdvice is missing title/suggestion/benefit.");
             }
-            if (!blank(item.getImprovementPointId()) && !improvementIds.contains(normalize(item.getImprovementPointId()))) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "Unknown improvementPointId: " + item.getImprovementPointId());
-            }
-            if (!blank(item.getSkillUnitId()) && !skillIds.contains(normalize(item.getSkillUnitId()))) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "Unknown improvement skillUnitId: " + item.getSkillUnitId());
-            }
+            clearUnknownImprovementAdviceIds(item, improvementIds, skillIds, softFixes);
             String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
                     "improvementLayerAdvice.evidenceRefs");
             if (!invalidEvidence.isBlank()) {
@@ -129,6 +116,8 @@ public class AdviceGenerationOutputValidator {
                 .stage("DIAGNOSIS_AND_ADVICE")
                 .failureReason(ModelStageFailureReason.NONE)
                 .message("")
+                .softFixes(softFixes)
+                .hardFailures(List.of())
                 .build();
     }
 
@@ -308,14 +297,7 @@ public class AdviceGenerationOutputValidator {
             if (blank(item.getTitle()) || blank(item.getStudentAction()) || blank(item.getCheckQuestion())) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "basicLayerAdvice is missing title/action/question.");
             }
-            if (!blank(item.getMistakePointId()) && !mistakeIds.contains(normalize(item.getMistakePointId()))) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "Unknown mistakePointId: " + item.getMistakePointId());
-            }
-            if (!blank(item.getSkillUnitId()) && !skillIds.contains(normalize(item.getSkillUnitId()))) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "Unknown skillUnitId: " + item.getSkillUnitId());
-            }
+            clearUnknownBasicAdviceIds(item, mistakeIds, skillIds, softFixes);
             item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
             String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
                     "basicLayerAdvice.evidenceRefs");
@@ -338,14 +320,7 @@ public class AdviceGenerationOutputValidator {
                 return invalid(ModelStageFailureReason.INVALID_JSON,
                         "improvementLayerAdvice is missing title/suggestion/benefit.");
             }
-            if (!blank(item.getImprovementPointId()) && !improvementIds.contains(normalize(item.getImprovementPointId()))) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "Unknown improvementPointId: " + item.getImprovementPointId());
-            }
-            if (!blank(item.getSkillUnitId()) && !skillIds.contains(normalize(item.getSkillUnitId()))) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "Unknown improvement skillUnitId: " + item.getSkillUnitId());
-            }
+            clearUnknownImprovementAdviceIds(item, improvementIds, skillIds, softFixes);
             item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
             String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
                     "improvementLayerAdvice.evidenceRefs");
@@ -360,6 +335,38 @@ public class AdviceGenerationOutputValidator {
             }
         }
         return null;
+    }
+
+    private void clearUnknownBasicAdviceIds(AdviceGenerationOutput.BasicLayerAdvice item,
+                                            Set<String> mistakeIds,
+                                            Set<String> skillIds,
+                                            List<String> softFixes) {
+        String mistakeId = normalize(item.getMistakePointId());
+        if (!mistakeId.isBlank() && !mistakeIds.contains(mistakeId)) {
+            item.setMistakePointId(null);
+            softFixes.add("basicLayerAdvice.mistakePointId cleared: " + mistakeId);
+        }
+        String skillId = normalize(item.getSkillUnitId());
+        if (!skillId.isBlank() && !skillIds.contains(skillId)) {
+            item.setSkillUnitId(null);
+            softFixes.add("basicLayerAdvice.skillUnitId cleared: " + skillId);
+        }
+    }
+
+    private void clearUnknownImprovementAdviceIds(AdviceGenerationOutput.ImprovementLayerAdvice item,
+                                                  Set<String> improvementIds,
+                                                  Set<String> skillIds,
+                                                  List<String> softFixes) {
+        String improvementId = normalize(item.getImprovementPointId());
+        if (!improvementId.isBlank() && !improvementIds.contains(improvementId)) {
+            item.setImprovementPointId(null);
+            softFixes.add("improvementLayerAdvice.improvementPointId cleared: " + improvementId);
+        }
+        String skillId = normalize(item.getSkillUnitId());
+        if (!skillId.isBlank() && !skillIds.contains(skillId)) {
+            item.setSkillUnitId(null);
+            softFixes.add("improvementLayerAdvice.skillUnitId cleared: " + skillId);
+        }
     }
 
     private void sanitizeDiagnosisCandidates(

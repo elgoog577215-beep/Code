@@ -278,6 +278,53 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
+    void softClearsUnknownStandardLibraryIdsInDiagnosisReportV2AdviceItems() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
+        output.setBasicLayerAdvice(List.of(AdviceGenerationOutput.BasicLayerAdvice.builder()
+                .mistakePointId("MP_MODEL_MADE_UP")
+                .skillUnitId("SK_MODEL_MADE_UP")
+                .title("边界判断需要复核")
+                .whatHappened("当前循环范围和题目端点要求没有完全对齐。")
+                .whyItMatters("端点漏处理会让可见样例的实际输出和预期不一致。")
+                .studentAction("先手推一个最小样例，记录循环变量实际出现过哪些值。")
+                .checkQuestion("最后一个应该处理的值有没有被覆盖？")
+                .evidenceRefs(List.of("code:range_excludes_n"))
+                .confidence(0.82)
+                .build()));
+        output.setImprovementLayerAdvice(List.of(AdviceGenerationOutput.ImprovementLayerAdvice.builder()
+                .improvementPointId("IP_MODEL_MADE_UP")
+                .skillUnitId("SK_MODEL_MADE_UP_IMPROVEMENT")
+                .title("补充端点自测")
+                .currentLimit("当前自测还没有充分覆盖端点形态。")
+                .suggestion("修好基础问题后，再补充最小值和端点附近的自测。")
+                .studentBenefit("能更早发现开闭区间和边界遗漏。")
+                .evidenceRefs(List.of("judge:first_failed_case"))
+                .confidence(0.73)
+                .build()));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes())
+                .contains("basicLayerAdvice.mistakePointId cleared: MP_MODEL_MADE_UP")
+                .contains("basicLayerAdvice.skillUnitId cleared: SK_MODEL_MADE_UP")
+                .contains("improvementLayerAdvice.improvementPointId cleared: IP_MODEL_MADE_UP")
+                .contains("improvementLayerAdvice.skillUnitId cleared: SK_MODEL_MADE_UP_IMPROVEMENT");
+        assertThat(output.getBasicLayerAdvice()).singleElement().satisfies(item -> {
+            assertThat(item.getMistakePointId()).isNull();
+            assertThat(item.getSkillUnitId()).isNull();
+        });
+        assertThat(output.getImprovementLayerAdvice()).singleElement().satisfies(item -> {
+            assertThat(item.getImprovementPointId()).isNull();
+            assertThat(item.getSkillUnitId()).isNull();
+        });
+    }
+
+    @Test
     void softClearsOutOfLibraryDiagnosisCandidateAnchorId() {
         AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
         output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
@@ -434,9 +481,12 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void rejectsUnknownStandardLibraryId() {
+    void softClearsUnknownStandardLibraryIdInLegacyAdvice() {
         AdviceGenerationOutput output = validOutput();
         output.getBasicLayerAdvice().get(0).setMistakePointId("MP_UNKNOWN");
+        output.getBasicLayerAdvice().get(0).setSkillUnitId("SK_UNKNOWN");
+        output.getImprovementLayerAdvice().get(0).setImprovementPointId("IP_UNKNOWN");
+        output.getImprovementLayerAdvice().get(0).setSkillUnitId("SK_UNKNOWN_IMPROVEMENT");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 output,
@@ -444,8 +494,16 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_TAG);
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes())
+                .contains("basicLayerAdvice.mistakePointId cleared: MP_UNKNOWN")
+                .contains("basicLayerAdvice.skillUnitId cleared: SK_UNKNOWN")
+                .contains("improvementLayerAdvice.improvementPointId cleared: IP_UNKNOWN")
+                .contains("improvementLayerAdvice.skillUnitId cleared: SK_UNKNOWN_IMPROVEMENT");
+        assertThat(output.getBasicLayerAdvice().get(0).getMistakePointId()).isNull();
+        assertThat(output.getBasicLayerAdvice().get(0).getSkillUnitId()).isNull();
+        assertThat(output.getImprovementLayerAdvice().get(0).getImprovementPointId()).isNull();
+        assertThat(output.getImprovementLayerAdvice().get(0).getSkillUnitId()).isNull();
     }
 
     @Test

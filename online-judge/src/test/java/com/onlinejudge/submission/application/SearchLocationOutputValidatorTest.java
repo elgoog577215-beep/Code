@@ -87,6 +87,49 @@ class SearchLocationOutputValidatorTest {
     }
 
     @Test
+    void acceptsMissWithoutSelectedCandidates() {
+        SearchLocationCandidatePack pack = SearchLocationCandidatePack.builder()
+                .candidates(List.of(SearchLocationCandidate.builder()
+                        .id("SK_RANGE_BOUNDARY")
+                        .layer("SKILL_UNIT")
+                        .build()))
+                .build();
+        SearchLocationOutput output = SearchLocationOutput.builder()
+                .libraryFit("MISS")
+                .needsLibraryGrowth(true)
+                .libraryGrowthReason("当前候选没有覆盖真实错因，需要后续扩库。")
+                .basicCandidates(List.of())
+                .improvementCandidates(List.of())
+                .knowledgeAnchors(List.of())
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(output, pack, brief());
+
+        assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
+    void rejectsHitWithoutSelectedCandidates() {
+        SearchLocationCandidatePack pack = SearchLocationCandidatePack.builder()
+                .candidates(List.of(SearchLocationCandidate.builder()
+                        .id("SK_RANGE_BOUNDARY")
+                        .layer("SKILL_UNIT")
+                        .build()))
+                .build();
+        SearchLocationOutput output = SearchLocationOutput.builder()
+                .libraryFit("HIT")
+                .basicCandidates(List.of())
+                .improvementCandidates(List.of())
+                .knowledgeAnchors(List.of())
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(output, pack, brief());
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getMessage()).contains("selected no candidates");
+    }
+
+    @Test
     void rejectsMissingEvidenceRefs() {
         SearchLocationCandidatePack pack = SearchLocationCandidatePack.builder()
                 .candidates(List.of(SearchLocationCandidate.builder()

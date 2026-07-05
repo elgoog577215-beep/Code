@@ -448,9 +448,9 @@ public class AiReportService {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("task", "请完成一次高中信息学提交诊断：先整体理解题目、代码和判题结果，再参考标准库候选，最后生成 studentReport 和结构化元数据。");
         request.put("contextPolicy", List.of(
-                "standardLibrary 是树形候选包，用于细颗粒定位和标准化命名，不是强制答案。",
-                "先输出 diagnosisCandidates：自由列出真实问题，再评判它们对标准库是 HIT、PARTIAL、MISS 还是 OUT_OF_LIBRARY。",
-                "如果候选不匹配，允许 OUT_OF_LIBRARY，并给出可审核的库外发现。",
+                "standardLibrary 是教学参考规范包，像课程标准和教案目录，用于细颗粒定位、标准化命名和区分基础层/提高层，不是强制答案表。",
+                "先基于题目、代码、判题结果和 evidenceRefs 自由诊断，再输出 diagnosisCandidates 并评判它们对标准库是 HIT、PARTIAL、MISS 还是 OUT_OF_LIBRARY。",
+                "如果候选不匹配，允许 null id、MISS 或 OUT_OF_LIBRARY，并给出可审核的库外发现。",
                 "学生可见反馈要自然、具体、可行动，但不能给完整答案或逐行改法。"
         ));
         request.put("brief", runtimePlan.getBrief());

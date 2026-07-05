@@ -23,6 +23,10 @@ public class SearchLocationOutputValidator {
                     .map(candidate -> candidate.getId().toUpperCase(Locale.ROOT))
                     .forEach(candidateIds::add);
         }
+        String libraryFit = normalize(output.getLibraryFit());
+        if (!libraryFit.isBlank() && !List.of("HIT", "PARTIAL", "MISS").contains(libraryFit)) {
+            return invalid("Search location libraryFit is invalid: " + output.getLibraryFit());
+        }
         Set<String> evidenceRefs = evidenceRefs(brief);
         int selectedCount = 0;
         for (SearchLocationOutput.SelectedCandidate candidate : allSelected(output)) {
@@ -54,7 +58,7 @@ public class SearchLocationOutputValidator {
                 }
             }
         }
-        if (selectedCount == 0) {
+        if (selectedCount == 0 && !allowsEmptySelection(output, libraryFit)) {
             return invalid("Search location selected no candidates.");
         }
         return ExternalModelStagePayloads.StageValidationResult.builder()
@@ -63,6 +67,14 @@ public class SearchLocationOutputValidator {
                 .failureReason(ModelStageFailureReason.NONE)
                 .message("")
                 .build();
+    }
+
+    private boolean allowsEmptySelection(SearchLocationOutput output, String libraryFit) {
+        if ("MISS".equals(libraryFit)) {
+            return true;
+        }
+        return Boolean.TRUE.equals(output.getNeedsMoreEvidence())
+                || Boolean.TRUE.equals(output.getNeedsLibraryGrowth());
     }
 
     private List<SearchLocationOutput.SelectedCandidate> allSelected(SearchLocationOutput output) {
