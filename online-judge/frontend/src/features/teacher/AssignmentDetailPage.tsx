@@ -3,11 +3,12 @@ import { ArrowLeft, ArrowRight, ChartNoAxesCombined, PenLine, Presentation, User
 import { Link, useParams } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
 import type { AssignmentOverview, DiagnosisTag } from "../../shared/api/types";
-import { assignmentStatusLabel, confidenceLabel, displayText, formatDateTime, hintPolicyLabel, issueLabel, percent, verdictLabel } from "../../shared/format";
+import { confidenceLabel, displayText, formatDateTime, hintPolicyLabel, issueLabel, percent, verdictLabel } from "../../shared/format";
+import { useTranslation } from "../../shared/i18n";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea } from "../../shared/ui/Field";
-import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
+import { StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
 
 type Alert = { type: "success" | "error"; message: string };
 type ProblemSummary = NonNullable<AssignmentOverview["problemSummaries"]>[number];
@@ -20,10 +21,11 @@ type CorrectionDraft = {
   correctedFineGrainedTag: string;
   teacherNote: string;
 };
+type Translate = (key: string, params?: Record<string, string | number>) => string;
 
-function cleanAssignmentTitle(value?: string | null, fallback = "课堂作业") {
-  const title = displayText(value, fallback);
-  return title.includes("试点任务") ? "课堂编程作业" : title;
+function cleanAssignmentTitle(value: string | null | undefined, t: Translate) {
+  const title = displayText(value, t("assignmentDetail.fallbackTitle"));
+  return title.includes("试点任务") || title === "课堂编程作业" ? t("assignmentDetail.pilotTitle") : title;
 }
 
 function teacherErrorMessage(error: unknown, fallback: string) {
@@ -59,6 +61,62 @@ function statusTone(status?: string | null): "neutral" | "success" | "warning" |
     return "info";
   }
   return "neutral";
+}
+
+function difficultyTone(difficulty?: string | null): "neutral" | "success" | "warning" | "danger" | "info" {
+  const key = (difficulty || "").toUpperCase();
+  if (key === "EASY") {
+    return "success";
+  }
+  if (key === "MEDIUM") {
+    return "warning";
+  }
+  if (key === "HARD") {
+    return "danger";
+  }
+  return "neutral";
+}
+
+function difficultyText(difficulty: string | null | undefined, t: Translate) {
+  switch ((difficulty || "").toUpperCase()) {
+    case "EASY":
+      return t("assignmentDetail.difficulty.easy");
+    case "MEDIUM":
+      return t("assignmentDetail.difficulty.medium");
+    case "HARD":
+      return t("assignmentDetail.difficulty.hard");
+    default:
+      return difficulty || t("assignmentDetail.difficulty.unknown");
+  }
+}
+
+function assignmentStatusText(status: string | null | undefined, t: Translate) {
+  switch ((status || "").toUpperCase()) {
+    case "ACTIVE":
+      return t("assignmentDetail.status.active");
+    case "DRAFT":
+      return t("assignmentDetail.status.draft");
+    case "CLOSED":
+      return t("assignmentDetail.status.closed");
+    default:
+      return status || t("assignmentDetail.status.unset");
+  }
+}
+
+function problemStatusText(status: string | null | undefined, t: Translate) {
+  if (status === "已掌握") {
+    return t("assignmentDetail.status.mastered");
+  }
+  if (status === "需讲评") {
+    return t("assignmentDetail.status.needsLecture");
+  }
+  if (status === "推进中") {
+    return t("assignmentDetail.status.progressing");
+  }
+  if (status === "待提交") {
+    return t("assignmentDetail.status.pending");
+  }
+  return status || t("assignmentDetail.status.pending");
 }
 
 function latestTrend(points: TrendPoint[]) {
@@ -173,17 +231,18 @@ function priorityStudentTarget(overview: AssignmentOverview, problems: ProblemSu
     })[0] || null;
 }
 
-function priorityStudentCopy(student: OverviewStudent) {
+function priorityStudentCopy(student: OverviewStudent, t: Translate) {
   if (student.attentionReason) {
     return student.attentionReason;
   }
   if (student.repeatedFineGrainedTag || student.repeatedIssueTag) {
-    return `${issueLabel(student.repeatedFineGrainedTag || student.repeatedIssueTag)}反复出现`;
+    return t("assignmentDetail.focus.repeatedIssue", { issue: issueLabel(student.repeatedFineGrainedTag || student.repeatedIssueTag) });
   }
-  return student.latestProgressSignal || "有新的卡点需要确认。";
+  return student.latestProgressSignal || t("assignmentDetail.focus.defaultStudentReason");
 }
 
 export default function AssignmentDetailPage() {
+  const { t } = useTranslation();
   const { assignmentId, problemId, studentProfileId } = useParams<{
     assignmentId: string;
     problemId?: string;
@@ -256,16 +315,16 @@ export default function AssignmentDetailPage() {
   }
 
   if (loading) {
-    return <EmptyState title="正在加载作业详情" live />;
+    return <EmptyState title={t("assignmentDetail.loading")} live />;
   }
 
   if (!overview) {
     return (
       <div className="stack assignment-detail-page teacher-workflow">
         {alert && <div className="alert alert--error">{alert.message}</div>}
-        <EmptyState title="作业未找到" description="返回作业中心重新选择作业。" />
+        <EmptyState title={t("assignmentDetail.notFound")} description={t("assignmentDetail.notFoundDescription")} />
         <ButtonLink to="/app/teacher" variant="secondary" icon={<ArrowLeft size={16} />}>
-          返回作业中心
+          {t("assignmentDetail.backToAssignmentCenter")}
         </ButtonLink>
       </div>
     );
@@ -300,11 +359,11 @@ export default function AssignmentDetailPage() {
 
 function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOverview; problems: ProblemSummary[] }) {
   const trend = overview.progressTrend || [];
-  const latest = latestTrend(trend);
+  const { t } = useTranslation();
   const currentTrend = trendSummary(trend, overview);
   const passRate = assignmentPassRate(overview);
   const recentSubmissions = recentTrendDelta(trend);
-  const submittedText = `${currentTrend.submitted} 人`;
+  const submittedText = t("assignmentDetail.metrics.submittedPeople", { count: currentTrend.submitted });
   const studentTarget = priorityStudentTarget(overview, problems);
   const lectureProblem = priorityProblem(problems);
   const lectureIssue = lectureProblem?.topIssues?.[0] || null;
@@ -314,133 +373,167 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
   const lectureHref = lectureProblem
     ? `/app/teacher/assignment/${overview.assignment.id}/problems/${lectureProblem.problemId}`
     : `/app/teacher/assignment/${overview.assignment.id}`;
+  const startReviewHref = studentTarget ? studentTargetHref : lectureHref;
   return (
     <>
-      <section className="teacher-drill-header">
-        <div>
+      <section className="teacher-drill-header teacher-drill-header--compact">
+        <div className="teacher-drill-header__main">
           <Link to="/app/teacher" className="back-link">
-            <ArrowLeft size={16} /> 返回作业中心
+            <ArrowLeft size={16} /> {t("assignmentDetail.backToAssignmentCenter")}
           </Link>
-          <h1>{cleanAssignmentTitle(overview.assignment.title)}</h1>
+          <h1>{cleanAssignmentTitle(overview.assignment.title, t)}</h1>
           <div className="assignment-detail-meta">
-            <span>{displayText(overview.assignment.className, "默认班级")}</span>
-            <span>{problems.length} 题</span>
-            <span>{assignmentStatusLabel(overview.assignment.status)}</span>
-            <span>{submittedText} 已提交</span>
-            <span>{passRate}% 通过</span>
+            <span>{displayText(overview.assignment.className, t("assignmentDetail.defaultClass"))}</span>
+            <span>{t("assignmentDetail.header.problemCount", { count: problems.length })}</span>
+            <span>{assignmentStatusText(overview.assignment.status, t)}</span>
+            <span>{t("assignmentDetail.header.submitted", { count: currentTrend.submitted })}</span>
+            <span>{t("assignmentDetail.header.passRate", { rate: passRate })}</span>
           </div>
+        </div>
+        <div className="teacher-drill-header__actions">
+          <ButtonLink to={startReviewHref} variant="primary" disabled={!studentTarget && !lectureProblem} icon={<ArrowRight size={16} />}>
+            {t("assignmentDetail.header.startReview")}
+          </ButtonLink>
+          <ButtonLink to={lectureHref} variant="secondary" disabled={!lectureProblem} icon={<Presentation size={16} />}>
+            {t("assignmentDetail.header.viewProblem")}
+          </ButtonLink>
         </div>
       </section>
 
       <section className="teacher-drill-overview">
-        <section className="teacher-priority-grid" aria-label="作业优先处理">
-          <article className={`teacher-priority-card ${studentTarget ? "" : "is-muted"}`}>
-            <span className="teacher-priority-card__icon">
-              <UserRound size={18} />
-            </span>
-            <div>
-              <p className="eyebrow">先看学生</p>
-              <h2>{studentTarget ? displayText(studentTarget.student.displayName, `学生 #${studentTarget.student.studentProfileId}`) : "暂无优先学生"}</h2>
-              <p>
-                {studentTarget
-                  ? `${studentTarget.problemTitle ? `${studentTarget.problemTitle}：` : ""}${priorityStudentCopy(studentTarget.student)}`
-                  : "目前没有被标记为需关注的学生，可以先看题目推进。"}
-              </p>
+        <section className="teacher-focus-panel" aria-label={t("assignmentDetail.focus.aria")}>
+          <div className="teacher-focus-panel__head">
+            <p className="eyebrow">{t("assignmentDetail.focus.eyebrow")}</p>
+            <h2>{t("assignmentDetail.focus.title")}</h2>
+          </div>
+          <div className="teacher-focus-list">
+            <div className={`teacher-focus-row ${studentTarget ? "" : "is-muted"}`}>
+              <span className="teacher-focus-row__icon">
+                <UserRound size={17} />
+              </span>
+              <div>
+                <span>{t("assignmentDetail.focus.studentLabel")}</span>
+                <strong>
+                  {studentTarget
+                    ? displayText(studentTarget.student.displayName, t("assignmentDetail.unknownStudent", { id: studentTarget.student.studentProfileId }))
+                    : t("assignmentDetail.focus.noStudentTitle")}
+                </strong>
+                <p>
+                  {studentTarget
+                    ? `${studentTarget.problemTitle ? `${studentTarget.problemTitle}: ` : ""}${priorityStudentCopy(studentTarget.student, t)}`
+                    : t("assignmentDetail.focus.noStudentDescription")}
+                </p>
+              </div>
+              {studentTarget ? (
+                <ButtonLink to={studentTargetHref} variant="ghost" icon={<ArrowRight size={15} />}>
+                  {t("assignmentDetail.focus.studentAction")}
+                </ButtonLink>
+              ) : (
+                <StatusPill tone="success">{t("assignmentDetail.focus.stable")}</StatusPill>
+              )}
             </div>
-            <ButtonLink to={studentTargetHref} variant={studentTarget ? "primary" : "secondary"} disabled={!studentTarget} icon={<ArrowRight size={16} />}>
-              查看学生
-            </ButtonLink>
-          </article>
 
-          <article className={`teacher-priority-card ${lectureProblem ? "" : "is-muted"}`}>
-            <span className="teacher-priority-card__icon">
-              <Presentation size={18} />
-            </span>
-            <div>
-              <p className="eyebrow">先讲题目</p>
-              <h2>{lectureProblem ? lectureProblem.title : "等待提交"}</h2>
-              <p>
-                {lectureProblem
-                  ? lectureIssue?.label
-                    ? `${lectureProblem.attentionStudentCount || 0} 名需关注，主要错因是 ${issueLabel(lectureIssue.label)}。`
-                    : `${lectureProblem.attentionStudentCount || 0} 名需关注，先看学生明细再决定讲评。`
-                  : "学生提交后，这里会自动推荐最需要讲评的题目。"}
-              </p>
+            <div className={`teacher-focus-row ${lectureProblem ? "" : "is-muted"}`}>
+              <span className="teacher-focus-row__icon">
+                <Presentation size={17} />
+              </span>
+              <div>
+                <span>{t("assignmentDetail.focus.problemLabel")}</span>
+                <strong>{lectureProblem ? lectureProblem.title : t("assignmentDetail.focus.noProblemTitle")}</strong>
+                <p>
+                  {lectureProblem
+                    ? lectureIssue?.label
+                      ? t("assignmentDetail.focus.problemWithIssue", { count: lectureProblem.attentionStudentCount || 0, issue: issueLabel(lectureIssue.label) })
+                      : t("assignmentDetail.focus.problemWithoutIssue", { count: lectureProblem.attentionStudentCount || 0 })
+                    : t("assignmentDetail.focus.noProblemDescription")}
+                </p>
+              </div>
+              {lectureProblem ? (
+                <ButtonLink to={lectureHref} variant="ghost" icon={<ArrowRight size={15} />}>
+                  {t("assignmentDetail.header.viewProblem")}
+                </ButtonLink>
+              ) : (
+                <StatusPill>{t("assignmentDetail.status.pending")}</StatusPill>
+              )}
             </div>
-            <ButtonLink to={lectureHref} variant="secondary" disabled={!lectureProblem} icon={<ArrowRight size={16} />}>
-              看题目
-            </ButtonLink>
-          </article>
+          </div>
         </section>
 
-        <div className="teacher-drill-strip">
-          <Metric label="提交人数" value={submittedText} />
-          <Metric label="通过人数" value={currentTrend.passed || "-"} />
-          <Metric label="总提交" value={overview.attemptCount} />
-          <Metric label="需关注" value={overview.strugglingStudentCount} />
-          <Metric label="最近提交" value={recentSubmissions || "-"} />
+        <div className="teacher-compact-metrics" aria-label={t("assignmentDetail.metrics.aria")}>
+          <CompactMetric label={t("assignmentDetail.metrics.submittedStudents")} value={submittedText} />
+          <CompactMetric label={t("assignmentDetail.metrics.passedStudents")} value={currentTrend.passed || "-"} />
+          <CompactMetric label={t("assignmentDetail.metrics.totalSubmissions")} value={overview.attemptCount} />
+          <CompactMetric label={t("assignmentDetail.metrics.needsAttention")} value={overview.strugglingStudentCount} />
+          <CompactMetric label={t("assignmentDetail.metrics.recentSubmissions")} value={recentSubmissions || "-"} />
         </div>
 
-        <article className="teacher-trend-panel">
-          <div>
-            <p className="eyebrow">提交推进</p>
-            <h2>作业增长情况</h2>
-          </div>
-          {trend.length >= 2 ? (
-            <div className="teacher-trend-chart" aria-label="提交推进曲线">
+        {trend.length >= 2 ? (
+          <article className="teacher-trend-panel teacher-trend-panel--compact">
+            <div>
+              <p className="eyebrow">{t("assignmentDetail.trend.eyebrow")}</p>
+              <h2>{t("assignmentDetail.trend.title")}</h2>
+            </div>
+            <div className="teacher-trend-chart" aria-label={t("assignmentDetail.trend.chartAria")}>
               <svg viewBox="0 0 100 100" preserveAspectRatio="none">
                 <polyline className="trend-line trend-line--attempts" points={trendPath(trend, "submissionCount")} />
                 <polyline className="trend-line trend-line--submitted" points={trendPath(trend, "submittedStudentCount")} />
                 <polyline className="trend-line trend-line--passed" points={trendPath(trend, "passedStudentCount")} />
               </svg>
               <div className="teacher-trend-legend">
-                <span>提交次数</span>
-                <span>提交人数</span>
-                <span>通过人数</span>
+                <span>{t("assignmentDetail.trend.attempts")}</span>
+                <span>{t("assignmentDetail.trend.submitted")}</span>
+                <span>{t("assignmentDetail.trend.passed")}</span>
               </div>
             </div>
-          ) : trend.length === 1 ? (
-            <div className="teacher-trend-empty" aria-label="提交推进当前状态">
-              <strong>已有 {currentTrend.attempts} 次提交，等待形成趋势</strong>
-              <p>{currentTrend.submitted} 人提交，{currentTrend.passed} 人通过；再出现一次提交后会显示推进曲线。</p>
-            </div>
-          ) : (
-            <EmptyState title="等待第一次提交" />
-          )}
-        </article>
+          </article>
+        ) : (
+          <p className="teacher-trend-note">
+            {trend.length === 1
+              ? t("assignmentDetail.trend.onePoint", {
+                  attempts: currentTrend.attempts,
+                  submitted: currentTrend.submitted,
+                  passed: currentTrend.passed
+                })
+              : t("assignmentDetail.trend.empty")}
+          </p>
+        )}
 
-        <section className="teacher-problem-table" aria-label="题目推进列表">
+        <section className="teacher-problem-table teacher-problem-table--compact" aria-label={t("assignmentDetail.problems.aria")}>
           <div className="teacher-section-head">
             <div>
-              <p className="eyebrow">题目</p>
-              <h2>题目推进</h2>
+              <p className="eyebrow">{t("assignmentDetail.problems.eyebrow")}</p>
+              <h2>{t("assignmentDetail.problems.title")}</h2>
             </div>
           </div>
-          <div className="teacher-problem-card-grid">
+          <div className="teacher-table teacher-table--problems teacher-problem-progress-table">
+            <div className="teacher-table-row teacher-table-row--head">
+              <span>{t("assignmentDetail.problems.problem")}</span>
+              <span>{t("assignmentDetail.problems.difficulty")}</span>
+              <span>{t("assignmentDetail.problems.submitted")}</span>
+              <span>{t("assignmentDetail.problems.passed")}</span>
+              <span>{t("assignmentDetail.problems.attention")}</span>
+              <span>{t("assignmentDetail.problems.issue")}</span>
+              <span>{t("assignmentDetail.problems.action")}</span>
+            </div>
             {problems.map(problem => (
-              <Link className="teacher-problem-card" to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`} key={problem.problemId}>
-                <div className="teacher-problem-card__head">
-                  <DifficultyPill difficulty={problem.difficulty} />
+              <Link
+                className="teacher-table-row teacher-table-row--link"
+                to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`}
+                key={problem.problemId}
+              >
+                <span className="teacher-table-title">
                   <strong>{problem.title}</strong>
-                  <StatusPill tone={statusTone(problem.statusLabel)}>{problem.statusLabel || "待提交"}</StatusPill>
-                </div>
-                <div className="teacher-problem-card__facts">
-                  <span>
-                    <small>提交</small>
-                    <b>{formatCountRate(problem.submissionRate)}</b>
-                  </span>
-                  <span>
-                    <small>通过</small>
-                    <b>{formatCountRate(problem.passRate)}</b>
-                  </span>
-                  <span>
-                    <small>需看</small>
-                    <b>{problem.attentionStudentCount || "-"}</b>
-                  </span>
-                </div>
-                <p>{problem.topIssues?.[0]?.label ? issueLabel(problem.topIssues[0].label) : "暂无集中错因"}</p>
-                <span className="teacher-card-action" aria-hidden="true">
-                  <span>看题目</span>
+                  <small>{problemStatusText(problem.statusLabel, t)}</small>
+                </span>
+                <span data-label={t("assignmentDetail.problems.difficulty")}>
+                  <StatusPill tone={difficultyTone(problem.difficulty)}>{difficultyText(problem.difficulty, t)}</StatusPill>
+                </span>
+                <span data-label={t("assignmentDetail.problems.submitted")}>{formatCountRate(problem.submissionRate)}</span>
+                <span data-label={t("assignmentDetail.problems.passed")}>{formatCountRate(problem.passRate)}</span>
+                <span data-label={t("assignmentDetail.problems.attention")}>{problem.attentionStudentCount || "-"}</span>
+                <span data-label={t("assignmentDetail.problems.issue")}>{problem.topIssues?.[0]?.label ? issueLabel(problem.topIssues[0].label) : t("assignmentDetail.problems.noIssue")}</span>
+                <span className="teacher-table-action">
+                  <span>{t("assignmentDetail.problems.view")}</span>
                   <ArrowRight size={16} />
                 </span>
               </Link>
@@ -453,6 +546,7 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
 }
 
 function ProblemOverviewView({ overview, problem }: { overview: AssignmentOverview; problem: ProblemSummary }) {
+  const { t } = useTranslation();
   const students = sortedProblemStudents(problem.students || []);
   const topIssue = problem.topIssues?.[0] || null;
   const topAbility = problem.abilityWeaknesses?.[0] || null;
@@ -476,7 +570,7 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
           </Link>
           <h1>{problem.title}</h1>
           <div className="assignment-detail-meta">
-            <span>{cleanAssignmentTitle(overview.assignment.title)}</span>
+            <span>{cleanAssignmentTitle(overview.assignment.title, t)}</span>
             <span>{problem.submittedStudentCount} 人提交</span>
             <span>{problem.submissionCount} 次提交</span>
             <span>{problem.statusLabel || "待提交"}</span>
@@ -598,6 +692,7 @@ function StudentProblemView({
   saving: boolean;
   saveCorrection: (event: FormEvent) => void;
 }) {
+  const { t } = useTranslation();
   const currentIssue = student.latestFineGrainedIssue || student.latestIssueTag ? issueLabel(student.latestFineGrainedIssue || student.latestIssueTag) : "等待更多证据";
   return (
     <>
@@ -606,7 +701,7 @@ function StudentProblemView({
           <Link to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`} className="back-link">
             <ArrowLeft size={16} /> 返回题目总览
           </Link>
-          <h1>{displayText(student.displayName, "学生")}</h1>
+          <h1>{displayText(student.displayName, t("common.studentSide"))}</h1>
           <div className="assignment-detail-meta">
             <span>{problem.title}</span>
             <span>{student.attemptCount} 次提交</span>
@@ -733,6 +828,15 @@ function StudentProblemView({
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="teacher-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function CompactMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="teacher-compact-metric">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>

@@ -373,7 +373,8 @@ a {
   border-radius: 10px;
 }
 
-.theme-toggle {
+.theme-toggle,
+.language-toggle {
   min-height: 36px;
   display: inline-flex;
   align-items: center;
@@ -384,6 +385,13 @@ a {
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
+}
+
+.language-toggle {
+  min-width: 42px;
+  justify-content: center;
+  padding-inline: 0.54rem;
+  font-weight: 850;
 }
 
 :root[data-theme="dark"] .app-header {
@@ -402,6 +410,7 @@ a {
 
 :root[data-theme="dark"] .top-nav,
 :root[data-theme="dark"] .theme-toggle,
+:root[data-theme="dark"] .language-toggle,
 :root[data-theme="dark"] .header-login-link,
 :root[data-theme="dark"] .header-student-chip,
 :root[data-theme="dark"] .nav-toggle {
@@ -16469,6 +16478,196 @@ summary:focus-visible {
   flex-wrap: wrap;
 }
 
+.teacher-drill-header--compact {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.86rem;
+  padding: 0.16rem 0.08rem 0.36rem;
+  border: 0;
+  background: transparent;
+}
+
+.teacher-drill-header__main,
+.teacher-drill-header__actions {
+  min-width: 0;
+}
+
+.teacher-drill-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.42rem;
+}
+
+.teacher-focus-panel {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.22fr) minmax(0, 1fr);
+  gap: 0.78rem;
+  padding: 0.74rem 0.84rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.teacher-focus-panel__head {
+  min-width: 0;
+  align-self: start;
+}
+
+.teacher-focus-panel__head h2 {
+  margin: 0.08rem 0 0;
+  font-size: clamp(1.08rem, 1.7vw, 1.36rem);
+  line-height: 1.16;
+}
+
+.teacher-focus-list {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.teacher-focus-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.62rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.teacher-focus-row:last-child {
+  border-bottom: 0;
+}
+
+.teacher-focus-row.is-muted {
+  color: var(--ink-soft);
+}
+
+.teacher-focus-row__icon {
+  width: 1.86rem;
+  height: 1.86rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 60%, transparent);
+}
+
+.teacher-focus-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.teacher-focus-row > div > span {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.teacher-focus-row strong,
+.teacher-focus-row p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.teacher-focus-row strong {
+  font-size: 0.98rem;
+  line-height: 1.22;
+}
+
+.teacher-focus-row p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.42;
+}
+
+.teacher-focus-row .ui-button {
+  white-space: nowrap;
+}
+
+.teacher-compact-metrics {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  padding: 0.42rem 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.teacher-compact-metric {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+  padding: 0.16rem 0.72rem;
+  border-right: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.teacher-compact-metric:last-child {
+  border-right: 0;
+}
+
+.teacher-compact-metric span {
+  min-width: 0;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 820;
+}
+
+.teacher-compact-metric strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(0.98rem, 1.5vw, 1.18rem);
+  line-height: 1.14;
+  font-variant-numeric: tabular-nums;
+}
+
+.teacher-trend-note {
+  margin: -0.18rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.teacher-trend-panel--compact {
+  padding: 0.72rem 0.82rem;
+}
+
+.teacher-trend-panel--compact .teacher-trend-chart svg {
+  height: clamp(118px, 18vh, 176px);
+}
+
+.teacher-problem-table--compact .teacher-section-head {
+  padding: 0.68rem 0.78rem 0.12rem;
+}
+
+.teacher-problem-progress-table .teacher-table-row {
+  grid-template-columns: minmax(210px, 1.28fr) minmax(96px, 0.48fr) minmax(86px, 0.42fr) minmax(86px, 0.42fr) minmax(82px, 0.38fr) minmax(170px, 0.88fr) minmax(86px, 0.38fr);
+}
+
+.teacher-problem-progress-table .teacher-table-row--link {
+  color: var(--ink);
+}
+
+.teacher-problem-progress-table .teacher-table-row--link > span:not(.teacher-table-title):not(.teacher-table-action) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 780;
+}
+
+.teacher-problem-progress-table .teacher-table-action {
+  color: var(--brand-strong);
+  font-weight: 850;
+}
+
 :root[data-theme="dark"] .teacher-home-summary-grid > .teacher-home-summary-tile,
 :root[data-theme="dark"] .teacher-assignment-card,
 :root[data-theme="dark"] .teacher-attention-card,
@@ -16478,6 +16677,15 @@ summary:focus-visible {
 :root[data-theme="dark"] .teacher-problem-card__facts span {
   background: #12161d;
   border-color: #2f3745;
+}
+
+:root[data-theme="dark"] .teacher-focus-panel {
+  background: #12161d;
+  border-color: #2f3745;
+}
+
+:root[data-theme="dark"] .teacher-focus-row__icon {
+  background: #162027;
 }
 
 @media (max-width: 900px) {
@@ -16498,6 +16706,23 @@ summary:focus-visible {
     width: 100%;
     justify-content: center;
   }
+
+  .teacher-drill-header--compact,
+  .teacher-focus-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-drill-header__actions {
+    justify-content: flex-start;
+  }
+
+  .teacher-compact-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .teacher-compact-metric:nth-child(3) {
+    border-right: 0;
+  }
 }
 
 @media (max-width: 520px) {
@@ -16514,6 +16739,39 @@ summary:focus-visible {
   .teacher-assignment-card__facts,
   .teacher-problem-card__facts {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .teacher-drill-header__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-focus-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .teacher-focus-row__icon {
+    display: none;
+  }
+
+  .teacher-focus-row .ui-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .teacher-compact-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-compact-metric,
+  .teacher-compact-metric:nth-child(3) {
+    border-right: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  }
+
+  .teacher-compact-metric:nth-child(even),
+  .teacher-compact-metric:last-child {
+    border-right: 0;
   }
 }
 
@@ -17590,6 +17848,41 @@ summary:focus-visible {
 
   .standard-library-review__textarea-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .assignment-drill-page .teacher-problem-progress-table {
+    overflow-x: visible;
+  }
+
+  .assignment-drill-page .teacher-problem-progress-table .teacher-table-row {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assignment-drill-page .teacher-problem-progress-table .teacher-table-row--head {
+    display: none;
+  }
+
+  .assignment-drill-page .teacher-problem-progress-table .teacher-table-row--link {
+    gap: 0.44rem;
+    padding: 0.68rem;
+  }
+
+  .assignment-drill-page .teacher-problem-progress-table .teacher-table-row--link > span[data-label] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.72rem;
+  }
+
+  .assignment-drill-page .teacher-problem-progress-table .teacher-table-row--link > span[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    color: var(--ink-soft);
+    font-size: 0.76rem;
+    font-weight: 820;
   }
 }
 

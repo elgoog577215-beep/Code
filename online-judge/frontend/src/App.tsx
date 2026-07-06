@@ -5,6 +5,7 @@ import { BookOpenCheck, LogIn, Menu, Moon, Sun, UserRound, UsersRound, X } from 
 import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
 import { TeacherShell } from "./features/teacher/TeacherShell";
+import { useTranslation } from "./shared/i18n";
 import { clearActiveStudent, loadStudent, onActiveStudentChange } from "./shared/storage";
 import { Button } from "./shared/ui/Button";
 import { EmptyState } from "./shared/ui/EmptyState";
@@ -56,27 +57,29 @@ function useTheme() {
 }
 
 function RouteHubPage() {
+  const { t } = useTranslation();
+
   return (
     <div className="role-entry-page route-hub-page">
       <section className="role-entry route-hub-hero">
         <div>
-          <p className="eyebrow">入口</p>
-          <h1>学习平台</h1>
-          <p>学生学习和教师工作台各走自己的路径，入口清楚，任务直接。</p>
+          <p className="eyebrow">{t("routeHub.eyebrow")}</p>
+          <h1>{t("routeHub.title")}</h1>
+          <p>{t("routeHub.description")}</p>
         </div>
       </section>
 
-      <section className="role-entry-grid route-hub-grid" aria-label="系统入口">
+      <section className="role-entry-grid route-hub-grid" aria-label={t("routeHub.title")}>
         <NavLink to="/app/student" className="role-entry-card route-hub-card route-hub-card--student">
           <span className="role-entry-card__icon">
             <BookOpenCheck size={24} />
           </span>
           <span>
             <span className="role-entry-card__head">
-              <span className="eyebrow">学生</span>
+              <span className="eyebrow">{t("common.studentSide")}</span>
             </span>
-            <h2>学生学习</h2>
-            <p>进入课堂作业、公共题库和个人提交记录。</p>
+            <h2>{t("routeHub.studentTitle")}</h2>
+            <p>{t("routeHub.studentDescription")}</p>
             <small>/app/student</small>
           </span>
         </NavLink>
@@ -87,10 +90,10 @@ function RouteHubPage() {
           </span>
           <span>
             <span className="role-entry-card__head">
-              <span className="eyebrow">教师</span>
+              <span className="eyebrow">{t("common.teacherSide")}</span>
             </span>
-            <h2>教师工作台</h2>
-            <p>查看班级、作业、题目和学生，也管理名单、题库与 AI 标准库。</p>
+            <h2>{t("routeHub.teacherTitle")}</h2>
+            <p>{t("routeHub.teacherDescription")}</p>
             <small>/app/teacher</small>
           </span>
         </NavLink>
@@ -109,6 +112,7 @@ function TeacherRoute({ children }: { children: ReactNode }) {
 
 function Header() {
   const { theme, setTheme } = useTheme();
+  const { locale, setLocale, t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [student, setStudent] = useState(() => loadStudent());
   const location = useLocation();
@@ -118,13 +122,13 @@ function Header() {
   const navItems: NavItem[] = [
     {
       to: "/app/student",
-      label: "学生端",
+      label: t("common.studentSide"),
       icon: BookOpenCheck,
       activeWhen: (pathname: string) => pathname.startsWith("/app/student")
     },
     {
       to: "/app/teacher",
-      label: "教师端",
+      label: t("common.teacherSide"),
       icon: UsersRound,
       activeWhen: (pathname: string) => pathname.startsWith("/app/teacher")
     }
@@ -154,12 +158,12 @@ function Header() {
 
   return (
     <header className={headerClassName}>
-      <NavLink to="/app" className="brand" aria-label="温中编程学习平台">
+      <NavLink to="/app" className="brand" aria-label={t("common.appName")}>
         <span className="brand__mark">
           <BookOpenCheck size={24} />
         </span>
         <span>
-          <strong>温中编程学习平台</strong>
+          <strong>{t("common.appName")}</strong>
         </span>
       </NavLink>
       {hasNav ? (
@@ -167,14 +171,14 @@ function Header() {
           <button
             type="button"
             className="nav-toggle"
-            aria-label={open ? "收起导航" : "展开导航"}
+            aria-label={open ? t("common.closeNavigation") : t("common.openNavigation")}
             aria-expanded={open}
             aria-controls="main-navigation"
             onClick={() => setOpen(value => !value)}
           >
             {open ? <X size={19} /> : <Menu size={19} />}
           </button>
-          <nav className="top-nav" id="main-navigation" aria-label="主导航">
+          <nav className="top-nav" id="main-navigation" aria-label={t("common.mainNavigation")}>
             {navItems.map(item => (
               <NavLink
                 key={`${item.label}-${item.to}`}
@@ -199,25 +203,34 @@ function Header() {
                 <span>{student.displayName}</span>
               </NavLink>
               <Button type="button" variant="ghost" className="header-signout-button" onClick={signOut}>
-                退出
+                {t("common.logout")}
               </Button>
             </div>
           ) : (
             <NavLink to="/app/student/login" className="header-login-link">
               <LogIn size={17} />
-              <span>登录</span>
+              <span>{t("common.login")}</span>
             </NavLink>
           )
         ) : null}
         <button
           type="button"
+          className="language-toggle"
+          aria-label={t("common.language")}
+          title={t("common.language")}
+          onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
+        >
+          <span>{locale === "zh" ? "中" : "EN"}</span>
+        </button>
+        <button
+          type="button"
           className="theme-toggle"
-          aria-label="切换主题"
-          title={theme === "dark" ? "切换到白天模式" : "切换到夜间模式"}
+          aria-label={t("common.theme.toggle")}
+          title={theme === "dark" ? t("common.theme.toLight") : t("common.theme.toDark")}
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
         >
           {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          <span>{theme === "dark" ? "白天" : "夜间"}</span>
+          <span>{theme === "dark" ? t("common.theme.light") : t("common.theme.dark")}</span>
         </button>
       </div>
     </header>
@@ -225,14 +238,16 @@ function Header() {
 }
 
 export default function App() {
+  const { t } = useTranslation();
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
-        跳到主要内容
+        {t("common.skipToMain")}
       </a>
       <Header />
       <main className="main-shell" id="main-content">
-        <Suspense fallback={<EmptyState title="正在加载页面" live />}>
+        <Suspense fallback={<EmptyState title={t("common.loadingPage")} live />}>
           <Routes>
             <Route path="/" element={<Navigate to="/app" replace />} />
             <Route path="/app" element={<RouteHubPage />} />

@@ -1,0 +1,119 @@
+{
+  "common": {
+    "language": "语言",
+    "chinese": "中文",
+    "english": "English",
+    "appName": "温中编程学习平台",
+    "mainNavigation": "主导航",
+    "openNavigation": "展开导航",
+    "closeNavigation": "收起导航",
+    "skipToMain": "跳到主要内容",
+    "login": "登录",
+    "logout": "退出",
+    "studentSide": "学生端",
+    "teacherSide": "教师端",
+    "teacherWorkbench": "教师工作台",
+    "assignmentCenter": "作业中心",
+    "resourceManagement": "资源管理",
+    "loadingPage": "正在加载页面",
+    "theme": {
+      "toggle": "切换主题",
+      "toLight": "切换到白天模式",
+      "toDark": "切换到夜间模式",
+      "light": "白天",
+      "dark": "夜间"
+    }
+  },
+  "routeHub": {
+    "eyebrow": "入口",
+    "title": "学习平台",
+    "description": "学生学习和教师工作台各走自己的路径，入口清楚，任务直接。",
+    "studentTitle": "学生学习",
+    "studentDescription": "进入课堂作业、公共题库和个人提交记录。",
+    "teacherTitle": "教师工作台",
+    "teacherDescription": "查看班级、作业、题目和学生，也管理名单、题库与 AI 标准库。"
+  },
+  "assignmentDetail": {
+    "fallbackTitle": "课堂作业",
+    "pilotTitle": "课堂编程作业",
+    "defaultClass": "默认班级",
+    "unknownStudent": "学生 #{{id}}",
+    "loading": "正在加载作业详情",
+    "notFound": "作业未找到",
+    "notFoundDescription": "返回作业中心重新选择作业。",
+    "backToAssignmentCenter": "返回作业中心",
+    "header": {
+      "problemCount": "{{count}} 题",
+      "submitted": "{{count}} 人已提交",
+      "passRate": "{{rate}}% 通过",
+      "startReview": "开始批阅",
+      "viewProblem": "看题目"
+    },
+    "status": {
+      "active": "进行中",
+      "draft": "草稿",
+      "closed": "已结束",
+      "unset": "未设置",
+      "pending": "待提交",
+      "mastered": "已掌握",
+      "needsLecture": "需讲评",
+      "progressing": "推进中"
+    },
+    "difficulty": {
+      "easy": "基础",
+      "medium": "提高",
+      "hard": "挑战",
+      "unknown": "-"
+    },
+    "focus": {
+      "aria": "作业待处理",
+      "eyebrow": "待处理",
+      "title": "下一步",
+      "noStudentTitle": "暂无需关注学生",
+      "noStudentDescription": "目前没有学生被标记为需关注，先看题目推进即可。",
+      "studentLabel": "先看学生",
+      "studentAction": "查看学生",
+      "defaultStudentReason": "有新的卡点需要确认。",
+      "repeatedIssue": "{{issue}}反复出现",
+      "problemLabel": "先讲题目",
+      "noProblemTitle": "等待提交",
+      "noProblemDescription": "学生提交后会自动推荐最需要讲评的题目。",
+      "problemWithIssue": "{{count}} 名需关注，主要错因是 {{issue}}。",
+      "problemWithoutIssue": "{{count}} 名需关注，先看学生明细再决定讲评。",
+      "stable": "稳定"
+    },
+    "metrics": {
+      "aria": "作业关键指标",
+      "submittedStudents": "提交人数",
+      "passedStudents": "通过人数",
+      "totalSubmissions": "总提交",
+      "needsAttention": "需关注",
+      "recentSubmissions": "最近提交",
+      "submittedPeople": "{{count}} 人"
+    },
+    "trend": {
+      "eyebrow": "提交推进",
+      "title": "作业增长情况",
+      "chartAria": "提交推进曲线",
+      "attempts": "提交次数",
+      "submitted": "提交人数",
+      "passed": "通过人数",
+      "onePoint": "已有 {{attempts}} 次提交，等待形成趋势。{{submitted}} 人提交，{{passed}} 人通过。",
+      "empty": "等待第一次提交。"
+    },
+    "problems": {
+      "aria": "题目推进列表",
+      "eyebrow": "题目",
+      "title": "题目推进",
+      "problem": "题目",
+      "difficulty": "难度",
+      "submitted": "提交",
+      "passed": "通过",
+      "attention": "需看",
+      "issue": "集中问题",
+      "action": "操作",
+      "view": "看题目",
+      "noIssue": "暂无集中错因"
+    }
+  }
+}

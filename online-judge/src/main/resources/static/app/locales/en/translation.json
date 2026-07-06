@@ -1,0 +1,119 @@
+{
+  "common": {
+    "language": "Language",
+    "chinese": "中文",
+    "english": "English",
+    "appName": "Wenzhong Coding Learning Platform",
+    "mainNavigation": "Main navigation",
+    "openNavigation": "Open navigation",
+    "closeNavigation": "Close navigation",
+    "skipToMain": "Skip to main content",
+    "login": "Log in",
+    "logout": "Log out",
+    "studentSide": "Student",
+    "teacherSide": "Teacher",
+    "teacherWorkbench": "Teacher Workbench",
+    "assignmentCenter": "Assignments",
+    "resourceManagement": "Resources",
+    "loadingPage": "Loading page",
+    "theme": {
+      "toggle": "Toggle theme",
+      "toLight": "Switch to light mode",
+      "toDark": "Switch to dark mode",
+      "light": "Light",
+      "dark": "Dark"
+    }
+  },
+  "routeHub": {
+    "eyebrow": "Entry",
+    "title": "Learning Platform",
+    "description": "Students and teachers each get a clear path, with direct access to the work that matters.",
+    "studentTitle": "Student Learning",
+    "studentDescription": "Open class assignments, public practice, and personal submission records.",
+    "teacherTitle": "Teacher Workbench",
+    "teacherDescription": "Review classes, assignments, problems, and students, plus manage rosters, problems, and the AI library."
+  },
+  "assignmentDetail": {
+    "fallbackTitle": "Class Assignment",
+    "pilotTitle": "Class Coding Assignment",
+    "defaultClass": "Default class",
+    "unknownStudent": "Student #{{id}}",
+    "loading": "Loading assignment details",
+    "notFound": "Assignment not found",
+    "notFoundDescription": "Go back to assignments and choose another item.",
+    "backToAssignmentCenter": "Back to assignments",
+    "header": {
+      "problemCount": "{{count}} problems",
+      "submitted": "{{count}} submitted",
+      "passRate": "{{rate}}% pass",
+      "startReview": "Start review",
+      "viewProblem": "View problem"
+    },
+    "status": {
+      "active": "Active",
+      "draft": "Draft",
+      "closed": "Closed",
+      "unset": "Unset",
+      "pending": "Waiting",
+      "mastered": "Mastered",
+      "needsLecture": "Needs review",
+      "progressing": "In progress"
+    },
+    "difficulty": {
+      "easy": "Basic",
+      "medium": "Intermediate",
+      "hard": "Challenge",
+      "unknown": "-"
+    },
+    "focus": {
+      "aria": "Assignment triage",
+      "eyebrow": "Triage",
+      "title": "Next step",
+      "noStudentTitle": "No priority student",
+      "noStudentDescription": "No student is flagged right now. Start from problem progress.",
+      "studentLabel": "Student first",
+      "studentAction": "View student",
+      "defaultStudentReason": "A new blocker needs a quick check.",
+      "repeatedIssue": "{{issue}} appears repeatedly",
+      "problemLabel": "Problem first",
+      "noProblemTitle": "Waiting for submissions",
+      "noProblemDescription": "A review recommendation will appear after students submit.",
+      "problemWithIssue": "{{count}} need attention; main issue: {{issue}}.",
+      "problemWithoutIssue": "{{count}} need attention; inspect student details before deciding the review.",
+      "stable": "Stable"
+    },
+    "metrics": {
+      "aria": "Assignment key metrics",
+      "submittedStudents": "Submitted",
+      "passedStudents": "Passed",
+      "totalSubmissions": "Attempts",
+      "needsAttention": "Attention",
+      "recentSubmissions": "Recent",
+      "submittedPeople": "{{count}} students"
+    },
+    "trend": {
+      "eyebrow": "Submission pace",
+      "title": "Submission trend",
+      "chartAria": "Submission progress chart",
+      "attempts": "Attempts",
+      "submitted": "Students submitted",
+      "passed": "Students passed",
+      "onePoint": "{{attempts}} attempts so far. Waiting for one more data point. {{submitted}} submitted, {{passed}} passed.",
+      "empty": "Waiting for the first submission."
+    },
+    "problems": {
+      "aria": "Problem progress list",
+      "eyebrow": "Problems",
+      "title": "Problem Progress",
+      "problem": "Problem",
+      "difficulty": "Level",
+      "submitted": "Submitted",
+      "passed": "Passed",
+      "attention": "Review",
+      "issue": "Main issue",
+      "action": "Action",
+      "view": "Open",
+      "noIssue": "No shared issue yet"
+    }
+  }
+}
