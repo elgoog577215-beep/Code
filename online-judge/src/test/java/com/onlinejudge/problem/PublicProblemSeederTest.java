@@ -27,7 +27,9 @@ class PublicProblemSeederTest {
 
     @Test
     void seedsPublicProblemsWithLongDiagnosticStarterCode() {
-        assertThat(PublicProblemSeedCatalog.seeds()).hasSize(40);
+        assertThat(PublicProblemSeedCatalog.seeds()).hasSize(11);
+        assertThat(PublicProblemSeedCatalog.seeds())
+                .noneMatch(seed -> seed.title().startsWith("AI评测题："));
         assertThat(PublicProblemSeedCatalog.seeds())
                 .allSatisfy(seed -> {
                     assertThat(seed.description()).contains("## 题目描述");
@@ -39,24 +41,24 @@ class PublicProblemSeederTest {
     }
 
     @Test
-    void includesHardLongCodeEvaluationProblems() {
-        List<PublicProblemSeed> hardEvaluationSeeds = PublicProblemSeedCatalog.seeds()
+    void includesFormalMultiErrorLongCodeBenchmarkProblem() {
+        PublicProblemSeed seed = PublicProblemSeedCatalog.seeds()
                 .stream()
-                .filter(this::isHardEvaluationSeed)
-                .toList();
+                .filter(candidate -> candidate.title().equals("潮汐折扣最短路"))
+                .findFirst()
+                .orElseThrow();
 
-        assertThat(hardEvaluationSeeds).hasSize(30);
-        assertThat(hardEvaluationSeeds)
-                .anySatisfy(seed -> assertThat(seed.title()).isEqualTo("AI评测题：二维费用背包"))
-                .allSatisfy(seed -> {
-                    assertThat(seed.description()).contains("AI 长代码诊断训练题");
-                    assertThat(seed.starterCode().lines().count()).isGreaterThanOrEqualTo(300);
-                    assertThat(seed.testCases())
-                            .allSatisfy(testCase -> {
-                                assertThat(testCase.input()).doesNotContain("small visible sample");
-                                assertThat(testCase.expectedOutput()).doesNotContain("expected");
-                            });
-                });
+        assertThat(seed.description())
+                .contains("时间依赖最短路", "最多 `k` 张折扣券", "ceil(w / 2)");
+        assertThat(seed.starterCode().lines().count()).isGreaterThanOrEqualTo(300);
+        assertThat(seed.commonMistakes())
+                .contains(
+                        "把单向边误建成双向边",
+                        "等待时间取模公式在 rem > r 时多等一轮",
+                        "折扣券对奇数边权使用 floor 而不是 ceil",
+                        "用单个节点最优时间错误剪掉不同优惠券状态"
+                );
+        assertThat(seed.testCases()).hasSize(3);
     }
 
     @Test
@@ -65,9 +67,6 @@ class PublicProblemSeederTest {
         List<String> acceptedTitles = new ArrayList<>();
 
         for (PublicProblemSeed seed : PublicProblemSeedCatalog.seeds()) {
-            if (isHardEvaluationSeed(seed)) {
-                continue;
-            }
             String starterCode = PublicStarterCodeCatalog.findByTitle(seed.title());
             assertThat(starterCode).as(seed.title()).isNotBlank();
 
@@ -181,10 +180,6 @@ class PublicProblemSeederTest {
                 .filter(seed -> seed.title().equals(title))
                 .findFirst()
                 .orElseThrow();
-    }
-
-    private boolean isHardEvaluationSeed(PublicProblemSeed seed) {
-        return seed.title().startsWith("AI评测题：");
     }
 
     private String normalized(String starterCode) {

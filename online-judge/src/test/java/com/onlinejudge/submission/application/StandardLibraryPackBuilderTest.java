@@ -252,6 +252,8 @@ class StandardLibraryPackBuilderTest {
                 .contains("basicLayerText")
                 .contains("improvementLayerText")
                 .contains("diagnosisDecision")
+                .contains("多个不同失败现象")
+                .contains("不要写删除、替换、改成")
                 .doesNotContain("teachingHint");
     }
 

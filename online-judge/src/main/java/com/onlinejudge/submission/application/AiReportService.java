@@ -288,7 +288,7 @@ public class AiReportService {
                     5. repairItems 和 improvementItems 都按真实证据返回 0 到多条：有几个彼此独立的错误就给几条 repairItems，有几个真实提升方向就给几条 improvementItems；不要强行合并成一条，也不要为了显得丰富而凑数。
                     6. 不要把 candidateSignals 或 ruleSignals 当成结论；必须让题目目标、代码行为、评测结果三者能对上。
                     7. 每条建议的 evidenceRefs 优先填写 evidenceCandidates 里的 E1/E2 这类证据 ID；也可以填写已有 code:line/code:range。不能猜隐藏测试。
-                    8. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达。
+                    8. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达；建议动作写成检查、手推、比较、核对，不写删除、替换、改成。
                     9. 学生可见文字不能复述 verdict:、code:、evidenceRefs、judgeFacts、candidateSignals 等内部字段名或证据标记。
                     10. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
                     11. 如果 submission.primaryRuntimeEvidence 存在，基础层必须优先解释其中的异常类型、行号和 lineText；不要把“代码很长、helper 太多、需要精简”当作主因，除非它直接导致这一行异常。
@@ -297,6 +297,7 @@ public class AiReportService {
                     14. knowledgePath 是父子关系路径，不是独立标签；使用 3-5 段中文知识树路径，例如 ["程序基础","数组/列表","下标访问","越界检查"]；不确定时可以留空，由后端兜底。
                     15. standardLibrary 是教学参考规范包，不是强制答案；能精确命中就填写对应 ID，半命中写 PARTIAL，不匹配写 MISS 或 OUT_OF_LIBRARY 并允许 ID 留空。
                     16. 如果 standardLibrary 中有 primaryKnowledgeNodeCode，knowledgePath 优先沿“主知识点 -> 能力点 -> 易错点/提升点”生成；relatedKnowledgeNodeCodes 只作辅助区分，不要拆成多个独立标签或独立错误。
+                    17. 如果 judgeFacts 暴露多个不同失败现象，逐个核对是否来自不同根因；不要只解释第一个能说通的现象就停止。
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);

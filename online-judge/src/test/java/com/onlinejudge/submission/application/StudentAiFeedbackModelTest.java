@@ -76,7 +76,7 @@ class StudentAiFeedbackModelTest {
         assertThat(feedback.getNextQuestion()).contains("第二个整数");
         assertThat(feedback.getSafety().getAnswerLeakRisk()).isEqualTo("LOW");
         assertThat(service.lastSystemPrompt())
-                .contains("学生快反馈教练", "studentReport", "禁止给最终代码");
+                .contains("学生快反馈教练", "studentReport", "禁止给最终代码", "不要只解释第一个");
         assertThat(service.lastUserPrompt())
                 .contains("judgeFacts", "candidateSignals", "sourceExcerpt", "evidenceCandidates")
                 .contains("不要把内部字段名写进学生反馈");

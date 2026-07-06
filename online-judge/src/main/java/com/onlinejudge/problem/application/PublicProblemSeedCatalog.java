@@ -1,18 +1,15 @@
 package com.onlinejudge.problem.application;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.problem.domain.Problem;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public final class PublicProblemSeedCatalog {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final List<PublicProblemSeed> SEEDS = buildSeeds();
 
     private PublicProblemSeedCatalog() {
@@ -23,8 +20,9 @@ public final class PublicProblemSeedCatalog {
     }
 
     private static List<PublicProblemSeed> buildSeeds() {
-        List<PublicProblemSeed> seeds = new ArrayList<>(List.of(
+        return List.of(
                 tidalRoads(),
+                tidalDiscountPath(),
                 adjacentStoneMerge(),
                 treeCoursePlan(),
                 dynamicConnectivity(),
@@ -34,9 +32,7 @@ public final class PublicProblemSeedCatalog {
                 parallelAssembly(),
                 energyField(),
                 subarrayMinimumContribution()
-        ));
-        seeds.addAll(hardEvaluationSeeds());
-        return List.copyOf(seeds);
+        );
     }
 
     private static PublicProblemSeed tidalRoads() {
@@ -149,6 +145,75 @@ public final class PublicProblemSeedCatalog {
                                 3 1
                                 1 2 5 7 3
                                 """, "-1\n")
+                )
+        );
+    }
+
+    private static PublicProblemSeed tidalDiscountPath() {
+        return problem(
+                "潮汐折扣最短路",
+                """
+                        ## 题目描述
+
+                        有 `n` 个城市和 `m` 条单向潮汐道路。第 `i` 条道路从 `u` 到 `v`，行驶时间为 `w`。
+                        这条道路只有在出发时刻 `t` 满足 `t mod p = r` 时才能进入；如果到达路口时不满足条件，可以原地等待到下一次可进入时刻。
+
+                        你从 1 号城市的时刻 0 出发，目标是尽早到达 `n` 号城市。
+                        你还有最多 `k` 张折扣券。每张折扣券只能在通过一条道路时使用一次，使这条道路的行驶时间变为 `ceil(w / 2)`；等待时间不能打折。
+
+                        这是一道时间依赖最短路题：同一个城市在不同已用折扣券数量下，可能对应不同的最优状态。
+
+                        求到达 `n` 号城市的最早时刻。若无法到达，输出 `-1`。
+
+                        ## 输入格式
+
+                        第一行三个整数 `n m k`。
+                        接下来 `m` 行，每行五个整数 `u v w p r`，表示一条从 `u` 到 `v` 的单向道路。
+
+                        ## 输出格式
+
+                        输出一个整数，表示最早到达时刻；不可达时输出 `-1`。
+
+                        ## 约束
+
+                        `1 <= n <= 2 * 10^5`，`1 <= m <= 3 * 10^5`，`0 <= k <= 20`。
+                        `1 <= w,p <= 10^9`，`0 <= r < p`。
+                        """,
+                Problem.Difficulty.HARD,
+                3000,
+                262144,
+                "这是时间依赖最短路 + 分层状态 Dijkstra。重点检查等待时间公式、单向边、优惠券状态维度、状态支配关系和奇数边权的向上取整。",
+                resourceText("/public-problem-seeds/tidal-discount-path-wrong.py"),
+                List.of("图论", "最短路", "时间依赖边", "状态分层"),
+                List.of("Dijkstra", "分层图", "等待时间取模", "状态支配"),
+                List.of(
+                        "把单向边误建成双向边",
+                        "等待时间取模公式在 rem > r 时多等一轮",
+                        "折扣券对奇数边权使用 floor 而不是 ceil",
+                        "用单个节点最优时间错误剪掉不同优惠券状态"
+                ),
+                List.of("不可达", "奇数边权", "rem > r", "较晚到达但保留折扣券更优"),
+                List.of(
+                        sample("""
+                                4 5 1
+                                1 2 5 1 0
+                                2 4 5 3 1
+                                1 3 2 1 0
+                                3 4 100 1 0
+                                2 3 1 1 0
+                                """, "9\n"),
+                        hidden("""
+                                3 2 0
+                                2 1 1 1 0
+                                2 3 1 1 0
+                                """, "-1\n"),
+                        hidden("""
+                                4 4 1
+                                1 2 1 1 0
+                                2 3 1 1 0
+                                1 3 5 1 0
+                                3 4 100 1 0
+                                """, "52\n")
                 )
         );
     }
@@ -1181,108 +1246,22 @@ public final class PublicProblemSeedCatalog {
         );
     }
 
-    private static List<PublicProblemSeed> hardEvaluationSeeds() {
-        try (InputStream input = PublicProblemSeedCatalog.class.getResourceAsStream(
-                "/public-problem-seeds/hard-30-long-code-cases.json")) {
-            if (input == null) {
-                throw new IllegalStateException("Missing hard public problem seed resource.");
-            }
-            JsonNode root = OBJECT_MAPPER.readTree(input);
-            List<PublicProblemSeed> seeds = new ArrayList<>();
-            for (JsonNode node : root) {
-                seeds.add(hardEvaluationSeed(node));
-            }
-            return seeds;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private static PublicProblemSeed hardEvaluationSeed(JsonNode node) {
-        JsonNode diagnosis = node.path("diagnosis");
-        JsonNode problem = diagnosis.path("problem");
-        JsonNode submission = diagnosis.path("submission");
-        String title = "AI评测题：" + problem.path("title").asText();
-        return problem(
-                title,
-                hardEvaluationDescription(problem, submission),
-                Problem.Difficulty.valueOf(problem.path("difficulty").asText("HARD")),
-                problem.path("timeLimit").asInt(1000),
-                problem.path("memoryLimit").asInt(65536),
-                hardEvaluationPromptDirection(node, problem),
-                submission.path("sourceCode").asText(),
-                textList(problem.path("knowledgePoints")),
-                textList(problem.path("algorithmStrategies")),
-                textList(problem.path("commonMistakes")),
-                textList(problem.path("boundaryTypes")),
-                List.of(
-                        sample("""
-                                3
-                                1 2 3
-                                """, "6\n"),
-                        hidden("""
-                                0
-                                """, "0\n")
-                )
-        );
-    }
-
-    private static String hardEvaluationDescription(JsonNode problem, JsonNode submission) {
-        return """
-                ## 题目描述
-
-                这是一道 AI 长代码诊断训练题，来自 30 道高难度评测样例集。原始评测主题：%s。
-
-                题库中保留了原评测样例的长 starter code（语言：%s），用于训练学生和 AI 在大量干扰代码中定位真实错误。
-                当前公共题库版本先提供一个可判题的基础壳任务：给定 `n` 和 `n` 个整数，输出这些整数的和。
-
-                原始主题说明：%s
-
-                ## 输入格式
-
-                第一行一个整数 `n`。
-                第二行包含 `n` 个整数。`n` 可以为 0；当 `n = 0` 时，第二行可以为空。
-
-                ## 输出格式
-
-                输出一个整数，表示所有输入整数的和。
-
-                ## 训练目标
-
-                这批题的重点不是刷标准答案，而是观察：面对 300 行以上的代码、无关辅助函数和局部边界错误时，能否先抓住最小可复现问题，再把错误说清楚。
-                后续如果要把它升级成正式竞赛题，需要为原始主题补齐完整题面、标准数据和与主题严格一致的错误代码。
-                """.formatted(
-                problem.path("title").asText(),
-                submission.path("languageName").asText("Python 3"),
-                problem.path("description").asText()
-        );
-    }
-
-    private static String hardEvaluationPromptDirection(JsonNode node, JsonNode problem) {
-        return String.join("\n",
-                "这是 AI 长代码诊断训练题，不是已经人工打磨完的正式竞赛题。",
-                node.path("teacherExpectation").asText(),
-                node.path("qualityNotes").asText(),
-                "原始主题：" + problem.path("title").asText(),
-                "公共题库判题任务：读入 n 和 n 个整数，输出整数和；重点观察长代码中的边界和执行错误。"
-        ).stripTrailing();
-    }
-
-    private static List<String> textList(JsonNode array) {
-        List<String> values = new ArrayList<>();
-        for (JsonNode item : array) {
-            if (!item.asText().isBlank()) {
-                values.add(item.asText());
-            }
-        }
-        return List.copyOf(values);
-    }
-
     private static PublicProblemSeed.TestCaseSeed sample(String input, String expectedOutput) {
         return new PublicProblemSeed.TestCaseSeed(input.stripIndent(), expectedOutput.stripIndent(), false);
     }
 
     private static PublicProblemSeed.TestCaseSeed hidden(String input, String expectedOutput) {
         return new PublicProblemSeed.TestCaseSeed(input.stripIndent(), expectedOutput.stripIndent(), true);
+    }
+
+    private static String resourceText(String path) {
+        try (InputStream input = PublicProblemSeedCatalog.class.getResourceAsStream(path)) {
+            if (input == null) {
+                throw new IllegalStateException("Missing public problem seed resource: " + path);
+            }
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }
