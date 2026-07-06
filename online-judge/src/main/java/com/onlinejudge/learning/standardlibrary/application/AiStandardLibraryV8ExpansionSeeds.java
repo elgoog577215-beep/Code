@@ -321,7 +321,7 @@ final class AiStandardLibraryV8ExpansionSeeds {
                 "能力点/提交检查细节",
                 "提交前检查运行错误、溢出和复杂度边界",
                 "能在提交前主动检查空容器访问、递归深度、整数溢出、多组状态和时空复杂度，而不是只复测样例。",
-                "提交前最后一遍不是看答案长得像不像，而是按风险清单主动找会炸的地方。",
+                "提交前最后一遍不是只观察答案形态，而是按风险清单主动检查最可能触发失败的边界。",
                 List.of("CONTEST.SUBMIT.CHECKLIST.多组状态复查", "CONTEST.SUBMIT.CHECKLIST.溢出风险复查", "ENG.ERROR.RUNTIME.空容器访问保护", "ENG.COMPLEXITY.TRADEOFF.预处理收益判断"),
                 List.of("ENG.DEBUG.BOUNDARY.最大输入", "BASIC.TYPE.INTEGER.long_long_范围"),
                 "HIGH",
@@ -368,7 +368,7 @@ final class AiStandardLibraryV8ExpansionSeeds {
                 "建立提交前风险清单而不是只复测样例",
                 "适用于学生代码主体已经接近正确，但经常在隐藏数据上因运行错误、溢出、多组状态或复杂度失败。",
                 "修复后让学生按四类风险复查：空状态、最大值、中间表达式、多组状态和内存规模。",
-                "教师可要求学生每次提交前写出一个最大数据估算和一个最容易炸的边界样例。",
+                "教师可要求学生每次提交前写出一个最大数据估算和一个最容易触发失败的边界样例。",
                 "SK_V8_SUBMISSION_RUNTIME_COMPLEXITY_GUARD",
                 List.of("MP_V8_SUBMIT_EMPTY_CONTAINER_GUARD_MISSING", "MP_V8_SUBMIT_OVERFLOW_CHECK_ONLY_ON_FINAL_ANSWER", "MP_V8_SUBMIT_PRECOMPUTE_EXCEEDS_MEMORY_LIMIT"),
                 List.of("CONTEST.SUBMIT.CHECKLIST.溢出风险复查", "ENG.COMPLEXITY.TRADEOFF.空间换时间边界"));

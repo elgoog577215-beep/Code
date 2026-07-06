@@ -269,6 +269,15 @@ class AiStandardLibrarySeederTest {
                 .filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .filter(seed -> seed.name().contains("理解或应用偏差"))
                 .count();
+        List<String> lowInformationFragments = List.of(
+                "相关的知识点和错误表现",
+                "用于兼容旧 AI 标准库标签",
+                "这一精细知识点",
+                "理解或应用偏差");
+        List<String> lowInformationSeedTexts = AiStandardLibrarySeedCatalog.seeds().stream()
+                .filter(seed -> lowInformationFragments.stream().anyMatch(fragment -> seedText(seed).contains(fragment)))
+                .map(seed -> seed.code() + "/" + seed.name())
+                .toList();
         long strongHandwrittenSamples = AiStandardLibrarySeedCatalog.seeds().stream()
                 .filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .filter(seed -> seed.code().startsWith("MP_FUNCTION_")
@@ -290,6 +299,9 @@ class AiStandardLibrarySeederTest {
         assertThat(generatedSkillCount).isGreaterThanOrEqualTo(615);
         assertThat(genericSkillNameCount).isZero();
         assertThat(genericMistakeNameCount).isZero();
+        assertThat(lowInformationSeedTexts)
+                .as("low-information standard-library text: " + lowInformationSeedTexts.stream().limit(20).toList())
+                .isEmpty();
         assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(116);
     }
 
@@ -336,6 +348,23 @@ class AiStandardLibrarySeederTest {
                 .contains("long long").contains("中间表达式");
         assertThat(seedsByCode.get("IP_V8_ARRAY_UPDATE_INVARIANT_TESTING").studentBenefit())
                 .contains("旧值").contains("累计量");
+
+        assertThat(seedsByCode.get("SK_COMPAT_TIME_COMPLEXITY").description())
+                .contains("最大数据范围").contains("核心循环");
+        assertThat(seedsByCode.get("SK_COMPAT_BOUNDARY_CONDITION").studentExplanation())
+                .contains("极小").contains("重复值").contains("分支");
+    }
+
+    private String seedText(AiStandardLibrarySeed seed) {
+        return String.join("\n",
+                seed.category(),
+                seed.name(),
+                seed.description(),
+                seed.studentExplanation(),
+                seed.teacherExplanation(),
+                seed.commonMisconception(),
+                seed.whenToUse(),
+                seed.studentBenefit());
     }
 
     private AiStandardLibraryItem findGeneratedByKnowledge(AiStandardLibraryLayer layer, String codePrefix, String knowledgeCode) {

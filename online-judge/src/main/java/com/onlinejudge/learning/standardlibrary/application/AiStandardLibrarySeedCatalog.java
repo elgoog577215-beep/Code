@@ -45,7 +45,7 @@ public final class AiStandardLibrarySeedCatalog {
                 "易错点/循环边界",
                 "允许相等时误用严格不等号",
                 "题目允许等于边界，但代码使用 < 或 > 排除了刚好等于的合法情况。",
-                "把“不超过、至多、不大于”凭感觉写成小于，或没有单独代入等于边界检查。",
+                "把“不超过、至多、不大于”凭直觉写成小于，或没有单独代入等于边界检查。",
                 "SK_LOOP_ENDPOINT_INCLUSION",
                 "BOUNDARY",
                 List.of("BASIC.LOOP.BOUNDARY.左闭右闭", "BASIC.EXPR.COMPARE.边界比较"),
@@ -619,7 +619,7 @@ public final class AiStandardLibrarySeedCatalog {
                 "能力点/贪心",
                 "说明贪心选择依据",
                 "能说清排序依据、每一步选择维护的性质，并用交换、反例或不变量检查局部选择是否可靠。",
-                "不要只说“看起来最优”，要说明为什么晚一点换成当前选择不会更差。",
+                "不要只说“表面上最优”，要说明为什么晚一点换成当前选择不会更差。",
                 List.of("ALGO.GREEDY.CHOICE.排序依据", "ALGO.GREEDY.CHOICE.交换论证", "ENG.STYLE.INVARIANT.贪心维护量"),
                 List.of("ALGO.SORT.BASIC.自定义比较"),
                 "HIGH",
@@ -1350,8 +1350,8 @@ public final class AiStandardLibrarySeedCatalog {
                 skillCode,
                 "兼容能力/" + category,
                 name + "识别",
-                "能识别「" + name + "」相关的知识点和错误表现。",
-                "用于兼容旧 AI 标准库标签，后续会逐步收敛到更细能力点。",
+                compatSkillDescription(code, name, definition),
+                compatLearningGoal(code, name),
                 knowledgeNodeCodes,
                 List.of(),
                 severity,
@@ -1368,6 +1368,31 @@ public final class AiStandardLibrarySeedCatalog {
                 List.of(),
                 severity,
                 List.of("PYTHON", "CPP17"));
+    }
+
+    private static String compatSkillDescription(String code, String name, String definition) {
+        return switch (code) {
+            case "SYNTAX_ERROR" -> "能根据编译器报错、语法符号、声明位置和函数调用形式，定位代码为何尚未进入运行阶段。";
+            case "IO_FORMAT" -> "能把题面的输入段、输出格式和多组数据规则对照到读写流程，检查是否漏读、多读或输出了额外内容。";
+            case "LOOP_BOUNDARY", "OFF_BY_ONE" -> "能用最小规模、首尾元素和等于边界样例，核对循环变量实际经过的位置是否符合题意。";
+            case "BOUNDARY_CONDITION" -> "能围绕极小值、极大值、空结果、重复值和特殊输入建立边界分支，并验证每类输入的输出。";
+            case "TIME_COMPLEXITY" -> "能把最大数据范围代入核心循环、候选数量或状态数量，判断当前算法是否会超出时间限制。";
+            case "ALGORITHM_STRATEGY" -> "能根据题目结构、目标和规模判断当前算法模型是否匹配，而不是只依赖样例规律。";
+            case "DP_STATE_DESIGN" -> "能用自然语言定义 DP 状态的维度、含义、初值、转移来源和答案位置。";
+            case "DATA_STRUCTURE_CHOICE" -> "能按查找、插入、删除、排序、频次统计或区间查询等操作频率选择合适数据结构。";
+            case "NEEDS_MORE_EVIDENCE" -> "能判断当前提交证据是否足够，缺少反例、报错信息或关键状态轨迹时先补充证据再下结论。";
+            default -> "能围绕「" + name + "」定位具体代码对象、失败症状和可验证的修正方向：" + definition;
+        };
+    }
+
+    private static String compatLearningGoal(String code, String name) {
+        return switch (code) {
+            case "BOUNDARY_CONDITION" -> "先列出极小、极大、空结果、重复值和特殊值，再检查代码分支是否覆盖。";
+            case "TIME_COMPLEXITY" -> "先写出核心循环或状态数量，再代入最大数据范围估算运行规模。";
+            case "NEEDS_MORE_EVIDENCE" -> "先补齐可复现输入、错误输出、报错信息或关键变量轨迹，再判断主因。";
+            case "IO_FORMAT" -> "先逐段标注输入和输出要求，再检查读取循环、状态重置和输出字符。";
+            default -> "先把「" + name + "」对应的代码位置、触发条件和验证样例列出来，再给出诊断结论。";
+        };
     }
 
     private static List<AiStandardLibrarySeed> dedupe(List<AiStandardLibrarySeed> seeds) {
@@ -1546,7 +1571,7 @@ public final class AiStandardLibrarySeedCatalog {
         if (code.contains(".READING.") || code.contains(".PATTERN.")) {
             return "能从题面提取输入对象、输出目标、数据范围和结构特征，再决定算法方向。";
         }
-        return "能在题目、代码和调试过程中准确识别并使用「" + knowledge.path() + "」这一精细知识点。";
+        return "能把「" + knowledge.path() + "」对应的对象、条件、状态或边界映射到代码，并用样例或调试轨迹验证。";
     }
 
     private static String generatedLearningGoal(InformaticsKnowledgeSeed knowledge) {
@@ -1630,7 +1655,7 @@ public final class AiStandardLibrarySeedCatalog {
             return "没有区分长度、下标、端点和编号体系，普通样例能过但边界样例容易失败。";
         }
         if (code.contains(".DP.")) {
-            return "急着写转移公式，没有先定义状态含义、初值、转移来源和答案位置。";
+            return "直接写转移公式，没有先定义状态含义、初值、转移来源和答案位置。";
         }
         if (code.contains(".FUNCTION.")) {
             return "写出了函数形式，但没有明确参数、返回值和输出副作用之间的边界。";

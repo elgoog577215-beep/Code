@@ -303,21 +303,55 @@ public final class InformaticsKnowledgeSeedCatalog {
             int topicSort = chapterSort + (++topicIndex);
             String topicPath = chapterPath + " / " + topicName;
             catalog.add(topicCode, chapterCode, InformaticsKnowledgeNodeType.TOPIC, topicName,
-                    topicName + "相关的概念、方法和常见题型。",
+                    topicName + "训练学生把题面对象、代码表达、边界条件和调试证据对应起来。",
                     topicPath, "中学信息学", "CORE", List.of(), List.of(chapterCode),
-                    List.of("掌握" + topicName + "的基本用法。"), List.of(), topicSort);
+                    List.of("能说明" + topicName + "涉及的关键对象、边界条件和代码表达。"), List.of(), topicSort);
             for (int i = 0; i < knowledgePoints.length; i++) {
                 String pointName = knowledgePoints[i];
                 String pointCode = topicCode + "." + normalize(pointName);
                 catalog.add(pointCode, topicCode, InformaticsKnowledgeNodeType.KNOWLEDGE_POINT, pointName,
-                        "细颗粒知识点：" + pointName + "。需要能在代码、判题结果和调试过程里识别对应表现。",
+                        knowledgeDescription(topicName, pointName),
                         topicPath + " / " + pointName, "中学信息学", i < 2 ? "BASIC" : "ADVANCED",
                         List.of(pointName), List.of(topicCode),
-                        List.of("能解释" + pointName + "的含义。", "能识别" + pointName + "相关常见错误。"),
-                        List.of(pointName + "相关小题", pointName + "相关调试样例"),
+                        learningObjectives(topicName, pointName),
+                        List.of(pointName + "边界样例", pointName + "代码跟踪练习"),
                         topicSort * 100 + i);
             }
             return this;
+        }
+
+        private String knowledgeDescription(String topicName, String pointName) {
+            if (topicName.contains("数组更新") || pointName.contains("更新")
+                    || pointName.contains("旧") || pointName.contains("新")) {
+                return "围绕" + pointName + "训练数组修改前后的状态区分，明确哪些位置读取旧值、哪些位置写入新值，并用边界样例检查覆盖风险。";
+            }
+            if (topicName.contains("字符串") || pointName.contains("子串")
+                    || pointName.contains("匹配") || pointName.contains("前后缀")) {
+                return "围绕" + pointName + "训练字符串位置、长度和匹配结果的边界判断，确认找不到、空串、重叠或末尾位置时的代码行为。";
+            }
+            if (topicName.contains("图") || pointName.contains("边")
+                    || pointName.contains("点") || pointName.contains("邻接")) {
+                return "围绕" + pointName + "训练点边关系、方向、权值和存储结构的映射，确保遍历或最短路使用的图与题意一致。";
+            }
+            if (topicName.contains("模拟") || pointName.contains("状态")
+                    || pointName.contains("事件") || pointName.contains("队列")) {
+                return "围绕" + pointName + "训练状态变量、事件顺序和终止条件的同步维护，能用一轮手推验证每次更新后的状态。";
+            }
+            if (topicName.contains("复杂度") || pointName.contains("规模")
+                    || pointName.contains("O(") || pointName.contains("空间")) {
+                return "围绕" + pointName + "训练把数据范围代入循环次数、状态数和内存规模，判断当前算法是否能在限制内运行。";
+            }
+            if (topicName.contains("提交") || pointName.contains("复查")
+                    || pointName.contains("反例") || pointName.contains("调试")) {
+                return "围绕" + pointName + "训练提交前后的证据检查，能用样例、边界、复杂度和变量轨迹定位风险。";
+            }
+            return "围绕" + pointName + "训练题意到代码的映射，明确涉及的对象、条件或状态，并用边界样例和调试轨迹验证。";
+        }
+
+        private List<String> learningObjectives(String topicName, String pointName) {
+            return List.of(
+                    "能在读题时标出" + pointName + "对应的对象、边界或状态。",
+                    "能在代码和调试轨迹中检查" + pointName + "是否被正确落实。");
         }
 
         private String normalize(String value) {
