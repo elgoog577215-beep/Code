@@ -1,6 +1,8 @@
 package com.onlinejudge.learning.standardlibrary;
 
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeed;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeedCatalog;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
@@ -16,6 +18,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -89,6 +93,52 @@ class StandardLibraryPackBuilderDatabaseTest {
     }
 
     @Test
+    void generatedFallbackItemsRemainSeededButAreNotDefaultCandidates() {
+        AiStandardLibrarySeed fallbackSkill = firstGeneratedFallback(AiStandardLibraryLayer.SKILL_UNIT);
+        AiStandardLibrarySeed fallbackMistake = firstGeneratedFallback(AiStandardLibraryLayer.MISTAKE_POINT);
+
+        assertThat(skillUnitRepository.findByCode(fallbackSkill.code())).isPresent();
+        assertThat(mistakePointRepository.findByCode(fallbackMistake.code())).isPresent();
+
+        Set<String> basicCauseIds = standardLibraryService.enabledBasicCauses().stream()
+                .map(StandardLibraryPack.BasicCauseOption::getId)
+                .collect(Collectors.toSet());
+        Set<String> searchItemCodes = standardLibraryService.enabledSearchLocationItems().stream()
+                .map(item -> item.getCode())
+                .collect(Collectors.toSet());
+
+        assertThat(basicCauseIds).doesNotContain(fallbackMistake.code());
+        assertThat(searchItemCodes).doesNotContain(fallbackSkill.code(), fallbackMistake.code());
+        assertThat(searchItemCodes).contains("SK_BINARY_ANSWER_CHECK", "MP_BINARY_CHECK_EQUAL_CASE_REJECTED");
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void generatedFallbackItemsCanStillBackfillWhenNoIntelligentItemsExist() {
+        AiStandardLibrarySeed fallbackSkill = firstGeneratedFallback(AiStandardLibraryLayer.SKILL_UNIT);
+        AiStandardLibrarySeed fallbackMistake = firstGeneratedFallback(AiStandardLibraryLayer.MISTAKE_POINT);
+
+        var skills = skillUnitRepository.findAll();
+        skills.forEach(item ->
+                item.setEnabled(AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(AiStandardLibraryLayer.SKILL_UNIT, item.getCode())));
+        var mistakes = mistakePointRepository.findAll();
+        mistakes.forEach(item ->
+                item.setEnabled(AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(AiStandardLibraryLayer.MISTAKE_POINT, item.getCode())));
+        var improvements = improvementPointRepository.findAll();
+        improvements.forEach(item -> item.setEnabled(false));
+        skillUnitRepository.saveAllAndFlush(skills);
+        mistakePointRepository.saveAllAndFlush(mistakes);
+        improvementPointRepository.saveAllAndFlush(improvements);
+
+        assertThat(standardLibraryService.enabledBasicCauses())
+                .extracting(StandardLibraryPack.BasicCauseOption::getId)
+                .contains(fallbackMistake.code());
+        assertThat(standardLibraryService.enabledSearchLocationItems())
+                .extracting(item -> item.getCode())
+                .contains(fallbackSkill.code(), fallbackMistake.code());
+    }
+
+    @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void packBuilderFallsBackToLegacyFlatTableWhenNormalizedTablesAreEmpty() {
         improvementPointRepository.deleteAll();
@@ -124,5 +174,13 @@ class StandardLibraryPackBuilderDatabaseTest {
                 .filteredOn(cause -> "IO_FORMAT".equals(cause.getId()))
                 .singleElement()
                 .satisfies(cause -> assertThat(cause.getName()).isEqualTo("输入输出格式"));
+    }
+
+    private AiStandardLibrarySeed firstGeneratedFallback(AiStandardLibraryLayer layer) {
+        return AiStandardLibrarySeedCatalog.seeds().stream()
+                .filter(seed -> seed.layer() == layer)
+                .filter(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed)
+                .findFirst()
+                .orElseThrow();
     }
 }

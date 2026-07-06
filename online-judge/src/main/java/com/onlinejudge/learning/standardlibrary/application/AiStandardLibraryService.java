@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Function;
 
 @Service
 @RequiredArgsConstructor
@@ -102,15 +103,17 @@ public class AiStandardLibraryService {
     public List<StandardLibraryPack.BasicCauseOption> enabledBasicCauses() {
         List<AiStandardMistakePoint> normalizedMistakes = mistakePointRepository.findByEnabledTrueOrderByCategoryAscCodeAsc();
         if (!normalizedMistakes.isEmpty()) {
-            return normalizedMistakes.stream()
+            return preferIntelligentItems(normalizedMistakes, AiStandardMistakePoint::getCode).stream()
                     .sorted(Comparator.comparing(AiStandardMistakePoint::getCategory)
                             .thenComparing(AiStandardMistakePoint::getCode))
                     .map(this::toBasicCause)
                     .toList();
         }
-        return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
+        List<AiStandardLibraryItem> legacyItems = repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
                         || item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
+                .toList();
+        return preferIntelligentItems(legacyItems, AiStandardLibraryItem::getCode).stream()
                 .sorted(Comparator.comparing(AiStandardLibraryItem::getCategory).thenComparing(AiStandardLibraryItem::getCode))
                 .map(this::toBasicCause)
                 .toList();
@@ -283,7 +286,17 @@ public class AiStandardLibraryService {
         skills.stream().map(this::toLegacySearchItem).forEach(items::add);
         mistakes.stream().map(this::toLegacySearchItem).forEach(items::add);
         improvements.stream().map(this::toLegacySearchItem).forEach(items::add);
-        return items;
+        return preferIntelligentItems(items, AiStandardLibraryItem::getCode);
+    }
+
+    private <T> List<T> preferIntelligentItems(List<T> items, Function<T, String> codeAccessor) {
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+        List<T> intelligentItems = items.stream()
+                .filter(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(codeAccessor.apply(item)))
+                .toList();
+        return intelligentItems.isEmpty() ? items : intelligentItems;
     }
 
     private AiStandardLibraryItem toLegacySearchItem(AiStandardSkillUnit item) {

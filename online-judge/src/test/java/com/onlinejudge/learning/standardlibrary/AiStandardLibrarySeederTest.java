@@ -269,6 +269,12 @@ class AiStandardLibrarySeederTest {
                 .filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .filter(seed -> seed.name().contains("理解或应用偏差"))
                 .count();
+        long fallbackTemplateTextCount = AiStandardLibrarySeedCatalog.seeds().stream()
+                .filter(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed)
+                .filter(seed -> seed.name().contains("适用条件混用")
+                        || seed.name().contains("理解或应用偏差")
+                        || seed.description().contains("没有把知识点定义、适用条件或边界要求准确落实"))
+                .count();
         long strongHandwrittenSamples = AiStandardLibrarySeedCatalog.seeds().stream()
                 .filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .filter(seed -> seed.code().startsWith("MP_FUNCTION_")
@@ -286,13 +292,15 @@ class AiStandardLibrarySeederTest {
                         || seed.code().startsWith("MP_V7_")
                         || seed.code().startsWith("MP_V8_")
                         || seed.code().startsWith("MP_V9_")
-                        || seed.code().startsWith("MP_V10_"))
+                        || seed.code().startsWith("MP_V10_")
+                        || seed.code().startsWith("MP_V11_"))
                 .count();
 
         assertThat(generatedSkillCount).isGreaterThanOrEqualTo(615);
         assertThat(genericSkillNameCount).isZero();
         assertThat(genericMistakeNameCount).isZero();
-        assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(116);
+        assertThat(fallbackTemplateTextCount).isZero();
+        assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(140);
     }
 
     @Test

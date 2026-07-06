@@ -14,6 +14,7 @@ import java.util.Set;
 public final class AiStandardLibrarySeedCatalog {
 
     public static final String VERSION = "standard-library-v3-skill-mistake";
+    public static final String GENERATED_FALLBACK_VERSION = VERSION + "-generated-fallback";
 
     private AiStandardLibrarySeedCatalog() {
     }
@@ -27,8 +28,33 @@ public final class AiStandardLibrarySeedCatalog {
         AiStandardLibraryV8ExpansionSeeds.addTo(seeds);
         AiStandardLibraryV9ExpansionSeeds.addTo(seeds);
         AiStandardLibraryV10AbsorptionSeeds.addTo(seeds);
+        AiStandardLibraryV11AbsorptionSeeds.addTo(seeds);
         generatedFullCoverage(seeds);
         return dedupe(seeds);
+    }
+
+    public static boolean isGeneratedFallbackSeed(AiStandardLibrarySeed seed) {
+        return seed != null && isGeneratedFallbackCode(seed.layer(), seed.code());
+    }
+
+    public static boolean isGeneratedFallbackCode(AiStandardLibraryLayer layer, String code) {
+        if (layer != AiStandardLibraryLayer.SKILL_UNIT && layer != AiStandardLibraryLayer.MISTAKE_POINT) {
+            return false;
+        }
+        String normalized = code == null ? "" : code.trim().toUpperCase(Locale.ROOT);
+        if (normalized.isBlank()) {
+            return false;
+        }
+        String prefix = layer == AiStandardLibraryLayer.SKILL_UNIT ? "SK" : "MP";
+        return InformaticsKnowledgeSeedCatalog.seeds().stream()
+                .filter(knowledge -> knowledge.type() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
+                .map(knowledge -> generatedCode(prefix, knowledge.code()))
+                .anyMatch(normalized::equals);
+    }
+
+    public static boolean isGeneratedFallbackCode(String code) {
+        return isGeneratedFallbackCode(AiStandardLibraryLayer.SKILL_UNIT, code)
+                || isGeneratedFallbackCode(AiStandardLibraryLayer.MISTAKE_POINT, code);
     }
 
     private static void highQualitySamples(List<AiStandardLibrarySeed> seeds) {
@@ -1197,7 +1223,7 @@ public final class AiStandardLibrarySeedCatalog {
     }
 
     private static AiStandardLibrarySeed generatedSkill(InformaticsKnowledgeSeed knowledge) {
-        return skillSeed(
+        return withLibraryVersion(skillSeed(
                 generatedCode("SK", knowledge.code()),
                 safeName("能力点/" + domainName(knowledge), 80),
                 safeName(generatedSkillName(knowledge), 120),
@@ -1207,12 +1233,12 @@ public final class AiStandardLibrarySeedCatalog {
                 prerequisites(knowledge),
                 difficultyToSeverity(knowledge.difficulty()),
                 List.of("PYTHON", "CPP17")
-        );
+        ), GENERATED_FALLBACK_VERSION);
     }
 
     private static AiStandardLibrarySeed generatedMistake(InformaticsKnowledgeSeed knowledge, String skillCode) {
         String mistakeType = mistakeTypeFor(knowledge.code());
-        return mistakeSeed(
+        return withLibraryVersion(mistakeSeed(
                 generatedCode("MP", knowledge.code()),
                 safeName("易错点/" + domainName(knowledge), 80),
                 safeName(generatedMistakeName(knowledge, mistakeType), 120),
@@ -1224,7 +1250,7 @@ public final class AiStandardLibrarySeedCatalog {
                 prerequisites(knowledge),
                 severityFor(knowledge.code()),
                 List.of("PYTHON", "CPP17")
-        );
+        ), GENERATED_FALLBACK_VERSION);
     }
 
     static void skill(List<AiStandardLibrarySeed> seeds,
@@ -1335,6 +1361,38 @@ public final class AiStandardLibrarySeedCatalog {
                 prerequisites,
                 "",
                 VERSION
+        );
+    }
+
+    private static AiStandardLibrarySeed withLibraryVersion(AiStandardLibrarySeed seed, String libraryVersion) {
+        return new AiStandardLibrarySeed(
+                seed.layer(),
+                seed.code(),
+                seed.category(),
+                seed.name(),
+                seed.description(),
+                seed.studentExplanation(),
+                seed.teacherExplanation(),
+                seed.skillUnitCode(),
+                seed.mistakeType(),
+                seed.commonMisconception(),
+                seed.evidenceSignals(),
+                seed.commonCodePatterns(),
+                seed.judgeSignals(),
+                seed.requiredEvidence(),
+                seed.whenToUse(),
+                seed.studentBenefit(),
+                seed.hintL1(),
+                seed.hintL2(),
+                seed.hintL3(),
+                seed.abilityPoint(),
+                seed.severity(),
+                seed.applicableLanguages(),
+                seed.relatedItems(),
+                seed.knowledgeNodeCodes(),
+                seed.prerequisiteKnowledgeCodes(),
+                seed.teachingAction(),
+                libraryVersion
         );
     }
 
@@ -1596,7 +1654,7 @@ public final class AiStandardLibrarySeedCatalog {
             case "RUNTIME" -> knowledge.name() + "运行出口或资源保护不足";
             case "SYNTAX" -> knowledge.name() + "语法规则未落实";
             case "VALUE_RANGE" -> knowledge.name() + "数值范围估算不足";
-            default -> knowledge.name() + "适用条件混用";
+            default -> knowledge.name() + "代码落点不清";
         };
     }
 
@@ -1610,7 +1668,7 @@ public final class AiStandardLibrarySeedCatalog {
             case "RUNTIME" -> "学生在「" + knowledge.path() + "」相关代码中缺少出口、默认值、边界保护或资源规模判断。";
             case "SYNTAX" -> "学生知道「" + knowledge.path() + "」要表达的逻辑，但语法、声明、调用或符号书写未符合语言规则。";
             case "VALUE_RANGE" -> "学生没有估算「" + knowledge.path() + "」相关表达式、累计值或中间乘法的最大量级。";
-            default -> "学生在使用「" + knowledge.path() + "」时，没有把知识点定义、适用条件或边界要求准确落实到当前代码。";
+            default -> "学生在使用「" + knowledge.path() + "」时，没有说明它对应当前题目的哪一个变量、条件、状态或步骤，导致代码表达与题意目标脱节。";
         };
     }
 
