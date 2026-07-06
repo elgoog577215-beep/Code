@@ -34,8 +34,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "SK_LOOP_ENDPOINT_INCLUSION",
                 "能力点/循环边界",
                 "判断循环端点是否包含",
-                "能把题目中的“包含、不超过、至多、到第 r 个”等边界语义，转换成代码中的 <、<=、range 右端和循环终止条件。",
-                "读题时先把区间写成数学形式，再决定代码循环条件。",
+                "能把题目中的“包含、不超过、至多、到第 r 个”等边界语义，明确转换为闭区间、半开区间、循环条件和最后一次迭代。",
+                "读题时先写出合法取值集合，再用最小值、最大值和刚好等于边界的样例核对循环条件。",
                 List.of("BASIC.LOOP.BOUNDARY.左闭右开", "BASIC.LOOP.BOUNDARY.左闭右闭", "BASIC.EXPR.COMPARE.边界比较"),
                 List.of("BASIC.EXPR.COMPARE.边界比较"),
                 "HIGH",
@@ -44,8 +44,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_LOOP_STRICT_INEQUALITY_WHEN_EQUAL_ALLOWED",
                 "易错点/循环边界",
                 "允许相等时误用严格不等号",
-                "题目允许等于边界，但代码使用 < 或 > 排除了刚好等于的合法情况。",
-                "把“不超过、至多、不大于”凭直觉写成小于，或没有单独代入等于边界检查。",
+                "题目允许取到边界值，但代码用 < 或 > 把等于边界的合法输入排除在循环、分支或 check 判断之外。",
+                "把“不超过、至多、不大于”直接翻译成小于，没有把等于边界作为单独测试点代入代码路径。",
                 "SK_LOOP_ENDPOINT_INCLUSION",
                 "BOUNDARY",
                 List.of("BASIC.LOOP.BOUNDARY.左闭右闭", "BASIC.EXPR.COMPARE.边界比较"),
@@ -116,8 +116,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "SK_IO_STRUCTURE_MAPPING",
                 "能力点/输入输出",
                 "把题面输入结构映射成读取流程",
-                "能分清单组、多组、查询次数、矩阵、字符串和读到 EOF，并让代码完整消费题面输入。",
-                "先数清题面有几段输入、每段循环几次，再写读取代码。",
+                "能把题面输入拆成组数、查询次数、对象列表、矩阵/字符串块和 EOF 终止等结构，并把每一层结构映射到读取循环。",
+                "写代码前画出输入层级：外层组数、每组对象数、每个对象的字段和输出次数。",
                 List.of("BASIC.IO.STDIN.输入顺序映射", "BASIC.IO.MULTI_CASE.显式_T_组循环", "CONTEST.READING.INPUT.数据组数"),
                 List.of("CONTEST.READING.INPUT.数据组数"),
                 "HIGH",
@@ -126,8 +126,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_IO_ONLY_READS_ONE_CASE",
                 "易错点/输入输出",
                 "多组数据只处理一组",
-                "题面要求处理 T 组或多次查询，但代码只读取并输出了一次。",
-                "把样例中的单组输入误认为所有输入格式，没有把第一行 T/q 转换成外层循环。",
+                "题面第一行给出 T、q 或多段查询次数，但代码只执行一次求解流程，后续组的数据没有被读取或没有对应输出。",
+                "把样例中展示的一组数据误当成完整输入格式，没有把 T/q 识别成控制外层求解次数的变量。",
                 "SK_IO_STRUCTURE_MAPPING",
                 "IO_FORMAT",
                 List.of("BASIC.IO.MULTI_CASE.显式_T_组循环", "BASIC.IO.MULTI_CASE.样例单组与隐藏多组差异"),
@@ -186,8 +186,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "SK_DP_STATE_MEANING",
                 "能力点/DP 状态",
                 "用一句话定义 DP 状态含义",
-                "能先说明 dp 数组每个维度、每个下标和每个值表示什么，再根据定义写初值、转移和答案位置。",
-                "写转移前先写状态定义，避免公式和含义脱节。",
+                "能先说明 dp 数组每个维度、下标范围和值域含义，再根据状态定义确定合法初值、转移来源、遍历顺序和答案读取位置。",
+                "写转移前先写一句完整状态定义：dp[i][j] 表示处理到哪里、保留哪些条件、值代表最大/最小/计数还是可行。",
                 List.of("ALGO.DP.STATE.状态含义", "ALGO.DP.STATE.维度选择", "ALGO.DP.TRANSITION.枚举决策"),
                 List.of("BASIC.ARRAY.INDEX.下标映射", "ALGO.DP.INIT.初始值"),
                 "HIGH",
@@ -196,8 +196,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_DP_STATE_MISSING_DIMENSION",
                 "易错点/DP 状态",
                 "DP 状态少了一维必要信息",
-                "当前状态没有保存未来决策所需的关键信息，导致不同情况被合并成同一个状态。",
-                "只按位置建状态，但题目还需要容量、次数、上一次选择、是否使用过某条件等信息。",
+                "当前 DP 状态没有保存未来转移必须区分的信息，使容量不同、次数不同、上一次选择不同或条件使用情况不同的方案被合并。",
+                "把“走到同一位置”当作状态相同，没有追问后续决策还依赖容量、次数、前一项、颜色、方向或是否使用过特殊操作。",
                 "SK_DP_STATE_MEANING",
                 "STATE",
                 List.of("ALGO.DP.STATE.维度选择", "ALGO.DP.STATE.状态含义"),
@@ -208,8 +208,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_DP_INIT_UNREACHABLE_AS_ZERO",
                 "易错点/DP 状态",
                 "不可达状态错误初始化为 0",
-                "最值或计数 DP 中把不可达状态当成普通 0 值，导致非法路径参与转移。",
-                "没有区分初始合法状态、暂时不可达状态和真实值为 0 的状态。",
+                "最值、计数或可行性 DP 中把不可达状态初始化为普通 0，导致非法路径被当成合法来源参与转移。",
+                "没有区分“真实答案为 0”和“当前状态尚不可达”，也没有用负无穷、正无穷或布尔标记隔离非法状态。",
                 "SK_DP_STATE_MEANING",
                 "INITIALIZATION",
                 List.of("ALGO.DP.INIT.初始值", "ALGO.DP.INIT.无穷大", "ALGO.DP.STATE.非法状态"),
@@ -256,8 +256,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "SK_SEARCH_VISITED_STATE",
                 "能力点/搜索判重",
                 "定义完整搜索状态并正确判重",
-                "能判断 visited 需要记录哪些维度，并选择合适的标记时机避免重复入队或漏搜。",
-                "先定义状态，再设计 visited，而不是只按点编号机械标记。",
+                "能判断搜索状态应包含位置、资源、步数层级、方向、钥匙或已用次数等维度，并选择入队前或出队后标记的时机。",
+                "先写状态元组，再设计 visited 的 key；只有状态元组完全相同，才允许判为已访问。",
                 List.of("ALGO.SEARCH.STATE.判重", "ALGO.SEARCH.BFS.访问标记", "DS.GRAPH.TRAVERSE.访问标记"),
                 List.of("DS.GRAPH.MODEL.点的定义"),
                 "HIGH",
@@ -266,8 +266,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_SEARCH_VISITED_DIMENSION_INCOMPLETE",
                 "易错点/搜索判重",
                 "visited 维度不足",
-                "不同状态被错误合并为同一个 visited 标记，导致可行路径被跳过或答案错误。",
-                "只按位置标记，但题目状态还包含步数、钥匙、方向、剩余资源等额外信息。",
+                "代码只用位置或节点编号做 visited，但题目状态还包含钥匙、方向、剩余资源、已用技能次数或时间层级，导致不同状态被错误合并。",
+                "认为到达同一格子就等价，没有检查后续能否继续行动还取决于资源、方向或已经走过的步骤信息。",
                 "SK_SEARCH_VISITED_STATE",
                 "STATE",
                 List.of("ALGO.SEARCH.STATE.状态编码", "ALGO.SEARCH.STATE.判重"),
@@ -279,8 +279,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "SK_COMPLEXITY_CONSTRAINT_READING",
                 "能力点/复杂度",
                 "从数据范围反推复杂度目标",
-                "能把 n、m、q、边数、时间限制转成可接受的数量级，并据此判断当前算法是否可能通过。",
-                "写代码前先估算复杂度，样例通过不能代表大数据可过。",
+                "能把 n、m、q、边数、状态数和时间限制转成数量级预算，并据此判断 O(n^2)、O(nm)、O(qn) 或指数搜索是否可行。",
+                "写代码前先估算最大数据下的核心操作次数和内存规模，再决定暴力、预处理、排序或图算法。",
                 List.of("ENG.COMPLEXITY.TIME.数据范围反推", "CONTEST.READING.CONSTRAINT.数据范围", "ALGO.ENUM.COMPLEXITY.数据范围反推"),
                 List.of("BASIC.LOOP.NESTED.复杂度估算"),
                 "HIGH",
@@ -289,8 +289,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_COMPLEXITY_IGNORES_MAX_CONSTRAINTS",
                 "易错点/复杂度",
                 "只看样例不看最大数据范围",
-                "代码在样例或小数据上能运行，但核心循环次数在最大数据下明显超过可接受范围。",
-                "用样例规模判断算法是否可行，没有把题面最大范围代入复杂度表达式。",
+                "代码在样例上能运行，但把题面最大 n、m、q 代入后，嵌套循环、重复查询或枚举状态数量明显超过时间限制。",
+                "用样例规模判断方案可行，没有写出复杂度表达式，也没有把最大数据代入核心循环次数。",
                 "SK_COMPLEXITY_CONSTRAINT_READING",
                 "COMPLEXITY",
                 List.of("ENG.COMPLEXITY.TIME.数据范围反推", "ALGO.ENUM.COMPLEXITY.二重循环"),
@@ -419,8 +419,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "SK_STRING_SEARCH_AND_BUILD",
                 "能力点/字符串",
                 "处理字符串查找、统计和构造顺序",
-                "能区分查找成功与失败、重叠与不重叠统计、字符追加顺序和结果构造效率。",
-                "字符串题不要只看样例位置，要单独检查找不到、重叠、空串和结果顺序。",
+                "能区分查找成功与失败的哨兵值、重叠与不重叠统计规则、前后缀边界、字符追加顺序和结果构造复杂度。",
+                "为字符串题单独列出找不到、空串、单字符、重叠出现、末尾匹配和结果顺序六类检查点。",
                 List.of("BASIC.STRING.MATCH.查找出现位置", "BASIC.STRING.MATCH.统计出现次数", "BASIC.STRING.MATCH.前后缀判断", "BASIC.STRING.BUILD.追加字符", "BASIC.STRING.BUILD.结果顺序"),
                 List.of("BASIC.STRING.SUBSTRING.起止位置", "BASIC.ARRAY.INDEX.下标映射"),
                 "HIGH",
@@ -429,8 +429,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_STRING_FIND_NOT_FOUND_USED_AS_INDEX",
                 "易错点/字符串",
                 "查找失败结果直接当下标使用",
-                "字符串查找没有命中时返回 -1、npos 或空结果，但代码仍把它当作有效位置继续切片或访问。",
-                "只测试了能找到的样例，没有处理目标子串不存在的分支。",
+                "字符串查找没有命中时返回 -1、npos 或空结果，但代码没有先判断失败分支，继续把该值当作有效位置用于切片、下标访问或长度计算。",
+                "只验证了能找到目标串的样例，没有把“找不到”视为一种合法输入结果并设计单独分支。",
                 "SK_STRING_SEARCH_AND_BUILD",
                 "BOUNDARY",
                 List.of("BASIC.STRING.MATCH.查找出现位置", "BASIC.BRANCH.GUARD.空结果处理"),
@@ -441,8 +441,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_STRING_OVERLAPPING_MATCH_SKIPPED",
                 "易错点/字符串",
                 "重叠子串统计被跳过",
-                "题目要求统计所有出现位置，但代码每次命中后直接跳过整个模式长度，漏掉重叠出现。",
-                "没有判断题目中的出现次数是否允许重叠，只按不重叠匹配习惯移动指针。",
+                "题目要求统计所有出现位置或所有匹配起点，但代码每次命中后把指针移动整个模式长度，漏掉 aa 中 aa、aaa 中 aa 等重叠匹配。",
+                "没有先判断题目要的是所有起点还是非重叠段数，直接沿用替换类题目的跳跃移动方式。",
                 "SK_STRING_SEARCH_AND_BUILD",
                 "LOGIC",
                 List.of("BASIC.STRING.MATCH.统计出现次数", "BASIC.STRING.MATCH.逐位比较"),
@@ -466,8 +466,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "SK_ARRAY_TRAVERSAL_UPDATE_SAFETY",
                 "能力点/数组",
                 "保护数组遍历和原地更新的旧值",
-                "能判断遍历时哪些值仍要作为旧状态使用，何时需要临时数组、逆序遍历或同步下标。",
-                "更新数组前先问：后面的计算还要不要用更新前的值。",
+                "能区分本轮读取集合和写入集合，判断哪些数组值仍作为旧状态参与后续计算，并选择临时数组、逆序遍历或双缓冲。",
+                "更新数组前先标出 read-from 和 write-to：后续位置是否还依赖更新前的值。",
                 List.of("BASIC.ARRAY.TRAVERSE.同步遍历", "BASIC.ARRAY.TRAVERSE.逆序遍历", "BASIC.ARRAY.UPDATE.原地修改", "BASIC.ARRAY.UPDATE.临时数组", "BASIC.ARRAY.UPDATE.覆盖风险"),
                 List.of("BASIC.LOOP.BOUNDARY.最后一次迭代"),
                 "HIGH",
@@ -476,8 +476,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_ARRAY_IN_PLACE_UPDATE_OVERWRITES_SOURCE",
                 "易错点/数组",
                 "原地更新覆盖后续仍需使用的旧值",
-                "数组在遍历过程中被直接修改，后续位置又依赖原数组旧值，导致计算混入本轮新状态。",
-                "只想节省空间，没有判断当前题目是否允许原地覆盖。",
+                "数组在从左到右或从上到下遍历时被直接修改，后续计算又读取原数组旧值所在的同一数组，导致本轮新状态被误当作上一轮旧值。",
+                "为了节省空间直接原地写回，但没有确认转移或模拟规则是否允许同一轮的新状态立刻参与计算。",
                 "SK_ARRAY_TRAVERSAL_UPDATE_SAFETY",
                 "STATE",
                 List.of("BASIC.ARRAY.UPDATE.覆盖风险", "BASIC.ARRAY.UPDATE.临时数组"),
@@ -488,8 +488,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_ARRAY_PARALLEL_TRAVERSE_MISALIGNED",
                 "易错点/数组",
                 "多个数组同步遍历下标错位",
-                "两个数组、字符串或列表需要按同一对象对应遍历，但代码使用了不同起点、不同步长或不同长度。",
-                "没有先说明第 i 个元素在每个数组中分别代表同一个什么对象。",
+                "两个数组、字符串或列表表示同一批对象的不同属性，但遍历时使用了不同起点、偏移、步长或长度，导致属性和对象错配。",
+                "没有先建立第 i 个元素在各数组中的对应关系，直接把多个循环变量混用为同一对象编号。",
                 "SK_ARRAY_TRAVERSAL_UPDATE_SAFETY",
                 "BOUNDARY",
                 List.of("BASIC.ARRAY.TRAVERSE.同步遍历", "BASIC.ARRAY.INDEX.下标映射"),
@@ -548,8 +548,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "SK_GRAPH_EDGE_MODELING",
                 "能力点/图建模",
                 "把题面关系建模为点和边",
-                "能判断点代表什么、边代表什么、是否有向、是否带权，以及输入中的一条关系需要加入几条边。",
-                "读边前先写清点、边、方向和权值四件事。",
+                "能判断题面对象如何成为点，关系如何成为边，边是否有方向、权值、容量或限制，以及一条输入关系需要写入几条邻接记录。",
+                "建图前先写四句话：点是什么，边表示什么，方向从谁到谁，权值或限制参与哪个算法。",
                 List.of("DS.GRAPH.MODEL.点的定义", "DS.GRAPH.MODEL.边的定义", "DS.GRAPH.MODEL.有向无向", "DS.GRAPH.STORE.双向边添加"),
                 List.of("BASIC.ARRAY.INDEX.下标映射"),
                 "HIGH",
@@ -570,8 +570,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_GRAPH_WEIGHT_MEANING_IGNORED",
                 "易错点/图建模",
                 "边权含义没有进入算法",
-                "输入包含权值、代价或距离，但代码按无权图处理，导致路径或最优值错误。",
-                "只把边当连通关系，没有追问权值代表长度、花费、容量还是限制。",
+                "输入中的权值、代价、距离、容量或时间限制没有进入状态转移、松弛条件或比较函数，代码仍按普通连通关系处理。",
+                "只把一条边理解为“能到达”，没有追问第三个字段代表路径长度、费用、容量、概率还是约束条件。",
                 "SK_GRAPH_EDGE_MODELING",
                 "MODELING",
                 List.of("DS.GRAPH.MODEL.权值含义", "ALGO.GRAPH.SHORTEST.Dijkstra"),
@@ -619,7 +619,7 @@ public final class AiStandardLibrarySeedCatalog {
                 "能力点/贪心",
                 "说明贪心选择依据",
                 "能说清排序依据、每一步选择维护的性质，并用交换、反例或不变量检查局部选择是否可靠。",
-                "不要只说“表面上最优”，要说明为什么晚一点换成当前选择不会更差。",
+                "不要只说“看起来最优”，要说明为什么晚一点换成当前选择不会更差。",
                 List.of("ALGO.GREEDY.CHOICE.排序依据", "ALGO.GREEDY.CHOICE.交换论证", "ENG.STYLE.INVARIANT.贪心维护量"),
                 List.of("ALGO.SORT.BASIC.自定义比较"),
                 "HIGH",
@@ -1061,8 +1061,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "SK_DEBUG_MINIMAL_COUNTEREXAMPLE",
                 "能力点/调试",
                 "构造最小反例定位错因",
-                "能把失败输入缩小到最少元素、最小边界或最短路径，并用手算对照中间状态定位问题。",
-                "调试时先让反例变小，再观察变量变化。",
+                "能把失败输入缩小到最少元素、最小边界或最短路径，并用手算答案、关键变量表和实际输出对照定位第一处偏差。",
+                "调试时先缩小反例，再记录关键变量在每一步的期望值和实际值。",
                 List.of("ENG.DEBUG.SAMPLE.最小反例", "ENG.DEBUG.SAMPLE.手算对照", "ENG.DEBUG.BOUNDARY.最小输入", "ENG.DEBUG.TRACE.循环状态"),
                 List.of("CONTEST.SUBMIT.REVIEW.错误类型定位"),
                 "MEDIUM",
@@ -1071,8 +1071,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_DEBUG_ONLY_RETESTS_SAMPLE",
                 "易错点/调试",
                 "只反复测试样例",
-                "样例已经通过后仍只重复运行样例，没有构造边界或最小反例来区分错因。",
-                "把样例当作充分证明，没有意识到隐藏数据通常覆盖边界和极端情况。",
+                "样例已经通过后仍只重复运行样例，没有构造最小规模、等于边界、重复元素、无解或最大规模等反例来区分错因。",
+                "把样例当作正确性证明，没有意识到样例通常只说明输入输出格式，不能覆盖隐藏数据的边界条件。",
                 "SK_DEBUG_MINIMAL_COUNTEREXAMPLE",
                 "DEBUGGING",
                 List.of("ENG.DEBUG.SAMPLE.最小反例", "ENG.DEBUG.BOUNDARY.最小输入"),
@@ -1084,8 +1084,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "SK_READING_OBJECTIVE_CONSTRAINT",
                 "能力点/读题建模",
                 "从题面提取目标、约束和结构",
-                "能把自然语言题目拆成输入对象、输出目标、数据范围、关系结构和隐藏特殊条件。",
-                "读题时先写出“求什么、限制是什么、对象之间有什么关系”。",
+                "能把题面拆成输入对象、输出目标、数据范围、关系结构、特殊条件和并列规则，并把这些信息转成算法选择依据。",
+                "读题时先写出：求什么，限制是什么，对象之间是什么关系，隐藏边界会影响哪个分支或算法。",
                 List.of("CONTEST.READING.OUTPUT.输出最值", "CONTEST.READING.CONSTRAINT.数据范围", "CONTEST.PATTERN.STRUCTURE.图结构"),
                 List.of("CONTEST.READING.INPUT.数据组数"),
                 "HIGH",
@@ -1094,8 +1094,8 @@ public final class AiStandardLibrarySeedCatalog {
                 "MP_READING_OBJECTIVE_MISIDENTIFIED",
                 "易错点/读题建模",
                 "把输出目标理解错",
-                "题目要求最值、计数、可行性、路径或构造之一，但代码实现了另一类目标。",
-                "只看样例输出的表面形态，没有抽象题目真正要回答的问题。",
+                "题目要求最值、计数、可行性、路径、构造或字典序方案之一，但代码实现成另一类目标，导致样例形态相似但隐藏数据语义错误。",
+                "只看样例输出长得像数字、路径或字符串，没有回到题面动词确认到底是在求最大值、方案数、是否存在还是具体方案。",
                 "SK_READING_OBJECTIVE_CONSTRAINT",
                 "MODELING",
                 List.of("CONTEST.READING.OUTPUT.输出最值", "CONTEST.READING.OUTPUT.输出方案数", "CONTEST.READING.OUTPUT.输出是否可行"),
@@ -1350,8 +1350,8 @@ public final class AiStandardLibrarySeedCatalog {
                 skillCode,
                 "兼容能力/" + category,
                 name + "识别",
-                compatSkillDescription(code, name, definition),
-                compatLearningGoal(code, name),
+                "能识别「" + name + "」相关的知识点和错误表现。",
+                "用于兼容旧 AI 标准库标签，后续会逐步收敛到更细能力点。",
                 knowledgeNodeCodes,
                 List.of(),
                 severity,
@@ -1368,31 +1368,6 @@ public final class AiStandardLibrarySeedCatalog {
                 List.of(),
                 severity,
                 List.of("PYTHON", "CPP17"));
-    }
-
-    private static String compatSkillDescription(String code, String name, String definition) {
-        return switch (code) {
-            case "SYNTAX_ERROR" -> "能根据编译器报错、语法符号、声明位置和函数调用形式，定位代码为何尚未进入运行阶段。";
-            case "IO_FORMAT" -> "能把题面的输入段、输出格式和多组数据规则对照到读写流程，检查是否漏读、多读或输出了额外内容。";
-            case "LOOP_BOUNDARY", "OFF_BY_ONE" -> "能用最小规模、首尾元素和等于边界样例，核对循环变量实际经过的位置是否符合题意。";
-            case "BOUNDARY_CONDITION" -> "能围绕极小值、极大值、空结果、重复值和特殊输入建立边界分支，并验证每类输入的输出。";
-            case "TIME_COMPLEXITY" -> "能把最大数据范围代入核心循环、候选数量或状态数量，判断当前算法是否会超出时间限制。";
-            case "ALGORITHM_STRATEGY" -> "能根据题目结构、目标和规模判断当前算法模型是否匹配，而不是只依赖样例规律。";
-            case "DP_STATE_DESIGN" -> "能用自然语言定义 DP 状态的维度、含义、初值、转移来源和答案位置。";
-            case "DATA_STRUCTURE_CHOICE" -> "能按查找、插入、删除、排序、频次统计或区间查询等操作频率选择合适数据结构。";
-            case "NEEDS_MORE_EVIDENCE" -> "能判断当前提交证据是否足够，缺少反例、报错信息或关键状态轨迹时先补充证据再下结论。";
-            default -> "能围绕「" + name + "」定位具体代码对象、失败症状和可验证的修正方向：" + definition;
-        };
-    }
-
-    private static String compatLearningGoal(String code, String name) {
-        return switch (code) {
-            case "BOUNDARY_CONDITION" -> "先列出极小、极大、空结果、重复值和特殊值，再检查代码分支是否覆盖。";
-            case "TIME_COMPLEXITY" -> "先写出核心循环或状态数量，再代入最大数据范围估算运行规模。";
-            case "NEEDS_MORE_EVIDENCE" -> "先补齐可复现输入、错误输出、报错信息或关键变量轨迹，再判断主因。";
-            case "IO_FORMAT" -> "先逐段标注输入和输出要求，再检查读取循环、状态重置和输出字符。";
-            default -> "先把「" + name + "」对应的代码位置、触发条件和验证样例列出来，再给出诊断结论。";
-        };
     }
 
     private static List<AiStandardLibrarySeed> dedupe(List<AiStandardLibrarySeed> seeds) {
@@ -1571,7 +1546,7 @@ public final class AiStandardLibrarySeedCatalog {
         if (code.contains(".READING.") || code.contains(".PATTERN.")) {
             return "能从题面提取输入对象、输出目标、数据范围和结构特征，再决定算法方向。";
         }
-        return "能把「" + knowledge.path() + "」对应的对象、条件、状态或边界映射到代码，并用样例或调试轨迹验证。";
+        return "能在题目、代码和调试过程中准确识别并使用「" + knowledge.path() + "」这一精细知识点。";
     }
 
     private static String generatedLearningGoal(InformaticsKnowledgeSeed knowledge) {
@@ -1655,7 +1630,7 @@ public final class AiStandardLibrarySeedCatalog {
             return "没有区分长度、下标、端点和编号体系，普通样例能过但边界样例容易失败。";
         }
         if (code.contains(".DP.")) {
-            return "直接写转移公式，没有先定义状态含义、初值、转移来源和答案位置。";
+            return "急着写转移公式，没有先定义状态含义、初值、转移来源和答案位置。";
         }
         if (code.contains(".FUNCTION.")) {
             return "写出了函数形式，但没有明确参数、返回值和输出副作用之间的边界。";

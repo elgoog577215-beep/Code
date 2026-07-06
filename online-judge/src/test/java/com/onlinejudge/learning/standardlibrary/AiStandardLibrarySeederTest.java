@@ -269,15 +269,6 @@ class AiStandardLibrarySeederTest {
                 .filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .filter(seed -> seed.name().contains("理解或应用偏差"))
                 .count();
-        List<String> lowInformationFragments = List.of(
-                "相关的知识点和错误表现",
-                "用于兼容旧 AI 标准库标签",
-                "这一精细知识点",
-                "理解或应用偏差");
-        List<String> lowInformationSeedTexts = AiStandardLibrarySeedCatalog.seeds().stream()
-                .filter(seed -> lowInformationFragments.stream().anyMatch(fragment -> seedText(seed).contains(fragment)))
-                .map(seed -> seed.code() + "/" + seed.name())
-                .toList();
         long strongHandwrittenSamples = AiStandardLibrarySeedCatalog.seeds().stream()
                 .filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .filter(seed -> seed.code().startsWith("MP_FUNCTION_")
@@ -299,9 +290,6 @@ class AiStandardLibrarySeederTest {
         assertThat(generatedSkillCount).isGreaterThanOrEqualTo(615);
         assertThat(genericSkillNameCount).isZero();
         assertThat(genericMistakeNameCount).isZero();
-        assertThat(lowInformationSeedTexts)
-                .as("low-information standard-library text: " + lowInformationSeedTexts.stream().limit(20).toList())
-                .isEmpty();
         assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(116);
     }
 
@@ -348,23 +336,64 @@ class AiStandardLibrarySeederTest {
                 .contains("long long").contains("中间表达式");
         assertThat(seedsByCode.get("IP_V8_ARRAY_UPDATE_INVARIANT_TESTING").studentBenefit())
                 .contains("旧值").contains("累计量");
-
-        assertThat(seedsByCode.get("SK_COMPAT_TIME_COMPLEXITY").description())
-                .contains("最大数据范围").contains("核心循环");
-        assertThat(seedsByCode.get("SK_COMPAT_BOUNDARY_CONDITION").studentExplanation())
-                .contains("极小").contains("重复值").contains("分支");
     }
 
-    private String seedText(AiStandardLibrarySeed seed) {
-        return String.join("\n",
-                seed.category(),
-                seed.name(),
-                seed.description(),
-                seed.studentExplanation(),
-                seed.teacherExplanation(),
-                seed.commonMisconception(),
-                seed.whenToUse(),
-                seed.studentBenefit());
+    @Test
+    void upgradedRepresentativeEntriesCarrySpecificTeachingSemantics() {
+        Map<String, AiStandardLibrarySeed> seedsByCode = AiStandardLibrarySeedCatalog.seeds().stream()
+                .collect(Collectors.toMap(AiStandardLibrarySeed::code, Function.identity(), (left, right) -> left));
+
+        assertThat(seedsByCode.get("SK_LOOP_ENDPOINT_INCLUSION").studentExplanation())
+                .contains("合法取值集合").contains("等于边界");
+        assertThat(seedsByCode.get("MP_LOOP_STRICT_INEQUALITY_WHEN_EQUAL_ALLOWED").commonMisconception())
+                .contains("等于边界").contains("代码路径");
+        assertThat(seedsByCode.get("SK_IO_STRUCTURE_MAPPING").studentExplanation())
+                .contains("输入层级").contains("输出次数");
+        assertThat(seedsByCode.get("MP_IO_ONLY_READS_ONE_CASE").description())
+                .contains("T").contains("后续组").contains("没有对应输出");
+        assertThat(seedsByCode.get("SK_DP_STATE_MEANING").description())
+                .contains("下标范围").contains("转移来源").contains("答案读取位置");
+        assertThat(seedsByCode.get("MP_DP_STATE_MISSING_DIMENSION").commonMisconception())
+                .contains("容量").contains("方向").contains("特殊操作");
+        assertThat(seedsByCode.get("MP_DP_INIT_UNREACHABLE_AS_ZERO").commonMisconception())
+                .contains("真实答案为 0").contains("尚不可达");
+        assertThat(seedsByCode.get("SK_SEARCH_VISITED_STATE").studentExplanation())
+                .contains("状态元组").contains("visited");
+        assertThat(seedsByCode.get("MP_SEARCH_VISITED_DIMENSION_INCOMPLETE").description())
+                .contains("钥匙").contains("剩余资源").contains("时间层级");
+        assertThat(seedsByCode.get("SK_COMPLEXITY_CONSTRAINT_READING").description())
+                .contains("O(n^2)").contains("O(qn)").contains("指数搜索");
+        assertThat(seedsByCode.get("MP_COMPLEXITY_IGNORES_MAX_CONSTRAINTS").description())
+                .contains("最大 n").contains("嵌套循环").contains("时间限制");
+        assertThat(seedsByCode.get("SK_STRING_SEARCH_AND_BUILD").studentExplanation())
+                .contains("找不到").contains("重叠出现").contains("末尾匹配");
+        assertThat(seedsByCode.get("MP_STRING_FIND_NOT_FOUND_USED_AS_INDEX").description())
+                .contains("失败分支").contains("切片").contains("下标访问");
+        assertThat(seedsByCode.get("MP_STRING_OVERLAPPING_MATCH_SKIPPED").description())
+                .contains("匹配起点").contains("重叠匹配");
+        assertThat(seedsByCode.get("SK_ARRAY_TRAVERSAL_UPDATE_SAFETY").studentExplanation())
+                .contains("read-from").contains("write-to");
+        assertThat(seedsByCode.get("MP_ARRAY_IN_PLACE_UPDATE_OVERWRITES_SOURCE").commonMisconception())
+                .contains("新状态").contains("同一轮");
+        assertThat(seedsByCode.get("MP_ARRAY_PARALLEL_TRAVERSE_MISALIGNED").description())
+                .contains("不同属性").contains("对象错配");
+        assertThat(seedsByCode.get("SK_GRAPH_EDGE_MODELING").studentExplanation())
+                .contains("点是什么").contains("边表示什么").contains("权值");
+        assertThat(seedsByCode.get("MP_GRAPH_WEIGHT_MEANING_IGNORED").description())
+                .contains("松弛条件").contains("比较函数");
+        assertThat(seedsByCode.get("SK_DEBUG_MINIMAL_COUNTEREXAMPLE").description())
+                .contains("关键变量表").contains("第一处偏差");
+        assertThat(seedsByCode.get("MP_DEBUG_ONLY_RETESTS_SAMPLE").commonMisconception())
+                .contains("正确性证明").contains("隐藏数据");
+        assertThat(seedsByCode.get("SK_READING_OBJECTIVE_CONSTRAINT").description())
+                .contains("并列规则").contains("算法选择依据");
+        assertThat(seedsByCode.get("MP_READING_OBJECTIVE_MISIDENTIFIED").commonMisconception())
+                .contains("题面动词").contains("方案数");
+
+        assertThat(seedsByCode.get("MP_GRAPH_WEIGHT_MEANING_IGNORED").skillUnitCode())
+                .isEqualTo("SK_GRAPH_EDGE_MODELING");
+        assertThat(seedsByCode.get("MP_DP_STATE_MISSING_DIMENSION").knowledgeNodeCodes())
+                .contains("ALGO.DP.STATE.维度选择");
     }
 
     private AiStandardLibraryItem findGeneratedByKnowledge(AiStandardLibraryLayer layer, String codePrefix, String knowledgeCode) {

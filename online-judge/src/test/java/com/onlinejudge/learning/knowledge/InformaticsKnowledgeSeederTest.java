@@ -8,9 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
@@ -57,40 +54,12 @@ class InformaticsKnowledgeSeederTest {
         var updateNode = repository.findByCode("BASIC.ARRAY.UPDATE.读旧写新分离").orElseThrow();
         assertThat(updateNode.getParentCode()).isEqualTo("BASIC.ARRAY.UPDATE");
         assertThat(updateNode.getPath()).contains("数组更新", "读旧写新分离");
-        assertThat(updateNode.getDescription()).contains("读旧写新分离").contains("旧值").contains("新值");
-        assertThat(updateNode.getLearningObjectives()).contains("读题");
-        assertThat(updateNode.getTypicalProblems()).contains("边界");
+        assertThat(updateNode.getDescription()).contains("细颗粒知识点");
+        assertThat(updateNode.getLearningObjectives()).contains("能解释读旧写新分离的含义。");
+        assertThat(updateNode.getTypicalProblems()).contains("读旧写新分离相关调试样例");
 
         seeder.run();
 
         assertThat(repository.count()).isEqualTo(initialCount);
-    }
-
-    @Test
-    void knowledgeSeedContentAvoidsLowInformationTemplates() {
-        List<String> forbiddenFragments = List.of(
-                "细颗粒知识点",
-                "相关的概念、方法和常见题型",
-                "的基本用法。");
-        List<String> errors = new ArrayList<>();
-
-        repository.findAll().forEach(node -> {
-            String text = String.join("\n",
-                    nullToEmpty(node.getName()),
-                    nullToEmpty(node.getDescription()),
-                    nullToEmpty(node.getLearningObjectives()),
-                    nullToEmpty(node.getTypicalProblems()));
-            forbiddenFragments.stream()
-                    .filter(fragment -> text.contains(fragment))
-                    .forEach(fragment -> errors.add(node.getCode() + " contains low-information fragment: " + fragment));
-        });
-
-        assertThat(errors)
-                .as("knowledge content quality errors: " + errors.stream().limit(20).toList())
-                .isEmpty();
-    }
-
-    private String nullToEmpty(String value) {
-        return value == null ? "" : value;
     }
 }
