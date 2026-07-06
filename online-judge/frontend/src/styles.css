@@ -18194,6 +18194,156 @@ button.standard-library-governance-path {
   }
 }
 
+/* Direct entry clarity pass: same-level choices should read as clean tiles, not instruction rows. */
+.route-hub-page {
+  max-width: 860px;
+  padding-block: clamp(0.8rem, 5vh, 2.6rem);
+}
+
+.route-hub-hero {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.route-hub-hero::before {
+  display: none;
+}
+
+.route-hub-hero h1 {
+  margin-top: 0.32rem;
+  font-size: clamp(1.8rem, 4vw, 2.72rem);
+}
+
+.route-hub-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.56rem;
+}
+
+.route-hub-card {
+  min-height: 148px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 0.62rem;
+  padding: 0.78rem;
+}
+
+.route-hub-card .role-entry-card__icon {
+  width: 36px;
+  height: 36px;
+}
+
+.route-hub-card .role-entry-card__head {
+  display: none;
+}
+
+.route-hub-card h2 {
+  font-size: 1.12rem;
+}
+
+.student-home--assignments {
+  width: min(100%, 980px);
+  padding-block: clamp(0.45rem, 3vh, 1.6rem);
+}
+
+.student-home-command--entry {
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 0.58rem 0.68rem;
+}
+
+.student-home-command--entry h1 {
+  font-size: clamp(1.28rem, 2.4vw, 1.72rem);
+}
+
+.student-home-command__note {
+  max-width: min(44vw, 18rem);
+  padding: 0.26rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-entry-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.56rem;
+}
+
+.student-entry-link {
+  position: relative;
+  min-height: 126px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  align-items: start;
+  gap: 0.54rem;
+  padding: 0.72rem;
+  border-left: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+}
+
+.student-entry-link:hover {
+  background: color-mix(in srgb, var(--brand-soft) 20%, var(--surface));
+}
+
+.student-entry-link svg {
+  position: absolute;
+  right: 0.72rem;
+  bottom: 0.72rem;
+  color: var(--brand-strong);
+}
+
+.student-entry-link__main {
+  gap: 0.22rem;
+}
+
+.student-entry-link__main strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.student-entry-link__main small {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.student-review-panel {
+  padding: 0.72rem;
+}
+
+.student-review-summary p,
+.student-review-card__body p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+@media (max-width: 680px) {
+  .route-hub-grid,
+  .student-entry-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .student-home-command--entry {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .student-home-command__note {
+    max-width: 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

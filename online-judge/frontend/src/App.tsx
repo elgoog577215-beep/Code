@@ -65,7 +65,6 @@ function RouteHubPage() {
         <div>
           <p className="eyebrow">{t("routeHub.eyebrow")}</p>
           <h1>{t("routeHub.title")}</h1>
-          <p>{t("routeHub.description")}</p>
         </div>
       </section>
 
@@ -79,8 +78,6 @@ function RouteHubPage() {
               <span className="eyebrow">{t("common.studentSide")}</span>
             </span>
             <h2>{t("routeHub.studentTitle")}</h2>
-            <p>{t("routeHub.studentDescription")}</p>
-            <small>/app/student</small>
           </span>
         </NavLink>
 
@@ -93,8 +90,6 @@ function RouteHubPage() {
               <span className="eyebrow">{t("common.teacherSide")}</span>
             </span>
             <h2>{t("routeHub.teacherTitle")}</h2>
-            <p>{t("routeHub.teacherDescription")}</p>
-            <small>/app/teacher</small>
           </span>
         </NavLink>
       </section>

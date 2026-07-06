@@ -205,7 +205,6 @@ export default function ClassOverviewPage() {
             <ArrowLeft size={15} /> 作业
           </Link>
           <h1>班级进度</h1>
-          <p>按学生和作业查看推进状态，优先处理需关注学生。</p>
         </div>
         <div className="teacher-home-actions">
           <ButtonLink to="/app/teacher" variant="secondary" icon={<ArrowLeft size={16} />}>
@@ -354,11 +353,6 @@ export default function ClassOverviewPage() {
         )}
       </section>
 
-      {columns.some(assignment => recentSubmissionDelta(overviewByAssignment[assignment.id]) > 0) ? (
-        <p className="class-progress-footnote">
-          最近提交按作业 overview 的最后两个趋势点派生；缺少学生名单关联时显示为 `-`，不推断。
-        </p>
-      ) : null}
     </div>
   );
 }
