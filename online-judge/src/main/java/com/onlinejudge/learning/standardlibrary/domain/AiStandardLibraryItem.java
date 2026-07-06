@@ -61,6 +61,9 @@ public class AiStandardLibraryItem {
     @Column(length = 160)
     private String skillUnitCode;
 
+    @Column(length = 160)
+    private String primaryKnowledgeNodeCode;
+
     @Column(length = 80)
     private String mistakeType;
 
@@ -108,6 +111,9 @@ public class AiStandardLibraryItem {
 
     @Column(length = 2400)
     private String knowledgeNodeCodes;
+
+    @Column(length = 2400)
+    private String relatedKnowledgeNodeCodes;
 
     @Column(length = 2400)
     private String prerequisiteKnowledgeCodes;

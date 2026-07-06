@@ -32,6 +32,8 @@ class SearchLocationPackSelectorTest {
                 .containsExactly("MP_RANGE_RIGHT_ENDPOINT_MISSING");
         assertThat(pack.getSkillUnits()).extracting(StandardLibraryPack.SkillUnitOption::getId)
                 .containsExactly("SK_RANGE_BOUNDARY");
+        assertThat(pack.getSkillUnits().get(0).getPrimaryKnowledgeNodeCode()).isEqualTo("BASIC.LOOP.BOUNDARY");
+        assertThat(pack.getSkillUnits().get(0).getRelatedKnowledgeNodeCodes()).containsExactly("BASIC.LOOP.FOR");
         assertThat(pack.getImprovementPoints()).extracting(StandardLibraryPack.ImprovementPointOption::getId)
                 .containsExactly("IP_BOUNDARY_TESTING");
         assertThat(pack.getKnowledgeAnchors()).extracting(StandardLibraryPack.KnowledgeAnchorOption::getId)
@@ -63,6 +65,8 @@ class SearchLocationPackSelectorTest {
                 .containsExactly("SK_RANGE_BOUNDARY");
         assertThat(pack.getMistakePoints()).extracting(StandardLibraryPack.MistakePointOption::getId)
                 .containsExactly("MP_RANGE_RIGHT_ENDPOINT_MISSING", "MP_RANGE_LEFT_ENDPOINT_EXTRA");
+        assertThat(pack.getMistakePoints().get(0).getSkillUnitCode()).isEqualTo("SK_RANGE_BOUNDARY");
+        assertThat(pack.getMistakePoints().get(0).getPrimaryKnowledgeNodeCode()).isEqualTo("BASIC.LOOP.BOUNDARY");
         assertThat(pack.getImprovementPoints()).extracting(StandardLibraryPack.ImprovementPointOption::getId)
                 .containsExactly("IP_BOUNDARY_TESTING");
         assertThat(pack.getKnowledgeGroups()).singleElement().satisfies(group -> {
@@ -204,7 +208,9 @@ class SearchLocationPackSelectorTest {
                 .severity("HIGH")
                 .applicableLanguages("PYTHON")
                 .relatedItems("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                .primaryKnowledgeNodeCode("BASIC.LOOP.BOUNDARY")
                 .knowledgeNodeCodes("BASIC.LOOP.BOUNDARY")
+                .relatedKnowledgeNodeCodes("BASIC.LOOP.FOR")
                 .teachingAction("TRACE_VARIABLES")
                 .enabled(true)
                 .libraryVersion("test-v1")

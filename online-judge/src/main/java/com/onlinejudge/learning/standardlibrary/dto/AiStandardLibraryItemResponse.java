@@ -19,6 +19,7 @@ public class AiStandardLibraryItemResponse {
     private String studentExplanation;
     private String teacherExplanation;
     private String skillUnitCode;
+    private String primaryKnowledgeNodeCode;
     private String mistakeType;
     private String commonMisconception;
     private List<String> evidenceSignals;
@@ -35,6 +36,7 @@ public class AiStandardLibraryItemResponse {
     private List<String> applicableLanguages;
     private List<String> relatedItems;
     private List<String> knowledgeNodeCodes;
+    private List<String> relatedKnowledgeNodeCodes;
     private List<String> prerequisiteKnowledgeCodes;
     private String teachingAction;
     private boolean enabled;
@@ -53,6 +55,7 @@ public class AiStandardLibraryItemResponse {
                 .studentExplanation(item.getStudentExplanation())
                 .teacherExplanation(item.getTeacherExplanation())
                 .skillUnitCode(item.getSkillUnitCode())
+                .primaryKnowledgeNodeCode(item.getPrimaryKnowledgeNodeCode())
                 .mistakeType(item.getMistakeType())
                 .commonMisconception(item.getCommonMisconception())
                 .evidenceSignals(lines(item.getEvidenceSignals()))
@@ -69,6 +72,7 @@ public class AiStandardLibraryItemResponse {
                 .applicableLanguages(lines(item.getApplicableLanguages()))
                 .relatedItems(lines(item.getRelatedItems()))
                 .knowledgeNodeCodes(lines(item.getKnowledgeNodeCodes()))
+                .relatedKnowledgeNodeCodes(lines(item.getRelatedKnowledgeNodeCodes()))
                 .prerequisiteKnowledgeCodes(lines(item.getPrerequisiteKnowledgeCodes()))
                 .teachingAction(item.getTeachingAction())
                 .enabled(item.isEnabled())

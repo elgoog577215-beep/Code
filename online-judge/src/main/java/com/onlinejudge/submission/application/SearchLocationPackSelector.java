@@ -63,7 +63,7 @@ public class SearchLocationPackSelector {
                 .toList();
 
         List<StandardLibraryPack.KnowledgeAnchorOption> anchors = selectedItems.stream()
-                .flatMap(item -> lines(item.getKnowledgeNodeCodes()).stream())
+                .flatMap(item -> knowledgeCodes(item).stream())
                 .distinct()
                 .limit(12)
                 .map(code -> StandardLibraryPack.KnowledgeAnchorOption.builder()
@@ -237,7 +237,9 @@ public class SearchLocationPackSelector {
                 .category(item.getCategory())
                 .name(item.getName())
                 .description(item.getDescription())
+                .primaryKnowledgeNodeCode(primaryKnowledgeCode(item))
                 .knowledgeNodeCodes(lines(item.getKnowledgeNodeCodes()))
+                .relatedKnowledgeNodeCodes(relatedKnowledgeCodes(item))
                 .applicableLanguages(lines(item.getApplicableLanguages()))
                 .build();
     }
@@ -249,9 +251,11 @@ public class SearchLocationPackSelector {
                 .name(item.getName())
                 .description(item.getDescription())
                 .skillUnitCode(item.getSkillUnitCode())
+                .primaryKnowledgeNodeCode(primaryKnowledgeCode(item))
                 .mistakeType(item.getMistakeType())
                 .commonMisconception(item.getCommonMisconception())
                 .knowledgeNodeCodes(lines(item.getKnowledgeNodeCodes()))
+                .relatedKnowledgeNodeCodes(relatedKnowledgeCodes(item))
                 .applicableLanguages(lines(item.getApplicableLanguages()))
                 .build();
     }
@@ -276,8 +280,7 @@ public class SearchLocationPackSelector {
 
         LinkedHashMap<String, List<AiStandardLibraryItem>> itemsByKnowledge = new LinkedHashMap<>();
         for (AiStandardLibraryItem item : selectedItems) {
-            List<String> knowledgeCodes = lines(item.getKnowledgeNodeCodes());
-            String key = knowledgeCodes.isEmpty() ? firstNonBlank(item.getCategory(), "UNMAPPED") : knowledgeCodes.get(0);
+            String key = firstNonBlank(primaryKnowledgeCode(item), firstNonBlank(item.getCategory(), "UNMAPPED"));
             itemsByKnowledge.computeIfAbsent(key, ignored -> new java.util.ArrayList<>()).add(item);
         }
 
@@ -358,6 +361,37 @@ public class SearchLocationPackSelector {
 
     private String firstNonBlank(String first, String second) {
         return first == null || first.isBlank() ? second : first;
+    }
+
+    private String primaryKnowledgeCode(AiStandardLibraryItem item) {
+        String primary = text(item.getPrimaryKnowledgeNodeCode());
+        if (!primary.isBlank()) {
+            return primary;
+        }
+        return lines(item.getKnowledgeNodeCodes()).stream().findFirst().orElse("");
+    }
+
+    private List<String> relatedKnowledgeCodes(AiStandardLibraryItem item) {
+        List<String> explicit = lines(item.getRelatedKnowledgeNodeCodes());
+        if (!explicit.isEmpty()) {
+            return explicit;
+        }
+        String primary = primaryKnowledgeCode(item);
+        return lines(item.getKnowledgeNodeCodes()).stream()
+                .filter(code -> !code.equals(primary))
+                .distinct()
+                .toList();
+    }
+
+    private List<String> knowledgeCodes(AiStandardLibraryItem item) {
+        LinkedHashSet<String> codes = new LinkedHashSet<>();
+        String primary = primaryKnowledgeCode(item);
+        if (!primary.isBlank()) {
+            codes.add(primary);
+        }
+        codes.addAll(relatedKnowledgeCodes(item));
+        codes.addAll(lines(item.getKnowledgeNodeCodes()));
+        return codes.stream().toList();
     }
 
     private List<String> lines(String value) {

@@ -45,6 +45,7 @@ public class AiStandardLibrarySeeder implements CommandLineRunner {
                 .studentExplanation(seed.studentExplanation())
                 .teacherExplanation(seed.teacherExplanation())
                 .skillUnitCode(seed.skillUnitCode())
+                .primaryKnowledgeNodeCode(primaryKnowledgeNode(seed.knowledgeNodeCodes()))
                 .mistakeType(seed.mistakeType())
                 .commonMisconception(seed.commonMisconception())
                 .evidenceSignals(join(seed.evidenceSignals()))
@@ -61,6 +62,7 @@ public class AiStandardLibrarySeeder implements CommandLineRunner {
                 .applicableLanguages(join(seed.applicableLanguages()))
                 .relatedItems(join(seed.relatedItems()))
                 .knowledgeNodeCodes(join(seed.knowledgeNodeCodes()))
+                .relatedKnowledgeNodeCodes(join(relatedKnowledgeNodes(seed.knowledgeNodeCodes())))
                 .prerequisiteKnowledgeCodes(join(seed.prerequisiteKnowledgeCodes()))
                 .teachingAction(seed.teachingAction())
                 .enabled(true)
@@ -68,10 +70,41 @@ public class AiStandardLibrarySeeder implements CommandLineRunner {
                 .build();
     }
 
+    private String primaryKnowledgeNode(List<String> knowledgeNodeCodes) {
+        if (knowledgeNodeCodes == null) {
+            return "";
+        }
+        return knowledgeNodeCodes.stream()
+                .map(this::text)
+                .filter(value -> !value.isBlank())
+                .findFirst()
+                .orElse("");
+    }
+
+    private List<String> relatedKnowledgeNodes(List<String> knowledgeNodeCodes) {
+        String primary = primaryKnowledgeNode(knowledgeNodeCodes);
+        if (primary.isBlank() || knowledgeNodeCodes == null) {
+            return List.of();
+        }
+        return knowledgeNodeCodes.stream()
+                .map(this::text)
+                .filter(value -> !value.isBlank())
+                .filter(value -> !value.equals(primary))
+                .distinct()
+                .toList();
+    }
+
     private String join(List<String> values) {
         if (values == null || values.isEmpty()) {
             return "";
         }
-        return String.join("\n", values);
+        return String.join("\n", values.stream()
+                .map(this::text)
+                .filter(value -> !value.isBlank())
+                .toList());
+    }
+
+    private String text(String value) {
+        return value == null ? "" : value.trim();
     }
 }

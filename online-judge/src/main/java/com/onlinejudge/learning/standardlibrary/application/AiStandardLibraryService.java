@@ -297,6 +297,7 @@ public class AiStandardLibraryService {
                 .studentExplanation(item.getLearningGoal())
                 .teacherExplanation("")
                 .skillUnitCode("")
+                .primaryKnowledgeNodeCode(item.getPrimaryKnowledgeNodeCode())
                 .mistakeType("")
                 .commonMisconception("")
                 .evidenceSignals("")
@@ -313,6 +314,7 @@ public class AiStandardLibraryService {
                 .applicableLanguages(item.getApplicableLanguages())
                 .relatedItems("")
                 .knowledgeNodeCodes(item.getKnowledgeNodeCodes())
+                .relatedKnowledgeNodeCodes(relatedKnowledgeNodeCodes(item.getPrimaryKnowledgeNodeCode(), item.getKnowledgeNodeCodes()))
                 .prerequisiteKnowledgeCodes(item.getPrerequisiteKnowledgeCodes())
                 .teachingAction("")
                 .enabled(true)
@@ -333,6 +335,7 @@ public class AiStandardLibraryService {
                 .studentExplanation("")
                 .teacherExplanation(item.getRepairStrategy())
                 .skillUnitCode(item.getSkillUnitCode())
+                .primaryKnowledgeNodeCode(item.getPrimaryKnowledgeNodeCode())
                 .mistakeType(item.getMistakeType())
                 .commonMisconception(item.getMisconception())
                 .evidenceSignals("")
@@ -349,6 +352,7 @@ public class AiStandardLibraryService {
                 .applicableLanguages(item.getApplicableLanguages())
                 .relatedItems(item.getSkillUnitCode())
                 .knowledgeNodeCodes(item.getKnowledgeNodeCodes())
+                .relatedKnowledgeNodeCodes(relatedKnowledgeNodeCodes(item.getPrimaryKnowledgeNodeCode(), item.getKnowledgeNodeCodes()))
                 .prerequisiteKnowledgeCodes(item.getPrerequisiteKnowledgeCodes())
                 .teachingAction("")
                 .enabled(true)
@@ -369,6 +373,7 @@ public class AiStandardLibraryService {
                 .studentExplanation("")
                 .teacherExplanation(item.getTeacherExplanation())
                 .skillUnitCode(item.getSkillUnitCode())
+                .primaryKnowledgeNodeCode(item.getPrimaryKnowledgeNodeCode())
                 .mistakeType("")
                 .commonMisconception("")
                 .evidenceSignals("")
@@ -385,6 +390,7 @@ public class AiStandardLibraryService {
                 .applicableLanguages(item.getApplicableLanguages())
                 .relatedItems(item.getRelatedMistakeCodes())
                 .knowledgeNodeCodes(item.getKnowledgeNodeCodes())
+                .relatedKnowledgeNodeCodes(relatedKnowledgeNodeCodes(item.getPrimaryKnowledgeNodeCode(), item.getKnowledgeNodeCodes()))
                 .prerequisiteKnowledgeCodes("")
                 .teachingAction("")
                 .enabled(true)
@@ -404,12 +410,15 @@ public class AiStandardLibraryService {
     }
 
     private void apply(AiStandardLibraryItem item, AiStandardLibraryItemRequest request) {
+        String knowledgeNodeCodes = join(request.getKnowledgeNodeCodes());
+        String primaryKnowledgeNodeCode = firstNonBlank(request.getPrimaryKnowledgeNodeCode(), firstLine(knowledgeNodeCodes));
         item.setCategory(required(request.getCategory(), "分类不能为空"));
         item.setName(required(request.getName(), "名称不能为空"));
         item.setDescription(normalizeText(request.getDescription()));
         item.setStudentExplanation(normalizeText(request.getStudentExplanation()));
         item.setTeacherExplanation(normalizeText(request.getTeacherExplanation()));
         item.setSkillUnitCode(normalizeCodeOrBlank(request.getSkillUnitCode()));
+        item.setPrimaryKnowledgeNodeCode(primaryKnowledgeNodeCode);
         item.setMistakeType(normalizeText(request.getMistakeType()));
         item.setCommonMisconception(normalizeText(request.getCommonMisconception()));
         item.setEvidenceSignals(join(request.getEvidenceSignals()));
@@ -425,7 +434,12 @@ public class AiStandardLibraryService {
         item.setSeverity(normalizeText(request.getSeverity()));
         item.setApplicableLanguages(join(request.getApplicableLanguages()));
         item.setRelatedItems(join(request.getRelatedItems()));
-        item.setKnowledgeNodeCodes(join(request.getKnowledgeNodeCodes()));
+        item.setKnowledgeNodeCodes(knowledgeNodeCodes.isBlank() && !primaryKnowledgeNodeCode.isBlank()
+                ? primaryKnowledgeNodeCode
+                : knowledgeNodeCodes);
+        item.setRelatedKnowledgeNodeCodes(join(request.getRelatedKnowledgeNodeCodes()).isBlank()
+                ? relatedKnowledgeNodeCodes(primaryKnowledgeNodeCode, item.getKnowledgeNodeCodes())
+                : join(request.getRelatedKnowledgeNodeCodes()));
         item.setPrerequisiteKnowledgeCodes(join(request.getPrerequisiteKnowledgeCodes()));
         item.setTeachingAction(normalizeText(request.getTeachingAction()));
         item.setLibraryVersion(normalizeText(request.getLibraryVersion()).isBlank()
@@ -439,12 +453,14 @@ public class AiStandardLibraryService {
         if (item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT) {
             requireText(item.getDescription(), "能力点定义不能为空");
             requireText(item.getStudentExplanation(), "能力点学习目标不能为空");
+            requireText(item.getPrimaryKnowledgeNodeCode(), "能力点必须关联至少一个知识节点，并指定一个主知识节点");
             requireLines(item.getKnowledgeNodeCodes(), "能力点必须关联至少一个知识节点");
             return;
         }
         if (item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT) {
             requireText(item.getDescription(), "易错点定义不能为空");
             requireText(item.getSkillUnitCode(), "易错点必须关联能力点");
+            requireText(item.getPrimaryKnowledgeNodeCode(), "易错点必须关联至少一个知识节点，并能落到主知识节点");
             requireText(item.getMistakeType(), "易错点类型不能为空");
             requireText(item.getCommonMisconception(), "学生常见误解不能为空");
             requireLines(item.getKnowledgeNodeCodes(), "易错点必须关联至少一个知识节点");
@@ -473,9 +489,11 @@ public class AiStandardLibraryService {
                 || contains(item.getDescription(), query)
                 || contains(item.getTeacherExplanation(), query)
                 || contains(item.getSkillUnitCode(), query)
+                || contains(item.getPrimaryKnowledgeNodeCode(), query)
                 || contains(item.getMistakeType(), query)
                 || contains(item.getCommonMisconception(), query)
                 || contains(item.getKnowledgeNodeCodes(), query)
+                || contains(item.getRelatedKnowledgeNodeCodes(), query)
                 || contains(item.getEvidenceSignals(), query)
                 || contains(item.getCommonCodePatterns(), query);
     }
@@ -525,6 +543,26 @@ public class AiStandardLibraryService {
 
     private String normalizeText(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String firstNonBlank(String first, String second) {
+        String normalizedFirst = normalizeText(first);
+        return normalizedFirst.isBlank() ? normalizeText(second) : normalizedFirst;
+    }
+
+    private String firstLine(String value) {
+        return lines(value).stream().findFirst().orElse("");
+    }
+
+    private String relatedKnowledgeNodeCodes(String primaryKnowledgeNodeCode, String knowledgeNodeCodes) {
+        String primary = normalizeText(primaryKnowledgeNodeCode);
+        if (primary.isBlank()) {
+            return "";
+        }
+        return join(lines(knowledgeNodeCodes).stream()
+                .filter(code -> !code.equals(primary))
+                .distinct()
+                .toList());
     }
 
     private String join(List<String> values) {

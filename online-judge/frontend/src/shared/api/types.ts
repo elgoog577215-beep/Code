@@ -1681,6 +1681,7 @@ export interface AiStandardLibraryItem {
   studentExplanation?: string | null;
   teacherExplanation?: string | null;
   skillUnitCode?: string | null;
+  primaryKnowledgeNodeCode?: string | null;
   mistakeType?: string | null;
   commonMisconception?: string | null;
   evidenceSignals: string[];
@@ -1697,6 +1698,7 @@ export interface AiStandardLibraryItem {
   applicableLanguages: string[];
   relatedItems: string[];
   knowledgeNodeCodes: string[];
+  relatedKnowledgeNodeCodes: string[];
   prerequisiteKnowledgeCodes: string[];
   teachingAction?: string | null;
   enabled: boolean;
@@ -1714,6 +1716,7 @@ export interface AiStandardLibraryItemPayload {
   studentExplanation?: string | null;
   teacherExplanation?: string | null;
   skillUnitCode?: string | null;
+  primaryKnowledgeNodeCode?: string | null;
   mistakeType?: string | null;
   commonMisconception?: string | null;
   evidenceSignals?: string[];
@@ -1730,6 +1733,7 @@ export interface AiStandardLibraryItemPayload {
   applicableLanguages?: string[];
   relatedItems?: string[];
   knowledgeNodeCodes?: string[];
+  relatedKnowledgeNodeCodes?: string[];
   prerequisiteKnowledgeCodes?: string[];
   teachingAction?: string | null;
   enabled?: boolean;

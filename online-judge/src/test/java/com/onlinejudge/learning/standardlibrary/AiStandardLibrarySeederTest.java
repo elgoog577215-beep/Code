@@ -147,17 +147,22 @@ class AiStandardLibrarySeederTest {
         assertThat(prefixSkill.getName()).contains("区间查询");
         assertThat(prefixSkill.getDescription()).contains("前缀").contains("区间");
         assertThat(prefixSkill.getDescription()).contains("下标");
+        assertThat(prefixSkill.getPrimaryKnowledgeNodeCode()).isEqualTo("ALGO.PREFIX.SUM.区间查询");
 
         AiStandardLibraryItem graphMistake = repository.findByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT,
                 "MP_GRAPH_UNDIRECTED_EDGE_ADDED_ONCE").orElseThrow();
         assertThat(graphMistake.getDescription()).contains("边");
         assertThat(graphMistake.getCommonMisconception()).contains("无向");
+        assertThat(graphMistake.getSkillUnitCode()).isEqualTo("SK_GRAPH_EDGE_MODELING");
+        assertThat(graphMistake.getPrimaryKnowledgeNodeCode()).isNotBlank();
 
         AiStandardLibraryItem windowMistake = findGeneratedByKnowledge(AiStandardLibraryLayer.MISTAKE_POINT,
                 "MP_ALGO_TWO_POINTERS_WINDOW",
                 "ALGO.TWO_POINTERS.WINDOW.合法性判断");
         assertThat(windowMistake.getMistakeType()).isEqualTo("STATE");
         assertThat(windowMistake.getCommonMisconception()).contains("窗口").contains("答案更新");
+        assertThat(windowMistake.getPrimaryKnowledgeNodeCode()).isEqualTo("ALGO.TWO_POINTERS.WINDOW.合法性判断");
+        assertThat(windowMistake.getRelatedKnowledgeNodeCodes()).doesNotContain("ALGO.TWO_POINTERS.WINDOW.合法性判断");
 
         AiStandardLibraryItem integerMistake = findGeneratedByKnowledge(AiStandardLibraryLayer.MISTAKE_POINT,
                 "MP_BASIC_TYPE_INTEGER",

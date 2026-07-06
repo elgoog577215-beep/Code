@@ -127,7 +127,9 @@ public class StandardLibraryPack {
         private String category;
         private String name;
         private String description;
+        private String primaryKnowledgeNodeCode;
         private List<String> knowledgeNodeCodes;
+        private List<String> relatedKnowledgeNodeCodes;
         private List<String> applicableLanguages;
     }
 
@@ -142,9 +144,11 @@ public class StandardLibraryPack {
         private String name;
         private String description;
         private String skillUnitCode;
+        private String primaryKnowledgeNodeCode;
         private String mistakeType;
         private String commonMisconception;
         private List<String> knowledgeNodeCodes;
+        private List<String> relatedKnowledgeNodeCodes;
         private List<String> applicableLanguages;
     }
 

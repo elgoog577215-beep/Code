@@ -67,11 +67,13 @@ class AiStandardLibraryNormalizedSeederTest {
         assertThat(relationCount).isGreaterThan(0);
 
         var skill = skillUnitRepository.findByCode("SK_BINARY_ANSWER_CHECK").orElseThrow();
+        assertThat(skill.getPrimaryKnowledgeNodeCode()).isEqualTo("ALGO.BINARY.ANSWER.check_函数");
         assertThat(skill.getKnowledgeNodeCodes()).contains("ALGO.BINARY.ANSWER.check_函数");
         assertThat(skill.getLearningGoal()).contains("答案候选值");
 
         var mistake = mistakePointRepository.findByCode("MP_BINARY_CHECK_EQUAL_CASE_REJECTED").orElseThrow();
         assertThat(mistake.getSkillUnitCode()).isEqualTo("SK_BINARY_ANSWER_CHECK");
+        assertThat(mistake.getPrimaryKnowledgeNodeCode()).isEqualTo("ALGO.BINARY.ANSWER.check_函数");
         assertThat(mistake.getMisconception()).contains("刚好卡边界");
         assertThat(mistake.getKnowledgeNodeCodes()).contains("ALGO.BINARY.ANSWER.check_函数");
 

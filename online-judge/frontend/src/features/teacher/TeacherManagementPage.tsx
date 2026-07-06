@@ -1380,7 +1380,11 @@ function buildKnowledgeIndex(
 }
 
 function knowledgeCodes(item: AiStandardLibraryItem) {
-  return Array.from(new Set((item.knowledgeNodeCodes || []).map(code => code.trim()).filter(Boolean)));
+  return Array.from(new Set([
+    item.primaryKnowledgeNodeCode,
+    ...(item.relatedKnowledgeNodeCodes || []),
+    ...(item.knowledgeNodeCodes || [])
+  ].map(code => (code || "").trim()).filter(Boolean)));
 }
 
 function sortLibraryItems(items: AiStandardLibraryItem[]) {
