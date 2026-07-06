@@ -278,7 +278,7 @@ public class AiReportService {
                     所有学生可见文字必须使用简体中文。
 
                     Shape:
-                    {"studentReport":{"basicLayerText":"","improvementLayerText":"","nextActionText":""},"repairItems":[{"title":"","body":"","kind":"","libraryItemId":"","skillUnitId":"","mistakePointId":"","improvementPointId":"","libraryFit":"HIT|PARTIAL|MISS|OUT_OF_LIBRARY","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","libraryItemId":"","skillUnitId":"","mistakePointId":"","improvementPointId":"","libraryFit":"HIT|PARTIAL|MISS|OUT_OF_LIBRARY","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
+                    {"studentReport":{"basicLayerText":"","improvementLayerText":"","nextActionText":""},"repairItems":[{"title":"","body":"","kind":"","libraryItemId":"","skillUnitId":"","mistakePointId":"","improvementPointId":"","libraryFit":"HIT|PARTIAL|MISS|OUT_OF_LIBRARY","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","libraryItemId":"","skillUnitId":"","mistakePointId":"","improvementPointId":"","libraryFit":"HIT|PARTIAL|MISS|OUT_OF_LIBRARY","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["transfer"]}],"diagnosisCandidates":[{"name":"","layer":"BASIC|IMPROVEMENT","libraryFit":"HIT|PARTIAL|MISS|OUT_OF_LIBRARY","anchorId":"","anchorType":"KNOWLEDGE_NODE|SKILL_UNIT|MISTAKE_POINT|IMPROVEMENT_POINT|OUT_OF_LIBRARY","libraryPath":[],"role":"PRIMARY|SECONDARY","evidenceRefs":[],"reason":"","confidence":0.8}],"libraryGrowth":{"candidates":[{"name":"","suggestedPath":[],"similarExistingItems":[],"evidenceRefs":[],"evidenceStatus":"SUPPORTED|NO_DIRECT_CODE_EVIDENCE","errorSymptom":"","typicalCodePattern":"","studentExplanation":"","reason":"","status":"NEEDS_REVIEW","confidence":0.75}]},"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
 
                     规则:
                     1. studentReport 是学生真正看到的摘要。用自然短句写：先说现象，再说可能原因，再给检查动作。
@@ -295,9 +295,11 @@ public class AiReportService {
                     12. 如果异常是 IndexError/list index out of range，基础层必须围绕“下标访问范围”和“容器长度”解释，不要只给代码整理建议。
                     13. 如果基础层是下标越界，提高层优先写边界样例、循环边界、数组长度核对等迁移能力；不要把“精简代码/删除 helper”作为唯一提高层。
                     14. knowledgePath 是父子关系路径，不是独立标签；使用 3-5 段中文知识树路径，例如 ["程序基础","数组/列表","下标访问","越界检查"]；不确定时可以留空，由后端兜底。
-                    15. standardLibrary 是教学参考规范包，不是强制答案；能精确命中就填写对应 ID，半命中写 PARTIAL，不匹配写 MISS 或 OUT_OF_LIBRARY 并允许 ID 留空。
+                    15. standardLibrary 是教学参考规范包，不是强制答案；先自由诊断真实问题，再逐条对齐标准库。能精确命中就填写对应 ID，半命中写 PARTIAL，不匹配写 MISS 或 OUT_OF_LIBRARY 并允许 ID 留空。
                     16. 如果 standardLibrary 中有 primaryKnowledgeNodeCode，knowledgePath 优先沿“主知识点 -> 能力点 -> 易错点/提升点”生成；relatedKnowledgeNodeCodes 只作辅助区分，不要拆成多个独立标签或独立错误。
                     17. 如果 judgeFacts 暴露多个不同失败现象，逐个核对是否来自不同根因；不要只解释第一个能说通的现象就停止。
+                    18. diagnosisCandidates 是后台审计线，不展示给学生；每个真实诊断点都要有一个候选，说明它如何 HIT/PARTIAL/MISS/OUT_OF_LIBRARY。
+                    19. libraryGrowth 是标准库成长线，只来自 PARTIAL、MISS 或 OUT_OF_LIBRARY 的真实诊断点；HIT 不要生成成长候选。status 固定 NEEDS_REVIEW，sourceProblemId/sourceSubmissionId 不要填写，后端会补。
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);
@@ -308,6 +310,7 @@ public class AiReportService {
             if (!"READY".equals(response.getStatus())) {
                 return response;
             }
+            persistStudentFastFeedbackGrowthCandidates(payload, response, submission, evidenceCandidateRefs);
             return response;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -512,6 +515,94 @@ public class AiReportService {
         } catch (Exception exception) {
             log.warn("Failed to persist AI standard library growth candidates. reason={}", exception.getMessage());
         }
+    }
+
+    private void persistStudentFastFeedbackGrowthCandidates(StudentFastFeedbackPayload payload,
+                                                            StudentAiFeedbackResponse response,
+                                                            Submission submission,
+                                                            Map<String, String> evidenceCandidateRefs) {
+        if (standardLibraryGrowthAgentService == null || response == null) {
+            return;
+        }
+        AdviceGenerationOutput.LibraryGrowth growth = normalizeFastFeedbackGrowthEvidence(
+                payload == null ? null : payload.libraryGrowth,
+                evidenceCandidateRefs
+        );
+        if (growth == null || growth.getCandidates() == null || growth.getCandidates().isEmpty()) {
+            growth = deriveFastFeedbackGrowth(response);
+        }
+        if (growth == null || growth.getCandidates() == null || growth.getCandidates().isEmpty()) {
+            return;
+        }
+        persistStandardLibraryGrowthCandidates(AdviceGenerationOutput.builder()
+                .libraryGrowth(growth)
+                .build(), submission);
+    }
+
+    private AdviceGenerationOutput.LibraryGrowth normalizeFastFeedbackGrowthEvidence(
+            AdviceGenerationOutput.LibraryGrowth growth,
+            Map<String, String> evidenceCandidateRefs) {
+        if (growth == null || growth.getCandidates() == null) {
+            return growth;
+        }
+        for (AdviceGenerationOutput.LibraryGrowthCandidate candidate : growth.getCandidates()) {
+            if (candidate != null) {
+                candidate.setEvidenceRefs(resolveStudentEvidenceRefs(candidate.getEvidenceRefs(), evidenceCandidateRefs));
+            }
+        }
+        return growth;
+    }
+
+    private AdviceGenerationOutput.LibraryGrowth deriveFastFeedbackGrowth(StudentAiFeedbackResponse response) {
+        if (response.getRepairItems() == null || response.getRepairItems().isEmpty()) {
+            return null;
+        }
+        List<AdviceGenerationOutput.LibraryGrowthCandidate> candidates = response.getRepairItems().stream()
+                .filter(item -> item != null && shouldEnterGrowthPool(item.getLibraryFit()))
+                .map(this::growthCandidateFromFastFeedback)
+                .toList();
+        return candidates.isEmpty() ? null : AdviceGenerationOutput.LibraryGrowth.builder()
+                .candidates(candidates)
+                .build();
+    }
+
+    private boolean shouldEnterGrowthPool(String libraryFit) {
+        String fit = defaultIfBlank(libraryFit, "").trim().toUpperCase();
+        return "PARTIAL".equals(fit) || "MISS".equals(fit) || "OUT_OF_LIBRARY".equals(fit);
+    }
+
+    private AdviceGenerationOutput.LibraryGrowthCandidate growthCandidateFromFastFeedback(
+            StudentAiFeedbackResponse.FeedbackItem item) {
+        List<String> path = item.getKnowledgePath() == null || item.getKnowledgePath().isEmpty()
+                ? List.of("未归类", "AI快反馈库外发现")
+                : item.getKnowledgePath();
+        List<String> similarItems = java.util.stream.Stream.of(
+                        item.getLibraryItemId(),
+                        item.getSkillUnitId(),
+                        item.getMistakePointId(),
+                        item.getImprovementPointId()
+                )
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .toList();
+        return AdviceGenerationOutput.LibraryGrowthCandidate.builder()
+                .name(defaultIfBlank(item.getTitle(), "AI快反馈库外发现"))
+                .suggestedPath(path)
+                .similarExistingItems(similarItems)
+                .evidenceRefs(item.getEvidenceRefs())
+                .evidenceStatus(item.getEvidenceRefs() == null || item.getEvidenceRefs().isEmpty()
+                        ? "NO_DIRECT_CODE_EVIDENCE"
+                        : "SUPPORTED")
+                .errorSymptom(truncateText(item.getBody(), 180))
+                .typicalCodePattern(item.getEvidenceSnippets() == null || item.getEvidenceSnippets().isEmpty()
+                        ? "见本次提交诊断证据。"
+                        : truncateText(item.getEvidenceSnippets().get(0).getCode(), 180))
+                .studentExplanation(truncateText(item.getBody(), 180))
+                .reason("学生快反馈中出现 " + defaultIfBlank(item.getLibraryFit(), "UNKNOWN")
+                        + " 诊断点，说明当前标准库可能缺少对应细颗粒条目。")
+                .status("NEEDS_REVIEW")
+                .confidence(0.7)
+                .build();
     }
 
     private String teacherDiagnosisRuntimeProfile() {
@@ -3502,6 +3593,8 @@ public class AiReportService {
         public StudentReportPayload studentReport;
         public List<StudentFeedbackItemPayload> repairItems;
         public List<StudentFeedbackItemPayload> improvementItems;
+        public List<AdviceGenerationOutput.DiagnosisCandidate> diagnosisCandidates;
+        public AdviceGenerationOutput.LibraryGrowth libraryGrowth;
         public String nextQuestion;
         public StudentFeedbackSafetyPayload safety;
         public List<String> evidenceRefs;

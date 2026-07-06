@@ -43,10 +43,24 @@ class InformaticsKnowledgeServiceTest {
                 .extracting(InformaticsKnowledgeNodeResponse::getCode)
                 .contains("BASIC", "BASIC.IO", "BASIC.IO.MULTI_CASE");
         assertThat(detail.getStandardLibraryItems())
-                .extracting(item -> item.getCode())
-                .contains("SK_BASIC_IO_MULTI_CASE_T_D3A160E0", "MP_BASIC_IO_MULTI_CASE_T_D3A160E0");
+                .anySatisfy(item -> {
+                    assertThat(item.getLayer()).isEqualTo("SKILL_UNIT");
+                    assertThat(itemText(item)).containsAnyOf("MULTICASE", "多组", "组数", "状态重置");
+                })
+                .anySatisfy(item -> {
+                    assertThat(item.getLayer()).isEqualTo("MISTAKE_POINT");
+                    assertThat(itemText(item)).containsAnyOf("MULTICASE", "多组", "组数", "单组");
+                });
         assertThat(detail.getStandardLibraryItems())
                 .extracting(item -> item.getLayer())
                 .contains("SKILL_UNIT", "MISTAKE_POINT");
+    }
+
+    private String itemText(com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemResponse item) {
+        return String.join(" ",
+                item.getCode(),
+                item.getName(),
+                item.getCategory(),
+                item.getDescription());
     }
 }

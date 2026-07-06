@@ -1,6 +1,7 @@
 package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
@@ -12,9 +13,12 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class StudentAiFeedbackModelTest {
@@ -257,6 +261,109 @@ class StudentAiFeedbackModelTest {
             assertThat(item.getLibraryFit()).isEqualTo("HIT");
             assertThat(item.getEvidenceRefs()).contains("code:line:1").doesNotContain("E1");
         });
+    }
+
+    @Test
+    void outOfLibraryFastFeedbackEntersGrowthCandidatePool() {
+        AiStandardLibraryGrowthAgentService growthAgentService = mock(AiStandardLibraryGrowthAgentService.class);
+        when(growthAgentService.proposeFromDiagnosisOutput(any(AdviceGenerationOutput.class), any(), any(), isNull()))
+                .thenReturn(List.of());
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "这次主要卡在优惠边权的语义。代码能跑最短路，但折扣后的时间和题意没有完全对齐。",
+                    "improvementLayerText": "修复后可以补测奇数边权和多张优惠券状态，检查路径代价是否仍稳定。",
+                    "nextActionText": "手算一条含奇数边权的路径，核对折扣后时间。"
+                  },
+                  "repairItems": [{
+                    "title": "优惠边权取整语义",
+                    "body": "当前标准库没有直接覆盖这个细颗粒问题，应作为图论最短路下的特殊边权候选沉淀。",
+                    "kind": "REPAIR",
+                    "libraryFit": "OUT_OF_LIBRARY",
+                    "knowledgePath": ["图论", "最短路", "状态扩展", "优惠边权"],
+                    "evidenceRefs": ["E1"],
+                    "qualitySignals": ["evidence_grounded", "actionable"]
+                  }],
+                  "improvementItems": [],
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["E1"]
+                }
+                """, growthAgentService);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                submission(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(feedback.getStatus()).isEqualTo("READY");
+        verify(growthAgentService).proposeFromDiagnosisOutput(
+                argThat(output -> output != null
+                        && output.getLibraryGrowth() != null
+                        && output.getLibraryGrowth().getCandidates() != null
+                        && output.getLibraryGrowth().getCandidates().size() == 1
+                        && "优惠边权取整语义".equals(output.getLibraryGrowth().getCandidates().get(0).getName())
+                        && output.getLibraryGrowth().getCandidates().get(0).getSuggestedPath().contains("优惠边权")
+                        && output.getLibraryGrowth().getCandidates().get(0).getEvidenceRefs().contains("code:line:1")
+                        && "NEEDS_REVIEW".equals(output.getLibraryGrowth().getCandidates().get(0).getStatus())),
+                eq(1L),
+                eq(7L),
+                isNull()
+        );
+        assertThat(service.lastSystemPrompt())
+                .contains("diagnosisCandidates 是后台审计线", "libraryGrowth 是标准库成长线");
+    }
+
+    @Test
+    void modelProvidedGrowthCandidateEvidenceIdsAreResolved() {
+        AiStandardLibraryGrowthAgentService growthAgentService = mock(AiStandardLibraryGrowthAgentService.class);
+        when(growthAgentService.proposeFromDiagnosisOutput(any(AdviceGenerationOutput.class), any(), any(), isNull()))
+                .thenReturn(List.of());
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "这次卡在输入读取和题面格式没有对齐。",
+                    "improvementLayerText": "修复后可以补一个不同格式的小样例。",
+                    "nextActionText": "手推第一行输入会被怎样解析。"
+                  },
+                  "repairItems": [],
+                  "improvementItems": [],
+                  "libraryGrowth": {"candidates": [{
+                    "name": "同一行多整数读取误判",
+                    "suggestedPath": ["程序基础", "输入输出", "输入解析"],
+                    "similarExistingItems": [],
+                    "evidenceRefs": ["E1"],
+                    "evidenceStatus": "SUPPORTED",
+                    "errorSymptom": "题面一行有多个整数，代码按单个整数读取。",
+                    "typicalCodePattern": "int(input())",
+                    "studentExplanation": "先核对每次 input 实际读到什么。",
+                    "reason": "快反馈认为标准库缺少更细颗粒读取条目。",
+                    "status": "NEEDS_REVIEW",
+                    "confidence": 0.72
+                  }]},
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["E1"]
+                }
+                """, growthAgentService);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                submission(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(feedback.getStatus()).isEqualTo("READY");
+        verify(growthAgentService).proposeFromDiagnosisOutput(
+                argThat(output -> output.getLibraryGrowth().getCandidates().get(0)
+                        .getEvidenceRefs().contains("code:line:1")),
+                eq(1L),
+                eq(7L),
+                isNull()
+        );
     }
 
     @Test
@@ -631,6 +738,17 @@ class StudentAiFeedbackModelTest {
         return service;
     }
 
+    private StubStudentFeedbackAiReportService newService(String response,
+                                                          AiStandardLibraryGrowthAgentService growthAgentService) {
+        StubStudentFeedbackAiReportService service =
+                new StubStudentFeedbackAiReportService(objectMapper, response, null, growthAgentService);
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 1800);
+        ReflectionTestUtils.setField(service, "streamEnabled", false);
+        return service;
+    }
+
     private Problem problem() {
         return Problem.builder()
                 .id(1L)
@@ -844,6 +962,25 @@ class StudentAiFeedbackModelTest {
                                            String response,
                                            ExternalModelAgentRuntime runtime) {
             super(objectMapper, new AiCodeAssistSupport(), runtime);
+            this.response = response;
+        }
+
+        StubStudentFeedbackAiReportService(ObjectMapper objectMapper,
+                                           String response,
+                                           ExternalModelAgentRuntime runtime,
+                                           AiStandardLibraryGrowthAgentService growthAgentService) {
+            super(objectMapper,
+                    new AiCodeAssistSupport(),
+                    runtime,
+                    new ExternalModelFailureClassifier(),
+                    new ExternalModelBudgetGuard(),
+                    new ExternalModelChatRequestFactory(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    growthAgentService);
             this.response = response;
         }
 
