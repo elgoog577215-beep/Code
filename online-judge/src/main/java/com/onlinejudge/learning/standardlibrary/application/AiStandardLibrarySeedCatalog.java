@@ -25,6 +25,7 @@ public final class AiStandardLibrarySeedCatalog {
         AiStandardLibraryV6ExpansionSeeds.addTo(seeds);
         AiStandardLibraryV7DetailSeeds.addTo(seeds);
         AiStandardLibraryV8ExpansionSeeds.addTo(seeds);
+        AiStandardLibraryV9ExpansionSeeds.addTo(seeds);
         generatedFullCoverage(seeds);
         return dedupe(seeds);
     }
