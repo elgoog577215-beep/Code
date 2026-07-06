@@ -339,3 +339,840 @@
     gap: 0.38rem;
   }
 }
+
+/* Teacher console redesign: sidebar + task-first workbench. */
+.teacher-console-shell.teacher-shell {
+  --teacher-console-sidebar: 232px;
+  width: min(100%, 1480px);
+  display: grid;
+  grid-template-columns: var(--teacher-console-sidebar) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(0.82rem, 1.4vw, 1.18rem);
+  margin-inline: auto;
+}
+
+.teacher-console-shell .teacher-shell-sidebar,
+.teacher-console-shell .teacher-shell-main {
+  min-width: 0;
+}
+
+.teacher-console-shell .teacher-shell-sidebar {
+  position: sticky;
+  top: 0.86rem;
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 92%, transparent), color-mix(in srgb, var(--surface) 88%, transparent)),
+    var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.teacher-console-shell .teacher-shell-sidebar__head {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.1rem 0.1rem 0.46rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.teacher-console-shell .teacher-shell-sidebar__head span,
+.teacher-console-shell .teacher-shell-sidebar__foot span,
+.teacher-console-shell .teacher-shell-nav__item small {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 780;
+}
+
+.teacher-console-shell .teacher-shell-sidebar__head strong {
+  color: var(--ink);
+  font-size: 1.02rem;
+  line-height: 1.18;
+}
+
+.teacher-console-shell .teacher-shell-nav {
+  width: 100%;
+  min-height: 0;
+  display: grid;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 0.34rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.teacher-console-shell .teacher-shell-nav__item {
+  min-width: 0;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.54rem;
+  padding: 0.42rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.teacher-console-shell .teacher-shell-nav__item:hover {
+  color: var(--brand-strong);
+  border-color: color-mix(in srgb, var(--brand) 20%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 26%, transparent);
+}
+
+.teacher-console-shell .teacher-shell-nav__item.is-active {
+  color: var(--brand-strong);
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--brand-soft) 76%, transparent), color-mix(in srgb, var(--surface-strong) 78%, transparent)),
+    var(--surface);
+}
+
+.teacher-console-shell .teacher-shell-nav__icon {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, currentColor 18%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 74%, transparent);
+}
+
+.teacher-console-shell .teacher-shell-nav__item > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.06rem;
+}
+
+.teacher-console-shell .teacher-shell-nav__item strong,
+.teacher-console-shell .teacher-shell-nav__item small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-console-shell .teacher-shell-nav__item strong {
+  color: inherit;
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.teacher-console-shell .teacher-shell-sidebar__foot {
+  padding: 0.58rem 0.58rem 0.08rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.teacher-console-shell .teacher-shell-main {
+  display: grid;
+  gap: 0.82rem;
+}
+
+.teacher-console-shell .teacher-page,
+.teacher-console-shell .assignment-detail-page,
+.teacher-console-shell .assignment-drill-page,
+.teacher-console-shell .class-overview-page,
+.teacher-console-shell .assignment-builder-page,
+.teacher-console-shell .teacher-manage-page {
+  width: 100%;
+  max-width: none;
+  padding-block: 0;
+}
+
+.teacher-console-shell .teacher-workflow-home {
+  width: 100%;
+  padding-block: 0;
+}
+
+.teacher-console-page,
+.teacher-console-shell .teacher-page,
+.teacher-console-shell .assignment-drill-page,
+.teacher-console-shell .class-progress-page,
+.teacher-console-shell .assignment-builder-page,
+.teacher-console-shell .teacher-manage-page {
+  display: grid;
+  gap: 0.82rem;
+}
+
+.teacher-console-header {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.85rem;
+  padding: 0.84rem 0.92rem;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+.teacher-console-header__main {
+  min-width: 0;
+  display: grid;
+  gap: 0.26rem;
+}
+
+.teacher-console-header__main h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.36rem, 2.1vw, 1.86rem);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.teacher-console-header__main p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.teacher-console-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.46rem;
+}
+
+.teacher-console-kicker,
+.teacher-console-shell .back-link,
+.teacher-console-shell .teacher-page-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  width: max-content;
+  max-width: 100%;
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.teacher-console-shell .back-link:hover,
+.teacher-console-shell .teacher-page-breadcrumb:hover {
+  color: var(--brand-strong);
+}
+
+.teacher-console-status-strip {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+}
+
+.teacher-console-status-strip > div {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 0.08rem;
+  min-height: 66px;
+  padding: 0.58rem 0.68rem;
+  border-right: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.teacher-console-status-strip > div:last-child {
+  border-right: 0;
+}
+
+.teacher-console-status-strip span,
+.teacher-console-panel__subtle,
+.teacher-console-table__head,
+.teacher-console-fact span,
+.teacher-console-queue small {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.teacher-console-status-strip strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: 1.04rem;
+  line-height: 1.18;
+}
+
+.teacher-console-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.82rem;
+  align-items: start;
+}
+
+.teacher-console-grid--with-aside {
+  grid-template-columns: minmax(0, 1fr) minmax(278px, 0.34fr);
+}
+
+.teacher-console-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+.teacher-console-panel__head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.68rem 0.76rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.teacher-console-panel__head h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.teacher-console-panel__head > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.teacher-console-panel__body {
+  display: grid;
+  gap: 0.54rem;
+  padding: 0.62rem;
+}
+
+.teacher-console-table {
+  min-width: 0;
+  display: grid;
+}
+
+.teacher-console-table__row {
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  gap: 0.62rem;
+  min-height: 62px;
+  padding: 0.62rem 0.7rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.teacher-console-table__row:last-child {
+  border-bottom: 0;
+}
+
+.teacher-console-table__row:hover {
+  background: color-mix(in srgb, var(--brand-soft) 24%, transparent);
+}
+
+.teacher-console-table__head {
+  min-height: 38px;
+  background: color-mix(in srgb, var(--surface-strong) 70%, transparent);
+  text-transform: none;
+}
+
+.teacher-console-table__title {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.teacher-console-table__title strong,
+.teacher-console-table__title small,
+.teacher-console-fact strong,
+.teacher-console-fact span,
+.teacher-console-queue strong,
+.teacher-console-queue small,
+.teacher-console-queue p {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-console-table__title strong {
+  font-size: 0.92rem;
+}
+
+.teacher-console-table__title small {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 760;
+}
+
+.teacher-assignment-center-table .teacher-console-table__row {
+  grid-template-columns:
+    minmax(220px, 1.3fr)
+    minmax(90px, 0.52fr)
+    minmax(88px, 0.42fr)
+    minmax(92px, 0.44fr)
+    minmax(92px, 0.44fr)
+    minmax(92px, 0.44fr)
+    minmax(104px, 0.48fr);
+}
+
+.teacher-assignment-problem-table .teacher-console-table__row {
+  grid-template-columns:
+    minmax(220px, 1.3fr)
+    minmax(78px, 0.42fr)
+    minmax(82px, 0.42fr)
+    minmax(82px, 0.42fr)
+    minmax(82px, 0.42fr)
+    minmax(160px, 0.7fr)
+    minmax(96px, 0.44fr);
+}
+
+.teacher-console-fact {
+  min-width: 0;
+  display: grid;
+  gap: 0.06rem;
+}
+
+.teacher-console-fact strong {
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.teacher-console-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.28rem;
+  color: var(--brand-strong);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.teacher-console-queue {
+  display: grid;
+  gap: 0.46rem;
+}
+
+.teacher-console-queue__item {
+  min-width: 0;
+  display: grid;
+  gap: 0.32rem;
+  padding: 0.56rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 8px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface-strong) 66%, transparent);
+  text-decoration: none;
+}
+
+.teacher-console-queue__item:hover {
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 22%, var(--surface));
+}
+
+.teacher-console-queue__item > span {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.teacher-console-queue__item p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.42;
+}
+
+.teacher-console-issue-list {
+  display: grid;
+  gap: 0.44rem;
+}
+
+.teacher-console-issue-list article {
+  min-width: 0;
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.56rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 66%, transparent);
+}
+
+.teacher-console-issue-list strong {
+  font-size: 0.88rem;
+}
+
+.teacher-console-issue-list p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.42;
+}
+
+.teacher-console-shell .teacher-drill-header,
+.teacher-console-shell .overview-command,
+.teacher-console-shell .teacher-workflow-header {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.85rem;
+  padding: 0.84rem 0.92rem;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+.teacher-console-shell .teacher-drill-header h1,
+.teacher-console-shell .overview-command h1,
+.teacher-console-shell .teacher-workflow-header h1 {
+  margin: 0.18rem 0 0;
+  font-size: clamp(1.3rem, 2vw, 1.78rem);
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.teacher-console-shell .teacher-drill-overview,
+.teacher-console-shell .teacher-problem-layout,
+.teacher-console-shell .teacher-student-problem-layout {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(286px, 0.34fr);
+  gap: 0.82rem;
+  align-items: start;
+}
+
+.teacher-console-shell .teacher-drill-overview .teacher-problem-table--compact {
+  grid-column: 1;
+  grid-row: 1 / span 4;
+}
+
+.teacher-console-shell .teacher-drill-overview .teacher-focus-panel,
+.teacher-console-shell .teacher-drill-overview .teacher-compact-metrics,
+.teacher-console-shell .teacher-drill-overview .teacher-trend-panel,
+.teacher-console-shell .teacher-drill-overview .teacher-trend-note {
+  grid-column: 2;
+}
+
+.teacher-console-shell .teacher-drill-overview .teacher-focus-panel {
+  grid-row: 1;
+}
+
+.teacher-console-shell .teacher-drill-overview .teacher-compact-metrics {
+  grid-row: 2;
+}
+
+.teacher-console-shell .teacher-drill-overview .teacher-trend-panel,
+.teacher-console-shell .teacher-drill-overview .teacher-trend-note {
+  grid-row: 3;
+}
+
+.teacher-console-shell .teacher-problem-main,
+.teacher-console-shell .teacher-student-evidence {
+  min-width: 0;
+  display: grid;
+  gap: 0.82rem;
+}
+
+.teacher-console-shell .teacher-focus-panel,
+.teacher-console-shell .teacher-compact-metrics,
+.teacher-console-shell .teacher-trend-panel,
+.teacher-console-shell .teacher-problem-table,
+.teacher-console-shell .teacher-action-rail,
+.teacher-console-shell .teacher-evidence-card,
+.teacher-console-shell .class-weakness-panel,
+.teacher-console-shell .class-progress-workbench,
+.teacher-console-shell .assignment-builder-section,
+.teacher-console-shell .teacher-manage-status-panel,
+.teacher-console-shell .management-task-card,
+.teacher-console-shell .standard-library-details {
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+.teacher-console-shell .teacher-compact-metrics,
+.teacher-console-shell .teacher-drill-strip,
+.teacher-console-shell .teacher-home-status-strip {
+  border-radius: 8px;
+}
+
+.teacher-console-shell .teacher-action-rail {
+  position: sticky;
+  top: 0.86rem;
+}
+
+.teacher-console-shell .teacher-table-row,
+.teacher-console-shell .class-progress-grid > *,
+.teacher-console-shell .assignment-problem-row,
+.teacher-console-shell .assignment-selected-list button,
+.teacher-console-shell .standard-library-review-card,
+.teacher-console-shell .standard-library-tree__item {
+  border-radius: 0;
+}
+
+.teacher-console-shell .teacher-home-status-strip {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.teacher-console-shell .assignment-builder.assignment-builder--minimal {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.35fr) minmax(0, 1fr);
+  gap: 0.82rem;
+  align-items: start;
+}
+
+.teacher-console-shell .assignment-builder.assignment-builder--minimal .assignment-builder-section:nth-of-type(2),
+.teacher-console-shell .assignment-builder.assignment-builder--minimal .assignment-builder-section:nth-of-type(3) {
+  grid-column: 2;
+}
+
+.teacher-console-shell .assignment-builder.assignment-builder--minimal .assignment-builder-section:first-of-type {
+  grid-row: span 2;
+}
+
+.teacher-console-shell .assignment-builder-picker {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.32fr);
+}
+
+.teacher-console-shell .teacher-manage-page .management-console,
+.teacher-console-shell .teacher-manage-page .management-workspace {
+  background: transparent;
+}
+
+.teacher-console-shell .teacher-manage-page .management-task-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.teacher-console-shell .standard-library-review,
+.teacher-console-shell .standard-library-manager {
+  border-radius: 8px;
+}
+
+.teacher-console-shell .ui-button,
+.teacher-console-shell .header-login-link,
+.teacher-console-shell .status-pill,
+.teacher-console-shell .difficulty-pill,
+.teacher-console-shell .control,
+.teacher-console-shell .assignment-search,
+.teacher-console-shell .standard-library-chip {
+  border-radius: 8px;
+}
+
+.student-assignment-grid,
+.student-assignment-grid--linear,
+.student-task-panel,
+.problem-page .panel,
+.problem-page .problem-workbench-card,
+.problem-page .problem-feedback,
+.problem-page .problem-side-panel,
+.problem-page .cm-editor {
+  border-radius: 8px;
+}
+
+.problem-back-link,
+.student-page .ui-button,
+.student-assignment-page .ui-button,
+.problem-page .ui-button {
+  border-radius: 8px;
+}
+
+.problem-back-link {
+  min-height: 36px;
+  padding-inline: 0.54rem;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+}
+
+.student-assignment-meta span,
+.student-assignment-bar,
+.student-current-action,
+.problem-result-compact {
+  border-radius: 8px;
+}
+
+:root[data-theme="dark"] .teacher-console-shell .teacher-shell-sidebar,
+:root[data-theme="dark"] .teacher-console-header,
+:root[data-theme="dark"] .teacher-console-status-strip,
+:root[data-theme="dark"] .teacher-console-panel,
+:root[data-theme="dark"] .teacher-console-queue__item,
+:root[data-theme="dark"] .teacher-console-issue-list article,
+:root[data-theme="dark"] .teacher-console-shell .teacher-drill-header,
+:root[data-theme="dark"] .teacher-console-shell .overview-command,
+:root[data-theme="dark"] .teacher-console-shell .teacher-workflow-header,
+:root[data-theme="dark"] .teacher-console-shell .teacher-focus-panel,
+:root[data-theme="dark"] .teacher-console-shell .teacher-compact-metrics,
+:root[data-theme="dark"] .teacher-console-shell .teacher-trend-panel,
+:root[data-theme="dark"] .teacher-console-shell .teacher-problem-table,
+:root[data-theme="dark"] .teacher-console-shell .teacher-action-rail,
+:root[data-theme="dark"] .teacher-console-shell .teacher-evidence-card,
+:root[data-theme="dark"] .teacher-console-shell .assignment-builder-section,
+:root[data-theme="dark"] .teacher-console-shell .management-task-card,
+:root[data-theme="dark"] .teacher-console-shell .standard-library-details {
+  background: #12161d;
+  border-color: #2f3745;
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .teacher-console-shell .teacher-shell-nav__item.is-active {
+  background: #132421;
+}
+
+@media (max-width: 1180px) {
+  .teacher-console-shell.teacher-shell {
+    --teacher-console-sidebar: 208px;
+  }
+
+  .teacher-assignment-center-table .teacher-console-table__row,
+  .teacher-assignment-problem-table .teacher-console-table__row {
+    grid-template-columns: minmax(220px, 1fr) repeat(4, minmax(76px, 0.4fr)) minmax(110px, 0.52fr);
+  }
+
+  .teacher-assignment-center-table .teacher-console-table__row > :nth-child(2),
+  .teacher-assignment-problem-table .teacher-console-table__row > :nth-child(2) {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .teacher-console-shell.teacher-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-console-shell .teacher-shell-sidebar,
+  .teacher-console-shell .teacher-action-rail {
+    position: static;
+  }
+
+  .teacher-console-shell .teacher-shell-sidebar {
+    padding: 0.58rem;
+  }
+
+  .teacher-console-shell .teacher-shell-sidebar__head,
+  .teacher-console-shell .teacher-shell-sidebar__foot {
+    display: none;
+  }
+
+  .teacher-console-shell .teacher-shell-nav {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(156px, 1fr);
+    overflow-x: auto;
+    padding-bottom: 0.08rem;
+  }
+
+  .teacher-console-grid--with-aside,
+  .teacher-console-shell .teacher-drill-overview,
+  .teacher-console-shell .teacher-problem-layout,
+  .teacher-console-shell .teacher-student-problem-layout,
+  .teacher-console-shell .assignment-builder.assignment-builder--minimal {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-console-shell .teacher-drill-overview .teacher-problem-table--compact,
+  .teacher-console-shell .teacher-drill-overview .teacher-focus-panel,
+  .teacher-console-shell .teacher-drill-overview .teacher-compact-metrics,
+  .teacher-console-shell .teacher-drill-overview .teacher-trend-panel,
+  .teacher-console-shell .teacher-drill-overview .teacher-trend-note {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .teacher-console-shell .assignment-builder.assignment-builder--minimal .assignment-builder-section,
+  .teacher-console-shell .assignment-builder.assignment-builder--minimal .assignment-builder-section:nth-of-type(2),
+  .teacher-console-shell .assignment-builder.assignment-builder--minimal .assignment-builder-section:nth-of-type(3) {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .teacher-console-header,
+  .teacher-console-shell .teacher-drill-header,
+  .teacher-console-shell .overview-command,
+  .teacher-console-shell .teacher-workflow-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-console-header__actions,
+  .teacher-console-shell .teacher-drill-header__actions,
+  .teacher-console-shell .teacher-home-actions {
+    justify-content: stretch;
+  }
+
+  .teacher-console-header__actions .ui-button,
+  .teacher-console-shell .teacher-drill-header__actions .ui-button,
+  .teacher-console-shell .teacher-home-actions .ui-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .teacher-console-status-strip,
+  .teacher-console-shell .teacher-home-status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-console-status-strip > div,
+  .teacher-console-shell .teacher-home-status-strip > div {
+    border-right: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  }
+
+  .teacher-console-status-strip > div:nth-child(2n),
+  .teacher-console-shell .teacher-home-status-strip > div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .teacher-console-table__head {
+    display: none;
+  }
+
+  .teacher-assignment-center-table .teacher-console-table__row,
+  .teacher-assignment-problem-table .teacher-console-table__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.42rem;
+    align-items: start;
+  }
+
+  .teacher-assignment-center-table .teacher-console-table__row > :nth-child(2),
+  .teacher-assignment-problem-table .teacher-console-table__row > :nth-child(2) {
+    display: grid;
+  }
+
+  .teacher-console-action {
+    justify-content: flex-start;
+  }
+
+  .teacher-console-shell .assignment-builder-picker,
+  .teacher-console-shell .assignment-problem-bank__tools,
+  .teacher-console-shell .teacher-manage-page .management-task-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-console-shell .teacher-shell-nav {
+    grid-auto-columns: minmax(132px, 0.82fr);
+  }
+
+  .teacher-console-shell .teacher-shell-nav__item {
+    min-height: 50px;
+    grid-template-columns: 30px minmax(0, 1fr);
+    padding: 0.34rem 0.42rem;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__icon {
+    width: 30px;
+    height: 30px;
+  }
+}

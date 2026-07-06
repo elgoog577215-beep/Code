@@ -1,7 +1,7 @@
 import { lazy, ReactNode, Suspense, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { BookOpenCheck, Database, LogIn, Menu, Moon, Sun, UserRound, UsersRound, X } from "lucide-react";
+import { BookOpenCheck, LogIn, Menu, Moon, Sun, UserRound, UsersRound, X } from "lucide-react";
 import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
 import { TeacherShell } from "./features/teacher/TeacherShell";
@@ -114,8 +114,7 @@ function Header() {
   const isProblemPage =
     /^\/app\/student\/assignments\/[^/]+\/problems\//.test(location.pathname);
   const isStudentContext = location.pathname.startsWith("/app/student") || isProblemPage;
-  const isTeacherContext = location.pathname.startsWith("/app/teacher");
-  const inTeacherManage = location.pathname.startsWith("/app/teacher/manage");
+  const isTeacherContext = location.pathname.startsWith("/app/teacher") || location.pathname.startsWith("/app/task-editor");
   const navItems: NavItem[] = [
     {
       to: "/app/student",
@@ -127,7 +126,7 @@ function Header() {
       to: "/app/teacher",
       label: t("common.teacherSide"),
       icon: UsersRound,
-      activeWhen: (pathname: string) => pathname.startsWith("/app/teacher")
+      activeWhen: (pathname: string) => pathname.startsWith("/app/teacher") || pathname.startsWith("/app/task-editor")
     }
   ];
 
@@ -189,32 +188,6 @@ function Header() {
                 <span>{item.label}</span>
               </NavLink>
             ))}
-            {isTeacherContext ? (
-              <>
-                <span className="top-nav__divider" aria-hidden="true" />
-                <NavLink
-                  to="/app/teacher"
-                  end
-                  className={({ isActive }) =>
-                    isActive || (!inTeacherManage && location.pathname.startsWith("/app/teacher"))
-                      ? "top-nav__link top-nav__link--sub is-active"
-                      : "top-nav__link top-nav__link--sub"
-                  }
-                >
-                  <BookOpenCheck size={16} />
-                  <span>{t("common.assignmentCenter")}</span>
-                </NavLink>
-                <NavLink
-                  to="/app/teacher/manage"
-                  className={() =>
-                    inTeacherManage ? "top-nav__link top-nav__link--sub is-active" : "top-nav__link top-nav__link--sub"
-                  }
-                >
-                  <Database size={16} />
-                  <span>{t("common.resourceManagement")}</span>
-                </NavLink>
-              </>
-            ) : null}
           </nav>
         </>
       ) : null}

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, AssignmentOverview } from "../../shared/api/types";
 import { assignmentStatusLabel, displayText, issueLabel, looksCorruptText } from "../../shared/format";
+import { useTranslation } from "../../shared/i18n";
 import { ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { StatusPill } from "../../shared/ui/StatusPill";
@@ -101,6 +102,7 @@ function firstStudentHref(row: ProgressRow) {
 }
 
 export default function ClassOverviewPage() {
+  const { t } = useTranslation();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [overviewByAssignment, setOverviewByAssignment] = useState<Record<number, AssignmentOverview | null>>({});
   const [alert, setAlert] = useState<string | null>(null);
@@ -202,16 +204,16 @@ export default function ClassOverviewPage() {
       <section className="overview-command class-progress-command">
         <div className="overview-command__main">
           <Link to="/app/teacher" className="teacher-page-breadcrumb">
-            <ArrowLeft size={15} /> 作业
+            <ArrowLeft size={15} /> {t("classOverview.breadcrumb")}
           </Link>
-          <h1>班级进度</h1>
+          <h1>{t("classOverview.title")}</h1>
         </div>
         <div className="teacher-home-actions">
           <ButtonLink to="/app/teacher" variant="secondary" icon={<ArrowLeft size={16} />}>
-            返回作业
+            {t("classOverview.backAssignments")}
           </ButtonLink>
           <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={16} />}>
-            新建作业
+            {t("classOverview.newAssignment")}
           </ButtonLink>
         </div>
       </section>

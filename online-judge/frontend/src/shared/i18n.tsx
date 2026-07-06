@@ -42,6 +42,30 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       teacherTitle: "教师工作台",
       teacherDescription: "查看班级、作业、题目和学生，也管理名单、题库与 AI 标准库。"
     },
+    teacherShell: {
+      aria: "教师工作台导航",
+      kicker: "教师端",
+      title: "课堂工作台",
+      footnote: "先看作业，再下钻到题目和学生证据。",
+      nav: {
+        assignments: "作业中心",
+        assignmentsDescription: "作业、题目与批阅入口",
+        classLearning: "班级学情",
+        classLearningDescription: "学生 x 作业推进矩阵",
+        roster: "班级名单",
+        rosterDescription: "学生导入与班级维护",
+        problemBank: "题库管理",
+        problemBankDescription: "题目列表与编辑工作台",
+        aiLibrary: "AI 标准库",
+        aiLibraryDescription: "正式库与候选治理"
+      }
+    },
+    classOverview: {
+      title: "班级学情",
+      breadcrumb: "作业",
+      backAssignments: "返回作业",
+      newAssignment: "新建作业"
+    },
     teacherHome: {
       classOverview: "班级概览",
       classLabel: "班级",
@@ -66,6 +90,25 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         recentSubmissions: "新增",
         problems: "题目",
         status: "状态"
+      },
+      console: {
+        title: "作业中心",
+        description: "先看有哪些作业，再进入作业里的题目、正确率和学生证据。",
+        tableTitle: "作业列表",
+        tableHint: "按老师真实批阅路径组织：作业 → 题目 → 学生。",
+        classColumn: "班级",
+        submitted: "提交",
+        passRate: "通过率",
+        attention: "需关注",
+        recent: "最近",
+        action: "进入",
+        queueTitle: "待处理队列",
+        queueHint: "只放需要老师优先看的学生或题目。",
+        queueEmptyTitle: "暂时没有待处理",
+        queueEmptyDescription: "学生提交后，这里会自动汇总需关注对象。",
+        stable: "稳定",
+        waiting: "等待提交",
+        noSharedIssue: "暂无集中错因"
       },
       errors: {
         loadFailed: "教师端数据读取失败。",
@@ -155,6 +198,19 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         action: "操作",
         view: "看题目",
         noIssue: "暂无集中错因"
+      },
+      console: {
+        stageAssignment: "作业题目",
+        stageProblem: "题目分析",
+        stageStudent: "学生诊断",
+        problemListHint: "先看每道题的提交、正确率和集中错因，再进入具体题目。",
+        aiPanelTitle: "AI 辅助摘要",
+        aiPanelHint: "AI 只解释证据，不替代老师判断。",
+        priorityStudent: "优先学生",
+        priorityProblem: "优先讲评题",
+        lectureSuggestion: "讲评建议",
+        noEvidenceYet: "等待学生提交后形成错因和讲评建议。",
+        submittedRatio: "提交人数"
       }
     },
     teacherManagement: {
@@ -271,6 +327,30 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       teacherTitle: "Teacher Workbench",
       teacherDescription: "Review classes, assignments, problems, and students, plus manage rosters, problems, and the AI library."
     },
+    teacherShell: {
+      aria: "Teacher workbench navigation",
+      kicker: "Teacher",
+      title: "Class Workbench",
+      footnote: "Start from assignments, then drill into problems and student evidence.",
+      nav: {
+        assignments: "Assignments",
+        assignmentsDescription: "Assignments, problems, and review",
+        classLearning: "Class Insights",
+        classLearningDescription: "Student x assignment matrix",
+        roster: "Class Roster",
+        rosterDescription: "Student import and class setup",
+        problemBank: "Problem Bank",
+        problemBankDescription: "Problem list and editor",
+        aiLibrary: "AI Library",
+        aiLibraryDescription: "Approved library and governance"
+      }
+    },
+    classOverview: {
+      title: "Class Insights",
+      breadcrumb: "Assignments",
+      backAssignments: "Back to assignments",
+      newAssignment: "New assignment"
+    },
     teacherHome: {
       classOverview: "Class overview",
       classLabel: "Class",
@@ -295,6 +375,25 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         recentSubmissions: "New",
         problems: "Problems",
         status: "Status"
+      },
+      console: {
+        title: "Assignments",
+        description: "Start with the assignment list, then drill into problems, accuracy, and student evidence.",
+        tableTitle: "Assignment List",
+        tableHint: "Organized by the teacher workflow: assignment → problem → student.",
+        classColumn: "Class",
+        submitted: "Submitted",
+        passRate: "Pass rate",
+        attention: "Attention",
+        recent: "Recent",
+        action: "Open",
+        queueTitle: "Priority Queue",
+        queueHint: "Only students or problems that need teacher action appear here.",
+        queueEmptyTitle: "Nothing urgent",
+        queueEmptyDescription: "After students submit, priority items will appear here.",
+        stable: "Stable",
+        waiting: "Waiting",
+        noSharedIssue: "No shared issue yet"
       },
       errors: {
         loadFailed: "Failed to load teacher data.",
@@ -384,6 +483,19 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         action: "Action",
         view: "Open",
         noIssue: "No shared issue yet"
+      },
+      console: {
+        stageAssignment: "Assignment Problems",
+        stageProblem: "Problem Analysis",
+        stageStudent: "Student Diagnosis",
+        problemListHint: "Review submissions, accuracy, and shared issues before opening a problem.",
+        aiPanelTitle: "AI Teaching Summary",
+        aiPanelHint: "AI explains evidence; teachers still make the call.",
+        priorityStudent: "Priority Student",
+        priorityProblem: "Priority Problem",
+        lectureSuggestion: "Review Suggestion",
+        noEvidenceYet: "Shared issues and review suggestions will appear after students submit.",
+        submittedRatio: "Submitted"
       }
     },
     teacherManagement: {
