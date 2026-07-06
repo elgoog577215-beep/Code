@@ -18096,6 +18096,104 @@ button.standard-library-governance-path {
   }
 }
 
+/* Teacher management homepage: keep the four entry siblings as compact tiles, not compressed rows. */
+.teacher-manage-page .management-home-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.56rem;
+  align-items: stretch;
+}
+
+.teacher-manage-page .management-home-entry {
+  position: relative;
+  min-width: 0;
+  min-height: 156px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  align-items: start;
+  gap: 0.56rem;
+  padding: 0.72rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+}
+
+.teacher-manage-page .management-home-entry:hover {
+  background: color-mix(in srgb, var(--brand-soft) 20%, var(--surface));
+}
+
+.teacher-manage-page .management-home-entry > .status-pill {
+  width: fit-content;
+  justify-self: start;
+}
+
+.teacher-manage-page .management-home-entry > svg {
+  position: absolute;
+  right: 0.72rem;
+  bottom: 0.72rem;
+  color: var(--brand-strong);
+}
+
+.teacher-manage-page .management-home-entry__icon {
+  width: 34px;
+  height: 34px;
+}
+
+.teacher-manage-page .management-home-entry strong {
+  font-size: 1rem;
+  line-height: 1.22;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.teacher-manage-page .management-home-entry small {
+  display: -webkit-box;
+  margin-top: 0.18rem;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  line-height: 1.42;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.teacher-manage-page .management-home-entry--ai {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+}
+
+.teacher-manage-page .management-home-entry--ai .management-home-entry__actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.32rem;
+  margin-top: auto;
+}
+
+.teacher-manage-page .management-home-entry--ai .ui-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.teacher-manage-page .management-object-list .management-object-row,
+.teacher-manage-page .standard-library-tree .management-object-row {
+  min-width: 0;
+}
+
+@media (max-width: 1180px) {
+  .teacher-manage-page .management-home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .teacher-manage-page .management-home-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-manage-page .management-home-entry {
+    min-height: 132px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
