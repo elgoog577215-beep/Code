@@ -35,7 +35,11 @@ build/
 ### Runtime ###
 .env
 data/
-backups/
+backups/*
+!backups/standard-library/
+backups/standard-library/*
+!backups/standard-library/generated-fallback-archive-2026-07-06/
+!backups/standard-library/generated-fallback-archive-2026-07-06/**
 output/
 *.log
 tmp-*.md

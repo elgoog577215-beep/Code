@@ -2,7 +2,6 @@ package com.onlinejudge.learning.standardlibrary;
 
 import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeed;
 import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeedCatalog;
-import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeeder;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeed;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeedCatalog;
@@ -14,6 +13,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.io.IOException;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +38,11 @@ import static org.assertj.core.api.Assertions.assertThat;
         "AI_ENABLED=false"
 })
 class AiStandardLibrarySeederTest {
+
+    private static final Path GENERATED_FALLBACK_BACKUP = Path.of(
+            "backups/standard-library/generated-fallback-archive-2026-07-06/generated-fallback-seeds.json");
+    private static final String LEGACY_FALLBACK_SKILL_CODE = "SK_BASIC_IO_STDIN_DDADF4B0";
+    private static final String LEGACY_FALLBACK_MISTAKE_CODE = "MP_BASIC_IO_STDIN_DDADF4B0";
 
     @Autowired
     AiStandardLibraryItemRepository repository;
@@ -146,34 +153,53 @@ class AiStandardLibrarySeederTest {
     }
 
     @Test
-    void archivedGeneratedEntriesUseDomainSpecificEducationalLanguage() {
-        AiStandardLibrarySeed prefixSkill = findArchivedGeneratedByKnowledge(AiStandardLibraryLayer.SKILL_UNIT,
-                "SK_ALGO_PREFIX_SUM",
-                "ALGO.PREFIX.SUM.区间查询");
-        assertThat(prefixSkill.name()).contains("区间查询");
-        assertThat(prefixSkill.description()).contains("前缀").contains("区间");
-        assertThat(prefixSkill.description()).contains("下标");
-        assertThat(prefixSkill.knowledgeNodeCodes()).containsExactly("ALGO.PREFIX.SUM.区间查询");
+    void generatedFallbackBackupIsStaticOnlyAndOldCodesRemainRecognizable() throws IOException {
+        String backup = Files.readString(GENERATED_FALLBACK_BACKUP);
 
+        assertThat(backup)
+                .contains("\"count\": 1156")
+                .contains("\"skillCount\": 578")
+                .contains("\"mistakeCount\": 578")
+                .contains(LEGACY_FALLBACK_SKILL_CODE)
+                .contains(LEGACY_FALLBACK_MISTAKE_CODE);
+        assertThat(AiStandardLibrarySeedCatalog.class.getDeclaredMethods())
+                .noneMatch(method -> method.getName().equals("archivedGeneratedFallbackSeeds"));
+        assertThat(AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(
+                AiStandardLibraryLayer.SKILL_UNIT, LEGACY_FALLBACK_SKILL_CODE)).isTrue();
+        assertThat(AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(
+                AiStandardLibraryLayer.MISTAKE_POINT, LEGACY_FALLBACK_MISTAKE_CODE)).isTrue();
+        assertThat(repository.findByLayerAndCode(AiStandardLibraryLayer.SKILL_UNIT, LEGACY_FALLBACK_SKILL_CODE)).isEmpty();
+        assertThat(repository.findByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, LEGACY_FALLBACK_MISTAKE_CODE)).isEmpty();
+    }
+
+    @Test
+    void runtimeSourceDoesNotImportGeneratedFallbackBackup() throws IOException {
+        try (var paths = Files.walk(Path.of("src/main"))) {
+            List<Path> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> {
+                        try {
+                            String source = Files.readString(path);
+                            return source.contains("backups/standard-library")
+                                    || source.contains("generated-fallback-seeds.json");
+                        } catch (IOException exception) {
+                            throw new IllegalStateException(exception);
+                        }
+                    })
+                    .toList();
+
+            assertThat(offenders).isEmpty();
+        }
+    }
+
+    @Test
+    void absorbedHandwrittenEntriesUseDomainSpecificEducationalLanguage() {
         AiStandardLibraryItem graphMistake = repository.findByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT,
                 "MP_GRAPH_UNDIRECTED_EDGE_ADDED_ONCE").orElseThrow();
         assertThat(graphMistake.getDescription()).contains("边");
         assertThat(graphMistake.getCommonMisconception()).contains("无向");
         assertThat(graphMistake.getSkillUnitCode()).isEqualTo("SK_GRAPH_EDGE_MODELING");
         assertThat(graphMistake.getPrimaryKnowledgeNodeCode()).isNotBlank();
-
-        AiStandardLibrarySeed windowMistake = findArchivedGeneratedByKnowledge(AiStandardLibraryLayer.MISTAKE_POINT,
-                "MP_ALGO_TWO_POINTERS_WINDOW",
-                "ALGO.TWO_POINTERS.WINDOW.合法性判断");
-        assertThat(windowMistake.mistakeType()).isEqualTo("STATE");
-        assertThat(windowMistake.commonMisconception()).contains("窗口").contains("答案更新");
-        assertThat(windowMistake.knowledgeNodeCodes()).containsExactly("ALGO.TWO_POINTERS.WINDOW.合法性判断");
-
-        AiStandardLibrarySeed integerMistake = findArchivedGeneratedByKnowledge(AiStandardLibraryLayer.MISTAKE_POINT,
-                "MP_BASIC_TYPE_INTEGER",
-                "BASIC.TYPE.INTEGER.整型溢出");
-        assertThat(integerMistake.mistakeType()).isEqualTo("VALUE_RANGE");
-        assertThat(integerMistake.commonMisconception()).contains("中间结果");
     }
 
     @Test
@@ -271,12 +297,6 @@ class AiStandardLibrarySeederTest {
                 .filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .filter(seed -> seed.name().contains("理解或应用偏差"))
                 .count();
-        long fallbackTemplateTextCount = AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds().stream()
-                .filter(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed)
-                .filter(seed -> seed.name().contains("适用条件混用")
-                        || seed.name().contains("理解或应用偏差")
-                        || seed.description().contains("没有把知识点定义、适用条件或边界要求准确落实"))
-                .count();
         long strongHandwrittenSamples = AiStandardLibrarySeedCatalog.seeds().stream()
                 .filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .filter(seed -> seed.code().startsWith("MP_FUNCTION_")
@@ -303,11 +323,8 @@ class AiStandardLibrarySeederTest {
         assertThat(activeSkillCount).isGreaterThanOrEqualTo(112);
         assertThat(AiStandardLibrarySeedCatalog.seeds())
                 .noneMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
-        assertThat(AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds())
-                .allMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
         assertThat(genericSkillNameCount).isZero();
         assertThat(genericMistakeNameCount).isZero();
-        assertThat(fallbackTemplateTextCount).isZero();
         assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(190);
     }
 
@@ -415,29 +432,10 @@ class AiStandardLibrarySeederTest {
     }
 
     @Test
-    void generatedFallbackArchiveIsCompleteButNotActive() {
-        long knowledgePointCount = InformaticsKnowledgeSeedCatalog.seeds().stream()
-                .filter(seed -> seed.type() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
-                .count();
-        List<AiStandardLibrarySeed> archivedSeeds = AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds();
-
-        assertThat(archivedSeeds).hasSize((int) knowledgePointCount * 2);
-        assertThat(archivedSeeds.stream().filter(seed -> seed.layer() == AiStandardLibraryLayer.SKILL_UNIT))
-                .hasSize((int) knowledgePointCount);
-        assertThat(archivedSeeds.stream().filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT))
-                .hasSize((int) knowledgePointCount);
+    void generatedFallbackArchiveIsRemovedFromRuntimeSeeds() {
         assertThat(AiStandardLibrarySeedCatalog.seeds())
                 .noneMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
-    }
-
-    private AiStandardLibrarySeed findArchivedGeneratedByKnowledge(AiStandardLibraryLayer layer,
-                                                                   String codePrefix,
-                                                                   String knowledgeCode) {
-        return AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds().stream()
-                .filter(seed -> seed.layer() == layer)
-                .filter(seed -> seed.code().startsWith(codePrefix))
-                .filter(seed -> seed.knowledgeNodeCodes().contains(knowledgeCode))
-                .findFirst()
-                .orElseThrow();
+        assertThat(AiStandardLibrarySeedCatalog.class.getDeclaredMethods())
+                .noneMatch(method -> method.getName().equals("archivedGeneratedFallbackSeeds"));
     }
 }

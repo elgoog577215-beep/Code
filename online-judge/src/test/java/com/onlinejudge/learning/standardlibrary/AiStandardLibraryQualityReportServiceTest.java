@@ -24,9 +24,8 @@ class AiStandardLibraryQualityReportServiceTest {
         assertThat(report.summary().handwrittenMistakePointCount()).isGreaterThanOrEqualTo(164);
         assertThat(AiStandardLibrarySeedCatalog.seeds())
                 .noneMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
-        assertThat(AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds())
-                .hasSizeGreaterThanOrEqualTo(1100)
-                .allMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
+        assertThat(AiStandardLibrarySeedCatalog.class.getDeclaredMethods())
+                .noneMatch(method -> method.getName().equals("archivedGeneratedFallbackSeeds"));
 
         assertThat(report.domainCoverage())
                 .anySatisfy(domain -> {

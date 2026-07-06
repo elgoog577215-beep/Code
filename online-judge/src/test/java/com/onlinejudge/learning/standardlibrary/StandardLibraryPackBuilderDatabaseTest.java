@@ -42,6 +42,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 class StandardLibraryPackBuilderDatabaseTest {
 
+    private static final String LEGACY_FALLBACK_LIBRARY_VERSION = "standard-library-v3-skill-mistake-generated-fallback";
+    private static final String LEGACY_FALLBACK_SKILL_CODE = "SK_BASIC_IO_STDIN_DDADF4B0";
+    private static final String LEGACY_FALLBACK_MISTAKE_CODE = "MP_BASIC_IO_STDIN_DDADF4B0";
+    private static final String LEGACY_FALLBACK_KNOWLEDGE_CODE = "BASIC.IO.STDIN.单值读取";
+    private static final String LEGACY_FALLBACK_PREREQUISITE_CODE = "BASIC.IO.STDIN";
+
     @Autowired
     StandardLibraryPackBuilder builder;
 
@@ -105,8 +111,8 @@ class StandardLibraryPackBuilderDatabaseTest {
 
     @Test
     void generatedFallbackItemsAreArchivedAndNotSeededAsRuntimeCandidates() {
-        AiStandardLibrarySeed archivedSkill = firstArchivedGeneratedFallback(AiStandardLibraryLayer.SKILL_UNIT);
-        AiStandardLibrarySeed archivedMistake = firstArchivedGeneratedFallback(AiStandardLibraryLayer.MISTAKE_POINT);
+        AiStandardLibrarySeed archivedSkill = legacyGeneratedFallback(AiStandardLibraryLayer.SKILL_UNIT);
+        AiStandardLibrarySeed archivedMistake = legacyGeneratedFallback(AiStandardLibraryLayer.MISTAKE_POINT);
 
         assertThat(repository.findByLayerAndCode(archivedSkill.layer(), archivedSkill.code())).isEmpty();
         assertThat(repository.findByLayerAndCode(archivedMistake.layer(), archivedMistake.code())).isEmpty();
@@ -128,8 +134,8 @@ class StandardLibraryPackBuilderDatabaseTest {
     @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void seedersDisableExistingGeneratedFallbackArchiveRecords() {
-        AiStandardLibrarySeed archivedSkill = firstArchivedGeneratedFallback(AiStandardLibraryLayer.SKILL_UNIT);
-        AiStandardLibrarySeed archivedMistake = firstArchivedGeneratedFallback(AiStandardLibraryLayer.MISTAKE_POINT);
+        AiStandardLibrarySeed archivedSkill = legacyGeneratedFallback(AiStandardLibraryLayer.SKILL_UNIT);
+        AiStandardLibrarySeed archivedMistake = legacyGeneratedFallback(AiStandardLibraryLayer.MISTAKE_POINT);
 
         repository.saveAndFlush(toLegacyItem(archivedSkill));
         repository.saveAndFlush(toLegacyItem(archivedMistake));
@@ -201,12 +207,41 @@ class StandardLibraryPackBuilderDatabaseTest {
                 .satisfies(cause -> assertThat(cause.getName()).isEqualTo("输入输出格式"));
     }
 
-    private AiStandardLibrarySeed firstArchivedGeneratedFallback(AiStandardLibraryLayer layer) {
-        return AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds().stream()
-                .filter(seed -> seed.layer() == layer)
-                .filter(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed)
-                .findFirst()
-                .orElseThrow();
+    private AiStandardLibrarySeed legacyGeneratedFallback(AiStandardLibraryLayer layer) {
+        boolean skill = layer == AiStandardLibraryLayer.SKILL_UNIT;
+        String code = skill ? LEGACY_FALLBACK_SKILL_CODE : LEGACY_FALLBACK_MISTAKE_CODE;
+        assertThat(AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(layer, code)).isTrue();
+        return new AiStandardLibrarySeed(
+                layer,
+                code,
+                skill ? "能力点/程序设计基础" : "易错点/程序设计基础",
+                skill ? "历史兜底单值读取能力" : "历史兜底单值读取易错",
+                skill
+                        ? "能把题面单值输入对应到读取变量、输出格式和多组状态。"
+                        : "学生只按样例读取一个值，没有完整确认输入结构和输出要求。",
+                skill ? "先确认输入对象、读取次数和输出格式。" : "",
+                skill ? "" : "历史兜底记录只用于验证旧数据禁用，不参与候选包。",
+                skill ? "" : LEGACY_FALLBACK_SKILL_CODE,
+                skill ? "" : "IO_FORMAT",
+                skill ? "" : "只按样例读写，没有把题面输入输出结构完整映射到代码。",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "",
+                "",
+                "",
+                "",
+                "",
+                skill ? "历史兜底单值读取能力" : "",
+                "MEDIUM",
+                List.of("PYTHON", "CPP17"),
+                skill ? List.of() : List.of(LEGACY_FALLBACK_SKILL_CODE),
+                List.of(LEGACY_FALLBACK_KNOWLEDGE_CODE),
+                List.of(LEGACY_FALLBACK_PREREQUISITE_CODE),
+                "",
+                LEGACY_FALLBACK_LIBRARY_VERSION
+        );
     }
 
     private AiStandardLibraryItem toLegacyItem(AiStandardLibrarySeed seed) {

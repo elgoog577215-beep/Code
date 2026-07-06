@@ -2,7 +2,6 @@ package com.onlinejudge.learning.standardlibrary;
 
 import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeed;
 import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeedCatalog;
-import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryFallbackArchiveValueCatalog;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeed;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeedCatalog;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
@@ -90,23 +89,19 @@ class AiStandardLibraryV12ArchiveValueSeedsTest {
     }
 
     @Test
-    void v12ArchiveValueExtractionCoversClassifiedFallbackValueSignals() {
+    void v12ArchiveValueExtractionKeepsAbsorbedFallbackIdeasInHandwrittenSeeds() {
         List<AiStandardLibrarySeed> v12Seeds = v12Seeds();
         Map<String, AiStandardLibrarySeed> seedsByCode = v12Seeds.stream()
                 .collect(Collectors.toMap(AiStandardLibrarySeed::code, Function.identity(), (left, right) -> left));
 
         assertThat(ABSORBED_DIRECT_CODES)
                 .allSatisfy(knowledgeCode -> {
-                    assertThat(AiStandardLibraryFallbackArchiveValueCatalog.directAbsorptionKnowledgeCodes())
-                            .contains(knowledgeCode);
                     assertThat(v12Seeds)
                             .as("V12 should absorb direct fallback value " + knowledgeCode)
                             .anySatisfy(seed -> assertThat(seed.knowledgeNodeCodes()).contains(knowledgeCode));
                 });
         assertThat(ABSORBED_REWRITE_CODES)
                 .allSatisfy(knowledgeCode -> {
-                    assertThat(AiStandardLibraryFallbackArchiveValueCatalog.typeRewriteKnowledgeCodes())
-                            .contains(knowledgeCode);
                     assertThat(v12Seeds)
                             .as("V12 should rewrite fallback type value " + knowledgeCode)
                             .anySatisfy(seed -> assertThat(seed.knowledgeNodeCodes()).contains(knowledgeCode));
