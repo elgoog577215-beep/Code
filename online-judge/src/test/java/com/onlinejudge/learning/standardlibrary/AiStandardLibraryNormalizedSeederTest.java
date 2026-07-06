@@ -62,9 +62,9 @@ class AiStandardLibraryNormalizedSeederTest {
         long mappingCount = legacyMappingRepository.count();
         long relationCount = relationRepository.count();
 
-        assertThat(skillCount).isGreaterThanOrEqualTo(90);
-        assertThat(mistakeCount).isGreaterThanOrEqualTo(230);
-        assertThat(improvementCount).isGreaterThanOrEqualTo(32);
+        assertThat(skillCount).isGreaterThanOrEqualTo(100);
+        assertThat(mistakeCount).isGreaterThanOrEqualTo(260);
+        assertThat(improvementCount).isGreaterThanOrEqualTo(40);
         assertThat(mappingCount).isEqualTo(AiStandardLibrarySeedCatalog.seeds().size());
         assertThat(relationCount).isGreaterThan(0);
         assertThat(skillUnitRepository.findAll())
