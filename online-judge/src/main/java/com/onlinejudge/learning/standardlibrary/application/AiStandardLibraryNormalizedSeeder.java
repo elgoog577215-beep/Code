@@ -65,11 +65,38 @@ public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
                 upsertedMappings += syncMapping(seed, AiStandardLibraryTargetType.IMPROVEMENT_POINT, normalizeCode(seed.code()));
             }
         }
+        int disabledFallbackSkills = disableGeneratedFallbackSkills();
+        int disabledFallbackMistakes = disableGeneratedFallbackMistakes();
 
-        if (insertedSkills + insertedMistakes + insertedImprovements + upsertedMappings > 0) {
-            log.info("Seeded normalized AI standard library: skills={}, mistakes={}, improvements={}, mappings={}",
-                    insertedSkills, insertedMistakes, insertedImprovements, upsertedMappings);
+        if (insertedSkills + insertedMistakes + insertedImprovements + upsertedMappings
+                + disabledFallbackSkills + disabledFallbackMistakes > 0) {
+            log.info("Seeded normalized AI standard library: skills={}, mistakes={}, improvements={}, mappings={}, "
+                            + "disabledArchivedFallbackSkills={}, disabledArchivedFallbackMistakes={}",
+                    insertedSkills, insertedMistakes, insertedImprovements, upsertedMappings,
+                    disabledFallbackSkills, disabledFallbackMistakes);
         }
+    }
+
+    private int disableGeneratedFallbackSkills() {
+        List<AiStandardSkillUnit> fallbackSkills = skillUnitRepository.findAll().stream()
+                .filter(AiStandardSkillUnit::isEnabled)
+                .filter(skill -> AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(
+                        AiStandardLibraryLayer.SKILL_UNIT, skill.getCode()))
+                .toList();
+        fallbackSkills.forEach(skill -> skill.setEnabled(false));
+        skillUnitRepository.saveAll(fallbackSkills);
+        return fallbackSkills.size();
+    }
+
+    private int disableGeneratedFallbackMistakes() {
+        List<AiStandardMistakePoint> fallbackMistakes = mistakePointRepository.findAll().stream()
+                .filter(AiStandardMistakePoint::isEnabled)
+                .filter(mistake -> AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(
+                        AiStandardLibraryLayer.MISTAKE_POINT, mistake.getCode()))
+                .toList();
+        fallbackMistakes.forEach(mistake -> mistake.setEnabled(false));
+        mistakePointRepository.saveAll(fallbackMistakes);
+        return fallbackMistakes.size();
     }
 
     private int syncSkill(AiStandardLibrarySeed seed) {

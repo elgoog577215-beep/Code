@@ -1,9 +1,14 @@
 package com.onlinejudge.learning.standardlibrary;
 
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryNormalizedSeeder;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeeder;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeed;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeedCatalog;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardMistakePoint;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardSkillUnit;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
@@ -45,6 +50,12 @@ class StandardLibraryPackBuilderDatabaseTest {
 
     @Autowired
     AiStandardLibraryService standardLibraryService;
+
+    @Autowired
+    AiStandardLibrarySeeder seeder;
+
+    @Autowired
+    AiStandardLibraryNormalizedSeeder normalizedSeeder;
 
     @Autowired
     AiStandardSkillUnitRepository skillUnitRepository;
@@ -93,12 +104,14 @@ class StandardLibraryPackBuilderDatabaseTest {
     }
 
     @Test
-    void generatedFallbackItemsRemainSeededButAreNotDefaultCandidates() {
-        AiStandardLibrarySeed fallbackSkill = firstGeneratedFallback(AiStandardLibraryLayer.SKILL_UNIT);
-        AiStandardLibrarySeed fallbackMistake = firstGeneratedFallback(AiStandardLibraryLayer.MISTAKE_POINT);
+    void generatedFallbackItemsAreArchivedAndNotSeededAsRuntimeCandidates() {
+        AiStandardLibrarySeed archivedSkill = firstArchivedGeneratedFallback(AiStandardLibraryLayer.SKILL_UNIT);
+        AiStandardLibrarySeed archivedMistake = firstArchivedGeneratedFallback(AiStandardLibraryLayer.MISTAKE_POINT);
 
-        assertThat(skillUnitRepository.findByCode(fallbackSkill.code())).isPresent();
-        assertThat(mistakePointRepository.findByCode(fallbackMistake.code())).isPresent();
+        assertThat(repository.findByLayerAndCode(archivedSkill.layer(), archivedSkill.code())).isEmpty();
+        assertThat(repository.findByLayerAndCode(archivedMistake.layer(), archivedMistake.code())).isEmpty();
+        assertThat(skillUnitRepository.findByCode(archivedSkill.code())).isEmpty();
+        assertThat(mistakePointRepository.findByCode(archivedMistake.code())).isEmpty();
 
         Set<String> basicCauseIds = standardLibraryService.enabledBasicCauses().stream()
                 .map(StandardLibraryPack.BasicCauseOption::getId)
@@ -107,35 +120,47 @@ class StandardLibraryPackBuilderDatabaseTest {
                 .map(item -> item.getCode())
                 .collect(Collectors.toSet());
 
-        assertThat(basicCauseIds).doesNotContain(fallbackMistake.code());
-        assertThat(searchItemCodes).doesNotContain(fallbackSkill.code(), fallbackMistake.code());
+        assertThat(basicCauseIds).doesNotContain(archivedMistake.code());
+        assertThat(searchItemCodes).doesNotContain(archivedSkill.code(), archivedMistake.code());
         assertThat(searchItemCodes).contains("SK_BINARY_ANSWER_CHECK", "MP_BINARY_CHECK_EQUAL_CASE_REJECTED");
     }
 
     @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
-    void generatedFallbackItemsCanStillBackfillWhenNoIntelligentItemsExist() {
-        AiStandardLibrarySeed fallbackSkill = firstGeneratedFallback(AiStandardLibraryLayer.SKILL_UNIT);
-        AiStandardLibrarySeed fallbackMistake = firstGeneratedFallback(AiStandardLibraryLayer.MISTAKE_POINT);
+    void seedersDisableExistingGeneratedFallbackArchiveRecords() {
+        AiStandardLibrarySeed archivedSkill = firstArchivedGeneratedFallback(AiStandardLibraryLayer.SKILL_UNIT);
+        AiStandardLibrarySeed archivedMistake = firstArchivedGeneratedFallback(AiStandardLibraryLayer.MISTAKE_POINT);
 
-        var skills = skillUnitRepository.findAll();
-        skills.forEach(item ->
-                item.setEnabled(AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(AiStandardLibraryLayer.SKILL_UNIT, item.getCode())));
-        var mistakes = mistakePointRepository.findAll();
-        mistakes.forEach(item ->
-                item.setEnabled(AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(AiStandardLibraryLayer.MISTAKE_POINT, item.getCode())));
-        var improvements = improvementPointRepository.findAll();
-        improvements.forEach(item -> item.setEnabled(false));
-        skillUnitRepository.saveAllAndFlush(skills);
-        mistakePointRepository.saveAllAndFlush(mistakes);
-        improvementPointRepository.saveAllAndFlush(improvements);
+        repository.saveAndFlush(toLegacyItem(archivedSkill));
+        repository.saveAndFlush(toLegacyItem(archivedMistake));
+        skillUnitRepository.saveAndFlush(toSkillUnit(archivedSkill));
+        mistakePointRepository.saveAndFlush(toMistakePoint(archivedMistake));
 
+        seeder.run();
+        normalizedSeeder.run();
+
+        assertThat(repository.findByLayerAndCode(archivedSkill.layer(), archivedSkill.code()))
+                .get()
+                .extracting(AiStandardLibraryItem::isEnabled)
+                .isEqualTo(false);
+        assertThat(repository.findByLayerAndCode(archivedMistake.layer(), archivedMistake.code()))
+                .get()
+                .extracting(AiStandardLibraryItem::isEnabled)
+                .isEqualTo(false);
+        assertThat(skillUnitRepository.findByCode(archivedSkill.code()))
+                .get()
+                .extracting(AiStandardSkillUnit::isEnabled)
+                .isEqualTo(false);
+        assertThat(mistakePointRepository.findByCode(archivedMistake.code()))
+                .get()
+                .extracting(AiStandardMistakePoint::isEnabled)
+                .isEqualTo(false);
         assertThat(standardLibraryService.enabledBasicCauses())
                 .extracting(StandardLibraryPack.BasicCauseOption::getId)
-                .contains(fallbackMistake.code());
+                .doesNotContain(archivedMistake.code());
         assertThat(standardLibraryService.enabledSearchLocationItems())
                 .extracting(item -> item.getCode())
-                .contains(fallbackSkill.code(), fallbackMistake.code());
+                .doesNotContain(archivedSkill.code(), archivedMistake.code());
     }
 
     @Test
@@ -176,11 +201,84 @@ class StandardLibraryPackBuilderDatabaseTest {
                 .satisfies(cause -> assertThat(cause.getName()).isEqualTo("输入输出格式"));
     }
 
-    private AiStandardLibrarySeed firstGeneratedFallback(AiStandardLibraryLayer layer) {
-        return AiStandardLibrarySeedCatalog.seeds().stream()
+    private AiStandardLibrarySeed firstArchivedGeneratedFallback(AiStandardLibraryLayer layer) {
+        return AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds().stream()
                 .filter(seed -> seed.layer() == layer)
                 .filter(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private AiStandardLibraryItem toLegacyItem(AiStandardLibrarySeed seed) {
+        return AiStandardLibraryItem.builder()
+                .layer(seed.layer())
+                .code(seed.code())
+                .category(seed.category())
+                .name(seed.name())
+                .description(seed.description())
+                .studentExplanation(seed.studentExplanation())
+                .teacherExplanation(seed.teacherExplanation())
+                .skillUnitCode(seed.skillUnitCode())
+                .primaryKnowledgeNodeCode(seed.knowledgeNodeCodes().isEmpty() ? "" : seed.knowledgeNodeCodes().get(0))
+                .mistakeType(seed.mistakeType())
+                .commonMisconception(seed.commonMisconception())
+                .evidenceSignals("")
+                .commonCodePatterns("")
+                .judgeSignals("")
+                .requiredEvidence("")
+                .whenToUse(seed.whenToUse())
+                .studentBenefit(seed.studentBenefit())
+                .hintL1(seed.hintL1())
+                .hintL2(seed.hintL2())
+                .hintL3(seed.hintL3())
+                .abilityPoint(seed.abilityPoint())
+                .severity(seed.severity())
+                .applicableLanguages(String.join("\n", seed.applicableLanguages()))
+                .relatedItems(String.join("\n", seed.relatedItems()))
+                .knowledgeNodeCodes(String.join("\n", seed.knowledgeNodeCodes()))
+                .relatedKnowledgeNodeCodes("")
+                .prerequisiteKnowledgeCodes(String.join("\n", seed.prerequisiteKnowledgeCodes()))
+                .teachingAction(seed.teachingAction())
+                .enabled(true)
+                .libraryVersion(seed.libraryVersion())
+                .build();
+    }
+
+    private AiStandardSkillUnit toSkillUnit(AiStandardLibrarySeed seed) {
+        return AiStandardSkillUnit.builder()
+                .code(seed.code())
+                .category(seed.category())
+                .name(seed.name())
+                .description(seed.description())
+                .learningGoal(seed.studentExplanation())
+                .primaryKnowledgeNodeCode(seed.knowledgeNodeCodes().isEmpty() ? "STANDARD_LIBRARY.UNMAPPED" : seed.knowledgeNodeCodes().get(0))
+                .knowledgeNodeCodes(String.join("\n", seed.knowledgeNodeCodes()))
+                .prerequisiteKnowledgeCodes(String.join("\n", seed.prerequisiteKnowledgeCodes()))
+                .masteryLevel(seed.severity())
+                .applicableLanguages(String.join("\n", seed.applicableLanguages()))
+                .enabled(true)
+                .libraryVersion(seed.libraryVersion())
+                .build();
+    }
+
+    private AiStandardMistakePoint toMistakePoint(AiStandardLibrarySeed seed) {
+        return AiStandardMistakePoint.builder()
+                .code(seed.code())
+                .category(seed.category())
+                .name(seed.name())
+                .description(seed.description())
+                .skillUnitCode(seed.skillUnitCode())
+                .mistakeType(seed.mistakeType())
+                .misconception(seed.commonMisconception())
+                .symptom(seed.description())
+                .repairStrategy(seed.teacherExplanation())
+                .severity(seed.severity())
+                .primaryKnowledgeNodeCode(seed.knowledgeNodeCodes().isEmpty() ? "STANDARD_LIBRARY.UNMAPPED" : seed.knowledgeNodeCodes().get(0))
+                .knowledgeNodeCodes(String.join("\n", seed.knowledgeNodeCodes()))
+                .prerequisiteKnowledgeCodes(String.join("\n", seed.prerequisiteKnowledgeCodes()))
+                .applicableLanguages(String.join("\n", seed.applicableLanguages()))
+                .enabled(true)
+                .libraryVersion(seed.libraryVersion())
+                .build();
     }
 }

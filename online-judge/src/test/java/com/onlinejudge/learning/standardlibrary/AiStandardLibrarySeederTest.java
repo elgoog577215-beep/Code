@@ -2,11 +2,12 @@ package com.onlinejudge.learning.standardlibrary;
 
 import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeed;
 import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeedCatalog;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeeder;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeed;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeedCatalog;
-import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,16 +47,18 @@ class AiStandardLibrarySeederTest {
     void seedsSkillUnitsAndMistakePointsIdempotently() {
         long initialCount = repository.count();
 
-        assertThat(initialCount).isGreaterThanOrEqualTo(1320);
+        assertThat(initialCount).isGreaterThanOrEqualTo(360);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT)
-                .count()).isGreaterThanOrEqualTo(615);
+                .count()).isGreaterThanOrEqualTo(90);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
-                .count()).isGreaterThanOrEqualTo(690);
+                .count()).isGreaterThanOrEqualTo(230);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT)
-                .count()).isGreaterThanOrEqualTo(6);
+                .count()).isGreaterThanOrEqualTo(32);
+        assertThat(repository.findAll())
+                .noneMatch(item -> AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(item.getLayer(), item.getCode()));
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .allMatch(item -> item.getSkillUnitCode() != null && !item.getSkillUnitCode().isBlank()))
@@ -143,14 +146,14 @@ class AiStandardLibrarySeederTest {
     }
 
     @Test
-    void generatedEntriesUseDomainSpecificEducationalLanguage() {
-        AiStandardLibraryItem prefixSkill = findGeneratedByKnowledge(AiStandardLibraryLayer.SKILL_UNIT,
+    void archivedGeneratedEntriesUseDomainSpecificEducationalLanguage() {
+        AiStandardLibrarySeed prefixSkill = findArchivedGeneratedByKnowledge(AiStandardLibraryLayer.SKILL_UNIT,
                 "SK_ALGO_PREFIX_SUM",
                 "ALGO.PREFIX.SUM.区间查询");
-        assertThat(prefixSkill.getName()).contains("区间查询");
-        assertThat(prefixSkill.getDescription()).contains("前缀").contains("区间");
-        assertThat(prefixSkill.getDescription()).contains("下标");
-        assertThat(prefixSkill.getPrimaryKnowledgeNodeCode()).isEqualTo("ALGO.PREFIX.SUM.区间查询");
+        assertThat(prefixSkill.name()).contains("区间查询");
+        assertThat(prefixSkill.description()).contains("前缀").contains("区间");
+        assertThat(prefixSkill.description()).contains("下标");
+        assertThat(prefixSkill.knowledgeNodeCodes()).containsExactly("ALGO.PREFIX.SUM.区间查询");
 
         AiStandardLibraryItem graphMistake = repository.findByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT,
                 "MP_GRAPH_UNDIRECTED_EDGE_ADDED_ONCE").orElseThrow();
@@ -159,19 +162,18 @@ class AiStandardLibrarySeederTest {
         assertThat(graphMistake.getSkillUnitCode()).isEqualTo("SK_GRAPH_EDGE_MODELING");
         assertThat(graphMistake.getPrimaryKnowledgeNodeCode()).isNotBlank();
 
-        AiStandardLibraryItem windowMistake = findGeneratedByKnowledge(AiStandardLibraryLayer.MISTAKE_POINT,
+        AiStandardLibrarySeed windowMistake = findArchivedGeneratedByKnowledge(AiStandardLibraryLayer.MISTAKE_POINT,
                 "MP_ALGO_TWO_POINTERS_WINDOW",
                 "ALGO.TWO_POINTERS.WINDOW.合法性判断");
-        assertThat(windowMistake.getMistakeType()).isEqualTo("STATE");
-        assertThat(windowMistake.getCommonMisconception()).contains("窗口").contains("答案更新");
-        assertThat(windowMistake.getPrimaryKnowledgeNodeCode()).isEqualTo("ALGO.TWO_POINTERS.WINDOW.合法性判断");
-        assertThat(windowMistake.getRelatedKnowledgeNodeCodes()).doesNotContain("ALGO.TWO_POINTERS.WINDOW.合法性判断");
+        assertThat(windowMistake.mistakeType()).isEqualTo("STATE");
+        assertThat(windowMistake.commonMisconception()).contains("窗口").contains("答案更新");
+        assertThat(windowMistake.knowledgeNodeCodes()).containsExactly("ALGO.TWO_POINTERS.WINDOW.合法性判断");
 
-        AiStandardLibraryItem integerMistake = findGeneratedByKnowledge(AiStandardLibraryLayer.MISTAKE_POINT,
+        AiStandardLibrarySeed integerMistake = findArchivedGeneratedByKnowledge(AiStandardLibraryLayer.MISTAKE_POINT,
                 "MP_BASIC_TYPE_INTEGER",
                 "BASIC.TYPE.INTEGER.整型溢出");
-        assertThat(integerMistake.getMistakeType()).isEqualTo("VALUE_RANGE");
-        assertThat(integerMistake.getCommonMisconception()).contains("中间结果");
+        assertThat(integerMistake.mistakeType()).isEqualTo("VALUE_RANGE");
+        assertThat(integerMistake.commonMisconception()).contains("中间结果");
     }
 
     @Test
@@ -258,7 +260,7 @@ class AiStandardLibrarySeederTest {
 
     @Test
     void seedContentQualityDoesNotRegressToGenericTemplates() {
-        long generatedSkillCount = AiStandardLibrarySeedCatalog.seeds().stream()
+        long activeSkillCount = AiStandardLibrarySeedCatalog.seeds().stream()
                 .filter(seed -> seed.layer() == AiStandardLibraryLayer.SKILL_UNIT)
                 .count();
         long genericSkillNameCount = AiStandardLibrarySeedCatalog.seeds().stream()
@@ -269,7 +271,7 @@ class AiStandardLibrarySeederTest {
                 .filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .filter(seed -> seed.name().contains("理解或应用偏差"))
                 .count();
-        long fallbackTemplateTextCount = AiStandardLibrarySeedCatalog.seeds().stream()
+        long fallbackTemplateTextCount = AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds().stream()
                 .filter(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed)
                 .filter(seed -> seed.name().contains("适用条件混用")
                         || seed.name().contains("理解或应用偏差")
@@ -296,7 +298,11 @@ class AiStandardLibrarySeederTest {
                         || seed.code().startsWith("MP_V11_"))
                 .count();
 
-        assertThat(generatedSkillCount).isGreaterThanOrEqualTo(615);
+        assertThat(activeSkillCount).isGreaterThanOrEqualTo(90);
+        assertThat(AiStandardLibrarySeedCatalog.seeds())
+                .noneMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
+        assertThat(AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds())
+                .allMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
         assertThat(genericSkillNameCount).isZero();
         assertThat(genericMistakeNameCount).isZero();
         assertThat(fallbackTemplateTextCount).isZero();
@@ -406,11 +412,29 @@ class AiStandardLibrarySeederTest {
                 .contains("ALGO.DP.STATE.维度选择");
     }
 
-    private AiStandardLibraryItem findGeneratedByKnowledge(AiStandardLibraryLayer layer, String codePrefix, String knowledgeCode) {
-        return repository.findAll().stream()
-                .filter(item -> item.getLayer() == layer)
-                .filter(item -> item.getCode().startsWith(codePrefix))
-                .filter(item -> item.getKnowledgeNodeCodes() != null && item.getKnowledgeNodeCodes().contains(knowledgeCode))
+    @Test
+    void generatedFallbackArchiveIsCompleteButNotActive() {
+        long knowledgePointCount = InformaticsKnowledgeSeedCatalog.seeds().stream()
+                .filter(seed -> seed.type() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
+                .count();
+        List<AiStandardLibrarySeed> archivedSeeds = AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds();
+
+        assertThat(archivedSeeds).hasSize((int) knowledgePointCount * 2);
+        assertThat(archivedSeeds.stream().filter(seed -> seed.layer() == AiStandardLibraryLayer.SKILL_UNIT))
+                .hasSize((int) knowledgePointCount);
+        assertThat(archivedSeeds.stream().filter(seed -> seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT))
+                .hasSize((int) knowledgePointCount);
+        assertThat(AiStandardLibrarySeedCatalog.seeds())
+                .noneMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
+    }
+
+    private AiStandardLibrarySeed findArchivedGeneratedByKnowledge(AiStandardLibraryLayer layer,
+                                                                   String codePrefix,
+                                                                   String knowledgeCode) {
+        return AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds().stream()
+                .filter(seed -> seed.layer() == layer)
+                .filter(seed -> seed.code().startsWith(codePrefix))
+                .filter(seed -> seed.knowledgeNodeCodes().contains(knowledgeCode))
                 .findFirst()
                 .orElseThrow();
     }

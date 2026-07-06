@@ -62,11 +62,17 @@ class AiStandardLibraryNormalizedSeederTest {
         long mappingCount = legacyMappingRepository.count();
         long relationCount = relationRepository.count();
 
-        assertThat(skillCount).isGreaterThanOrEqualTo(615);
-        assertThat(mistakeCount).isGreaterThanOrEqualTo(690);
-        assertThat(improvementCount).isGreaterThanOrEqualTo(6);
+        assertThat(skillCount).isGreaterThanOrEqualTo(90);
+        assertThat(mistakeCount).isGreaterThanOrEqualTo(230);
+        assertThat(improvementCount).isGreaterThanOrEqualTo(32);
         assertThat(mappingCount).isEqualTo(AiStandardLibrarySeedCatalog.seeds().size());
         assertThat(relationCount).isGreaterThan(0);
+        assertThat(skillUnitRepository.findAll())
+                .noneMatch(skill -> AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(
+                        AiStandardLibraryLayer.SKILL_UNIT, skill.getCode()));
+        assertThat(mistakePointRepository.findAll())
+                .noneMatch(mistake -> AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(
+                        AiStandardLibraryLayer.MISTAKE_POINT, mistake.getCode()));
 
         var skill = skillUnitRepository.findByCode("SK_BINARY_ANSWER_CHECK").orElseThrow();
         assertThat(skill.getPrimaryKnowledgeNodeCode()).isEqualTo("ALGO.BINARY.ANSWER.check_函数");

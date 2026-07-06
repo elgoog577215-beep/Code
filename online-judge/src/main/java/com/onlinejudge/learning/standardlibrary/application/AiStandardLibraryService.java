@@ -142,7 +142,8 @@ public class AiStandardLibraryService {
         if (!normalizedSearchLocationItems().isEmpty()) {
             return true;
         }
-        return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream().findAny().isPresent();
+        return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
+                .anyMatch(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(item.getLayer(), item.getCode()));
     }
 
     @Transactional(readOnly = true)
@@ -156,6 +157,7 @@ public class AiStandardLibraryService {
                         || item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
                         || item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT
                         || item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
+                .filter(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(item.getLayer(), item.getCode()))
                 .toList();
     }
 
@@ -293,10 +295,9 @@ public class AiStandardLibraryService {
         if (items == null || items.isEmpty()) {
             return List.of();
         }
-        List<T> intelligentItems = items.stream()
+        return items.stream()
                 .filter(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(codeAccessor.apply(item)))
                 .toList();
-        return intelligentItems.isEmpty() ? items : intelligentItems;
     }
 
     private AiStandardLibraryItem toLegacySearchItem(AiStandardSkillUnit item) {

@@ -30,9 +30,21 @@ public class AiStandardLibrarySeeder implements CommandLineRunner {
             repository.save(toEntity(seed));
             inserted++;
         }
-        if (inserted > 0) {
-            log.info("Seeded {} AI standard library items", inserted);
+        int disabledFallbackItems = disableGeneratedFallbackItems();
+        if (inserted + disabledFallbackItems > 0) {
+            log.info("Seeded {} AI standard library items, disabled archived fallback items={}",
+                    inserted, disabledFallbackItems);
         }
+    }
+
+    private int disableGeneratedFallbackItems() {
+        List<AiStandardLibraryItem> fallbackItems = repository.findAllByOrderByLayerAscCategoryAscCodeAsc().stream()
+                .filter(AiStandardLibraryItem::isEnabled)
+                .filter(item -> AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(item.getLayer(), item.getCode()))
+                .toList();
+        fallbackItems.forEach(item -> item.setEnabled(false));
+        repository.saveAll(fallbackItems);
+        return fallbackItems.size();
     }
 
     private AiStandardLibraryItem toEntity(AiStandardLibrarySeed seed) {

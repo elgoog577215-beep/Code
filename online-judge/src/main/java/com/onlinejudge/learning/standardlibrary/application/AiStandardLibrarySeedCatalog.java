@@ -29,6 +29,11 @@ public final class AiStandardLibrarySeedCatalog {
         AiStandardLibraryV9ExpansionSeeds.addTo(seeds);
         AiStandardLibraryV10AbsorptionSeeds.addTo(seeds);
         AiStandardLibraryV11AbsorptionSeeds.addTo(seeds);
+        return dedupe(seeds);
+    }
+
+    public static List<AiStandardLibrarySeed> archivedGeneratedFallbackSeeds() {
+        List<AiStandardLibrarySeed> seeds = new ArrayList<>();
         generatedFullCoverage(seeds);
         return dedupe(seeds);
     }

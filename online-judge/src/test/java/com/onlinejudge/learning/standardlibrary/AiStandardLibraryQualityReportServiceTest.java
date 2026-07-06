@@ -1,6 +1,7 @@
 package com.onlinejudge.learning.standardlibrary;
 
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryQualityReportService;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeedCatalog;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryQualityReport;
 import org.junit.jupiter.api.Test;
 
@@ -18,9 +19,14 @@ class AiStandardLibraryQualityReportServiceTest {
         assertThat(report.summary().chapterCount()).isGreaterThanOrEqualTo(34);
         assertThat(report.summary().topicCount()).isGreaterThanOrEqualTo(110);
         assertThat(report.summary().knowledgePointCount()).isGreaterThanOrEqualTo(550);
-        assertThat(report.summary().totalItemCount()).isGreaterThanOrEqualTo(1280);
+        assertThat(report.summary().totalItemCount()).isGreaterThanOrEqualTo(360);
         assertThat(report.summary().handwrittenSkillUnitCount()).isGreaterThanOrEqualTo(45);
         assertThat(report.summary().handwrittenMistakePointCount()).isGreaterThanOrEqualTo(104);
+        assertThat(AiStandardLibrarySeedCatalog.seeds())
+                .noneMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
+        assertThat(AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds())
+                .hasSizeGreaterThanOrEqualTo(1100)
+                .allMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
 
         assertThat(report.domainCoverage())
                 .anySatisfy(domain -> {
