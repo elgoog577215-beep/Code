@@ -50,6 +50,9 @@ public class AiStandardLibraryGrowthCandidate {
     @Column(length = 1200)
     private String evidenceRefs;
 
+    @Column(length = 80)
+    private String evidenceStatus;
+
     @Column(length = 1200)
     private String similarExistingItems;
 
@@ -101,6 +104,11 @@ public class AiStandardLibraryGrowthCandidate {
         if (lastObservedAt == null) {
             lastObservedAt = now;
         }
+        if (evidenceStatus == null || evidenceStatus.isBlank()) {
+            evidenceStatus = evidenceRefs == null || evidenceRefs.isBlank()
+                    ? "NO_DIRECT_CODE_EVIDENCE"
+                    : "SUPPORTED";
+        }
     }
 
     @PreUpdate
@@ -111,6 +119,11 @@ public class AiStandardLibraryGrowthCandidate {
         }
         if (lastObservedAt == null) {
             lastObservedAt = updatedAt;
+        }
+        if (evidenceStatus == null || evidenceStatus.isBlank()) {
+            evidenceStatus = evidenceRefs == null || evidenceRefs.isBlank()
+                    ? "NO_DIRECT_CODE_EVIDENCE"
+                    : "SUPPORTED";
         }
     }
 }

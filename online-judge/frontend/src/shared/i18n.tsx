@@ -287,6 +287,12 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
             merged: "已入库",
             rejected: "已拒绝",
             ignored: "已忽略"
+          },
+          evidence: {
+            supported: "有证据",
+            noDirectCodeEvidence: "无直接代码证据",
+            unsupported: "证据无效",
+            unknown: "证据待确认"
           }
         }
       }
@@ -572,6 +578,12 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
             merged: "Merged",
             rejected: "Rejected",
             ignored: "Ignored"
+          },
+          evidence: {
+            supported: "Evidence backed",
+            noDirectCodeEvidence: "No direct code evidence",
+            unsupported: "Invalid evidence",
+            unknown: "Evidence pending"
           }
         }
       }

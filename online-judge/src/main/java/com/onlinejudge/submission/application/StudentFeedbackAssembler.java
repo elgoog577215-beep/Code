@@ -233,50 +233,51 @@ public class StudentFeedbackAssembler {
             String fineGrainedTag,
             List<String> evidenceRefs) {
         List<SubmissionAnalysisResponse.ImprovementOpportunity> opportunities = new ArrayList<>();
+        List<String> improvementEvidenceRefs = List.of();
         String scenario = safe(analysis.getScenario()).toUpperCase(Locale.ROOT);
         String source = evidencePackage == null || evidencePackage.getSubmission() == null
                 ? ""
                 : safe(evidencePackage.getSubmission().getSourceCode());
-        addFocusedImprovement(opportunities, primaryIssueTag, fineGrainedTag, evidenceRefs);
+        addFocusedImprovement(opportunities, primaryIssueTag, fineGrainedTag, improvementEvidenceRefs);
         boolean hasFocusedImprovement = !opportunities.isEmpty();
         if (!hasFocusedImprovement
                 && ("TIME_COMPLEXITY".equals(primaryIssueTag) || "ALGORITHM_STRATEGY".equals(primaryIssueTag) || "TLE".equals(scenario))) {
             opportunities.add(improvement("COMPLEXITY",
                     "修正当前问题后，可以用最大输入规模估算一次核心操作次数。",
                     "这能帮助你判断算法是否只是样例能过，还是在上限下也站得住。",
-                    evidenceRefs));
+                    improvementEvidenceRefs));
         }
         if (!hasFocusedImprovement && (source.contains("for ") || source.contains("while ") || "WA".equals(scenario))) {
             opportunities.add(improvement("TESTING_HABIT",
                     "给自己补一个和样例结构不同的小测试，尤其覆盖多组输入、边界值或重复元素。",
                     "自测习惯能提前暴露只适配样例或漏处理输入结构的问题。",
-                    evidenceRefs));
+                    improvementEvidenceRefs));
         }
         if (!hasFocusedImprovement
                 && (source.length() > 900 || source.contains("debug") || source.contains("print(") || source.contains("System.out"))) {
             opportunities.add(improvement("CODE_CLARITY",
                     "通过当前错误后，可以把读取输入、核心计算和输出整理成更清楚的几个步骤。",
                     "结构清楚后，漏读、漏输出和调试残留会更容易被自己发现。",
-                    evidenceRefs));
+                    improvementEvidenceRefs));
         }
         if ("BOUNDARY_CONDITION".equals(primaryIssueTag) || "LOOP_BOUNDARY".equals(fineGrainedTag)
                 || "RUNTIME_STABILITY".equals(primaryIssueTag) || "RE".equals(scenario)) {
             opportunities.add(improvement("BOUNDARY_AWARENESS",
                     "把最小输入、单元素、最大值和空结果这几类边界列成检查清单。",
                     "边界清单能减少同类错误在下一题重复出现。",
-                    evidenceRefs));
+                    improvementEvidenceRefs));
         }
         if (source.contains("stderr") || source.toLowerCase(Locale.ROOT).contains("debug")) {
             opportunities.add(improvement("DEBUG_CLEANUP",
                     "通过后清理调试输出和临时分支，只保留真正服务解题逻辑的代码。",
                     "减少干扰代码能让你和老师更快看清主流程。",
-                    evidenceRefs));
+                    improvementEvidenceRefs));
         }
         if (opportunities.isEmpty()) {
             opportunities.add(improvement("ROBUSTNESS",
                     "修正当前问题后，再构造一个极端小样例和一个接近上限的样例复查。",
                     "这能帮助你确认代码不是只修好了眼前这一组数据。",
-                    evidenceRefs));
+                    improvementEvidenceRefs));
         }
         return filterDuplicateImprovements(opportunities, primaryIssueTag, fineGrainedTag).stream()
                 .limit(3)

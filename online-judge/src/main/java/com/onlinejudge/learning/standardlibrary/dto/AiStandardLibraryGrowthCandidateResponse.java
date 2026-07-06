@@ -18,6 +18,7 @@ public class AiStandardLibraryGrowthCandidateResponse {
     private Long sourceProblemId;
     private Long sourceSubmissionId;
     private List<String> evidenceRefs;
+    private String evidenceStatus;
     private List<String> similarExistingItems;
     private String changeReason;
     private String status;
@@ -42,6 +43,7 @@ public class AiStandardLibraryGrowthCandidateResponse {
                 .sourceProblemId(candidate.getSourceProblemId())
                 .sourceSubmissionId(candidate.getSourceSubmissionId())
                 .evidenceRefs(lines(candidate.getEvidenceRefs()))
+                .evidenceStatus(candidate.getEvidenceStatus())
                 .similarExistingItems(lines(candidate.getSimilarExistingItems()))
                 .changeReason(candidate.getChangeReason())
                 .status(candidate.getStatus().name())

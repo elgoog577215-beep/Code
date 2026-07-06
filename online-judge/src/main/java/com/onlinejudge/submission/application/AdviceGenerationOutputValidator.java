@@ -81,7 +81,7 @@ public class AdviceGenerationOutputValidator {
             }
             clearUnknownImprovementAdviceIds(item, improvementIds, skillIds, softFixes);
             String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
-                    "improvementLayerAdvice.evidenceRefs");
+                    "improvementLayerAdvice.evidenceRefs", false);
             if (!invalidEvidence.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
             }
@@ -166,7 +166,7 @@ public class AdviceGenerationOutputValidator {
         Map<String, String> standardLibraryAliases = standardLibraryAliases(standardLibraryPack);
 
         sanitizeDiagnosisCandidates(output, allowedIds, evidenceRefs, orderedEvidenceRefs, softFixes);
-        sanitizeLibraryGrowth(output, softFixes);
+        sanitizeLibraryGrowth(output, evidenceRefs, orderedEvidenceRefs, softFixes);
         ExternalModelStagePayloads.StageValidationResult adviceItemsFailure = validateReportAdviceItems(
                 output,
                 evidenceRefs,
@@ -324,7 +324,7 @@ public class AdviceGenerationOutputValidator {
             clearUnknownImprovementAdviceIds(item, improvementIds, skillIds, softFixes);
             item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
             String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
-                    "improvementLayerAdvice.evidenceRefs");
+                    "improvementLayerAdvice.evidenceRefs", false);
             if (!invalidEvidence.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
             }
@@ -442,7 +442,12 @@ public class AdviceGenerationOutputValidator {
         }
     }
 
-    private void sanitizeLibraryGrowth(AdviceGenerationOutput output, List<String> softFixes) {
+    private void sanitizeLibraryGrowth(
+            AdviceGenerationOutput output,
+            Set<String> evidenceRefs,
+            List<String> orderedEvidenceRefs,
+            List<String> softFixes
+    ) {
         AdviceGenerationOutput.LibraryGrowth growth = output.getLibraryGrowth();
         if (growth == null || growth.getCandidates() == null) {
             return;
@@ -471,6 +476,19 @@ public class AdviceGenerationOutputValidator {
                     candidate.getTypicalCodePattern(), candidate.getStudentExplanation())) {
                 softFixes.add("libraryGrowth candidate dropped: safety risk");
                 continue;
+            }
+            candidate.setEvidenceRefs(normalizeEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
+                    orderedEvidenceRefs, softFixes));
+            String invalidEvidence = invalidEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
+                    "libraryGrowth.candidates.evidenceRefs", false);
+            if (!invalidEvidence.isBlank()) {
+                candidate.setEvidenceRefs(List.of());
+                candidate.setEvidenceStatus("UNSUPPORTED");
+                softFixes.add("libraryGrowth candidate evidence cleared: " + invalidEvidence);
+            } else if (candidate.getEvidenceRefs() == null || candidate.getEvidenceRefs().isEmpty()) {
+                candidate.setEvidenceStatus("NO_DIRECT_CODE_EVIDENCE");
+            } else {
+                candidate.setEvidenceStatus("SUPPORTED");
             }
             String originalStatus = candidate.getStatus();
             String status = normalize(originalStatus);
@@ -728,8 +746,12 @@ public class AdviceGenerationOutputValidator {
     }
 
     private String invalidEvidenceRefs(List<String> refs, Set<String> validRefs, String field) {
+        return invalidEvidenceRefs(refs, validRefs, field, true);
+    }
+
+    private String invalidEvidenceRefs(List<String> refs, Set<String> validRefs, String field, boolean required) {
         if (refs == null || refs.isEmpty()) {
-            return field + " is empty.";
+            return required ? field + " is empty." : "";
         }
         for (String ref : refs) {
             if (ref == null || ref.isBlank() || !validRefs.contains(ref)) {
@@ -762,24 +784,12 @@ public class AdviceGenerationOutputValidator {
     }
 
     private String evidenceAlias(String ref, List<String> orderedValidRefs) {
-        String normalized = normalize(ref);
         if (orderedValidRefs == null || orderedValidRefs.isEmpty()) {
             return "";
         }
         String byPrefix = firstEvidenceThatMatchesRelaxedRef(orderedValidRefs, ref);
         if (!byPrefix.isBlank()) {
             return byPrefix;
-        }
-        if (List.of("SOURCECODE", "CODE", "SOURCE").contains(normalized)) {
-            return firstEvidenceWithPrefix(orderedValidRefs, "code:");
-        }
-        if (List.of("PROBLEMCONSTRAINTS", "CONSTRAINTS", "PROBLEM").contains(normalized)) {
-            return firstEvidenceWithPrefix(orderedValidRefs, "judge:");
-        }
-        if (List.of("JUDGERESULT", "JUDGE", "VERDICT", "RESULT").contains(normalized)
-                || normalized.startsWith("VERDICT:")
-                || normalized.startsWith("RESULT:")) {
-            return firstEvidenceWithPrefix(orderedValidRefs, "judge:");
         }
         return "";
     }
@@ -792,13 +802,6 @@ public class AdviceGenerationOutputValidator {
         return evidenceRefs.stream()
                 .filter(ref -> ref != null && !ref.isBlank())
                 .filter(ref -> trimmed.startsWith(ref + ":") || ref.startsWith(trimmed + ":"))
-                .findFirst()
-                .orElse("");
-    }
-
-    private String firstEvidenceWithPrefix(List<String> evidenceRefs, String prefix) {
-        return evidenceRefs.stream()
-                .filter(ref -> ref != null && ref.startsWith(prefix))
                 .findFirst()
                 .orElse("");
     }

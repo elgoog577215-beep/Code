@@ -18,5 +18,6 @@ public class StandardLibraryGrowthProposal {
     private List<String> similarExistingItemCodes;
     private String changeReason;
     private List<String> evidenceRefs;
+    private String evidenceStatus;
     private Double confidence;
 }

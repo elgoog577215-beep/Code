@@ -13,6 +13,7 @@ public class AiStandardLibraryGrowthCandidateRequest {
     private Long sourceProblemId;
     private Long sourceSubmissionId;
     private List<String> evidenceRefs;
+    private String evidenceStatus;
     private List<String> similarExistingItems;
     private String changeReason;
     private Double confidence;

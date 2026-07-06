@@ -1532,6 +1532,7 @@ type GrowthCandidateDraft = {
   sourceSubmissionId: string;
   similarExistingItems: string;
   evidenceRefs: string;
+  evidenceStatus: string;
   changeReason: string;
   confidence: string;
   teacherNote: string;
@@ -1740,6 +1741,9 @@ function StandardLibraryGrowthReview({
                 <span>
                   <StatusPill tone={growthStatusTone(candidate.status)}>{growthStatusLabel(candidate.status)}</StatusPill>
                   <StatusPill tone="neutral">出现 {candidate.occurrenceCount || 1}</StatusPill>
+                  <StatusPill tone={growthEvidenceTone(candidate.evidenceStatus)}>
+                    {growthEvidenceLabel(candidate.evidenceStatus, t)}
+                  </StatusPill>
                   {candidate.confidence == null ? null : <StatusPill tone="info">置信 {formatGrowthConfidence(candidate.confidence)}</StatusPill>}
                 </span>
               </button>
@@ -1761,6 +1765,9 @@ function StandardLibraryGrowthReview({
                 <StatusPill tone="neutral">题目 {selected.sourceProblemId || "-"}</StatusPill>
                 <StatusPill tone="neutral">提交 {selected.sourceSubmissionId || "-"}</StatusPill>
                 <StatusPill tone="neutral">出现 {selected.occurrenceCount || 1}</StatusPill>
+                <StatusPill tone={growthEvidenceTone(selected.evidenceStatus)}>
+                  {growthEvidenceLabel(selected.evidenceStatus, t)}
+                </StatusPill>
                 {selected.confidence == null ? null : <StatusPill tone="info">置信 {formatGrowthConfidence(selected.confidence)}</StatusPill>}
               </div>
               <div className="form-grid standard-library-editor__core">
@@ -1880,6 +1887,7 @@ function growthCandidateToDraft(candidate: AiStandardLibraryGrowthCandidate | nu
     sourceSubmissionId: candidate?.sourceSubmissionId ? String(candidate.sourceSubmissionId) : "",
     similarExistingItems: linesToText(candidate?.similarExistingItems),
     evidenceRefs: linesToText(candidate?.evidenceRefs),
+    evidenceStatus: candidate?.evidenceStatus || "",
     changeReason: candidate?.changeReason || "",
     confidence: candidate?.confidence == null ? "" : String(candidate.confidence),
     teacherNote: candidate?.teacherNote || ""
@@ -1888,6 +1896,7 @@ function growthCandidateToDraft(candidate: AiStandardLibraryGrowthCandidate | nu
 
 function growthDraftToPayload(draft: GrowthCandidateDraft): AiStandardLibraryGrowthCandidatePayload {
   const confidence = Number(draft.confidence);
+  const evidenceRefs = textToLines(draft.evidenceRefs);
   return {
     layer: draft.layer,
     suggestedCode: draft.suggestedCode.trim(),
@@ -1896,7 +1905,8 @@ function growthDraftToPayload(draft: GrowthCandidateDraft): AiStandardLibraryGro
     sourceProblemId: draft.sourceProblemId.trim() ? Number(draft.sourceProblemId) : null,
     sourceSubmissionId: draft.sourceSubmissionId.trim() ? Number(draft.sourceSubmissionId) : null,
     similarExistingItems: textToLines(draft.similarExistingItems),
-    evidenceRefs: textToLines(draft.evidenceRefs),
+    evidenceRefs,
+    evidenceStatus: draft.evidenceStatus || (evidenceRefs.length ? "SUPPORTED" : "NO_DIRECT_CODE_EVIDENCE"),
     changeReason: draft.changeReason.trim(),
     confidence: Number.isFinite(confidence) ? confidence : null,
     teacherNote: draft.teacherNote.trim()
@@ -1955,6 +1965,7 @@ function growthCandidateMatchesFilters(
     candidate.changeReason,
     candidate.precheckMessage,
     candidate.evidenceRefs?.join(" "),
+    candidate.evidenceStatus,
     candidate.similarExistingItems?.join(" "),
     growthStatusLabel(candidate.status)
   ]
@@ -2013,6 +2024,30 @@ function growthStatusTone(status?: string | null): "neutral" | "success" | "warn
     return "neutral";
   }
   return "info";
+}
+
+function growthEvidenceLabel(status: string | null | undefined, t: (key: string) => string) {
+  const key = (status || "").toUpperCase();
+  const labels: Record<string, string> = {
+    SUPPORTED: t("teacherManagement.aiLibrary.governance.evidence.supported"),
+    NO_DIRECT_CODE_EVIDENCE: t("teacherManagement.aiLibrary.governance.evidence.noDirectCodeEvidence"),
+    UNSUPPORTED: t("teacherManagement.aiLibrary.governance.evidence.unsupported")
+  };
+  return labels[key] || t("teacherManagement.aiLibrary.governance.evidence.unknown");
+}
+
+function growthEvidenceTone(status?: string | null): "neutral" | "success" | "warning" | "danger" | "info" {
+  const key = (status || "").toUpperCase();
+  if (key === "SUPPORTED") {
+    return "success";
+  }
+  if (key === "UNSUPPORTED") {
+    return "danger";
+  }
+  if (key === "NO_DIRECT_CODE_EVIDENCE") {
+    return "neutral";
+  }
+  return "warning";
 }
 
 function buildKnowledgePathGroups(items: AiStandardLibraryItem[], knowledgeTree: InformaticsKnowledgeNode[]): LibraryCodeGroup[] {

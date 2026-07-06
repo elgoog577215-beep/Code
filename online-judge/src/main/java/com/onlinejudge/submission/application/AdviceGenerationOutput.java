@@ -139,6 +139,8 @@ public class AdviceGenerationOutput {
         private Long sourceProblemId;
         private Long sourceSubmissionId;
         private List<String> similarExistingItems;
+        private List<String> evidenceRefs;
+        private String evidenceStatus;
         private String errorSymptom;
         private String typicalCodePattern;
         private String studentExplanation;

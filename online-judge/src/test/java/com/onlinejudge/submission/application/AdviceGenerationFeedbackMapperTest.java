@@ -55,6 +55,7 @@ class AdviceGenerationFeedbackMapperTest {
                 .satisfies(item -> {
                     assertThat(item.getStudentMessage()).contains("提高层：修好后可以");
                     assertThat(item.getBenefit()).isEqualTo(item.getStudentMessage());
+                    assertThat(item.getEvidenceRefs()).isEmpty();
                 });
         assertThat(feedback.getNextLearningAction().getHintLevel()).isEqualTo("L3");
         assertThat(feedback.getNextLearningAction().getTask()).contains("下一步：不要急着改代码");

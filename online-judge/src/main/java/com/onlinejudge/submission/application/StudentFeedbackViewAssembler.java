@@ -112,7 +112,7 @@ public class StudentFeedbackViewAssembler {
                     .title(defaultIfBlank(title, "修正方向"))
                     .body(body)
                     .kind(defaultIfBlank(issue.getFineGrainedTag(), issue.getIssueTag()))
-                    .evidenceRefs(deduplicate(merge(issue.getEvidenceRefs(), analysis.getEvidenceRefs())))
+                    .evidenceRefs(deduplicate(issue.getEvidenceRefs()))
                     .build());
         }
         return items;

@@ -191,7 +191,7 @@ public class PromptTemplateRegistry {
                 2a. Prefer the chain knowledge node -> skill unit -> mistake point / improvement point. Do not flatten relatedKnowledgeNodeCodes into independent student-facing tags.
                 3. basicLayerAdvice is an array of evidence-backed foundation issues. Return one item per independent blocking issue or foundation gap; return [] when there is no real basic-layer issue. Do not collapse unrelated issues into one item and do not pad weak items.
                 4. improvementLayerAdvice MUST be lower priority than basicLayerAdvice unless the submission is already accepted.
-                5. Every advice item MUST cite at least one brief.evidenceRefs or brief.candidateSignals evidenceRef value.
+                5. Every basicLayerAdvice item MUST cite at least one brief.evidenceRefs or brief.candidateSignals evidenceRef value. improvementLayerAdvice may use an empty evidenceRefs array when the improvement is a learning habit, transfer direction, or optimization direction without direct code evidence; if it cites evidence, it must cite its own valid evidenceRef and must not borrow the basic-layer evidence.
                 6. mistakePointId MUST come from standardLibrary.mistakePoints or be null when no precise mistake point exists.
                 7. skillUnitId MUST come from standardLibrary.skillUnits or be null when no precise skill unit exists.
                 8. improvementPointId MUST come from standardLibrary.improvementPoints or be null when no precise improvement point exists.
@@ -329,9 +329,9 @@ public class PromptTemplateRegistry {
                     "candidates": [{
                       "name": string,
                       "suggestedPath": string[],
-                      "sourceProblemId": number|null,
-                      "sourceSubmissionId": number|null,
                       "similarExistingItems": string[],
+                      "evidenceRefs": string[],
+                      "evidenceStatus": "SUPPORTED"|"NO_DIRECT_CODE_EVIDENCE",
                       "errorSymptom": string,
                       "typicalCodePattern": string,
                       "studentExplanation": string,
@@ -355,11 +355,13 @@ public class PromptTemplateRegistry {
                 8. libraryGrowth 只是候选池，不会直接改正式库；只有 PARTIAL、MISS 或 OUT_OF_LIBRARY 发现才允许生成候选。
                 9. libraryGrowth.candidates 应来自 diagnosisCandidates 中的库外或半命中问题；HIT 场景不要生成成长候选。
                 10. libraryGrowth.candidates 的 status 必须是 NEEDS_REVIEW，并填写 suggestedPath、errorSymptom、typicalCodePattern、studentExplanation，供老师审核后再进入正式库。
+                11. libraryGrowth.candidates 不要填写 sourceProblemId 或 sourceSubmissionId；当前题目和提交来源由后端根据本次诊断自动补齐。
+                12. libraryGrowth.candidates 如果能引用当前诊断中的直接证据，填写 evidenceRefs 并设 evidenceStatus=SUPPORTED；如果这个候选是教学标准库缺口、迁移习惯或表达规范，当前提交没有直接代码行可引用，可以 evidenceRefs=[] 且 evidenceStatus=NO_DIRECT_CODE_EVIDENCE。
 
                 学生可见反馈规则:
                 1. studentReport 是学生优先阅读的自然反馈，不是后台 metadata 摘要；basicLayerAdvice 和 improvementLayerAdvice 是逐条建议列表。不要把多条独立问题硬塞进 studentReport 的单个字符串，也不要把 diagnosisDecision、diagnosisCandidates、teacherTrace 或 libraryGrowth 的字段名写给学生。
                 2. basicLayerAdvice 按真实问题数量返回：有几个独立基础层错误或阻塞点就返回几条，没有就返回空数组；每条都要有独立 title、studentAction、checkQuestion 和 evidenceRefs。不要固定只返回一条，也不要为了显得丰富而凑数。
-                3. improvementLayerAdvice 按真实提升方向数量返回：可以为 0 条、1 条或多条；修复基础问题后才成立的提升建议应清楚说明前提。不要复述基础层，也不要和 basicLayerAdvice 合并。
+                3. improvementLayerAdvice 按真实提升方向数量返回：可以为 0 条、1 条或多条；修复基础问题后才成立的提升建议应清楚说明前提。不要复述基础层，也不要和 basicLayerAdvice 合并。提高层如果没有直接代码或判题证据，evidenceRefs 可以是空数组；如果填写 evidenceRefs，必须是该提高方向自己的证据，不要借用基础层或全局证据。
                 4. studentReport 必须像老师写给学生的一段自然反馈，不要把字段说明、生硬标签或标准库术语堆给学生。
                 5. basicLayerText 先讲人话说明“现在卡在哪里”，再引用可见证据，再给一个检查方向。默认 120-220 个中文字符。
                 6. 如果 WA 的主因是题目约束和代码策略不一致，basicLayerText 必须先讲清“题目要求什么限制、代码采用了什么策略、失败样例暴露了什么差距”；不要直接跳到新算法名或泛泛说状态含义。
@@ -385,7 +387,7 @@ public class PromptTemplateRegistry {
                 4. C++ 类型与精度问题只能引导学生手推“操作数类型 -> 中间结果 -> 赋值结果”，不要写出强制转换表达式或可直接替换的算式。
                 5. 复杂度问题先让学生估算操作次数，再谈可能的优化方向，不能直接给完整优化方案。
                 6. 隐藏测试失败时，必须说明隐藏数据不可见，引导学生自造边界样例或反例，不能猜隐藏数据。
-                7. 每个 evidenceRefs 值必须原样来自 brief.evidenceRefs 或 brief.candidateSignals.evidenceRef，不要在 evidenceRefs 里拼接行号、输出片段或解释。
+                7. 每个 evidenceRefs 值必须原样来自 brief.evidenceRefs 或 brief.candidateSignals.evidenceRef，不要在 evidenceRefs 里拼接行号、输出片段或解释。不要用 sourceCode、problemConstraints、judgeResult、verdict、code 这类泛化别名代替真实 evidenceRef。
                 8. 输出必须是合法 JSON。studentReport 三个字段必须是普通单行字符串；不要在字符串里写未转义英文双引号、换行、项目符号或嵌套对象片段。
                 9. 不要把学生变量的具体修正值或初始化位置直接写出来，例如“把某变量重新从 0 开始”“放到循环内部初始化”“显式清空全局状态”；应改成引导学生检查每组开始时变量是否还带着上一组的值。
                 10. studentAction 和 nextActionText 必须是检查、手推、比较、核对类动作，不要写删除、替换、改成这类直接编辑命令。

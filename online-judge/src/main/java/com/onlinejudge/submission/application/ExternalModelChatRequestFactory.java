@@ -26,9 +26,9 @@ public class ExternalModelChatRequestFactory {
         requestBody.put("stream", stream);
         if (!compatible) {
             requestBody.put("temperature", 0.2);
-            if (outputTokens != null) {
-                requestBody.put("max_tokens", Math.max(128, outputTokens));
-            }
+        }
+        if (outputTokens != null) {
+            requestBody.put("max_tokens", Math.max(128, outputTokens));
         }
         return requestBody;
     }

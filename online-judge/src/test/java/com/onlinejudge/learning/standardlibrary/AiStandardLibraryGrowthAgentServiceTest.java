@@ -62,6 +62,7 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(saved.getSuggestedPath()).contains("BASIC.LOOP.BOUNDARY.VISIBLE_CASE_ENDPOINT");
         assertThat(saved.getSourceProblemId()).isEqualTo(1L);
         assertThat(saved.getSourceSubmissionId()).isEqualTo(11L);
+        assertThat(saved.getEvidenceStatus()).isEqualTo("SUPPORTED");
         assertThat(saved.getSimilarExistingItems()).contains("MP_RANGE_RIGHT_ENDPOINT_MISSING");
         assertThat(saved.getRollbackInfo()).contains("候选尚未写入正式标准库");
         assertThat(itemRepository.count()).isEqualTo(formalCountBefore);
@@ -117,8 +118,6 @@ class AiStandardLibraryGrowthAgentServiceTest {
                         .candidates(List.of(com.onlinejudge.submission.application.AdviceGenerationOutput.LibraryGrowthCandidate.builder()
                                 .name("滑动窗口右端扩张后未及时更新答案")
                                 .suggestedPath(List.of("ALGO", "TWO_POINTERS", "WINDOW", "ANSWER_UPDATE"))
-                                .sourceProblemId(2L)
-                                .sourceSubmissionId(22L)
                                 .similarExistingItems(List.of("MP_ALGO_TWO_POINTERS_WINDOW"))
                                 .errorSymptom("窗口右端变化后答案没有同步变化。")
                                 .typicalCodePattern("移动右端指针后没有重新记录当前窗口结果。")
@@ -128,16 +127,23 @@ class AiStandardLibraryGrowthAgentServiceTest {
                                 .confidence(0.78)
                                 .build()))
                         .build())
-                .build();
+	                .build();
 
-        List<AiStandardLibraryGrowthCandidate> saved = service.proposeFromDiagnosisOutput(output);
+        List<AiStandardLibraryGrowthCandidate> saved = service.proposeFromDiagnosisOutput(
+                output,
+                88L,
+                888L,
+                List.of("code:window_update")
+        );
 
         assertThat(saved).singleElement()
                 .satisfies(candidate -> {
                     assertThat(candidate.getSuggestedCode()).startsWith("MP_ALGO_TWO_POINTERS_WINDOW_ANSWER_UPDATE");
                     assertThat(candidate.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.NEEDS_REVIEW);
-                    assertThat(candidate.getSourceProblemId()).isEqualTo(2L);
-                    assertThat(candidate.getSourceSubmissionId()).isEqualTo(22L);
+                    assertThat(candidate.getSourceProblemId()).isEqualTo(88L);
+                    assertThat(candidate.getSourceSubmissionId()).isEqualTo(888L);
+                    assertThat(candidate.getEvidenceRefs()).contains("code:window_update");
+                    assertThat(candidate.getEvidenceStatus()).isEqualTo("SUPPORTED");
                     assertThat(candidate.getChangeReason()).contains("PARTIAL");
                     assertThat(candidate.getChangeReason())
                             .contains("错误表现：窗口右端变化后答案没有同步变化。")
@@ -229,7 +235,10 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(second.getId()).isEqualTo(first.getId());
         assertThat(second.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.MERGED_SIMILAR);
         assertThat(second.getOccurrenceCount()).isEqualTo(2);
+        assertThat(second.getSourceProblemId()).isEqualTo(6L);
+        assertThat(second.getSourceSubmissionId()).isEqualTo(66L);
         assertThat(second.getEvidenceRefs()).contains("code:first").contains("code:second");
+        assertThat(second.getEvidenceStatus()).isEqualTo("SUPPORTED");
         assertThat(candidateRepository.findAll())
                 .filteredOn(candidate -> candidate.getSuggestedCode().equals("MP_AGGREGATED_BOUNDARY_PATTERN"))
                 .hasSize(1);

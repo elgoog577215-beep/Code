@@ -54,6 +54,24 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
+    void teacherDiagnosisUsesStandardProfileEvenWhenGlobalRuntimeIsLowLatency() {
+        StubAiReportService service = newService(validAdviceResponse());
+        ReflectionTestUtils.setField(service, "externalRuntimeProfile", ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(analysis.getAiInvocation().getRuntimeProfile())
+                .isEqualTo(ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
+        assertThat(analysis.getAiInvocation().getRequestCompact()).isFalse();
+    }
+
+    @Test
     void explicitSearchLocationRuntimeGeneratesStructuredAdviceAfterSearchLocation() {
         StubAiReportService service = newService(
                 validSearchLocationResponse(),
@@ -235,8 +253,8 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
         assertThat(analysis.getAiInvocation().getDiagnosisLibraryFit()).isEqualTo("PARTIAL");
         assertThat(analysis.getAiInvocation().getDiagnosisSoftFixes())
-                .contains("evidenceRef alias sourceCode -> code:range_excludes_n")
-                .contains("evidenceRef alias problemConstraints -> judge:first_failed_case")
+                .contains("evidenceRef alias code:range_excludes_n:line3 -> code:range_excludes_n")
+                .contains("evidenceRef alias judge:first_failed_case:case1 -> judge:first_failed_case")
                 .noneSatisfy(item -> assertThat(item).contains("unknown anchor id"));
         assertThat(analysis.getAiInvocation().getDiagnosisHardFailures()).isEmpty();
         assertThat(analysis.getStudentFeedback().getBlockingIssues()).singleElement()
@@ -259,12 +277,17 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 ruleSignals()
         );
 
-        verify(growthAgentService).proposeFromDiagnosisOutput(org.mockito.ArgumentMatchers.argThat(output ->
-                output != null
-                        && output.getLibraryGrowth() != null
-                        && output.getLibraryGrowth().getCandidates() != null
-                        && output.getLibraryGrowth().getCandidates().size() == 1
-        ));
+        verify(growthAgentService).proposeFromDiagnosisOutput(
+                org.mockito.ArgumentMatchers.argThat(output ->
+                        output != null
+                                && output.getLibraryGrowth() != null
+                                && output.getLibraryGrowth().getCandidates() != null
+                                && output.getLibraryGrowth().getCandidates().size() == 1
+                ),
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(11L),
+                org.mockito.ArgumentMatchers.isNull()
+        );
     }
 
     private StubAiReportService newService(AiStandardLibraryGrowthAgentService growthAgentService, String... responses) {
@@ -560,10 +583,10 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "candidates": [{
                       "name": "可见失败样例定位端点漏取",
                       "suggestedPath": ["BASIC", "LOOP", "BOUNDARY", "VISIBLE_CASE_ENDPOINT"],
-                      "sourceProblemId": 1,
-                      "sourceSubmissionId": 11,
-                      "similarExistingItems": ["MP_RANGE_RIGHT_ENDPOINT_MISSING"],
-                      "errorSymptom": "可见样例暴露循环端点漏取。",
+	                      "similarExistingItems": ["MP_RANGE_RIGHT_ENDPOINT_MISSING"],
+	                      "evidenceRefs": ["code:range_excludes_n"],
+	                      "evidenceStatus": "SUPPORTED",
+	                      "errorSymptom": "可见样例暴露循环端点漏取。",
                       "typicalCodePattern": "循环条件没有覆盖题目要求的末端。",
                       "studentExplanation": "先手推端点是否进入循环，再决定是否需要补充标准库错因。",
                       "reason": "MISS 场景下发现更细颗粒错因。",
@@ -627,7 +650,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                       "type": "MISTAKE_POINT",
                       "role": "PRIMARY",
                       "confidence": 0.82,
-                      "evidenceRefs": ["sourceCode", "problemConstraints"],
+	                      "evidenceRefs": ["code:range_excludes_n:line3", "judge:first_failed_case:case1"],
                       "reason": "模型发现了库里没有精确覆盖的边界错因。"
                     }]
                   },

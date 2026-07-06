@@ -24,6 +24,7 @@ class StudentFeedbackViewAssemblerTest {
             assertThat(item.getTitle()).isEqualTo("输入没有完整读取");
             assertThat(item.getBody()).contains("公开样例");
             assertThat(item.getBody()).doesNotContain("当前最需要", "本地可验证反馈");
+            assertThat(item.getEvidenceRefs()).containsExactly("rule:input");
         });
         assertThat(view.getImprovementItems()).singleElement().satisfies(item -> {
             assertThat(item.getTitle()).isEqualTo("测试习惯");

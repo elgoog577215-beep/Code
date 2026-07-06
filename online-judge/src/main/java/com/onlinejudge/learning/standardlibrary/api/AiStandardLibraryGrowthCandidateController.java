@@ -111,6 +111,7 @@ public class AiStandardLibraryGrowthCandidateController {
                 .similarExistingItemCodes(request == null ? List.of() : request.getSimilarExistingItems())
                 .changeReason(request == null ? "" : request.getChangeReason())
                 .evidenceRefs(request == null ? List.of() : request.getEvidenceRefs())
+                .evidenceStatus(request == null ? null : request.getEvidenceStatus())
                 .confidence(request == null ? null : request.getConfidence())
                 .build();
     }

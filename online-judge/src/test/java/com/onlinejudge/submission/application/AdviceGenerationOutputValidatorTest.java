@@ -62,7 +62,7 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void softRepairsEvidenceAliasesForDiagnosisReportV2() {
+    void rejectsGenericEvidenceAliasesForDiagnosisReportV2() {
         AdviceGenerationOutput output = AdviceGenerationOutput.builder()
                 .diagnosisDecision(AdviceGenerationOutput.DiagnosisDecision.builder()
                         .libraryFit("PARTIAL")
@@ -90,14 +90,34 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_EVIDENCE_REF);
+        assertThat(result.getMessage()).contains("sourceCode");
+    }
+
+    @Test
+    void acceptsDiagnosisReportV2ImprovementWithoutEvidenceRefs() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("HIT", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
+        output.setImprovementLayerAdvice(List.of(AdviceGenerationOutput.ImprovementLayerAdvice.builder()
+                .improvementPointId("IP_BOUNDARY_MIN_CASE_TEST")
+                .skillUnitId("SK_RANGE_BOUNDARY")
+                .title("补充端点自测")
+                .currentLimit("当前更需要在修复后形成边界自测习惯。")
+                .suggestion("通过基础问题后，把端点形态加入自测清单。")
+                .studentBenefit("下次能更早发现边界类问题。")
+                .evidenceRefs(List.of())
+                .confidence(0.72)
+                .build()));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
         assertThat(result.isValid()).isTrue();
-        assertThat(result.getSoftFixes())
-                .contains("evidenceRef alias sourceCode -> code:range_excludes_n")
-                .contains("evidenceRef alias problemConstraints -> judge:first_failed_case")
-                .doesNotContain("unknown anchor id");
-        assertThat(output.getDiagnosisDecision().getAnchors()).singleElement()
-                .satisfies(anchor -> assertThat(anchor.getEvidenceRefs())
-                        .containsExactly("code:range_excludes_n", "judge:first_failed_case"));
+        assertThat(output.getImprovementLayerAdvice()).singleElement()
+                .satisfies(item -> assertThat(item.getEvidenceRefs()).isEmpty());
     }
 
     @Test
@@ -385,7 +405,7 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void softRepairsEvidenceAliasesForDiagnosisCandidates() {
+    void softRepairsExtraDetailEvidenceRefsForDiagnosisCandidates() {
         AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
         output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
                 .name("循环边界没有覆盖题目端点")
@@ -395,7 +415,7 @@ class AdviceGenerationOutputValidatorTest {
                 .anchorType("MISTAKE_POINT")
                 .libraryPath(libraryPath())
                 .role("PRIMARY")
-                .evidenceRefs(List.of("sourceCode"))
+                .evidenceRefs(List.of("code:range_excludes_n:line3"))
                 .reason("代码证据显示循环范围和题目端点不一致。")
                 .confidence(0.91)
                 .build()));
@@ -407,7 +427,7 @@ class AdviceGenerationOutputValidatorTest {
         );
 
         assertThat(result.isValid()).isTrue();
-        assertThat(result.getSoftFixes()).contains("evidenceRef alias sourceCode -> code:range_excludes_n");
+        assertThat(result.getSoftFixes()).contains("evidenceRef alias code:range_excludes_n:line3 -> code:range_excludes_n");
         assertThat(output.getDiagnosisCandidates()).singleElement()
                 .satisfies(candidate -> assertThat(candidate.getEvidenceRefs())
                         .containsExactly("code:range_excludes_n"));
@@ -478,7 +498,11 @@ class AdviceGenerationOutputValidatorTest {
         assertThat(result.getSoftFixes())
                 .contains("libraryGrowth candidate status normalized: PROPOSED -> NEEDS_REVIEW");
         assertThat(output.getLibraryGrowth().getCandidates()).singleElement()
-                .satisfies(candidate -> assertThat(candidate.getStatus()).isEqualTo("NEEDS_REVIEW"));
+                .satisfies(candidate -> {
+                    assertThat(candidate.getStatus()).isEqualTo("NEEDS_REVIEW");
+                    assertThat(candidate.getEvidenceStatus()).isEqualTo("NO_DIRECT_CODE_EVIDENCE");
+                    assertThat(candidate.getEvidenceRefs()).isNullOrEmpty();
+                });
     }
 
     @Test
@@ -520,7 +544,7 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void softRepairsVerdictEvidenceAliasForDiagnosisReportV2() {
+    void rejectsVerdictEvidenceAliasForDiagnosisReportV2() {
         AdviceGenerationOutput output = AdviceGenerationOutput.builder()
                 .diagnosisDecision(AdviceGenerationOutput.DiagnosisDecision.builder()
                         .libraryFit("HIT")
@@ -548,10 +572,9 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isTrue();
-        assertThat(result.getSoftFixes()).contains("evidenceRef alias verdict:wrong-answer -> judge:first_failed_case");
-        assertThat(output.getDiagnosisDecision().getAnchors()).singleElement()
-                .satisfies(anchor -> assertThat(anchor.getEvidenceRefs()).containsExactly("judge:first_failed_case"));
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.INVALID_EVIDENCE_REF);
+        assertThat(result.getMessage()).contains("verdict:wrong-answer");
     }
 
     @Test

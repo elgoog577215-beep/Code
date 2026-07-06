@@ -38,6 +38,10 @@ public class AiStandardLibraryGrowthAgentService {
     public AiStandardLibraryGrowthCandidate propose(StandardLibraryGrowthProposal proposal) {
         String code = normalizeCode(proposal == null ? "" : proposal.getSuggestedCode());
         AiStandardLibraryLayer layer = proposal == null ? null : proposal.getLayer();
+        String evidenceStatus = normalizeEvidenceStatus(
+                proposal == null ? null : proposal.getEvidenceStatus(),
+                proposal == null ? List.of() : proposal.getEvidenceRefs()
+        );
         Optional<AiStandardLibraryGrowthCandidate> duplicateCandidate = layer == null || code.isBlank()
                 ? Optional.empty()
                 : candidateRepository.findByLayerAndSuggestedCode(layer, code);
@@ -59,6 +63,7 @@ public class AiStandardLibraryGrowthAgentService {
                 .similarExistingItems(joinLines(proposal == null ? null : proposal.getSimilarExistingItemCodes()))
                 .changeReason(requiredText(proposal == null ? "" : proposal.getChangeReason(), "缺少变更理由"))
                 .evidenceRefs(joinLines(proposal == null ? null : proposal.getEvidenceRefs()))
+                .evidenceStatus(evidenceStatus)
                 .confidence(proposal == null ? null : proposal.getConfidence())
                 .status(status)
                 .precheckMessage(String.join("；", precheckErrors))
@@ -73,29 +78,51 @@ public class AiStandardLibraryGrowthAgentService {
 
     @Transactional
     public List<AiStandardLibraryGrowthCandidate> proposeFromDiagnosisOutput(AdviceGenerationOutput output) {
+        return proposeFromDiagnosisOutput(output, null, null, diagnosisEvidenceRefs(output));
+    }
+
+    @Transactional
+    public List<AiStandardLibraryGrowthCandidate> proposeFromDiagnosisOutput(AdviceGenerationOutput output,
+                                                                             Long sourceProblemId,
+                                                                             Long sourceSubmissionId,
+                                                                             List<String> diagnosisEvidenceRefs) {
         if (output == null || output.getLibraryGrowth() == null || output.getLibraryGrowth().getCandidates() == null) {
             return List.of();
         }
         if (!diagnosisAllowsGrowth(output)) {
             return List.of();
         }
+        List<String> fallbackEvidenceRefs = diagnosisEvidenceRefs == null
+                ? diagnosisEvidenceRefs(output)
+                : diagnosisEvidenceRefs;
         return output.getLibraryGrowth().getCandidates().stream()
                 .filter(candidate -> candidate != null)
-                .map(this::proposeDiagnosisGrowthCandidate)
+                .map(candidate -> proposeDiagnosisGrowthCandidate(
+                        candidate,
+                        sourceProblemId,
+                        sourceSubmissionId,
+                        fallbackEvidenceRefs
+                ))
                 .toList();
     }
 
     private AiStandardLibraryGrowthCandidate proposeDiagnosisGrowthCandidate(
-            AdviceGenerationOutput.LibraryGrowthCandidate candidate) {
+            AdviceGenerationOutput.LibraryGrowthCandidate candidate,
+            Long sourceProblemId,
+            Long sourceSubmissionId,
+            List<String> diagnosisEvidenceRefs) {
+        List<String> evidenceRefs = growthEvidenceRefs(candidate, diagnosisEvidenceRefs);
         AiStandardLibraryGrowthCandidate saved = propose(StandardLibraryGrowthProposal.builder()
                 .suggestedCode(suggestedCode(candidate))
                 .suggestedName(candidate.getName())
                 .layer(AiStandardLibraryLayer.MISTAKE_POINT)
                 .suggestedPath(candidate.getSuggestedPath())
-                .sourceProblemId(candidate.getSourceProblemId())
-                .sourceSubmissionId(candidate.getSourceSubmissionId())
+                .sourceProblemId(sourceProblemId == null ? candidate.getSourceProblemId() : sourceProblemId)
+                .sourceSubmissionId(sourceSubmissionId == null ? candidate.getSourceSubmissionId() : sourceSubmissionId)
                 .similarExistingItemCodes(candidate.getSimilarExistingItems())
                 .changeReason(growthChangeReason(candidate))
+                .evidenceRefs(evidenceRefs)
+                .evidenceStatus(growthEvidenceStatus(candidate, evidenceRefs))
                 .confidence(candidate.getConfidence())
                 .build());
         if ("NEEDS_REVIEW".equalsIgnoreCase(candidate.getStatus())
@@ -113,6 +140,9 @@ public class AiStandardLibraryGrowthAgentService {
         String fit = decision.getLibraryFit().trim().toUpperCase(Locale.ROOT);
         if ("PARTIAL".equals(fit) || "MISS".equals(fit)) {
             return true;
+        }
+        if ("HIT".equals(fit)) {
+            return false;
         }
         return decision.getAnchors() != null && decision.getAnchors().stream()
                 .anyMatch(anchor -> anchor != null && "OUT_OF_LIBRARY".equalsIgnoreCase(anchor.getType()));
@@ -177,6 +207,10 @@ public class AiStandardLibraryGrowthAgentService {
         candidate.setSimilarExistingItems(joinLines(proposal == null ? lines(candidate.getSimilarExistingItems()) : proposal.getSimilarExistingItemCodes()));
         candidate.setChangeReason(requiredText(proposal == null ? candidate.getChangeReason() : proposal.getChangeReason(), candidate.getChangeReason()));
         candidate.setEvidenceRefs(joinLines(proposal == null ? lines(candidate.getEvidenceRefs()) : proposal.getEvidenceRefs()));
+        candidate.setEvidenceStatus(normalizeEvidenceStatus(
+                proposal == null ? candidate.getEvidenceStatus() : proposal.getEvidenceStatus(),
+                lines(candidate.getEvidenceRefs())
+        ));
         candidate.setConfidence(proposal == null ? candidate.getConfidence() : proposal.getConfidence());
         candidate.setStatus(precheckErrors.isEmpty()
                 ? AiStandardLibraryGrowthCandidateStatus.PROPOSED
@@ -279,8 +313,19 @@ public class AiStandardLibraryGrowthAgentService {
         int count = existing.getOccurrenceCount() == null ? 1 : existing.getOccurrenceCount();
         existing.setOccurrenceCount(count + 1);
         existing.setLastObservedAt(LocalDateTime.now());
+        if (proposal != null) {
+            if (proposal.getSourceProblemId() != null) {
+                existing.setSourceProblemId(proposal.getSourceProblemId());
+            }
+            if (proposal.getSourceSubmissionId() != null) {
+                existing.setSourceSubmissionId(proposal.getSourceSubmissionId());
+            }
+        }
         existing.setEvidenceRefs(joinLines(mergeLines(lines(existing.getEvidenceRefs()),
                 proposal == null ? List.of() : proposal.getEvidenceRefs())));
+        existing.setEvidenceStatus(aggregateEvidenceStatus(existing.getEvidenceStatus(),
+                proposal == null ? null : proposal.getEvidenceStatus(),
+                lines(existing.getEvidenceRefs())));
         existing.setSimilarExistingItems(joinLines(mergeLines(lines(existing.getSimilarExistingItems()),
                 proposal == null ? List.of() : proposal.getSimilarExistingItemCodes())));
         String reason = requiredText(proposal == null ? "" : proposal.getChangeReason(), "");
@@ -461,6 +506,7 @@ public class AiStandardLibraryGrowthAgentService {
                 .similarExistingItemCodes(lines(candidate.getSimilarExistingItems()))
                 .changeReason(candidate.getChangeReason())
                 .evidenceRefs(lines(candidate.getEvidenceRefs()))
+                .evidenceStatus(candidate.getEvidenceStatus())
                 .confidence(candidate.getConfidence())
                 .build();
     }
@@ -574,6 +620,86 @@ public class AiStandardLibraryGrowthAgentService {
                 .map(this::normalizeText)
                 .filter(value -> !value.isBlank())
                 .toList());
+    }
+
+    private List<String> diagnosisEvidenceRefs(AdviceGenerationOutput output) {
+        LinkedHashSet<String> refs = new LinkedHashSet<>();
+        AdviceGenerationOutput.DiagnosisDecision decision = output == null ? null : output.getDiagnosisDecision();
+        if (decision != null) {
+            if (decision.getAnchors() != null) {
+                decision.getAnchors().stream()
+                        .filter(anchor -> anchor != null && anchor.getEvidenceRefs() != null)
+                        .flatMap(anchor -> anchor.getEvidenceRefs().stream())
+                        .map(this::normalizeText)
+                        .filter(ref -> !ref.isBlank())
+                        .forEach(refs::add);
+            }
+            if (decision.getOutOfLibraryFindings() != null) {
+                decision.getOutOfLibraryFindings().stream()
+                        .filter(finding -> finding != null && finding.getEvidenceRefs() != null)
+                        .flatMap(finding -> finding.getEvidenceRefs().stream())
+                        .map(this::normalizeText)
+                        .filter(ref -> !ref.isBlank())
+                        .forEach(refs::add);
+            }
+        }
+        if (output != null && output.getDiagnosisCandidates() != null) {
+            output.getDiagnosisCandidates().stream()
+                    .filter(candidate -> candidate != null && candidate.getEvidenceRefs() != null)
+                    .flatMap(candidate -> candidate.getEvidenceRefs().stream())
+                    .map(this::normalizeText)
+                    .filter(ref -> !ref.isBlank())
+                    .forEach(refs::add);
+        }
+        return refs.stream().toList();
+    }
+
+    private List<String> growthEvidenceRefs(AdviceGenerationOutput.LibraryGrowthCandidate candidate,
+                                            List<String> diagnosisEvidenceRefs) {
+        if (candidate == null) {
+            return List.of();
+        }
+        if ("UNSUPPORTED".equalsIgnoreCase(normalizeText(candidate.getEvidenceStatus()))) {
+            return List.of();
+        }
+        if (candidate.getEvidenceRefs() != null && !candidate.getEvidenceRefs().isEmpty()) {
+            return mergeLines(candidate.getEvidenceRefs(), List.of());
+        }
+        return mergeLines(diagnosisEvidenceRefs, List.of());
+    }
+
+    private String growthEvidenceStatus(AdviceGenerationOutput.LibraryGrowthCandidate candidate, List<String> evidenceRefs) {
+        String modelStatus = candidate == null ? "" : normalizeText(candidate.getEvidenceStatus()).toUpperCase(Locale.ROOT);
+        if ("UNSUPPORTED".equals(modelStatus)) {
+            return "UNSUPPORTED";
+        }
+        if (evidenceRefs == null || evidenceRefs.isEmpty()) {
+            return "NO_DIRECT_CODE_EVIDENCE";
+        }
+        return "SUPPORTED";
+    }
+
+    private String normalizeEvidenceStatus(String status, List<String> evidenceRefs) {
+        String normalized = normalizeText(status).toUpperCase(Locale.ROOT);
+        if (List.of("SUPPORTED", "NO_DIRECT_CODE_EVIDENCE", "UNSUPPORTED").contains(normalized)) {
+            if ("SUPPORTED".equals(normalized) && (evidenceRefs == null || evidenceRefs.isEmpty())) {
+                return "NO_DIRECT_CODE_EVIDENCE";
+            }
+            return normalized;
+        }
+        return evidenceRefs == null || evidenceRefs.isEmpty() ? "NO_DIRECT_CODE_EVIDENCE" : "SUPPORTED";
+    }
+
+    private String aggregateEvidenceStatus(String existingStatus, String proposalStatus, List<String> mergedEvidenceRefs) {
+        String normalizedProposal = normalizeEvidenceStatus(proposalStatus, mergedEvidenceRefs);
+        String normalizedExisting = normalizeEvidenceStatus(existingStatus, mergedEvidenceRefs);
+        if ("SUPPORTED".equals(normalizedProposal) || "SUPPORTED".equals(normalizedExisting)) {
+            return "SUPPORTED";
+        }
+        if ("UNSUPPORTED".equals(normalizedProposal) || "UNSUPPORTED".equals(normalizedExisting)) {
+            return "UNSUPPORTED";
+        }
+        return "NO_DIRECT_CODE_EVIDENCE";
     }
 
     private String normalizeCode(String value) {

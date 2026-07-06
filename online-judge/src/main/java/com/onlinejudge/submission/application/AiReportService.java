@@ -338,7 +338,7 @@ public class AiReportService {
                 evidencePackage,
                 ruleSignals,
                 fallback,
-                externalRuntimeProfile
+                teacherDiagnosisRuntimeProfile()
         );
         runtimePlan = applySearchLocationIfAvailable(runtimePlan, ruleSignals);
         return enhanceWithAdviceGenerationRuntime(
@@ -467,7 +467,7 @@ public class AiReportService {
             return runtimeFallback(fallback, runtimePlan, adviceValidation);
         }
 
-        persistStandardLibraryGrowthCandidates(adviceOutput);
+        persistStandardLibraryGrowthCandidates(adviceOutput, submission);
         runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.success(adviceOutput, promptVersion));
 
         SubmissionAnalysisResponse.StudentFeedback studentFeedback =
@@ -496,15 +496,30 @@ public class AiReportService {
         return response;
     }
 
-    private void persistStandardLibraryGrowthCandidates(AdviceGenerationOutput adviceOutput) {
+    private void persistStandardLibraryGrowthCandidates(AdviceGenerationOutput adviceOutput, Submission submission) {
         if (standardLibraryGrowthAgentService == null || adviceOutput == null) {
             return;
         }
         try {
-            standardLibraryGrowthAgentService.proposeFromDiagnosisOutput(adviceOutput);
+            Long sourceProblemId = submission == null ? null : submission.getProblemId();
+            Long sourceSubmissionId = submission == null ? null : submission.getId();
+            standardLibraryGrowthAgentService.proposeFromDiagnosisOutput(
+                    adviceOutput,
+                    sourceProblemId,
+                    sourceSubmissionId,
+                    null
+            );
         } catch (Exception exception) {
             log.warn("Failed to persist AI standard library growth candidates. reason={}", exception.getMessage());
         }
+    }
+
+    private String teacherDiagnosisRuntimeProfile() {
+        if (externalRuntimeProfile != null
+                && ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY.equalsIgnoreCase(externalRuntimeProfile.trim())) {
+            return ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD;
+        }
+        return externalRuntimeProfile;
     }
 
     private AdviceGenerationOutput callAdviceGenerationStage(

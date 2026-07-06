@@ -75,13 +75,12 @@ public class AdviceGenerationFeedbackMapper {
         List<SubmissionAnalysisResponse.ImprovementOpportunity> improvementOpportunities =
                 toImprovementOpportunities(output, standardLibraryPack);
         if (improvementOpportunities.isEmpty() && !blank(report.getImprovementLayerText())) {
-            List<String> improvementEvidenceRefs = evidenceRefs.isEmpty() ? firstBasicEvidenceRefs(output) : evidenceRefs;
             improvementOpportunities = List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
                                 .title("提高层")
                                 .category(firstImprovementCategory(standardLibraryPack))
                                 .studentMessage(report.getImprovementLayerText())
                                 .benefit(report.getImprovementLayerText())
-                                .evidenceRefs(improvementEvidenceRefs)
+                                .evidenceRefs(List.of())
                                 .build());
         }
 
@@ -130,7 +129,7 @@ public class AdviceGenerationFeedbackMapper {
                         .category(toImprovementCategory(item, standardLibraryPack))
                         .studentMessage(defaultIfBlank(item.getSuggestion(), item.getCurrentLimit()))
                         .benefit(defaultIfBlank(item.getStudentBenefit(), "帮助你把同类问题迁移到下一题。"))
-                        .evidenceRefs(item.getEvidenceRefs())
+                        .evidenceRefs(item.getEvidenceRefs() == null ? List.of() : item.getEvidenceRefs())
                         .build())
                 .toList();
     }

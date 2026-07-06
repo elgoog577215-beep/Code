@@ -1760,6 +1760,7 @@ export interface AiStandardLibraryGrowthCandidate {
   sourceProblemId?: number | null;
   sourceSubmissionId?: number | null;
   evidenceRefs: string[];
+  evidenceStatus?: string | null;
   similarExistingItems: string[];
   changeReason?: string | null;
   status: AiStandardLibraryGrowthCandidateStatus;
@@ -1783,6 +1784,7 @@ export interface AiStandardLibraryGrowthCandidatePayload {
   sourceProblemId?: number | null;
   sourceSubmissionId?: number | null;
   evidenceRefs?: string[];
+  evidenceStatus?: string | null;
   similarExistingItems?: string[];
   changeReason?: string | null;
   confidence?: number | null;

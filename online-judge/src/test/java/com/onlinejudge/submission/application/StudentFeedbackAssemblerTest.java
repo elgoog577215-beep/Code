@@ -37,6 +37,8 @@ class StudentFeedbackAssemblerTest {
         assertThat(feedback.getSummary()).contains("本地可验证反馈");
         assertThat(feedback.getBlockingIssues().get(0).getStudentMessage()).contains("读取次数", "输出行数");
         assertThat(feedback.getBlockingIssues().get(0).getEvidence()).contains("期望输出", "实际只输出");
+        assertThat(feedback.getImprovementOpportunities())
+                .allSatisfy(item -> assertThat(item.getEvidenceRefs()).isEmpty());
         assertThat(feedback.getNextLearningAction().getTask()).contains("读取操作");
         assertStudentSafe(feedback);
     }
