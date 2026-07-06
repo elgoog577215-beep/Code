@@ -1,0 +1,281 @@
+/* Teacher home IA refresh: low-container, action-first layout. */
+.teacher-shell {
+  gap: 0.62rem;
+}
+
+.teacher-shell-nav--compact {
+  width: min(100%, 1380px);
+  min-height: 38px;
+  justify-content: flex-start;
+  margin-inline: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.teacher-shell-nav--compact .teacher-shell-nav__links {
+  gap: 0.16rem;
+  padding: 0.14rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+}
+
+.teacher-shell-nav--compact .teacher-shell-nav__links a {
+  min-height: 34px;
+  padding: 0.24rem 0.6rem;
+}
+
+.teacher-workflow-home {
+  gap: 0.72rem;
+}
+
+.teacher-home-overview {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.72fr) minmax(0, 1.6fr) auto;
+  align-items: center;
+  gap: 0.82rem;
+  padding: 0.18rem 0 0.72rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 84%, transparent);
+}
+
+.teacher-home-overview__class,
+.teacher-home-list-head {
+  min-width: 0;
+}
+
+.teacher-home-overview__class {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.teacher-home-overview__class span,
+.teacher-home-list-head span {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.teacher-home-overview__class strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: clamp(1.12rem, 2.4vw, 1.52rem);
+  line-height: 1.16;
+  overflow-wrap: anywhere;
+}
+
+.teacher-home-overview .teacher-home-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.teacher-home-overview .teacher-home-summary-grid > .teacher-home-summary-tile,
+.teacher-home-overview .teacher-home-summary-grid > .teacher-home-summary-tile:last-child {
+  min-height: 0;
+  padding: 0.08rem 0.72rem;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+
+.teacher-home-overview .teacher-home-summary-tile span {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 830;
+}
+
+.teacher-home-overview .teacher-home-summary-tile strong {
+  color: var(--ink);
+  font-size: 1.03rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.teacher-home-overview .teacher-home-summary-tile--warning strong {
+  color: var(--warning-strong);
+}
+
+.teacher-home-overview .teacher-home-summary-tile--success strong {
+  color: var(--success-strong);
+}
+
+.teacher-home-overview .teacher-home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.42rem;
+}
+
+.teacher-home-overview .teacher-home-actions .ui-button {
+  min-height: 38px;
+  padding: 0.5rem 0.72rem;
+  white-space: nowrap;
+}
+
+.teacher-home-assignment-list {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.46rem;
+}
+
+.teacher-home-workbench.teacher-home-assignment-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.teacher-home-workbench.teacher-home-assignment-list > * {
+  grid-column: 1 / -1;
+}
+
+.teacher-home-list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.teacher-home-list-head h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.teacher-assignment-grid--flat {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.52rem;
+  padding: 0;
+}
+
+.teacher-assignment-card--flat {
+  min-height: 112px;
+  align-content: space-between;
+  gap: 0.54rem;
+  padding: 0.72rem 0.78rem;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+}
+
+.teacher-assignment-card--flat .teacher-assignment-card__head {
+  align-items: flex-start;
+}
+
+.teacher-assignment-card--flat .teacher-assignment-card__head strong {
+  font-size: 0.98rem;
+}
+
+.teacher-assignment-card--flat .teacher-assignment-card__facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.56rem;
+  padding-top: 0.38rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.teacher-assignment-card--flat .teacher-assignment-card__facts span {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.teacher-assignment-card--flat .teacher-assignment-card__facts small {
+  font-size: 0.7rem;
+}
+
+.teacher-assignment-card--flat .teacher-assignment-card__facts b {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.teacher-assignment-card--flat .teacher-card-action {
+  justify-self: end;
+}
+
+:root[data-theme="dark"] .teacher-shell-nav--compact {
+  background: transparent;
+  border: 0;
+}
+
+:root[data-theme="dark"] .teacher-shell-nav--compact .teacher-shell-nav__links,
+:root[data-theme="dark"] .teacher-assignment-card--flat {
+  background: #12161d;
+  border-color: #2f3745;
+}
+
+:root[data-theme="dark"] .teacher-home-overview .teacher-home-summary-grid > .teacher-home-summary-tile {
+  background: transparent;
+}
+
+@media (max-width: 980px) {
+  .teacher-home-overview {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .teacher-home-overview .teacher-home-summary-grid {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}
+
+@media (max-width: 760px) {
+  .teacher-shell-nav--compact {
+    align-items: stretch;
+    padding-inline: 0;
+  }
+
+  .teacher-shell-nav--compact .teacher-shell-nav__links {
+    width: 100%;
+  }
+
+  .teacher-home-overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.62rem;
+    padding-bottom: 0.62rem;
+  }
+
+  .teacher-home-overview .teacher-home-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  }
+
+  .teacher-home-overview .teacher-home-summary-grid > .teacher-home-summary-tile,
+  .teacher-home-overview .teacher-home-summary-grid > .teacher-home-summary-tile:last-child {
+    padding: 0.48rem 0.2rem 0.18rem;
+    border-left: 0;
+  }
+
+  .teacher-home-overview .teacher-home-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .teacher-home-overview .teacher-home-actions .ui-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .teacher-assignment-grid--flat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .teacher-shell-nav--compact .teacher-shell-nav__links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-home-overview .teacher-home-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-assignment-card--flat .teacher-assignment-card__facts {
+    gap: 0.38rem;
+  }
+}

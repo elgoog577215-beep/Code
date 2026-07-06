@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { BookOpenCheck, Database, GraduationCap } from "lucide-react";
+import { BookOpenCheck, Database } from "lucide-react";
 import { useTranslation } from "../../shared/i18n";
+import "./TeacherHomeRefresh.css";
 
 export function TeacherShell({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -10,11 +11,7 @@ export function TeacherShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="teacher-shell">
-      <nav className="teacher-shell-nav" aria-label={t("common.teacherWorkbench")}>
-        <div className="teacher-shell-nav__title">
-          <GraduationCap size={17} />
-          <span>{t("common.teacherWorkbench")}</span>
-        </div>
+      <nav className="teacher-shell-nav teacher-shell-nav--compact" aria-label={t("common.teacherWorkbench")}>
         <div className="teacher-shell-nav__links">
           <NavLink to="/app/teacher" end className={({ isActive }) => (isActive || (!inManage && location.pathname.startsWith("/app/teacher")) ? "is-active" : "")}>
             <BookOpenCheck size={16} />
