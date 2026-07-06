@@ -1,6 +1,7 @@
 package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.problem.domain.Problem;
@@ -303,6 +304,7 @@ class DiagnosisReportV2RealSamplesSimulationTest {
         return safe(value).replace("|", "\\|").replace("\n", " ");
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private record RealSample(
             String id,
             String title,
