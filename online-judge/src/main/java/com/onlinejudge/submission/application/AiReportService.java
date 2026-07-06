@@ -2824,32 +2824,16 @@ public class AiReportService {
                 .improvementLayerText("修复越界后，再补测最小规模、普通样例和边界样例。这样能更早发现循环次数、数组长度、左右端点没有对齐的问题。")
                 .nextActionText("手推循环最后一次下标是否仍小于数组长度。")
                 .build();
-        List<StudentAiFeedbackResponse.FeedbackItem> repairItems = List.of(StudentAiFeedbackResponse.FeedbackItem.builder()
-                .title("列表下标越界")
-                .body("traceback 已经指到一次数组访问越界；先核对循环次数和数组长度的关系。")
-                .kind("REPAIR")
-                .knowledgePath(List.of("程序基础", "数组/列表", "下标访问", "越界检查"))
-                .evidenceSnippets(evidenceSnippets(List.of(evidenceRef), submission))
-                .evidenceRefs(List.of(evidenceRef, "verdict:runtime_error"))
-                .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
-                .build());
-        List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = List.of(StudentAiFeedbackResponse.FeedbackItem.builder()
-                .title("边界样例意识")
-                .body("修复后用最小 n 和普通样例复测，专门检查循环边界是否多处理或少处理。")
-                .kind("IMPROVEMENT")
-                .knowledgePath(List.of("调试能力", "测试设计", "边界样例", "错误复现"))
-                .evidenceSnippets(evidenceSnippets(List.of(evidenceRef), submission))
-                .evidenceRefs(List.of(evidenceRef))
-                .qualitySignals(List.of("transfer"))
-                .build());
+        StudentAiFeedbackResponse.FeedbackItem repairItem = indexRuntimeRepairItem(evidenceRef, submission);
+        StudentAiFeedbackResponse.FeedbackItem improvementItem = indexRuntimeImprovementItem(evidenceRef, submission);
         return StudentAiFeedbackResponse.builder()
                 .submissionId(response.getSubmissionId())
                 .status(response.getStatus())
                 .source(response.getSource())
                 .generatedAt(response.getGeneratedAt())
                 .latencyMs(response.getLatencyMs())
-                .repairItems(repairItems)
-                .improvementItems(improvementItems)
+                .repairItems(mergeRuntimeRepairItems(repairItem, response.getRepairItems()))
+                .improvementItems(mergeRuntimeImprovementItems(improvementItem, response.getImprovementItems()))
                 .studentReport(groundedReport)
                 .nextQuestion(response.getNextQuestion())
                 .safety(response.getSafety())
@@ -2877,17 +2861,7 @@ public class AiReportService {
                 .nextActionText(originalReport == null ? null : originalReport.getNextActionText())
                 .build();
         List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = improvementDrifts
-                ? List.of(StudentAiFeedbackResponse.FeedbackItem.builder()
-                        .title("边界样例意识")
-                        .body("修复后用最小 n、普通样例和边界样例复测，观察是否仍有多访问或少访问。")
-                        .kind("IMPROVEMENT")
-                        .knowledgePath(List.of("调试能力", "测试设计", "边界样例", "错误复现"))
-                        .evidenceSnippets(response.getRepairItems() == null || response.getRepairItems().isEmpty()
-                                ? List.of()
-                                : response.getRepairItems().get(0).getEvidenceSnippets())
-                        .evidenceRefs(List.of(evidenceRef))
-                        .qualitySignals(List.of("transfer"))
-                        .build())
+                ? mergeRuntimeImprovementItems(indexRuntimeImprovementItem(evidenceRef, response), response.getImprovementItems())
                 : response.getImprovementItems();
         return StudentAiFeedbackResponse.builder()
                 .submissionId(response.getSubmissionId())
@@ -2902,6 +2876,100 @@ public class AiReportService {
                 .safety(response.getSafety())
                 .evidenceRefs(mergeStringLists(response.getEvidenceRefs(), List.of(evidenceRef)))
                 .build();
+    }
+
+    private StudentAiFeedbackResponse.FeedbackItem indexRuntimeRepairItem(String evidenceRef, Submission submission) {
+        return StudentAiFeedbackResponse.FeedbackItem.builder()
+                .title("列表下标越界")
+                .body("traceback 已经指到一次数组访问越界；先核对循环次数和数组长度的关系。")
+                .kind("REPAIR")
+                .knowledgePath(List.of("程序基础", "数组/列表", "下标访问", "越界检查"))
+                .evidenceSnippets(evidenceSnippets(List.of(evidenceRef), submission))
+                .evidenceRefs(List.of(evidenceRef, "verdict:runtime_error"))
+                .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
+                .build();
+    }
+
+    private StudentAiFeedbackResponse.FeedbackItem indexRuntimeImprovementItem(String evidenceRef, Submission submission) {
+        return StudentAiFeedbackResponse.FeedbackItem.builder()
+                .title("边界样例意识")
+                .body("修复后用最小 n、普通样例和边界样例复测，观察是否仍有多访问或少访问。")
+                .kind("IMPROVEMENT")
+                .knowledgePath(List.of("调试能力", "测试设计", "边界样例", "错误复现"))
+                .evidenceSnippets(evidenceSnippets(List.of(evidenceRef), submission))
+                .evidenceRefs(List.of(evidenceRef))
+                .qualitySignals(List.of("transfer"))
+                .build();
+    }
+
+    private StudentAiFeedbackResponse.FeedbackItem indexRuntimeImprovementItem(String evidenceRef,
+                                                                               StudentAiFeedbackResponse response) {
+        List<StudentAiFeedbackResponse.EvidenceSnippet> snippets = response == null
+                || response.getRepairItems() == null
+                || response.getRepairItems().isEmpty()
+                ? List.of()
+                : response.getRepairItems().get(0).getEvidenceSnippets();
+        return StudentAiFeedbackResponse.FeedbackItem.builder()
+                .title("边界样例意识")
+                .body("修复后用最小 n、普通样例和边界样例复测，观察是否仍有多访问或少访问。")
+                .kind("IMPROVEMENT")
+                .knowledgePath(List.of("调试能力", "测试设计", "边界样例", "错误复现"))
+                .evidenceSnippets(snippets == null ? List.of() : snippets)
+                .evidenceRefs(List.of(evidenceRef))
+                .qualitySignals(List.of("transfer"))
+                .build();
+    }
+
+    private List<StudentAiFeedbackResponse.FeedbackItem> mergeRuntimeRepairItems(
+            StudentAiFeedbackResponse.FeedbackItem primary,
+            List<StudentAiFeedbackResponse.FeedbackItem> existingItems
+    ) {
+        List<StudentAiFeedbackResponse.FeedbackItem> merged = new ArrayList<>();
+        addFeedbackItemIfDistinct(merged, primary);
+        for (StudentAiFeedbackResponse.FeedbackItem item : existingItems == null ? List.<StudentAiFeedbackResponse.FeedbackItem>of() : existingItems) {
+            if (item == null || isCodeCleanupDriftItem(item) || mentionsIndexRuntimeCause(item)) {
+                continue;
+            }
+            addFeedbackItemIfDistinct(merged, item);
+        }
+        return merged;
+    }
+
+    private List<StudentAiFeedbackResponse.FeedbackItem> mergeRuntimeImprovementItems(
+            StudentAiFeedbackResponse.FeedbackItem primary,
+            List<StudentAiFeedbackResponse.FeedbackItem> existingItems
+    ) {
+        List<StudentAiFeedbackResponse.FeedbackItem> merged = new ArrayList<>();
+        addFeedbackItemIfDistinct(merged, primary);
+        for (StudentAiFeedbackResponse.FeedbackItem item : existingItems == null ? List.<StudentAiFeedbackResponse.FeedbackItem>of() : existingItems) {
+            if (item == null || isCodeCleanupDriftItem(item)) {
+                continue;
+            }
+            addFeedbackItemIfDistinct(merged, item);
+        }
+        return merged;
+    }
+
+    private void addFeedbackItemIfDistinct(List<StudentAiFeedbackResponse.FeedbackItem> items,
+                                           StudentAiFeedbackResponse.FeedbackItem candidate) {
+        if (candidate == null) {
+            return;
+        }
+        String key = feedbackItemKey(candidate);
+        boolean exists = items.stream()
+                .filter(item -> item != null)
+                .map(this::feedbackItemKey)
+                .anyMatch(existingKey -> existingKey.equals(key));
+        if (!exists) {
+            items.add(candidate);
+        }
+    }
+
+    private String feedbackItemKey(StudentAiFeedbackResponse.FeedbackItem item) {
+        return (defaultIfBlank(item.getKind(), "") + "|"
+                + defaultIfBlank(item.getTitle(), "") + "|"
+                + defaultIfBlank(item.getBody(), ""))
+                .replaceAll("\\s+", "");
     }
 
     private String removeCodeCleanupDriftSentence(String text) {
@@ -2938,18 +3006,31 @@ public class AiReportService {
     }
 
     private boolean indexImprovementDriftsToCodeCleanup(StudentAiFeedbackResponse response) {
-        String text = "";
         if (response != null && response.getStudentReport() != null) {
-            text = defaultIfBlank(response.getStudentReport().getImprovementLayerText(), "");
+            if (textDriftsToCodeCleanup(response.getStudentReport().getImprovementLayerText())) {
+                return true;
+            }
         }
         if (response != null && response.getImprovementItems() != null) {
             for (StudentAiFeedbackResponse.FeedbackItem item : response.getImprovementItems()) {
-                if (item != null) {
-                    text += "\n" + defaultIfBlank(item.getTitle(), "") + "\n" + defaultIfBlank(item.getBody(), "");
+                if (isCodeCleanupDriftItem(item)) {
+                    return true;
                 }
             }
         }
-        String normalized = text.toLowerCase();
+        return false;
+    }
+
+    private boolean isCodeCleanupDriftItem(StudentAiFeedbackResponse.FeedbackItem item) {
+        if (item == null) {
+            return false;
+        }
+        String text = defaultIfBlank(item.getTitle(), "") + "\n" + defaultIfBlank(item.getBody(), "");
+        return textDriftsToCodeCleanup(text);
+    }
+
+    private boolean textDriftsToCodeCleanup(String text) {
+        String normalized = defaultIfBlank(text, "").toLowerCase();
         boolean codeCleanup = normalized.contains("helper")
                 || normalized.contains("辅助函数")
                 || normalized.contains("冗余")
@@ -2961,6 +3042,14 @@ public class AiReportService {
                 || normalized.contains("循环")
                 || normalized.contains("数组长度");
         return codeCleanup && !boundaryAware;
+    }
+
+    private boolean mentionsIndexRuntimeCause(StudentAiFeedbackResponse.FeedbackItem item) {
+        if (item == null) {
+            return false;
+        }
+        String text = (defaultIfBlank(item.getTitle(), "") + "\n" + defaultIfBlank(item.getBody(), "")).toLowerCase();
+        return mentionsIndexRuntimeCause(text);
     }
 
     private boolean mentionsIndexRuntimeCause(StudentAiFeedbackResponse response) {
@@ -2976,7 +3065,10 @@ public class AiReportService {
                     .forEach(item -> builder.append(defaultIfBlank(item.getTitle(), "")).append('\n')
                             .append(defaultIfBlank(item.getBody(), "")).append('\n'));
         }
-        String text = builder.toString().toLowerCase();
+        return mentionsIndexRuntimeCause(builder.toString().toLowerCase());
+    }
+
+    private boolean mentionsIndexRuntimeCause(String text) {
         return text.contains("下标")
                 || text.contains("索引")
                 || text.contains("越界")

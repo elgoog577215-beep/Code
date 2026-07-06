@@ -423,6 +423,65 @@ class StudentAiFeedbackModelTest {
     }
 
     @Test
+    void preservesOtherFeedbackItemsWhenRuntimeGroundingAddsIndexError() {
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "你的代码太长，包含大量 helper 函数，请先精简代码。",
+                    "improvementLayerText": "修复后可以继续做边界样例和变量追踪。",
+                    "nextActionText": "删除无关 helper 函数后再提交。"
+                  },
+                  "repairItems": [{
+                    "title": "代码过长",
+                    "body": "大量无关 helper 干扰了 solve。",
+                    "kind": "REPAIR",
+                    "evidenceRefs": ["verdict:runtime_error"],
+                    "qualitySignals": ["evidence_grounded"]
+                  }, {
+                    "title": "输入规模读取要复核",
+                    "body": "运行错误前也要确认 n 和实际读入的数组长度是否对应。",
+                    "kind": "REPAIR",
+                    "evidenceRefs": ["code:line:618"],
+                    "qualitySignals": ["evidence_grounded", "actionable"]
+                  }],
+                  "improvementItems": [{
+                    "title": "变量追踪",
+                    "body": "记录 n、数组长度和最后一次 i 的取值，确认它们是否一致。",
+                    "kind": "IMPROVEMENT",
+                    "evidenceRefs": ["code:line:621"],
+                    "qualitySignals": ["transfer"]
+                  }, {
+                    "title": "边界样例",
+                    "body": "补测最小 n 和普通样例，观察循环最后一次是否越界。",
+                    "kind": "IMPROVEMENT",
+                    "evidenceRefs": ["code:line:621"],
+                    "qualitySignals": ["transfer"]
+                  }],
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["verdict:runtime_error"]
+                }
+                """);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                longRuntimeSubmission(),
+                longRuntimeEvidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(feedback.getRepairItems())
+                .extracting(StudentAiFeedbackResponse.FeedbackItem::getTitle)
+                .containsExactly("列表下标越界", "输入规模读取要复核");
+        assertThat(feedback.getRepairItems())
+                .extracting(StudentAiFeedbackResponse.FeedbackItem::getTitle)
+                .doesNotContain("代码过长");
+        assertThat(feedback.getImprovementItems())
+                .extracting(StudentAiFeedbackResponse.FeedbackItem::getTitle)
+                .contains("边界样例意识", "变量追踪", "边界样例");
+    }
+
+    @Test
     void alignsImprovementWhenIndexErrorDiagnosisIsGroundedButImprovementDrifts() {
         StubStudentFeedbackAiReportService service = newService("""
                 {
@@ -465,6 +524,53 @@ class StudentAiFeedbackModelTest {
                 .doesNotContain("删除无关");
         assertThat(feedback.getImprovementItems()).singleElement().satisfies(item ->
                 assertThat(item.getTitle()).isEqualTo("边界样例意识"));
+    }
+
+    @Test
+    void replacesOnlyDriftedImprovementItemsForGroundedIndexError() {
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "第622行发生索引越界，访问列表时下标超出范围。",
+                    "improvementLayerText": "修复后建议精简代码结构，删除无关 helper 函数。",
+                    "nextActionText": "检查下标是否小于数组长度。"
+                  },
+                  "repairItems": [{
+                    "title": "索引越界",
+                    "body": "第622行访问列表越界。",
+                    "kind": "REPAIR",
+                    "evidenceRefs": ["code:line:622"],
+                    "qualitySignals": ["evidence_grounded"]
+                  }],
+                  "improvementItems": [{
+                    "title": "精简冗余代码",
+                    "body": "删除无关辅助函数。",
+                    "kind": "IMPROVEMENT",
+                    "evidenceRefs": [],
+                    "qualitySignals": ["transfer"]
+                  }, {
+                    "title": "变量追踪",
+                    "body": "记录 n、数组长度和最后一次 i 的取值，确认它们是否一致。",
+                    "kind": "IMPROVEMENT",
+                    "evidenceRefs": ["code:line:621"],
+                    "qualitySignals": ["transfer"]
+                  }],
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["code:line:622"]
+                }
+                """);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                longRuntimeSubmission(),
+                longRuntimeEvidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(feedback.getImprovementItems())
+                .extracting(StudentAiFeedbackResponse.FeedbackItem::getTitle)
+                .containsExactly("边界样例意识", "变量追踪");
     }
 
     @Test
