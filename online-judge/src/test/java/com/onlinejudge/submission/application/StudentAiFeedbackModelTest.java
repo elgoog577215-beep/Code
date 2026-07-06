@@ -82,9 +82,9 @@ class StudentAiFeedbackModelTest {
         assertThat(service.lastSystemPrompt())
                 .contains("学生快反馈教练", "studentReport", "禁止给最终代码", "不要只解释第一个");
         assertThat(service.lastUserPrompt())
-                .contains("judgeFacts", "candidateSignals", "sourceExcerpt", "evidenceCandidates")
+                .contains("judgeFacts", "candidateSignals", "sourceCodeWithLineNumbers", "n = int(input())")
                 .contains("不要把内部字段名写进学生反馈");
-        assertThat(service.lastUserPrompt()).doesNotContain("sourceCodeWithLineNumbers", "sourceCodeForLineAnalysis");
+        assertThat(service.lastUserPrompt()).doesNotContain("sourceExcerpt", "evidenceCandidates", "primaryRuntimeEvidence", "sourceCodeForLineAnalysis");
         assertThat(service.lastOutputTokens()).isEqualTo(1800);
     }
 
@@ -101,7 +101,7 @@ class StudentAiFeedbackModelTest {
                     "title": "输入读取不匹配",
                     "body": "先检查读取语句是否覆盖题面要求的两个整数。",
                     "kind": "INPUT_PARSING",
-                    "evidenceRefs": ["E1"],
+                    "evidenceRefs": ["code:line:1"],
                     "qualitySignals": ["evidence_grounded", "actionable"]
                   }, {
                     "title": "输出目标要复核",
@@ -120,7 +120,7 @@ class StudentAiFeedbackModelTest {
                     "title": "输入结构自测",
                     "body": "修复后补一个和样例格式不同的小输入。",
                     "kind": "IMPROVEMENT",
-                    "evidenceRefs": ["E1"],
+                    "evidenceRefs": ["code:line:1"],
                     "qualitySignals": ["transfer"]
                   }, {
                     "title": "变量追踪",
@@ -137,7 +137,7 @@ class StudentAiFeedbackModelTest {
                   }],
                   "nextQuestion": "这段代码读到的第一个值对应题面里的哪个量？",
                   "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
-                  "evidenceRefs": ["E1", "judge:first_failed_case:1"]
+                  "evidenceRefs": ["code:line:1", "judge:first_failed_case:1"]
                 }
                 """);
 
@@ -163,7 +163,7 @@ class StudentAiFeedbackModelTest {
     }
 
     @Test
-    void mapsEvidenceCandidateIdsToClickableCodeSnippets() {
+    void mapsModelReturnedCodeLineRefsToClickableCodeSnippets() {
         StubStudentFeedbackAiReportService service = newService("""
                 {
                   "studentReport": {
@@ -175,13 +175,13 @@ class StudentAiFeedbackModelTest {
                     "title": "输入读取不匹配",
                     "body": "先检查读取语句是否一次读到了题面要求的两个整数。",
                     "kind": "INPUT_PARSING",
-                    "evidenceRefs": ["E1"],
+                    "evidenceRefs": ["code:line:1"],
                     "qualitySignals": ["evidence_grounded", "actionable"]
                   }],
                   "improvementItems": [],
                   "nextQuestion": "",
                   "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
-                  "evidenceRefs": ["E1"]
+                  "evidenceRefs": ["code:line:1"]
                 }
                 """);
 
@@ -192,7 +192,10 @@ class StudentAiFeedbackModelTest {
                 ruleSignals()
         );
 
-        assertThat(service.lastUserPrompt()).contains("\"id\":\"E1\"", "\"evidenceRef\":\"code:line:1\"");
+        assertThat(service.lastUserPrompt())
+                .contains("\"sourceCodeWithLineNumbers\":\"1: n = int(input())")
+                .doesNotContain("\"id\":\"E1\"", "evidenceCandidates");
+        assertThat(service.lastSystemPrompt()).contains("不要使用 E1/E2");
         assertThat(feedback.getEvidenceRefs()).contains("code:line:1").doesNotContain("E1");
         assertThat(feedback.getRepairItems()).singleElement().satisfies(item -> {
             assertThat(item.getEvidenceRefs()).contains("code:line:1").doesNotContain("E1");
@@ -231,13 +234,13 @@ class StudentAiFeedbackModelTest {
                     "mistakePointId": "MP_INPUT_SINGLE_READ",
                     "libraryFit": "HIT",
                     "knowledgePath": ["程序基础", "输入输出", "输入解析", "格式匹配"],
-                    "evidenceRefs": ["E1"],
+                    "evidenceRefs": ["code:line:1"],
                     "qualitySignals": ["evidence_grounded", "actionable"]
                   }],
                   "improvementItems": [],
                   "nextQuestion": "",
                   "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
-                  "evidenceRefs": ["E1"]
+                  "evidenceRefs": ["code:line:1"]
                 }
                 """, runtime);
 
@@ -281,13 +284,13 @@ class StudentAiFeedbackModelTest {
                     "kind": "REPAIR",
                     "libraryFit": "OUT_OF_LIBRARY",
                     "knowledgePath": ["图论", "最短路", "状态扩展", "优惠边权"],
-                    "evidenceRefs": ["E1"],
+                    "evidenceRefs": ["code:line:1"],
                     "qualitySignals": ["evidence_grounded", "actionable"]
                   }],
                   "improvementItems": [],
                   "nextQuestion": "",
                   "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
-                  "evidenceRefs": ["E1"]
+                  "evidenceRefs": ["code:line:1"]
                 }
                 """, growthAgentService);
 
@@ -317,7 +320,7 @@ class StudentAiFeedbackModelTest {
     }
 
     @Test
-    void modelProvidedGrowthCandidateEvidenceIdsAreResolved() {
+    void modelProvidedGrowthCandidateKeepsModelChosenCodeLineEvidence() {
         AiStandardLibraryGrowthAgentService growthAgentService = mock(AiStandardLibraryGrowthAgentService.class);
         when(growthAgentService.proposeFromDiagnosisOutput(any(AdviceGenerationOutput.class), any(), any(), isNull()))
                 .thenReturn(List.of());
@@ -334,7 +337,7 @@ class StudentAiFeedbackModelTest {
                     "name": "同一行多整数读取误判",
                     "suggestedPath": ["程序基础", "输入输出", "输入解析"],
                     "similarExistingItems": [],
-                    "evidenceRefs": ["E1"],
+                    "evidenceRefs": ["code:line:1"],
                     "evidenceStatus": "SUPPORTED",
                     "errorSymptom": "题面一行有多个整数，代码按单个整数读取。",
                     "typicalCodePattern": "int(input())",
@@ -345,7 +348,7 @@ class StudentAiFeedbackModelTest {
                   }]},
                   "nextQuestion": "",
                   "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
-                  "evidenceRefs": ["E1"]
+                  "evidenceRefs": ["code:line:1"]
                 }
                 """, growthAgentService);
 
@@ -455,7 +458,7 @@ class StudentAiFeedbackModelTest {
     }
 
     @Test
-    void longRuntimeErrorContextIncludesFailingLineWindow() {
+    void longRuntimeErrorContextIncludesFullLineNumberedSourceCode() {
         StubStudentFeedbackAiReportService service = newService("""
                 {
                   "studentReport": {
@@ -479,8 +482,8 @@ class StudentAiFeedbackModelTest {
         );
 
         assertThat(service.lastUserPrompt())
-                .contains("primaryRuntimeEvidence", "\"lineNumber\":622", "for i in range(n + 1)", "total += arr[i]")
-                .doesNotContain("helper_1(x)");
+                .contains("sourceCodeWithLineNumbers", "622:         total += arr[i]", "for i in range(n + 1)", "def helper_1(x):")
+                .doesNotContain("primaryRuntimeEvidence", "sourceExcerpt", "evidenceCandidates");
     }
 
     @Test

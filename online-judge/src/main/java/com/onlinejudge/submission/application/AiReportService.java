@@ -267,10 +267,9 @@ public class AiReportService {
         }
 
         try {
-            List<StudentEvidenceCandidate> evidenceCandidates = buildStudentEvidenceCandidates(submission, evidencePackage, ruleSignals);
-            Map<String, String> evidenceCandidateRefs = evidenceCandidateRefs(evidenceCandidates);
+            Map<String, String> evidenceCandidateRefs = Map.of();
             ExternalModelAgentRuntime.RuntimePlan runtimePlan = prepareStudentFeedbackRuntimePlan(evidencePackage, ruleSignals);
-            Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, ruleSignals, evidenceCandidates, runtimePlan);
+            Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, ruleSignals, runtimePlan);
 
             String systemPrompt = """
                     你是高中信息学在线判题系统的学生快反馈教练。
@@ -287,11 +286,11 @@ public class AiReportService {
                     4. nextActionText 只写 1 个学生马上能做的自查动作，用一句话表达，不要编号，不超过 60 个中文字符。
                     5. repairItems 和 improvementItems 都按真实证据返回 0 到多条：有几个彼此独立的错误就给几条 repairItems，有几个真实提升方向就给几条 improvementItems；不要强行合并成一条，也不要为了显得丰富而凑数。
                     6. 不要把 candidateSignals 或 ruleSignals 当成结论；必须让题目目标、代码行为、评测结果三者能对上。
-                    7. 每条建议的 evidenceRefs 优先填写 evidenceCandidates 里的 E1/E2 这类证据 ID；也可以填写已有 code:line/code:range。不能猜隐藏测试。
+                    7. 后端没有预选错误代码行；你必须自己阅读 submission.sourceCodeWithLineNumbers，并在 evidenceRefs 中填写 code:line:N 或 code:range:A-B。不要使用 E1/E2 这类候选 ID。不能猜隐藏测试。
                     8. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达；建议动作写成检查、手推、比较、核对，不写删除、替换、改成。
                     9. 学生可见文字不能复述 verdict:、code:、evidenceRefs、judgeFacts、candidateSignals 等内部字段名或证据标记。
                     10. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
-                    11. 如果 submission.primaryRuntimeEvidence 存在，基础层必须优先解释其中的异常类型、行号和 lineText；不要把“代码很长、helper 太多、需要精简”当作主因，除非它直接导致这一行异常。
+                    11. 如果运行错误信息里出现行号，基础层必须回到 submission.sourceCodeWithLineNumbers 中核对对应代码行；不要把“代码很长、helper 太多、需要精简”当作主因，除非它直接导致该行异常。
                     12. 如果异常是 IndexError/list index out of range，基础层必须围绕“下标访问范围”和“容器长度”解释，不要只给代码整理建议。
                     13. 如果基础层是下标越界，提高层优先写边界样例、循环边界、数组长度核对等迁移能力；不要把“精简代码/删除 helper”作为唯一提高层。
                     14. knowledgePath 是父子关系路径，不是独立标签；使用 3-5 段中文知识树路径，例如 ["程序基础","数组/列表","下标访问","越界检查"]；不确定时可以留空，由后端兜底。
@@ -1992,105 +1991,6 @@ public class AiReportService {
         return text.substring(0, limit).trim() + "...";
     }
 
-    private String compactLineAwareSourceExcerpt(String numberedSourceCode, int maxLines, int maxChars) {
-        String normalized = cleanupAiText(numberedSourceCode);
-        if (normalized.isBlank()) {
-            return "";
-        }
-        String[] lines = normalized.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
-        StringBuilder builder = new StringBuilder();
-        int lineLimit = Math.max(1, maxLines);
-        int charLimit = Math.max(80, maxChars);
-        for (int index = 0; index < lines.length && index < lineLimit; index++) {
-            String line = lines[index];
-            if (builder.length() > 0) {
-                builder.append('\n');
-            }
-            if (builder.length() + line.length() > charLimit) {
-                builder.append(line, 0, Math.max(0, charLimit - builder.length())).append("...");
-                break;
-            }
-            builder.append(line);
-        }
-        if (lines.length > lineLimit) {
-            builder.append("\n... truncated ").append(lines.length - lineLimit).append(" more lines ...");
-        }
-        return builder.toString();
-    }
-
-    private String compactLineAwareSourceExcerpt(String numberedSourceCode, String diagnosticText, int maxLines, int maxChars) {
-        Integer targetLine = lastReferencedLineNumber(diagnosticText);
-        if (targetLine == null) {
-            return compactLineAwareSourceExcerpt(numberedSourceCode, maxLines, maxChars);
-        }
-        String normalized = cleanupAiText(numberedSourceCode);
-        if (normalized.isBlank()) {
-            return "";
-        }
-        String[] lines = normalized.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
-        int lineLimit = Math.max(1, maxLines);
-        int charLimit = Math.max(160, maxChars);
-        int start = Math.max(0, targetLine - 1 - lineLimit / 2);
-        int end = Math.min(lines.length, start + lineLimit);
-        if (end - start < lineLimit) {
-            start = Math.max(0, end - lineLimit);
-        }
-        StringBuilder builder = new StringBuilder();
-        if (start > 0) {
-            builder.append("... omitted before line ").append(start + 1).append(" ...\n");
-        }
-        for (int index = start; index < end; index++) {
-            String line = lines[index];
-            if (builder.length() > 0 && builder.length() + line.length() + 1 > charLimit) {
-                builder.append("\n... truncated ...");
-                break;
-            }
-            if (builder.length() > 0) {
-                builder.append('\n');
-            }
-            builder.append(line);
-        }
-        if (end < lines.length && builder.length() + 40 <= charLimit) {
-            builder.append("\n... omitted after line ").append(end).append(" ...");
-        }
-        return builder.toString();
-    }
-
-    private Map<String, Object> primaryRuntimeEvidence(String numberedSourceCode, String diagnosticText) {
-        Integer targetLine = lastReferencedLineNumber(diagnosticText);
-        String exceptionSummary = runtimeExceptionSummary(diagnosticText);
-        if (targetLine == null && exceptionSummary.isBlank()) {
-            return Map.of();
-        }
-        String lineText = targetLine == null ? "" : numberedSourceLine(numberedSourceCode, targetLine);
-        Map<String, Object> evidence = new LinkedHashMap<>();
-        if (targetLine != null) {
-            evidence.put("lineNumber", targetLine);
-            evidence.put("evidenceRef", "code:line:" + targetLine);
-        }
-        if (!lineText.isBlank()) {
-            evidence.put("lineText", lineText);
-        }
-        if (!exceptionSummary.isBlank()) {
-            evidence.put("exception", exceptionSummary);
-        }
-        evidence.put("diagnosisPriority", "先解释这一条 traceback 指向的具体错误，再谈代码整理或提高层建议。");
-        return evidence;
-    }
-
-    private String numberedSourceLine(String numberedSourceCode, int targetLine) {
-        String normalized = cleanupAiText(numberedSourceCode);
-        if (normalized.isBlank() || targetLine <= 0) {
-            return "";
-        }
-        String[] lines = normalized.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
-        if (targetLine > lines.length) {
-            return "";
-        }
-        String line = lines[targetLine - 1];
-        return line.replaceFirst("^\\s*" + targetLine + "\\s*:\\s?", "").trim();
-    }
-
     private String sourceLine(String sourceCode, int targetLine) {
         if (sourceCode == null || targetLine <= 0) {
             return "";
@@ -2100,21 +2000,6 @@ public class AiReportService {
             return "";
         }
         return cleanupAiText(lines[targetLine - 1]).trim();
-    }
-
-    private String runtimeExceptionSummary(String diagnosticText) {
-        String normalized = cleanupAiText(diagnosticText);
-        if (normalized.isBlank()) {
-            return "";
-        }
-        String[] lines = normalized.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
-        for (int index = lines.length - 1; index >= 0; index--) {
-            String line = lines[index] == null ? "" : lines[index].trim();
-            if (!line.isBlank() && !line.startsWith("~") && !line.startsWith("^")) {
-                return truncateText(line, 160);
-            }
-        }
-        return "";
     }
 
     private Integer lastReferencedLineNumber(String text) {
@@ -2566,14 +2451,12 @@ public class AiReportService {
                                                                   Submission submission,
                                                                   DiagnosisEvidencePackage evidencePackage,
                                                                   RuleSignalAnalyzer.RuleSignalResult ruleSignals,
-                                                                  List<StudentEvidenceCandidate> evidenceCandidates,
                                                                   ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("problem", compactStudentProblemContext(problem, evidencePackage));
         context.put("submission", compactStudentSubmissionContext(submission, evidencePackage));
         context.put("judgeFacts", compactStudentJudgeFacts(evidencePackage == null ? null : evidencePackage.getJudgeFacts()));
         context.put("candidateSignals", compactStudentRuleSignals(ruleSignals));
-        context.put("evidenceCandidates", compactStudentEvidenceCandidates(evidenceCandidates));
         if (runtimePlan != null && runtimePlan.getStandardLibraryPack() != null) {
             context.put("standardLibrary", runtimePlan.getStandardLibraryPack());
             context.put("searchLocationSummary", runtimePlan.getStandardLibraryPack().getSearchLocationSummary());
@@ -2581,7 +2464,7 @@ public class AiReportService {
         context.put("safetyRules", List.of(
                 "只给定位和验证动作，不给完整代码或完整答案。",
                 "不猜隐藏测试数据。",
-                "每条建议必须绑定 evidenceCandidates 的证据 ID，或绑定输入已有 evidenceRefs；学生可见文字不能复述内部字段名或证据标记。"
+                "每条建议必须自己从 submission.sourceCodeWithLineNumbers 定位 code:line 或 code:range；学生可见文字不能复述内部字段名或证据标记。"
         ));
         return context;
     }
@@ -2623,14 +2506,7 @@ public class AiReportService {
         context.put("sourceCodeLineCount", evidence == null || evidence.getSourceCodeLineCount() == null
                 ? countSourceLines(sourceCode)
                 : evidence.getSourceCodeLineCount());
-        String diagnosticText = firstNonBlank(
-                submission == null ? "" : submission.getErrorMessage(),
-                evidencePackage == null || evidencePackage.getJudgeFacts() == null
-                        ? ""
-                        : evidencePackage.getJudgeFacts().getRuntimeErrorMessage()
-        );
-        context.put("primaryRuntimeEvidence", primaryRuntimeEvidence(numberedSource, diagnosticText));
-        context.put("sourceExcerpt", compactLineAwareSourceExcerpt(numberedSource, diagnosticText, 10, 900));
+        context.put("sourceCodeWithLineNumbers", numberedSource);
         context.put("compileOutput", truncateText(submission == null ? "" : submission.getCompileOutput(), 220));
         context.put("runtimeErrorMessage", truncateText(submission == null ? "" : submission.getErrorMessage(), 220));
         return context;
@@ -2699,130 +2575,6 @@ public class AiReportService {
         context.put("candidateFineGrainedTags", cleanList(ruleSignals.getCandidateFineGrainedTags(), List.of()).stream().limit(3).toList());
         context.put("evidenceRefs", cleanList(ruleSignals.getEvidenceRefs(), List.of()).stream().limit(6).toList());
         return context;
-    }
-
-    private List<Map<String, Object>> compactStudentEvidenceCandidates(List<StudentEvidenceCandidate> candidates) {
-        if (candidates == null || candidates.isEmpty()) {
-            return List.of();
-        }
-        return candidates.stream()
-                .limit(24)
-                .map(candidate -> {
-                    Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("id", candidate.id());
-                    item.put("evidenceRef", candidate.evidenceRef());
-                    item.put("label", candidate.label());
-                    item.put("lineNumber", candidate.lineNumber());
-                    item.put("lineEnd", candidate.lineEnd());
-                    item.put("code", truncateText(candidate.code(), 160));
-                    return item;
-                })
-                .toList();
-    }
-
-    private List<StudentEvidenceCandidate> buildStudentEvidenceCandidates(Submission submission,
-                                                                          DiagnosisEvidencePackage evidencePackage,
-                                                                          RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
-        String sourceCode = studentFeedbackSourceCode(submission, evidencePackage);
-        if (sourceCode.isBlank()) {
-            return List.of();
-        }
-        List<StudentEvidenceCandidate> candidates = new ArrayList<>();
-        Set<String> seenRefs = new LinkedHashSet<>();
-        String diagnosticText = firstNonBlank(
-                submission == null ? "" : submission.getErrorMessage(),
-                evidencePackage == null || evidencePackage.getJudgeFacts() == null
-                        ? ""
-                        : evidencePackage.getJudgeFacts().getRuntimeErrorMessage()
-        );
-        Integer runtimeLine = lastReferencedLineNumber(diagnosticText);
-        if (runtimeLine != null) {
-            addStudentEvidenceCandidate(candidates, seenRefs, sourceCode, "code:line:" + runtimeLine, "运行错误指向行");
-            if (!candidates.isEmpty()) {
-                return candidates;
-            }
-        }
-        cleanList(ruleSignals == null ? null : ruleSignals.getEvidenceRefs(), List.of()).forEach(ref ->
-                addStudentEvidenceCandidate(candidates, seenRefs, sourceCode, ref, "规则信号定位行"));
-        if (ruleSignals != null && ruleSignals.getSignals() != null) {
-            ruleSignals.getSignals().stream()
-                    .filter(signal -> signal != null)
-                    .map(RuleSignalAnalyzer.Signal::getEvidenceRef)
-                    .forEach(ref -> addStudentEvidenceCandidate(candidates, seenRefs, sourceCode, ref, "规则信号定位行"));
-        }
-        addSourceHeuristicCandidates(candidates, seenRefs, sourceCode);
-        return candidates;
-    }
-
-    private Map<String, String> evidenceCandidateRefs(List<StudentEvidenceCandidate> candidates) {
-        if (candidates == null || candidates.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, String> refs = new LinkedHashMap<>();
-        candidates.forEach(candidate -> refs.put(candidate.id(), candidate.evidenceRef()));
-        return refs;
-    }
-
-    private void addSourceHeuristicCandidates(List<StudentEvidenceCandidate> candidates,
-                                              Set<String> seenRefs,
-                                              String sourceCode) {
-        String[] lines = sourceCode.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
-        for (int index = 0; index < lines.length && candidates.size() < 24; index++) {
-            String line = lines[index].trim();
-            if (!looksLikeStudentEvidenceLine(line)) {
-                continue;
-            }
-            addStudentEvidenceCandidate(candidates, seenRefs, sourceCode, "code:line:" + (index + 1), "代码关键位置");
-        }
-    }
-
-    private boolean looksLikeStudentEvidenceLine(String line) {
-        if (line.isBlank() || line.startsWith("#") || line.startsWith("//") || line.startsWith("import ")) {
-            return false;
-        }
-        String normalized = line.toLowerCase();
-        return normalized.contains("input")
-                || normalized.contains("print")
-                || normalized.contains("cin")
-                || normalized.contains("cout")
-                || normalized.contains("for ")
-                || normalized.contains("while ")
-                || normalized.contains("if ")
-                || normalized.contains("return")
-                || normalized.contains("check")
-                || normalized.contains("solve")
-                || normalized.contains("int main");
-    }
-
-    private void addStudentEvidenceCandidate(List<StudentEvidenceCandidate> candidates,
-                                             Set<String> seenRefs,
-                                             String sourceCode,
-                                             String evidenceRef,
-                                             String label) {
-        if (candidates.size() >= 24) {
-            return;
-        }
-        StudentAiFeedbackResponse.EvidenceSnippet snippet = evidenceSnippet(evidenceRef, sourceCode);
-        if (snippet == null || !seenRefs.add(snippet.getEvidenceRef())) {
-            return;
-        }
-        candidates.add(new StudentEvidenceCandidate(
-                "E" + (candidates.size() + 1),
-                snippet.getEvidenceRef(),
-                label,
-                snippet.getLineNumber(),
-                snippet.getLineEnd(),
-                snippet.getCode()
-        ));
-    }
-
-    private String studentFeedbackSourceCode(Submission submission, DiagnosisEvidencePackage evidencePackage) {
-        String sourceCode = defaultIfBlank(submission == null ? "" : submission.getSourceCode(), "");
-        if (!sourceCode.isBlank()) {
-            return sourceCode;
-        }
-        DiagnosisEvidencePackage.SubmissionEvidence evidence = evidencePackage == null ? null : evidencePackage.getSubmission();
-        return defaultIfBlank(evidence == null ? "" : evidence.getSourceCode(), "");
     }
 
     private StudentAiFeedbackResponse normalizeStudentFastFeedback(StudentFastFeedbackPayload payload,
@@ -3578,14 +3330,6 @@ public class AiReportService {
             return normalized;
         }
         return "LOW";
-    }
-
-    private record StudentEvidenceCandidate(String id,
-                                            String evidenceRef,
-                                            String label,
-                                            Integer lineNumber,
-                                            Integer lineEnd,
-                                            String code) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
