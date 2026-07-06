@@ -556,6 +556,11 @@ export interface StudentAiFeedbackItem {
   title?: string | null;
   body?: string | null;
   kind?: string | null;
+  libraryItemId?: string | null;
+  skillUnitId?: string | null;
+  mistakePointId?: string | null;
+  improvementPointId?: string | null;
+  libraryFit?: string | null;
   knowledgePath?: string[];
   evidenceSnippets?: StudentAiFeedbackEvidenceSnippet[];
   evidenceRefs?: string[];

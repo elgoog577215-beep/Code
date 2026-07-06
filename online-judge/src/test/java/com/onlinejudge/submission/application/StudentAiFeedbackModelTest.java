@@ -11,6 +11,11 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class StudentAiFeedbackModelTest {
 
@@ -191,6 +196,62 @@ class StudentAiFeedbackModelTest {
                 assertThat(snippet.getLineNumber()).isEqualTo(1);
                 assertThat(snippet.getCode()).contains("n = int(input())");
             });
+        });
+    }
+
+    @Test
+    void studentFastFeedbackReceivesStandardLibraryContextAndKeepsLibraryIds() {
+        ExternalModelAgentRuntime runtime = mock(ExternalModelAgentRuntime.class);
+        when(runtime.prepare(any(DiagnosisEvidencePackage.class),
+                any(RuleSignalAnalyzer.RuleSignalResult.class),
+                isNull(),
+                anyString()))
+                .thenReturn(ExternalModelAgentRuntime.RuntimePlan.builder()
+                        .brief(ModelDiagnosisBrief.builder().build())
+                        .standardLibraryPack(studentStandardLibraryPack())
+                        .requestCompact(false)
+                        .build());
+        StubStudentFeedbackAiReportService service = newService("""
+                {
+                  "studentReport": {
+                    "basicLayerText": "这次主要卡在输入读取方式。题目给两个整数，但代码只按一个整数读取。",
+                    "improvementLayerText": "修复后可以补一个不同格式的小样例，确认读取逻辑不是只记住样例。",
+                    "nextActionText": "对照题面写下每一次 input 应该读到什么。"
+                  },
+                  "repairItems": [{
+                    "title": "输入读取不匹配",
+                    "body": "先检查读取语句是否一次读到了题面要求的两个整数。",
+                    "kind": "INPUT_PARSING",
+                    "libraryItemId": "MP_INPUT_SINGLE_READ",
+                    "skillUnitId": "SK_INPUT_PARSE",
+                    "mistakePointId": "MP_INPUT_SINGLE_READ",
+                    "libraryFit": "HIT",
+                    "knowledgePath": ["程序基础", "输入输出", "输入解析", "格式匹配"],
+                    "evidenceRefs": ["E1"],
+                    "qualitySignals": ["evidence_grounded", "actionable"]
+                  }],
+                  "improvementItems": [],
+                  "nextQuestion": "",
+                  "safety": {"answerLeakRisk": "LOW", "blockedReasons": []},
+                  "evidenceRefs": ["E1"]
+                }
+                """, runtime);
+
+        StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
+                problem(),
+                submission(),
+                evidencePackage(),
+                ruleSignals()
+        );
+
+        assertThat(service.lastUserPrompt())
+                .contains("\"standardLibrary\"", "\"knowledgeGroups\"", "SK_INPUT_PARSE", "MP_INPUT_SINGLE_READ");
+        assertThat(feedback.getRepairItems()).singleElement().satisfies(item -> {
+            assertThat(item.getLibraryItemId()).isEqualTo("MP_INPUT_SINGLE_READ");
+            assertThat(item.getSkillUnitId()).isEqualTo("SK_INPUT_PARSE");
+            assertThat(item.getMistakePointId()).isEqualTo("MP_INPUT_SINGLE_READ");
+            assertThat(item.getLibraryFit()).isEqualTo("HIT");
+            assertThat(item.getEvidenceRefs()).contains("code:line:1").doesNotContain("E1");
         });
     }
 
@@ -451,6 +512,15 @@ class StudentAiFeedbackModelTest {
         return service;
     }
 
+    private StubStudentFeedbackAiReportService newService(String response, ExternalModelAgentRuntime runtime) {
+        StubStudentFeedbackAiReportService service = new StubStudentFeedbackAiReportService(objectMapper, response, runtime);
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 1800);
+        ReflectionTestUtils.setField(service, "streamEnabled", false);
+        return service;
+    }
+
     private Problem problem() {
         return Problem.builder()
                 .id(1L)
@@ -603,6 +673,48 @@ class StudentAiFeedbackModelTest {
                 .build();
     }
 
+    private StandardLibraryPack studentStandardLibraryPack() {
+        StandardLibraryPack.SkillUnitOption skill = StandardLibraryPack.SkillUnitOption.builder()
+                .id("SK_INPUT_PARSE")
+                .category("能力点/输入输出")
+                .name("按题面格式解析输入")
+                .description("能根据题面判断一行里有几个量，以及每次读取应该得到什么。")
+                .knowledgeNodeCodes(List.of("BASIC.IO.INPUT"))
+                .applicableLanguages(List.of("PYTHON"))
+                .build();
+        StandardLibraryPack.MistakePointOption mistake = StandardLibraryPack.MistakePointOption.builder()
+                .id("MP_INPUT_SINGLE_READ")
+                .category("易错点/输入输出")
+                .name("把同一行多个整数当成单个整数读取")
+                .description("题面一行给多个整数，但代码用 int(input()) 只读取单个整数。")
+                .skillUnitCode("SK_INPUT_PARSE")
+                .mistakeType("INPUT_FORMAT")
+                .knowledgeNodeCodes(List.of("BASIC.IO.INPUT"))
+                .applicableLanguages(List.of("PYTHON"))
+                .build();
+        return StandardLibraryPack.builder()
+                .schemaVersion(StandardLibraryPack.SCHEMA_VERSION)
+                .structureVersion(StandardLibraryPack.STRUCTURE_VERSION)
+                .knowledgeGroups(List.of(StandardLibraryPack.KnowledgeGroupOption.builder()
+                        .id("BASIC.IO.INPUT")
+                        .name("输入读取")
+                        .path("程序基础 > 输入输出 > 输入读取")
+                        .skillUnits(List.of(StandardLibraryPack.SkillUnitGroupOption.builder()
+                                .skillUnit(skill)
+                                .mistakePoints(List.of(mistake))
+                                .candidateIds(List.of("SK_INPUT_PARSE", "MP_INPUT_SINGLE_READ"))
+                                .build()))
+                        .build()))
+                .skillUnits(List.of(skill))
+                .mistakePoints(List.of(mistake))
+                .searchLocationSummary(StandardLibraryPack.SearchLocationSummary.builder()
+                        .status("LOCAL_RECALL")
+                        .candidateCount(2)
+                        .selectedCount(2)
+                        .build())
+                .build();
+    }
+
     private static class StubStudentFeedbackAiReportService extends AiReportService {
         private final String response;
         private String lastSystemPrompt;
@@ -611,6 +723,13 @@ class StudentAiFeedbackModelTest {
 
         StubStudentFeedbackAiReportService(ObjectMapper objectMapper, String response) {
             super(objectMapper, new AiCodeAssistSupport());
+            this.response = response;
+        }
+
+        StubStudentFeedbackAiReportService(ObjectMapper objectMapper,
+                                           String response,
+                                           ExternalModelAgentRuntime runtime) {
+            super(objectMapper, new AiCodeAssistSupport(), runtime);
             this.response = response;
         }
 

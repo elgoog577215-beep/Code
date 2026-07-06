@@ -33,6 +33,11 @@ public class StudentAiFeedbackResponse {
         private String title;
         private String body;
         private String kind;
+        private String libraryItemId;
+        private String skillUnitId;
+        private String mistakePointId;
+        private String improvementPointId;
+        private String libraryFit;
         private List<String> knowledgePath;
         private List<EvidenceSnippet> evidenceSnippets;
         private List<String> evidenceRefs;

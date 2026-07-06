@@ -374,7 +374,7 @@ public class StudentFeedbackAssembler {
             base = defaultIfBlank(analysis.getSummary(), "系统已经整理出当前提交的主要问题和下一步检查动作。");
         }
         if (fallbackUsed) {
-            return base + " AI 暂不可用，先看本地反馈。";
+            return "本地可验证反馈：" + base + " AI 暂不可用，先看本地反馈。";
         }
         return base;
     }

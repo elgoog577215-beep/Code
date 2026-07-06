@@ -105,6 +105,55 @@ class StudentFeedbackViewAssemblerTest {
     }
 
     @Test
+    void keepsAllEvidenceBackedFeedbackItems() {
+        SubmissionAnalysisResponse analysis = analysis(false);
+        analysis.getStudentFeedback().setBlockingIssues(List.of(
+                SubmissionAnalysisResponse.FeedbackIssue.builder()
+                        .title("输入没有完整读取")
+                        .studentMessage("先核对题面每一行输入和代码读取次数是否一致。")
+                        .issueTag("IO_FORMAT")
+                        .fineGrainedTag("INPUT_PARSING")
+                        .evidenceRefs(List.of("rule:input"))
+                        .build(),
+                SubmissionAnalysisResponse.FeedbackIssue.builder()
+                        .title("输出目标要复核")
+                        .studentMessage("再确认程序最后输出的是题目要求的目标量。")
+                        .issueTag("OUTPUT_GOAL")
+                        .fineGrainedTag("OUTPUT_TARGET")
+                        .evidenceRefs(List.of("case:first_failed"))
+                        .build()
+        ));
+        analysis.getStudentFeedback().setImprovementOpportunities(List.of(
+                SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                        .category("TESTING_HABIT")
+                        .studentMessage("补一个和样例结构不同的小输入。")
+                        .evidenceRefs(List.of("case:first_failed"))
+                        .build(),
+                SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                        .category("TRACE_VARIABLES")
+                        .studentMessage("记录读取后的变量值，对照题面含义。")
+                        .evidenceRefs(List.of("rule:input"))
+                        .build(),
+                SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                        .category("PROBLEM_READING")
+                        .studentMessage("修改前先用一句话复述输入和输出分别是什么。")
+                        .evidenceRefs(List.of("problem:statement"))
+                        .build()
+        ));
+
+        SubmissionAnalysisResponse.StudentFeedbackView view = assembler.assemble(analysis);
+
+        assertThat(view.getRepairItems())
+                .hasSize(2)
+                .extracting(SubmissionAnalysisResponse.FeedbackViewItem::getTitle)
+                .containsExactly("输入没有完整读取", "输出目标要复核");
+        assertThat(view.getImprovementItems())
+                .hasSize(3)
+                .extracting(SubmissionAnalysisResponse.FeedbackViewItem::getTitle)
+                .containsExactly("测试习惯", "进阶", "进阶");
+    }
+
+    @Test
     void filtersUnsafeOrNoisyItems() {
         SubmissionAnalysisResponse analysis = analysis(false);
         analysis.getStudentFeedback().getBlockingIssues().get(0).setNextAction("直接改成完整代码如下");

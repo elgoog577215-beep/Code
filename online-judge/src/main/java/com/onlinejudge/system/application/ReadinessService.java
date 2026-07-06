@@ -131,7 +131,7 @@ public class ReadinessService {
                 aiStatus,
                 aiBlocking && !"PASS".equals(aiStatus),
                 aiStatusMessage(aiEnabled, aiConfigured, smoke),
-                "执行 AI smoke；失败时检查 key、额度和网络。"
+                aiAction(aiEnabled && aiConfigured, smoke)
         ));
 
         checks.add(check(
@@ -188,6 +188,19 @@ public class ReadinessService {
             return "AI smoke 通过。";
         }
         return smoke.getMessage();
+    }
+
+    private String aiAction(boolean enabledAndConfigured, AiSmokeResponse smoke) {
+        if (!enabledAndConfigured) {
+            return "开启 AI 并配置有效 API key。";
+        }
+        if (smoke != null && "RATE_LIMITED".equalsIgnoreCase(smoke.getFailureReason())) {
+            return "修正 key、检查额度与限流策略；必要时切换可用模型后重新执行 AI smoke。";
+        }
+        if (smoke != null && "UNAUTHORIZED".equalsIgnoreCase(smoke.getFailureReason())) {
+            return "修正 key 或重新生成 ModelScope token 后执行 AI smoke。";
+        }
+        return "执行 AI smoke；失败时检查 key、额度、限流和网络。";
     }
 
     private String overallStatus(List<ReadinessResponse.Check> checks) {

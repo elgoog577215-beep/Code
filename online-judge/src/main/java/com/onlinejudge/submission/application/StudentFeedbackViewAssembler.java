@@ -96,9 +96,6 @@ public class StudentFeedbackViewAssembler {
                 ? List.of()
                 : feedback.getBlockingIssues();
         for (SubmissionAnalysisResponse.FeedbackIssue issue : issues) {
-            if (items.size() >= 1) {
-                break;
-            }
             String title = cleanTitle(issue.getTitle());
             boolean diagnosisReportV2 = isDiagnosisReportV2(analysis);
             String body = clean(defaultIfBlank(
@@ -127,9 +124,6 @@ public class StudentFeedbackViewAssembler {
                 ? List.of()
                 : feedback.getImprovementOpportunities();
         for (SubmissionAnalysisResponse.ImprovementOpportunity opportunity : opportunities) {
-            if (items.size() >= 2) {
-                break;
-            }
             String body = clean(defaultIfBlank(opportunity.getStudentMessage(), opportunity.getBenefit()));
             if (body.isBlank()) {
                 continue;

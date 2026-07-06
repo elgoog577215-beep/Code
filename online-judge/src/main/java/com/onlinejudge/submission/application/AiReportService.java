@@ -269,7 +269,8 @@ public class AiReportService {
         try {
             List<StudentEvidenceCandidate> evidenceCandidates = buildStudentEvidenceCandidates(submission, evidencePackage, ruleSignals);
             Map<String, String> evidenceCandidateRefs = evidenceCandidateRefs(evidenceCandidates);
-            Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, ruleSignals, evidenceCandidates);
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan = prepareStudentFeedbackRuntimePlan(evidencePackage, ruleSignals);
+            Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, ruleSignals, evidenceCandidates, runtimePlan);
 
             String systemPrompt = """
                     你是高中信息学在线判题系统的学生快反馈教练。
@@ -277,7 +278,7 @@ public class AiReportService {
                     所有学生可见文字必须使用简体中文。
 
                     Shape:
-                    {"studentReport":{"basicLayerText":"","improvementLayerText":"","nextActionText":""},"repairItems":[{"title":"","body":"","kind":"","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
+                    {"studentReport":{"basicLayerText":"","improvementLayerText":"","nextActionText":""},"repairItems":[{"title":"","body":"","kind":"","libraryItemId":"","skillUnitId":"","mistakePointId":"","improvementPointId":"","libraryFit":"HIT|PARTIAL|MISS|OUT_OF_LIBRARY","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["evidence_grounded","actionable","no_answer_leak"]}],"improvementItems":[{"title":"","body":"","kind":"IMPROVEMENT","libraryItemId":"","skillUnitId":"","mistakePointId":"","improvementPointId":"","libraryFit":"HIT|PARTIAL|MISS|OUT_OF_LIBRARY","knowledgePath":[],"evidenceRefs":[],"qualitySignals":["transfer"]}],"nextQuestion":"","safety":{"answerLeakRisk":"LOW|MEDIUM|HIGH","blockedReasons":[]},"evidenceRefs":[]}
 
                     规则:
                     1. studentReport 是学生真正看到的摘要。用自然短句写：先说现象，再说可能原因，再给检查动作。
@@ -294,6 +295,7 @@ public class AiReportService {
                     12. 如果异常是 IndexError/list index out of range，基础层必须围绕“下标访问范围”和“容器长度”解释，不要只给代码整理建议。
                     13. 如果基础层是下标越界，提高层优先写边界样例、循环边界、数组长度核对等迁移能力；不要把“精简代码/删除 helper”作为唯一提高层。
                     14. knowledgePath 是父子关系路径，不是独立标签；使用 3-5 段中文知识树路径，例如 ["程序基础","数组/列表","下标访问","越界检查"]；不确定时可以留空，由后端兜底。
+                    15. standardLibrary 是教学参考规范包，不是强制答案；能精确命中就填写对应 ID，半命中写 PARTIAL，不匹配写 MISS 或 OUT_OF_LIBRARY 并允许 ID 留空。
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);
@@ -344,6 +346,66 @@ public class AiReportService {
                 rawSourceCode,
                 baselineLineIssues
         );
+    }
+
+    private ExternalModelAgentRuntime.RuntimePlan prepareStudentFeedbackRuntimePlan(
+            DiagnosisEvidencePackage evidencePackage,
+            RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        if (externalModelAgentRuntime == null || evidencePackage == null || ruleSignals == null) {
+            return null;
+        }
+        try {
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan = externalModelAgentRuntime.prepare(
+                    evidencePackage,
+                    ruleSignals,
+                    null,
+                    externalRuntimeProfile
+            );
+            return applyLocalSearchLocationOnly(runtimePlan, ruleSignals);
+        } catch (Exception exception) {
+            log.warn("Student AI feedback standard library context unavailable. reason={}", exception.getMessage());
+            return null;
+        }
+    }
+
+    private ExternalModelAgentRuntime.RuntimePlan applyLocalSearchLocationOnly(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+        if (runtimePlan == null || searchLocationRetrievalService == null || searchLocationPackSelector == null) {
+            return runtimePlan;
+        }
+        SearchLocationCandidatePack candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief(), ruleSignals);
+        if (candidatePack == null) {
+            return runtimePlan;
+        }
+        if (candidatePack.getCandidates() == null || candidatePack.getCandidates().isEmpty()) {
+            runtimePlan.setSearchLocationResult(SearchLocationResult.localOnly(
+                    candidatePack.getEmbeddingStatus(),
+                    candidatePack,
+                    runtimePlan.getStandardLibraryPack()
+            ));
+            return runtimePlan;
+        }
+        SearchLocationOutput localOutput = localSearchLocationOutput(candidatePack);
+        StandardLibraryPack selectedPack = searchLocationPackSelector.select(
+                localOutput,
+                candidatePack,
+                runtimePlan.getStandardLibraryPack()
+        );
+        selectedPack = externalModelAgentRuntime.compactSelectedPack(selectedPack, runtimePlan);
+        runtimePlan.setSearchLocationResult(SearchLocationResult.builder()
+                .enabled(false)
+                .status("LOCAL_RECALL")
+                .embeddingStatus(candidatePack.getEmbeddingStatus())
+                .fallbackReason("")
+                .candidateCount(candidatePack.getCandidateCount())
+                .selectedCount(selectedCount(localOutput))
+                .candidatePack(candidatePack)
+                .output(localOutput)
+                .selectedPack(selectedPack)
+                .build());
+        runtimePlan.setStandardLibraryPack(selectedPack);
+        return runtimePlan;
     }
 
     private SubmissionAnalysisResponse enhanceWithAdviceGenerationRuntime(
@@ -2390,13 +2452,18 @@ public class AiReportService {
                                                                   Submission submission,
                                                                   DiagnosisEvidencePackage evidencePackage,
                                                                   RuleSignalAnalyzer.RuleSignalResult ruleSignals,
-                                                                  List<StudentEvidenceCandidate> evidenceCandidates) {
+                                                                  List<StudentEvidenceCandidate> evidenceCandidates,
+                                                                  ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("problem", compactStudentProblemContext(problem, evidencePackage));
         context.put("submission", compactStudentSubmissionContext(submission, evidencePackage));
         context.put("judgeFacts", compactStudentJudgeFacts(evidencePackage == null ? null : evidencePackage.getJudgeFacts()));
         context.put("candidateSignals", compactStudentRuleSignals(ruleSignals));
         context.put("evidenceCandidates", compactStudentEvidenceCandidates(evidenceCandidates));
+        if (runtimePlan != null && runtimePlan.getStandardLibraryPack() != null) {
+            context.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+            context.put("searchLocationSummary", runtimePlan.getStandardLibraryPack().getSearchLocationSummary());
+        }
         context.put("safetyRules", List.of(
                 "只给定位和验证动作，不给完整代码或完整答案。",
                 "不猜隐藏测试数据。",
@@ -2968,12 +3035,30 @@ public class AiReportService {
                     .title(title.isBlank() ? null : title)
                     .body(body)
                     .kind(defaultIfBlank(cleanupAiText(payload.kind).toUpperCase(), "GUIDANCE"))
+                    .libraryItemId(cleanStudentFeedbackId(payload.libraryItemId))
+                    .skillUnitId(cleanStudentFeedbackId(payload.skillUnitId))
+                    .mistakePointId(cleanStudentFeedbackId(payload.mistakePointId))
+                    .improvementPointId(cleanStudentFeedbackId(payload.improvementPointId))
+                    .libraryFit(cleanLibraryFit(payload.libraryFit))
                     .knowledgePath(cleanList(payload.knowledgePath, List.of()).stream().limit(5).toList())
                     .evidenceRefs(resolveStudentEvidenceRefs(payload.evidenceRefs, evidenceCandidateRefs).stream().limit(4).toList())
                     .qualitySignals(cleanList(payload.qualitySignals, List.of()).stream().limit(5).toList())
                     .build());
         }
         return items;
+    }
+
+    private String cleanStudentFeedbackId(String value) {
+        String id = cleanupAiText(value).trim();
+        return id.isBlank() ? null : id;
+    }
+
+    private String cleanLibraryFit(String value) {
+        String fit = cleanupAiText(value).trim().toUpperCase();
+        return switch (fit) {
+            case "HIT", "PARTIAL", "MISS", "OUT_OF_LIBRARY" -> fit;
+            default -> null;
+        };
     }
 
     private List<String> resolveStudentEvidenceRefs(List<String> refs, Map<String, String> evidenceCandidateRefs) {
@@ -3018,6 +3103,11 @@ public class AiReportService {
                 .title(item.getTitle())
                 .body(item.getBody())
                 .kind(item.getKind())
+                .libraryItemId(item.getLibraryItemId())
+                .skillUnitId(item.getSkillUnitId())
+                .mistakePointId(item.getMistakePointId())
+                .improvementPointId(item.getImprovementPointId())
+                .libraryFit(item.getLibraryFit())
                 .knowledgePath(knowledgePath)
                 .evidenceSnippets(snippets)
                 .evidenceRefs(item.getEvidenceRefs())
@@ -3314,6 +3404,11 @@ public class AiReportService {
         public String title;
         public String body;
         public String kind;
+        public String libraryItemId;
+        public String skillUnitId;
+        public String mistakePointId;
+        public String improvementPointId;
+        public String libraryFit;
         public List<String> knowledgePath;
         public List<String> evidenceRefs;
         public List<String> qualitySignals;
