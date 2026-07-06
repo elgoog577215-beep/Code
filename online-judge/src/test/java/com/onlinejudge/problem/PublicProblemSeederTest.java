@@ -36,6 +36,7 @@ class PublicProblemSeederTest {
                     assertThat(seed.testCases()).anySatisfy(testCase -> assertThat(testCase.hidden()).isFalse());
                     assertThat(seed.testCases()).anySatisfy(testCase -> assertThat(testCase.hidden()).isTrue());
                     assertThat(seed.starterCode().lines().count()).isGreaterThanOrEqualTo(50);
+                    assertThat(seed.starterCode()).doesNotContainPattern("def\\s+helper_\\d+\\s*\\(");
                     assertThat(seed.commonMistakes()).isNotEmpty();
                 });
     }
