@@ -47,3 +47,8 @@
 - **WHEN** 当前提交存在多个独立错因或提升方向
 - **THEN** prompt SHALL 要求逐条列表由证据决定数量
 - **AND** prompt SHALL NOT 要求固定一条或把多条问题硬塞进单个字符串
+
+#### Scenario: 标准库包含主路径和相关路径
+- **WHEN** `standardLibrary.knowledgeGroups` 或兼容列表包含 `primaryKnowledgeNodeCode` 与 `relatedKnowledgeNodeCodes`
+- **THEN** prompt SHALL 要求模型优先使用主路径理解知识父子关系
+- **AND** prompt SHALL 要求模型把相关路径视为辅助上下文，而不是独立错因或独立学生标签

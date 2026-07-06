@@ -245,7 +245,11 @@ class StudentAiFeedbackModelTest {
         );
 
         assertThat(service.lastUserPrompt())
-                .contains("\"standardLibrary\"", "\"knowledgeGroups\"", "SK_INPUT_PARSE", "MP_INPUT_SINGLE_READ");
+                .contains("\"standardLibrary\"", "\"knowledgeGroups\"", "SK_INPUT_PARSE", "MP_INPUT_SINGLE_READ")
+                .contains("\"primaryKnowledgeNodeCode\":\"BASIC.IO.INPUT\"")
+                .contains("\"relatedKnowledgeNodeCodes\":[\"BASIC.STRING.SPLIT\"]");
+        assertThat(service.lastSystemPrompt())
+                .contains("primaryKnowledgeNodeCode", "relatedKnowledgeNodeCodes", "主知识点 -> 能力点 -> 易错点/提升点");
         assertThat(feedback.getRepairItems()).singleElement().satisfies(item -> {
             assertThat(item.getLibraryItemId()).isEqualTo("MP_INPUT_SINGLE_READ");
             assertThat(item.getSkillUnitId()).isEqualTo("SK_INPUT_PARSE");
@@ -679,7 +683,9 @@ class StudentAiFeedbackModelTest {
                 .category("能力点/输入输出")
                 .name("按题面格式解析输入")
                 .description("能根据题面判断一行里有几个量，以及每次读取应该得到什么。")
+                .primaryKnowledgeNodeCode("BASIC.IO.INPUT")
                 .knowledgeNodeCodes(List.of("BASIC.IO.INPUT"))
+                .relatedKnowledgeNodeCodes(List.of("BASIC.STRING.SPLIT"))
                 .applicableLanguages(List.of("PYTHON"))
                 .build();
         StandardLibraryPack.MistakePointOption mistake = StandardLibraryPack.MistakePointOption.builder()
@@ -689,7 +695,9 @@ class StudentAiFeedbackModelTest {
                 .description("题面一行给多个整数，但代码用 int(input()) 只读取单个整数。")
                 .skillUnitCode("SK_INPUT_PARSE")
                 .mistakeType("INPUT_FORMAT")
+                .primaryKnowledgeNodeCode("BASIC.IO.INPUT")
                 .knowledgeNodeCodes(List.of("BASIC.IO.INPUT"))
+                .relatedKnowledgeNodeCodes(List.of("BASIC.STRING.SPLIT"))
                 .applicableLanguages(List.of("PYTHON"))
                 .build();
         return StandardLibraryPack.builder()

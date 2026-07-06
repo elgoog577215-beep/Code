@@ -16,7 +16,7 @@ import java.util.List;
 public class StandardLibraryPack {
 
     public static final String SCHEMA_VERSION = "standard-library-pack-v1";
-    public static final String STRUCTURE_VERSION = "standard-library-structure-v1";
+    public static final String STRUCTURE_VERSION = "standard-library-structure-v2";
 
     private String schemaVersion;
     private String taxonomyVersion;

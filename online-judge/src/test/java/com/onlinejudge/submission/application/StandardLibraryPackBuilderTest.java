@@ -164,7 +164,9 @@ class StandardLibraryPackBuilderTest {
                                         .category("循环边界")
                                         .name("能判断循环区间是否包含答案")
                                         .description("这是一个很长的能力点定义，用来确认 compact 后仍保留能力点但会限制描述长度。".repeat(8))
+                                        .primaryKnowledgeNodeCode("BASIC.LOOP.BOUNDARY")
                                         .knowledgeNodeCodes(List.of("BASIC.LOOP.BOUNDARY"))
+                                        .relatedKnowledgeNodeCodes(List.of("BASIC.LOOP.FOR"))
                                         .applicableLanguages(List.of("PYTHON", "CPP17", "JAVA", "GO"))
                                         .build())
                                 .mistakePoints(List.of(
@@ -204,8 +206,12 @@ class StandardLibraryPackBuilderTest {
             assertThat(group.getDescription()).hasSizeLessThanOrEqualTo(104);
             assertThat(group.getSkillUnits()).singleElement().satisfies(skillGroup -> {
                 assertThat(skillGroup.getSkillUnit().getId()).isEqualTo("SK_RANGE_BOUNDARY");
+                assertThat(skillGroup.getSkillUnit().getPrimaryKnowledgeNodeCode()).isEqualTo("BASIC.LOOP.BOUNDARY");
+                assertThat(skillGroup.getSkillUnit().getRelatedKnowledgeNodeCodes()).containsExactly("BASIC.LOOP.FOR");
                 assertThat(skillGroup.getSkillUnit().getDescription()).hasSizeLessThanOrEqualTo(114);
                 assertThat(skillGroup.getMistakePoints()).hasSize(5);
+                assertThat(skillGroup.getMistakePoints().get(0).getPrimaryKnowledgeNodeCode()).isEqualTo("BASIC.LOOP.BOUNDARY");
+                assertThat(skillGroup.getMistakePoints().get(0).getRelatedKnowledgeNodeCodes()).containsExactly("BASIC.LOOP.FOR");
                 assertThat(skillGroup.getImprovementPoints()).hasSize(3);
                 assertThat(skillGroup.getCandidateIds()).hasSize(9);
             });
@@ -240,6 +246,8 @@ class StandardLibraryPackBuilderTest {
                 .contains("diagnosis report v2")
                 .contains("单诊断 Agent")
                 .contains("标准库的作用")
+                .contains("primaryKnowledgeNodeCode")
+                .contains("relatedKnowledgeNodeCodes")
                 .contains("studentReport")
                 .contains("basicLayerText")
                 .contains("improvementLayerText")
@@ -256,7 +264,9 @@ class StandardLibraryPackBuilderTest {
                 .skillUnitCode("SK_RANGE_BOUNDARY")
                 .mistakeType("OFF_BY_ONE")
                 .commonMisconception("误解循环边界。".repeat(10))
+                .primaryKnowledgeNodeCode("BASIC.LOOP.BOUNDARY")
                 .knowledgeNodeCodes(List.of("BASIC.LOOP.BOUNDARY"))
+                .relatedKnowledgeNodeCodes(List.of("BASIC.LOOP.FOR"))
                 .applicableLanguages(List.of("PYTHON", "CPP17", "JAVA", "GO"))
                 .build();
     }

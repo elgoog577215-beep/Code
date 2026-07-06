@@ -280,7 +280,9 @@ public class ExternalModelAgentRuntime {
                 .category(skill.getCategory())
                 .name(skill.getName())
                 .description(truncate(skill.getDescription(), 90))
+                .primaryKnowledgeNodeCode(skill.getPrimaryKnowledgeNodeCode())
                 .knowledgeNodeCodes(limit(skill.getKnowledgeNodeCodes(), 5))
+                .relatedKnowledgeNodeCodes(limit(skill.getRelatedKnowledgeNodeCodes(), 5))
                 .applicableLanguages(limit(skill.getApplicableLanguages(), 3))
                 .build();
     }
@@ -378,7 +380,9 @@ public class ExternalModelAgentRuntime {
                         .skillUnitCode(mistake.getSkillUnitCode())
                         .mistakeType(mistake.getMistakeType())
                         .commonMisconception(truncate(mistake.getCommonMisconception(), 80))
+                        .primaryKnowledgeNodeCode(mistake.getPrimaryKnowledgeNodeCode())
                         .knowledgeNodeCodes(limit(mistake.getKnowledgeNodeCodes(), 5))
+                        .relatedKnowledgeNodeCodes(limit(mistake.getRelatedKnowledgeNodeCodes(), 5))
                         .applicableLanguages(limit(mistake.getApplicableLanguages(), 3))
                         .build())
                 .toList();

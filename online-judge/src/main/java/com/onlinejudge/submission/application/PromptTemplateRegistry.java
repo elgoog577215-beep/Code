@@ -137,6 +137,7 @@ public class PromptTemplateRegistry {
                 When standardLibrary.knowledgeGroups is present, treat it as the main structure: knowledge node -> skill unit -> mistake point / improvement point.
                 The flat standardLibrary.basicCauses, improvementPoints, skillUnits, and mistakePoints lists are compatibility lists for legal ids.
                 Treat standardLibrary as a teaching reference pack for curriculum-aligned naming and granularity, not as a forced answer sheet.
+                Use primaryKnowledgeNodeCode as the main knowledge path anchor. Use relatedKnowledgeNodeCodes only as auxiliary context, not as separate issues.
                 Return one advice item per independent evidence-backed issue or improvement direction; arrays may be empty or contain many items according to the actual evidence.
 
                 Input schema:
@@ -187,6 +188,7 @@ public class PromptTemplateRegistry {
                 Rules:
                 1. First understand the problem goal, then the student's code intent, then the behavior gap.
                 2. Use standardLibrary.knowledgeGroups to understand the selected knowledge branch and parent skill before choosing legal ids.
+                2a. Prefer the chain knowledge node -> skill unit -> mistake point / improvement point. Do not flatten relatedKnowledgeNodeCodes into independent student-facing tags.
                 3. basicLayerAdvice is an array of evidence-backed foundation issues. Return one item per independent blocking issue or foundation gap; return [] when there is no real basic-layer issue. Do not collapse unrelated issues into one item and do not pad weak items.
                 4. improvementLayerAdvice MUST be lower priority than basicLayerAdvice unless the submission is already accepted.
                 5. Every advice item MUST cite at least one brief.evidenceRefs or brief.candidateSignals evidenceRef value.
@@ -225,6 +227,8 @@ public class PromptTemplateRegistry {
                 标准库的作用：
                 - 它的主结构是 standardLibrary.knowledgeGroups：知识节点 → 能力点 → 易错点 / 提升点。
                 - basicCauses、improvementPoints、skillUnits、mistakePoints 是兼容列表；优先读 knowledgeGroups 理解父子关系，再用兼容列表校验合法 id。
+                - primaryKnowledgeNodeCode 是能力点或易错点的主知识路径锚点；relatedKnowledgeNodeCodes 只是相关知识、前置知识或检索补充，不能当作另一条独立错因。
+                - 学生可见 knowledgePath 应优先来自主路径：知识节点 → 能力点 → 易错点；相关知识只在能帮助区分相似问题时补充，不要平铺成一堆标签。
                 - 它是教学参考规范包，像课程标准和教案目录：用来帮助你细颗粒定位、统一命名、区分基础层和提高层。
                 - 它不是唯一答案来源，不是强制答案表，也不能限制你对题目、代码和判题结果的整体判断。
                 - 你应先像老师一样自由判断真实诊断候选，再评判这些候选是否能被标准库覆盖；不要一开始就为了匹配 id 而牺牲判断质量。

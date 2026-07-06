@@ -296,6 +296,7 @@ public class AiReportService {
                     13. 如果基础层是下标越界，提高层优先写边界样例、循环边界、数组长度核对等迁移能力；不要把“精简代码/删除 helper”作为唯一提高层。
                     14. knowledgePath 是父子关系路径，不是独立标签；使用 3-5 段中文知识树路径，例如 ["程序基础","数组/列表","下标访问","越界检查"]；不确定时可以留空，由后端兜底。
                     15. standardLibrary 是教学参考规范包，不是强制答案；能精确命中就填写对应 ID，半命中写 PARTIAL，不匹配写 MISS 或 OUT_OF_LIBRARY 并允许 ID 留空。
+                    16. 如果 standardLibrary 中有 primaryKnowledgeNodeCode，knowledgePath 优先沿“主知识点 -> 能力点 -> 易错点/提升点”生成；relatedKnowledgeNodeCodes 只作辅助区分，不要拆成多个独立标签或独立错误。
                     """;
             String userPrompt = "请根据以下上下文生成 StudentAiFeedback。上下文只用于诊断，不要把内部字段名写进学生反馈："
                     + objectMapper.writeValueAsString(context);
@@ -511,6 +512,7 @@ public class AiReportService {
         request.put("task", "请完成一次高中信息学提交诊断：先整体理解题目、代码和判题结果，再参考标准库候选，最后生成 studentReport 和结构化元数据。");
         request.put("contextPolicy", List.of(
                 "standardLibrary 是教学参考规范包，像课程标准和教案目录，用于细颗粒定位、标准化命名和区分基础层/提高层，不是强制答案表。",
+                "primaryKnowledgeNodeCode 是主知识路径，relatedKnowledgeNodeCodes 只是辅助上下文；学生端知识路径优先沿主路径表达，不把相关标签平铺成独立问题。",
                 "先基于题目、代码、判题结果和 evidenceRefs 自由诊断，再输出 diagnosisCandidates 并评判它们对标准库是 HIT、PARTIAL、MISS 还是 OUT_OF_LIBRARY。",
                 "如果候选不匹配，允许 null id、MISS 或 OUT_OF_LIBRARY，并给出可审核的库外发现。",
                 "学生可见反馈要自然、具体、可行动，但不能给完整答案或逐行改法。"
