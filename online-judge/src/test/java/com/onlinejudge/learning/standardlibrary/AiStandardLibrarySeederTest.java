@@ -284,7 +284,9 @@ class AiStandardLibrarySeederTest {
                         || seed.code().startsWith("MP_ARRAY_")
                         || seed.code().startsWith("MP_V6_")
                         || seed.code().startsWith("MP_V7_")
-                        || seed.code().startsWith("MP_V8_"))
+                        || seed.code().startsWith("MP_V8_")
+                        || seed.code().startsWith("MP_V9_")
+                        || seed.code().startsWith("MP_V10_"))
                 .count();
 
         assertThat(generatedSkillCount).isGreaterThanOrEqualTo(615);
