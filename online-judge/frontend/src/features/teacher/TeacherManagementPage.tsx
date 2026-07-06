@@ -899,11 +899,13 @@ type LibraryCodeGroup = {
   code: string;
   label: string;
   path: string;
+  orderPath: number[];
   known: boolean;
   items: AiStandardLibraryItem[];
 };
 type LibraryBranchGroup = {
   root: string;
+  orderPath: number[];
   count: number;
   groups: LibraryCodeGroup[];
 };
@@ -1021,7 +1023,7 @@ function StandardLibraryManager({
       >
         <span className="standard-library-tree__item-main">
           <strong>{item.name}</strong>
-          <small>{item.code}</small>
+          <small>{[item.code, item.category].filter(Boolean).join(" · ")}</small>
         </span>
         <span className="standard-library-tree__item-meta">
           <StatusPill tone={item.layer === "SKILL_UNIT" ? "info" : "warning"}>{layerLabel(item.layer)}</StatusPill>
@@ -1038,7 +1040,7 @@ function StandardLibraryManager({
         <summary>
           <span>
             <strong>{group.label}</strong>
-            <small>{group.known ? group.code : group.path}</small>
+            <small>{group.path}</small>
           </span>
           <StatusPill tone={group.known ? "neutral" : "warning"}>{group.items.length} 条</StatusPill>
         </summary>
@@ -1048,23 +1050,24 @@ function StandardLibraryManager({
   }
 
   function renderKnowledgeBranch(branch: LibraryBranchGroup) {
+    const branchOpen = hasActiveLibraryFilters || branch.groups.some(group => group.items.some(item => item.id === selectedId));
     return (
-      <section className="standard-library-tree__branch" key={branch.root}>
-        <header className="standard-library-tree__branch-head">
+      <details className="standard-library-tree__branch" open={branchOpen} key={branch.root}>
+        <summary className="standard-library-tree__branch-head">
           <span>
             <strong>{branch.root}</strong>
             <small>{branch.groups.length} 个知识点</small>
           </span>
           <StatusPill tone="neutral">{branch.count} 条</StatusPill>
-        </header>
+        </summary>
         <div className="standard-library-tree__branch-body">{branch.groups.map(renderKnowledgeGroup)}</div>
-      </section>
+      </details>
     );
   }
 
   return (
     <section className={`management-object-workbench management-object-workbench--ai standard-library-manager ${editorOpen ? "is-editor-open" : ""}`}>
-      <div className="standard-library-canvas" aria-label="AI 标准库知识树">
+      <div className={`standard-library-canvas ${selectedItem && !editorOpen ? "has-action-panel" : ""}`} aria-label="AI 标准库知识树">
         <div className="standard-library-canvas__bar">
           <div className="standard-library-canvas__summary" aria-label="当前筛选结果">
             <StatusPill tone="info">能力点 {skillCount}</StatusPill>
@@ -1142,16 +1145,16 @@ function StandardLibraryManager({
           <div className="standard-library-tree standard-library-tree--canvas" role="tree" aria-label="按知识树管理 AI 标准库">
             {knowledgeBranches.map(renderKnowledgeBranch)}
             {unlinkedItems.length ? (
-              <section className="standard-library-tree__branch standard-library-tree__branch--loose">
-                <header className="standard-library-tree__branch-head">
+              <details className="standard-library-tree__branch standard-library-tree__branch--loose" open>
+                <summary className="standard-library-tree__branch-head">
                   <span>
                     <strong>未关联知识点</strong>
                     <small>需要补充 knowledgeNodeCodes</small>
                   </span>
                   <StatusPill tone="warning">{unlinkedItems.length} 条</StatusPill>
-                </header>
+                </summary>
                 <div className="standard-library-tree__children standard-library-tree__children--loose">{unlinkedItems.map(renderLibraryItem)}</div>
-              </section>
+              </details>
             ) : null}
           </div>
         ) : (
@@ -1339,29 +1342,39 @@ function buildKnowledgePathGroups(items: AiStandardLibraryItem[], knowledgeTree:
       code,
       label: meta?.name || code,
       path: meta?.path || "未在知识树中找到",
+      orderPath: meta?.orderPath || [Number.MAX_SAFE_INTEGER],
       known: Boolean(meta),
       items: sortLibraryItems(groupItems)
     };
-  }).sort((left, right) => left.path.localeCompare(right.path, "zh-Hans-CN") || left.code.localeCompare(right.code));
+  }).sort((left, right) => compareOrderPath(left.orderPath, right.orderPath) || left.path.localeCompare(right.path, "zh-Hans-CN") || left.code.localeCompare(right.code));
 }
 
 function buildKnowledgeBranches(groups: LibraryCodeGroup[]): LibraryBranchGroup[] {
   const branches = new Map<string, LibraryBranchGroup>();
   groups.forEach(group => {
     const root = group.known ? group.path.split(" / ")[0] || group.label : "未在知识树中找到";
-    const branch = branches.get(root) || { root, count: 0, groups: [] };
+    const branch = branches.get(root) || { root, orderPath: group.orderPath, count: 0, groups: [] };
+    if (compareOrderPath(group.orderPath, branch.orderPath) < 0) {
+      branch.orderPath = group.orderPath;
+    }
     branch.count += group.items.length;
     branch.groups.push(group);
     branches.set(root, branch);
   });
-  return Array.from(branches.values()).sort((left, right) => left.root.localeCompare(right.root, "zh-Hans-CN"));
+  return Array.from(branches.values()).sort((left, right) => compareOrderPath(left.orderPath, right.orderPath) || left.root.localeCompare(right.root, "zh-Hans-CN"));
 }
 
-function buildKnowledgeIndex(nodes: InformaticsKnowledgeNode[], parents: string[] = [], index = new Map<string, { name: string; path: string }>()) {
+function buildKnowledgeIndex(
+  nodes: InformaticsKnowledgeNode[],
+  parents: string[] = [],
+  parentOrder: number[] = [],
+  index = new Map<string, { name: string; path: string; orderPath: number[] }>()
+) {
   nodes.forEach(node => {
     const path = [...parents, node.name];
-    index.set(node.code, { name: node.name, path: path.join(" / ") });
-    buildKnowledgeIndex(node.children || [], path, index);
+    const orderPath = [...parentOrder, node.sortOrder ?? Number.MAX_SAFE_INTEGER];
+    index.set(node.code, { name: node.name, path: path.join(" / "), orderPath });
+    buildKnowledgeIndex(node.children || [], path, orderPath, index);
   });
   return index;
 }
@@ -1371,7 +1384,24 @@ function knowledgeCodes(item: AiStandardLibraryItem) {
 }
 
 function sortLibraryItems(items: AiStandardLibraryItem[]) {
-  return [...items].sort((left, right) => left.layer.localeCompare(right.layer) || left.category.localeCompare(right.category, "zh-Hans-CN") || left.code.localeCompare(right.code));
+  return [...items].sort((left, right) => layerRank(left.layer) - layerRank(right.layer) || left.category.localeCompare(right.category, "zh-Hans-CN") || left.code.localeCompare(right.code));
+}
+
+function compareOrderPath(left: number[], right: number[]) {
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (left[index] ?? Number.MAX_SAFE_INTEGER) - (right[index] ?? Number.MAX_SAFE_INTEGER);
+    if (diff) {
+      return diff;
+    }
+  }
+  return 0;
+}
+
+function layerRank(layer: AiStandardLibraryLayer) {
+  if (layer === "SKILL_UNIT") return 0;
+  if (layer === "MISTAKE_POINT") return 1;
+  return 2;
 }
 
 function FilePicker({
