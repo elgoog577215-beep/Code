@@ -120,8 +120,11 @@ class AiStandardLibraryGrowthAgentServiceTest {
                                 .sourceProblemId(2L)
                                 .sourceSubmissionId(22L)
                                 .similarExistingItems(List.of("MP_ALGO_TWO_POINTERS_WINDOW"))
+                                .errorSymptom("窗口右端变化后答案没有同步变化。")
+                                .typicalCodePattern("移动右端指针后没有重新记录当前窗口结果。")
+                                .studentExplanation("先手推窗口每次扩张后答案记录是否跟着变化。")
                                 .reason("诊断报告判定现有标准库为 PARTIAL，需要补充更细颗粒窗口答案更新错因。")
-                                .status("PROPOSED")
+                                .status("NEEDS_REVIEW")
                                 .confidence(0.78)
                                 .build()))
                         .build())
@@ -132,10 +135,14 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(saved).singleElement()
                 .satisfies(candidate -> {
                     assertThat(candidate.getSuggestedCode()).startsWith("MP_ALGO_TWO_POINTERS_WINDOW_ANSWER_UPDATE");
-                    assertThat(candidate.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.PROPOSED);
+                    assertThat(candidate.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.NEEDS_REVIEW);
                     assertThat(candidate.getSourceProblemId()).isEqualTo(2L);
                     assertThat(candidate.getSourceSubmissionId()).isEqualTo(22L);
                     assertThat(candidate.getChangeReason()).contains("PARTIAL");
+                    assertThat(candidate.getChangeReason())
+                            .contains("错误表现：窗口右端变化后答案没有同步变化。")
+                            .contains("典型代码特征：移动右端指针后没有重新记录当前窗口结果。")
+                            .contains("学生解释话术：先手推窗口每次扩张后答案记录是否跟着变化。");
                 });
     }
 

@@ -76,18 +76,28 @@ public class AiStandardLibraryGrowthAgentService {
         }
         return output.getLibraryGrowth().getCandidates().stream()
                 .filter(candidate -> candidate != null)
-                .map(candidate -> propose(StandardLibraryGrowthProposal.builder()
-                        .suggestedCode(suggestedCode(candidate))
-                        .suggestedName(candidate.getName())
-                        .layer(AiStandardLibraryLayer.MISTAKE_POINT)
-                        .suggestedPath(candidate.getSuggestedPath())
-                        .sourceProblemId(candidate.getSourceProblemId())
-                        .sourceSubmissionId(candidate.getSourceSubmissionId())
-                        .similarExistingItemCodes(candidate.getSimilarExistingItems())
-                        .changeReason(candidate.getReason())
-                        .confidence(candidate.getConfidence())
-                        .build()))
+                .map(this::proposeDiagnosisGrowthCandidate)
                 .toList();
+    }
+
+    private AiStandardLibraryGrowthCandidate proposeDiagnosisGrowthCandidate(
+            AdviceGenerationOutput.LibraryGrowthCandidate candidate) {
+        AiStandardLibraryGrowthCandidate saved = propose(StandardLibraryGrowthProposal.builder()
+                .suggestedCode(suggestedCode(candidate))
+                .suggestedName(candidate.getName())
+                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .suggestedPath(candidate.getSuggestedPath())
+                .sourceProblemId(candidate.getSourceProblemId())
+                .sourceSubmissionId(candidate.getSourceSubmissionId())
+                .similarExistingItemCodes(candidate.getSimilarExistingItems())
+                .changeReason(growthChangeReason(candidate))
+                .confidence(candidate.getConfidence())
+                .build());
+        if ("NEEDS_REVIEW".equalsIgnoreCase(candidate.getStatus())
+                && saved.getStatus() == AiStandardLibraryGrowthCandidateStatus.PROPOSED) {
+            return markNeedsReview(saved, "AI 诊断提出的待审核标准库候选。");
+        }
+        return saved;
     }
 
     private boolean diagnosisAllowsGrowth(AdviceGenerationOutput output) {
@@ -477,6 +487,15 @@ public class AiStandardLibraryGrowthAgentService {
             return normalized;
         }
         return "MP_" + normalized;
+    }
+
+    private String growthChangeReason(AdviceGenerationOutput.LibraryGrowthCandidate candidate) {
+        return joinLines(List.of(
+                candidate.getReason(),
+                "错误表现：" + requiredText(candidate.getErrorSymptom(), "未提供"),
+                "典型代码特征：" + requiredText(candidate.getTypicalCodePattern(), "未提供"),
+                "学生解释话术：" + requiredText(candidate.getStudentExplanation(), "未提供")
+        ));
     }
 
     private String requiredText(String value, String fallback) {

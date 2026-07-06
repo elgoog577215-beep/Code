@@ -219,6 +219,7 @@ class AdviceGenerationOutputValidatorTest {
                         .libraryFit("HIT")
                         .anchorId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
                         .anchorType("MISTAKE_POINT")
+                        .libraryPath(libraryPath())
                         .role("PRIMARY")
                         .evidenceRefs(List.of("code:range_excludes_n"))
                         .reason("代码证据显示循环范围和题目端点不一致。")
@@ -230,6 +231,7 @@ class AdviceGenerationOutputValidatorTest {
                         .libraryFit("OUT_OF_LIBRARY")
                         .anchorId(null)
                         .anchorType("OUT_OF_LIBRARY")
+                        .libraryPath(List.of("基础层", "自测与反例构造", "边界自测习惯"))
                         .role("SECONDARY")
                         .evidenceRefs(List.of("judge:first_failed_case"))
                         .reason("当前标准库没有精确覆盖这类自测习惯表达。")
@@ -255,6 +257,7 @@ class AdviceGenerationOutputValidatorTest {
                 .libraryFit("HIT")
                 .anchorId("MP_MODEL_MADE_UP")
                 .anchorType("MISTAKE_POINT")
+                .libraryPath(libraryPath())
                 .role("PRIMARY")
                 .evidenceRefs(List.of("code:range_excludes_n"))
                 .reason("这个 id 不在标准库里。")
@@ -333,6 +336,7 @@ class AdviceGenerationOutputValidatorTest {
                 .libraryFit("OUT_OF_LIBRARY")
                 .anchorId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
                 .anchorType("OUT_OF_LIBRARY")
+                .libraryPath(List.of("基础层", "库外发现", "候选错因"))
                 .role("PRIMARY")
                 .evidenceRefs(List.of("code:range_excludes_n"))
                 .reason("库外发现必须留空 id。")
@@ -361,6 +365,7 @@ class AdviceGenerationOutputValidatorTest {
                 .libraryFit("HIT")
                 .anchorId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
                 .anchorType("MISTAKE_POINT")
+                .libraryPath(libraryPath())
                 .role("PRIMARY")
                 .evidenceRefs(List.of("keyCodeExcerpt"))
                 .reason("模型把证据说明当成 evidenceRef。")
@@ -388,6 +393,7 @@ class AdviceGenerationOutputValidatorTest {
                 .libraryFit("HIT")
                 .anchorId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
                 .anchorType("MISTAKE_POINT")
+                .libraryPath(libraryPath())
                 .role("PRIMARY")
                 .evidenceRefs(List.of("sourceCode"))
                 .reason("代码证据显示循环范围和题目端点不一致。")
@@ -405,6 +411,74 @@ class AdviceGenerationOutputValidatorTest {
         assertThat(output.getDiagnosisCandidates()).singleElement()
                 .satisfies(candidate -> assertThat(candidate.getEvidenceRefs())
                         .containsExactly("code:range_excludes_n"));
+    }
+
+    @Test
+    void softDropsDiagnosisCandidateWithoutLibraryPath() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
+        output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
+                .name("缺少标准库路径的候选")
+                .layer("BASIC")
+                .libraryFit("HIT")
+                .anchorId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                .anchorType("MISTAKE_POINT")
+                .role("PRIMARY")
+                .evidenceRefs(List.of("code:range_excludes_n"))
+                .reason("候选必须说明自己挂在哪条教学路径上。")
+                .confidence(0.8)
+                .build()));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).contains("diagnosisCandidate dropped: missing libraryPath");
+        assertThat(output.getDiagnosisCandidates()).isEmpty();
+    }
+
+    @Test
+    void normalizesLibraryGrowthCandidateToTeacherReview() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "SK_RANGE_BOUNDARY", "SKILL_UNIT");
+        output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
+                .name("优惠券跨层转移未使用折扣边权")
+                .layer("BASIC")
+                .libraryFit("PARTIAL")
+                .anchorId("SK_RANGE_BOUNDARY")
+                .anchorType("SKILL_UNIT")
+                .libraryPath(List.of("图论", "最短路", "分层图状态转移"))
+                .role("PRIMARY")
+                .evidenceRefs(List.of("code:range_excludes_n"))
+                .reason("标准库有分层状态方向，但缺少优惠边权折半这个具体错因。")
+                .confidence(0.87)
+                .build()));
+        output.setLibraryGrowth(AdviceGenerationOutput.LibraryGrowth.builder()
+                .candidates(List.of(AdviceGenerationOutput.LibraryGrowthCandidate.builder()
+                        .name("优惠券跨层转移未使用折扣边权")
+                        .suggestedPath(List.of("图论", "最短路", "分层图状态转移"))
+                        .similarExistingItems(List.of("SK_RANGE_BOUNDARY"))
+                        .errorSymptom("程序输出偏大，优惠券没有真正降低边权。")
+                        .typicalCodePattern("优惠转移分支仍累计原始 weight。")
+                        .studentExplanation("先核对使用优惠券的那条转移，边权是否真的按题意变化。")
+                        .reason("具体错因不在当前标准库里，应交给老师审核。")
+                        .status("PROPOSED")
+                        .confidence(0.84)
+                        .build()))
+                .build());
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes())
+                .contains("libraryGrowth candidate status normalized: PROPOSED -> NEEDS_REVIEW");
+        assertThat(output.getLibraryGrowth().getCandidates()).singleElement()
+                .satisfies(candidate -> assertThat(candidate.getStatus()).isEqualTo("NEEDS_REVIEW"));
     }
 
     @Test
@@ -939,6 +1013,10 @@ class AdviceGenerationOutputValidatorTest {
                         .name("自测与反例构造")
                         .build()))
                 .build();
+    }
+
+    private List<String> libraryPath() {
+        return List.of("基础层", "循环结构", "循环边界", "循环右边界漏取");
     }
 
     private StandardLibraryPack richPack() {

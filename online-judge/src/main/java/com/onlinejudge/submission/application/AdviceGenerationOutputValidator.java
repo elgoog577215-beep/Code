@@ -166,6 +166,7 @@ public class AdviceGenerationOutputValidator {
         Map<String, String> standardLibraryAliases = standardLibraryAliases(standardLibraryPack);
 
         sanitizeDiagnosisCandidates(output, allowedIds, evidenceRefs, orderedEvidenceRefs, softFixes);
+        sanitizeLibraryGrowth(output, softFixes);
         ExternalModelStagePayloads.StageValidationResult adviceItemsFailure = validateReportAdviceItems(
                 output,
                 evidenceRefs,
@@ -391,6 +392,10 @@ public class AdviceGenerationOutputValidator {
                 softFixes.add("diagnosisCandidate dropped: invalid libraryFit " + candidate.getLibraryFit());
                 continue;
             }
+            if (blankPath(candidate.getLibraryPath())) {
+                softFixes.add("diagnosisCandidate dropped: missing libraryPath");
+                continue;
+            }
             String anchorType = normalize(candidate.getAnchorType());
             String anchorId = normalize(candidate.getAnchorId());
             boolean outOfLibrary = "OUT_OF_LIBRARY".equals(fit) || "OUT_OF_LIBRARY".equals(anchorType);
@@ -435,6 +440,47 @@ public class AdviceGenerationOutputValidator {
         if (output.getDiagnosisCandidates() != null) {
             output.setDiagnosisCandidates(validCandidates);
         }
+    }
+
+    private void sanitizeLibraryGrowth(AdviceGenerationOutput output, List<String> softFixes) {
+        AdviceGenerationOutput.LibraryGrowth growth = output.getLibraryGrowth();
+        if (growth == null || growth.getCandidates() == null) {
+            return;
+        }
+        List<AdviceGenerationOutput.LibraryGrowthCandidate> validCandidates = new java.util.ArrayList<>();
+        for (AdviceGenerationOutput.LibraryGrowthCandidate candidate : safe(growth.getCandidates())) {
+            if (candidate == null) {
+                softFixes.add("libraryGrowth candidate dropped: null item");
+                continue;
+            }
+            if (blank(candidate.getName()) || blank(candidate.getReason()) || blankPath(candidate.getSuggestedPath())) {
+                softFixes.add("libraryGrowth candidate dropped: incomplete item");
+                continue;
+            }
+            if (blank(candidate.getErrorSymptom())
+                    || blank(candidate.getTypicalCodePattern())
+                    || blank(candidate.getStudentExplanation())) {
+                softFixes.add("libraryGrowth candidate dropped: missing review fields");
+                continue;
+            }
+            if (invalidConfidence(candidate.getConfidence())) {
+                softFixes.add("libraryGrowth candidate dropped: invalid confidence");
+                continue;
+            }
+            if (unsafe(candidate.getName(), candidate.getReason(), candidate.getErrorSymptom(),
+                    candidate.getTypicalCodePattern(), candidate.getStudentExplanation())) {
+                softFixes.add("libraryGrowth candidate dropped: safety risk");
+                continue;
+            }
+            String originalStatus = candidate.getStatus();
+            String status = normalize(originalStatus);
+            if (!"NEEDS_REVIEW".equals(status)) {
+                candidate.setStatus("NEEDS_REVIEW");
+                softFixes.add("libraryGrowth candidate status normalized: " + originalStatus + " -> NEEDS_REVIEW");
+            }
+            validCandidates.add(candidate);
+        }
+        growth.setCandidates(validCandidates);
     }
 
     private void attachValidationTrace(AdviceGenerationOutput output, List<String> softFixes, List<String> hardFailures) {
@@ -793,6 +839,10 @@ public class AdviceGenerationOutputValidator {
 
     private boolean blank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private boolean blankPath(List<String> values) {
+        return values == null || values.stream().noneMatch(value -> value != null && !value.isBlank());
     }
 
     private boolean unsafe(String... values) {

@@ -563,8 +563,11 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                       "sourceProblemId": 1,
                       "sourceSubmissionId": 11,
                       "similarExistingItems": ["MP_RANGE_RIGHT_ENDPOINT_MISSING"],
+                      "errorSymptom": "可见样例暴露循环端点漏取。",
+                      "typicalCodePattern": "循环条件没有覆盖题目要求的末端。",
+                      "studentExplanation": "先手推端点是否进入循环，再决定是否需要补充标准库错因。",
                       "reason": "MISS 场景下发现更细颗粒错因。",
-                      "status": "PROPOSED",
+                      "status": "NEEDS_REVIEW",
                       "confidence": 0.78
                     }]
                   },

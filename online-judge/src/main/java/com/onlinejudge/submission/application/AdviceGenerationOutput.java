@@ -87,6 +87,7 @@ public class AdviceGenerationOutput {
         private String libraryFit;
         private String anchorId;
         private String anchorType;
+        private List<String> libraryPath;
         private String role;
         private List<String> evidenceRefs;
         private String reason;
@@ -138,6 +139,9 @@ public class AdviceGenerationOutput {
         private Long sourceProblemId;
         private Long sourceSubmissionId;
         private List<String> similarExistingItems;
+        private String errorSymptom;
+        private String typicalCodePattern;
+        private String studentExplanation;
         private String reason;
         private String status;
         private Double confidence;

@@ -515,6 +515,8 @@ public class AiReportService {
                 "standardLibrary 是教学参考规范包，像课程标准和教案目录，用于细颗粒定位、标准化命名和区分基础层/提高层，不是强制答案表。",
                 "primaryKnowledgeNodeCode 是主知识路径，relatedKnowledgeNodeCodes 只是辅助上下文；学生端知识路径优先沿主路径表达，不把相关标签平铺成独立问题。",
                 "先基于题目、代码、判题结果和 evidenceRefs 自由诊断，再输出 diagnosisCandidates 并评判它们对标准库是 HIT、PARTIAL、MISS 还是 OUT_OF_LIBRARY。",
+                "判题结果只是参考信号；如果代码语义已经显示题意约束和实际转移不一致，应优先诊断这类真实差异。",
+                "每个 diagnosisCandidates 项必须携带 libraryPath；如果具体错因未覆盖，挂到最接近的上级路径，并给出可审核的 libraryGrowth 候选。",
                 "如果候选不匹配，允许 null id、MISS 或 OUT_OF_LIBRARY，并给出可审核的库外发现。",
                 "学生可见反馈要自然、具体、可行动，但不能给完整答案或逐行改法。"
         ));
