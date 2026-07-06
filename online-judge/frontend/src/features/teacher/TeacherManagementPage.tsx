@@ -433,7 +433,19 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
     }
   }
 
-  const statusPill = loadFailed ? (
+  const sidebarStatusCard = section === "classes" || section === "problems" ? (
+    <ManagementStatusCard
+      readiness={readiness}
+      busy={aiSmokeBusy}
+      classCount={cleanClasses.length}
+      problemCount={problems.length}
+      libraryCount={libraryItems.length}
+      onRefresh={loadReadiness}
+      onAiSmoke={runAiSmoke}
+    />
+  ) : null;
+
+  const dataStatusPill = loadFailed ? (
     <StatusPill tone="warning">读取失败</StatusPill>
   ) : dataReady ? (
     <StatusPill tone="neutral">{cleanClasses.length} 个班级 · {problems.length} 个题目</StatusPill>
@@ -446,19 +458,6 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
       <section className="management-console">
-        {section === "home" ? null : (
-          <ManagementStatusStrip
-            readiness={readiness}
-            busy={aiSmokeBusy}
-            summary={statusPill}
-            classCount={cleanClasses.length}
-            problemCount={problems.length}
-            libraryCount={libraryItems.length}
-            onRefresh={loadReadiness}
-            onAiSmoke={runAiSmoke}
-          />
-        )}
-
         <main className="management-workspace">
           {section === "home" ? (
             <section className="management-home-grid" aria-label="管理入口">
@@ -501,6 +500,8 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
               classFileName={classFileName}
               classImportResult={classImportResult}
               busy={busy}
+              dataSummary={dataStatusPill}
+              statusCard={sidebarStatusCard}
               onSelectClass={setTargetClassGroupId}
               onClassFormChange={setClassForm}
               onClassImportChange={setClassImport}
@@ -518,6 +519,8 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
               problemFileName={problemFileName}
               problemImportResult={problemImportResult}
               busy={busy}
+              dataSummary={dataStatusPill}
+              statusCard={sidebarStatusCard}
               onSelectProblem={setSelectedProblemId}
               onProblemImportChange={setProblemImport}
               onPickFile={readImportFile}
@@ -582,6 +585,7 @@ function ManagementAiEntry({
   onRefresh: () => void;
   onAiSmoke: () => void;
 }) {
+  const { t } = useTranslation();
   const status = readiness?.status || "UNKNOWN";
   const tone = status === "READY" ? "success" : status === "BLOCKED" ? "danger" : "warning";
   const blocking = readiness?.checks.filter(item => item.blocking && item.status !== "PASS").length || 0;
@@ -591,26 +595,29 @@ function ManagementAiEntry({
         <Power size={18} />
       </span>
       <span>
-        <strong>AI 配置扫描</strong>
-        <small>{blocking ? `${blocking} 个阻断需要处理` : "检查模型、密钥和调用链是否可用。"}</small>
+        <strong>{t("teacherManagement.readiness.aiScan")}</strong>
+        <small>
+          {blocking
+            ? t("teacherManagement.readiness.blockedDescription", { count: blocking })
+            : t("teacherManagement.readiness.scanDescription")}
+        </small>
       </span>
-      <StatusPill tone={tone}>{status}</StatusPill>
+      <StatusPill tone={tone}>{readinessStatusLabel(status, t)}</StatusPill>
       <div className="management-home-entry__actions">
         <Button type="button" variant="secondary" onClick={() => void onRefresh()}>
-          刷新
+          {t("teacherManagement.readiness.refresh")}
         </Button>
         <Button type="button" variant="primary" onClick={() => void onAiSmoke()} disabled={busy}>
-          {busy ? "检测中" : "检测 AI"}
+          {busy ? t("teacherManagement.readiness.running") : t("teacherManagement.readiness.runAi")}
         </Button>
       </div>
     </article>
   );
 }
 
-function ManagementStatusStrip({
+function ManagementStatusCard({
   readiness,
   busy,
-  summary,
   classCount,
   problemCount,
   libraryCount,
@@ -619,53 +626,110 @@ function ManagementStatusStrip({
 }: {
   readiness: Readiness | null;
   busy: boolean;
-  summary?: ReactNode;
   classCount: number;
   problemCount: number;
   libraryCount: number;
   onRefresh: () => void;
   onAiSmoke: () => void;
 }) {
+  const { t } = useTranslation();
   const status = readiness?.status || "UNKNOWN";
   const tone = status === "READY" ? "success" : status === "BLOCKED" ? "danger" : "warning";
   const blocking = readiness?.checks.filter(item => item.blocking && item.status !== "PASS") || [];
   const warnings = readiness?.checks.filter(item => item.status !== "PASS" && !(item.blocking && item.status !== "PASS")) || [];
-  const visibleChecks = [...blocking, ...warnings].slice(0, 6);
+  const visibleChecks = [...blocking, ...warnings].slice(0, 5);
+  const hiddenCheckCount = Math.max(0, (blocking.length + warnings.length) - visibleChecks.length);
 
   return (
-    <section className="teacher-manage-status-strip">
-      <div className="teacher-manage-status-strip__main">
-        <StatusPill tone={tone}>{status}</StatusPill>
-        <span>班级 {classCount}</span>
-        <span>题目 {problemCount}</span>
-        <span>标准库 {libraryCount}</span>
-        {summary ? <span className="teacher-manage-status-strip__summary">{summary}</span> : null}
+    <section className="management-status-card" aria-label={t("teacherManagement.readiness.aria")}>
+      <div className="management-status-card__head">
+        <span className="management-status-card__icon">
+          <Power size={16} />
+        </span>
+        <div>
+          <strong>{t("teacherManagement.readiness.title")}</strong>
+          <small>{readinessStatusDescription(status, blocking.length, warnings.length, t)}</small>
+        </div>
+        <StatusPill tone={tone}>{readinessStatusLabel(status, t)}</StatusPill>
       </div>
-      <div className="teacher-manage-status-strip__actions">
-        <Button type="button" variant="secondary" onClick={() => void onRefresh()}>
-          刷新
+      <div className="management-status-card__stats" aria-label={t("teacherManagement.readiness.statsAria")}>
+        <span>
+          <strong>{classCount}</strong>
+          <small>{t("teacherManagement.readiness.classes")}</small>
+        </span>
+        <span>
+          <strong>{problemCount}</strong>
+          <small>{t("teacherManagement.readiness.problems")}</small>
+        </span>
+        <span>
+          <strong>{libraryCount}</strong>
+          <small>{t("teacherManagement.readiness.library")}</small>
+        </span>
+      </div>
+      <div className="management-status-card__actions">
+        <Button type="button" variant="secondary" icon={<RefreshCw size={15} />} onClick={() => void onRefresh()}>
+          {t("teacherManagement.readiness.refresh")}
         </Button>
-        <Button type="button" variant="primary" onClick={() => void onAiSmoke()} disabled={busy}>
-          {busy ? "检测中" : "检测 AI"}
+        <Button type="button" variant="primary" icon={<Power size={15} />} onClick={() => void onAiSmoke()} disabled={busy}>
+          {busy ? t("teacherManagement.readiness.running") : t("teacherManagement.readiness.runAi")}
         </Button>
       </div>
-      {visibleChecks.length ? (
-        <details className="teacher-manage-status-strip__details">
-          <summary>
-            {blocking.length ? `${blocking.length} 个阻断` : `${warnings.length} 个提醒`}
-          </summary>
-          <div>
-            {visibleChecks.map(item => (
-              <span key={item.id} title={`${item.message} ${item.action}`}>
-                <StatusPill tone={item.status === "FAIL" ? "danger" : item.status === "WARN" ? "warning" : "neutral"}>{item.status}</StatusPill>
-                {item.label}
-              </span>
-            ))}
-          </div>
-        </details>
-      ) : null}
+      {readiness ? (
+        visibleChecks.length ? (
+          <details className="management-status-card__details">
+            <summary>
+              <span>{t("teacherManagement.readiness.detailSummary", { blocking: blocking.length, warnings: warnings.length })}</span>
+              <small>{t("teacherManagement.readiness.checkDetails")}</small>
+            </summary>
+            <div>
+              {visibleChecks.map(item => (
+                <article key={item.id} title={[item.message, item.action].filter(Boolean).join(" ")}>
+                  <StatusPill tone={item.status === "FAIL" ? "danger" : item.status === "WARN" ? "warning" : "neutral"}>
+                    {readinessCheckStatusLabel(item.status, t)}
+                  </StatusPill>
+                  <span>{item.label}</span>
+                </article>
+              ))}
+              {hiddenCheckCount ? <small>{t("teacherManagement.readiness.hiddenMore", { count: hiddenCheckCount })}</small> : null}
+            </div>
+          </details>
+        ) : (
+          <p className="management-status-card__ok">{t("teacherManagement.readiness.allClear")}</p>
+        )
+      ) : (
+        <p className="management-status-card__ok">{t("teacherManagement.readiness.loadingDescription")}</p>
+      )}
     </section>
   );
+}
+
+function readinessStatusLabel(status: string, t: (key: string, params?: Record<string, string | number>) => string) {
+  const key = status.toUpperCase();
+  if (key === "READY") return t("teacherManagement.readiness.ready");
+  if (key === "BLOCKED") return t("teacherManagement.readiness.blocked");
+  if (key === "DEGRADED") return t("teacherManagement.readiness.degraded");
+  return t("teacherManagement.readiness.unknown");
+}
+
+function readinessStatusDescription(
+  status: string,
+  blockingCount: number,
+  warningCount: number,
+  t: (key: string, params?: Record<string, string | number>) => string
+) {
+  const key = status.toUpperCase();
+  if (key === "READY") return t("teacherManagement.readiness.readyDescription");
+  if (key === "BLOCKED") return t("teacherManagement.readiness.blockedDescription", { count: blockingCount });
+  if (key === "DEGRADED") return t("teacherManagement.readiness.degradedDescription", { count: warningCount });
+  return t("teacherManagement.readiness.loadingDescription");
+}
+
+function readinessCheckStatusLabel(status: string, t: (key: string, params?: Record<string, string | number>) => string) {
+  const key = status.toUpperCase();
+  if (key === "FAIL") return t("teacherManagement.readiness.checkFail");
+  if (key === "WARN") return t("teacherManagement.readiness.checkWarn");
+  if (key === "PASS") return t("teacherManagement.readiness.checkPass");
+  return status;
 }
 
 function ClassManageSection({
@@ -676,6 +740,8 @@ function ClassManageSection({
   classFileName,
   classImportResult,
   busy,
+  dataSummary,
+  statusCard,
   onSelectClass,
   onClassFormChange,
   onClassImportChange,
@@ -690,6 +756,8 @@ function ClassManageSection({
   classFileName: string;
   classImportResult: ImportPreview | ImportCommit | null;
   busy: boolean;
+  dataSummary?: ReactNode;
+  statusCard?: ReactNode;
   onSelectClass: (id: string) => void;
   onClassFormChange: (form: { name: string; grade: string; teacherName: string }) => void;
   onClassImportChange: (value: { format: string; content: string }) => void;
@@ -704,8 +772,9 @@ function ClassManageSection({
       <aside className="management-object-list" aria-label="班级列表">
         <div className="management-object-list__head">
           <strong>班级</strong>
-          <StatusPill tone="neutral">{classes.length} 个</StatusPill>
+          {dataSummary || <StatusPill tone="neutral">{classes.length} 个</StatusPill>}
         </div>
+        {statusCard}
         {classes.length ? (
           classes.map(item => (
             <button
@@ -798,6 +867,8 @@ function ProblemManageSection({
   problemFileName,
   problemImportResult,
   busy,
+  dataSummary,
+  statusCard,
   onSelectProblem,
   onProblemImportChange,
   onPickFile,
@@ -810,6 +881,8 @@ function ProblemManageSection({
   problemFileName: string;
   problemImportResult: ImportPreview | ImportCommit | null;
   busy: boolean;
+  dataSummary?: ReactNode;
+  statusCard?: ReactNode;
   onSelectProblem: (id: number | null) => void;
   onProblemImportChange: (value: { format: string; content: string }) => void;
   onPickFile: (kind: ImportKind, file: File | null) => void | Promise<void>;
@@ -823,8 +896,9 @@ function ProblemManageSection({
       <aside className="management-object-list" aria-label="题目列表">
         <div className="management-object-list__head">
           <strong>题目</strong>
-          <StatusPill tone="neutral">{problems.length} 个</StatusPill>
+          {dataSummary || <StatusPill tone="neutral">{problems.length} 个</StatusPill>}
         </div>
+        {statusCard}
         {problems.length ? (
           problems.map(item => (
             <button

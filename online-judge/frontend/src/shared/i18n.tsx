@@ -158,6 +158,34 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       }
     },
     teacherManagement: {
+      readiness: {
+        aria: "系统状态",
+        title: "开课状态",
+        aiScan: "AI 配置扫描",
+        scanDescription: "检查模型、密钥和调用链是否可用。",
+        ready: "可开课",
+        blocked: "需处理",
+        degraded: "可试用",
+        unknown: "读取中",
+        readyDescription: "关键服务已通过检查。",
+        blockedDescription: "{{count}} 个阻断需要处理。",
+        degradedDescription: "{{count}} 个提醒，先试用再完善。",
+        loadingDescription: "正在读取系统状态。",
+        classes: "班级",
+        problems: "题目",
+        library: "标准库",
+        statsAria: "管理数据",
+        refresh: "刷新",
+        runAi: "检测 AI",
+        running: "检测中",
+        detailSummary: "{{blocking}} 个阻断 · {{warnings}} 个提醒",
+        checkDetails: "检查详情",
+        checkFail: "失败",
+        checkWarn: "提醒",
+        checkPass: "通过",
+        allClear: "全部关键检查已通过。",
+        hiddenMore: "还有 {{count}} 项"
+      },
       aiLibrary: {
         tabs: {
           library: "正式库",
@@ -359,6 +387,34 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       }
     },
     teacherManagement: {
+      readiness: {
+        aria: "System status",
+        title: "Class readiness",
+        aiScan: "AI configuration scan",
+        scanDescription: "Check model, key, and invocation health.",
+        ready: "Ready",
+        blocked: "Needs action",
+        degraded: "Trial ready",
+        unknown: "Loading",
+        readyDescription: "Key services passed the checks.",
+        blockedDescription: "{{count}} blocker(s) need attention.",
+        degradedDescription: "{{count}} warning(s); safe to trial before polishing.",
+        loadingDescription: "Loading system status.",
+        classes: "Classes",
+        problems: "Problems",
+        library: "Library",
+        statsAria: "Management data",
+        refresh: "Refresh",
+        runAi: "Check AI",
+        running: "Checking",
+        detailSummary: "{{blocking}} blockers · {{warnings}} warnings",
+        checkDetails: "Check details",
+        checkFail: "Fail",
+        checkWarn: "Warning",
+        checkPass: "Pass",
+        allClear: "All key checks passed.",
+        hiddenMore: "{{count}} more"
+      },
       aiLibrary: {
         tabs: {
           library: "Library",

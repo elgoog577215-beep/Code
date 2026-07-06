@@ -18328,6 +18328,161 @@ button.standard-library-governance-path {
   -webkit-line-clamp: 2;
 }
 
+/* Management readiness belongs in the side rail, not as a horizontal page breaker. */
+.management-status-card {
+  min-width: 0;
+  display: grid;
+  gap: 0.42rem;
+  padding: 0.18rem 0.08rem 0.38rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.management-status-card__head {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.34rem;
+}
+
+.management-status-card__head > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.management-status-card__head strong,
+.management-status-card__head small,
+.management-status-card__details article span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.management-status-card__head strong {
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+.management-status-card__head small,
+.management-status-card__details summary small,
+.management-status-card__ok {
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  line-height: 1.28;
+}
+
+.management-status-card__icon {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
+  border-radius: 7px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 36%, transparent);
+}
+
+.management-status-card__stats {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-strong) 60%, transparent);
+}
+
+.management-status-card__stats span {
+  min-width: 0;
+  display: grid;
+  gap: 0.02rem;
+  padding: 0.26rem 0.28rem;
+  border-right: 1px solid var(--line);
+}
+
+.management-status-card__stats span:last-child {
+  border-right: 0;
+}
+
+.management-status-card__stats strong {
+  font-size: 0.82rem;
+  line-height: 1.05;
+}
+
+.management-status-card__stats small {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.62rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.management-status-card__actions {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.28rem;
+}
+
+.management-status-card__actions .ui-button {
+  width: 100%;
+  min-height: 32px;
+  justify-content: center;
+  padding-inline: 0.24rem;
+  font-size: 0.72rem;
+}
+
+.management-status-card__details {
+  min-width: 0;
+}
+
+.management-status-card__details > summary {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.28rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 860;
+}
+
+.management-status-card__details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.management-status-card__details > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.22rem;
+  margin-top: 0.3rem;
+  padding-top: 0.3rem;
+  border-top: 1px dashed var(--line);
+}
+
+.management-status-card__details article {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.26rem;
+}
+
+.management-status-card__details .status-pill {
+  min-height: 18px;
+  padding: 0.04rem 0.26rem;
+  font-size: 0.62rem;
+}
+
+.management-status-card__ok {
+  margin: 0;
+}
+
 @media (max-width: 680px) {
   .route-hub-grid,
   .student-entry-list {
