@@ -30,6 +30,7 @@ public final class AiStandardLibrarySeedCatalog {
         AiStandardLibraryV10AbsorptionSeeds.addTo(seeds);
         AiStandardLibraryV11AbsorptionSeeds.addTo(seeds);
         AiStandardLibraryV12ArchiveValueSeeds.addTo(seeds);
+        AiStandardLibraryV13QualityExpansionSeeds.addTo(seeds);
         return dedupe(seeds);
     }
 

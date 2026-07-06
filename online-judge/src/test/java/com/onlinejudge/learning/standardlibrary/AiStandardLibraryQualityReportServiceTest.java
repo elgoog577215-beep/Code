@@ -19,9 +19,9 @@ class AiStandardLibraryQualityReportServiceTest {
         assertThat(report.summary().chapterCount()).isGreaterThanOrEqualTo(34);
         assertThat(report.summary().topicCount()).isGreaterThanOrEqualTo(110);
         assertThat(report.summary().knowledgePointCount()).isGreaterThanOrEqualTo(550);
-        assertThat(report.summary().totalItemCount()).isGreaterThanOrEqualTo(400);
-        assertThat(report.summary().handwrittenSkillUnitCount()).isGreaterThanOrEqualTo(53);
-        assertThat(report.summary().handwrittenMistakePointCount()).isGreaterThanOrEqualTo(128);
+        assertThat(report.summary().totalItemCount()).isGreaterThanOrEqualTo(460);
+        assertThat(report.summary().handwrittenSkillUnitCount()).isGreaterThanOrEqualTo(65);
+        assertThat(report.summary().handwrittenMistakePointCount()).isGreaterThanOrEqualTo(164);
         assertThat(AiStandardLibrarySeedCatalog.seeds())
                 .noneMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
         assertThat(AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds())

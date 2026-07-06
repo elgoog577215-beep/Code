@@ -47,16 +47,16 @@ class AiStandardLibrarySeederTest {
     void seedsSkillUnitsAndMistakePointsIdempotently() {
         long initialCount = repository.count();
 
-        assertThat(initialCount).isGreaterThanOrEqualTo(400);
+        assertThat(initialCount).isGreaterThanOrEqualTo(460);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT)
-                .count()).isGreaterThanOrEqualTo(100);
+                .count()).isGreaterThanOrEqualTo(112);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
-                .count()).isGreaterThanOrEqualTo(260);
+                .count()).isGreaterThanOrEqualTo(295);
         assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT)
-                .count()).isGreaterThanOrEqualTo(40);
+                .count()).isGreaterThanOrEqualTo(50);
         assertThat(repository.findAll())
                 .noneMatch(item -> AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(item.getLayer(), item.getCode()));
         assertThat(repository.findAll().stream()
@@ -296,10 +296,11 @@ class AiStandardLibrarySeederTest {
                         || seed.code().startsWith("MP_V9_")
                         || seed.code().startsWith("MP_V10_")
                         || seed.code().startsWith("MP_V11_")
-                        || seed.code().startsWith("MP_V12_"))
+                        || seed.code().startsWith("MP_V12_")
+                        || seed.code().startsWith("MP_V13_"))
                 .count();
 
-        assertThat(activeSkillCount).isGreaterThanOrEqualTo(100);
+        assertThat(activeSkillCount).isGreaterThanOrEqualTo(112);
         assertThat(AiStandardLibrarySeedCatalog.seeds())
                 .noneMatch(AiStandardLibrarySeedCatalog::isGeneratedFallbackSeed);
         assertThat(AiStandardLibrarySeedCatalog.archivedGeneratedFallbackSeeds())
@@ -307,7 +308,7 @@ class AiStandardLibrarySeederTest {
         assertThat(genericSkillNameCount).isZero();
         assertThat(genericMistakeNameCount).isZero();
         assertThat(fallbackTemplateTextCount).isZero();
-        assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(160);
+        assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(190);
     }
 
     @Test
