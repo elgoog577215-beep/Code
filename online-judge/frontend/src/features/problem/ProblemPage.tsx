@@ -335,7 +335,7 @@ function FeedbackEvidenceMeta({
       ) : null}
       {snippets.length ? (
         <div className="student-feedback-evidence" aria-label="错误证据">
-          <span className="student-feedback-meta__label">代码证据 · 点击跳到对应行</span>
+          <span className="student-feedback-meta__label">代码证据</span>
           {snippets.map(snippet => (
             <button
               type="button"
@@ -350,7 +350,7 @@ function FeedbackEvidenceMeta({
         </div>
       ) : fallbackLine ? (
         <div className="student-feedback-evidence" aria-label="错误证据">
-          <span className="student-feedback-meta__label">代码证据 · 点击跳到对应行</span>
+          <span className="student-feedback-meta__label">代码证据</span>
           <button type="button" title="点击后回到编辑器并高亮这行代码" onClick={() => onJumpToLine(fallbackLine)}>
             <span>第 {fallbackLine} 行</span>
             <code>查看对应代码位置</code>
