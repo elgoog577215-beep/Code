@@ -18,6 +18,7 @@ import type {
   Readiness
 } from "../../shared/api/types";
 import { displayText } from "../../shared/format";
+import { useTranslation } from "../../shared/i18n";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea, TextInput } from "../../shared/ui/Field";
@@ -27,8 +28,9 @@ import TaskEditorPage from "../task-editor/TaskEditorPage";
 type Alert = { type: "success" | "error"; message: string };
 type ImportKind = "class" | "problem";
 type LibraryEnabledFilter = "" | "true" | "false";
-type StandardLibraryView = "library" | "review" | "governance";
+type StandardLibraryView = "library" | "review";
 type GrowthCandidateAction = "approve" | "merge" | "reject" | "ignore";
+type GrowthCandidateStatusFilter = "" | "pending" | "PROPOSED" | "NEEDS_REVIEW" | "BLOCKED" | "MERGED_SIMILAR" | "TEACHER_APPROVED" | "MERGED" | "REJECTED" | "IGNORED";
 type LibraryFilters = {
   query: string;
   layer: AiStandardLibraryLayer | "";
@@ -1013,6 +1015,7 @@ function StandardLibraryManager({
   onUpdateGrowthCandidate: (id: number, payload: AiStandardLibraryGrowthCandidatePayload) => void;
   onReviewGrowthCandidate: (id: number, action: GrowthCandidateAction, payload: AiStandardLibraryGrowthCandidatePayload) => void;
 }) {
+  const { t } = useTranslation();
   const [editorOpen, setEditorOpen] = useState(false);
   const [activeView, setActiveView] = useState<StandardLibraryView>("library");
   const visibleItems = items.filter(item => libraryItemMatchesFilters(item, filters));
@@ -1038,9 +1041,8 @@ function StandardLibraryManager({
 
   function viewTabs() {
     const tabs: Array<{ value: StandardLibraryView; label: string; icon: ReactNode; badge?: number }> = [
-      { value: "library", label: "正式库", icon: <BookOpen size={15} />, badge: visibleItems.length },
-      { value: "review", label: "待审核", icon: <ListChecks size={15} />, badge: pendingGrowthCount },
-      { value: "governance", label: "治理", icon: <ShieldCheck size={15} />, badge: governanceSummary?.reviewPendingCount || 0 }
+      { value: "library", label: t("teacherManagement.aiLibrary.tabs.library"), icon: <BookOpen size={15} />, badge: visibleItems.length },
+      { value: "review", label: t("teacherManagement.aiLibrary.tabs.governance"), icon: <ShieldCheck size={15} />, badge: pendingGrowthCount }
     ];
     return (
       <div className="standard-library-view-tabs" role="tablist" aria-label="AI 标准库视图">
@@ -1173,20 +1175,12 @@ function StandardLibraryManager({
         {viewTabs()}
         <StandardLibraryGrowthReview
           candidates={growthCandidates}
+          summary={governanceSummary}
           busy={busy}
           onReload={onReloadGrowth}
           onUpdate={onUpdateGrowthCandidate}
           onReview={onReviewGrowthCandidate}
         />
-      </section>
-    );
-  }
-
-  if (activeView === "governance") {
-    return (
-      <section className="management-object-workbench management-object-workbench--ai standard-library-manager">
-        {viewTabs()}
-        <StandardLibraryGovernanceView summary={governanceSummary} candidates={growthCandidates} busy={busy} onReload={onReloadGrowth} />
       </section>
     );
   }
@@ -1471,31 +1465,55 @@ type GrowthCandidateDraft = {
 
 function StandardLibraryGrowthReview({
   candidates,
+  summary,
   busy,
   onReload,
   onUpdate,
   onReview
 }: {
   candidates: AiStandardLibraryGrowthCandidate[];
+  summary: AiStandardLibraryGrowthGovernanceSummary | null;
   busy: boolean;
   onReload: () => void;
   onUpdate: (id: number, payload: AiStandardLibraryGrowthCandidatePayload) => void;
   onReview: (id: number, action: GrowthCandidateAction, payload: AiStandardLibraryGrowthCandidatePayload) => void;
 }) {
+  const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<number | null>(candidates[0]?.id || null);
-  const selected = candidates.find(candidate => candidate.id === selectedId) || candidates[0] || null;
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<GrowthCandidateStatusFilter>("");
+  const [pendingOnly, setPendingOnly] = useState(true);
+  const [focusedPath, setFocusedPath] = useState<string[]>([]);
+  const visibleSummary = summary || emptyGrowthGovernanceSummary();
+  const filteredCandidates = useMemo(
+    () => candidates.filter(candidate => growthCandidateMatchesFilters(candidate, { query, statusFilter, pendingOnly, focusedPath })),
+    [candidates, focusedPath, pendingOnly, query, statusFilter]
+  );
+  const selected = filteredCandidates.find(candidate => candidate.id === selectedId) || filteredCandidates[0] || null;
   const [draft, setDraft] = useState<GrowthCandidateDraft>(() => growthCandidateToDraft(selected));
   const pendingCount = candidates.filter(candidate => growthCandidatePending(candidate.status)).length;
+  const activeFilterCount = [query.trim(), statusFilter, pendingOnly ? "pending" : "", focusedPath.length ? "path" : ""].filter(Boolean).length;
+  const statusOptions: Array<{ value: GrowthCandidateStatusFilter; label: string }> = [
+    { value: "", label: t("teacherManagement.aiLibrary.governance.filters.allStatus") },
+    { value: "PROPOSED", label: t("teacherManagement.aiLibrary.governance.status.proposed") },
+    { value: "NEEDS_REVIEW", label: t("teacherManagement.aiLibrary.governance.status.needsReview") },
+    { value: "BLOCKED", label: t("teacherManagement.aiLibrary.governance.status.blocked") },
+    { value: "MERGED_SIMILAR", label: t("teacherManagement.aiLibrary.governance.status.mergedSimilar") },
+    { value: "TEACHER_APPROVED", label: t("teacherManagement.aiLibrary.governance.status.teacherApproved") },
+    { value: "MERGED", label: t("teacherManagement.aiLibrary.governance.status.merged") },
+    { value: "REJECTED", label: t("teacherManagement.aiLibrary.governance.status.rejected") },
+    { value: "IGNORED", label: t("teacherManagement.aiLibrary.governance.status.ignored") }
+  ];
 
   useEffect(() => {
-    if (!candidates.length) {
+    if (!filteredCandidates.length) {
       setSelectedId(null);
       return;
     }
-    if (!selectedId || !candidates.some(candidate => candidate.id === selectedId)) {
-      setSelectedId(candidates[0].id);
+    if (!selectedId || !filteredCandidates.some(candidate => candidate.id === selectedId)) {
+      setSelectedId(filteredCandidates[0].id);
     }
-  }, [candidates, selectedId]);
+  }, [filteredCandidates, selectedId]);
 
   useEffect(() => {
     setDraft(growthCandidateToDraft(selected));
@@ -1517,25 +1535,123 @@ function StandardLibraryGrowthReview({
     }
   }
 
+  function applyPathFilter(stat: AiStandardLibraryGrowthPathStat) {
+    setFocusedPath(stat.path);
+    setPendingOnly(true);
+    setStatusFilter("");
+    setQuery("");
+  }
+
+  function clearFilters() {
+    setQuery("");
+    setStatusFilter("");
+    setPendingOnly(false);
+    setFocusedPath([]);
+  }
+
   return (
     <div className="standard-library-review">
       <div className="standard-library-review__head">
         <div>
-          <p className="eyebrow">标准库成长候选</p>
-          <h2>待审核候选</h2>
-          <p>AI 诊断提出的新错误点先进入候选池，教师确认后才写入正式标准库。</p>
+          <p className="eyebrow">{t("teacherManagement.aiLibrary.governance.eyebrow")}</p>
+          <h2>{t("teacherManagement.aiLibrary.governance.title")}</h2>
+          <p>{t("teacherManagement.aiLibrary.governance.description")}</p>
         </div>
         <div className="actions">
-          <StatusPill tone={pendingCount ? "warning" : "success"}>待处理 {pendingCount}</StatusPill>
-          <button type="button" className="standard-library-icon-button" aria-label="刷新候选" title="刷新候选" onClick={() => onReload()} disabled={busy}>
+          <StatusPill tone={pendingCount ? "warning" : "success"}>{t("teacherManagement.aiLibrary.governance.pendingCount", { count: pendingCount })}</StatusPill>
+          <button type="button" className="standard-library-icon-button" aria-label={t("teacherManagement.aiLibrary.governance.refresh")} title={t("teacherManagement.aiLibrary.governance.refresh")} onClick={() => onReload()} disabled={busy}>
             <RefreshCw size={17} />
           </button>
         </div>
       </div>
+      <section className="standard-library-governance-strip" aria-label={t("teacherManagement.aiLibrary.governance.summaryAria")}>
+        <div className="standard-library-governance__stats">
+          <GovernanceStat label={t("teacherManagement.aiLibrary.governance.metrics.total")} value={visibleSummary.totalCount} tone="neutral" />
+          <GovernanceStat label={t("teacherManagement.aiLibrary.governance.metrics.pending")} value={visibleSummary.reviewPendingCount} tone={visibleSummary.reviewPendingCount ? "warning" : "success"} />
+          <GovernanceStat label={t("teacherManagement.aiLibrary.governance.metrics.duplicates")} value={visibleSummary.duplicateAggregateCount} tone={visibleSummary.duplicateAggregateCount ? "warning" : "neutral"} />
+          <GovernanceStat label={t("teacherManagement.aiLibrary.governance.metrics.merged")} value={visibleSummary.teacherApprovedCount + visibleSummary.mergedCount} tone="success" />
+          <GovernanceStat label={t("teacherManagement.aiLibrary.governance.metrics.closed")} value={visibleSummary.rejectedCount + visibleSummary.ignoredCount} tone="neutral" />
+        </div>
+        <div className="standard-library-governance-focus">
+          <section>
+            <h3>{t("teacherManagement.aiLibrary.governance.highFrequencyPaths")}</h3>
+            {visibleSummary.highFrequencyPaths.length ? (
+              visibleSummary.highFrequencyPaths
+                .slice(0, 4)
+                .map((path, index) => (
+                  <GovernancePathStat
+                    stat={path}
+                    active={sameGrowthPath(path.path, focusedPath)}
+                    onSelect={applyPathFilter}
+                    key={`freq-${index}-${path.path.join("/")}`}
+                  />
+                ))
+            ) : (
+              <p>{t("teacherManagement.aiLibrary.governance.noHighFrequencyPaths")}</p>
+            )}
+          </section>
+          <section>
+            <h3>{t("teacherManagement.aiLibrary.governance.weakPaths")}</h3>
+            {visibleSummary.weakPaths.length ? (
+              visibleSummary.weakPaths
+                .slice(0, 4)
+                .map((path, index) => (
+                  <GovernancePathStat
+                    stat={path}
+                    active={sameGrowthPath(path.path, focusedPath)}
+                    onSelect={applyPathFilter}
+                    key={`weak-${index}-${path.path.join("/")}`}
+                  />
+                ))
+            ) : (
+              <p>{t("teacherManagement.aiLibrary.governance.noWeakPaths")}</p>
+            )}
+          </section>
+        </div>
+      </section>
+      <div className="standard-library-review-filters" role="search" aria-label={t("teacherManagement.aiLibrary.governance.filters.aria")}>
+        <label className="standard-library-search standard-library-review-search">
+          <Search size={16} aria-hidden="true" />
+          <TextInput
+            aria-label={t("teacherManagement.aiLibrary.governance.filters.searchAria")}
+            className="control standard-library-search__input"
+            name="growthCandidateQuery"
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            placeholder={t("teacherManagement.aiLibrary.governance.filters.searchPlaceholder")}
+          />
+        </label>
+        <Select
+          aria-label={t("teacherManagement.aiLibrary.governance.filters.statusAria")}
+          className="control standard-library-review-filters__select"
+          name="growthStatusFilter"
+          value={statusFilter}
+          onChange={event => setStatusFilter(event.target.value as GrowthCandidateStatusFilter)}
+        >
+          {statusOptions.map(option => (
+            <option value={option.value} key={option.value || "all"}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+        <button type="button" className={`standard-library-chip ${pendingOnly ? "is-active" : ""}`} aria-pressed={pendingOnly} onClick={() => setPendingOnly(value => !value)}>
+          {t("teacherManagement.aiLibrary.governance.filters.pendingOnly")}
+        </button>
+        {focusedPath.length ? <StatusPill tone="info">{focusedPath.join(" / ")}</StatusPill> : null}
+        {activeFilterCount ? (
+          <button type="button" className="standard-library-filter-clear" onClick={clearFilters}>
+            {t("teacherManagement.aiLibrary.governance.filters.clear")}
+          </button>
+        ) : null}
+        <span className="standard-library-review-filters__count">
+          <ListChecks size={15} />
+          {filteredCandidates.length} / {candidates.length}
+        </span>
+      </div>
       {candidates.length ? (
         <div className="standard-library-review__grid">
           <div className="standard-library-review__list" aria-label="成长候选列表">
-            {candidates.map(candidate => (
+            {filteredCandidates.length ? filteredCandidates.map(candidate => (
               <button
                 type="button"
                 className={`standard-library-review-card ${candidate.id === selected?.id ? "is-active" : ""}`}
@@ -1544,25 +1660,34 @@ function StandardLibraryGrowthReview({
               >
                 <span>
                   <strong>{candidate.suggestedName}</strong>
-                  <small>{candidate.suggestedCode}</small>
                   <small>{candidate.suggestedPath.join(" / ") || "未提供归属路径"}</small>
+                  <small>{candidate.suggestedCode}</small>
                 </span>
                 <span>
                   <StatusPill tone={growthStatusTone(candidate.status)}>{growthStatusLabel(candidate.status)}</StatusPill>
                   <StatusPill tone="neutral">出现 {candidate.occurrenceCount || 1}</StatusPill>
+                  {candidate.confidence == null ? null : <StatusPill tone="info">置信 {formatGrowthConfidence(candidate.confidence)}</StatusPill>}
                 </span>
               </button>
-            ))}
+            )) : (
+              <EmptyState title={t("teacherManagement.aiLibrary.governance.emptyFilteredTitle")} description={t("teacherManagement.aiLibrary.governance.emptyFilteredDescription")} />
+            )}
           </div>
           {selected ? (
             <section className="standard-library-review__detail" aria-label="候选详情">
               <div className="standard-library-review__detail-head">
                 <div>
-                  <p className="eyebrow">{selected.layer}</p>
+                  <p className="eyebrow">{layerLabel(selected.layer)}</p>
                   <h3>{selected.suggestedName}</h3>
                   <p>{selected.suggestedPath.join(" / ") || "未提供归属路径"}</p>
                 </div>
                 <StatusPill tone={growthStatusTone(selected.status)}>{growthStatusLabel(selected.status)}</StatusPill>
+              </div>
+              <div className="standard-library-review__meta">
+                <StatusPill tone="neutral">题目 {selected.sourceProblemId || "-"}</StatusPill>
+                <StatusPill tone="neutral">提交 {selected.sourceSubmissionId || "-"}</StatusPill>
+                <StatusPill tone="neutral">出现 {selected.occurrenceCount || 1}</StatusPill>
+                {selected.confidence == null ? null : <StatusPill tone="info">置信 {formatGrowthConfidence(selected.confidence)}</StatusPill>}
               </div>
               <div className="form-grid standard-library-editor__core">
                 <Field label="类型">
@@ -1585,11 +1710,11 @@ function StandardLibraryGrowthReview({
                 <Field label="归属路径">
                   <TextArea name="growthPath" value={draft.suggestedPath} onChange={event => patchDraft({ suggestedPath: event.target.value })} placeholder="每行一层路径" />
                 </Field>
-                <Field label="相似条目">
-                  <TextArea name="growthSimilar" value={draft.similarExistingItems} onChange={event => patchDraft({ similarExistingItems: event.target.value })} placeholder="每行一个标准库条目 ID" />
-                </Field>
                 <Field label="证据线索">
                   <TextArea name="growthEvidence" value={draft.evidenceRefs} onChange={event => patchDraft({ evidenceRefs: event.target.value })} placeholder="每行一个 evidenceRef" />
+                </Field>
+                <Field label="相似条目">
+                  <TextArea name="growthSimilar" value={draft.similarExistingItems} onChange={event => patchDraft({ similarExistingItems: event.target.value })} placeholder="每行一个标准库条目 ID" />
                 </Field>
                 <Field label="审核说明">
                   <TextArea name="growthTeacherNote" value={draft.teacherNote} onChange={event => patchDraft({ teacherNote: event.target.value })} />
@@ -1598,11 +1723,6 @@ function StandardLibraryGrowthReview({
               <Field label="变更理由">
                 <TextArea name="growthReason" value={draft.changeReason} onChange={event => patchDraft({ changeReason: event.target.value })} />
               </Field>
-              <div className="standard-library-review__meta">
-                <StatusPill tone="neutral">题目 {selected.sourceProblemId || "-"}</StatusPill>
-                <StatusPill tone="neutral">提交 {selected.sourceSubmissionId || "-"}</StatusPill>
-                <StatusPill tone="neutral">出现 {selected.occurrenceCount || 1}</StatusPill>
-              </div>
               {selected.precheckMessage ? <p className="standard-library-review__note">{selected.precheckMessage}</p> : null}
               {selected.rollbackInfo ? <p className="standard-library-review__note">{selected.rollbackInfo}</p> : null}
               <div className="actions standard-library-review__actions">
@@ -1626,73 +1746,8 @@ function StandardLibraryGrowthReview({
           ) : null}
         </div>
       ) : (
-        <EmptyState title="暂无成长候选" description="当 AI 诊断发现标准库缺口时，候选会出现在这里。" />
+        <EmptyState title={t("teacherManagement.aiLibrary.governance.emptyTitle")} description={t("teacherManagement.aiLibrary.governance.emptyDescription")} />
       )}
-    </div>
-  );
-}
-
-function StandardLibraryGovernanceView({
-  summary,
-  candidates,
-  busy,
-  onReload
-}: {
-  summary: AiStandardLibraryGrowthGovernanceSummary | null;
-  candidates: AiStandardLibraryGrowthCandidate[];
-  busy: boolean;
-  onReload: () => void;
-}) {
-  const visibleSummary = summary || emptyGrowthGovernanceSummary();
-  return (
-    <div className="standard-library-governance">
-      <div className="standard-library-review__head">
-        <div>
-          <p className="eyebrow">标准库治理</p>
-          <h2>成长质量摘要</h2>
-          <p>这里不自动改库，只帮助老师看见哪些路径需要优先审核和补强。</p>
-        </div>
-        <button type="button" className="standard-library-icon-button" aria-label="刷新治理摘要" title="刷新治理摘要" onClick={() => onReload()} disabled={busy}>
-          <RefreshCw size={17} />
-        </button>
-      </div>
-      <div className="standard-library-governance__stats">
-        <GovernanceStat label="候选总数" value={visibleSummary.totalCount} tone="neutral" />
-        <GovernanceStat label="待审核" value={visibleSummary.reviewPendingCount} tone={visibleSummary.reviewPendingCount ? "warning" : "success"} />
-        <GovernanceStat label="重复聚合" value={visibleSummary.duplicateAggregateCount} tone={visibleSummary.duplicateAggregateCount ? "warning" : "neutral"} />
-        <GovernanceStat label="已入库" value={visibleSummary.teacherApprovedCount + visibleSummary.mergedCount} tone="success" />
-        <GovernanceStat label="拒绝/忽略" value={visibleSummary.rejectedCount + visibleSummary.ignoredCount} tone="neutral" />
-      </div>
-      <div className="standard-library-governance__columns">
-        <section className="standard-library-governance__panel">
-          <h3>高频路径</h3>
-          {visibleSummary.highFrequencyPaths.length ? (
-            visibleSummary.highFrequencyPaths.map((path, index) => <GovernancePathStat stat={path} key={`freq-${index}-${path.path.join("/")}`} />)
-          ) : (
-            <p>暂无高频候选路径。</p>
-          )}
-        </section>
-        <section className="standard-library-governance__panel">
-          <h3>待补强路径</h3>
-          {visibleSummary.weakPaths.length ? (
-            visibleSummary.weakPaths.map((path, index) => <GovernancePathStat stat={path} key={`weak-${index}-${path.path.join("/")}`} />)
-          ) : (
-            <p>暂无集中薄弱路径。</p>
-          )}
-        </section>
-        <section className="standard-library-governance__panel">
-          <h3>状态分布</h3>
-          <div className="standard-library-governance__status-list">
-            {visibleSummary.statusStats.map(stat => (
-              <span key={stat.status}>
-                <StatusPill tone={growthStatusTone(stat.status)}>{growthStatusLabel(stat.status)}</StatusPill>
-                <strong>{stat.count}</strong>
-              </span>
-            ))}
-          </div>
-          <p>当前候选池保留 {candidates.length} 条审计记录。</p>
-        </section>
-      </div>
     </div>
   );
 }
@@ -1707,9 +1762,17 @@ function GovernanceStat({ label, value, tone }: { label: string; value: number; 
   );
 }
 
-function GovernancePathStat({ stat }: { stat: AiStandardLibraryGrowthPathStat }) {
-  return (
-    <article className="standard-library-governance-path">
+function GovernancePathStat({
+  stat,
+  active,
+  onSelect
+}: {
+  stat: AiStandardLibraryGrowthPathStat;
+  active?: boolean;
+  onSelect?: (stat: AiStandardLibraryGrowthPathStat) => void;
+}) {
+  const content = (
+    <>
       <strong>{stat.path.join(" / ") || "未提供路径"}</strong>
       <span>
         <StatusPill tone="neutral">候选 {stat.candidateCount}</StatusPill>
@@ -1717,6 +1780,18 @@ function GovernancePathStat({ stat }: { stat: AiStandardLibraryGrowthPathStat })
         <StatusPill tone="neutral">出现 {stat.occurrenceCount}</StatusPill>
       </span>
       {stat.recommendedAction ? <p>{stat.recommendedAction}</p> : null}
+    </>
+  );
+  if (onSelect) {
+    return (
+      <button type="button" className={`standard-library-governance-path ${active ? "is-active" : ""}`} onClick={() => onSelect(stat)}>
+        {content}
+      </button>
+    );
+  }
+  return (
+    <article className="standard-library-governance-path">
+      {content}
     </article>
   );
 }
@@ -1774,6 +1849,60 @@ function emptyGrowthGovernanceSummary(): AiStandardLibraryGrowthGovernanceSummar
     highFrequencyPaths: [],
     weakPaths: []
   };
+}
+
+function growthCandidateMatchesFilters(
+  candidate: AiStandardLibraryGrowthCandidate,
+  filters: {
+    query: string;
+    statusFilter: GrowthCandidateStatusFilter;
+    pendingOnly: boolean;
+    focusedPath: string[];
+  }
+) {
+  const status = (candidate.status || "").toUpperCase();
+  if (filters.pendingOnly && !growthCandidatePending(status)) {
+    return false;
+  }
+  if (filters.statusFilter && status !== filters.statusFilter) {
+    return false;
+  }
+  if (filters.focusedPath.length && !growthCandidatePathText(candidate).toLowerCase().includes(filters.focusedPath.join(" / ").toLowerCase())) {
+    return false;
+  }
+  const query = filters.query.trim().toLowerCase();
+  if (!query) {
+    return true;
+  }
+  return [
+    candidate.suggestedName,
+    candidate.suggestedCode,
+    growthCandidatePathText(candidate),
+    candidate.changeReason,
+    candidate.precheckMessage,
+    candidate.evidenceRefs?.join(" "),
+    candidate.similarExistingItems?.join(" "),
+    growthStatusLabel(candidate.status)
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(query);
+}
+
+function growthCandidatePathText(candidate: AiStandardLibraryGrowthCandidate) {
+  return (candidate.suggestedPath || []).join(" / ");
+}
+
+function sameGrowthPath(left: string[], right: string[]) {
+  return left.join("\n") === right.join("\n");
+}
+
+function formatGrowthConfidence(value: number) {
+  if (value <= 1) {
+    return `${Math.round(value * 100)}%`;
+  }
+  return String(Math.round(value));
 }
 
 function growthCandidatePending(status?: string | null) {

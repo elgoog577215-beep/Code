@@ -42,6 +42,38 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       teacherTitle: "教师工作台",
       teacherDescription: "查看班级、作业、题目和学生，也管理名单、题库与 AI 标准库。"
     },
+    teacherHome: {
+      classOverview: "班级概览",
+      classLabel: "班级",
+      defaultClass: "默认班级",
+      unboundClass: "未绑定班级",
+      pilotTitle: "课堂编程作业",
+      assignmentFallbackWithId: "课堂作业 #{{id}}",
+      classProgress: "班级进度",
+      newAssignment: "新建作业",
+      assignmentListAria: "教师作业入口",
+      assignmentListTitle: "作业",
+      assignmentCount: "{{count}} 个",
+      loadingAssignments: "正在读取作业",
+      emptyAssignmentsTitle: "暂无作业",
+      emptyAssignmentsDescription: "新建作业后，这里会显示课堂入口和学生状态。",
+      viewDetails: "查看详情",
+      needsAttentionWithCount: "需看 {{count}}",
+      metrics: {
+        assignments: "作业",
+        students: "学生",
+        needsAttention: "需看",
+        recentSubmissions: "新增",
+        problems: "题目",
+        status: "状态"
+      },
+      errors: {
+        loadFailed: "教师端数据读取失败。",
+        serviceUnavailable: "教师端数据读取失败，服务暂时不可用。",
+        notFound: "教师端数据读取失败，未找到课堂资源。",
+        separator: "，"
+      }
+    },
     assignmentDetail: {
       fallbackTitle: "课堂作业",
       pilotTitle: "课堂编程作业",
@@ -124,6 +156,56 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         view: "看题目",
         noIssue: "暂无集中错因"
       }
+    },
+    teacherManagement: {
+      aiLibrary: {
+        tabs: {
+          library: "正式库",
+          governance: "人工治理"
+        },
+        governance: {
+          eyebrow: "标准库人工治理",
+          title: "候选审核工作台",
+          description: "AI 只提出候选；老师在这里确认、修正、合并或拒绝，正式库不会被自动污染。",
+          pendingCount: "待处理 {{count}}",
+          refresh: "刷新候选",
+          summaryAria: "人工治理摘要",
+          highFrequencyPaths: "高频路径",
+          weakPaths: "待补强路径",
+          noHighFrequencyPaths: "暂无高频候选路径。",
+          noWeakPaths: "暂无集中薄弱路径。",
+          emptyTitle: "暂无成长候选",
+          emptyDescription: "当 AI 诊断发现标准库缺口时，候选会出现在这里。",
+          emptyFilteredTitle: "没有匹配候选",
+          emptyFilteredDescription: "调整状态、路径或关键词筛选。",
+          metrics: {
+            total: "候选总数",
+            pending: "待审核",
+            duplicates: "重复聚合",
+            merged: "已入库",
+            closed: "拒绝/忽略"
+          },
+          filters: {
+            aria: "筛选成长候选",
+            searchAria: "搜索候选名称、ID、路径或证据",
+            searchPlaceholder: "名称、ID、路径、证据",
+            statusAria: "候选状态",
+            allStatus: "全部状态",
+            pendingOnly: "只看待处理",
+            clear: "清除筛选"
+          },
+          status: {
+            proposed: "待处理",
+            needsReview: "待审核",
+            blocked: "需修正",
+            mergedSimilar: "重复聚合",
+            teacherApproved: "教师批准",
+            merged: "已入库",
+            rejected: "已拒绝",
+            ignored: "已忽略"
+          }
+        }
+      }
     }
   },
   en: {
@@ -160,6 +242,38 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       studentDescription: "Open class assignments, public practice, and personal submission records.",
       teacherTitle: "Teacher Workbench",
       teacherDescription: "Review classes, assignments, problems, and students, plus manage rosters, problems, and the AI library."
+    },
+    teacherHome: {
+      classOverview: "Class overview",
+      classLabel: "Class",
+      defaultClass: "Default class",
+      unboundClass: "Unassigned class",
+      pilotTitle: "Class Coding Assignment",
+      assignmentFallbackWithId: "Class Assignment #{{id}}",
+      classProgress: "Class progress",
+      newAssignment: "New assignment",
+      assignmentListAria: "Teacher assignment entries",
+      assignmentListTitle: "Assignments",
+      assignmentCount: "{{count}} items",
+      loadingAssignments: "Loading assignments",
+      emptyAssignmentsTitle: "No assignments yet",
+      emptyAssignmentsDescription: "After you create one, classroom entry points and student status will appear here.",
+      viewDetails: "View details",
+      needsAttentionWithCount: "Review {{count}}",
+      metrics: {
+        assignments: "Assignments",
+        students: "Students",
+        needsAttention: "Review",
+        recentSubmissions: "New",
+        problems: "Problems",
+        status: "Status"
+      },
+      errors: {
+        loadFailed: "Failed to load teacher data.",
+        serviceUnavailable: "Failed to load teacher data. The service is temporarily unavailable.",
+        notFound: "Failed to load teacher data. Classroom resources were not found.",
+        separator: ": "
+      }
     },
     assignmentDetail: {
       fallbackTitle: "Class Assignment",
@@ -242,6 +356,56 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         action: "Action",
         view: "Open",
         noIssue: "No shared issue yet"
+      }
+    },
+    teacherManagement: {
+      aiLibrary: {
+        tabs: {
+          library: "Library",
+          governance: "Governance"
+        },
+        governance: {
+          eyebrow: "Standard Library Governance",
+          title: "Candidate Review Workbench",
+          description: "AI only proposes candidates; teachers confirm, revise, merge, or reject them before the formal library changes.",
+          pendingCount: "Pending {{count}}",
+          refresh: "Refresh candidates",
+          summaryAria: "Governance summary",
+          highFrequencyPaths: "Frequent paths",
+          weakPaths: "Paths to strengthen",
+          noHighFrequencyPaths: "No frequent candidate paths yet.",
+          noWeakPaths: "No concentrated weak paths yet.",
+          emptyTitle: "No growth candidates",
+          emptyDescription: "Candidates will appear here when AI diagnosis finds a standard-library gap.",
+          emptyFilteredTitle: "No matching candidates",
+          emptyFilteredDescription: "Adjust status, path, or keyword filters.",
+          metrics: {
+            total: "Candidates",
+            pending: "Pending",
+            duplicates: "Duplicates",
+            merged: "Merged",
+            closed: "Rejected/Ignored"
+          },
+          filters: {
+            aria: "Filter growth candidates",
+            searchAria: "Search candidate name, ID, path, or evidence",
+            searchPlaceholder: "Name, ID, path, evidence",
+            statusAria: "Candidate status",
+            allStatus: "All statuses",
+            pendingOnly: "Pending only",
+            clear: "Clear filters"
+          },
+          status: {
+            proposed: "Proposed",
+            needsReview: "Needs review",
+            blocked: "Needs fixes",
+            mergedSimilar: "Duplicate group",
+            teacherApproved: "Approved",
+            merged: "Merged",
+            rejected: "Rejected",
+            ignored: "Ignored"
+          }
+        }
       }
     }
   }

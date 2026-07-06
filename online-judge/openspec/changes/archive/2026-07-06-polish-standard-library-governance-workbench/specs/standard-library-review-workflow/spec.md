@@ -1,8 +1,5 @@
-# standard-library-review-workflow Specification
+## MODIFIED Requirements
 
-## Purpose
-定义教师端标准库成长候选审核闭环，让 AI 诊断提出的新错误点或提升点必须经过可查看、可编辑、可批准、可合并、可拒绝或可忽略的审核流程后，才影响正式标准库。
-## Requirements
 ### Requirement: 教师可以审核标准库成长候选
 系统 SHALL 在教师端提供标准库成长候选人工治理台，使教师能在同一工作流中查看摘要、筛选候选、编辑候选并执行审核动作。
 

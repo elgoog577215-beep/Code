@@ -1,8 +1,5 @@
-# standard-library-governance-quality Specification
+## MODIFIED Requirements
 
-## Purpose
-定义标准库成长候选的治理质量摘要，让教师能识别待审核积压、重复候选、高频未命中路径和需要补强的知识路径，同时确保摘要本身不自动改写正式标准库。
-## Requirements
 ### Requirement: 标准库治理摘要
 系统 SHALL 在人工治理台内提供标准库成长候选治理摘要，帮助教师识别待审核积压、重复候选和薄弱知识路径，并能从摘要直接进入候选处理。
 

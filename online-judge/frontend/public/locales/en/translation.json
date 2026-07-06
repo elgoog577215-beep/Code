@@ -33,6 +33,38 @@
     "teacherTitle": "Teacher Workbench",
     "teacherDescription": "Review classes, assignments, problems, and students, plus manage rosters, problems, and the AI library."
   },
+  "teacherHome": {
+    "classOverview": "Class overview",
+    "classLabel": "Class",
+    "defaultClass": "Default class",
+    "unboundClass": "Unassigned class",
+    "pilotTitle": "Class Coding Assignment",
+    "assignmentFallbackWithId": "Class Assignment #{{id}}",
+    "classProgress": "Class progress",
+    "newAssignment": "New assignment",
+    "assignmentListAria": "Teacher assignment entries",
+    "assignmentListTitle": "Assignments",
+    "assignmentCount": "{{count}} items",
+    "loadingAssignments": "Loading assignments",
+    "emptyAssignmentsTitle": "No assignments yet",
+    "emptyAssignmentsDescription": "After you create one, classroom entry points and student status will appear here.",
+    "viewDetails": "View details",
+    "needsAttentionWithCount": "Review {{count}}",
+    "metrics": {
+      "assignments": "Assignments",
+      "students": "Students",
+      "needsAttention": "Review",
+      "recentSubmissions": "New",
+      "problems": "Problems",
+      "status": "Status"
+    },
+    "errors": {
+      "loadFailed": "Failed to load teacher data.",
+      "serviceUnavailable": "Failed to load teacher data. The service is temporarily unavailable.",
+      "notFound": "Failed to load teacher data. Classroom resources were not found.",
+      "separator": ": "
+    }
+  },
   "assignmentDetail": {
     "fallbackTitle": "Class Assignment",
     "pilotTitle": "Class Coding Assignment",
@@ -114,6 +146,56 @@
       "action": "Action",
       "view": "Open",
       "noIssue": "No shared issue yet"
+    }
+  },
+  "teacherManagement": {
+    "aiLibrary": {
+      "tabs": {
+        "library": "Library",
+        "governance": "Governance"
+      },
+      "governance": {
+        "eyebrow": "Standard Library Governance",
+        "title": "Candidate Review Workbench",
+        "description": "AI only proposes candidates; teachers confirm, revise, merge, or reject them before the formal library changes.",
+        "pendingCount": "Pending {{count}}",
+        "refresh": "Refresh candidates",
+        "summaryAria": "Governance summary",
+        "highFrequencyPaths": "Frequent paths",
+        "weakPaths": "Paths to strengthen",
+        "noHighFrequencyPaths": "No frequent candidate paths yet.",
+        "noWeakPaths": "No concentrated weak paths yet.",
+        "emptyTitle": "No growth candidates",
+        "emptyDescription": "Candidates will appear here when AI diagnosis finds a standard-library gap.",
+        "emptyFilteredTitle": "No matching candidates",
+        "emptyFilteredDescription": "Adjust status, path, or keyword filters.",
+        "metrics": {
+          "total": "Candidates",
+          "pending": "Pending",
+          "duplicates": "Duplicates",
+          "merged": "Merged",
+          "closed": "Rejected/Ignored"
+        },
+        "filters": {
+          "aria": "Filter growth candidates",
+          "searchAria": "Search candidate name, ID, path, or evidence",
+          "searchPlaceholder": "Name, ID, path, evidence",
+          "statusAria": "Candidate status",
+          "allStatus": "All statuses",
+          "pendingOnly": "Pending only",
+          "clear": "Clear filters"
+        },
+        "status": {
+          "proposed": "Proposed",
+          "needsReview": "Needs review",
+          "blocked": "Needs fixes",
+          "mergedSimilar": "Duplicate group",
+          "teacherApproved": "Approved",
+          "merged": "Merged",
+          "rejected": "Rejected",
+          "ignored": "Ignored"
+        }
+      }
     }
   }
 }
