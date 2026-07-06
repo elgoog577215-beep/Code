@@ -58,14 +58,14 @@ public final class InformaticsKnowledgeSeedCatalog {
         catalog.chapter("BASIC.ARRAY", "BASIC", "数组与序列", "理解线性存储、下标、遍历、更新和区间处理。", 160)
                 .topics("BASIC.ARRAY.INDEX", "数组下标", "0 基下标", "1 基下标", "越界访问", "长度与最后下标", "下标映射")
                 .topics("BASIC.ARRAY.TRAVERSE", "数组遍历", "全量遍历", "局部遍历", "逆序遍历", "步长遍历", "同步遍历")
-                .topics("BASIC.ARRAY.UPDATE", "数组更新", "原地修改", "临时数组", "覆盖风险", "交换元素", "累计更新")
+                .topics("BASIC.ARRAY.UPDATE", "数组更新", "原地修改", "临时数组", "覆盖风险", "交换元素", "累计更新", "读旧写新分离", "批量更新后还原顺序", "累计量同步更新")
                 .topics("BASIC.ARRAY.PREFIX", "前缀统计基础", "前缀和定义", "区间和查询", "差分直觉", "计数数组", "频次统计")
                 .topics("BASIC.ARRAY.MATRIX", "二维数组", "行列含义", "矩阵输入", "方向遍历", "边界检查", "坐标转换");
 
         catalog.chapter("BASIC.STRING", "BASIC", "字符串", "掌握字符序列、子串、查找、计数和常见文本处理。", 170)
                 .topics("BASIC.STRING.CHAR", "字符处理", "字符遍历", "大小写转换", "数字字符转换", "字母判断", "特殊字符处理")
                 .topics("BASIC.STRING.SUBSTRING", "子串与切片", "起止位置", "长度参数", "空串处理", "越界保护", "Python/C++ 切片差异")
-                .topics("BASIC.STRING.MATCH", "字符串匹配基础", "逐位比较", "查找出现位置", "统计出现次数", "前后缀判断", "回文判断")
+                .topics("BASIC.STRING.MATCH", "字符串匹配基础", "逐位比较", "查找出现位置", "统计出现次数", "前后缀判断", "回文判断", "未找到结果哨兵", "重叠匹配计数", "前后缀边界")
                 .topics("BASIC.STRING.BUILD", "字符串构造", "追加字符", "拼接效率", "格式化构造", "删除替换", "结果顺序");
 
         catalog.chapter("BASIC.FUNCTION", "BASIC", "函数与模块化", "理解函数参数、返回值、局部变量和代码复用。", 180)
@@ -100,7 +100,7 @@ public final class InformaticsKnowledgeSeedCatalog {
 
         catalog.chapter("DS.GRAPH", "DS", "图结构", "理解点、边、邻接关系、连通性和图遍历。", 240)
                 .topics("DS.GRAPH.MODEL", "图建模", "点的定义", "边的定义", "有向无向", "权值含义", "状态转图")
-                .topics("DS.GRAPH.STORE", "图存储", "邻接矩阵", "邻接表", "边列表", "稀疏稠密选择", "双向边添加")
+                .topics("DS.GRAPH.STORE", "图存储", "邻接矩阵", "邻接表", "边列表", "稀疏稠密选择", "双向边添加", "无向边双向建边", "权值字段绑定", "多组图清空")
                 .topics("DS.GRAPH.TRAVERSE", "图遍历", "DFS 连通块", "BFS 层次", "访问标记", "重复入队", "路径记录");
     }
 
@@ -109,8 +109,8 @@ public final class InformaticsKnowledgeSeedCatalog {
 
         catalog.chapter("ALGO.SIM", "ALGO", "模拟", "根据题意维护状态并按规则推进。", 310)
                 .topics("ALGO.SIM.STATE", "状态设计", "状态变量选择", "状态初始化", "状态转移", "状态同步", "状态输出")
-                .topics("ALGO.SIM.PROCESS", "流程模拟", "事件顺序", "规则优先级", "多对象模拟", "时间推进", "终止条件")
-                .topics("ALGO.SIM.CORNER", "模拟边界", "空状态", "首尾元素", "同一时刻冲突", "极限步数", "样例复现");
+                .topics("ALGO.SIM.PROCESS", "流程模拟", "事件顺序", "规则优先级", "多对象模拟", "时间推进", "终止条件", "状态更新先后", "事件队列推进")
+                .topics("ALGO.SIM.CORNER", "模拟边界", "空状态", "首尾元素", "同一时刻冲突", "极限步数", "样例复现", "空队列空集合状态", "首尾事件同时发生", "并列规则冲突");
 
         catalog.chapter("ALGO.ENUM", "ALGO", "枚举与暴力优化", "枚举候选方案，并用剪枝、预处理或结构降低复杂度。", 320)
                 .topics("ALGO.ENUM.LOOP", "枚举设计", "枚举对象", "枚举范围", "去重枚举", "组合枚举", "排列枚举")
@@ -131,7 +131,7 @@ public final class InformaticsKnowledgeSeedCatalog {
                 .topics("ALGO.PREFIX.MATRIX", "二维前缀和", "容斥公式", "坐标偏移", "子矩阵查询", "边界补零", "行列混淆");
 
         catalog.chapter("ALGO.TWO_POINTERS", "ALGO", "双指针与滑动窗口", "利用单调移动维护区间或配对关系。", 360)
-                .topics("ALGO.TWO_POINTERS.OPPOSITE", "对向双指针", "有序数组配对", "左右收缩", "去重移动", "最优性判断", "终止条件")
+                .topics("ALGO.TWO_POINTERS.OPPOSITE", "对向双指针", "有序数组配对", "左右收缩", "去重移动", "最优性判断", "终止条件", "左右指针移动依据", "相等元素去重策略")
                 .topics("ALGO.TWO_POINTERS.WINDOW", "滑动窗口", "窗口扩张", "窗口收缩", "计数维护", "合法性判断", "答案更新时机");
 
         catalog.chapter("ALGO.SEARCH", "ALGO", "搜索", "用 DFS/BFS 探索状态空间，并控制访问、剪枝和恢复。", 370)
@@ -187,7 +187,7 @@ public final class InformaticsKnowledgeSeedCatalog {
 
         catalog.chapter("ENG.ERROR", "ENG", "错误类型", "区分编译错误、运行错误、答案错误、超时和格式错误。", 610)
                 .topics("ENG.ERROR.COMPILE", "编译错误", "语法拼写", "缺少分号", "括号不匹配", "类型不匹配", "未声明标识符")
-                .topics("ENG.ERROR.RUNTIME", "运行错误", "数组越界", "除零", "空容器访问", "递归爆栈", "非法内存")
+                .topics("ENG.ERROR.RUNTIME", "运行错误", "数组越界", "除零", "空容器访问", "递归爆栈", "非法内存", "空容器访问保护", "递归深度上限")
                 .topics("ENG.ERROR.WRONG_ANSWER", "答案错误", "样例通过隐藏失败", "边界遗漏", "状态未重置", "逻辑分支遗漏", "精度错误")
                 .topics("ENG.ERROR.TIME", "超时", "复杂度过高", "死循环", "重复计算", "低效 IO", "搜索爆炸")
                 .topics("ENG.ERROR.FORMAT", "格式错误", "多余空格", "缺少换行", "调试输出", "大小写错误", "小数位错误");
@@ -200,7 +200,7 @@ public final class InformaticsKnowledgeSeedCatalog {
         catalog.chapter("ENG.COMPLEXITY", "ENG", "复杂度意识", "根据数据范围选择时间和空间复杂度。", 630)
                 .topics("ENG.COMPLEXITY.TIME", "时间复杂度", "O(n)", "O(n log n)", "O(n^2)", "指数复杂度", "数据范围反推")
                 .topics("ENG.COMPLEXITY.SPACE", "空间复杂度", "数组规模", "二维空间", "递归栈", "哈希空间", "滚动优化")
-                .topics("ENG.COMPLEXITY.TRADEOFF", "时空权衡", "预处理", "缓存", "空间换时间", "离线处理", "重复计算消除");
+                .topics("ENG.COMPLEXITY.TRADEOFF", "时空权衡", "预处理", "缓存", "空间换时间", "离线处理", "重复计算消除", "预处理收益判断", "空间换时间边界");
 
         catalog.chapter("ENG.STYLE", "ENG", "代码可读性", "用清晰命名、结构拆分和不变量表达降低错误率。", 640)
                 .topics("ENG.STYLE.NAME", "命名", "变量含义", "下标命名", "布尔命名", "函数命名", "避免混淆")
@@ -222,7 +222,7 @@ public final class InformaticsKnowledgeSeedCatalog {
                 .topics("CONTEST.PATTERN.OBJECTIVE", "目标特征", "最值", "计数", "可行性", "构造", "路径");
 
         catalog.chapter("CONTEST.SUBMIT", "CONTEST", "提交前检查", "提交前系统检查代码、边界和复杂度。", 730)
-                .topics("CONTEST.SUBMIT.CHECKLIST", "提交检查清单", "样例复测", "边界复测", "初始化检查", "输出格式检查", "复杂度检查")
+                .topics("CONTEST.SUBMIT.CHECKLIST", "提交检查清单", "样例复测", "边界复测", "初始化检查", "输出格式检查", "复杂度检查", "多组状态复查", "溢出风险复查")
                 .topics("CONTEST.SUBMIT.REVIEW", "失败后复盘", "错误类型定位", "最小反例构造", "同类错因记录", "知识点回补", "再次提交策略");
     }
 

@@ -34,16 +34,29 @@ class InformaticsKnowledgeSeederTest {
     void seedsBroadFineGrainedInformaticsKnowledgeTreeIdempotently() {
         long initialCount = repository.count();
 
-        assertThat(initialCount).isGreaterThanOrEqualTo(120);
+        assertThat(initialCount).isGreaterThanOrEqualTo(720);
         assertThat(repository.findAll().stream()
                 .filter(node -> node.getType() == InformaticsKnowledgeNodeType.DOMAIN)
                 .count()).isGreaterThanOrEqualTo(6);
         assertThat(repository.findAll().stream()
                 .filter(node -> node.getType() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
-                .count()).isGreaterThanOrEqualTo(90);
+                .count()).isGreaterThanOrEqualTo(575);
         assertThat(repository.findByCode("BASIC.LOOP.BOUNDARY.左闭右开")).isPresent();
         assertThat(repository.findByCode("ALGO.DP.STATE.状态含义")).isPresent();
         assertThat(repository.findByCode("CONTEST.READING.CONSTRAINT.数据范围")).isPresent();
+        assertThat(repository.findByCode("BASIC.ARRAY.UPDATE.读旧写新分离")).isPresent();
+        assertThat(repository.findByCode("BASIC.STRING.MATCH.未找到结果哨兵")).isPresent();
+        assertThat(repository.findByCode("DS.GRAPH.STORE.多组图清空")).isPresent();
+        assertThat(repository.findByCode("ALGO.SIM.CORNER.并列规则冲突")).isPresent();
+        assertThat(repository.findByCode("ENG.COMPLEXITY.TRADEOFF.预处理收益判断")).isPresent();
+        assertThat(repository.findByCode("CONTEST.SUBMIT.CHECKLIST.溢出风险复查")).isPresent();
+
+        var updateNode = repository.findByCode("BASIC.ARRAY.UPDATE.读旧写新分离").orElseThrow();
+        assertThat(updateNode.getParentCode()).isEqualTo("BASIC.ARRAY.UPDATE");
+        assertThat(updateNode.getPath()).contains("数组更新", "读旧写新分离");
+        assertThat(updateNode.getDescription()).contains("细颗粒知识点");
+        assertThat(updateNode.getLearningObjectives()).contains("能解释读旧写新分离的含义。");
+        assertThat(updateNode.getTypicalProblems()).contains("读旧写新分离相关调试样例");
 
         seeder.run();
 

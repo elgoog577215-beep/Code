@@ -24,6 +24,7 @@ public final class AiStandardLibrarySeedCatalog {
         compatibilityMistakePoints(seeds);
         AiStandardLibraryV6ExpansionSeeds.addTo(seeds);
         AiStandardLibraryV7DetailSeeds.addTo(seeds);
+        AiStandardLibraryV8ExpansionSeeds.addTo(seeds);
         generatedFullCoverage(seeds);
         return dedupe(seeds);
     }

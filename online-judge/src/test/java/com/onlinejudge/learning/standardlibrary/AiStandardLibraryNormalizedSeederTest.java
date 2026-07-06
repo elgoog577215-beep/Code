@@ -4,6 +4,7 @@ import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryNor
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeedCatalog;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLegacyMapping;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryRelationType;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryTargetType;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardMistakePoint;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
@@ -63,6 +64,7 @@ class AiStandardLibraryNormalizedSeederTest {
 
         assertThat(skillCount).isGreaterThanOrEqualTo(615);
         assertThat(mistakeCount).isGreaterThanOrEqualTo(690);
+        assertThat(improvementCount).isGreaterThanOrEqualTo(6);
         assertThat(mappingCount).isEqualTo(AiStandardLibrarySeedCatalog.seeds().size());
         assertThat(relationCount).isGreaterThan(0);
 
@@ -83,6 +85,27 @@ class AiStandardLibraryNormalizedSeederTest {
                 .orElseThrow();
         assertThat(mapping.getTargetType()).isEqualTo(AiStandardLibraryTargetType.MISTAKE_POINT);
         assertThat(mapping.getTargetCode()).isEqualTo("MP_BINARY_CHECK_EQUAL_CASE_REJECTED");
+
+        var improvement = improvementPointRepository.findByCode("IP_V8_ARRAY_UPDATE_INVARIANT_TESTING").orElseThrow();
+        assertThat(improvement.getSkillUnitCode()).isEqualTo("SK_V8_ARRAY_UPDATE_OLD_NEW_CONTRACT");
+        assertThat(improvement.getKnowledgeNodeCodes()).contains("BASIC.ARRAY.UPDATE.读旧写新分离");
+        assertThat(improvement.getImprovementGoal()).contains("适用于");
+        assertThat(improvement.getStudentBenefit()).contains("旧值").contains("累计量");
+        assertThat(improvement.getRelatedMistakeCodes())
+                .contains("MP_V8_ARRAY_UPDATE_OVERWRITES_SOURCE_BEFORE_READ");
+
+        AiStandardLibraryLegacyMapping improvementMapping = legacyMappingRepository
+                .findByLegacyLayerAndLegacyCode(AiStandardLibraryLayer.IMPROVEMENT_POINT,
+                        "IP_V8_ARRAY_UPDATE_INVARIANT_TESTING")
+                .orElseThrow();
+        assertThat(improvementMapping.getTargetType()).isEqualTo(AiStandardLibraryTargetType.IMPROVEMENT_POINT);
+        assertThat(improvementMapping.getTargetCode()).isEqualTo("IP_V8_ARRAY_UPDATE_INVARIANT_TESTING");
+        assertThat(relationRepository.findBySourceTypeAndSourceCodeAndRelationTypeAndTargetTypeAndTargetCode(
+                AiStandardLibraryTargetType.IMPROVEMENT_POINT,
+                "IP_V8_ARRAY_UPDATE_INVARIANT_TESTING",
+                AiStandardLibraryRelationType.EXTENDS,
+                AiStandardLibraryTargetType.SKILL_UNIT,
+                "SK_V8_ARRAY_UPDATE_OLD_NEW_CONTRACT")).isPresent();
 
         normalizedSeeder.run();
 

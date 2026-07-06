@@ -54,6 +54,9 @@ class AiStandardLibrarySeederTest {
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .count()).isGreaterThanOrEqualTo(690);
         assertThat(repository.findAll().stream()
+                .filter(item -> item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT)
+                .count()).isGreaterThanOrEqualTo(6);
+        assertThat(repository.findAll().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT)
                 .allMatch(item -> item.getSkillUnitCode() != null && !item.getSkillUnitCode().isBlank()))
                 .isTrue();
@@ -229,6 +232,23 @@ class AiStandardLibrarySeederTest {
                     errors.add(seed.code() + " missing mistake knowledge nodes");
                 }
             }
+            if (seed.layer() == AiStandardLibraryLayer.IMPROVEMENT_POINT) {
+                if (!skillCodes.contains(seed.skillUnitCode())) {
+                    errors.add(seed.code() + " unknown linked improvement skill: " + seed.skillUnitCode());
+                }
+                if (seed.whenToUse() == null || seed.whenToUse().isBlank()) {
+                    errors.add(seed.code() + " blank improvement usage");
+                }
+                if (seed.studentBenefit() == null || seed.studentBenefit().isBlank()) {
+                    errors.add(seed.code() + " blank improvement benefit");
+                }
+                if (seed.teacherExplanation() == null || seed.teacherExplanation().isBlank()) {
+                    errors.add(seed.code() + " blank improvement teacher explanation");
+                }
+                if (seed.knowledgeNodeCodes().isEmpty()) {
+                    errors.add(seed.code() + " missing improvement knowledge nodes");
+                }
+            }
         }
 
         assertThat(errors)
@@ -263,13 +283,14 @@ class AiStandardLibrarySeederTest {
                         || seed.code().startsWith("MP_STRING_")
                         || seed.code().startsWith("MP_ARRAY_")
                         || seed.code().startsWith("MP_V6_")
-                        || seed.code().startsWith("MP_V7_"))
+                        || seed.code().startsWith("MP_V7_")
+                        || seed.code().startsWith("MP_V8_"))
                 .count();
 
         assertThat(generatedSkillCount).isGreaterThanOrEqualTo(615);
         assertThat(genericSkillNameCount).isZero();
         assertThat(genericMistakeNameCount).isZero();
-        assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(98);
+        assertThat(strongHandwrittenSamples).isGreaterThanOrEqualTo(116);
     }
 
     @Test
@@ -309,6 +330,12 @@ class AiStandardLibrarySeederTest {
                 .contains("int").contains("long long");
         assertThat(seedsByCode.get("MP_V7_MULTICASE_GRAPH_NOT_CLEARED_BETWEEN_CASES").description())
                 .contains("邻接表").contains("旧边");
+        assertThat(seedsByCode.get("MP_V8_GRAPH_MULTICASE_ADJACENCY_NOT_CLEARED").description())
+                .contains("邻接表").contains("上一组");
+        assertThat(seedsByCode.get("MP_V8_SUBMIT_OVERFLOW_CHECK_ONLY_ON_FINAL_ANSWER").description())
+                .contains("long long").contains("中间表达式");
+        assertThat(seedsByCode.get("IP_V8_ARRAY_UPDATE_INVARIANT_TESTING").studentBenefit())
+                .contains("旧值").contains("累计量");
     }
 
     private AiStandardLibraryItem findGeneratedByKnowledge(AiStandardLibraryLayer layer, String codePrefix, String knowledgeCode) {
