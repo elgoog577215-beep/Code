@@ -236,6 +236,48 @@ class AiStandardLibraryGrowthAgentServiceTest {
     }
 
     @Test
+    void governanceSummaryHighlightsPendingDuplicatesAndWeakPaths() {
+        AiStandardLibraryGrowthCandidate first = service.propose(StandardLibraryGrowthProposal.builder()
+                .suggestedCode("MP_GOVERNANCE_WINDOW_STATE")
+                .suggestedName("治理摘要窗口状态候选")
+                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .suggestedPath(List.of("ALGO", "TWO_POINTERS", "WINDOW"))
+                .sourceProblemId(15L)
+                .sourceSubmissionId(155L)
+                .changeReason("第一次发现窗口状态不同步。")
+                .evidenceRefs(List.of("code:window_state_first"))
+                .confidence(0.86)
+                .build());
+        AiStandardLibraryGrowthCandidate duplicate = service.propose(StandardLibraryGrowthProposal.builder()
+                .suggestedCode("MP_GOVERNANCE_WINDOW_STATE")
+                .suggestedName("治理摘要窗口状态候选")
+                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .suggestedPath(List.of("ALGO", "TWO_POINTERS", "WINDOW"))
+                .sourceProblemId(16L)
+                .sourceSubmissionId(166L)
+                .changeReason("第二次发现窗口状态不同步。")
+                .evidenceRefs(List.of("code:window_state_second"))
+                .confidence(0.88)
+                .build());
+
+        var summary = service.governanceSummary();
+
+        assertThat(duplicate.getId()).isEqualTo(first.getId());
+        assertThat(summary.getTotalCount()).isGreaterThanOrEqualTo(1);
+        assertThat(summary.getReviewPendingCount()).isGreaterThanOrEqualTo(1);
+        assertThat(summary.getDuplicateAggregateCount()).isGreaterThanOrEqualTo(1);
+        assertThat(summary.getMergedSimilarCount()).isGreaterThanOrEqualTo(1);
+        assertThat(summary.getHighFrequencyPaths())
+                .anySatisfy(path -> {
+                    assertThat(path.getPath()).containsExactly("ALGO", "TWO_POINTERS", "WINDOW");
+                    assertThat(path.getOccurrenceCount()).isGreaterThanOrEqualTo(2);
+                    assertThat(path.getRecommendedAction()).contains("优先审核");
+                });
+        assertThat(summary.getWeakPaths())
+                .anySatisfy(path -> assertThat(path.getPath()).containsExactly("ALGO", "TWO_POINTERS", "WINDOW"));
+    }
+
+    @Test
     void teacherApproveWritesFormalLibraryAndMarksApproved() {
         AiStandardLibraryGrowthCandidate candidate = service.propose(StandardLibraryGrowthProposal.builder()
                 .suggestedCode("MP_TEACHER_APPROVED_GROWTH")

@@ -8,6 +8,9 @@
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "HIT",
     "expectedAnchors": ["MP_RANGE_RIGHT_ENDPOINT_MISSING", "SK_RANGE_BOUNDARY"],
+    "expectedLibraryPath": ["基础语法", "循环结构", "循环边界", "右端点漏取"],
+    "expectedGrowthCandidateFields": [],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "结构化标准库邻域"],
     "expectedStudentFeedbackQuality": [
       "基础层必须指出循环端点与题意范围不一致",
       "下一步必须要求手推 n=1 或 n=2",
@@ -26,6 +29,9 @@
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "PARTIAL",
     "expectedAnchors": ["SK_PREFIX_SUM_2D", "MP_ARRAY_IN_PLACE_UPDATE_OVERWRITES_SOURCE"],
+    "expectedLibraryPath": ["数据结构", "前缀和与差分", "二维差分还原"],
+    "expectedGrowthCandidateFields": ["suggestedPath", "errorSymptom", "typicalCodePattern", "studentExplanation", "status"],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "结构化标准库邻域"],
     "expectedStudentFeedbackQuality": [
       "基础层必须解释二维前缀还原时左上角重复计入或状态来源污染",
       "提高层可以建议用 2x2 或 3x3 手推差分还原表",
@@ -44,6 +50,9 @@
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "PARTIAL",
     "expectedAnchors": ["SK_MONOTONIC_STACK", "MP_LOOP_STRICT_INEQUALITY_WHEN_EQUAL_ALLOWED"],
+    "expectedLibraryPath": ["数据结构", "单调栈", "重复值处理"],
+    "expectedGrowthCandidateFields": ["suggestedPath", "errorSymptom", "typicalCodePattern", "studentExplanation", "status"],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "结构化标准库邻域"],
     "expectedStudentFeedbackQuality": [
       "基础层必须指出重复值时弹栈条件和题意的严格/非严格关系不一致",
       "下一步必须要求构造含相等元素的小样例",
@@ -62,6 +71,9 @@
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "HIT",
     "expectedAnchors": ["SK_DP_INTERVAL", "MP_DP_TRANSITION_ORDER_WRONG"],
+    "expectedLibraryPath": ["动态规划", "区间 DP", "转移顺序"],
+    "expectedGrowthCandidateFields": [],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "结构化标准库邻域"],
     "expectedStudentFeedbackQuality": [
       "基础层必须指出区间 DP 依赖短区间先计算",
       "提高层可以提示按区间长度组织手推",
@@ -80,6 +92,9 @@
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "HIT",
     "expectedAnchors": ["SK_UNION_FIND_CONNECTIVITY", "MP_GRAPH_UNION_CONDITION_REVERSED"],
+    "expectedLibraryPath": ["图论", "并查集", "连通性维护", "合并条件反向"],
+    "expectedGrowthCandidateFields": [],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "结构化标准库邻域"],
     "expectedStudentFeedbackQuality": [
       "基础层必须指出合并发生条件和连通性维护目标相反",
       "下一步必须要求手推两个原本不连通点加边后的父节点变化",
@@ -98,6 +113,9 @@
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "PARTIAL",
     "expectedAnchors": ["SK_TWO_POINTERS_WINDOW", "MP_RANGE_RIGHT_ENDPOINT_MISSING"],
+    "expectedLibraryPath": ["算法基础", "双指针与滑动窗口", "窗口边界长度"],
+    "expectedGrowthCandidateFields": ["suggestedPath", "errorSymptom", "typicalCodePattern", "studentExplanation", "status"],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "结构化标准库邻域"],
     "expectedStudentFeedbackQuality": [
       "基础层必须指出窗口长度和左右端点是否包含的关系",
       "下一步必须要求手推一个长度为 1 的窗口",
@@ -116,6 +134,9 @@
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "PARTIAL",
     "expectedAnchors": ["SK_TWO_POINTERS_WINDOW", "MP_SIM_UPDATE_ORDER_USES_STALE_STATE"],
+    "expectedLibraryPath": ["算法基础", "双指针与滑动窗口", "窗口状态不变量"],
+    "expectedGrowthCandidateFields": ["suggestedPath", "errorSymptom", "typicalCodePattern", "studentExplanation", "status"],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "结构化标准库邻域"],
     "expectedStudentFeedbackQuality": [
       "基础层必须指出缩窗时先移动指针再扣除元素会让窗口状态不同步",
       "下一步必须要求写出 left 移动前后窗口实际包含哪些元素",
@@ -134,6 +155,9 @@
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "HIT",
     "expectedAnchors": ["SK_GRAPH_LAYERED_SHORTEST_PATH", "MP_DP_STATE_MISSING_DIMENSION"],
+    "expectedLibraryPath": ["图论", "最短路", "分层图状态", "状态维度缺失"],
+    "expectedGrowthCandidateFields": [],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "结构化标准库邻域"],
     "expectedStudentFeedbackQuality": [
       "基础层必须指出状态没有记录已使用特殊操作次数",
       "提高层可以建议把节点和层数共同作为状态",
@@ -142,5 +166,26 @@
     "shouldGenerateGrowthCandidate": false,
     "quickFeedbackKnownLimit": "快反馈可能只说没有使用 k，但缺少分层状态解释。",
     "formalMustImproveAtLeastOneOf": ["状态维度", "图模型解释", "答案泄露控制"]
+  },
+  {
+    "id": "layered-discounted-shortest-path-edge",
+    "title": "分层优惠最短路优惠边权未折半",
+    "problemSummary": "无向带权图从 1 到 n，最多使用 k 张优惠券，每张优惠券让一条边费用变为 floor(w / 2)，求最小费用。",
+    "language": "PYTHON",
+    "buggyCode": "import heapq\nimport sys\n\ndef solve():\n    data = list(map(int, sys.stdin.read().split()))\n    if not data:\n        return\n    n, m, k = data[0], data[1], data[2]\n    graph = [[] for _ in range(n + 1)]\n    index = 3\n    for _ in range(m):\n        a, b, w = data[index], data[index + 1], data[index + 2]\n        index += 3\n        graph[a].append((b, w))\n        graph[b].append((a, w))\n\n    dist = [[10 ** 18] * (k + 1) for _ in range(n + 1)]\n    dist[1][0] = 0\n    heap = [(0, 1, 0)]\n\n    while heap:\n        cost, node, used = heapq.heappop(heap)\n        if cost != dist[node][used]:\n            continue\n        for nxt, weight in graph[node]:\n            normal = cost + weight\n            if normal < dist[nxt][used]:\n                dist[nxt][used] = normal\n                heapq.heappush(heap, (normal, nxt, used))\n\n            if used < k:\n                discounted = cost + weight\n                if discounted < dist[nxt][used + 1]:\n                    dist[nxt][used + 1] = discounted\n                    heapq.heappush(heap, (discounted, nxt, used + 1))\n\n    answer = min(dist[n])\n    print(-1 if answer >= 10 ** 18 else answer)\n\nif __name__ == \"__main__\":\n    solve()\n",
+    "judgeResult": "WRONG_ANSWER; sample input 3 3 1 / 1 2 5 / 2 3 5 / 1 3 100 expected 7 but buggy code outputs 10",
+    "expectedLibraryFit": "PARTIAL",
+    "expectedAnchors": ["SK_GRAPH_LAYERED_SHORTEST_PATH"],
+    "expectedLibraryPath": ["图论", "最短路", "Dijkstra", "分层图状态转移"],
+    "expectedGrowthCandidateFields": ["suggestedPath", "errorSymptom", "typicalCodePattern", "studentExplanation", "status"],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "结构化标准库邻域"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须指出优惠转移仍使用原边权而不是 floor(w / 2)",
+      "下一步必须要求手推只有一条边且 k=1 的最小样例",
+      "不得把主因诊断为 dist 初始化、heap 初始化或状态维度缺失"
+    ],
+    "shouldGenerateGrowthCandidate": true,
+    "quickFeedbackKnownLimit": "快反馈或旧链路可能根据输出偏大误猜初始化或堆状态，没有抓住 discounted = cost + weight 这一行。",
+    "formalMustImproveAtLeastOneOf": ["优惠边权语义", "关键代码行", "标准库路径", "扩库候选"]
   }
 ]

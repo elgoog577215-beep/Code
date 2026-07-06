@@ -27,7 +27,8 @@ class DiagnosisReportV2RealSamplesTest {
                         "dynamic-connectivity-missing-union",
                         "string-window-boundary",
                         "sliding-window-balance-count",
-                        "layered-shortest-path-state"
+                        "layered-shortest-path-state",
+                        "layered-discounted-shortest-path-edge"
                 );
         assertThat(samples).extracting(RealSample::expectedLibraryFit)
                 .allMatch(fit -> Set.of("HIT", "PARTIAL", "MISS").contains(fit));
@@ -42,6 +43,9 @@ class DiagnosisReportV2RealSamplesTest {
             assertThat(sample.buggyCode().lines().count()).isGreaterThanOrEqualTo(4);
             assertThat(sample.judgeResult()).isNotBlank();
             assertThat(sample.expectedAnchors()).isNotEmpty();
+            assertThat(sample.expectedLibraryPath()).isNotEmpty();
+            assertThat(sample.contextPackageRequirements())
+                    .contains("完整题目", "完整代码", "判题参考信号", "结构化标准库邻域");
             assertThat(sample.expectedStudentFeedbackQuality()).hasSizeGreaterThanOrEqualTo(3);
             assertThat(sample.quickFeedbackKnownLimit()).isNotBlank();
             assertThat(sample.formalMustImproveAtLeastOneOf()).isNotEmpty();
@@ -65,6 +69,42 @@ class DiagnosisReportV2RealSamplesTest {
         });
     }
 
+    @Test
+    void partialSamplesDeclareReviewCandidateFieldsAndHitSamplesDoNotRequireGrowth() throws Exception {
+        List<RealSample> samples = loadSamples();
+
+        samples.stream()
+                .filter(RealSample::shouldGenerateGrowthCandidate)
+                .forEach(sample -> {
+                    assertThat(sample.expectedLibraryFit())
+                            .as(sample.id() + " fit")
+                            .isIn("PARTIAL", "MISS");
+                    assertThat(sample.expectedGrowthCandidateFields())
+                            .as(sample.id() + " growth candidate fields")
+                            .contains("suggestedPath", "errorSymptom", "typicalCodePattern", "studentExplanation", "status");
+                });
+        samples.stream()
+                .filter(sample -> "HIT".equals(sample.expectedLibraryFit()))
+                .forEach(sample -> assertThat(sample.expectedGrowthCandidateFields())
+                        .as(sample.id() + " should not require growth")
+                        .isEmpty());
+    }
+
+    @Test
+    void layeredDiscountedShortestPathSampleGuardsTheMisdiagnosisCase() throws Exception {
+        RealSample sample = loadSamples().stream()
+                .filter(item -> "layered-discounted-shortest-path-edge".equals(item.id()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(sample.expectedLibraryFit()).isEqualTo("PARTIAL");
+        assertThat(sample.expectedLibraryPath()).containsExactly("图论", "最短路", "Dijkstra", "分层图状态转移");
+        assertThat(sample.buggyCode()).contains("discounted = cost + weight");
+        assertThat(String.join("\n", sample.expectedStudentFeedbackQuality()))
+                .contains("优惠转移仍使用原边权")
+                .contains("不得把主因诊断为 dist 初始化、heap 初始化或状态维度缺失");
+    }
+
     private List<RealSample> loadSamples() throws Exception {
         try (InputStream input = getClass().getResourceAsStream("/diagnosis-eval-fixtures/diagnosis-report-v2-real-samples.json")) {
             assertThat(input).isNotNull();
@@ -82,6 +122,9 @@ class DiagnosisReportV2RealSamplesTest {
             String judgeResult,
             String expectedLibraryFit,
             List<String> expectedAnchors,
+            List<String> expectedLibraryPath,
+            List<String> expectedGrowthCandidateFields,
+            List<String> contextPackageRequirements,
             List<String> expectedStudentFeedbackQuality,
             boolean shouldGenerateGrowthCandidate,
             String quickFeedbackKnownLimit,

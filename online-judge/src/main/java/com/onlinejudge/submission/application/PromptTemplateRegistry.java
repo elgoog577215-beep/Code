@@ -224,6 +224,12 @@ public class PromptTemplateRegistry {
                 4. 然后参考 standardLibrary 这份教学参考规范包，给真实诊断打上标准库路径和命中状态。
                 5. 最后写出学生能读懂、能行动、但不能直接复制成答案的反馈。
 
+                上下文包读取规则：
+                - problem.description 是完整题目描述，不是摘要；必须用它核对题目目标、输入输出、约束和样例语义。
+                - submission.sourceCodeWithLineNumbers 是完整学生代码或带截断标记的最大可用代码；必须先整体理解代码策略，再定位关键行。
+                - submission.verdict、visibleCaseFacts、runtimeErrorMessage、compileOutput 和 evidenceRefs 是判题参考信号，用来验证诊断，不是替你下结论的模板。
+                - standardLibrary.knowledgeGroups 是结构化标准库邻域；它给出相关知识路径、能力点、易错点和提升点，不是无关全库倾倒。
+
                 标准库的作用：
                 - 它的主结构是 standardLibrary.knowledgeGroups：知识节点 → 能力点 → 易错点 / 提升点。
                 - basicCauses、improvementPoints、skillUnits、mistakePoints 是兼容列表；优先读 knowledgeGroups 理解父子关系，再用兼容列表校验合法 id。

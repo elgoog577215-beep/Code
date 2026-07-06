@@ -1740,6 +1740,80 @@ export interface AiStandardLibraryItemPayload {
   libraryVersion?: string | null;
 }
 
+export type AiStandardLibraryGrowthCandidateStatus =
+  | "PROPOSED"
+  | "NEEDS_REVIEW"
+  | "BLOCKED"
+  | "MERGED_SIMILAR"
+  | "TEACHER_APPROVED"
+  | "REJECTED"
+  | "MERGED"
+  | "IGNORED"
+  | string;
+
+export interface AiStandardLibraryGrowthCandidate {
+  id: number;
+  layer: AiStandardLibraryLayer;
+  suggestedCode: string;
+  suggestedName: string;
+  suggestedPath: string[];
+  sourceProblemId?: number | null;
+  sourceSubmissionId?: number | null;
+  evidenceRefs: string[];
+  similarExistingItems: string[];
+  changeReason?: string | null;
+  status: AiStandardLibraryGrowthCandidateStatus;
+  precheckMessage?: string | null;
+  confidence?: number | null;
+  occurrenceCount?: number | null;
+  lastObservedAt?: string | null;
+  teacherNote?: string | null;
+  beforeSnapshot?: string | null;
+  diffSummary?: string | null;
+  rollbackInfo?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface AiStandardLibraryGrowthCandidatePayload {
+  layer?: AiStandardLibraryLayer;
+  suggestedCode?: string;
+  suggestedName?: string;
+  suggestedPath?: string[];
+  sourceProblemId?: number | null;
+  sourceSubmissionId?: number | null;
+  evidenceRefs?: string[];
+  similarExistingItems?: string[];
+  changeReason?: string | null;
+  confidence?: number | null;
+  teacherNote?: string | null;
+}
+
+export interface AiStandardLibraryGrowthGovernanceSummary {
+  totalCount: number;
+  reviewPendingCount: number;
+  proposedCount: number;
+  needsReviewCount: number;
+  blockedCount: number;
+  mergedSimilarCount: number;
+  teacherApprovedCount: number;
+  mergedCount: number;
+  rejectedCount: number;
+  ignoredCount: number;
+  duplicateAggregateCount: number;
+  statusStats: Array<{ status: string; count: number }>;
+  highFrequencyPaths: AiStandardLibraryGrowthPathStat[];
+  weakPaths: AiStandardLibraryGrowthPathStat[];
+}
+
+export interface AiStandardLibraryGrowthPathStat {
+  path: string[];
+  candidateCount: number;
+  pendingCount: number;
+  occurrenceCount: number;
+  recommendedAction?: string | null;
+}
+
 export interface InformaticsKnowledgeNode {
   id: number;
   code: string;

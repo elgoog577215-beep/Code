@@ -4,6 +4,7 @@ import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCa
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidateStatus;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryGrowthGovernanceSummaryResponse;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryGrowthCandidateRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import com.onlinejudge.submission.application.AdviceGenerationOutput;
@@ -13,10 +14,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -121,6 +126,40 @@ public class AiStandardLibraryGrowthAgentService {
     @Transactional(readOnly = true)
     public AiStandardLibraryGrowthCandidate getCandidate(Long id) {
         return findCandidate(id);
+    }
+
+    @Transactional(readOnly = true)
+    public AiStandardLibraryGrowthGovernanceSummaryResponse governanceSummary() {
+        List<AiStandardLibraryGrowthCandidate> candidates = candidateRepository.findAllByOrderByCreatedAtDesc();
+        Map<AiStandardLibraryGrowthCandidateStatus, Long> counts = new EnumMap<>(AiStandardLibraryGrowthCandidateStatus.class);
+        for (AiStandardLibraryGrowthCandidateStatus status : AiStandardLibraryGrowthCandidateStatus.values()) {
+            counts.put(status, candidates.stream()
+                    .filter(candidate -> candidate.getStatus() == status)
+                    .count());
+        }
+        List<AiStandardLibraryGrowthGovernanceSummaryResponse.PathStat> pathStats = pathStats(candidates);
+        return AiStandardLibraryGrowthGovernanceSummaryResponse.builder()
+                .totalCount(candidates.size())
+                .reviewPendingCount((int) candidates.stream().filter(this::pendingReview).count())
+                .proposedCount(count(counts, AiStandardLibraryGrowthCandidateStatus.PROPOSED))
+                .needsReviewCount(count(counts, AiStandardLibraryGrowthCandidateStatus.NEEDS_REVIEW))
+                .blockedCount(count(counts, AiStandardLibraryGrowthCandidateStatus.BLOCKED))
+                .mergedSimilarCount(count(counts, AiStandardLibraryGrowthCandidateStatus.MERGED_SIMILAR))
+                .teacherApprovedCount(count(counts, AiStandardLibraryGrowthCandidateStatus.TEACHER_APPROVED))
+                .mergedCount(count(counts, AiStandardLibraryGrowthCandidateStatus.MERGED))
+                .rejectedCount(count(counts, AiStandardLibraryGrowthCandidateStatus.REJECTED))
+                .ignoredCount(count(counts, AiStandardLibraryGrowthCandidateStatus.IGNORED))
+                .duplicateAggregateCount((int) candidates.stream()
+                        .filter(candidate -> candidate.getStatus() == AiStandardLibraryGrowthCandidateStatus.MERGED_SIMILAR
+                                || candidate.getOccurrenceCount() != null && candidate.getOccurrenceCount() > 1)
+                        .count())
+                .statusStats(statusStats(counts))
+                .highFrequencyPaths(pathStats.stream().limit(6).toList())
+                .weakPaths(pathStats.stream()
+                        .filter(stat -> stat.getPendingCount() > 0 && (stat.getCandidateCount() > 1 || stat.getOccurrenceCount() > 1))
+                        .limit(6)
+                        .toList())
+                .build();
     }
 
     @Transactional
@@ -262,6 +301,72 @@ public class AiStandardLibraryGrowthAgentService {
                 + "\noccurrenceCount=" + existing.getOccurrenceCount());
         existing.setRollbackInfo("未自动写入正式标准库；该记录用于教师按频次审核。");
         return candidateRepository.save(existing);
+    }
+
+    private List<AiStandardLibraryGrowthGovernanceSummaryResponse.StatusStat> statusStats(
+            Map<AiStandardLibraryGrowthCandidateStatus, Long> counts) {
+        return List.of(AiStandardLibraryGrowthCandidateStatus.values()).stream()
+                .map(status -> AiStandardLibraryGrowthGovernanceSummaryResponse.StatusStat.builder()
+                        .status(status.name())
+                        .count(count(counts, status))
+                        .build())
+                .toList();
+    }
+
+    private List<AiStandardLibraryGrowthGovernanceSummaryResponse.PathStat> pathStats(
+            List<AiStandardLibraryGrowthCandidate> candidates) {
+        return candidates.stream()
+                .filter(candidate -> candidate.getSuggestedPath() != null && !candidate.getSuggestedPath().isBlank())
+                .collect(Collectors.groupingBy(AiStandardLibraryGrowthCandidate::getSuggestedPath))
+                .entrySet()
+                .stream()
+                .map(entry -> pathStat(entry.getKey(), entry.getValue()))
+                .sorted(Comparator
+                        .comparingInt(AiStandardLibraryGrowthGovernanceSummaryResponse.PathStat::getOccurrenceCount)
+                        .thenComparingInt(AiStandardLibraryGrowthGovernanceSummaryResponse.PathStat::getCandidateCount)
+                        .reversed())
+                .toList();
+    }
+
+    private AiStandardLibraryGrowthGovernanceSummaryResponse.PathStat pathStat(
+            String path,
+            List<AiStandardLibraryGrowthCandidate> candidates) {
+        int occurrenceCount = candidates.stream()
+                .map(AiStandardLibraryGrowthCandidate::getOccurrenceCount)
+                .mapToInt(value -> value == null || value < 1 ? 1 : value)
+                .sum();
+        int pendingCount = (int) candidates.stream().filter(this::pendingReview).count();
+        return AiStandardLibraryGrowthGovernanceSummaryResponse.PathStat.builder()
+                .path(splitPath(path))
+                .candidateCount(candidates.size())
+                .pendingCount(pendingCount)
+                .occurrenceCount(occurrenceCount)
+                .recommendedAction(pathRecommendedAction(candidates.size(), pendingCount, occurrenceCount))
+                .build();
+    }
+
+    private String pathRecommendedAction(int candidateCount, int pendingCount, int occurrenceCount) {
+        if (pendingCount > 0 && (candidateCount > 1 || occurrenceCount > 1)) {
+            return "优先审核：同一路径多次出现库外候选。";
+        }
+        if (pendingCount > 0) {
+            return "等待教师确认后再入库。";
+        }
+        return "已处理，保留审计记录。";
+    }
+
+    private boolean pendingReview(AiStandardLibraryGrowthCandidate candidate) {
+        return candidate != null && List.of(
+                AiStandardLibraryGrowthCandidateStatus.PROPOSED,
+                AiStandardLibraryGrowthCandidateStatus.NEEDS_REVIEW,
+                AiStandardLibraryGrowthCandidateStatus.BLOCKED,
+                AiStandardLibraryGrowthCandidateStatus.MERGED_SIMILAR
+        ).contains(candidate.getStatus());
+    }
+
+    private int count(Map<AiStandardLibraryGrowthCandidateStatus, Long> counts,
+                      AiStandardLibraryGrowthCandidateStatus status) {
+        return Math.toIntExact(counts.getOrDefault(status, 0L));
     }
 
     private List<String> precheckForCandidate(StandardLibraryGrowthProposal proposal,

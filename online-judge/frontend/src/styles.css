@@ -17381,6 +17381,218 @@ summary:focus-visible {
   }
 }
 
+.standard-library-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0 14px;
+}
+
+.standard-library-view-tab {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  padding: 7px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.standard-library-view-tab.is-active {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+}
+
+.standard-library-review,
+.standard-library-governance {
+  display: grid;
+  gap: 14px;
+}
+
+.standard-library-review__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.standard-library-review__head h2,
+.standard-library-governance__panel h3,
+.standard-library-review__detail-head h3 {
+  margin: 0;
+}
+
+.standard-library-review__head p,
+.standard-library-review__detail-head p,
+.standard-library-governance__panel p,
+.standard-library-governance-path p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+}
+
+.standard-library-review__grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(420px, 1.2fr);
+  gap: 14px;
+  min-height: 520px;
+}
+
+.standard-library-review__list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.standard-library-review-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.standard-library-review-card.is-active {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.standard-library-review-card span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.standard-library-review-card strong,
+.standard-library-review-card small {
+  overflow-wrap: anywhere;
+}
+
+.standard-library-review-card small {
+  color: var(--text-secondary);
+}
+
+.standard-library-review__detail,
+.standard-library-governance__panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 14px;
+}
+
+.standard-library-review__detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.standard-library-review__textarea-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.standard-library-review__meta,
+.standard-library-review__actions,
+.standard-library-governance-path span,
+.standard-library-governance__status-list span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.standard-library-review__note {
+  border-left: 3px solid var(--accent);
+  padding-left: 10px;
+  color: var(--text-secondary);
+}
+
+.standard-library-governance__stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.standard-library-governance__stats article {
+  min-height: 92px;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.standard-library-governance__stats span {
+  color: var(--text-secondary);
+}
+
+.standard-library-governance__stats strong {
+  font-size: 1.6rem;
+}
+
+.standard-library-governance__columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.standard-library-governance-path {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+}
+
+.standard-library-governance-path:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.standard-library-governance-path strong {
+  overflow-wrap: anywhere;
+}
+
+.standard-library-governance__status-list {
+  display: grid;
+  gap: 8px;
+}
+
+.standard-library-governance__status-list span {
+  justify-content: space-between;
+}
+
+@media (max-width: 980px) {
+  .standard-library-review__grid,
+  .standard-library-governance__columns {
+    grid-template-columns: 1fr;
+  }
+
+  .standard-library-governance__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .standard-library-review__textarea-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

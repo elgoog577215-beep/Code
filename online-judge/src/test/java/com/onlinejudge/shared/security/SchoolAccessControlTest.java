@@ -72,6 +72,9 @@ class SchoolAccessControlTest {
         mockMvc.perform(get("/api/teacher/ai-standard-library/growth-candidates"))
                 .andExpect(status().isUnauthorized());
 
+        mockMvc.perform(get("/api/teacher/ai-standard-library/growth-candidates/governance-summary"))
+                .andExpect(status().isUnauthorized());
+
         mockMvc.perform(get("/api/teacher/informatics-knowledge/tree"))
                 .andExpect(status().isUnauthorized());
 
@@ -219,6 +222,15 @@ class SchoolAccessControlTest {
         assertThat(objectMapper.readTree(listResult.getResponse().getContentAsString(StandardCharsets.UTF_8)).get(0)
                 .path("suggestedCode")
                 .asText()).isEqualTo("MP_TEACHER_REVIEW_GROWTH_CANDIDATE");
+
+        MvcResult summaryResult = mockMvc.perform(get("/api/teacher/ai-standard-library/growth-candidates/governance-summary")
+                        .header("Cookie", cookie))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode summary = objectMapper.readTree(summaryResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(summary.path("totalCount").asInt()).isGreaterThanOrEqualTo(1);
+        assertThat(summary.path("reviewPendingCount").asInt()).isGreaterThanOrEqualTo(1);
+        assertThat(summary.path("highFrequencyPaths").isArray()).isTrue();
 
         MvcResult mergeResult = mockMvc.perform(post("/api/teacher/ai-standard-library/growth-candidates/" + candidate.getId() + "/merge")
                         .header("Cookie", cookie))

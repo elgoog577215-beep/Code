@@ -5,6 +5,7 @@ import com.onlinejudge.learning.standardlibrary.application.StandardLibraryGrowt
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryGrowthCandidateRequest;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryGrowthCandidateResponse;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryGrowthGovernanceSummaryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +31,11 @@ public class AiStandardLibraryGrowthCandidateController {
         return ResponseEntity.ok(service.listCandidates().stream()
                 .map(AiStandardLibraryGrowthCandidateResponse::from)
                 .toList());
+    }
+
+    @GetMapping("/governance-summary")
+    public ResponseEntity<AiStandardLibraryGrowthGovernanceSummaryResponse> governanceSummary() {
+        return ResponseEntity.ok(service.governanceSummary());
     }
 
     @GetMapping("/{id}")

@@ -4,6 +4,9 @@ import type {
   AiStandardLibraryItem,
   AiStandardLibraryItemPayload,
   AiStandardLibraryLayer,
+  AiStandardLibraryGrowthCandidate,
+  AiStandardLibraryGrowthCandidatePayload,
+  AiStandardLibraryGrowthGovernanceSummary,
   AiSmoke,
   AiQualityOverview,
   AiQualityTrend,
@@ -280,6 +283,20 @@ export const api = {
     request<AiStandardLibraryItem>(`/api/teacher/ai-standard-library/items/${id}/enable`, { method: "POST" }),
   disableAiStandardLibraryItem: (id: number) =>
     request<AiStandardLibraryItem>(`/api/teacher/ai-standard-library/items/${id}/disable`, { method: "POST" }),
+  aiStandardLibraryGrowthCandidates: () =>
+    request<AiStandardLibraryGrowthCandidate[]>("/api/teacher/ai-standard-library/growth-candidates"),
+  aiStandardLibraryGrowthGovernanceSummary: () =>
+    request<AiStandardLibraryGrowthGovernanceSummary>("/api/teacher/ai-standard-library/growth-candidates/governance-summary"),
+  updateAiStandardLibraryGrowthCandidate: (id: number, payload: AiStandardLibraryGrowthCandidatePayload) =>
+    request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}`, { method: "PUT", body: jsonBody(payload) }),
+  ignoreAiStandardLibraryGrowthCandidate: (id: number, payload?: AiStandardLibraryGrowthCandidatePayload) =>
+    request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}/ignore`, { method: "POST", body: jsonBody(payload || {}) }),
+  rejectAiStandardLibraryGrowthCandidate: (id: number, payload?: AiStandardLibraryGrowthCandidatePayload) =>
+    request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}/reject`, { method: "POST", body: jsonBody(payload || {}) }),
+  approveAiStandardLibraryGrowthCandidate: (id: number, payload?: AiStandardLibraryGrowthCandidatePayload) =>
+    request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}/approve`, { method: "POST", body: jsonBody(payload || {}) }),
+  mergeAiStandardLibraryGrowthCandidate: (id: number, payload?: AiStandardLibraryGrowthCandidatePayload) =>
+    request<AiStandardLibraryGrowthCandidate>(`/api/teacher/ai-standard-library/growth-candidates/${id}/merge`, { method: "POST", body: jsonBody(payload || {}) }),
   informaticsKnowledgeTree: () => request<InformaticsKnowledgeNode[]>("/api/teacher/informatics-knowledge/tree"),
 
   executorStatus: () => request<ExecutorStatus>("/api/system/executor-status"),
