@@ -23,16 +23,53 @@ public class InformaticsKnowledgeSeeder implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         int inserted = 0;
+        int updated = 0;
         for (InformaticsKnowledgeSeed seed : InformaticsKnowledgeSeedCatalog.seeds()) {
-            if (repository.existsByCode(seed.code())) {
-                continue;
+            InformaticsKnowledgeNode node = repository.findByCode(seed.code()).orElse(null);
+            if (node == null) {
+                repository.save(toEntity(seed));
+                inserted++;
+            } else if (apply(node, seed)) {
+                repository.save(node);
+                updated++;
             }
-            repository.save(toEntity(seed));
-            inserted++;
         }
-        if (inserted > 0) {
-            log.info("Seeded {} informatics knowledge nodes", inserted);
+        if (inserted + updated > 0) {
+            log.info("Seeded {} informatics knowledge nodes, updated {} existing nodes", inserted, updated);
         }
+    }
+
+    private boolean apply(InformaticsKnowledgeNode node, InformaticsKnowledgeSeed seed) {
+        boolean changed = false;
+        changed |= update(node::getParentCode, node::setParentCode, blankToNull(seed.parentCode()));
+        changed |= update(node::getType, node::setType, seed.type());
+        changed |= update(node::getName, node::setName, seed.name());
+        changed |= update(node::getDescription, node::setDescription, seed.description());
+        changed |= update(node::getPath, node::setPath, seed.path());
+        changed |= update(node::getStage, node::setStage, seed.stage());
+        changed |= update(node::getDifficulty, node::setDifficulty, seed.difficulty());
+        changed |= update(node::getAliases, node::setAliases, join(seed.aliases()));
+        changed |= update(node::getPrerequisites, node::setPrerequisites, join(seed.prerequisites()));
+        changed |= update(node::getLearningObjectives, node::setLearningObjectives, join(seed.learningObjectives()));
+        changed |= update(node::getTypicalProblems, node::setTypicalProblems, join(seed.typicalProblems()));
+        changed |= update(node::getSortOrder, node::setSortOrder, seed.sortOrder());
+        changed |= update(node::getLibraryVersion, node::setLibraryVersion, seed.libraryVersion());
+        if (!node.isEnabled()) {
+            node.setEnabled(true);
+            changed = true;
+        }
+        return changed;
+    }
+
+    private <T> boolean update(java.util.function.Supplier<T> getter,
+                               java.util.function.Consumer<T> setter,
+                               T value) {
+        T current = getter.get();
+        if (java.util.Objects.equals(current, value)) {
+            return false;
+        }
+        setter.accept(value);
+        return true;
     }
 
     private InformaticsKnowledgeNode toEntity(InformaticsKnowledgeSeed seed) {

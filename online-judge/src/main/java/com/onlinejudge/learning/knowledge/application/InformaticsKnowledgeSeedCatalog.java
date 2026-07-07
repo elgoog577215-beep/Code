@@ -57,7 +57,7 @@ public final class InformaticsKnowledgeSeedCatalog {
 
         catalog.chapter("BASIC.ARRAY", "BASIC", "数组与序列", "理解线性存储、下标、遍历、更新和区间处理。", 160)
                 .topics("BASIC.ARRAY.INDEX", "数组下标", "0 基下标", "1 基下标", "越界访问", "长度与最后下标", "下标映射")
-                .topics("BASIC.ARRAY.TRAVERSE", "数组遍历", "全量遍历", "局部遍历", "逆序遍历", "步长遍历", "同步遍历")
+                .topics("BASIC.ARRAY.TRAVERSE", "数组遍历", "全量遍历", "局部遍历", "逆序遍历", "步长遍历", "同步遍历", "擂台法求最值")
                 .topics("BASIC.ARRAY.UPDATE", "数组更新", "原地修改", "临时数组", "覆盖风险", "交换元素", "累计更新", "读旧写新分离", "批量更新后还原顺序", "累计量同步更新")
                 .topics("BASIC.ARRAY.PREFIX", "前缀统计基础", "前缀和定义", "区间和查询", "差分直觉", "计数数组", "频次统计")
                 .topics("BASIC.ARRAY.MATRIX", "二维数组", "行列含义", "矩阵输入", "方向遍历", "边界检查", "坐标转换");
@@ -66,7 +66,7 @@ public final class InformaticsKnowledgeSeedCatalog {
                 .topics("BASIC.STRING.CHAR", "字符处理", "字符遍历", "大小写转换", "数字字符转换", "字母判断", "特殊字符处理")
                 .topics("BASIC.STRING.SUBSTRING", "子串与切片", "起止位置", "长度参数", "空串处理", "越界保护", "Python/C++ 切片差异")
                 .topics("BASIC.STRING.MATCH", "字符串匹配基础", "逐位比较", "查找出现位置", "统计出现次数", "前后缀判断", "回文判断", "未找到结果哨兵", "重叠匹配计数", "前后缀边界")
-                .topics("BASIC.STRING.BUILD", "字符串构造", "追加字符", "拼接效率", "格式化构造", "删除替换", "结果顺序");
+                .topics("BASIC.STRING.BUILD", "字符串构造", "追加字符", "拼接效率", "格式化构造", "删除替换", "结果顺序", "游程编码");
 
         catalog.chapter("BASIC.FUNCTION", "BASIC", "函数与模块化", "理解函数参数、返回值、局部变量和代码复用。", 180)
                 .topics("BASIC.FUNCTION.DEF", "函数定义", "参数设计", "返回值设计", "局部变量", "函数命名", "单一职责")
@@ -86,7 +86,7 @@ public final class InformaticsKnowledgeSeedCatalog {
                 .topics("DS.LINEAR.VECTOR", "动态数组", "追加元素", "随机访问", "删除移动", "容量变化", "遍历迭代")
                 .topics("DS.LINEAR.STACK", "栈", "后进先出", "括号匹配", "单调栈雏形", "递归栈模拟", "空栈检查")
                 .topics("DS.LINEAR.QUEUE", "队列", "先进先出", "BFS 队列", "循环队列", "双端队列", "队空判断")
-                .topics("DS.LINEAR.LIST", "链式思想", "前驱后继", "插入删除", "指针/下标模拟", "头尾节点", "边界节点");
+                .topics("DS.LINEAR.LIST", "链表", "前驱后继", "插入删除", "指针/下标模拟", "头尾节点", "边界节点");
 
         catalog.chapter("DS.SET_MAP", "DS", "集合与映射", "掌握去重、计数、映射和有序结构的应用。", 220)
                 .topics("DS.SET_MAP.SET", "集合 set", "去重", "成员判断", "有序遍历", "集合大小", "重复插入")
@@ -108,7 +108,7 @@ public final class InformaticsKnowledgeSeedCatalog {
         catalog.domain("ALGO", "算法思想", "掌握信息学竞赛常见解题范式、复杂度意识和算法选择。", "高中-CSP", 300);
 
         catalog.chapter("ALGO.SIM", "ALGO", "模拟", "根据题意维护状态并按规则推进。", 310)
-                .topics("ALGO.SIM.STATE", "状态设计", "状态变量选择", "状态初始化", "状态转移", "状态同步", "状态输出")
+                .topics("ALGO.SIM.STATE", "状态设计", "状态变量选择", "状态初始化", "状态转移", "状态同步", "状态输出", "状态标记法", "多数投票算法")
                 .topics("ALGO.SIM.PROCESS", "流程模拟", "事件顺序", "规则优先级", "多对象模拟", "时间推进", "终止条件", "状态更新先后", "事件队列推进")
                 .topics("ALGO.SIM.CORNER", "模拟边界", "空状态", "首尾元素", "同一时刻冲突", "极限步数", "样例复现", "空队列空集合状态", "首尾事件同时发生", "并列规则冲突");
 
@@ -118,8 +118,8 @@ public final class InformaticsKnowledgeSeedCatalog {
                 .topics("ALGO.ENUM.COMPLEXITY", "枚举复杂度", "一重循环", "二重循环", "三重循环", "指数枚举", "数据范围反推");
 
         catalog.chapter("ALGO.SORT", "ALGO", "排序与比较", "掌握排序调用、比较规则、稳定性和排序后的结构利用。", 330)
-                .topics("ALGO.SORT.BASIC", "排序基础", "升序降序", "自定义比较", "稳定排序", "原索引保存", "排序后遍历")
-                .topics("ALGO.SORT.APPLICATION", "排序应用", "贪心排序", "区间排序", "去重统计", "中位数", "相邻差值");
+                .topics("ALGO.SORT.BASIC", "排序基础", "升序降序", "自定义比较", "稳定排序", "原索引保存", "排序后遍历", "选择排序", "冒泡排序", "计数排序")
+                .topics("ALGO.SORT.APPLICATION", "排序应用", "贪心排序", "区间排序", "去重统计", "中位数", "相邻差值", "分组排序");
 
         catalog.chapter("ALGO.BINARY", "ALGO", "二分", "在有序性或单调性上查找答案或位置。", 340)
                 .topics("ALGO.BINARY.INDEX", "位置二分", "闭区间模板", "半开区间模板", "lower_bound", "upper_bound", "边界返回")
@@ -141,7 +141,7 @@ public final class InformaticsKnowledgeSeedCatalog {
 
         catalog.chapter("ALGO.GREEDY", "ALGO", "贪心", "基于局部选择构造全局最优，并能说明交换或排序依据。", 380)
                 .topics("ALGO.GREEDY.CHOICE", "贪心选择", "局部最优", "排序依据", "选择时机", "反例检查", "交换论证")
-                .topics("ALGO.GREEDY.INTERVAL", "区间贪心", "按右端点排序", "区间覆盖", "区间合并", "不相交选择", "边界重叠")
+                .topics("ALGO.GREEDY.INTERVAL", "区间调度与合并", "按右端点排序", "区间覆盖", "区间合并", "不相交选择", "边界重叠")
                 .topics("ALGO.GREEDY.STRUCTURE", "结构化贪心", "优先队列辅助", "最小代价合并", "延迟选择", "资源分配", "可行性维护");
 
         catalog.chapter("ALGO.DP", "ALGO", "动态规划", "用状态、转移、初值和计算顺序解决重叠子问题。", 390)
@@ -304,7 +304,7 @@ public final class InformaticsKnowledgeSeedCatalog {
             String topicPath = chapterPath + " / " + topicName;
             catalog.add(topicCode, chapterCode, InformaticsKnowledgeNodeType.TOPIC, topicName,
                     topicName + "相关的概念、方法和常见题型。",
-                    topicPath, "中学信息学", "CORE", List.of(), List.of(chapterCode),
+                    topicPath, "中学信息学", "CORE", aliasesFor(topicCode, topicName), List.of(chapterCode),
                     List.of("掌握" + topicName + "的基本用法。"), List.of(), topicSort);
             for (int i = 0; i < knowledgePoints.length; i++) {
                 String pointName = knowledgePoints[i];
@@ -312,12 +312,43 @@ public final class InformaticsKnowledgeSeedCatalog {
                 catalog.add(pointCode, topicCode, InformaticsKnowledgeNodeType.KNOWLEDGE_POINT, pointName,
                         "细颗粒知识点：" + pointName + "。需要能在代码、判题结果和调试过程里识别对应表现。",
                         topicPath + " / " + pointName, "中学信息学", i < 2 ? "BASIC" : "ADVANCED",
-                        List.of(pointName), List.of(topicCode),
+                        aliasesFor(pointCode, pointName), List.of(topicCode),
                         List.of("能解释" + pointName + "的含义。", "能识别" + pointName + "相关常见错误。"),
                         List.of(pointName + "相关小题", pointName + "相关调试样例"),
                         topicSort * 100 + i);
             }
             return this;
+        }
+
+        private List<String> aliasesFor(String code, String name) {
+            List<String> aliases = new ArrayList<>();
+            aliases.add(name);
+            for (String alias : customAliases(code)) {
+                if (!alias.isBlank() && !aliases.contains(alias)) {
+                    aliases.add(alias);
+                }
+            }
+            return List.copyOf(aliases);
+        }
+
+        private List<String> customAliases(String code) {
+            return switch (code) {
+                case "DS.LINEAR.LIST" -> List.of("链式思想", "链式结构", "链式存储", "linked list");
+                case "ALGO.GREEDY.INTERVAL" -> List.of("区间调度", "区间贪心", "不相交区间", "interval scheduling");
+                case "ALGO.SORT.BASIC.选择排序" -> List.of("selection sort", "选择法排序");
+                case "ALGO.SORT.BASIC.冒泡排序" -> List.of("bubble sort", "交换排序");
+                case "ALGO.SORT.BASIC.计数排序" -> List.of("counting sort", "计数数组排序");
+                case "ALGO.SORT.APPLICATION.分组排序" -> List.of("分桶排序思想", "按组排序", "bucket grouping");
+                case "BASIC.ARRAY.TRAVERSE.擂台法求最值" -> List.of("最值维护", "最大值扫描", "最小值扫描", "打擂台");
+                case "BASIC.STRING.BUILD.游程编码" -> List.of("运行长度编码", "RLE", "数据压缩");
+                case "ALGO.SIM.STATE.状态标记法" -> List.of("flag", "标志变量", "状态变量", "状态维护");
+                case "ALGO.SIM.STATE.多数投票算法" -> List.of("Boyer-Moore", "候选值投票", "过半元素");
+                case "DS.LINEAR.LIST.指针_下标模拟" -> List.of("数组模拟链表", "静态链表", "链表指针模拟");
+                case "ALGO.GREEDY.INTERVAL.不相交选择" -> List.of("区间调度", "活动选择", "不相交区间集");
+                case "MATH.COUNT.RECUR.斐波那契模型" -> List.of("斐波那契数列", "Fibonacci");
+                case "MATH.NUMBER.PRIME.试除判定" -> List.of("素数判断", "质数判断");
+                default -> List.of();
+            };
         }
 
         private String normalize(String value) {
