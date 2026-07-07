@@ -79,7 +79,7 @@ class OfflineRuntimeProfileEvalReportFactoryTest {
                     .standardLibraryPack(pack)
                     .advicePrompt(new PromptTemplateRegistry().get(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1))
                     .runtimeProfile(runtimeProfile)
-                    .requestCompact(ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY.equals(runtimeProfile))
+                    .requestCompact(false)
                     .build();
         }
     }

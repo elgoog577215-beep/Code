@@ -94,12 +94,16 @@ class AiReportServiceExternalRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(analysis.getSourceType()).isEqualTo("RULE_BASED_V1");
-        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
-        assertThat(analysis.getAiInvocation().isFallbackUsed()).isTrue();
+        assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
+        assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
         assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
         assertThat(analysis.getAiInvocation().getFailureReason()).contains("INVALID_EVIDENCE_REF");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("FALLBACK_USED");
+        assertThat(analysis.getIssueTags()).isEmpty();
+        assertThat(analysis.getFineGrainedTags()).isEmpty();
+        assertThat(analysis.getLineIssues()).isEmpty();
+        assertThat(analysis.getUncertainty()).contains("未使用本地规则兜底");
     }
 
     @Test
@@ -120,11 +124,14 @@ class AiReportServiceExternalRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
+        assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
+        assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
         assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("diagnosis-report");
         assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
         assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INSUFFICIENT_QUOTA");
         assertThat(analysis.getUncertainty()).contains("INSUFFICIENT_QUOTA");
+        assertThat(analysis.getIssueTags()).isEmpty();
         assertThat(service.callCount()).isEqualTo(1);
 
         String markdown = service.enhanceGrowthReportMarkdown(problem(), List.of(), "# 成长报告");

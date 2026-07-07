@@ -3,7 +3,6 @@ package com.onlinejudge.submission.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
@@ -115,110 +114,6 @@ class StandardLibraryPackBuilderTest {
     }
 
     @Test
-    void compactRuntimeKeepsLayeredKnowledgeButTrimsLongFields() {
-        ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
-                new ModelDiagnosisBriefBuilder(),
-                builder,
-                new PromptTemplateRegistry(),
-                new ModelOutputValidator()
-        );
-        StandardLibraryPack fullPack = builder.build(ModelDiagnosisBrief.builder()
-                .allowedIssueTags(List.of("TIME_COMPLEXITY", "STATE_TRANSITION"))
-                .allowedFineGrainedTags(List.of("BRUTE_FORCE_LIMIT", "DP_STATE_DESIGN"))
-                .build());
-
-        StandardLibraryPack compactPack = ReflectionTestUtils.invokeMethod(runtime, "compactStandardLibraryPack", fullPack);
-
-        assertThat(compactPack.getBasicCauses())
-                .extracting(StandardLibraryPack.BasicCauseOption::getId)
-                .contains("TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "STATE_TRANSITION", "DP_STATE_DESIGN");
-        assertThat(compactPack.getImprovementPoints())
-                .extracting(StandardLibraryPack.ImprovementPointOption::getId)
-                .contains("COMPLEXITY", "DP_STATE_DESIGN");
-        assertThat(compactPack.getBasicCauses())
-                .allSatisfy(cause -> assertThat(cause.getHintL1()).hasSizeLessThanOrEqualTo(70));
-        assertThat(compactPack.getImprovementPoints())
-                .allSatisfy(point -> assertThat(point.getHintL2()).hasSizeLessThanOrEqualTo(70));
-    }
-
-    @Test
-    void compactRuntimeKeepsStructuredKnowledgeGroupsWithinBudget() {
-        ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
-                new ModelDiagnosisBriefBuilder(),
-                builder,
-                new PromptTemplateRegistry(),
-                new ModelOutputValidator()
-        );
-        StandardLibraryPack source = StandardLibraryPack.builder()
-                .schemaVersion(StandardLibraryPack.SCHEMA_VERSION)
-                .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
-                .structureVersion(StandardLibraryPack.STRUCTURE_VERSION)
-                .knowledgeGroups(List.of(StandardLibraryPack.KnowledgeGroupOption.builder()
-                        .id("BASIC.LOOP.BOUNDARY")
-                        .name("循环边界")
-                        .path("BASIC > LOOP > BOUNDARY")
-                        .description("这是一个用于验证 compact 是否保留结构视图的长描述。".repeat(8))
-                        .skillUnits(List.of(StandardLibraryPack.SkillUnitGroupOption.builder()
-                                .skillUnit(StandardLibraryPack.SkillUnitOption.builder()
-                                        .id("SK_RANGE_BOUNDARY")
-                                        .category("循环边界")
-                                        .name("能判断循环区间是否包含答案")
-                                        .description("这是一个很长的能力点定义，用来确认 compact 后仍保留能力点但会限制描述长度。".repeat(8))
-                                        .primaryKnowledgeNodeCode("BASIC.LOOP.BOUNDARY")
-                                        .knowledgeNodeCodes(List.of("BASIC.LOOP.BOUNDARY"))
-                                        .relatedKnowledgeNodeCodes(List.of("BASIC.LOOP.FOR"))
-                                        .applicableLanguages(List.of("PYTHON", "CPP17", "JAVA", "GO"))
-                                        .build())
-                                .mistakePoints(List.of(
-                                        mistake("MP_BOUNDARY_1"),
-                                        mistake("MP_BOUNDARY_2"),
-                                        mistake("MP_BOUNDARY_3"),
-                                        mistake("MP_BOUNDARY_4"),
-                                        mistake("MP_BOUNDARY_5"),
-                                        mistake("MP_BOUNDARY_6")
-                                ))
-                                .improvementPoints(List.of(
-                                        improvement("IP_BOUNDARY_1"),
-                                        improvement("IP_BOUNDARY_2"),
-                                        improvement("IP_BOUNDARY_3"),
-                                        improvement("IP_BOUNDARY_4")
-                                ))
-                                .candidateIds(List.of(
-                                        "SK_RANGE_BOUNDARY",
-                                        "MP_BOUNDARY_1",
-                                        "MP_BOUNDARY_2",
-                                        "MP_BOUNDARY_3",
-                                        "MP_BOUNDARY_4",
-                                        "MP_BOUNDARY_5",
-                                        "MP_BOUNDARY_6",
-                                        "IP_BOUNDARY_1",
-                                        "IP_BOUNDARY_2",
-                                        "IP_BOUNDARY_3"
-                                ))
-                                .build()))
-                        .build()))
-                .build();
-
-        StandardLibraryPack compactPack = ReflectionTestUtils.invokeMethod(runtime, "compactStandardLibraryPack", source);
-
-        assertThat(compactPack.getStructureVersion()).isEqualTo(StandardLibraryPack.STRUCTURE_VERSION);
-        assertThat(compactPack.getKnowledgeGroups()).singleElement().satisfies(group -> {
-            assertThat(group.getDescription()).hasSizeLessThanOrEqualTo(104);
-            assertThat(group.getSkillUnits()).singleElement().satisfies(skillGroup -> {
-                assertThat(skillGroup.getSkillUnit().getId()).isEqualTo("SK_RANGE_BOUNDARY");
-                assertThat(skillGroup.getSkillUnit().getPrimaryKnowledgeNodeCode()).isEqualTo("BASIC.LOOP.BOUNDARY");
-                assertThat(skillGroup.getSkillUnit().getRelatedKnowledgeNodeCodes()).containsExactly("BASIC.LOOP.FOR");
-                assertThat(skillGroup.getSkillUnit().getDescription()).hasSizeLessThanOrEqualTo(114);
-                assertThat(skillGroup.getMistakePoints()).hasSize(5);
-                assertThat(skillGroup.getMistakePoints().get(0).getPrimaryKnowledgeNodeCode()).isEqualTo("BASIC.LOOP.BOUNDARY");
-                assertThat(skillGroup.getMistakePoints().get(0).getRelatedKnowledgeNodeCodes()).containsExactly("BASIC.LOOP.FOR");
-                assertThat(skillGroup.getImprovementPoints()).hasSize(3);
-                assertThat(skillGroup.getCandidateIds()).hasSize(9);
-            });
-        });
-    }
-
-    @Test
     void runtimePlanAlwaysUsesFormalAdvicePrompt() {
         ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
                 new ModelDiagnosisBriefBuilder(),
@@ -232,15 +127,17 @@ class StandardLibraryPackBuilderTest {
                 null,
                 ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD
         );
-        ExternalModelAgentRuntime.RuntimePlan lowLatencyPlan = runtime.prepare(
+        ExternalModelAgentRuntime.RuntimePlan ignoredProfilePlan = runtime.prepare(
                 DiagnosisEvidencePackage.builder().build(),
                 null,
-                ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY
+                "low-latency"
         );
 
         assertThat(standardPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
-        assertThat(lowLatencyPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
-        assertThat(lowLatencyPlan.getAdvicePrompt().getSystemPrompt())
+        assertThat(ignoredProfilePlan.getRuntimeProfile()).isEqualTo(ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
+        assertThat(ignoredProfilePlan.isRequestCompact()).isFalse();
+        assertThat(ignoredProfilePlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        assertThat(ignoredProfilePlan.getAdvicePrompt().getSystemPrompt())
                 .contains("diagnosis report v2")
                 .contains("单诊断 Agent")
                 .contains("标准库的作用")

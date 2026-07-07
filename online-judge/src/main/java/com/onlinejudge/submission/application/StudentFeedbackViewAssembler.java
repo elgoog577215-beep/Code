@@ -20,6 +20,10 @@ public class StudentFeedbackViewAssembler {
         if (analysis == null) {
             return null;
         }
+        String status = viewStatus(analysis);
+        if ("AI_UNAVAILABLE".equals(status)) {
+            return unavailableView(analysis);
+        }
         SubmissionAnalysisResponse.StudentFeedback feedback = analysis.getStudentFeedback();
         if (feedback == null) {
             return null;
@@ -33,11 +37,6 @@ public class StudentFeedbackViewAssembler {
 
         if (repairItems.isEmpty() && improvementItems.isEmpty() && nextQuestion.isBlank()) {
             return null;
-        }
-
-        String status = viewStatus(analysis);
-        if ("RULE_FALLBACK".equals(status)) {
-            return unavailableView(analysis);
         }
 
         return SubmissionAnalysisResponse.StudentFeedbackView.builder()
@@ -62,7 +61,7 @@ public class StudentFeedbackViewAssembler {
                 .evidenceRefs(evidenceRefs)
                 .build();
         return SubmissionAnalysisResponse.StudentFeedbackView.builder()
-                .status("RULE_FALLBACK")
+                .status("AI_UNAVAILABLE")
                 .primaryAction(AI_UNAVAILABLE_BODY)
                 .repairItems(List.of(item))
                 .improvementItems(List.of())
@@ -77,8 +76,8 @@ public class StudentFeedbackViewAssembler {
             return "READY";
         }
         String status = safe(invocation.getStatus()).toUpperCase(Locale.ROOT);
-        if (invocation.isFallbackUsed() || status.contains("FALLBACK")) {
-            return "RULE_FALLBACK";
+        if ("MODEL_FAILED".equals(status) || invocation.isFallbackUsed() || status.contains("FALLBACK")) {
+            return "AI_UNAVAILABLE";
         }
         return "READY";
     }

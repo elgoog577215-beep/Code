@@ -811,7 +811,7 @@ public class AiQualityTrendService {
             if (invocation == null) {
                 return;
             }
-            boolean context = "MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status())
+            boolean context = isRuntimeFailure(invocation)
                     || "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(invocation.status())
                     || invocation.fallbackUsed();
             if (context) {
@@ -908,8 +908,8 @@ public class AiQualityTrendService {
                                             DiagnosisReportReader diagnosisReportReader) {
             List<String> reasons = new ArrayList<>();
             String prefix = "submission:" + analysis.getSubmissionId() + ": ";
-            if ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status()) || invocation.fallbackUsed()) {
-                reasons.add(prefix + "runtime fallback");
+            if (isRuntimeFailure(invocation)) {
+                reasons.add(prefix + "runtime failure");
             }
             if (!"MODEL_COMPLETED".equalsIgnoreCase(invocation.status())) {
                 reasons.add(prefix + "model not completed");
@@ -946,6 +946,13 @@ public class AiQualityTrendService {
             case "LOW" -> 1;
             default -> 0;
         };
+    }
+
+    private static boolean isRuntimeFailure(DiagnosisReportReader.AiInvocationSnapshot invocation) {
+        return invocation != null
+                && ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status())
+                || "MODEL_FAILED".equalsIgnoreCase(invocation.status())
+                || invocation.fallbackUsed());
     }
 
     private static class SourceAccumulator {
@@ -1028,7 +1035,7 @@ public class AiQualityTrendService {
             if ("MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(invocation.status())) {
                 modelPartialCount++;
             }
-            if ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status()) || invocation.fallbackUsed()) {
+            if (isRuntimeFailure(invocation)) {
                 modelRuntimeFailureCount++;
             }
             if ("stream".equalsIgnoreCase(invocation.transportMode()) && invocation.streamContentChunkCount() <= 0) {
@@ -1038,6 +1045,13 @@ public class AiQualityTrendService {
             if (invocation.streamFallbackRetryUsed()) {
                 streamFallbackRetryCount++;
             }
+        }
+
+        private boolean isRuntimeFailure(DiagnosisReportReader.AiInvocationSnapshot invocation) {
+            return invocation != null
+                    && ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status())
+                    || "MODEL_FAILED".equalsIgnoreCase(invocation.status())
+                    || invocation.fallbackUsed());
         }
 
         private long getAnalyzedSubmissionCount() {

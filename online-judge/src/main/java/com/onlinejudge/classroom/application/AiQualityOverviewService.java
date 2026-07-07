@@ -982,7 +982,7 @@ public class AiQualityOverviewService {
             if (invocation == null) {
                 continue;
             }
-            boolean runtimeFailure = "MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status()) || invocation.fallbackUsed();
+            boolean runtimeFailure = isRuntimeFailure(invocation);
             boolean partial = "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(invocation.status());
             if (!runtimeFailure && !partial) {
                 continue;
@@ -1234,7 +1234,7 @@ public class AiQualityOverviewService {
                         .limit(8)
                         .toList(),
                 smokeSource == null ? "" : "submission:" + smokeSource.getSubmissionId(),
-                firstNonBlank(smokeInvocation == null ? "" : smokeInvocation.runtimeMode(), "low-latency")
+                firstNonBlank(smokeInvocation == null ? "" : smokeInvocation.runtimeMode(), "standard")
         );
     }
 
@@ -1243,7 +1243,7 @@ public class AiQualityOverviewService {
         if (invocation == null) {
             return false;
         }
-        return "MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status())
+        return isRuntimeFailure(invocation)
                 || "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(invocation.status())
                 || invocation.fallbackUsed();
     }
@@ -1278,8 +1278,8 @@ public class AiQualityOverviewService {
         }
         List<String> reasons = new ArrayList<>();
         String prefix = "submission:" + analysis.getSubmissionId() + ": ";
-        if ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status()) || invocation.fallbackUsed()) {
-            reasons.add(prefix + "runtime fallback");
+        if (isRuntimeFailure(invocation)) {
+            reasons.add(prefix + "runtime failure");
         }
         if (!"MODEL_COMPLETED".equalsIgnoreCase(invocation.status())) {
             reasons.add(prefix + "model not completed");
@@ -2361,8 +2361,15 @@ public class AiQualityOverviewService {
     private List<String> evidenceRefsForRuntime(List<SubmissionAnalysis> analyses) {
         return evidenceRefsForAnalyses(analyses, analysis -> {
             DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
-            return invocation != null && ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status()) || invocation.fallbackUsed());
+            return isRuntimeFailure(invocation);
         }, "runtime_failure");
+    }
+
+    private boolean isRuntimeFailure(DiagnosisReportReader.AiInvocationSnapshot invocation) {
+        return invocation != null
+                && ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status())
+                || "MODEL_FAILED".equalsIgnoreCase(invocation.status())
+                || invocation.fallbackUsed());
     }
 
     private List<String> evidenceRefsForLearningAction(List<SubmissionAnalysis> analyses) {

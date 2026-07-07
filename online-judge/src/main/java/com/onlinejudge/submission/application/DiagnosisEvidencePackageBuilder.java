@@ -13,9 +13,6 @@ import java.util.Optional;
 @Component
 public class DiagnosisEvidencePackageBuilder {
 
-    private static final int MAX_SOURCE_CODE_LENGTH = 12000;
-    private static final int PREVIEW_LIMIT = 120;
-
     public DiagnosisEvidencePackage build(Problem problem,
                                           Submission submission,
                                           List<SubmissionCaseResult> caseResults,
@@ -66,7 +63,7 @@ public class DiagnosisEvidencePackageBuilder {
                 .id(submission.getId())
                 .language(submission.getLanguageName())
                 .verdict(submission.getVerdict() == null ? "UNKNOWN" : submission.getVerdict().name())
-                .sourceCode(truncate(sourceCode, MAX_SOURCE_CODE_LENGTH))
+                .sourceCode(Optional.ofNullable(sourceCode).orElse(""))
                 .sourceCodeWithLineNumbers(addLineNumbers(sourceCode))
                 .sourceCodeLineCount(countLines(sourceCode))
                 .build();
@@ -116,9 +113,9 @@ public class DiagnosisEvidencePackageBuilder {
                 .hidden(hidden)
                 .executionTime(result.getExecutionTime())
                 .memoryUsed(result.getMemoryUsed())
-                .inputPreview(hidden ? "[隐藏测试点]" : truncate(result.getInputSnapshot(), PREVIEW_LIMIT))
-                .actualOutputPreview(hidden ? "[隐藏测试点]" : truncate(result.getActualOutput(), PREVIEW_LIMIT))
-                .expectedOutputPreview(hidden ? "[隐藏测试点]" : truncate(result.getExpectedOutput(), PREVIEW_LIMIT))
+                .inputPreview(hidden ? "[隐藏测试点]" : Optional.ofNullable(result.getInputSnapshot()).orElse(""))
+                .actualOutputPreview(hidden ? "[隐藏测试点]" : Optional.ofNullable(result.getActualOutput()).orElse(""))
+                .expectedOutputPreview(hidden ? "[隐藏测试点]" : Optional.ofNullable(result.getExpectedOutput()).orElse(""))
                 .build();
     }
 
@@ -143,10 +140,6 @@ public class DiagnosisEvidencePackageBuilder {
         StringBuilder builder = new StringBuilder();
         for (int index = 0; index < lines.length; index++) {
             String numberedLine = (index + 1) + ": " + lines[index];
-            if (builder.length() > 0 && builder.length() + numberedLine.length() + 1 > MAX_SOURCE_CODE_LENGTH) {
-                builder.append("\n... truncated after line ").append(index).append(" ...");
-                break;
-            }
             if (index > 0) {
                 builder.append('\n');
             }
@@ -160,14 +153,6 @@ public class DiagnosisEvidencePackageBuilder {
             return 0;
         }
         return sourceCode.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1).length;
-    }
-
-    private String truncate(String value, int maxLength) {
-        String normalized = Optional.ofNullable(value).orElse("");
-        if (normalized.length() <= maxLength) {
-            return normalized;
-        }
-        return normalized.substring(0, maxLength - 18) + "... [truncated]";
     }
 
     private List<String> safeList(List<String> values) {

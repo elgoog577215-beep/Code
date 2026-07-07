@@ -44,9 +44,9 @@ ai:
   modelscope-compatible-request: ${AI_MODELSCOPE_COMPATIBLE_REQUEST:auto}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:30}
   external-runtime-enabled: ${AI_EXTERNAL_RUNTIME_ENABLED:true}
-  external-runtime-profile: ${AI_EXTERNAL_RUNTIME_PROFILE:low-latency}
+  external-runtime-profile: ${AI_EXTERNAL_RUNTIME_PROFILE:standard}
   diagnosis-report-v2-enabled: ${AI_DIAGNOSIS_REPORT_V2_ENABLED:true}
-  model-failure-degrade-enabled: ${AI_MODEL_FAILURE_DEGRADE_ENABLED:true}
+  model-failure-degrade-enabled: ${AI_MODEL_FAILURE_DEGRADE_ENABLED:false}
   max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1800}
   stream-enabled: ${AI_STREAM_ENABLED:true}
   stream-fallback-enabled: ${AI_STREAM_FALLBACK_ENABLED:false}

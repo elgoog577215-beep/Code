@@ -28,7 +28,7 @@ import java.util.List;
 public class StudentAiFeedbackService {
 
     private static final String SOURCE_MODEL = "MODEL";
-    private static final String SOURCE_RULE_FALLBACK = "RULE_FALLBACK";
+    private static final String SOURCE_AI_UNAVAILABLE = "AI_UNAVAILABLE";
 
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
@@ -64,7 +64,7 @@ public class StudentAiFeedbackService {
         StudentAiFeedbackResponse feedback = StudentAiFeedbackResponse.builder()
                 .submissionId(submissionId)
                 .status("GENERATING")
-                .source(SOURCE_RULE_FALLBACK)
+                .source(SOURCE_AI_UNAVAILABLE)
                 .generatedAt(LocalDateTime.now())
                 .repairItems(List.of())
                 .improvementItems(List.of())
@@ -75,7 +75,7 @@ public class StudentAiFeedbackService {
                 .evidenceRefs(List.of())
                 .build();
         entity.setStatus("GENERATING");
-        entity.setSource(SOURCE_RULE_FALLBACK);
+        entity.setSource(SOURCE_AI_UNAVAILABLE);
         entity.setFailureReason(null);
         entity.setFeedbackJson(serialize(feedback));
         return toLookup(studentAiFeedbackRepository.save(entity));
@@ -87,7 +87,7 @@ public class StudentAiFeedbackService {
         StudentAiFeedbackResponse feedback = StudentAiFeedbackResponse.builder()
                 .submissionId(submissionId)
                 .status("FAILED")
-                .source(SOURCE_RULE_FALLBACK)
+                .source(SOURCE_AI_UNAVAILABLE)
                 .generatedAt(LocalDateTime.now())
                 .repairItems(List.of())
                 .improvementItems(List.of())
@@ -103,7 +103,7 @@ public class StudentAiFeedbackService {
                         .source(SOURCE_MODEL)
                         .build());
         entity.setStatus("FAILED");
-        entity.setSource(SOURCE_RULE_FALLBACK);
+        entity.setSource(SOURCE_AI_UNAVAILABLE);
         entity.setFailureReason(failureReason(feedback));
         entity.setFeedbackJson(serialize(feedback));
         StudentAiFeedback saved = studentAiFeedbackRepository.save(entity);
@@ -143,7 +143,7 @@ public class StudentAiFeedbackService {
                         .source(SOURCE_MODEL)
                         .build());
         entity.setStatus(feedback.getStatus());
-        entity.setSource(hasText(feedback.getSource()) ? feedback.getSource() : SOURCE_RULE_FALLBACK);
+        entity.setSource(hasText(feedback.getSource()) ? feedback.getSource() : SOURCE_AI_UNAVAILABLE);
         entity.setFeedbackJson(serialize(feedback));
         entity.setFailureReason(failureReason(feedback));
         StudentAiFeedback saved = studentAiFeedbackRepository.save(entity);
@@ -156,7 +156,7 @@ public class StudentAiFeedbackService {
         return StudentAiFeedbackResponse.builder()
                 .submissionId(submissionId)
                 .status("FAILED")
-                .source(SOURCE_RULE_FALLBACK)
+                .source(SOURCE_AI_UNAVAILABLE)
                 .generatedAt(LocalDateTime.now())
                 .repairItems(List.of())
                 .improvementItems(List.of())
@@ -198,7 +198,7 @@ public class StudentAiFeedbackService {
             feedback = StudentAiFeedbackResponse.builder()
                     .submissionId(entity.getSubmissionId())
                     .status(statusOrFailed(entity.getStatus()))
-                    .source(SOURCE_RULE_FALLBACK)
+                    .source(SOURCE_AI_UNAVAILABLE)
                     .generatedAt(entity.getGeneratedAt())
                     .repairItems(List.of())
                     .improvementItems(List.of())

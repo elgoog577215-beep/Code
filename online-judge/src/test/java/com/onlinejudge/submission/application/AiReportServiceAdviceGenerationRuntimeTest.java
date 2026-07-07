@@ -53,9 +53,9 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
-    void teacherDiagnosisUsesStandardProfileEvenWhenGlobalRuntimeIsLowLatency() {
+    void teacherDiagnosisUsesStandardProfileEvenWhenGlobalRuntimeRequestsLowLatency() {
         StubAiReportService service = newService(validAdviceResponse());
-        ReflectionTestUtils.setField(service, "externalRuntimeProfile", ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY);
+        ReflectionTestUtils.setField(service, "externalRuntimeProfile", "low-latency");
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -196,12 +196,16 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(analysis.getSourceType()).isEqualTo("RULE_BASED_V1");
-        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
-        assertThat(analysis.getAiInvocation().isFallbackUsed()).isTrue();
+        assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
+        assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
         assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("FALLBACK_USED");
         assertThat(analysis.getAiInvocation().getAdviceGenerationFallbackReason()).contains("INVALID_EVIDENCE_REF");
+        assertThat(analysis.getIssueTags()).isEmpty();
+        assertThat(analysis.getFineGrainedTags()).isEmpty();
+        assertThat(analysis.getLineIssues()).isEmpty();
+        assertThat(analysis.getUncertainty()).contains("未使用本地规则兜底");
     }
 
     @Test

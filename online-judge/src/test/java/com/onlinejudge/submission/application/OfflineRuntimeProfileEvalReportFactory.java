@@ -77,12 +77,12 @@ public class OfflineRuntimeProfileEvalReportFactory {
         ExternalModelAgentRuntime.RuntimePlan lowLatencyPlan = runtime.prepare(
                 evalCase.evidencePackage(),
                 evalCase.baseline(),
-                ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY
+                "low-latency"
         );
         ExternalModelAgentRuntime.RuntimePlan autoPlan = runtime.prepare(
                 evalCase.evidencePackage(),
                 evalCase.baseline(),
-                ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO
+                "auto"
         );
         int standardBytes = requestBytes(standardPlan);
         int lowLatencyBytes = requestBytes(lowLatencyPlan);

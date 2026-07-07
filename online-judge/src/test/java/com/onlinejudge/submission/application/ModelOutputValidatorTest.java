@@ -78,7 +78,7 @@ class ModelOutputValidatorTest {
     }
 
     @Test
-    void autoRuntimeProfileCompactsLargeSubmissionsOnly() {
+    void ignoredRuntimeProfileStillKeepsFullLargeSubmissionContext() {
         ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
                 new ModelDiagnosisBriefBuilder(),
                 new StandardLibraryPackBuilder(new DiagnosisTaxonomy()),
@@ -89,52 +89,19 @@ class ModelOutputValidatorTest {
         ExternalModelAgentRuntime.RuntimePlan smallPlan = runtime.prepare(
                 fixture().evidencePackage(),
                 null,
-                ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO
+                "auto"
         );
         ExternalModelAgentRuntime.RuntimePlan largePlan = runtime.prepare(
                 largeFixture().evidencePackage(),
                 null,
-                ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO
+                "auto"
         );
 
-        assertThat(smallPlan.getRuntimeProfile()).isEqualTo("auto");
+        assertThat(smallPlan.getRuntimeProfile()).isEqualTo("standard");
         assertThat(smallPlan.isRequestCompact()).isFalse();
-        assertThat(largePlan.getRuntimeProfile()).isEqualTo("auto");
-        assertThat(largePlan.isRequestCompact()).isTrue();
-        assertThat(largePlan.getBrief().getKeyCodeExcerpt()).contains("truncated for model");
-    }
-
-    @Test
-    void lowLatencyCompactsSelectedPackAfterLocalRecall() {
-        ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
-                new ModelDiagnosisBriefBuilder(),
-                new StandardLibraryPackBuilder(new DiagnosisTaxonomy()),
-                new PromptTemplateRegistry(),
-                validator
-        );
-        ExternalModelAgentRuntime.RuntimePlan plan = ExternalModelAgentRuntime.RuntimePlan.builder()
-                .requestCompact(true)
-                .build();
-        StandardLibraryPack selectedPack = StandardLibraryPack.builder()
-                .schemaVersion(StandardLibraryPack.SCHEMA_VERSION)
-                .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
-                .basicCauses(List.of(StandardLibraryPack.BasicCauseOption.builder()
-                        .id("MP_LONG_CONTEXT")
-                        .category("循环")
-                        .name("长上下文测试")
-                        .description("这是一段会被压缩的描述。".repeat(20))
-                        .studentExplanation("学生解释。".repeat(20))
-                        .teacherExplanation("教师解释不应进入低延迟模型上下文。")
-                        .evidenceSignals(List.of("a", "b", "c", "d"))
-                        .build()))
-                .build();
-
-        StandardLibraryPack compacted = runtime.compactSelectedPack(selectedPack, plan);
-
-        StandardLibraryPack.BasicCauseOption cause = compacted.getBasicCauses().get(0);
-        assertThat(cause.getDescription()).contains("truncated for model");
-        assertThat(cause.getTeacherExplanation()).isNull();
-        assertThat(cause.getEvidenceSignals()).containsExactly("a", "b", "c");
+        assertThat(largePlan.getRuntimeProfile()).isEqualTo("standard");
+        assertThat(largePlan.isRequestCompact()).isFalse();
+        assertThat(largePlan.getBrief().getKeyCodeExcerpt()).doesNotContain("truncated for model");
     }
 
     private SubmissionAnalysisResponse.StudentFeedback validStudentFeedback(String improvementCategory,

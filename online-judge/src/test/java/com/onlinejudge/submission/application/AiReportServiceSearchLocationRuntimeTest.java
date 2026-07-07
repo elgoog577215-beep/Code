@@ -50,7 +50,7 @@ class AiReportServiceSearchLocationRuntimeTest {
         assertThat(analysis.getAiInvocation().getSearchLocationSelectedCount()).isEqualTo(2);
         assertThat(analysis.getAiInvocation().getSearchLocationFallbackReason()).isEmpty();
         assertThat(analysis.getAiInvocation().getEmbeddingStatus()).isEqualTo("DISABLED");
-        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getIssueTags()).isEmpty();
         assertThat(analysis.getStudentFeedback().getSummary()).contains("循环边界");
     }
 
@@ -89,7 +89,7 @@ class AiReportServiceSearchLocationRuntimeTest {
         assertThat(analysis.getAiInvocation().getSearchLocationFallbackReason()).contains("not in candidate pack");
         assertThat(analysis.getAiInvocation().getSearchLocationCandidateCount()).isEqualTo(3);
         assertThat(analysis.getAiInvocation().getSearchLocationSelectedCount()).isEqualTo(0);
-        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getIssueTags()).isEmpty();
         assertThat(service.userPrompt(1)).contains("\"searchLocationSummary\":null");
     }
 
@@ -110,7 +110,7 @@ class AiReportServiceSearchLocationRuntimeTest {
         assertThat(analysis.getAiInvocation().getSearchLocationEnabled()).isFalse();
         assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("LOCAL_RECALL");
         assertThat(analysis.getAiInvocation().getEmbeddingStatus()).isEqualTo("DISABLED");
-        assertThat(analysis.getIssueTags()).containsExactly("LOOP_BOUNDARY");
+        assertThat(analysis.getIssueTags()).isEmpty();
     }
 
     private StubAiReportService newService(String... responses) {

@@ -172,7 +172,7 @@ class AiQualityOverviewServiceTest {
             assertThat(signal.getRecoveryBlockedReasonCount()).isGreaterThanOrEqualTo(4);
             assertThat(signal.getRecoveryBlockedReasons()).contains(
                     "recovery smoke pending: submission:11",
-                    "submission:11: runtime fallback",
+                    "submission:11: runtime failure",
                     "submission:11: model not completed",
                     "submission:11: stream content chunk missing",
                     "submission:11: INSUFFICIENT_QUOTA"

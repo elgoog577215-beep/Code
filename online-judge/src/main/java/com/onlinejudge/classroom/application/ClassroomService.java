@@ -2392,9 +2392,15 @@ public class ClassroomService {
         if (invocation == null) {
             return false;
         }
-        return "MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status())
+        return runtimeFailed(invocation)
                 || invocation.fallbackUsed()
                 || "MODEL_PARTIAL_COMPLETED".equalsIgnoreCase(invocation.status());
+    }
+
+    private boolean runtimeFailed(DiagnosisReportReader.AiInvocationSnapshot invocation) {
+        return invocation != null
+                && ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status())
+                || "MODEL_FAILED".equalsIgnoreCase(invocation.status()));
     }
 
     private DiagnosisEvalFixtureDraftResponse.RuntimeFixtureDraft toRuntimeFixtureDraft(
@@ -2678,7 +2684,7 @@ public class ClassroomService {
                 + ", submission "
                 + nullSafeId(submission == null ? null : submission.getId())
                 + ", runtimeProfile="
-                + firstNonBlank(runtimeMode, "low-latency")
+                + firstNonBlank(runtimeMode, "standard")
                 + "; verify model completion without fallback.";
     }
 

@@ -17,6 +17,7 @@ public class DiagnosticAgentService {
 
     private static final String AGENT_VERSION = "diagnostic-agent-v2";
     private static final String BASELINE_PROMPT_VERSION = "diagnostic-baseline-v1";
+    private static final String AI_SOURCE = "MODEL_SCOPE_EXTERNAL_MODEL";
     private static final int MAX_CONTEXT_EVIDENCE_REFS = 16;
 
     private final DiagnosisEvidencePackageBuilder evidencePackageBuilder;
@@ -87,6 +88,19 @@ public class DiagnosticAgentService {
         );
         ModelStageResult modelStage = enhanceWithModel(problem, submission, baseline, evidencePackage);
         SubmissionAnalysisResponse enhanced = modelStage.analysis();
+        if (isModelFailure(enhanced)) {
+            enhanced.setIssueTags(List.of());
+            enhanced.setFineGrainedTags(List.of());
+            enhanced.setAbilityPoints(List.of());
+            enhanced.setFocusPoints(List.of());
+            enhanced.setFixDirections(List.of());
+            enhanced = preserveContextEvidenceRefs(enhanced, evidencePackage);
+            String traceSummary = buildTraceSummary(enhanced, false);
+            enhanced.setDiagnosticTrace(traceSummary);
+            enhanced.setAiInvocation(resolveInvocation(enhanced, false));
+            enhanced.setStudentFeedbackView(studentFeedbackViewAssembler.assemble(enhanced));
+            return new AgentResult(enhanced, evidencePackage, traceSummary);
+        }
         enhanced.setIssueTags(diagnosisTaxonomy.normalizeIssueTags(enhanced.getIssueTags()));
         enhanced.setFineGrainedTags(diagnosisTaxonomy.normalizeFineGrainedTags(enhanced.getFineGrainedTags()));
         enhanced = preserveContextEvidenceRefs(enhanced, evidencePackage);
@@ -624,10 +638,77 @@ public class DiagnosticAgentService {
                     || enhanced == fallback
                     || (enhanced.getSourceType() != null && fallback != null
                     && enhanced.getSourceType().equals(fallback.getSourceType()));
-            return new ModelStageResult(enhanced == null ? fallback : enhanced, fallbackUsed);
+            if (fallbackUsed) {
+                return new ModelStageResult(modelFailureFromBaseline(fallback, "MODEL_NOT_COMPLETED"), false);
+            }
+            return new ModelStageResult(enhanced, false);
         } catch (RuntimeException exception) {
-            return new ModelStageResult(fallback, true);
+            return new ModelStageResult(modelFailureFromBaseline(fallback, exception.getClass().getSimpleName()), false);
         }
+    }
+
+    private SubmissionAnalysisResponse modelFailureFromBaseline(SubmissionAnalysisResponse fallback, String reason) {
+        if (fallback == null) {
+            return SubmissionAnalysisResponse.builder()
+                    .sourceType(AI_SOURCE)
+                    .headline("AI 诊断暂不可用")
+                    .summary("本次没有生成 AI 诊断，请稍后重试或先查看原始评测结果。")
+                    .issueTags(List.of())
+                    .fineGrainedTags(List.of())
+                    .evidenceRefs(List.of())
+                    .aiInvocation(modelFailureInvocation(null, reason))
+                    .build();
+        }
+        return SubmissionAnalysisResponse.builder()
+                .submissionId(fallback.getSubmissionId())
+                .analysisSchemaVersion(fallback.getAnalysisSchemaVersion())
+                .evidenceSchemaVersion(fallback.getEvidenceSchemaVersion())
+                .taxonomyVersion(fallback.getTaxonomyVersion())
+                .sourceType(AI_SOURCE)
+                .scenario(fallback.getScenario())
+                .headline("AI 诊断暂不可用")
+                .summary("本次没有生成 AI 诊断，请稍后重试或先查看原始评测结果。")
+                .issueTags(List.of())
+                .fineGrainedTags(List.of())
+                .abilityPoints(List.of())
+                .focusPoints(List.of())
+                .fixDirections(List.of())
+                .evidenceRefs(List.of())
+                .studentHint("AI 诊断未生成，请稍后重试。")
+                .teacherNote("外部模型未完成，本次未使用本地规则兜底。")
+                .progressSignal("")
+                .confidence(null)
+                .uncertainty("外部模型未完成，本次未使用本地规则兜底。")
+                .diagnosticTrace("model=failed reason=" + defaultIfBlank(reason, "MODEL_NOT_COMPLETED"))
+                .basicLayerAdvice(List.of())
+                .improvementLayerAdvice(List.of())
+                .aiInvocation(modelFailureInvocation(fallback, reason))
+                .answerLeakRisk(defaultIfBlank(fallback.getAnswerLeakRisk(), "LOW"))
+                .lineIssues(List.of())
+                .firstFailedCase(fallback.getFirstFailedCase())
+                .reportMarkdown("")
+                .build();
+    }
+
+    private SubmissionAnalysisResponse.AiInvocation modelFailureInvocation(SubmissionAnalysisResponse fallback,
+                                                                           String reason) {
+        return SubmissionAnalysisResponse.AiInvocation.builder()
+                .provider("AI_PROVIDER")
+                .model("unknown-model")
+                .modelVersion("unknown-model")
+                .promptVersion(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2)
+                .agentVersion(AGENT_VERSION)
+                .analysisSchemaVersion(fallback == null ? "diagnosis-v1" : fallback.getAnalysisSchemaVersion())
+                .evidenceSchemaVersion(fallback == null ? DiagnosisEvidencePackage.SCHEMA_VERSION : fallback.getEvidenceSchemaVersion())
+                .taxonomyVersion(fallback == null ? DiagnosisTaxonomy.TAXONOMY_VERSION : fallback.getTaxonomyVersion())
+                .status("MODEL_FAILED")
+                .fallbackUsed(false)
+                .runtimeMode("diagnosis-report")
+                .runtimeProfile(ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD)
+                .requestCompact(false)
+                .failureStage("DIAGNOSIS_AND_ADVICE")
+                .failureReason(defaultIfBlank(reason, "MODEL_NOT_COMPLETED"))
+                .build();
     }
 
     private SubmissionAnalysisResponse applyLowConfidenceGuard(SubmissionAnalysisResponse analysis) {
@@ -1034,7 +1115,9 @@ public class DiagnosticAgentService {
                                      boolean modelFallbackUsed) {
         int evidenceRefCount = analysis == null || analysis.getEvidenceRefs() == null ? 0 : analysis.getEvidenceRefs().size();
         String source = analysis == null ? "UNKNOWN" : analysis.getSourceType();
-        String modelStage = modelFallbackUsed ? "model=rule-fallback" : "model=completed";
+        String modelStage = isModelFailure(analysis)
+                ? "model=failed"
+                : (modelFallbackUsed ? "model=fallback" : "model=completed");
         String trajectory = analysis == null || analysis.getLearningTrajectorySignal() == null
                 ? ""
                 : " trajectory=" + analysis.getLearningTrajectorySignal().getPhase();
@@ -1050,12 +1133,12 @@ public class DiagnosticAgentService {
         boolean fallbackUsed = modelFallbackUsed || (existing != null && existing.isFallbackUsed());
         String status = defaultIfBlank(
                 existing == null ? null : existing.getStatus(),
-                fallbackUsed ? "RULE_FALLBACK" : "MODEL_COMPLETED"
+                fallbackUsed ? "MODEL_FAILED" : "MODEL_COMPLETED"
         );
         return SubmissionAnalysisResponse.AiInvocation.builder()
-                .provider(defaultIfBlank(existing == null ? null : existing.getProvider(), modelFallbackUsed ? "LOCAL_BASELINE" : "AI_PROVIDER"))
-                .model(defaultIfBlank(existing == null ? null : existing.getModel(), modelFallbackUsed ? "local-baseline" : "unknown-model"))
-                .modelVersion(defaultIfBlank(existing == null ? null : existing.getModelVersion(), modelFallbackUsed ? "local-baseline-v1" : "unknown-model"))
+                .provider(defaultIfBlank(existing == null ? null : existing.getProvider(), "AI_PROVIDER"))
+                .model(defaultIfBlank(existing == null ? null : existing.getModel(), "unknown-model"))
+                .modelVersion(defaultIfBlank(existing == null ? null : existing.getModelVersion(), "unknown-model"))
                 .promptVersion(defaultIfBlank(existing == null ? null : existing.getPromptVersion(), BASELINE_PROMPT_VERSION))
                 .agentVersion(AGENT_VERSION)
                 .analysisSchemaVersion(defaultIfBlank(
@@ -1074,7 +1157,7 @@ public class DiagnosticAgentService {
                 .fallbackUsed(fallbackUsed)
                 .runtimeMode(defaultIfBlank(
                         existing == null ? null : existing.getRuntimeMode(),
-                        modelFallbackUsed ? "local-rule" : ""
+                        modelFallbackUsed ? "diagnosis-report" : ""
                 ))
                 .runtimeProfile(defaultIfBlank(existing == null ? null : existing.getRuntimeProfile(), "standard"))
                 .requestBytes(existing == null || existing.getRequestBytes() == null ? 0 : existing.getRequestBytes())
@@ -1100,6 +1183,12 @@ public class DiagnosticAgentService {
                 .improvementAdviceCount(existing == null ? null : existing.getImprovementAdviceCount())
                 .advicePromptVersion(existing == null ? null : existing.getAdvicePromptVersion())
                 .build();
+    }
+
+    private boolean isModelFailure(SubmissionAnalysisResponse analysis) {
+        SubmissionAnalysisResponse.AiInvocation invocation = analysis == null ? null : analysis.getAiInvocation();
+        String status = invocation == null ? "" : invocation.getStatus();
+        return "MODEL_FAILED".equalsIgnoreCase(status);
     }
 
     private String defaultIfBlank(String candidate, String fallback) {

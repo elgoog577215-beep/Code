@@ -11,8 +11,6 @@ import java.util.Set;
 @Component
 public class ModelDiagnosisBriefBuilder {
 
-    private static final int MAX_PROBLEM_BRIEF_LENGTH = 600;
-    private static final int MAX_CODE_EXCERPT_LENGTH = 4000;
     private static final int MAX_CASE_FACTS = 5;
 
     public ModelDiagnosisBrief build(DiagnosisEvidencePackage evidencePackage,
@@ -48,10 +46,10 @@ public class ModelDiagnosisBriefBuilder {
         if (problem == null) {
             return "";
         }
-        return truncate(String.join("\n",
+        return String.join("\n",
                 defaultIfBlank(problem.getTitle(), ""),
                 defaultIfBlank(problem.getAiPromptDirection(), ""),
-                defaultIfBlank(problem.getDescription(), "")), MAX_PROBLEM_BRIEF_LENGTH);
+                defaultIfBlank(problem.getDescription(), ""));
     }
 
     private String problemConstraints(DiagnosisEvidencePackage.ProblemEvidence problem) {
@@ -81,7 +79,7 @@ public class ModelDiagnosisBriefBuilder {
         }
         String numbered = defaultIfBlank(submission.getSourceCodeWithLineNumbers(), "");
         String source = defaultIfBlank(submission.getSourceCode(), "");
-        return truncate(numbered.isBlank() ? source : numbered, MAX_CODE_EXCERPT_LENGTH);
+        return numbered.isBlank() ? source : numbered;
     }
 
     private SubmissionAnalysisResponse.FailedCaseSnapshot sanitizedFirstFailedCase(DiagnosisEvidencePackage.JudgeFacts judgeFacts) {
@@ -211,10 +209,10 @@ public class ModelDiagnosisBriefBuilder {
             parts.add("actionConfidence=" + String.format("%.2f", history.getPreviousLearningActionConfidence()));
         }
         if (!isBlank(history.getPreviousLearningActionSummary())) {
-            parts.add("actionEvidence=" + truncate(history.getPreviousLearningActionSummary(), 220));
+            parts.add("actionEvidence=" + history.getPreviousLearningActionSummary());
         }
         if (!isBlank(history.getPreviousLearningActionNextAdjustment())) {
-            parts.add("nextAdjustment=" + truncate(history.getPreviousLearningActionNextAdjustment(), 180));
+            parts.add("nextAdjustment=" + history.getPreviousLearningActionNextAdjustment());
         }
         return String.join(" | ", parts);
     }
@@ -251,7 +249,7 @@ public class ModelDiagnosisBriefBuilder {
         if (memory.getEvidenceRefs() != null && !memory.getEvidenceRefs().isEmpty()) {
             parts.add("memoryEvidenceRefs=" + String.join(",", memory.getEvidenceRefs()));
         }
-        return truncate(String.join(" | ", parts), 900);
+        return String.join(" | ", parts);
     }
 
     private String teacherCalibrationSummary(DiagnosisEvidencePackage evidencePackage) {
@@ -261,7 +259,7 @@ public class ModelDiagnosisBriefBuilder {
                 || memory.getTeacherCalibrationPatterns().isEmpty()) {
             return "";
         }
-        return truncate(memory.getTeacherCalibrationPatterns().stream()
+        return memory.getTeacherCalibrationPatterns().stream()
                 .limit(3)
                 .map(pattern -> "original="
                         + defaultIfBlank(pattern.getOriginalFineGrainedTag(), pattern.getOriginalIssueTag())
@@ -269,9 +267,9 @@ public class ModelDiagnosisBriefBuilder {
                         + defaultIfBlank(pattern.getCorrectedFineGrainedTag(), pattern.getCorrectedIssueTag())
                         + " count=" + (pattern.getCorrectionCount() == null ? 0L : pattern.getCorrectionCount())
                         + " refs=" + String.join(",", pattern.getEvidenceRefs() == null ? List.of() : pattern.getEvidenceRefs())
-                        + (isBlank(pattern.getLatestTeacherNote()) ? "" : " note=" + truncate(pattern.getLatestTeacherNote(), 120)))
+                        + (isBlank(pattern.getLatestTeacherNote()) ? "" : " note=" + pattern.getLatestTeacherNote()))
                 .toList()
-                .toString(), 600);
+                .toString();
     }
 
     private void addTeacherCalibrationIssueTags(Set<String> tags,
@@ -352,10 +350,4 @@ public class ModelDiagnosisBriefBuilder {
         return value == null || value.isBlank();
     }
 
-    private String truncate(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value == null ? "" : value;
-        }
-        return value.substring(0, Math.max(0, maxLength - 24)) + "\n...[truncated for model]";
-    }
 }

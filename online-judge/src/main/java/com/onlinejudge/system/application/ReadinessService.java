@@ -38,8 +38,8 @@ public class ReadinessService {
     @Value("${ai.diagnosis-report-v2-enabled:${AI_DIAGNOSIS_REPORT_V2_ENABLED:true}}")
     private boolean diagnosisReportV2Enabled = true;
 
-    @Value("${ai.model-failure-degrade-enabled:${AI_MODEL_FAILURE_DEGRADE_ENABLED:true}}")
-    private boolean modelFailureDegradeEnabled = true;
+    @Value("${ai.model-failure-degrade-enabled:${AI_MODEL_FAILURE_DEGRADE_ENABLED:false}}")
+    private boolean modelFailureDegradeEnabled = false;
 
     public ReadinessResponse getReadiness() {
         List<ReadinessResponse.Check> checks = new ArrayList<>();
@@ -160,13 +160,13 @@ public class ReadinessService {
 
         checks.add(check(
                 "ai-model-failure-degrade",
-                "模型失败降级",
-                modelFailureDegradeEnabled ? "PASS" : "WARN",
+                "模型失败不降级",
+                modelFailureDegradeEnabled ? "WARN" : "PASS",
                 false,
                 modelFailureDegradeEnabled
-                        ? "模型失败会记录原因，并使用本地反馈。"
-                        : "模型失败降级未开启。",
-                "建议保持 AI_MODEL_FAILURE_DEGRADE_ENABLED=true。"
+                        ? "模型失败降级已开启，可能重新使用本地分析。"
+                        : "模型失败只记录失败状态，不使用本地诊断兜底。",
+                "建议保持 AI_MODEL_FAILURE_DEGRADE_ENABLED=false。"
         ));
 
         String overall = overallStatus(checks);

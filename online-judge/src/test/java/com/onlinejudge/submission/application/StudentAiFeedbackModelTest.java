@@ -680,7 +680,7 @@ class StudentAiFeedbackModelTest {
         );
 
         assertThat(feedback.getStatus()).isEqualTo("FAILED");
-        assertThat(feedback.getSource()).isEqualTo("RULE_FALLBACK");
+        assertThat(feedback.getSource()).isEqualTo("AI_UNAVAILABLE");
         assertThat(feedback.getRepairItems()).isEmpty();
         assertThat(feedback.getImprovementItems()).isEmpty();
         assertThat(feedback.getStudentReport().getBasicLayerText()).contains("AI 暂不可用");
@@ -699,7 +699,7 @@ class StudentAiFeedbackModelTest {
         );
 
         assertThat(feedback.getStatus()).isEqualTo("FAILED");
-        assertThat(feedback.getSource()).isEqualTo("RULE_FALLBACK");
+        assertThat(feedback.getSource()).isEqualTo("AI_UNAVAILABLE");
         assertThat(feedback.getRepairItems()).isEmpty();
         assertThat(feedback.getImprovementItems()).isEmpty();
         assertThat(feedback.getStudentReport().getBasicLayerText()).contains("AI 暂不可用");

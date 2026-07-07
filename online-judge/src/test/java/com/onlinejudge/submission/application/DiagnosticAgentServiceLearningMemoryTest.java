@@ -101,7 +101,19 @@ class DiagnosticAgentServiceLearningMemoryTest {
                                                                     Submission submission,
                                                                     SubmissionAnalysisResponse fallback,
                                                                     DiagnosisEvidencePackage evidencePackage) {
-            return fallback;
+            SubmissionAnalysisResponse response = new ObjectMapper().convertValue(fallback, SubmissionAnalysisResponse.class);
+            response.setSourceType("AI_MODEL");
+            response.setAiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                    .provider("MODEL_SCOPE")
+                    .model("deepseek-ai/DeepSeek-V4-Pro")
+                    .promptVersion(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2)
+                    .status("MODEL_COMPLETED")
+                    .fallbackUsed(false)
+                    .runtimeMode("diagnosis-report")
+                    .runtimeProfile(ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD)
+                    .requestCompact(false)
+                    .build());
+            return response;
         }
     }
 

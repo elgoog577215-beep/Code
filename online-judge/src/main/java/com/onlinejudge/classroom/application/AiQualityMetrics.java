@@ -512,7 +512,7 @@ class AiQualityMetrics {
         long modelRuntimeFailureCount = safeAnalyses.stream()
                 .filter(analysis -> {
                     DiagnosisReportReader.AiInvocationSnapshot invocation = diagnosisReportReader.aiInvocation(analysis);
-                    return invocation != null && ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status()) || invocation.fallbackUsed());
+                    return isRuntimeFailure(invocation);
                 })
                 .count();
         long modelCompletedCount = safeAnalyses.stream()
@@ -788,6 +788,13 @@ class AiQualityMetrics {
                 ClassTeachingStrategyImpactAnalyzer.STATUS_STILL_STUCK.equals(classStrategyImpactStatus) ? 1 : 0,
                 classStrategyImpact != null && classStrategyImpact.isNeedsEscalation() ? 1 : 0
         );
+    }
+
+    private static boolean isRuntimeFailure(DiagnosisReportReader.AiInvocationSnapshot invocation) {
+        return invocation != null
+                && ("MODEL_RUNTIME_FALLBACK".equalsIgnoreCase(invocation.status())
+                || "MODEL_FAILED".equalsIgnoreCase(invocation.status())
+                || invocation.fallbackUsed());
     }
 
     long analyzedSubmissionCount() {

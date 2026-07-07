@@ -162,7 +162,7 @@ class AiQualityTrendServiceTest {
                             "streamContentChunkCount>0"
                     );
                     assertThat(segment.getRecoveryBlockedReasons()).contains(
-                            "submission:21: runtime fallback",
+                            "submission:21: runtime failure",
                             "submission:21: model not completed",
                             "submission:21: safety failed",
                             "submission:21: stream content chunk missing",

@@ -62,10 +62,10 @@ class DiagnosticAgentServiceTest {
         assertThat(result.analysis().getFineGrainedTags()).doesNotContain("OFF_BY_ONE");
         assertThat(result.analysis().getEvidenceRefs()).doesNotContain("code:plus_minus_one");
         assertThat(result.traceSummary()).contains("diagnostic-agent-v2");
-        assertThat(result.analysis().getDiagnosticTrace()).contains("model=rule-fallback");
+        assertThat(result.analysis().getDiagnosticTrace()).contains("model=completed");
         assertThat(result.analysis().getAiInvocation()).isNotNull();
         assertThat(result.analysis().getAiInvocation().getAgentVersion()).isEqualTo("diagnostic-agent-v2");
-        assertThat(result.analysis().getAiInvocation().isFallbackUsed()).isTrue();
+        assertThat(result.analysis().getAiInvocation().isFallbackUsed()).isFalse();
         assertThat(result.analysis().getStudentHintPlan()).isNotNull();
         assertThat(result.analysis().getStudentHintPlan().getHintLevel()).isEqualTo("L2");
         assertThat(result.analysis().getStudentHintPlan().getProblemType()).isNotBlank();
@@ -459,7 +459,7 @@ class DiagnosticAgentServiceTest {
     }
 
     @Test
-    void diagnoseFallsBackToRuleAwareAnalysisWhenModelStageFails() {
+    void diagnoseReturnsExplicitFailureWhenModelStageFails() {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         DiagnosticAgentService service = new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
@@ -502,11 +502,14 @@ class DiagnosticAgentServiceTest {
                 Assignment.HintPolicy.L2
         );
 
-        assertThat(result.analysis().getIssueTags()).contains("NEEDS_MORE_EVIDENCE");
+        assertThat(result.analysis().getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
+        assertThat(result.analysis().getAiInvocation().isFallbackUsed()).isFalse();
+        assertThat(result.analysis().getHeadline()).contains("AI 诊断暂不可用");
+        assertThat(result.analysis().getIssueTags()).isEmpty();
         assertThat(result.analysis().getIssueTags()).doesNotContain("LOOP_BOUNDARY");
         assertThat(result.analysis().getFineGrainedTags()).doesNotContain("OFF_BY_ONE");
-        assertThat(result.analysis().getDiagnosticTrace()).contains("model=rule-fallback");
-        assertThat(result.traceSummary()).contains("model=rule-fallback");
+        assertThat(result.analysis().getDiagnosticTrace()).contains("model=failed");
+        assertThat(result.traceSummary()).contains("model=failed");
     }
 
     @Test
@@ -633,7 +636,7 @@ class DiagnosticAgentServiceTest {
                                                                     Submission submission,
                                                                     SubmissionAnalysisResponse fallback,
                                                                     DiagnosisEvidencePackage evidencePackage) {
-            return fallback;
+            return asModelResponse(fallback);
         }
     }
 
@@ -688,8 +691,64 @@ class DiagnosticAgentServiceTest {
                     .estimatedMinutes(5)
                     .answerLeakRisk("LOW")
                     .build());
-            return fallback;
+            return asModelResponse(fallback);
         }
+    }
+
+    private static SubmissionAnalysisResponse asModelResponse(SubmissionAnalysisResponse source) {
+        if (source == null) {
+            return null;
+        }
+        return SubmissionAnalysisResponse.builder()
+                .analysisSchemaVersion(source.getAnalysisSchemaVersion())
+                .evidenceSchemaVersion(source.getEvidenceSchemaVersion())
+                .taxonomyVersion(source.getTaxonomyVersion())
+                .submissionId(source.getSubmissionId())
+                .sourceType("AI_MODEL")
+                .scenario(source.getScenario())
+                .headline(source.getHeadline())
+                .summary(source.getSummary())
+                .issueTags(source.getIssueTags())
+                .fineGrainedTags(source.getFineGrainedTags())
+                .abilityPoints(source.getAbilityPoints())
+                .focusPoints(source.getFocusPoints())
+                .fixDirections(source.getFixDirections())
+                .evidenceRefs(source.getEvidenceRefs())
+                .studentHint(source.getStudentHint())
+                .studentHintPlan(source.getStudentHintPlan())
+                .studentFeedback(source.getStudentFeedback())
+                .studentFeedbackView(source.getStudentFeedbackView())
+                .learningInterventionPlan(source.getLearningInterventionPlan())
+                .teacherNote(source.getTeacherNote())
+                .progressSignal(source.getProgressSignal())
+                .learningTrajectorySignal(source.getLearningTrajectorySignal())
+                .confidence(source.getConfidence())
+                .learningActionEvidence(source.getLearningActionEvidence())
+                .teacherCalibrationSignal(source.getTeacherCalibrationSignal())
+                .uncertainty(source.getUncertainty())
+                .diagnosticTrace(source.getDiagnosticTrace())
+                .modelEducationTrace(source.getModelEducationTrace())
+                .caseUnderstanding(source.getCaseUnderstanding())
+                .basicLayerAdvice(source.getBasicLayerAdvice())
+                .improvementLayerAdvice(source.getImprovementLayerAdvice())
+                .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                        .provider("MODEL_SCOPE")
+                        .model("deepseek-ai/DeepSeek-V4-Pro")
+                        .promptVersion(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2)
+                        .status("MODEL_COMPLETED")
+                        .fallbackUsed(false)
+                        .runtimeMode("diagnosis-report")
+                        .runtimeProfile(ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD)
+                        .requestCompact(false)
+                        .build())
+                .answerLeakRisk(source.getAnswerLeakRisk())
+                .wrongSolution(source.getWrongSolution())
+                .correctSolution(source.getCorrectSolution())
+                .lineIssues(source.getLineIssues())
+                .firstFailedCase(source.getFirstFailedCase())
+                .reportMarkdown(source.getReportMarkdown())
+                .generatedAt(source.getGeneratedAt())
+                .build();
     }
 
     private static class ModelOnlyEvidenceAiReportService extends PassThroughAiReportService {

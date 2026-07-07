@@ -35,11 +35,11 @@ class StudentFeedbackViewAssemblerTest {
     }
 
     @Test
-    void showsRuleFallbackViewWhenModelFellBack() {
+    void showsUnavailableViewWhenModelFailed() {
         SubmissionAnalysisResponse.StudentFeedbackView view = assembler.assemble(analysis(true));
 
         assertThat(view).isNotNull();
-        assertThat(view.getStatus()).isEqualTo("RULE_FALLBACK");
+        assertThat(view.getStatus()).isEqualTo("AI_UNAVAILABLE");
         assertThat(view.getRepairItems()).singleElement()
                 .satisfies(item -> {
                     assertThat(item.getTitle()).isEqualTo("AI 暂不可用");
@@ -71,7 +71,7 @@ class StudentFeedbackViewAssemblerTest {
         SubmissionAnalysisResponse.StudentFeedbackView view = assembler.assemble(analysis);
 
         assertThat(view).isNotNull();
-        assertThat(view.getStatus()).isEqualTo("RULE_FALLBACK");
+        assertThat(view.getStatus()).isEqualTo("AI_UNAVAILABLE");
         assertThat(view.getRepairItems()).singleElement()
                 .satisfies(item -> assertThat(item.getBody())
                         .contains("AI 暂不可用", "稍后重试")
@@ -210,15 +210,15 @@ class StudentFeedbackViewAssemblerTest {
 
             assertThat(views).allSatisfy(view -> {
                 assertThat(view).isNotNull();
-                assertThat(view.getStatus()).isIn("READY", "RULE_FALLBACK");
+                assertThat(view.getStatus()).isIn("READY", "AI_UNAVAILABLE");
                 assertThat(viewText(view)).doesNotContain("本地可验证反馈", "完整代码", "答案如下");
-                if ("RULE_FALLBACK".equals(view.getStatus())) {
+                if ("AI_UNAVAILABLE".equals(view.getStatus())) {
                     assertThat(viewText(view)).contains("AI 暂不可用");
                 } else {
                     assertThat(viewText(view)).doesNotContain("AI 暂不可用");
                 }
             });
-            assertThat(views).filteredOn(view -> "RULE_FALLBACK".equals(view.getStatus())).hasSize(32);
+            assertThat(views).filteredOn(view -> "AI_UNAVAILABLE".equals(view.getStatus())).hasSize(32);
         } finally {
             executor.shutdownNow();
         }
@@ -229,8 +229,8 @@ class StudentFeedbackViewAssemblerTest {
                 .submissionId(1L)
                 .evidenceRefs(List.of("case:first_failed"))
                 .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
-                        .status(fallbackUsed ? "MODEL_RUNTIME_FALLBACK" : "MODEL_COMPLETED")
-                        .fallbackUsed(fallbackUsed)
+                        .status(fallbackUsed ? "MODEL_FAILED" : "MODEL_COMPLETED")
+                        .fallbackUsed(false)
                         .build())
                 .studentFeedback(SubmissionAnalysisResponse.StudentFeedback.builder()
                         .summary("AI 暂不可用，先看本地反馈。")

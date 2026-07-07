@@ -135,7 +135,7 @@ class StudentAiFeedbackEventTest {
         StudentAiFeedbackResponse response = service.generateAndStore(7L);
 
         assertThat(response.getStatus()).isEqualTo("FAILED");
-        assertThat(response.getSource()).isEqualTo("RULE_FALLBACK");
+        assertThat(response.getSource()).isEqualTo("AI_UNAVAILABLE");
         assertThat(response.getSafety().getBlockedReasons()).contains("AI_UNAVAILABLE");
     }
 
@@ -238,7 +238,7 @@ class StudentAiFeedbackEventTest {
         return StudentAiFeedbackResponse.builder()
                 .submissionId(7L)
                 .status("FAILED")
-                .source("RULE_FALLBACK")
+                .source("AI_UNAVAILABLE")
                 .repairItems(List.of())
                 .improvementItems(List.of())
                 .safety(StudentAiFeedbackResponse.Safety.builder()
