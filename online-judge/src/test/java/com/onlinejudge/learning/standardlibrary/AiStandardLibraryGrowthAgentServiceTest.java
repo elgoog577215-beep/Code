@@ -6,8 +6,10 @@ import com.onlinejudge.learning.standardlibrary.application.StandardLibraryGrowt
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidate;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidateStatus;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRequest;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryGrowthCandidateRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -43,6 +45,9 @@ class AiStandardLibraryGrowthAgentServiceTest {
 
     @Autowired
     AiStandardLibraryItemRepository itemRepository;
+
+    @Autowired
+    AiStandardMistakePointRepository mistakePointRepository;
 
     @Test
     void storesGrowthProposalAsReviewCandidateWithoutChangingFormalLibrary() {
@@ -309,7 +314,51 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(approved.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.TEACHER_APPROVED);
         assertThat(itemRepository.existsByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, "MP_TEACHER_APPROVED_GROWTH"))
                 .isTrue();
+        assertThat(mistakePointRepository.existsByCode("MP_TEACHER_APPROVED_GROWTH")).isTrue();
         assertThat(approved.getPrecheckMessage()).contains("教师已批准");
+    }
+
+    @Test
+    void teacherCreateWritesCanonicalMistakePointAndCompatibilitySnapshot() {
+        AiStandardLibraryItemRequest request = new AiStandardLibraryItemRequest();
+        request.setLayer(AiStandardLibraryLayer.MISTAKE_POINT.name());
+        request.setCode("MP_CANONICAL_WRITE_TEST");
+        request.setCategory("数组基本操作与遍历");
+        request.setName("数组下标与循环变量错位");
+        request.setDescription("循环变量表示位置时，访问数组使用了另一个未同步的位置。");
+        request.setStudentExplanation("先写出每一轮 i 对应的数组下标，再检查访问位置是否一致。");
+        request.setTeacherExplanation("引导学生把循环变量、数组下标和题目位置含义逐轮对齐。");
+        request.setSkillUnitCode("SK_ARRAY_TRAVERSAL_INDEX");
+        request.setPrimaryKnowledgeNodeCode("BASIC.ARRAY.TRAVERSAL");
+        request.setKnowledgeNodeCodes(List.of("BASIC.ARRAY.TRAVERSAL"));
+        request.setMistakeType("INDEX_MAPPING");
+        request.setCommonMisconception("学生把循环次数、数组下标和题目中的第几个数混成同一个概念。");
+        request.setCommonCodePatterns(List.of("a[j] 与 i 的推进没有同步"));
+        request.setApplicableLanguages(List.of("PYTHON", "CPP17"));
+        request.setSeverity("MEDIUM");
+        request.setEnabled(true);
+        request.setLibraryVersion("canonical-write-test");
+
+        var created = standardLibraryService.create(request);
+
+        assertThat(itemRepository.existsByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, "MP_CANONICAL_WRITE_TEST"))
+                .isTrue();
+        var normalized = mistakePointRepository.findByCode("MP_CANONICAL_WRITE_TEST").orElseThrow();
+        assertThat(normalized.getSkillUnitCode()).isEqualTo("SK_ARRAY_TRAVERSAL_INDEX");
+        assertThat(normalized.getPrimaryKnowledgeNodeCode()).isEqualTo("BASIC.ARRAY.TRAVERSAL");
+        assertThat(normalized.getMisconception()).contains("循环次数");
+        assertThat(normalized.getSymptom()).contains("a[j]");
+        assertThat(standardLibraryService.enabledSearchLocationItems())
+                .anySatisfy(item -> {
+                    assertThat(item.getCode()).isEqualTo("MP_CANONICAL_WRITE_TEST");
+                    assertThat(item.getCommonCodePatterns()).contains("a[j]");
+                });
+
+        standardLibraryService.setEnabled(created.getId(), false);
+
+        assertThat(mistakePointRepository.findByCode("MP_CANONICAL_WRITE_TEST").orElseThrow().isEnabled()).isFalse();
+        assertThat(standardLibraryService.enabledSearchLocationItems())
+                .noneMatch(item -> item.getCode().equals("MP_CANONICAL_WRITE_TEST"));
     }
 
     @Test
@@ -345,6 +394,7 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(approved.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.TEACHER_APPROVED);
         var formal = itemRepository.findByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, candidate.getSuggestedCode())
                 .orElseThrow();
+        var normalized = mistakePointRepository.findByCode(candidate.getSuggestedCode()).orElseThrow();
         assertThat(formal.getDescription()).contains("最后一个合法取值");
         assertThat(formal.getCommonMisconception()).contains("最后一个合法取值");
         assertThat(formal.getCommonCodePatterns()).contains("半开区间");
@@ -353,6 +403,12 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(formal.getSkillUnitCode()).isEqualTo("SK_LOOP_ENDPOINT_INCLUSION");
         assertThat(formal.getKnowledgeNodeCodes()).contains("BASIC.LOOP.BOUNDARY.左闭右开");
         assertThat(formal.getLibraryVersion()).isEqualTo("standard-library-growth-v2");
+        assertThat(normalized.getDescription()).contains("最后一个合法取值");
+        assertThat(normalized.getMisconception()).contains("最后一个合法取值");
+        assertThat(normalized.getSymptom()).contains("半开区间");
+        assertThat(normalized.getRepairStrategy()).contains("错误表现").contains("典型代码特征").contains("学生解释话术");
+        assertThat(normalized.getSkillUnitCode()).isEqualTo("SK_LOOP_ENDPOINT_INCLUSION");
+        assertThat(normalized.getKnowledgeNodeCodes()).contains("BASIC.LOOP.BOUNDARY.左闭右开");
         assertThat(standardLibraryService.enabledSearchLocationItems())
                 .anySatisfy(item -> {
                     assertThat(item.getLayer()).isEqualTo(AiStandardLibraryLayer.MISTAKE_POINT);

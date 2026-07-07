@@ -60,7 +60,7 @@ public class AiStandardLibraryService {
     public AiStandardLibraryItemResponse create(AiStandardLibraryItemRequest request) {
         AiStandardLibraryLayer layer = parseLayer(request.getLayer());
         String code = normalizeCode(request.getCode());
-        if (repository.existsByLayerAndCode(layer, code)) {
+        if (formalItemExistsForOther(layer, code, null, "", null)) {
             throw new IllegalArgumentException("标准库条目已存在: " + layer + "/" + code);
         }
         AiStandardLibraryItem item = new AiStandardLibraryItem();
@@ -68,6 +68,7 @@ public class AiStandardLibraryService {
         item.setCode(code);
         apply(item, request);
         AiStandardLibraryItem saved = repository.save(item);
+        syncCanonicalFromSnapshot(saved, null, "");
         markEmbeddingStale(saved);
         return AiStandardLibraryItemResponse.from(saved);
     }
@@ -75,11 +76,12 @@ public class AiStandardLibraryService {
     @Transactional
     public AiStandardLibraryItemResponse update(Long id, AiStandardLibraryItemRequest request) {
         AiStandardLibraryItem item = find(id);
+        AiStandardLibraryLayer previousLayer = item.getLayer();
+        String previousCode = item.getCode();
         AiStandardLibraryLayer requestedLayer = parseLayer(request.getLayer());
         String requestedCode = normalizeCode(request.getCode());
         if (item.getLayer() != requestedLayer || !item.getCode().equals(requestedCode)) {
-            Optional<AiStandardLibraryItem> duplicate = repository.findByLayerAndCode(requestedLayer, requestedCode);
-            if (duplicate.isPresent() && !duplicate.get().getId().equals(item.getId())) {
+            if (formalItemExistsForOther(requestedLayer, requestedCode, previousLayer, previousCode, item.getId())) {
                 throw new IllegalArgumentException("标准库条目已存在: " + requestedLayer + "/" + requestedCode);
             }
             item.setLayer(requestedLayer);
@@ -87,6 +89,7 @@ public class AiStandardLibraryService {
         }
         apply(item, request);
         AiStandardLibraryItem saved = repository.save(item);
+        syncCanonicalFromSnapshot(saved, previousLayer, previousCode);
         markEmbeddingStale(saved);
         return AiStandardLibraryItemResponse.from(saved);
     }
@@ -94,8 +97,11 @@ public class AiStandardLibraryService {
     @Transactional
     public AiStandardLibraryItemResponse setEnabled(Long id, boolean enabled) {
         AiStandardLibraryItem item = find(id);
+        AiStandardLibraryLayer previousLayer = item.getLayer();
+        String previousCode = item.getCode();
         item.setEnabled(enabled);
         AiStandardLibraryItem saved = repository.save(item);
+        syncCanonicalFromSnapshot(saved, previousLayer, previousCode);
         markEmbeddingStale(saved);
         return AiStandardLibraryItemResponse.from(saved);
     }
@@ -166,6 +172,26 @@ public class AiStandardLibraryService {
         return merged.values().stream().toList();
     }
 
+    @Transactional(readOnly = true)
+    public boolean formalItemExists(AiStandardLibraryLayer layer, String code) {
+        String normalizedCode = normalizeCode(code);
+        return canonicalRecordExists(layer, normalizedCode)
+                || repository.existsByLayerAndCode(layer, normalizedCode);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<AiStandardLibraryItem> findFormalItemAsLegacy(AiStandardLibraryLayer layer, String code) {
+        if (layer == null || code == null || code.isBlank()) {
+            return Optional.empty();
+        }
+        String normalizedCode = normalizeCode(code);
+        Optional<AiStandardLibraryItem> canonical = canonicalAsLegacy(layer, normalizedCode);
+        if (canonical.isPresent()) {
+            return canonical;
+        }
+        return repository.findByLayerAndCode(layer, normalizedCode);
+    }
+
     @Transactional
     public void markEmbeddingStale(AiStandardLibraryItem item) {
         if (item == null || item.getId() == null) {
@@ -232,7 +258,7 @@ public class AiStandardLibraryService {
                 .studentExplanation(item.getMisconception())
                 .teacherExplanation(item.getRepairStrategy())
                 .evidenceSignals(List.of())
-                .commonCodePatterns(List.of())
+                .commonCodePatterns(lines(item.getSymptom()))
                 .judgeSignals(List.of())
                 .hintL1("")
                 .hintL2("")
@@ -279,6 +305,209 @@ public class AiStandardLibraryService {
                 .abilityPoint(item.getSkillUnitCode())
                 .relatedBasicCauses(lines(item.getRelatedMistakeCodes()))
                 .build();
+    }
+
+    private boolean formalItemExistsForOther(AiStandardLibraryLayer layer,
+                                             String code,
+                                             AiStandardLibraryLayer previousLayer,
+                                             String previousCode,
+                                             Long currentLegacyId) {
+        if (canonicalRecordExists(layer, code) && !sameCanonicalTarget(previousLayer, previousCode, layer, code)) {
+            return true;
+        }
+        Optional<AiStandardLibraryItem> duplicate = repository.findByLayerAndCode(layer, code);
+        return duplicate.isPresent()
+                && (currentLegacyId == null || !duplicate.get().getId().equals(currentLegacyId));
+    }
+
+    private boolean canonicalRecordExists(AiStandardLibraryLayer layer, String code) {
+        if (layer == null || code == null || code.isBlank()) {
+            return false;
+        }
+        AiStandardLibraryLayer canonicalLayer = canonicalLayer(layer);
+        if (canonicalLayer == AiStandardLibraryLayer.SKILL_UNIT) {
+            return skillUnitRepository.existsByCode(code);
+        }
+        if (canonicalLayer == AiStandardLibraryLayer.MISTAKE_POINT) {
+            return mistakePointRepository.existsByCode(code);
+        }
+        if (canonicalLayer == AiStandardLibraryLayer.IMPROVEMENT_POINT) {
+            return improvementPointRepository.existsByCode(code);
+        }
+        return false;
+    }
+
+    private Optional<AiStandardLibraryItem> canonicalAsLegacy(AiStandardLibraryLayer layer, String code) {
+        AiStandardLibraryLayer canonicalLayer = canonicalLayer(layer);
+        if (canonicalLayer == AiStandardLibraryLayer.SKILL_UNIT) {
+            return skillUnitRepository.findByCode(code).map(this::toLegacySearchItem);
+        }
+        if (canonicalLayer == AiStandardLibraryLayer.MISTAKE_POINT) {
+            return mistakePointRepository.findByCode(code).map(this::toLegacySearchItem);
+        }
+        if (canonicalLayer == AiStandardLibraryLayer.IMPROVEMENT_POINT) {
+            return improvementPointRepository.findByCode(code).map(this::toLegacySearchItem);
+        }
+        return Optional.empty();
+    }
+
+    private void syncCanonicalFromSnapshot(AiStandardLibraryItem item,
+                                           AiStandardLibraryLayer previousLayer,
+                                           String previousCode) {
+        if (item == null || !canSyncCanonical(item)) {
+            return;
+        }
+        AiStandardLibraryLayer currentCanonicalLayer = canonicalLayer(item.getLayer());
+        AiStandardLibraryLayer previousCanonicalLayer = canonicalLayer(previousLayer);
+        if (previousLayer != null && previousCanonicalLayer != currentCanonicalLayer) {
+            disableCanonical(previousLayer, previousCode);
+        }
+        if (currentCanonicalLayer == AiStandardLibraryLayer.SKILL_UNIT) {
+            syncSkillUnit(item, previousCanonicalLayer, previousCode);
+        } else if (currentCanonicalLayer == AiStandardLibraryLayer.MISTAKE_POINT) {
+            syncMistakePoint(item, previousCanonicalLayer, previousCode);
+        } else if (currentCanonicalLayer == AiStandardLibraryLayer.IMPROVEMENT_POINT) {
+            syncImprovementPoint(item, previousCanonicalLayer, previousCode);
+        }
+    }
+
+    private void syncSkillUnit(AiStandardLibraryItem item,
+                               AiStandardLibraryLayer previousCanonicalLayer,
+                               String previousCode) {
+        Optional<AiStandardSkillUnit> existing = Optional.empty();
+        if (previousCanonicalLayer == AiStandardLibraryLayer.SKILL_UNIT && !normalizeText(previousCode).isBlank()) {
+            existing = skillUnitRepository.findByCode(previousCode);
+        }
+        AiStandardSkillUnit unit = existing.or(() -> skillUnitRepository.findByCode(item.getCode()))
+                .orElseGet(AiStandardSkillUnit::new);
+        unit.setCode(item.getCode());
+        unit.setCategory(item.getCategory());
+        unit.setName(item.getName());
+        unit.setDescription(item.getDescription());
+        unit.setLearningGoal(firstNonBlank(item.getStudentExplanation(), item.getDescription()));
+        unit.setPrimaryKnowledgeNodeCode(item.getPrimaryKnowledgeNodeCode());
+        unit.setKnowledgeNodeCodes(item.getKnowledgeNodeCodes());
+        unit.setPrerequisiteKnowledgeCodes(item.getPrerequisiteKnowledgeCodes());
+        unit.setMasteryLevel(item.getSeverity());
+        unit.setApplicableLanguages(item.getApplicableLanguages());
+        unit.setEnabled(item.isEnabled());
+        unit.setLibraryVersion(item.getLibraryVersion());
+        skillUnitRepository.save(unit);
+    }
+
+    private void syncMistakePoint(AiStandardLibraryItem item,
+                                  AiStandardLibraryLayer previousCanonicalLayer,
+                                  String previousCode) {
+        Optional<AiStandardMistakePoint> existing = Optional.empty();
+        if (previousCanonicalLayer == AiStandardLibraryLayer.MISTAKE_POINT && !normalizeText(previousCode).isBlank()) {
+            existing = mistakePointRepository.findByCode(previousCode);
+        }
+        AiStandardMistakePoint mistake = existing.or(() -> mistakePointRepository.findByCode(item.getCode()))
+                .orElseGet(AiStandardMistakePoint::new);
+        mistake.setCode(item.getCode());
+        mistake.setCategory(item.getCategory());
+        mistake.setName(item.getName());
+        mistake.setDescription(item.getDescription());
+        mistake.setSkillUnitCode(item.getSkillUnitCode());
+        mistake.setMistakeType(item.getMistakeType());
+        mistake.setMisconception(item.getCommonMisconception());
+        mistake.setSymptom(firstNonBlank(item.getCommonCodePatterns(), item.getDescription()));
+        mistake.setRepairStrategy(firstNonBlank(item.getTeacherExplanation(), item.getTeachingAction()));
+        mistake.setSeverity(item.getSeverity());
+        mistake.setPrimaryKnowledgeNodeCode(item.getPrimaryKnowledgeNodeCode());
+        mistake.setKnowledgeNodeCodes(item.getKnowledgeNodeCodes());
+        mistake.setPrerequisiteKnowledgeCodes(item.getPrerequisiteKnowledgeCodes());
+        mistake.setApplicableLanguages(item.getApplicableLanguages());
+        mistake.setEnabled(item.isEnabled());
+        mistake.setLibraryVersion(item.getLibraryVersion());
+        mistakePointRepository.save(mistake);
+    }
+
+    private void syncImprovementPoint(AiStandardLibraryItem item,
+                                      AiStandardLibraryLayer previousCanonicalLayer,
+                                      String previousCode) {
+        Optional<AiStandardImprovementPoint> existing = Optional.empty();
+        if (previousCanonicalLayer == AiStandardLibraryLayer.IMPROVEMENT_POINT && !normalizeText(previousCode).isBlank()) {
+            existing = improvementPointRepository.findByCode(previousCode);
+        }
+        AiStandardImprovementPoint improvement = existing.or(() -> improvementPointRepository.findByCode(item.getCode()))
+                .orElseGet(AiStandardImprovementPoint::new);
+        improvement.setCode(item.getCode());
+        improvement.setCategory(item.getCategory());
+        improvement.setName(item.getName());
+        improvement.setDescription(item.getDescription());
+        improvement.setSkillUnitCode(item.getSkillUnitCode());
+        improvement.setPrimaryKnowledgeNodeCode(item.getPrimaryKnowledgeNodeCode());
+        improvement.setKnowledgeNodeCodes(item.getKnowledgeNodeCodes());
+        improvement.setImprovementGoal(firstNonBlank(item.getWhenToUse(), item.getDescription()));
+        improvement.setPracticeStrategy(firstNonBlank(item.getTeachingAction(), item.getTeacherExplanation()));
+        improvement.setStudentBenefit(item.getStudentBenefit());
+        improvement.setTeacherExplanation(item.getTeacherExplanation());
+        improvement.setRelatedMistakeCodes(item.getRelatedItems());
+        improvement.setApplicableLanguages(item.getApplicableLanguages());
+        improvement.setEnabled(item.isEnabled());
+        improvement.setLibraryVersion(item.getLibraryVersion());
+        improvementPointRepository.save(improvement);
+    }
+
+    private void disableCanonical(AiStandardLibraryLayer layer, String code) {
+        if (layer == null || code == null || code.isBlank()) {
+            return;
+        }
+        AiStandardLibraryLayer canonicalLayer = canonicalLayer(layer);
+        if (canonicalLayer == AiStandardLibraryLayer.SKILL_UNIT) {
+            skillUnitRepository.findByCode(code).ifPresent(item -> {
+                item.setEnabled(false);
+                skillUnitRepository.save(item);
+            });
+        } else if (canonicalLayer == AiStandardLibraryLayer.MISTAKE_POINT) {
+            mistakePointRepository.findByCode(code).ifPresent(item -> {
+                item.setEnabled(false);
+                mistakePointRepository.save(item);
+            });
+        } else if (canonicalLayer == AiStandardLibraryLayer.IMPROVEMENT_POINT) {
+            improvementPointRepository.findByCode(code).ifPresent(item -> {
+                item.setEnabled(false);
+                improvementPointRepository.save(item);
+            });
+        }
+    }
+
+    private boolean canSyncCanonical(AiStandardLibraryItem item) {
+        AiStandardLibraryLayer canonicalLayer = canonicalLayer(item.getLayer());
+        if (canonicalLayer == AiStandardLibraryLayer.SKILL_UNIT) {
+            return !normalizeText(item.getDescription()).isBlank()
+                    && !normalizeText(item.getStudentExplanation()).isBlank()
+                    && !normalizeText(item.getPrimaryKnowledgeNodeCode()).isBlank()
+                    && !lines(item.getKnowledgeNodeCodes()).isEmpty();
+        }
+        if (canonicalLayer == AiStandardLibraryLayer.MISTAKE_POINT) {
+            return !normalizeText(item.getDescription()).isBlank()
+                    && !normalizeText(item.getSkillUnitCode()).isBlank()
+                    && !normalizeText(item.getPrimaryKnowledgeNodeCode()).isBlank()
+                    && !normalizeText(item.getMistakeType()).isBlank()
+                    && !normalizeText(item.getCommonMisconception()).isBlank()
+                    && !lines(item.getKnowledgeNodeCodes()).isEmpty();
+        }
+        return canonicalLayer == AiStandardLibraryLayer.IMPROVEMENT_POINT;
+    }
+
+    private boolean sameCanonicalTarget(AiStandardLibraryLayer previousLayer,
+                                        String previousCode,
+                                        AiStandardLibraryLayer currentLayer,
+                                        String currentCode) {
+        if (previousLayer == null || previousCode == null || previousCode.isBlank()) {
+            return false;
+        }
+        return canonicalLayer(previousLayer) == canonicalLayer(currentLayer)
+                && normalizeText(previousCode).equals(normalizeText(currentCode));
+    }
+
+    private AiStandardLibraryLayer canonicalLayer(AiStandardLibraryLayer layer) {
+        if (layer == AiStandardLibraryLayer.BASIC_CAUSE) {
+            return AiStandardLibraryLayer.MISTAKE_POINT;
+        }
+        return layer;
     }
 
     private List<AiStandardLibraryItem> normalizedSearchLocationItems() {
@@ -342,7 +571,7 @@ public class AiStandardLibraryService {
                 .relatedKnowledgeNodeCodes(relatedKnowledgeNodeCodes(item.getPrimaryKnowledgeNodeCode(), item.getKnowledgeNodeCodes()))
                 .prerequisiteKnowledgeCodes(item.getPrerequisiteKnowledgeCodes())
                 .teachingAction("")
-                .enabled(true)
+                .enabled(item.isEnabled())
                 .libraryVersion(item.getLibraryVersion())
                 .createdAt(orNow(item.getCreatedAt()))
                 .updatedAt(orNow(item.getUpdatedAt()))
@@ -364,7 +593,7 @@ public class AiStandardLibraryService {
                 .mistakeType(item.getMistakeType())
                 .commonMisconception(item.getMisconception())
                 .evidenceSignals("")
-                .commonCodePatterns("")
+                .commonCodePatterns(item.getSymptom())
                 .judgeSignals("")
                 .requiredEvidence("")
                 .whenToUse("")
@@ -380,7 +609,7 @@ public class AiStandardLibraryService {
                 .relatedKnowledgeNodeCodes(relatedKnowledgeNodeCodes(item.getPrimaryKnowledgeNodeCode(), item.getKnowledgeNodeCodes()))
                 .prerequisiteKnowledgeCodes(item.getPrerequisiteKnowledgeCodes())
                 .teachingAction("")
-                .enabled(true)
+                .enabled(item.isEnabled())
                 .libraryVersion(item.getLibraryVersion())
                 .createdAt(orNow(item.getCreatedAt()))
                 .updatedAt(orNow(item.getUpdatedAt()))
@@ -418,7 +647,7 @@ public class AiStandardLibraryService {
                 .relatedKnowledgeNodeCodes(relatedKnowledgeNodeCodes(item.getPrimaryKnowledgeNodeCode(), item.getKnowledgeNodeCodes()))
                 .prerequisiteKnowledgeCodes("")
                 .teachingAction("")
-                .enabled(true)
+                .enabled(item.isEnabled())
                 .libraryVersion(item.getLibraryVersion())
                 .createdAt(orNow(item.getCreatedAt()))
                 .updatedAt(orNow(item.getUpdatedAt()))

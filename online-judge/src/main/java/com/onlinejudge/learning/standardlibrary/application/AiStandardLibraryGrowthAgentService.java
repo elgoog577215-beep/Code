@@ -6,7 +6,6 @@ import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryGrowthGovernanceSummaryResponse;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryGrowthCandidateRepository;
-import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import com.onlinejudge.submission.application.AdviceGenerationOutput;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,7 +29,6 @@ public class AiStandardLibraryGrowthAgentService {
     private static final double MIN_CONFIDENCE = 0.6;
 
     private final AiStandardLibraryGrowthCandidateRepository candidateRepository;
-    private final AiStandardLibraryItemRepository itemRepository;
     private final AiStandardLibraryService standardLibraryService;
     private final AiStandardLibraryGrowthProperties properties;
 
@@ -434,7 +432,7 @@ public class AiStandardLibraryGrowthAgentService {
         if (proposal == null || proposal.getConfidence() == null || proposal.getConfidence() < MIN_CONFIDENCE) {
             errors.add("置信度不足");
         }
-        if (layer != null && !code.isBlank() && itemRepository.existsByLayerAndCode(layer, code)) {
+        if (layer != null && !code.isBlank() && standardLibraryService.formalItemExists(layer, code)) {
             errors.add("正式标准库已存在: " + layer + "/" + code);
         }
         Optional<AiStandardLibraryGrowthCandidate> duplicateCandidate = layer == null || code.isBlank()
@@ -451,7 +449,7 @@ public class AiStandardLibraryGrowthAgentService {
         if (layer == null || code == null || code.isBlank()) {
             return "NO_EXISTING_ITEM";
         }
-        Optional<AiStandardLibraryItem> item = itemRepository.findByLayerAndCode(layer, code);
+        Optional<AiStandardLibraryItem> item = standardLibraryService.findFormalItemAsLegacy(layer, code);
         if (item.isEmpty()) {
             return "NO_EXISTING_ITEM";
         }
@@ -628,7 +626,7 @@ public class AiStandardLibraryGrowthAgentService {
                 continue;
             }
             for (AiStandardLibraryLayer layer : likelyLayers(code)) {
-                Optional<AiStandardLibraryItem> item = itemRepository.findByLayerAndCode(layer, code);
+                Optional<AiStandardLibraryItem> item = standardLibraryService.findFormalItemAsLegacy(layer, code);
                 if (item.isPresent()) {
                     return item;
                 }
