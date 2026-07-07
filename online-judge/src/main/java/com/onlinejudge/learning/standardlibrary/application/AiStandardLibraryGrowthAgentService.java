@@ -515,29 +515,42 @@ public class AiStandardLibraryGrowthAgentService {
         String code = normalizeCode(proposal.getSuggestedCode());
         String path = joinPath(proposal.getSuggestedPath());
         List<String> evidence = proposal.getEvidenceRefs() == null ? List.of() : proposal.getEvidenceRefs();
+        GrowthDraft draft = growthDraft(proposal.getChangeReason());
+        List<String> knowledgeCodes = knowledgeNodeCodes(proposal.getSuggestedPath(), proposal.getSimilarExistingItemCodes());
+        String primaryKnowledgeCode = knowledgeCodes.stream().findFirst().orElse("");
+        String description = requiredText(draft.errorSymptom(),
+                requiredText(proposal.getChangeReason(), "由 AI 诊断发现并经门禁写入的细颗粒标准库条目。"));
+        String studentExplanation = requiredText(draft.studentExplanation(),
+                "先把当前代码表现、判题证据和标准库路径对齐，再判断是否属于这个易错点。");
+        String commonMisconception = requiredText(draft.errorSymptom(),
+                requiredText(proposal.getChangeReason(), "学生可能没有把代码行为、判题结果和知识点边界对齐。"));
         com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRequest request =
                 new com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRequest();
         request.setLayer(proposal.getLayer().name());
         request.setCode(code);
         request.setCategory(categoryFromPath(path));
         request.setName(requiredText(proposal.getSuggestedName(), code));
-        request.setDescription(requiredText(proposal.getChangeReason(), "由 AI 诊断发现并经门禁写入的细颗粒标准库条目。"));
-        request.setStudentExplanation("这个条目来自真实提交诊断，用于帮助 AI 以后更细地定位同类问题。");
+        request.setDescription(description);
+        request.setStudentExplanation(studentExplanation);
         request.setTeacherExplanation(proposal.getChangeReason());
         request.setSkillUnitCode(skillUnitFromSimilarItems(proposal.getSimilarExistingItemCodes()));
         request.setMistakeType("DEBUGGING");
-        request.setCommonMisconception(requiredText(proposal.getChangeReason(), "学生可能没有把代码行为、判题结果和知识点边界对齐。"));
+        request.setCommonMisconception(commonMisconception);
         request.setEvidenceSignals(evidence);
-        request.setCommonCodePatterns(List.of());
+        request.setCommonCodePatterns(draft.typicalCodePattern().isBlank()
+                ? List.of()
+                : List.of(draft.typicalCodePattern()));
         request.setJudgeSignals(evidence.stream().filter(ref -> ref.startsWith("judge:")).toList());
         request.setRequiredEvidence(evidence);
         request.setApplicableLanguages(List.of("PYTHON", "CPP17"));
         request.setRelatedItems(proposal.getSimilarExistingItemCodes());
-        request.setKnowledgeNodeCodes(knowledgeNodeCodes(proposal.getSuggestedPath()));
+        request.setPrimaryKnowledgeNodeCode(primaryKnowledgeCode);
+        request.setKnowledgeNodeCodes(knowledgeCodes);
+        request.setRelatedKnowledgeNodeCodes(knowledgeCodes.stream().skip(1).toList());
         request.setPrerequisiteKnowledgeCodes(List.of());
         request.setSeverity("MEDIUM");
         request.setEnabled(true);
-        request.setLibraryVersion("standard-library-growth-v1");
+        request.setLibraryVersion("standard-library-growth-v2");
         return request;
     }
 
@@ -553,22 +566,89 @@ public class AiStandardLibraryGrowthAgentService {
         if (similarItems == null || similarItems.isEmpty()) {
             return "SK_AI_GROWTH_REVIEW";
         }
-        return similarItems.stream()
-                .map(this::normalizeText)
+        Optional<String> explicitSkill = similarItems.stream()
+                .map(this::normalizeCode)
                 .filter(value -> value.startsWith("SK_"))
                 .findFirst()
-                .orElse("SK_AI_GROWTH_REVIEW");
+                .filter(value -> !value.isBlank());
+        if (explicitSkill.isPresent()) {
+            return explicitSkill.get();
+        }
+        Optional<AiStandardLibraryItem> similar = findSimilarFormalItem(similarItems);
+        if (similar.isPresent()) {
+            AiStandardLibraryItem item = similar.get();
+            if (item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT) {
+                return item.getCode();
+            }
+            String skill = normalizeText(item.getSkillUnitCode());
+            if (!skill.isBlank()) {
+                return skill;
+            }
+        }
+        return "SK_AI_GROWTH_REVIEW";
     }
 
-    private List<String> knowledgeNodeCodes(List<String> path) {
-        if (path == null || path.isEmpty()) {
-            return List.of("AI_GROWTH_REVIEW");
+    private List<String> knowledgeNodeCodes(List<String> path, List<String> similarItems) {
+        Optional<AiStandardLibraryItem> similar = findSimilarFormalItem(similarItems);
+        if (similar.isPresent()) {
+            List<String> inherited = lines(similar.get().getKnowledgeNodeCodes());
+            if (!inherited.isEmpty()) {
+                return inherited;
+            }
+            String primary = normalizeText(similar.get().getPrimaryKnowledgeNodeCode());
+            if (!primary.isBlank()) {
+                return List.of(primary);
+            }
         }
-        return path.stream()
+        List<String> normalizedPath = path == null ? List.of() : path.stream()
                 .map(this::normalizeText)
                 .filter(value -> !value.isBlank())
                 .map(value -> value.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9_]+", "_"))
                 .toList();
+        if (normalizedPath.isEmpty()) {
+            return List.of("AI_GROWTH_REVIEW");
+        }
+        LinkedHashSet<String> codes = new LinkedHashSet<>();
+        if (normalizedPath.size() >= 2) {
+            for (int end = normalizedPath.size(); end >= 2; end--) {
+                codes.add(String.join(".", normalizedPath.subList(0, end)));
+            }
+        }
+        codes.add(normalizedPath.get(0));
+        return codes.stream().toList();
+    }
+
+    private Optional<AiStandardLibraryItem> findSimilarFormalItem(List<String> similarItems) {
+        if (similarItems == null || similarItems.isEmpty()) {
+            return Optional.empty();
+        }
+        for (String value : similarItems) {
+            String code = normalizeCode(value);
+            if (code.isBlank()) {
+                continue;
+            }
+            for (AiStandardLibraryLayer layer : likelyLayers(code)) {
+                Optional<AiStandardLibraryItem> item = itemRepository.findByLayerAndCode(layer, code);
+                if (item.isPresent()) {
+                    return item;
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private List<AiStandardLibraryLayer> likelyLayers(String code) {
+        if (code.startsWith("SK_")) {
+            return List.of(AiStandardLibraryLayer.SKILL_UNIT);
+        }
+        if (code.startsWith("MP_")) {
+            return List.of(AiStandardLibraryLayer.MISTAKE_POINT, AiStandardLibraryLayer.BASIC_CAUSE);
+        }
+        if (code.startsWith("IP_")) {
+            return List.of(AiStandardLibraryLayer.IMPROVEMENT_POINT);
+        }
+        return List.of(AiStandardLibraryLayer.MISTAKE_POINT, AiStandardLibraryLayer.SKILL_UNIT,
+                AiStandardLibraryLayer.IMPROVEMENT_POINT, AiStandardLibraryLayer.BASIC_CAUSE);
     }
 
     private List<String> splitPath(String value) {
@@ -729,6 +809,22 @@ public class AiStandardLibraryGrowthAgentService {
         ));
     }
 
+    private GrowthDraft growthDraft(String changeReason) {
+        String errorSymptom = "";
+        String typicalCodePattern = "";
+        String studentExplanation = "";
+        for (String line : lines(changeReason)) {
+            if (line.startsWith("错误表现：")) {
+                errorSymptom = normalizeText(line.substring("错误表现：".length()));
+            } else if (line.startsWith("典型代码特征：")) {
+                typicalCodePattern = normalizeText(line.substring("典型代码特征：".length()));
+            } else if (line.startsWith("学生解释话术：")) {
+                studentExplanation = normalizeText(line.substring("学生解释话术：".length()));
+            }
+        }
+        return new GrowthDraft(errorSymptom, typicalCodePattern, studentExplanation);
+    }
+
     private String requiredText(String value, String fallback) {
         String normalized = normalizeText(value);
         return normalized.isBlank() ? fallback : normalized;
@@ -736,5 +832,8 @@ public class AiStandardLibraryGrowthAgentService {
 
     private String normalizeText(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private record GrowthDraft(String errorSymptom, String typicalCodePattern, String studentExplanation) {
     }
 }

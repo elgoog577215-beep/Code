@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -149,16 +150,20 @@ public class AiStandardLibraryService {
     @Transactional(readOnly = true)
     public List<AiStandardLibraryItem> enabledSearchLocationItems() {
         List<AiStandardLibraryItem> normalizedItems = normalizedSearchLocationItems();
-        if (!normalizedItems.isEmpty()) {
-            return normalizedItems;
-        }
-        return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
+        List<AiStandardLibraryItem> legacyItems = repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT
                         || item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
                         || item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT
                         || item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
                 .filter(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(item.getLayer(), item.getCode()))
                 .toList();
+        if (normalizedItems.isEmpty()) {
+            return legacyItems;
+        }
+        LinkedHashMap<String, AiStandardLibraryItem> merged = new LinkedHashMap<>();
+        normalizedItems.forEach(item -> merged.put(searchItemKey(item), item));
+        legacyItems.forEach(item -> merged.putIfAbsent(searchItemKey(item), item));
+        return merged.values().stream().toList();
     }
 
     @Transactional
@@ -298,6 +303,12 @@ public class AiStandardLibraryService {
         return items.stream()
                 .filter(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(codeAccessor.apply(item)))
                 .toList();
+    }
+
+    private String searchItemKey(AiStandardLibraryItem item) {
+        String layer = item.getLayer() == null ? "" : item.getLayer().name();
+        String code = item.getCode() == null ? "" : item.getCode();
+        return layer + "/" + code;
     }
 
     private AiStandardLibraryItem toLegacySearchItem(AiStandardSkillUnit item) {

@@ -1,6 +1,7 @@
 package com.onlinejudge.learning.standardlibrary;
 
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
 import com.onlinejudge.learning.standardlibrary.application.StandardLibraryGrowthProposal;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidate;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidateStatus;
@@ -36,6 +37,9 @@ class AiStandardLibraryGrowthAgentServiceTest {
 
     @Autowired
     AiStandardLibraryGrowthCandidateRepository candidateRepository;
+
+    @Autowired
+    AiStandardLibraryService standardLibraryService;
 
     @Autowired
     AiStandardLibraryItemRepository itemRepository;
@@ -306,6 +310,55 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(itemRepository.existsByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, "MP_TEACHER_APPROVED_GROWTH"))
                 .isTrue();
         assertThat(approved.getPrecheckMessage()).contains("教师已批准");
+    }
+
+    @Test
+    void teacherApprovedDiagnosisGrowthCandidateBecomesSearchableFormalDraft() {
+        var output = com.onlinejudge.submission.application.AdviceGenerationOutput.builder()
+                .diagnosisDecision(com.onlinejudge.submission.application.AdviceGenerationOutput.DiagnosisDecision.builder()
+                        .libraryFit("PARTIAL")
+                        .build())
+                .libraryGrowth(com.onlinejudge.submission.application.AdviceGenerationOutput.LibraryGrowth.builder()
+                        .candidates(List.of(com.onlinejudge.submission.application.AdviceGenerationOutput.LibraryGrowthCandidate.builder()
+                                .name("可见失败样例定位循环右端漏取")
+                                .suggestedPath(List.of("BASIC", "LOOP", "BOUNDARY", "VISIBLE_CASE_ENDPOINT"))
+                                .similarExistingItems(List.of("MP_LOOP_RANGE_RIGHT_ENDPOINT_MISREAD"))
+                                .errorSymptom("可见失败样例显示最后一个合法取值没有进入累计。")
+                                .typicalCodePattern("循环右端使用半开区间，但题面要求包含右端点。")
+                                .studentExplanation("先手推最后一个合法取值是否真的进入循环。")
+                                .reason("现有循环边界条目可作为上级方向，但需要补充可见失败样例定位端点漏取的细颗粒错因。")
+                                .status("NEEDS_REVIEW")
+                                .confidence(0.89)
+                                .build()))
+                        .build())
+                .build();
+
+        AiStandardLibraryGrowthCandidate candidate = service.proposeFromDiagnosisOutput(
+                output,
+                18L,
+                188L,
+                List.of("code:loop_range", "judge:first_failed_case")
+        ).get(0);
+
+        AiStandardLibraryGrowthCandidate approved = service.approve(candidate.getId(), null);
+
+        assertThat(approved.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.TEACHER_APPROVED);
+        var formal = itemRepository.findByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, candidate.getSuggestedCode())
+                .orElseThrow();
+        assertThat(formal.getDescription()).contains("最后一个合法取值");
+        assertThat(formal.getCommonMisconception()).contains("最后一个合法取值");
+        assertThat(formal.getCommonCodePatterns()).contains("半开区间");
+        assertThat(formal.getStudentExplanation()).contains("最后一个合法取值是否真的进入循环");
+        assertThat(formal.getTeacherExplanation()).contains("错误表现").contains("典型代码特征").contains("学生解释话术");
+        assertThat(formal.getSkillUnitCode()).isEqualTo("SK_LOOP_ENDPOINT_INCLUSION");
+        assertThat(formal.getKnowledgeNodeCodes()).contains("BASIC.LOOP.BOUNDARY.左闭右开");
+        assertThat(formal.getLibraryVersion()).isEqualTo("standard-library-growth-v2");
+        assertThat(standardLibraryService.enabledSearchLocationItems())
+                .anySatisfy(item -> {
+                    assertThat(item.getLayer()).isEqualTo(AiStandardLibraryLayer.MISTAKE_POINT);
+                    assertThat(item.getCode()).isEqualTo(candidate.getSuggestedCode());
+                    assertThat(item.getCommonCodePatterns()).contains("半开区间");
+                });
     }
 
     @Test
