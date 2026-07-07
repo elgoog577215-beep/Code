@@ -7,7 +7,7 @@ public record SearchLocationResult(
         boolean enabled,
         String status,
         String embeddingStatus,
-        String fallbackReason,
+        String failureReason,
         int candidateCount,
         int selectedCount,
         SearchLocationCandidatePack candidatePack,
@@ -19,7 +19,7 @@ public record SearchLocationResult(
                 .enabled(false)
                 .status("DISABLED")
                 .embeddingStatus("DISABLED")
-                .fallbackReason("")
+                .failureReason("")
                 .build();
     }
 
@@ -30,7 +30,7 @@ public record SearchLocationResult(
                 .enabled(false)
                 .status("LOCAL_RECALL")
                 .embeddingStatus(embeddingStatus == null || embeddingStatus.isBlank() ? "DISABLED" : embeddingStatus)
-                .fallbackReason("")
+                .failureReason("")
                 .candidateCount(candidatePack == null ? 0 : candidatePack.getCandidateCount())
                 .selectedCount(0)
                 .candidatePack(candidatePack)
@@ -38,13 +38,13 @@ public record SearchLocationResult(
                 .build();
     }
 
-    public static SearchLocationResult fallback(String status, String embeddingStatus, String reason,
-                                                SearchLocationCandidatePack candidatePack) {
+    public static SearchLocationResult failed(String status, String embeddingStatus, String reason,
+                                              SearchLocationCandidatePack candidatePack) {
         return SearchLocationResult.builder()
                 .enabled(true)
-                .status(status == null || status.isBlank() ? "FALLBACK_USED" : status)
+                .status(status == null || status.isBlank() ? "FAILED" : status)
                 .embeddingStatus(embeddingStatus == null || embeddingStatus.isBlank() ? "UNKNOWN" : embeddingStatus)
-                .fallbackReason(reason == null ? "" : reason)
+                .failureReason(reason == null ? "" : reason)
                 .candidateCount(candidatePack == null ? 0 : candidatePack.getCandidateCount())
                 .candidatePack(candidatePack)
                 .build();

@@ -40,7 +40,7 @@ class CoachPromptServiceTest {
             new DiagnosisReportReader(objectMapper, taxonomy),
             taxonomy,
             new DiagnosisEvidencePackageReader(objectMapper),
-            new CoachAgentService(objectMapper, taxonomy),
+            new ModelStubCoachAgentService(objectMapper, taxonomy),
             objectMapper
     );
 
@@ -72,13 +72,13 @@ class CoachPromptServiceTest {
         assertThat(response.getQuestion()).contains("n=1");
         assertThat(response.getQuestion()).doesNotContain("完整代码");
         assertThat(response.getHintPolicy()).isEqualTo("L2");
-        assertThat(response.getPromptType()).isEqualTo("SOCRATIC_NEXT_STEP");
+        assertThat(response.getPromptType()).isEqualTo("SOCRATIC_NEXT_STEP_MODEL");
         assertThat(response.getEvidenceRefs()).contains("submission:11", "tag:OFF_BY_ONE", "code:plus_minus_one");
         assertThat(response.getAdaptiveStrategySignal()).isNotNull();
         assertThat(response.getAdaptiveStrategySignal().getStrategy()).isEqualTo("REDUCE_GRANULARITY");
         assertThat(response.getAdaptiveStrategySignal().getEvidenceRefs()).contains("coach-strategy:REDUCE_GRANULARITY");
         assertThat(response.getContextSummary()).contains("最近多次出现细分卡点");
-        assertThat(response.getRationale()).contains("最近学习轨迹");
+        assertThat(response.getRationale()).contains("最近多次出现细分卡点");
         assertThat(response.getTurnIndex()).isEqualTo(1);
         assertThat(promptRepository.saved).hasSize(1);
     }
@@ -223,7 +223,7 @@ class CoachPromptServiceTest {
 
         assertThat(first.getTurnIndex()).isEqualTo(1);
         assertThat(next.getTurnIndex()).isEqualTo(2);
-        assertThat(next.getPromptType()).isEqualTo("SOCRATIC_FOLLOW_UP");
+        assertThat(next.getPromptType()).isEqualTo("SOCRATIC_FOLLOW_UP_MODEL");
         assertThat(next.getQuestion()).contains("最小修改").doesNotContain("完整代码");
         assertThat(next.getAdaptiveStrategySignal()).isNotNull();
         assertThat(next.getAdaptiveStrategySignal().getStrategy()).isEqualTo("VERIFY_MINIMAL_CHANGE");
@@ -292,8 +292,8 @@ class CoachPromptServiceTest {
 
         CoachPromptResponse response = service.generateNextQuestion(18L);
 
-        assertThat(response.getQuestion()).isEqualTo("请先构造最小失败样例。");
-        assertThat(response.getPromptType()).isEqualTo("SOCRATIC_NEXT_STEP");
+        assertThat(response.getQuestion()).contains("AI 追问暂不可用");
+        assertThat(response.getPromptType()).isEqualTo("SOCRATIC_NEXT_STEP_AI_UNAVAILABLE");
         assertThat(response.getModelFailureReason()).isEqualTo("SAFETY_REJECTED");
         assertThat(response.getModelAnswerLeakRisk()).isEqualTo("HIGH");
         assertThat(promptRepository.saved).hasSize(1);
@@ -369,15 +369,64 @@ class CoachPromptServiceTest {
                                                   String primaryTag,
                                                   Assignment.HintPolicy hintPolicy,
                                                   String contextSummary,
-                                                  List<String> evidenceRefs,
-                                                  CoachDraft fallback) {
-            CoachDraft draft = fallback == null ? CoachDraft.fallback("请先构造最小失败样例。") : fallback;
-            draft.setQuestion("请先构造最小失败样例。");
-            draft.setAnswerLeakRisk("LOW");
+                                                  List<String> evidenceRefs) {
+            CoachDraft draft = CoachDraft.unavailable("SAFETY_REJECTED");
             draft.setModelAnswerLeakRisk("HIGH");
-            draft.setFailureReason("SAFETY_REJECTED");
-            draft.setSource("RULE");
             return draft;
+        }
+    }
+
+    private static class ModelStubCoachAgentService extends CoachAgentService {
+        private ModelStubCoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy diagnosisTaxonomy) {
+            super(objectMapper, diagnosisTaxonomy);
+        }
+
+        @Override
+        public CoachDraft generateInitialQuestion(Submission submission,
+                                                  SubmissionAnalysis analysis,
+                                                  String primaryTag,
+                                                  Assignment.HintPolicy hintPolicy,
+                                                  String contextSummary,
+                                                  List<String> evidenceRefs) {
+            String question = submission != null && submission.getVerdict() == Submission.Verdict.ACCEPTED
+                    ? "请说明复杂度，并补一个和样例不同的测试来验证泛化能力。"
+                    : "请先构造最小失败样例，并手推 n=1 的循环变量变化。";
+            return modelDraft(question, contextSummary, evidenceRefs);
+        }
+
+        @Override
+        public CoachDraft generateFollowUpQuestion(Submission submission,
+                                                   SubmissionAnalysis analysis,
+                                                   String primaryTag,
+                                                   Assignment.HintPolicy hintPolicy,
+                                                   String contextSummary,
+                                                   List<String> evidenceRefs,
+                                                   String studentAnswer,
+                                                   Integer currentTurnIndex) {
+            String normalized = studentAnswer == null ? "" : studentAnswer;
+            String question;
+            if (normalized.contains("完整代码") || normalized.contains("直接改成")) {
+                question = "请只描述一个会暴露问题的输入特征，不要直接说完整代码。";
+            } else if (normalized.contains("最大") || normalized.contains("复杂度")) {
+                question = "请只做一个最小修改，并预测下一次评测现象。";
+            } else {
+                question = "请写出一个最小 n 值，并列出循环第一次和最后一次取值。";
+            }
+            return modelDraft(question, contextSummary, evidenceRefs);
+        }
+
+        private CoachDraft modelDraft(String question, String contextSummary, List<String> evidenceRefs) {
+            return CoachDraft.builder()
+                    .question(question)
+                    .rationale(contextSummary != null && contextSummary.contains("降低提示粒度")
+                            ? "降低提示粒度，要求学生补充证据。"
+                            : "模型基于上下文生成追问。")
+                    .evidenceRefs(evidenceRefs == null ? List.of() : evidenceRefs)
+                    .confidence(0.82)
+                    .answerLeakRisk("LOW")
+                    .modelAnswerLeakRisk("LOW")
+                    .source("MODEL")
+                    .build();
         }
     }
 

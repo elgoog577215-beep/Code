@@ -120,7 +120,7 @@ public class CoachInteractionAnalyzer {
                 .rejectionCount(rejected.size())
                 .latestReason(latestRejected.getModelFailureReason())
                 .latestAnswerLeakRisk(latestRejected.getModelAnswerLeakRisk())
-                .summary("Coach 模型追问有 " + rejected.size() + " 次被安全门拒绝，系统已回退到规则追问。")
+                .summary("Coach 模型追问有 " + rejected.size() + " 次被安全门拒绝，系统已返回 AI 追问不可用。")
                 .recommendedAction("复核该提交的 Coach 上下文和 prompt 策略，把风险样本沉淀为 Coach 安全评测。")
                 .needsTeacherAttention(true)
                 .evidenceRefs(coachSafetyEvidenceRefs(submissionId, rejected))

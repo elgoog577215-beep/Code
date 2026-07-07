@@ -96,7 +96,7 @@ public class SearchLocationPackSelector {
                 .searchLocationSummary(StandardLibraryPack.SearchLocationSummary.builder()
                         .status("SUCCESS")
                         .embeddingStatus(candidatePack == null ? "UNKNOWN" : candidatePack.getEmbeddingStatus())
-                        .fallbackReason("")
+                        .failureReason("")
                         .candidateCount(candidatePack == null ? 0 : candidatePack.getCandidateCount())
                         .selectedCount(selectedIds.size())
                         .uncertainty(output == null ? "" : output.getUncertainty())

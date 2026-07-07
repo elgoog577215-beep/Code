@@ -68,12 +68,7 @@ public class CoachPromptService {
                 primaryTag,
                 hintPolicy,
                 learningContext.summary(),
-                evidenceRefs,
-                ruleDraft(
-                        buildQuestion(submission, primaryTag, hintPolicy, learningContext.adaptiveStrategySignal()),
-                        buildRationale(primaryTag, learningContext),
-                        evidenceRefs
-                )
+                evidenceRefs
         );
         CoachPrompt prompt = coachPromptRepository.save(CoachPrompt.builder()
                 .assignmentId(submission.getAssignmentId())
@@ -132,12 +127,7 @@ public class CoachPromptService {
                 learningContext.summary(),
                 evidenceRefs,
                 answer,
-                current.getTurnIndex(),
-                ruleDraft(
-                        buildFollowUpQuestion(primaryTag, answer, current.getTurnIndex(), hintPolicy, learningContext.adaptiveStrategySignal()),
-                        "基于学生上一轮回答继续追问，要求学生补充证据或自测，不直接给出改法。 " + learningContext.summary(),
-                        evidenceRefs
-                )
+                current.getTurnIndex()
         );
         CoachPrompt next = coachPromptRepository.save(CoachPrompt.builder()
                 .assignmentId(submission.getAssignmentId())
@@ -157,37 +147,37 @@ public class CoachPromptService {
         return responseWithTurns(next);
     }
 
-    private CoachAgentService.CoachDraft ruleDraft(String question, String rationale, List<String> evidenceRefs) {
-        return CoachAgentService.CoachDraft.builder()
-                .question(question)
-                .rationale(rationale)
-                .evidenceRefs(evidenceRefs == null ? List.of() : evidenceRefs)
-                .confidence(1.0)
-                .answerLeakRisk("LOW")
-                .source("RULE")
-                .build();
-    }
-
     private String promptType(String baseType, CoachAgentService.CoachDraft draft) {
-        return "MODEL".equals(draft.getSource()) ? baseType + "_MODEL" : baseType;
+        if ("MODEL".equals(draft.getSource())) {
+            return baseType + "_MODEL";
+        }
+        if ("AI_UNAVAILABLE".equals(draft.getSource())) {
+            return baseType + "_AI_UNAVAILABLE";
+        }
+        return baseType;
     }
 
     private String buildDraftRationale(CoachAgentService.CoachDraft draft, LearningContext learningContext) {
         String rationale = draft.getRationale() == null || draft.getRationale().isBlank()
                 ? "基于证据生成追问。"
                 : draft.getRationale();
-        String source = "MODEL".equals(draft.getSource()) ? "模型追问" : "规则追问";
+        String source = "MODEL".equals(draft.getSource())
+                ? "模型追问"
+                : "AI_UNAVAILABLE".equals(draft.getSource()) ? "AI 追问不可用" : "追问";
         String confidence = draft.getConfidence() == null ? "" : " 置信度：" + draft.getConfidence();
         String risk = draft.getAnswerLeakRisk() == null ? "" : " 泄题风险：" + draft.getAnswerLeakRisk();
         return source + "。" + rationale + confidence + risk
                 + (learningContext.summary().isBlank() ? "" : " " + learningContext.summary());
     }
 
-    private List<String> draftRefs(CoachAgentService.CoachDraft draft, List<String> fallbackRefs) {
-        if (draft.getEvidenceRefs() == null || draft.getEvidenceRefs().isEmpty()) {
-            return fallbackRefs == null ? List.of() : fallbackRefs;
+    private List<String> draftRefs(CoachAgentService.CoachDraft draft, List<String> contextRefs) {
+        if ("AI_UNAVAILABLE".equals(draft.getSource())) {
+            return List.of();
         }
-        return mergeRefs(draft.getEvidenceRefs(), fallbackRefs);
+        if (draft.getEvidenceRefs() == null || draft.getEvidenceRefs().isEmpty()) {
+            return contextRefs == null ? List.of() : contextRefs;
+        }
+        return mergeRefs(draft.getEvidenceRefs(), contextRefs);
     }
 
     private Assignment.HintPolicy resolveHintPolicy(Submission submission) {
@@ -548,11 +538,6 @@ public class CoachPromptService {
         return summary.toString();
     }
 
-    private String buildRationale(String primaryTag, LearningContext learningContext) {
-        return "基于本次诊断标签“" + diagnosisTaxonomy.label(primaryTag) + "”和最近学习轨迹生成，不直接给出改法。"
-                + (learningContext.summary().isBlank() ? "" : " " + learningContext.summary());
-    }
-
     private String verdictName(Submission submission) {
         return submission == null || submission.getVerdict() == null ? "UNKNOWN" : submission.getVerdict().name();
     }
@@ -567,84 +552,6 @@ public class CoachPromptService {
             case "COMPILATION_ERROR" -> "编译错误";
             default -> "待观察";
         };
-    }
-
-    private String buildQuestion(Submission submission,
-                                 String tagId,
-                                 Assignment.HintPolicy hintPolicy,
-                                 CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal) {
-        String tag = tagId == null ? "NEEDS_MORE_EVIDENCE" : tagId.toUpperCase(Locale.ROOT);
-        Assignment.HintPolicy policy = hintPolicy == null ? Assignment.HintPolicy.L2 : hintPolicy;
-        String strategy = adaptiveStrategy(adaptiveStrategySignal);
-        if (submission.getVerdict() == Submission.Verdict.ACCEPTED) {
-            return switch (policy) {
-                case L1, L2 -> "这题已经通过了。你能说出一个最容易漏掉的边界样例，并解释为什么你的代码能处理它吗？";
-                case L3, L4 -> "这题已经通过了。请用自己的话说明算法复杂度，并补一个和样例不同的测试来验证泛化能力。";
-            };
-        }
-        if (STRATEGY_REDUCE_GRANULARITY.equals(strategy)) {
-            return switch (tag) {
-                case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "先把问题缩到一个最小失败样例。请写出循环变量第一次、最后一次分别取什么值，再手推 n=1 或 n=2。";
-                case "OUTPUT_FORMAT_DETAIL", "IO_FORMAT" -> "先把问题缩到一行输出。请对照题面写出你的输出多了或少了哪个字符、空格或换行。";
-                case "INPUT_PARSING" -> "先把问题缩到第一行输入。请逐项写出题面这一行是什么，你的代码这一行读到了什么。";
-                case "BRUTE_FORCE_LIMIT", "TIME_COMPLEXITY", "MAX_BOUNDARY" -> "先把问题缩到最大输入规模。请估算核心循环次数，并写出它为什么会超出时间限制。";
-                case "INITIAL_STATE", "STATE_RESET", "VARIABLE_INITIALIZATION" -> "先把问题缩到一个变量。请写出它第一次赋值、每轮更新、下一组数据开始前的值。";
-                default -> "先把问题缩到一个最小失败样例。请手推输入、关键变量变化和你的程序输出，从第一处不一致开始看。";
-            };
-        }
-        return switch (tag) {
-            case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "先不要改代码。你能列出循环变量第一次、最后一次分别取什么值，并手推 n=1 或 n=2 时会发生什么吗？";
-            case "OUTPUT_FORMAT_DETAIL", "IO_FORMAT" -> "先只看输出格式。你的输出和题面要求相比，多了或少了哪个字符、空格或换行？";
-            case "INPUT_PARSING" -> "先圈出题面每一行输入。你的代码读入顺序和题面描述能一行一行对上吗？";
-            case "BRUTE_FORCE_LIMIT", "TIME_COMPLEXITY", "MAX_BOUNDARY" -> "先估算一下：当 n 取最大值时，你的核心循环大约会执行多少次？这个数量在时间限制内合理吗？";
-            case "INITIAL_STATE", "STATE_RESET", "VARIABLE_INITIALIZATION" -> "先找变量状态。每个关键变量第一次赋值在哪里？如果有多组或多轮处理，它会不会带着上一次的值继续用？";
-            case "SAMPLE_OVERFIT", "SAMPLE_ONLY" -> "先构造一个和样例结构不同的最小输入。你的代码为什么也应该通过它？";
-            case "PARTIAL_FIX_REGRESSION" -> "回看最近一次改动。只保留一个最小修改点时，哪个测试现象发生了变化？";
-            case "RUNTIME_STABILITY" -> "先定位运行稳定性。有没有数组下标、空列表、除零或未初始化变量在某些输入下会出问题？";
-            case "SYNTAX_ERROR" -> "先看第一条编译错误。它指向的符号或缩进，和你原本想表达的结构是否一致？";
-            default -> "先用自己的话复述题意，再写一个最小样例手推。你的代码在哪一步和手推结果开始不一样？";
-        };
-    }
-
-    private String buildFollowUpQuestion(String tagId,
-                                         String answer,
-                                         Integer currentTurnIndex,
-                                         Assignment.HintPolicy hintPolicy,
-                                         CoachPromptResponse.CoachAdaptiveStrategySignal adaptiveStrategySignal) {
-        String normalized = answer == null ? "" : answer.toLowerCase(Locale.ROOT);
-        String tag = tagId == null ? "NEEDS_MORE_EVIDENCE" : tagId.toUpperCase(Locale.ROOT);
-        Assignment.HintPolicy policy = hintPolicy == null ? Assignment.HintPolicy.L2 : hintPolicy;
-        String strategy = adaptiveStrategy(adaptiveStrategySignal);
-        if (STRATEGY_SAFETY_RESET.equals(strategy)) {
-            return "先把注意力从完整写法收回来。你能只描述一个会暴露问题的输入特征或测试现象，而不是直接说改法吗？";
-        }
-        if (STRATEGY_VERIFY_MINIMAL_CHANGE.equals(strategy)) {
-            if (currentTurnIndex != null && currentTurnIndex >= 3) {
-                return "这一轮已经有足够线索了。请先提交一次最小修改，用新的评测结果验证你的判断。";
-            }
-            return "很好，先不要看答案。请根据你刚才的证据，只做一个最小修改，然后预测下一次提交会改变哪个测试现象。";
-        }
-        if (!hasText(answer)) {
-            return "先不用急着改代码。请补一句：你准备用哪个最小样例验证刚才的问题？";
-        }
-        if (mentionsAnswerLikeContent(normalized)) {
-            return "先把注意力从完整写法收回来。你能只描述一个会暴露问题的输入特征，而不是直接说改法吗？";
-        }
-        if (!mentionsEvidence(normalized)) {
-            return switch (tag) {
-                case "OFF_BY_ONE", "LOOP_BOUNDARY" -> "你提到了思路，但还缺少证据。请写出一个最小 n 值，并列出循环第一次和最后一次的取值。";
-                case "INPUT_PARSING", "OUTPUT_FORMAT_DETAIL", "IO_FORMAT" -> "你提到了方向，但还缺少对照。请把题面输入/输出要求和你代码中的读写顺序逐项对齐。";
-                case "TIME_COMPLEXITY", "BRUTE_FORCE_LIMIT", "MAX_BOUNDARY" -> "你提到了复杂度方向，但还缺少数量级。请估算最大输入下核心操作大约执行多少次。";
-                default -> "你已经有一个方向了。请补一个能验证这个方向的最小样例或关键变量变化。";
-            };
-        }
-        if (policy == Assignment.HintPolicy.L1 || policy == Assignment.HintPolicy.L2) {
-            return "很好，先不要看答案。请根据你刚才的证据，只做一个最小修改，然后预测下一次提交会改变哪个测试现象。";
-        }
-        if (currentTurnIndex != null && currentTurnIndex >= 3) {
-            return "这一轮已经有足够线索了。请先提交一次最小修改，用新的评测结果验证你的判断。";
-        }
-        return "你的回答已经包含验证证据。请再补一句：如果这个判断是错的，下一步你会用哪个反例来排除它？";
     }
 
     private String buildCoachFeedback(CoachPrompt prompt, String answer) {
@@ -833,8 +740,8 @@ public class CoachPromptService {
         };
     }
 
-    private String firstText(String first, String fallback) {
-        return first == null || first.isBlank() ? fallback : first;
+    private String firstText(String first, String defaultValue) {
+        return first == null || first.isBlank() ? defaultValue : first;
     }
 
     private int nextTurnIndex(Long submissionId) {

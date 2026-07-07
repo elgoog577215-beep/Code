@@ -1729,7 +1729,7 @@ class ClassroomServiceCorrectionTest {
                             "coach prompt #50101",
                             "risk source " + PromptSafetyIncidentAnalyzer.SOURCE_COACH_SAFETY_RISK
                     );
-                    assertThat(draft.getQuality().getExpectedStudentMove()).contains("安全的规则追问");
+                    assertThat(draft.getQuality().getExpectedStudentMove()).contains("AI 追问不可用");
                     assertThat(draft.getQuality().getEvalPurpose()).contains("Coach 模型安全拒绝");
                 });
     }

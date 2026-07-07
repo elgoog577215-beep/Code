@@ -444,8 +444,8 @@ public class SubmissionAnalysisService {
                         .analysisSchemaVersion("diagnosis-v1")
                         .evidenceSchemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)
                         .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
-                        .status("RULE_BASELINE")
-                        .fallbackUsed(true)
+                        .status("LOCAL_BASELINE")
+                        .fallbackUsed(false)
                         .build())
                 .answerLeakRisk(answerLeakRisk)
                 .wrongSolution(wrongSolution)
@@ -455,7 +455,7 @@ public class SubmissionAnalysisService {
                 .reportMarkdown(reportMarkdown)
                 .build();
         response.setStudentFeedback(new StudentFeedbackAssembler(diagnosisTaxonomy)
-                .assemble(response, null, true));
+                .assemble(response, null, false));
         return response;
     }
 
@@ -1562,11 +1562,11 @@ public class SubmissionAnalysisService {
         return normalized.substring(0, 77) + "...";
     }
 
-    private String firstNonBlank(String primary, String fallback) {
+    private String firstNonBlank(String primary, String defaultValue) {
         if (primary != null && !primary.isBlank()) {
             return primary;
         }
-        return fallback == null ? "" : fallback;
+        return defaultValue == null ? "" : defaultValue;
     }
 
     private boolean hasText(String value) {

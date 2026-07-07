@@ -160,7 +160,7 @@ public class StandardLibraryPack {
     public static class SearchLocationSummary {
         private String status;
         private String embeddingStatus;
-        private String fallbackReason;
+        private String failureReason;
         private Integer candidateCount;
         private Integer selectedCount;
         private String uncertainty;

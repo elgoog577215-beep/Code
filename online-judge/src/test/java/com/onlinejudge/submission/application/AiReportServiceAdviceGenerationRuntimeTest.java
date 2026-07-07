@@ -200,8 +200,8 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
         assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
-        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("FALLBACK_USED");
-        assertThat(analysis.getAiInvocation().getAdviceGenerationFallbackReason()).contains("INVALID_EVIDENCE_REF");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("FAILED");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationFailureReason()).contains("INVALID_EVIDENCE_REF");
         assertThat(analysis.getIssueTags()).isEmpty();
         assertThat(analysis.getFineGrainedTags()).isEmpty();
         assertThat(analysis.getLineIssues()).isEmpty();

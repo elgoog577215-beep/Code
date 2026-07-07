@@ -759,7 +759,7 @@ public class ClassroomService {
                                                       long teacherAttentionCount) {
         return switch (dominantGap) {
             case "SAFETY_RISK" -> coachSafetyRejectionCount > 0
-                    ? "有 " + coachSafetyRejectionCount + " 次 Coach 模型追问被安全门拒绝，已回退为规则追问。"
+                    ? "有 " + coachSafetyRejectionCount + " 次 Coach 模型追问被安全门拒绝，已返回 AI 追问不可用。"
                     : "有 " + Math.max(safetyRiskCount, teacherAttentionCount)
                     + " 个 Coach 回答疑似越过证据层或需要教师关注。";
             case "EVIDENCE_INSUFFICIENT" -> "有 " + evidenceInsufficientCount
@@ -2279,7 +2279,7 @@ public class ClassroomService {
                                 ? sourceLabel + "，需要验证 AI 输出不会泄露答案或完整改法。"
                                 : String.join("；", blockedReasons))
                         .expectedStudentMove(riskSources.contains(PromptSafetyIncidentAnalyzer.SOURCE_COACH_SAFETY_RISK)
-                                ? "学生应只看到安全的规则追问，继续补充最小样例、输出对比或变量证据。"
+                                ? "学生应看到 AI 追问不可用，不应收到本地追问替代内容。"
                                 : "学生应获得证据层下一步，而不是完整代码、直接改法或隐藏测试信息。")
                         .evalPurpose("验证提示安全策略能处理「" + sourceLabel + "」样本，并保持 answerLeakRisk 非 HIGH。")
                         .build())

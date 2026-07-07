@@ -19,7 +19,7 @@ public class SearchLocationCandidatePack {
     private String schemaVersion;
     private String mode;
     private String embeddingStatus;
-    private String fallbackReason;
+    private String failureReason;
     private List<String> recallSources;
     private int totalAvailableCount;
     private int candidateCount;

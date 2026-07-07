@@ -345,11 +345,11 @@ public class SubmissionAnalysisResponse {
         private String searchLocationStatus;
         private Integer searchLocationCandidateCount;
         private Integer searchLocationSelectedCount;
-        private String searchLocationFallbackReason;
+        private String searchLocationFailureReason;
         private List<String> recallSources;
         private String embeddingStatus;
         private String adviceGenerationStatus;
-        private String adviceGenerationFallbackReason;
+        private String adviceGenerationFailureReason;
         private Integer basicAdviceCount;
         private Integer improvementAdviceCount;
         private String advicePromptVersion;

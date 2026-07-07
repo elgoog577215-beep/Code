@@ -108,11 +108,10 @@ public class CoachAgentService {
                                               String primaryTag,
                                               Assignment.HintPolicy hintPolicy,
                                               String contextSummary,
-                                              List<String> evidenceRefs,
-                                              CoachDraft fallback) {
+                                              List<String> evidenceRefs) {
         Map<String, Object> context = baseContext(submission, analysis, primaryTag, hintPolicy, contextSummary, evidenceRefs);
         context.put("turnType", "INITIAL_QUESTION");
-        return generate(context, hintPolicy, evidenceRefs, fallback);
+        return generate(context, hintPolicy, evidenceRefs);
     }
 
     public CoachDraft generateFollowUpQuestion(Submission submission,
@@ -122,45 +121,43 @@ public class CoachAgentService {
                                                String contextSummary,
                                                List<String> evidenceRefs,
                                                String studentAnswer,
-                                               Integer currentTurnIndex,
-                                               CoachDraft fallback) {
+                                               Integer currentTurnIndex) {
         Map<String, Object> context = baseContext(submission, analysis, primaryTag, hintPolicy, contextSummary, evidenceRefs);
         context.put("turnType", "FOLLOW_UP");
         context.put("studentAnswer", studentAnswer == null ? "" : studentAnswer);
         context.put("currentTurnIndex", currentTurnIndex == null ? 0 : currentTurnIndex);
-        return generate(context, hintPolicy, evidenceRefs, fallback);
+        return generate(context, hintPolicy, evidenceRefs);
     }
 
     private CoachDraft generate(Map<String, Object> context,
                                 Assignment.HintPolicy hintPolicy,
-                                List<String> allowedEvidenceRefs,
-                                CoachDraft fallback) {
-        CoachDraft safeFallback = fallback == null ? CoachDraft.fallback("请先补一个最小样例，说明你准备验证什么。") : fallback;
+                                List<String> allowedEvidenceRefs) {
         if (!canCallAi()) {
-            return safeFallback;
+            return CoachDraft.unavailable("AI_UNAVAILABLE");
         }
         ExternalModelBudgetGuard.Decision decision = budgetGuard.check("ModelScope", model);
         if (!decision.allowed()) {
-            safeFallback.setFailureReason(ModelStageFailureReason.BUDGET_GUARD_OPEN.name());
-            return safeFallback;
+            return CoachDraft.unavailable(ModelStageFailureReason.BUDGET_GUARD_OPEN.name());
         }
         try {
             String raw = chatCompletion(systemPrompt(), "请基于以下上下文生成 JSON：" + objectMapper.writeValueAsString(context));
             CoachPayload payload = parsePayload(raw);
-            CoachDraft draft = toDraft(payload, allowedEvidenceRefs, safeFallback);
+            CoachDraft draft = toDraft(payload, allowedEvidenceRefs);
+            if (draft == null) {
+                return CoachDraft.unavailable(ModelStageFailureReason.INVALID_JSON.name());
+            }
             if (!isSafe(draft, hintPolicy, allowedEvidenceRefs)) {
                 log.warn("Coach model draft rejected by safety gate. answerLeakRisk={}, questionPreview={}",
                         draft.getAnswerLeakRisk(),
                         preview(draft.getQuestion()));
-                safeFallback.setFailureReason("SAFETY_REJECTED");
-                safeFallback.setModelAnswerLeakRisk(rejectedModelRisk(draft, allowedEvidenceRefs));
-                return safeFallback;
+                CoachDraft unavailable = CoachDraft.unavailable("SAFETY_REJECTED");
+                unavailable.setModelAnswerLeakRisk(rejectedModelRisk(draft, allowedEvidenceRefs));
+                return unavailable;
             }
             return draft;
         } catch (Exception exception) {
-            log.warn("Coach model generation failed. fallback=rule question. reason={}", exception.getMessage());
-            safeFallback.setFailureReason(classifyFailure(exception));
-            return safeFallback;
+            log.warn("Coach model generation failed. returning unavailable state. reason={}", exception.getMessage());
+            return CoachDraft.unavailable(classifyFailure(exception));
         }
     }
 
@@ -409,10 +406,9 @@ public class CoachAgentService {
     }
 
     private CoachDraft toDraft(CoachPayload payload,
-                               List<String> allowedEvidenceRefs,
-                               CoachDraft fallback) {
+                               List<String> allowedEvidenceRefs) {
         if (payload == null || payload.question == null || payload.question.isBlank()) {
-            return fallback;
+            return null;
         }
         return CoachDraft.builder()
                 .question(cleanup(payload.question))
@@ -550,16 +546,16 @@ public class CoachAgentService {
         private String source;
         private String failureReason;
 
-        public static CoachDraft fallback(String question) {
+        public static CoachDraft unavailable(String reason) {
             return CoachDraft.builder()
-                    .question(question)
-                    .rationale("规则追问回退。")
+                    .question("AI 追问暂不可用，请稍后再试。")
+                    .rationale("外部模型未完成，本次未使用本地追问替代。")
                     .evidenceRefs(List.of())
-                    .confidence(1.0)
-                    .answerLeakRisk("LOW")
+                    .confidence(0.0)
+                    .answerLeakRisk("UNKNOWN")
                     .modelAnswerLeakRisk("")
-                    .source("RULE")
-                    .failureReason("")
+                    .source("AI_UNAVAILABLE")
+                    .failureReason(reason == null ? "" : reason)
                     .build();
         }
     }

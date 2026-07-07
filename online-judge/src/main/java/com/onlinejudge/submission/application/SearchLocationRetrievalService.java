@@ -65,7 +65,7 @@ public class SearchLocationRetrievalService {
                 .schemaVersion(SearchLocationCandidatePack.SCHEMA_VERSION)
                 .mode(normalizeMode())
                 .embeddingStatus(embeddingStatus)
-                .fallbackReason(queryEmbedding.failureReason())
+                .failureReason(queryEmbedding.failureReason())
                 .recallSources(recallSources)
                 .totalAvailableCount(items.size())
                 .candidateCount(ranked.size())

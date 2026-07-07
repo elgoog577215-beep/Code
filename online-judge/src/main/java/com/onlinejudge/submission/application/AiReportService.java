@@ -208,17 +208,17 @@ public class AiReportService {
 
     public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                 Submission submission,
-                                                                SubmissionAnalysisResponse fallback) {
-        return enhanceSubmissionAnalysis(problem, submission, fallback, null);
+                                                                SubmissionAnalysisResponse baseline) {
+        return enhanceSubmissionAnalysis(problem, submission, baseline, null);
     }
 
     public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                 Submission submission,
-                                                                SubmissionAnalysisResponse fallback,
+                                                                SubmissionAnalysisResponse baseline,
                                                                 DiagnosisEvidencePackage evidencePackage) {
         if (!canCallAi()) {
             log.info("AI submission analysis skipped because AI access is unavailable. submissionId={}", submission.getId());
-            return runtimeFailure(fallback, aiUnavailableFailure("SUBMISSION_ANALYSIS"));
+            return runtimeFailure(baseline, aiUnavailableFailure("SUBMISSION_ANALYSIS"));
         }
 
         try {
@@ -227,13 +227,13 @@ public class AiReportService {
                     submission.getProblemId(),
                     submission.getLanguageName());
             String rawSourceCode = submission.getSourceCode() == null ? "" : submission.getSourceCode();
-            List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues = fallback == null || fallback.getLineIssues() == null
+            List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues = baseline == null || baseline.getLineIssues() == null
                     ? List.of()
-                    : fallback.getLineIssues();
+                    : baseline.getLineIssues();
             if (shouldUseExternalRuntime(evidencePackage)) {
                 return enhanceWithExternalRuntime(
                         submission,
-                        fallback,
+                        baseline,
                         evidencePackage,
                         rawSourceCode,
                         baselineLineIssues
@@ -241,7 +241,7 @@ public class AiReportService {
             }
             log.info("AI submission analysis skipped because new runtime context is incomplete. submissionId={}",
                     submission.getId());
-            return runtimeFailure(fallback, stageFailure(
+            return runtimeFailure(baseline, stageFailure(
                     "SUBMISSION_ANALYSIS",
                     ModelStageFailureReason.UNKNOWN_ERROR,
                     "External model runtime context is incomplete."
@@ -252,9 +252,9 @@ public class AiReportService {
                 Thread.currentThread().interrupt();
             }
             if (shouldUseExternalRuntime(evidencePackage)) {
-                return runtimeFailure(fallback, stageFailureFromException("SUBMISSION_ANALYSIS", exception));
+                return runtimeFailure(baseline, stageFailureFromException("SUBMISSION_ANALYSIS", exception));
             }
-            return runtimeFailure(fallback, stageFailureFromException("SUBMISSION_ANALYSIS", exception));
+            return runtimeFailure(baseline, stageFailureFromException("SUBMISSION_ANALYSIS", exception));
         }
     }
 
@@ -293,7 +293,7 @@ public class AiReportService {
                     11. 如果运行错误信息里出现行号，基础层必须回到 submission.sourceCodeWithLineNumbers 中核对对应代码行；不要把“代码很长、helper 太多、需要精简”当作主因，除非它直接导致该行异常。
                     12. 如果异常是 IndexError/list index out of range，基础层必须围绕“下标访问范围”和“容器长度”解释，不要只给代码整理建议。
                     13. 如果基础层是下标越界，提高层优先写边界样例、循环边界、数组长度核对等迁移能力；不要把“精简代码/删除 helper”作为唯一提高层。
-                    14. knowledgePath 是父子关系路径，不是独立标签；使用 3-5 段中文知识树路径，例如 ["程序基础","数组/列表","下标访问","越界检查"]；不确定时可以留空，由后端兜底。
+                    14. knowledgePath 是父子关系路径，不是独立标签；使用 3-5 段中文知识树路径，例如 ["程序基础","数组/列表","下标访问","越界检查"]；不确定时可以留空，后端只做结构校验。
                     15. standardLibrary 是教学参考规范包，不是强制答案；先自由诊断真实问题，再逐条对齐标准库。能精确命中就填写对应 ID，半命中写 PARTIAL，不匹配写 MISS 或 OUT_OF_LIBRARY 并允许 ID 留空。
                     16. 如果 standardLibrary 中有 primaryKnowledgeNodeCode，knowledgePath 优先沿“主知识点 -> 能力点 -> 易错点/提升点”生成；relatedKnowledgeNodeCodes 只作辅助区分，不要拆成多个独立标签或独立错误。
                     17. 如果 judgeFacts 暴露多个不同失败现象，逐个核对是否来自不同根因；不要只解释第一个能说通的现象就停止。
@@ -328,20 +328,20 @@ public class AiReportService {
     }
 
     private SubmissionAnalysisResponse enhanceWithExternalRuntime(Submission submission,
-                                                                  SubmissionAnalysisResponse fallback,
+                                                                  SubmissionAnalysisResponse baseline,
                                                                   DiagnosisEvidencePackage evidencePackage,
                                                                   String rawSourceCode,
                                                                   List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues)
             throws JsonProcessingException, IOException, InterruptedException {
         ExternalModelAgentRuntime.RuntimePlan runtimePlan = externalModelAgentRuntime.prepare(
                 evidencePackage,
-                fallback,
+                baseline,
                 teacherDiagnosisRuntimeProfile()
         );
         runtimePlan = applySearchLocationIfAvailable(runtimePlan);
         return enhanceWithAdviceGenerationRuntime(
                 submission,
-                fallback,
+                baseline,
                 runtimePlan,
                 rawSourceCode,
                 baselineLineIssues
@@ -393,7 +393,7 @@ public class AiReportService {
                 .enabled(false)
                 .status("LOCAL_RECALL")
                 .embeddingStatus(candidatePack.getEmbeddingStatus())
-                .fallbackReason("")
+                .failureReason("")
                 .candidateCount(candidatePack.getCandidateCount())
                 .selectedCount(selectedCount(localOutput))
                 .candidatePack(candidatePack)
@@ -406,7 +406,7 @@ public class AiReportService {
 
     private SubmissionAnalysisResponse enhanceWithAdviceGenerationRuntime(
             Submission submission,
-            SubmissionAnalysisResponse fallback,
+            SubmissionAnalysisResponse baseline,
             ExternalModelAgentRuntime.RuntimePlan runtimePlan,
             String rawSourceCode,
             List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues)
@@ -418,11 +418,11 @@ public class AiReportService {
         } catch (Exception exception) {
             ExternalModelStagePayloads.StageValidationResult failure =
                     stageFailureFromException("DIAGNOSIS_AND_ADVICE", exception);
-            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
-                    adviceFallbackReason(failure),
+            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.failed(
+                    adviceFailureReason(failure),
                     promptVersion
             ));
-            return runtimeFailure(fallback, runtimePlan, failure);
+            return runtimeFailure(baseline, runtimePlan, failure);
         }
         adviceOutput = externalModelAgentRuntime.normalizeAdviceGeneration(adviceOutput, runtimePlan);
 
@@ -450,15 +450,15 @@ public class AiReportService {
         }
         if (!adviceValidation.isValid()) {
             adviceValidation = withTransportAttribution(adviceValidation);
-            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
-                    adviceFallbackReason(adviceValidation),
+            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.failed(
+                    adviceFailureReason(adviceValidation),
                     promptVersion
             ));
             log.warn("External model advice generation failed validation. submissionId={}, reason={}, message={}",
                     submission.getId(),
                     adviceValidation.getFailureReason(),
                     adviceValidation.getMessage());
-            return runtimeFailure(fallback, runtimePlan, adviceValidation);
+            return runtimeFailure(baseline, runtimePlan, adviceValidation);
         }
 
         persistStandardLibraryGrowthCandidates(adviceOutput, submission);
@@ -472,15 +472,15 @@ public class AiReportService {
                         externalModelAgentRuntime.validateStudentFeedback(studentFeedback, runtimePlan));
         if (!feedbackValidation.isValid()) {
             feedbackValidation = withTransportAttribution(feedbackValidation);
-            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.fallback(
-                    adviceFallbackReason(feedbackValidation),
+            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.failed(
+                    adviceFailureReason(feedbackValidation),
                     promptVersion
             ));
-            return runtimeFailure(fallback, runtimePlan, feedbackValidation);
+            return runtimeFailure(baseline, runtimePlan, feedbackValidation);
         }
 
         SubmissionAnalysisResponse response = buildAdviceRuntimeAnalysisResponse(
-                fallback,
+                baseline,
                 runtimePlan,
                 adviceOutput,
                 studentFeedback,
@@ -731,8 +731,8 @@ public class AiReportService {
                 runtimePlan.setSearchLocationResult(SearchLocationResult.disabled());
                 return runtimePlan;
             }
-            runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
-                    "FALLBACK_USED",
+            runtimePlan.setSearchLocationResult(SearchLocationResult.failed(
+                    "FAILED",
                     "UNAVAILABLE",
                     "SEARCH_LOCATION_SERVICES_UNAVAILABLE",
                     null
@@ -751,8 +751,8 @@ public class AiReportService {
                     ));
                     return runtimePlan;
                 }
-                runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
-                        "FALLBACK_USED",
+                runtimePlan.setSearchLocationResult(SearchLocationResult.failed(
+                        "FAILED",
                         candidatePack.getEmbeddingStatus(),
                         "NO_SEARCH_LOCATION_CANDIDATES",
                         candidatePack
@@ -770,7 +770,7 @@ public class AiReportService {
                         .enabled(false)
                         .status("LOCAL_RECALL")
                         .embeddingStatus(candidatePack.getEmbeddingStatus())
-                        .fallbackReason("")
+                        .failureReason("")
                         .candidateCount(candidatePack.getCandidateCount())
                         .selectedCount(selectedCount(localOutput))
                         .candidatePack(candidatePack)
@@ -784,8 +784,8 @@ public class AiReportService {
             if (searchLocationProperties.isRequireVector()
                     && candidatePack.getEmbeddingStatus() != null
                     && !"READY".equalsIgnoreCase(candidatePack.getEmbeddingStatus())) {
-                runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
-                        "FALLBACK_USED",
+                runtimePlan.setSearchLocationResult(SearchLocationResult.failed(
+                        "FAILED",
                         candidatePack.getEmbeddingStatus(),
                         "VECTOR_REQUIRED_BUT_UNAVAILABLE",
                         candidatePack
@@ -797,8 +797,8 @@ public class AiReportService {
             ExternalModelStagePayloads.StageValidationResult validation =
                     searchLocationOutputValidator.validate(output, candidatePack, runtimePlan.getBrief());
             if (validation == null || !validation.isValid()) {
-                runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
-                        "FALLBACK_USED",
+                runtimePlan.setSearchLocationResult(SearchLocationResult.failed(
+                        "FAILED",
                         candidatePack.getEmbeddingStatus(),
                         validation == null ? "SEARCH_LOCATION_INVALID" : validation.getMessage(),
                         candidatePack
@@ -814,7 +814,7 @@ public class AiReportService {
                     .enabled(true)
                     .status("SUCCESS")
                     .embeddingStatus(candidatePack.getEmbeddingStatus())
-                    .fallbackReason("")
+                    .failureReason("")
                     .candidateCount(candidatePack.getCandidateCount())
                     .selectedCount(selectedCount(output))
                     .candidatePack(candidatePack)
@@ -825,8 +825,8 @@ public class AiReportService {
             runtimePlan.setStandardLibraryPack(selectedPack);
             return runtimePlan;
         } catch (Exception exception) {
-            runtimePlan.setSearchLocationResult(SearchLocationResult.fallback(
-                    "FALLBACK_USED",
+            runtimePlan.setSearchLocationResult(SearchLocationResult.failed(
+                    "FAILED",
                     candidatePack == null ? "UNKNOWN" : candidatePack.getEmbeddingStatus(),
                     "SEARCH_LOCATION_EXCEPTION:" + exception.getClass().getSimpleName(),
                     candidatePack
@@ -926,7 +926,7 @@ public class AiReportService {
                 || cleaned.contains("\"nextStepPlan\"");
     }
 
-    private String adviceFallbackReason(ExternalModelStagePayloads.StageValidationResult failure) {
+    private String adviceFailureReason(ExternalModelStagePayloads.StageValidationResult failure) {
         if (failure == null) {
             return "UNKNOWN_ERROR";
         }
@@ -992,10 +992,9 @@ public class AiReportService {
     }
 
     private String buildAdviceReportMarkdown(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-                                             AdviceGenerationOutput output,
-                                             String fallbackMarkdown) {
+                                             AdviceGenerationOutput output) {
         if (output == null) {
-            return fallbackMarkdown;
+            return "";
         }
         StringBuilder builder = new StringBuilder();
         builder.append("## AI 完整诊断与建议\n\n");
@@ -1063,7 +1062,7 @@ public class AiReportService {
             appendMarkdownLine(builder, "精选数量", summary.getSelectedCount() == null ? "" : summary.getSelectedCount().toString());
         }
         String markdown = builder.toString().trim();
-        return markdown.isBlank() ? fallbackMarkdown : markdown;
+        return markdown;
     }
 
     private void appendStudentReportSection(StringBuilder builder, String title, String value) {
@@ -1083,22 +1082,22 @@ public class AiReportService {
     }
 
     private SubmissionAnalysisResponse buildAdviceRuntimeAnalysisResponse(
-            SubmissionAnalysisResponse fallback,
+            SubmissionAnalysisResponse baseline,
             ExternalModelAgentRuntime.RuntimePlan runtimePlan,
             AdviceGenerationOutput adviceOutput,
             SubmissionAnalysisResponse.StudentFeedback studentFeedback,
             String rawSourceCode,
             List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues) {
-        List<String> evidenceRefs = adviceEvidenceRefs(adviceOutput, null);
+        List<String> evidenceRefs = adviceEvidenceRefs(adviceOutput);
         SubmissionAnalysisResponse.NextLearningAction nextAction =
                 studentFeedback == null ? null : studentFeedback.getNextLearningAction();
         return SubmissionAnalysisResponse.builder()
-                .submissionId(fallback.getSubmissionId())
-                .analysisSchemaVersion(fallback.getAnalysisSchemaVersion())
-                .evidenceSchemaVersion(fallback.getEvidenceSchemaVersion())
-                .taxonomyVersion(fallback.getTaxonomyVersion())
+                .submissionId(baseline.getSubmissionId())
+                .analysisSchemaVersion(baseline.getAnalysisSchemaVersion())
+                .evidenceSchemaVersion(baseline.getEvidenceSchemaVersion())
+                .taxonomyVersion(baseline.getTaxonomyVersion())
                 .sourceType(AI_SOURCE)
-                .scenario(fallback.getScenario())
+                .scenario(baseline.getScenario())
                 .headline("AI 完整诊断已完成")
                 .summary(defaultIfBlank(adviceOutput == null ? "" : adviceOutput.getStudentSummary(), "AI 已完成本次诊断。"))
                 .issueTags(List.of())
@@ -1109,9 +1108,9 @@ public class AiReportService {
                 .evidenceRefs(evidenceRefs)
                 .studentHint(defaultIfBlank(nextAction == null ? "" : nextAction.getTask(),
                         firstAdviceAction(adviceOutput, "先复核模型指出的证据。")))
-                .studentHintPlan(buildAdviceHintPlan(adviceOutput, studentFeedback, fallback))
+                .studentHintPlan(buildAdviceHintPlan(adviceOutput, studentFeedback))
                 .studentFeedback(studentFeedback)
-                .learningInterventionPlan(buildAdviceInterventionPlan(studentFeedback, fallback))
+                .learningInterventionPlan(buildAdviceInterventionPlan(studentFeedback))
                 .learningActionEvidence(null)
                 .teacherNote(adviceTeacherNote(adviceOutput))
                 .progressSignal("")
@@ -1124,19 +1123,19 @@ public class AiReportService {
                 .caseUnderstanding(toResponseCaseUnderstanding(adviceOutput == null ? null : adviceOutput.getCaseUnderstanding()))
                 .basicLayerAdvice(toResponseBasicLayerAdvice(adviceOutput == null ? null : adviceOutput.getBasicLayerAdvice()))
                 .improvementLayerAdvice(toResponseImprovementLayerAdvice(adviceOutput == null ? null : adviceOutput.getImprovementLayerAdvice()))
-                .aiInvocation(modelInvocation(fallback, "MODEL_COMPLETED", false, runtimePromptVersion(runtimePlan), runtimePlan))
+                .aiInvocation(modelInvocation(baseline, "MODEL_COMPLETED", runtimePromptVersion(runtimePlan), runtimePlan, null))
                 .answerLeakRisk(resolveAnswerLeakRisk(nextAction == null ? "" : nextAction.getAnswerLeakRisk(),
                         "LOW"))
                 .wrongSolution(null)
                 .correctSolution(null)
                 .lineIssues(List.of())
-                .firstFailedCase(fallback.getFirstFailedCase())
-                .reportMarkdown(buildAdviceReportMarkdown(runtimePlan, adviceOutput, ""))
-                .generatedAt(fallback.getGeneratedAt())
+                .firstFailedCase(baseline.getFirstFailedCase())
+                .reportMarkdown(buildAdviceReportMarkdown(runtimePlan, adviceOutput))
+                .generatedAt(baseline.getGeneratedAt())
                 .build();
     }
 
-    private List<String> adviceEvidenceRefs(AdviceGenerationOutput output, SubmissionAnalysisResponse fallback) {
+    private List<String> adviceEvidenceRefs(AdviceGenerationOutput output) {
         List<String> refs = new ArrayList<>();
         if (output != null && output.getCaseUnderstanding() != null) {
             addIfNotBlank(refs, output.getCaseUnderstanding().getPrimaryEvidenceRef());
@@ -1187,7 +1186,7 @@ public class AiReportService {
         return directions.stream().distinct().limit(5).toList();
     }
 
-    private String firstAdviceAction(AdviceGenerationOutput output, String fallback) {
+    private String firstAdviceAction(AdviceGenerationOutput output, String defaultAction) {
         if (output != null && output.getNextStepPlan() != null) {
             String target = output.getNextStepPlan().stream()
                     .filter(item -> item != null)
@@ -1212,19 +1211,18 @@ public class AiReportService {
                 return action;
             }
         }
-        return fallback;
+        return defaultAction;
     }
 
     private SubmissionAnalysisResponse.StudentHintPlan buildAdviceHintPlan(
             AdviceGenerationOutput output,
-            SubmissionAnalysisResponse.StudentFeedback studentFeedback,
-            SubmissionAnalysisResponse fallback) {
+            SubmissionAnalysisResponse.StudentFeedback studentFeedback) {
         SubmissionAnalysisResponse.NextLearningAction nextAction =
                 studentFeedback == null ? null : studentFeedback.getNextLearningAction();
         if (nextAction == null) {
             return null;
         }
-        List<String> evidenceRefs = cleanList(nextAction.getEvidenceRefs(), adviceEvidenceRefs(output, null));
+        List<String> evidenceRefs = cleanList(nextAction.getEvidenceRefs(), adviceEvidenceRefs(output));
         return SubmissionAnalysisResponse.StudentHintPlan.builder()
                 .hintLevel(defaultIfBlank(nextAction.getHintLevel(), "L2"))
                 .problemType("AI 完整诊断")
@@ -1238,8 +1236,7 @@ public class AiReportService {
     }
 
     private SubmissionAnalysisResponse.LearningInterventionPlan buildAdviceInterventionPlan(
-            SubmissionAnalysisResponse.StudentFeedback studentFeedback,
-            SubmissionAnalysisResponse fallback) {
+            SubmissionAnalysisResponse.StudentFeedback studentFeedback) {
         SubmissionAnalysisResponse.NextLearningAction nextAction =
                 studentFeedback == null ? null : studentFeedback.getNextLearningAction();
         if (nextAction == null) {
@@ -1287,7 +1284,7 @@ public class AiReportService {
                 .source("adviceGeneration")
                 .primaryIssueTag(firstBasic == null ? "" : cleanupAiText(firstBasic.getSkillUnitId()).toUpperCase())
                 .fineGrainedTag(firstBasic == null ? "" : cleanupAiText(firstBasic.getMistakePointId()).toUpperCase())
-                .evidenceRefs(adviceEvidenceRefs(output, null))
+                .evidenceRefs(adviceEvidenceRefs(output))
                 .primaryReasoning(firstBasic == null ? "" : cleanupAiText(firstBasic.getWhatHappened()))
                 .secondaryIssues(List.of())
                 .distractorNotes(List.of())
@@ -1384,15 +1381,15 @@ public class AiReportService {
         return "（失败阶段：" + stage + "；失败原因：" + reason + "）";
     }
 
-    private SubmissionAnalysisResponse runtimeFailure(SubmissionAnalysisResponse fallback,
+    private SubmissionAnalysisResponse runtimeFailure(SubmissionAnalysisResponse baseline,
                                                       ExternalModelStagePayloads.StageValidationResult validationResult) {
-        return runtimeFailure(fallback, null, validationResult);
+        return runtimeFailure(baseline, null, validationResult);
     }
 
-    private SubmissionAnalysisResponse runtimeFailure(SubmissionAnalysisResponse fallback,
+    private SubmissionAnalysisResponse runtimeFailure(SubmissionAnalysisResponse baseline,
                                                       ExternalModelAgentRuntime.RuntimePlan runtimePlan,
                                                       ExternalModelStagePayloads.StageValidationResult validationResult) {
-        if (fallback == null) {
+        if (baseline == null) {
             return null;
         }
         ExternalModelStagePayloads.StageValidationResult attributionResult =
@@ -1407,12 +1404,12 @@ public class AiReportService {
         String uncertainty = "外部模型未完成，本次未使用本地规则兜底。失败阶段：" + stage + "；失败原因：" + reason
                 + (message.isBlank() ? "" : "，" + message);
         return SubmissionAnalysisResponse.builder()
-                .submissionId(fallback.getSubmissionId())
-                .analysisSchemaVersion(fallback.getAnalysisSchemaVersion())
-                .evidenceSchemaVersion(fallback.getEvidenceSchemaVersion())
-                .taxonomyVersion(fallback.getTaxonomyVersion())
+                .submissionId(baseline.getSubmissionId())
+                .analysisSchemaVersion(baseline.getAnalysisSchemaVersion())
+                .evidenceSchemaVersion(baseline.getEvidenceSchemaVersion())
+                .taxonomyVersion(baseline.getTaxonomyVersion())
                 .sourceType(AI_SOURCE)
-                .scenario(fallback.getScenario())
+                .scenario(baseline.getScenario())
                 .headline("AI 诊断暂不可用")
                 .summary("本次没有生成 AI 诊断，请稍后重试或先查看原始评测结果。")
                 .issueTags(List.of())
@@ -1436,18 +1433,17 @@ public class AiReportService {
                 .basicLayerAdvice(List.of())
                 .improvementLayerAdvice(List.of())
                 .aiInvocation(modelInvocation(
-                        fallback,
+                        baseline,
                         "MODEL_FAILED",
-                        false,
                         runtimePromptVersion(runtimePlan),
                         runtimePlan,
                         attributionResult
                 ))
-                .answerLeakRisk(defaultIfBlank(fallback.getAnswerLeakRisk(), "LOW"))
+                .answerLeakRisk(defaultIfBlank(baseline.getAnswerLeakRisk(), "LOW"))
                 .wrongSolution(null)
                 .correctSolution(null)
                 .lineIssues(List.of())
-                .firstFailedCase(fallback.getFirstFailedCase())
+                .firstFailedCase(baseline.getFirstFailedCase())
                 .reportMarkdown("")
                 .build();
     }
@@ -1531,15 +1527,14 @@ public class AiReportService {
     }
 
     public String enhanceGrowthReportMarkdown(Problem problem,
-                                              List<Map<String, Object>> submissionTimeline,
-                                              String fallbackMarkdown) {
+                                              List<Map<String, Object>> submissionTimeline) {
         if (!canCallAi()) {
-            log.info("AI growth report skipped because AI access is unavailable. problemId={}", problem.getId());
-            return fallbackMarkdown;
+            log.info("AI growth report unavailable because AI access is unavailable. problemId={}", problem.getId());
+            return growthReportUnavailableMarkdown(problem, aiUnavailableFailure("GROWTH_REPORT"));
         }
         ExternalModelBudgetGuard.Decision decision = budgetGuard.check(PROVIDER, model);
         if (!decision.allowed()) {
-            return appendGrowthReportFailureMarker(fallbackMarkdown, ExternalModelStagePayloads.StageValidationResult.builder()
+            return growthReportUnavailableMarkdown(problem, ExternalModelStagePayloads.StageValidationResult.builder()
                     .valid(false)
                     .stage("GROWTH_REPORT")
                     .failureReason(ModelStageFailureReason.BUDGET_GUARD_OPEN)
@@ -1553,7 +1548,6 @@ public class AiReportService {
             context.put("problemDescription", problem.getDescription());
             context.put("aiPromptDirection", problem.getAiPromptDirection() == null ? "" : problem.getAiPromptDirection());
             context.put("submissionTimeline", submissionTimeline);
-            context.put("fallbackMarkdown", fallbackMarkdown);
 
             String content = chatCompletion(
                     """
@@ -1572,17 +1566,24 @@ public class AiReportService {
             );
 
             String markdown = cleanupAiText(content);
-            return markdown.isBlank() ? fallbackMarkdown : markdown;
+            return markdown.isBlank()
+                    ? growthReportUnavailableMarkdown(problem, stageFailure("GROWTH_REPORT", ModelStageFailureReason.INVALID_JSON,
+                    "AI growth report response is blank."))
+                    : markdown;
         } catch (Exception exception) {
             log.error("AI growth report generation failed. problemId={}", problem.getId(), exception);
-            return appendGrowthReportFailureMarker(fallbackMarkdown, stageFailureFromException("GROWTH_REPORT", exception));
+            return growthReportUnavailableMarkdown(problem, stageFailureFromException("GROWTH_REPORT", exception));
         }
     }
 
-    private String appendGrowthReportFailureMarker(String fallbackMarkdown,
+    private String growthReportUnavailableMarkdown(Problem problem,
                                                    ExternalModelStagePayloads.StageValidationResult failure) {
-        String base = fallbackMarkdown == null ? "" : fallbackMarkdown;
-        return base + "\n\n<!-- AI_FAILURE:" + failureSummary(failure) + " -->";
+        String title = problem == null || problem.getTitle() == null || problem.getTitle().isBlank()
+                ? "AI 成长报告"
+                : "AI 成长报告 - " + cleanupAiText(problem.getTitle());
+        return "# " + title + " 暂不可用\n\n"
+                + "外部模型未完成，本次未使用本地报告兜底。请在 AI smoke 通过或模型额度恢复后重新生成。\n\n"
+                + "<!-- AI_FAILURE:" + failureSummary(failure) + " -->";
     }
 
     private boolean canCallAi() {
@@ -1988,8 +1989,8 @@ public class AiReportService {
         return normalized.substring(0, 317) + "...";
     }
 
-    private List<String> cleanList(List<String> candidate, List<String> fallback) {
-        List<String> source = candidate == null || candidate.isEmpty() ? fallback : candidate;
+    private List<String> cleanList(List<String> candidate, List<String> defaultValues) {
+        List<String> source = candidate == null || candidate.isEmpty() ? defaultValues : candidate;
         if (source == null || source.isEmpty()) {
             return List.of();
         }
@@ -2092,62 +2093,31 @@ public class AiReportService {
         return normalized.trim();
     }
 
-    private String defaultIfBlank(String candidate, String fallback) {
+    private String defaultIfBlank(String candidate, String defaultValue) {
         String normalized = cleanupAiText(candidate);
         if (normalized.isBlank()) {
-            return fallback;
+            return defaultValue;
         }
         return normalized;
     }
 
-    private Double resolveConfidence(Double candidate, Double fallback) {
+    private Double resolveConfidence(Double candidate, Double defaultValue) {
         if (candidate == null || candidate.isNaN() || candidate < 0 || candidate > 1) {
-            return fallback;
+            return defaultValue;
         }
         return candidate;
     }
 
-    private String resolveAnswerLeakRisk(String candidate, String fallback) {
+    private String resolveAnswerLeakRisk(String candidate, String defaultRisk) {
         String normalized = cleanupAiText(candidate).toUpperCase();
         if ("LOW".equals(normalized) || "MEDIUM".equals(normalized) || "HIGH".equals(normalized)) {
             return normalized;
         }
-        return fallback == null || fallback.isBlank() ? "UNKNOWN" : fallback;
+        return defaultRisk == null || defaultRisk.isBlank() ? "UNKNOWN" : defaultRisk;
     }
 
-    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
+    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse baseline,
                                                                     String status,
-                                                                    boolean fallbackUsed) {
-        return modelInvocation(fallback, status, fallbackUsed, PROMPT_VERSION);
-    }
-
-    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
-                                                                    String status,
-                                                                    boolean fallbackUsed,
-                                                                    String promptVersion) {
-        return modelInvocation(fallback, status, fallbackUsed, promptVersion,
-                (ExternalModelAgentRuntime.RuntimePlan) null);
-    }
-
-    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
-                                                                    String status,
-                                                                    boolean fallbackUsed,
-                                                                    String promptVersion,
-                                                                    ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        return modelInvocation(fallback, status, fallbackUsed, promptVersion, runtimePlan, null);
-    }
-
-    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
-                                                                    String status,
-                                                                    boolean fallbackUsed,
-                                                                    String promptVersion,
-                                                                    ExternalModelStagePayloads.StageValidationResult failure) {
-        return modelInvocation(fallback, status, fallbackUsed, promptVersion, null, failure);
-    }
-
-    private SubmissionAnalysisResponse.AiInvocation modelInvocation(SubmissionAnalysisResponse fallback,
-                                                                    String status,
-                                                                    boolean fallbackUsed,
                                                                     String promptVersion,
                                                                     ExternalModelAgentRuntime.RuntimePlan runtimePlan,
                                                                     ExternalModelStagePayloads.StageValidationResult failure) {
@@ -2158,14 +2128,14 @@ public class AiReportService {
                 .model(model)
                 .modelVersion(model)
                 .promptVersion(promptVersion)
-                .agentVersion(fallback == null || fallback.getAiInvocation() == null
+                .agentVersion(baseline == null || baseline.getAiInvocation() == null
                         ? null
-                        : fallback.getAiInvocation().getAgentVersion())
-                .analysisSchemaVersion(fallback == null ? "diagnosis-v1" : fallback.getAnalysisSchemaVersion())
-                .evidenceSchemaVersion(fallback == null ? DiagnosisEvidencePackage.SCHEMA_VERSION : fallback.getEvidenceSchemaVersion())
-                .taxonomyVersion(fallback == null ? null : fallback.getTaxonomyVersion())
+                        : baseline.getAiInvocation().getAgentVersion())
+                .analysisSchemaVersion(baseline == null ? "diagnosis-v1" : baseline.getAnalysisSchemaVersion())
+                .evidenceSchemaVersion(baseline == null ? DiagnosisEvidencePackage.SCHEMA_VERSION : baseline.getEvidenceSchemaVersion())
+                .taxonomyVersion(baseline == null ? null : baseline.getTaxonomyVersion())
                 .status(status)
-                .fallbackUsed(fallbackUsed)
+                .fallbackUsed(false)
                 .runtimeMode(runtimeModeForPrompt(promptVersion))
                 .runtimeProfile(defaultIfBlank(telemetry.runtimeProfile(),
                         ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD))
@@ -2186,11 +2156,11 @@ public class AiReportService {
                 .searchLocationStatus(searchLocation(runtimePlan).status())
                 .searchLocationCandidateCount(searchLocation(runtimePlan).candidateCount())
                 .searchLocationSelectedCount(searchLocation(runtimePlan).selectedCount())
-                .searchLocationFallbackReason(searchLocation(runtimePlan).fallbackReason())
+                .searchLocationFailureReason(searchLocation(runtimePlan).failureReason())
                 .recallSources(recallSources(runtimePlan))
                 .embeddingStatus(searchLocation(runtimePlan).embeddingStatus())
                 .adviceGenerationStatus(adviceGeneration(runtimePlan).status())
-                .adviceGenerationFallbackReason(adviceGeneration(runtimePlan).fallbackReason())
+                .adviceGenerationFailureReason(adviceGeneration(runtimePlan).failureReason())
                 .basicAdviceCount(adviceGeneration(runtimePlan).basicAdviceCount())
                 .improvementAdviceCount(adviceGeneration(runtimePlan).improvementAdviceCount())
                 .advicePromptVersion(adviceGeneration(runtimePlan).promptVersion())

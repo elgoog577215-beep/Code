@@ -292,7 +292,6 @@ class AssistantLiveEvalTest {
                                                         String model,
                                                         long startedAt) {
         Assignment.HintPolicy policy = parseHintPolicy(fixture.coach().hintPolicy());
-        CoachAgentService.CoachDraft fallback = CoachAgentService.CoachDraft.fallback("fixture fallback");
         CoachAgentService.CoachDraft draft;
         if ("FOLLOW_UP".equals(fixture.coach().turnType())) {
             draft = service.generateFollowUpQuestion(
@@ -303,8 +302,7 @@ class AssistantLiveEvalTest {
                     fixture.coach().contextSummary(),
                     fixture.coach().evidenceRefs(),
                     fixture.coach().studentAnswer(),
-                    1,
-                    fallback
+                    1
             );
         } else {
             draft = service.generateInitialQuestion(
@@ -313,8 +311,7 @@ class AssistantLiveEvalTest {
                     fixture.coach().primaryTag(),
                     policy,
                     fixture.coach().contextSummary(),
-                    fixture.coach().evidenceRefs(),
-                    fallback
+                    fixture.coach().evidenceRefs()
             );
         }
         boolean fallbackUsed = !"MODEL".equals(draft.getSource());
@@ -352,12 +349,12 @@ class AssistantLiveEvalTest {
                                                                long startedAt) {
         String markdown = service.enhanceGrowthReportMarkdown(
                 fixture.growthReport().toProblem(),
-                fixture.growthReport().timeline(),
-                fixture.growthReport().fallbackMarkdown()
+                fixture.growthReport().timeline()
         );
         String visibleMarkdown = stripGrowthReportFailureMarker(markdown);
         boolean fallbackUsed = visibleMarkdown.isBlank()
-                || visibleMarkdown.equals(safe(fixture.growthReport().fallbackMarkdown()).trim());
+                || visibleMarkdown.contains("暂不可用")
+                || safe(markdown).contains("<!-- AI_FAILURE:");
         boolean signalHit = containsAny(visibleMarkdown, fixture.rubric().expectedSignals());
         boolean evidenceValid = fixture.growthReport().timeline().stream()
                 .map(item -> String.valueOf(item.getOrDefault("submissionId", "")))
@@ -375,7 +372,7 @@ class AssistantLiveEvalTest {
                 .safetyTrigger(resolveSafetyTrigger("", visibleMarkdown, fixture.rubric().forbiddenPhrases()))
                 .failureStage(fallbackUsed ? "GROWTH_REPORT" : "NONE")
                 .failureReason(resolveFailureReason(fallbackUsed, false, null,
-                        extractGrowthReportFailureReason(markdown, fixture.growthReport().fallbackMarkdown()),
+                        extractGrowthReportFailureReason(markdown),
                         signalHit, safetyPassed, Boolean.TRUE.equals(signalHit)))
                 .outputSummary(truncate(visibleMarkdown, 260))
                 .outputDetail(truncate(visibleMarkdown, 900))
@@ -872,10 +869,9 @@ class AssistantLiveEvalTest {
         return "";
     }
 
-    private String extractGrowthReportFailureReason(String markdown, String fallbackMarkdown) {
+    private String extractGrowthReportFailureReason(String markdown) {
         String text = safe(markdown);
-        String fallback = safe(fallbackMarkdown);
-        if (text.isBlank() || !text.equals(fallback)) {
+        if (text.isBlank()) {
             return "";
         }
         String marker = "<!-- AI_FAILURE:";

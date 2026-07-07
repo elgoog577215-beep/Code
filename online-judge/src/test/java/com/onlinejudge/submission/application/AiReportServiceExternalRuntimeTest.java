@@ -99,7 +99,7 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
         assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
         assertThat(analysis.getAiInvocation().getFailureReason()).contains("INVALID_EVIDENCE_REF");
-        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("FALLBACK_USED");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("FAILED");
         assertThat(analysis.getIssueTags()).isEmpty();
         assertThat(analysis.getFineGrainedTags()).isEmpty();
         assertThat(analysis.getLineIssues()).isEmpty();
@@ -134,9 +134,9 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getIssueTags()).isEmpty();
         assertThat(service.callCount()).isEqualTo(1);
 
-        String markdown = service.enhanceGrowthReportMarkdown(problem(), List.of(), "# 成长报告");
+        String markdown = service.enhanceGrowthReportMarkdown(problem(), List.of());
 
-        assertThat(markdown).contains("BUDGET_GUARD_OPEN");
+        assertThat(markdown).contains("AI 成长报告", "暂不可用", "BUDGET_GUARD_OPEN", "未使用本地报告兜底");
         assertThat(service.callCount()).isEqualTo(1);
     }
 

@@ -54,13 +54,13 @@
 - **THEN** 安全校验 SHALL 返回 `SAFETY_RISK`
 
 ### Requirement: 结构化建议数量应在后处理和展示中保真
-系统 SHALL 将模型返回的 `repairItems` 与 `improvementItems` 作为学生可见逐条反馈的主数据源；后端后处理和前端展示 MUST 保留证据有效的多条结构化建议，不得因兜底、摘要或主项展示把多条结果整体压缩为一条。
+系统 SHALL 将模型返回的 `repairItems` 与 `improvementItems` 作为学生可见逐条反馈的主数据源；后端后处理和前端展示 MUST 保留证据有效的多条结构化建议，不得因摘要或主项展示把多条结果整体压缩为一条。
 
 #### Scenario: 后处理保留多条结构化建议
 - **WHEN** 模型返回多条互不重复且未触发安全风险的修正项或提升项
-- **THEN** normalizer、运行时证据兜底和提高层校正 SHALL 保留这些有效条目
-- **AND** 仅替换、删除或补充被判定为不可信、跑偏或重复的条目
-- **AND** 系统 MUST NOT 使用单个兜底条目整体覆盖有效的多条模型输出
+- **THEN** normalizer 和提高层校正 SHALL 保留这些有效条目
+- **AND** 仅删除或标记被判定为不可信、跑偏、重复或证据无效的条目
+- **AND** 系统 MUST NOT 生成单个本地兜底条目整体覆盖有效的多条模型输出
 
 #### Scenario: 学生端展示不重复第一条建议
 - **WHEN** 学生反馈同时包含 `studentReport` 摘要和逐条 `repairItems` 或 `improvementItems`

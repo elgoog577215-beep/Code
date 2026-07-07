@@ -90,7 +90,7 @@ class SearchLocationRetrievalServiceTest {
         SearchLocationCandidatePack pack = service.retrieve(brief());
 
         assertThat(pack.getEmbeddingStatus()).isEqualTo("VECTOR_DEGRADED:EMBEDDING_HTTP_429");
-        assertThat(pack.getFallbackReason()).isEqualTo("EMBEDDING_HTTP_429");
+        assertThat(pack.getFailureReason()).isEqualTo("EMBEDDING_HTTP_429");
         assertThat(pack.getCandidates()).isNotEmpty();
         assertThat(pack.getCandidates().get(0).getId()).isEqualTo("MP_RANGE_RIGHT_ENDPOINT_MISSING");
     }

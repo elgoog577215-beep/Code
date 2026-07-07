@@ -5,7 +5,6 @@ import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.application.AiReportService;
 import com.onlinejudge.submission.application.SubmissionAnalysisService;
-import com.onlinejudge.submission.application.SubmissionComparisonService;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.dto.SubmissionResponse;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
@@ -26,10 +25,8 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -40,7 +37,6 @@ public class GrowthReportService {
     private final ProblemRepository problemRepository;
     private final SubmissionRepository submissionRepository;
     private final SubmissionAnalysisService submissionAnalysisService;
-    private final SubmissionComparisonService submissionComparisonService;
     private final AiReportService aiReportService;
 
     public GrowthReportResponse buildGrowthReport(Long problemId) {
@@ -60,8 +56,7 @@ public class GrowthReportService {
                 .filter(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED)
                 .count();
 
-        String fallbackMarkdown = buildFallbackMarkdown(problem, submissions, acceptedCount);
-        String markdown = aiReportService.enhanceGrowthReportMarkdown(problem, buildAiTimeline(submissions), fallbackMarkdown);
+        String markdown = aiReportService.enhanceGrowthReportMarkdown(problem, buildAiTimeline(submissions));
 
         return GrowthReportResponse.builder()
                 .problemId(problem.getId())
@@ -92,103 +87,6 @@ public class GrowthReportService {
                 .submittedAt(submission.getSubmittedAt())
                 .summary(submission.getAnalysis() == null ? "" : submission.getAnalysis().getSummary())
                 .build();
-    }
-
-    private String buildFallbackMarkdown(Problem problem, List<SubmissionResponse> submissions, int acceptedCount) {
-        StringBuilder markdown = new StringBuilder();
-        markdown.append("# 题目成长报告 - ").append(problem.getTitle()).append("\n\n");
-        markdown.append("## 总览\n");
-        markdown.append("- 提交次数：").append(submissions.size()).append("\n");
-        markdown.append("- 通过次数：").append(acceptedCount).append("\n");
-        markdown.append("- 当前状态：").append(submissions.isEmpty()
-                ? "暂无提交"
-                : submissionAnalysisService.formatVerdict(submissions.get(submissions.size() - 1).getVerdict())).append("\n");
-
-        SubmissionResponse firstAccepted = submissions.stream()
-                .filter(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED)
-                .findFirst()
-                .orElse(null);
-        if (firstAccepted != null) {
-            markdown.append("- 首次通过时间：").append(formatTime(firstAccepted.getSubmittedAt())).append("\n");
-        }
-        markdown.append("\n");
-
-        markdown.append("## 提交轨迹\n");
-        if (submissions.isEmpty()) {
-            markdown.append("- 还没有提交记录，可以先完成第一次作答。\n\n");
-        } else {
-            submissions.forEach(submission -> markdown.append("- [#")
-                    .append(submission.getId())
-                    .append("] ")
-                    .append(formatTime(submission.getSubmittedAt()))
-                    .append(" | ")
-                    .append(submissionAnalysisService.formatVerdict(submission.getVerdict()))
-                    .append(" | ")
-                    .append(submission.getAnalysis() == null ? "暂无分析摘要" : submission.getAnalysis().getSummary())
-                    .append("\n"));
-            markdown.append("\n");
-        }
-
-        markdown.append("## 错误复盘\n");
-        List<SubmissionResponse> failedSubmissions = submissions.stream()
-                .filter(submission -> submission.getVerdict() != Submission.Verdict.ACCEPTED)
-                .toList();
-        if (failedSubmissions.isEmpty()) {
-            markdown.append("- 没有出现失败提交，整体完成质量较高。\n\n");
-        } else {
-            failedSubmissions.forEach(submission -> markdown.append("- [#")
-                    .append(submission.getId())
-                    .append("] ")
-                    .append(submissionAnalysisService.formatVerdict(submission.getVerdict()))
-                    .append("：")
-                    .append(submission.getAnalysis() == null ? "暂无复盘信息" : submission.getAnalysis().getHeadline())
-                    .append("\n"));
-            markdown.append("\n");
-        }
-
-        markdown.append("## 优化历程\n");
-        List<String> progressSteps = buildProgressSteps(submissions);
-        if (progressSteps.isEmpty()) {
-            markdown.append("- 当前还没有形成连续迭代轨迹。\n\n");
-        } else {
-            progressSteps.forEach(step -> markdown.append("- ").append(step).append("\n"));
-            markdown.append("\n");
-        }
-
-        markdown.append("## 学习总结\n");
-        List<String> learningPoints = buildLearningPoints(submissions);
-        if (learningPoints.isEmpty()) {
-            markdown.append("- 暂无学习总结，后续提交后会自动生成。\n");
-        } else {
-            learningPoints.forEach(point -> markdown.append("- ").append(point).append("\n"));
-        }
-        return markdown.toString();
-    }
-
-    private List<String> buildProgressSteps(List<SubmissionResponse> submissions) {
-        List<String> steps = new ArrayList<>();
-        for (int index = 1; index < submissions.size(); index++) {
-            SubmissionResponse previous = submissions.get(index - 1);
-            SubmissionResponse current = submissions.get(index);
-            steps.add(submissionComparisonService.compare(previous.getId(), current.getId()).getProgressSummary());
-        }
-        return steps;
-    }
-
-    private List<String> buildLearningPoints(List<SubmissionResponse> submissions) {
-        Set<String> points = new LinkedHashSet<>();
-        for (SubmissionResponse submission : submissions) {
-            if (submission.getAnalysis() == null) {
-                continue;
-            }
-            if (submission.getAnalysis().getFocusPoints() != null) {
-                points.addAll(submission.getAnalysis().getFocusPoints());
-            }
-            if (submission.getAnalysis().getFixDirections() != null) {
-                points.addAll(submission.getAnalysis().getFixDirections());
-            }
-        }
-        return new ArrayList<>(points);
     }
 
     private List<Map<String, Object>> buildAiTimeline(List<SubmissionResponse> submissions) {
@@ -360,4 +258,3 @@ public class GrowthReportService {
         };
     }
 }
-

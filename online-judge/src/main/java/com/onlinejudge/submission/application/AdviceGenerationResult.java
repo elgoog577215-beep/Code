@@ -6,7 +6,7 @@ import lombok.Builder;
 public record AdviceGenerationResult(
         boolean enabled,
         String status,
-        String fallbackReason,
+        String failureReason,
         int basicAdviceCount,
         int improvementAdviceCount,
         String promptVersion,
@@ -16,16 +16,16 @@ public record AdviceGenerationResult(
         return AdviceGenerationResult.builder()
                 .enabled(false)
                 .status("DISABLED")
-                .fallbackReason("")
+                .failureReason("")
                 .promptVersion("")
                 .build();
     }
 
-    public static AdviceGenerationResult fallback(String reason, String promptVersion) {
+    public static AdviceGenerationResult failed(String reason, String promptVersion) {
         return AdviceGenerationResult.builder()
                 .enabled(true)
-                .status("FALLBACK_USED")
-                .fallbackReason(reason == null ? "" : reason)
+                .status("FAILED")
+                .failureReason(reason == null ? "" : reason)
                 .promptVersion(promptVersion == null ? "" : promptVersion)
                 .build();
     }
@@ -34,7 +34,7 @@ public record AdviceGenerationResult(
         return AdviceGenerationResult.builder()
                 .enabled(true)
                 .status("SUCCESS")
-                .fallbackReason("")
+                .failureReason("")
                 .basicAdviceCount(output == null || output.getBasicLayerAdvice() == null
                         ? 0
                         : output.getBasicLayerAdvice().size())

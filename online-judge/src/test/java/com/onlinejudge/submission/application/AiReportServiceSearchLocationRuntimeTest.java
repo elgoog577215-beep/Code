@@ -48,14 +48,14 @@ class AiReportServiceSearchLocationRuntimeTest {
         assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("SUCCESS");
         assertThat(analysis.getAiInvocation().getSearchLocationCandidateCount()).isEqualTo(3);
         assertThat(analysis.getAiInvocation().getSearchLocationSelectedCount()).isEqualTo(2);
-        assertThat(analysis.getAiInvocation().getSearchLocationFallbackReason()).isEmpty();
+        assertThat(analysis.getAiInvocation().getSearchLocationFailureReason()).isEmpty();
         assertThat(analysis.getAiInvocation().getEmbeddingStatus()).isEqualTo("DISABLED");
         assertThat(analysis.getIssueTags()).isEmpty();
         assertThat(analysis.getStudentFeedback().getSummary()).contains("循环边界");
     }
 
     @Test
-    void searchLocationInvalidOutputFallsBackToOldPackAndContinuesDiagnosis() {
+    void searchLocationInvalidOutputMarksFailedAndContinuesDiagnosis() {
         StubAiReportService service = newService(
                 """
                 {
@@ -85,8 +85,8 @@ class AiReportServiceSearchLocationRuntimeTest {
 
         assertThat(service.callCount()).isEqualTo(2);
         assertThat(analysis.getAiInvocation().getSearchLocationEnabled()).isTrue();
-        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("FALLBACK_USED");
-        assertThat(analysis.getAiInvocation().getSearchLocationFallbackReason()).contains("not in candidate pack");
+        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("FAILED");
+        assertThat(analysis.getAiInvocation().getSearchLocationFailureReason()).contains("not in candidate pack");
         assertThat(analysis.getAiInvocation().getSearchLocationCandidateCount()).isEqualTo(3);
         assertThat(analysis.getAiInvocation().getSearchLocationSelectedCount()).isEqualTo(0);
         assertThat(analysis.getIssueTags()).isEmpty();

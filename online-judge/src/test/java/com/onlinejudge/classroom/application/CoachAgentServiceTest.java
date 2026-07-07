@@ -107,8 +107,8 @@ class CoachAgentServiceTest {
 
             CoachAgentService.CoachDraft draft = generateForSafetyFixture(service, fixture);
 
-            assertThat(draft.getSource()).as(fixture.name()).isEqualTo("RULE");
-            assertThat(draft.getQuestion()).as(fixture.name()).isEqualTo(fixture.requiredFallbackQuestion());
+            assertThat(draft.getSource()).as(fixture.name()).isEqualTo("AI_UNAVAILABLE");
+            assertThat(draft.getQuestion()).as(fixture.name()).contains("AI 追问暂不可用");
             assertThat(draft.getFailureReason()).as(fixture.name()).isEqualTo(fixture.expectedFailureReason());
             assertThat(riskWeight(draft.getModelAnswerLeakRisk()))
                     .as(fixture.name() + " model answer leak risk")
@@ -135,8 +135,9 @@ class CoachAgentServiceTest {
 
         CoachAgentService.CoachDraft draft = generateForFixture(service, fixture);
 
-        assertThat(draft.getSource()).isEqualTo("RULE");
-        assertThat(draft.getQuestion()).isEqualTo("fixture fallback");
+        assertThat(draft.getSource()).isEqualTo("AI_UNAVAILABLE");
+        assertThat(draft.getQuestion()).contains("AI 追问暂不可用");
+        assertThat(draft.getFailureReason()).isEqualTo("SAFETY_REJECTED");
     }
 
     @Test
@@ -158,8 +159,7 @@ class CoachAgentServiceTest {
                 "OFF_BY_ONE",
                 Assignment.HintPolicy.L2,
                 "上下文",
-                List.of("submission:11", "tag:OFF_BY_ONE"),
-                CoachAgentService.CoachDraft.fallback("规则问题")
+                List.of("submission:11", "tag:OFF_BY_ONE")
         );
 
         assertThat(draft.getSource()).isEqualTo("MODEL");
@@ -186,8 +186,7 @@ class CoachAgentServiceTest {
                 "DP_STATE_DESIGN",
                 Assignment.HintPolicy.L2,
                 "学生把 dp 状态直接写成数组，但没有说明含义。",
-                List.of("submission:11", "tag:DP_STATE_DESIGN"),
-                CoachAgentService.CoachDraft.fallback("规则问题")
+                List.of("submission:11", "tag:DP_STATE_DESIGN")
         );
 
         assertThat(draft.getSource()).isEqualTo("MODEL");
@@ -204,7 +203,7 @@ class CoachAgentServiceTest {
     }
 
     @Test
-    void rejectsLeakyModelDraftAndFallsBack() {
+    void rejectsLeakyModelDraftAndReturnsUnavailable() {
         StubCoachAgentService service = new StubCoachAgentService(objectMapper, taxonomy, """
                 {
                   "question": "答案如下，直接改成完整代码即可。",
@@ -222,18 +221,17 @@ class CoachAgentServiceTest {
                 "OFF_BY_ONE",
                 Assignment.HintPolicy.L2,
                 "上下文",
-                List.of("submission:11"),
-                CoachAgentService.CoachDraft.fallback("规则问题")
+                List.of("submission:11")
         );
 
-        assertThat(draft.getSource()).isEqualTo("RULE");
-        assertThat(draft.getQuestion()).isEqualTo("规则问题");
+        assertThat(draft.getSource()).isEqualTo("AI_UNAVAILABLE");
+        assertThat(draft.getQuestion()).contains("AI 追问暂不可用");
         assertThat(draft.getFailureReason()).isEqualTo("SAFETY_REJECTED");
         assertThat(draft.getModelAnswerLeakRisk()).isEqualTo("HIGH");
     }
 
     @Test
-    void fallsBackWhenModelIsUnavailable() {
+    void returnsUnavailableWhenModelIsUnavailable() {
         CoachAgentService service = new CoachAgentService(objectMapper, taxonomy);
 
         CoachAgentService.CoachDraft draft = service.generateFollowUpQuestion(
@@ -244,16 +242,15 @@ class CoachAgentServiceTest {
                 "上下文",
                 List.of("submission:11"),
                 "我会手推 n=1",
-                1,
-                CoachAgentService.CoachDraft.fallback("规则追问")
+                1
         );
 
-        assertThat(draft.getSource()).isEqualTo("RULE");
-        assertThat(draft.getQuestion()).isEqualTo("规则追问");
+        assertThat(draft.getSource()).isEqualTo("AI_UNAVAILABLE");
+        assertThat(draft.getQuestion()).contains("AI 追问暂不可用");
     }
 
     @Test
-    void fallbackKeepsModelFailureReasonForEvalReports() {
+    void unavailableKeepsModelFailureReasonForEvalReports() {
         StubCoachAgentService service = new StubCoachAgentService(
                 objectMapper,
                 taxonomy,
@@ -267,11 +264,10 @@ class CoachAgentServiceTest {
                 "OFF_BY_ONE",
                 Assignment.HintPolicy.L2,
                 "上下文",
-                List.of("submission:11"),
-                CoachAgentService.CoachDraft.fallback("规则追问")
+                List.of("submission:11")
         );
 
-        assertThat(draft.getSource()).isEqualTo("RULE");
+        assertThat(draft.getSource()).isEqualTo("AI_UNAVAILABLE");
         assertThat(draft.getFailureReason()).isEqualTo("INSUFFICIENT_QUOTA");
     }
 
@@ -302,11 +298,10 @@ class CoachAgentServiceTest {
                 "OFF_BY_ONE",
                 Assignment.HintPolicy.L2,
                 "上下文",
-                List.of("submission:11"),
-                CoachAgentService.CoachDraft.fallback("规则追问")
+                List.of("submission:11")
         );
 
-        assertThat(draft.getSource()).isEqualTo("RULE");
+        assertThat(draft.getSource()).isEqualTo("AI_UNAVAILABLE");
         assertThat(draft.getFailureReason()).isEqualTo("BUDGET_GUARD_OPEN");
         assertThat(service.callCount()).isZero();
     }
@@ -374,7 +369,6 @@ class CoachAgentServiceTest {
 
     private CoachAgentService.CoachDraft generateForFixture(CoachAgentService service,
                                                             CoachEvalFixtureLoader.Fixture fixture) {
-        CoachAgentService.CoachDraft fallback = CoachAgentService.CoachDraft.fallback("fixture fallback");
         if ("FOLLOW_UP".equals(fixture.turnType())) {
             return service.generateFollowUpQuestion(
                     fixture.toSubmission(),
@@ -384,8 +378,7 @@ class CoachAgentServiceTest {
                     fixture.contextSummary(),
                     fixture.evidenceRefs(),
                     fixture.studentAnswer(),
-                    1,
-                    fallback
+                    1
             );
         }
         return service.generateInitialQuestion(
@@ -394,14 +387,12 @@ class CoachAgentServiceTest {
                 fixture.primaryTag(),
                 fixture.toHintPolicy(),
                 fixture.contextSummary(),
-                fixture.evidenceRefs(),
-                fallback
+                fixture.evidenceRefs()
         );
     }
 
     private CoachAgentService.CoachDraft generateForSafetyFixture(CoachAgentService service,
                                                                   CoachEvalFixtureLoader.SafetyRejectionFixture fixture) {
-        CoachAgentService.CoachDraft fallback = CoachAgentService.CoachDraft.fallback(fixture.requiredFallbackQuestion());
         if ("FOLLOW_UP".equals(fixture.turnType())) {
             return service.generateFollowUpQuestion(
                     fixture.toSubmission(),
@@ -411,8 +402,7 @@ class CoachAgentServiceTest {
                     fixture.contextSummary(),
                     fixture.evidenceRefs(),
                     fixture.studentAnswer(),
-                    1,
-                    fallback
+                    1
             );
         }
         return service.generateInitialQuestion(
@@ -421,8 +411,7 @@ class CoachAgentServiceTest {
                 fixture.primaryTag(),
                 fixture.toHintPolicy(),
                 fixture.contextSummary(),
-                fixture.evidenceRefs(),
-                fallback
+                fixture.evidenceRefs()
         );
     }
 
