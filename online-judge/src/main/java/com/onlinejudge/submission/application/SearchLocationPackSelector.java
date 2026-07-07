@@ -1,10 +1,12 @@
 package com.onlinejudge.submission.application;
 
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
+import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -12,14 +14,29 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Component
-@RequiredArgsConstructor
 public class SearchLocationPackSelector {
 
     private final AiStandardLibraryService standardLibraryService;
     private final DiagnosisTaxonomy diagnosisTaxonomy;
+    private final InformaticsKnowledgeNodeRepository knowledgeRepository;
+
+    @Autowired
+    public SearchLocationPackSelector(AiStandardLibraryService standardLibraryService,
+                                      DiagnosisTaxonomy diagnosisTaxonomy,
+                                      InformaticsKnowledgeNodeRepository knowledgeRepository) {
+        this.standardLibraryService = standardLibraryService;
+        this.diagnosisTaxonomy = diagnosisTaxonomy;
+        this.knowledgeRepository = knowledgeRepository;
+    }
+
+    public SearchLocationPackSelector(AiStandardLibraryService standardLibraryService,
+                                      DiagnosisTaxonomy diagnosisTaxonomy) {
+        this(standardLibraryService, diagnosisTaxonomy, null);
+    }
 
     public StandardLibraryPack select(SearchLocationOutput output,
                                       SearchLocationCandidatePack candidatePack,
@@ -66,12 +83,7 @@ public class SearchLocationPackSelector {
                 .flatMap(item -> knowledgeCodes(item).stream())
                 .distinct()
                 .limit(12)
-                .map(code -> StandardLibraryPack.KnowledgeAnchorOption.builder()
-                        .id(code)
-                        .name(code)
-                        .path(code)
-                        .description("搜索定位命中的知识树节点。")
-                        .build())
+                .map(this::toKnowledgeAnchor)
                 .toList();
 
         List<StandardLibraryPack.TagOption> issueTags = fallbackPack == null ? List.of() : safe(fallbackPack.getIssueTags());
@@ -314,14 +326,42 @@ public class SearchLocationPackSelector {
                 .limit(8)
                 .toList();
 
+        KnowledgeNodeDisplay display = knowledgeNodeDisplay(knowledgeCode);
         return StandardLibraryPack.KnowledgeGroupOption.builder()
                 .id(knowledgeCode)
-                .name(knowledgeCode)
-                .path(knowledgeCode.replace(".", " > "))
-                .description("标准库结构视图中的知识节点。")
+                .name(display.name())
+                .path(display.path())
+                .description(firstNonBlank(display.description(), "标准库结构视图中的知识点。"))
                 .skillUnits(skillGroups)
                 .improvementPoints(List.of())
                 .build();
+    }
+
+    private StandardLibraryPack.KnowledgeAnchorOption toKnowledgeAnchor(String code) {
+        KnowledgeNodeDisplay display = knowledgeNodeDisplay(code);
+        return StandardLibraryPack.KnowledgeAnchorOption.builder()
+                .id(code)
+                .name(display.name())
+                .path(display.path())
+                .description(firstNonBlank(display.description(), "搜索定位命中的知识树节点。"))
+                .build();
+    }
+
+    private KnowledgeNodeDisplay knowledgeNodeDisplay(String code) {
+        String normalized = text(code);
+        Optional<InformaticsKnowledgeNode> node = Optional.empty();
+        if (!normalized.isBlank() && knowledgeRepository != null) {
+            Optional<InformaticsKnowledgeNode> found = knowledgeRepository.findByCode(normalized);
+            node = found == null ? Optional.empty() : found;
+        }
+        return node.map(value -> new KnowledgeNodeDisplay(
+                        firstNonBlank(value.getName(), normalized),
+                        firstNonBlank(value.getPath(), normalized),
+                        text(value.getDescription())))
+                .orElseGet(() -> new KnowledgeNodeDisplay(
+                        normalized,
+                        normalized.isBlank() ? "" : normalized.replace(".", " > "),
+                        "搜索定位命中的知识树节点。"));
     }
 
     private StandardLibraryPack.SkillUnitGroupOption toSkillGroup(
@@ -403,5 +443,8 @@ public class SearchLocationPackSelector {
 
     private String text(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private record KnowledgeNodeDisplay(String name, String path, String description) {
     }
 }

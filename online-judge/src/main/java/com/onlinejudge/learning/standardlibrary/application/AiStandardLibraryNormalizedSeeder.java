@@ -1,5 +1,8 @@
 package com.onlinejudge.learning.standardlibrary.application;
 
+import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeed;
+import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeedCatalog;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardImprovementPoint;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLegacyMapping;
@@ -22,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 @Order(6)
@@ -30,6 +35,10 @@ import java.util.Locale;
 public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
 
     private static final String UNMAPPED_KNOWLEDGE_NODE = "STANDARD_LIBRARY.UNMAPPED";
+    private static final Set<String> KNOWLEDGE_POINT_CODES = InformaticsKnowledgeSeedCatalog.seeds().stream()
+            .filter(seed -> seed.type() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
+            .map(InformaticsKnowledgeSeed::code)
+            .collect(Collectors.toUnmodifiableSet());
 
     private final AiStandardSkillUnitRepository skillUnitRepository;
     private final AiStandardMistakePointRepository mistakePointRepository;
@@ -41,38 +50,38 @@ public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         List<AiStandardLibrarySeed> seeds = AiStandardLibrarySeedCatalog.seeds();
-        int insertedSkills = 0;
-        int insertedMistakes = 0;
-        int insertedImprovements = 0;
+        int syncedSkills = 0;
+        int syncedMistakes = 0;
+        int syncedImprovements = 0;
         int upsertedMappings = 0;
 
         for (AiStandardLibrarySeed seed : seeds) {
             if (seed.layer() == AiStandardLibraryLayer.SKILL_UNIT) {
-                insertedSkills += syncSkill(seed);
+                syncedSkills += syncSkill(seed);
                 upsertedMappings += syncMapping(seed, AiStandardLibraryTargetType.SKILL_UNIT, normalizeCode(seed.code()));
             }
         }
         for (AiStandardLibrarySeed seed : seeds) {
             if (seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT
                     || seed.layer() == AiStandardLibraryLayer.BASIC_CAUSE) {
-                insertedMistakes += syncMistake(seed);
+                syncedMistakes += syncMistake(seed);
                 upsertedMappings += syncMapping(seed, AiStandardLibraryTargetType.MISTAKE_POINT, normalizeCode(seed.code()));
             }
         }
         for (AiStandardLibrarySeed seed : seeds) {
             if (seed.layer() == AiStandardLibraryLayer.IMPROVEMENT_POINT) {
-                insertedImprovements += syncImprovement(seed);
+                syncedImprovements += syncImprovement(seed);
                 upsertedMappings += syncMapping(seed, AiStandardLibraryTargetType.IMPROVEMENT_POINT, normalizeCode(seed.code()));
             }
         }
         int disabledFallbackSkills = disableGeneratedFallbackSkills();
         int disabledFallbackMistakes = disableGeneratedFallbackMistakes();
 
-        if (insertedSkills + insertedMistakes + insertedImprovements + upsertedMappings
+        if (syncedSkills + syncedMistakes + syncedImprovements + upsertedMappings
                 + disabledFallbackSkills + disabledFallbackMistakes > 0) {
-            log.info("Seeded normalized AI standard library: skills={}, mistakes={}, improvements={}, mappings={}, "
+            log.info("Synced normalized AI standard library: skills={}, mistakes={}, improvements={}, mappings={}, "
                             + "disabledArchivedFallbackSkills={}, disabledArchivedFallbackMistakes={}",
-                    insertedSkills, insertedMistakes, insertedImprovements, upsertedMappings,
+                    syncedSkills, syncedMistakes, syncedImprovements, upsertedMappings,
                     disabledFallbackSkills, disabledFallbackMistakes);
         }
     }
@@ -101,8 +110,30 @@ public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
 
     private int syncSkill(AiStandardLibrarySeed seed) {
         String code = normalizeCode(seed.code());
-        if (skillUnitRepository.existsByCode(code)) {
-            return 0;
+        String primaryKnowledgeNodeCode = primaryKnowledgeNode(seed.knowledgeNodeCodes());
+        String knowledgeNodeCodes = join(seed.knowledgeNodeCodes());
+        String prerequisiteKnowledgeCodes = join(seed.prerequisiteKnowledgeCodes());
+        var existing = skillUnitRepository.findByCode(code);
+        if (existing.isPresent()) {
+            AiStandardSkillUnit skill = existing.get();
+            boolean changed = false;
+            if (!text(skill.getPrimaryKnowledgeNodeCode()).equals(primaryKnowledgeNodeCode)) {
+                skill.setPrimaryKnowledgeNodeCode(primaryKnowledgeNodeCode);
+                changed = true;
+            }
+            if (!text(skill.getKnowledgeNodeCodes()).equals(knowledgeNodeCodes)) {
+                skill.setKnowledgeNodeCodes(knowledgeNodeCodes);
+                changed = true;
+            }
+            if (!text(skill.getPrerequisiteKnowledgeCodes()).equals(prerequisiteKnowledgeCodes)) {
+                skill.setPrerequisiteKnowledgeCodes(prerequisiteKnowledgeCodes);
+                changed = true;
+            }
+            if (changed) {
+                skillUnitRepository.save(skill);
+            }
+            syncPrerequisiteRelations(AiStandardLibraryTargetType.SKILL_UNIT, code, seed.prerequisiteKnowledgeCodes());
+            return changed ? 1 : 0;
         }
         skillUnitRepository.save(AiStandardSkillUnit.builder()
                 .code(code)
@@ -110,9 +141,9 @@ public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
                 .name(required(seed.name(), "能力点名称不能为空"))
                 .description(text(seed.description()))
                 .learningGoal(text(seed.studentExplanation()))
-                .primaryKnowledgeNodeCode(primaryKnowledgeNode(seed.knowledgeNodeCodes()))
-                .knowledgeNodeCodes(join(seed.knowledgeNodeCodes()))
-                .prerequisiteKnowledgeCodes(join(seed.prerequisiteKnowledgeCodes()))
+                .primaryKnowledgeNodeCode(primaryKnowledgeNodeCode)
+                .knowledgeNodeCodes(knowledgeNodeCodes)
+                .prerequisiteKnowledgeCodes(prerequisiteKnowledgeCodes)
                 .masteryLevel(text(seed.severity()))
                 .applicableLanguages(join(seed.applicableLanguages()))
                 .enabled(true)
@@ -124,10 +155,39 @@ public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
 
     private int syncMistake(AiStandardLibrarySeed seed) {
         String code = normalizeCode(seed.code());
-        if (mistakePointRepository.existsByCode(code)) {
-            return 0;
-        }
         String skillUnitCode = existingSkillOrCompat(seed);
+        String primaryKnowledgeNodeCode = primaryKnowledgeNode(seed.knowledgeNodeCodes());
+        String knowledgeNodeCodes = join(seed.knowledgeNodeCodes());
+        String prerequisiteKnowledgeCodes = join(seed.prerequisiteKnowledgeCodes());
+        var existing = mistakePointRepository.findByCode(code);
+        if (existing.isPresent()) {
+            AiStandardMistakePoint mistake = existing.get();
+            boolean changed = false;
+            if (!text(mistake.getSkillUnitCode()).equals(skillUnitCode)) {
+                mistake.setSkillUnitCode(skillUnitCode);
+                changed = true;
+            }
+            if (!text(mistake.getPrimaryKnowledgeNodeCode()).equals(primaryKnowledgeNodeCode)) {
+                mistake.setPrimaryKnowledgeNodeCode(primaryKnowledgeNodeCode);
+                changed = true;
+            }
+            if (!text(mistake.getKnowledgeNodeCodes()).equals(knowledgeNodeCodes)) {
+                mistake.setKnowledgeNodeCodes(knowledgeNodeCodes);
+                changed = true;
+            }
+            if (!text(mistake.getPrerequisiteKnowledgeCodes()).equals(prerequisiteKnowledgeCodes)) {
+                mistake.setPrerequisiteKnowledgeCodes(prerequisiteKnowledgeCodes);
+                changed = true;
+            }
+            if (changed) {
+                mistakePointRepository.save(mistake);
+            }
+            syncRelation(AiStandardLibraryTargetType.MISTAKE_POINT, code,
+                    AiStandardLibraryRelationType.EXTENDS, AiStandardLibraryTargetType.SKILL_UNIT, skillUnitCode,
+                    "易错点归属于能力点。");
+            syncPrerequisiteRelations(AiStandardLibraryTargetType.MISTAKE_POINT, code, seed.prerequisiteKnowledgeCodes());
+            return changed ? 1 : 0;
+        }
         mistakePointRepository.save(AiStandardMistakePoint.builder()
                 .code(code)
                 .category(required(seed.category(), "易错点分类不能为空"))
@@ -139,9 +199,9 @@ public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
                 .symptom(text(seed.description()))
                 .repairStrategy(text(seed.teacherExplanation()))
                 .severity(text(seed.severity()))
-                .primaryKnowledgeNodeCode(primaryKnowledgeNode(seed.knowledgeNodeCodes()))
-                .knowledgeNodeCodes(join(seed.knowledgeNodeCodes()))
-                .prerequisiteKnowledgeCodes(join(seed.prerequisiteKnowledgeCodes()))
+                .primaryKnowledgeNodeCode(primaryKnowledgeNodeCode)
+                .knowledgeNodeCodes(knowledgeNodeCodes)
+                .prerequisiteKnowledgeCodes(prerequisiteKnowledgeCodes)
                 .applicableLanguages(join(seed.applicableLanguages()))
                 .enabled(true)
                 .libraryVersion(version(seed))
@@ -155,18 +215,43 @@ public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
 
     private int syncImprovement(AiStandardLibrarySeed seed) {
         String code = normalizeCode(seed.code());
-        if (improvementPointRepository.existsByCode(code)) {
-            return 0;
-        }
         String skillUnitCode = normalizeCodeOrBlank(seed.skillUnitCode());
+        String primaryKnowledgeNodeCode = primaryKnowledgeNode(seed.knowledgeNodeCodes());
+        String knowledgeNodeCodes = join(seed.knowledgeNodeCodes());
+        var existing = improvementPointRepository.findByCode(code);
+        if (existing.isPresent()) {
+            AiStandardImprovementPoint improvement = existing.get();
+            boolean changed = false;
+            if (!text(improvement.getSkillUnitCode()).equals(skillUnitCode)) {
+                improvement.setSkillUnitCode(skillUnitCode);
+                changed = true;
+            }
+            if (!text(improvement.getPrimaryKnowledgeNodeCode()).equals(primaryKnowledgeNodeCode)) {
+                improvement.setPrimaryKnowledgeNodeCode(primaryKnowledgeNodeCode);
+                changed = true;
+            }
+            if (!text(improvement.getKnowledgeNodeCodes()).equals(knowledgeNodeCodes)) {
+                improvement.setKnowledgeNodeCodes(knowledgeNodeCodes);
+                changed = true;
+            }
+            if (changed) {
+                improvementPointRepository.save(improvement);
+            }
+            if (!skillUnitCode.isBlank()) {
+                syncRelation(AiStandardLibraryTargetType.IMPROVEMENT_POINT, code,
+                        AiStandardLibraryRelationType.EXTENDS, AiStandardLibraryTargetType.SKILL_UNIT, skillUnitCode,
+                        "提升点归属于能力点。");
+            }
+            return changed ? 1 : 0;
+        }
         improvementPointRepository.save(AiStandardImprovementPoint.builder()
                 .code(code)
                 .category(required(seed.category(), "提升点分类不能为空"))
                 .name(required(seed.name(), "提升点名称不能为空"))
                 .description(text(seed.description()))
                 .skillUnitCode(skillUnitCode)
-                .primaryKnowledgeNodeCode(primaryKnowledgeNode(seed.knowledgeNodeCodes()))
-                .knowledgeNodeCodes(join(seed.knowledgeNodeCodes()))
+                .primaryKnowledgeNodeCode(primaryKnowledgeNodeCode)
+                .knowledgeNodeCodes(knowledgeNodeCodes)
                 .improvementGoal(firstNonBlank(seed.whenToUse(), seed.description()))
                 .practiceStrategy(text(seed.studentBenefit()))
                 .studentBenefit(text(seed.studentBenefit()))
@@ -270,11 +355,14 @@ public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
         if (knowledgeNodeCodes == null) {
             return UNMAPPED_KNOWLEDGE_NODE;
         }
-        return knowledgeNodeCodes.stream()
+        List<String> codes = knowledgeNodeCodes.stream()
                 .map(this::text)
                 .filter(value -> !value.isBlank())
+                .toList();
+        return codes.stream()
+                .filter(KNOWLEDGE_POINT_CODES::contains)
                 .findFirst()
-                .orElse(UNMAPPED_KNOWLEDGE_NODE);
+                .orElseGet(() -> codes.stream().findFirst().orElse(UNMAPPED_KNOWLEDGE_NODE));
     }
 
     private String join(List<String> values) {

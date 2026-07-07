@@ -1,12 +1,17 @@
 package com.onlinejudge.learning.standardlibrary;
 
+import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeed;
+import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeedCatalog;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryNormalizedSeeder;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeedCatalog;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardImprovementPoint;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLegacyMapping;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryRelationType;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryTargetType;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardMistakePoint;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardSkillUnit;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryLegacyMappingRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryRelationRepository;
@@ -19,6 +24,8 @@ import org.springframework.test.context.TestPropertySource;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -73,6 +80,7 @@ class AiStandardLibraryNormalizedSeederTest {
         assertThat(mistakePointRepository.findAll())
                 .noneMatch(mistake -> AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(
                         AiStandardLibraryLayer.MISTAKE_POINT, mistake.getCode()));
+        assertPrimaryAnchorsAreKnowledgePoints();
 
         var skill = skillUnitRepository.findByCode("SK_BINARY_ANSWER_CHECK").orElseThrow();
         assertThat(skill.getPrimaryKnowledgeNodeCode()).isEqualTo("ALGO.BINARY.ANSWER.check_函数");
@@ -128,5 +136,25 @@ class AiStandardLibraryNormalizedSeederTest {
                 .map(Field::getName)
                 .toList())
                 .doesNotContain("evidenceSignals", "commonCodePatterns", "judgeSignals", "requiredEvidence");
+    }
+
+    private void assertPrimaryAnchorsAreKnowledgePoints() {
+        Set<String> knowledgePointCodes = InformaticsKnowledgeSeedCatalog.seeds().stream()
+                .filter(seed -> seed.type() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
+                .map(InformaticsKnowledgeSeed::code)
+                .collect(Collectors.toSet());
+
+        assertThat(skillUnitRepository.findAll().stream().filter(AiStandardSkillUnit::isEnabled))
+                .allSatisfy(skill -> assertThat(skill.getPrimaryKnowledgeNodeCode())
+                        .as(skill.getCode() + " 的能力点主锚点应指向知识点")
+                        .isIn(knowledgePointCodes));
+        assertThat(mistakePointRepository.findAll().stream().filter(AiStandardMistakePoint::isEnabled))
+                .allSatisfy(mistake -> assertThat(mistake.getPrimaryKnowledgeNodeCode())
+                        .as(mistake.getCode() + " 的易错点主锚点应指向知识点")
+                        .isIn(knowledgePointCodes));
+        assertThat(improvementPointRepository.findAll().stream().filter(AiStandardImprovementPoint::isEnabled))
+                .allSatisfy(improvement -> assertThat(improvement.getPrimaryKnowledgeNodeCode())
+                        .as(improvement.getCode() + " 的提升点主锚点应指向知识点")
+                        .isIn(knowledgePointCodes));
     }
 }

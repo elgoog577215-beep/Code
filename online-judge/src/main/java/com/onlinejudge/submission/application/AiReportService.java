@@ -607,7 +607,7 @@ public class AiReportService {
         request.put("contextPolicy", List.of(
                 "problem.description 是完整题目描述；submission.sourceCodeWithLineNumbers 是完整学生代码或最大可用带行号代码。",
                 "submission.verdict、visibleCaseFacts、runtimeErrorMessage、compileOutput 和 evidenceRefs 只是判题参考信号，用来验证诊断。",
-                "standardLibrary.knowledgeGroups 是结构化标准库邻域，包含相关知识路径、能力点、易错点和提升点；不要把它当成无关全库倾倒。",
+                "standardLibrary.knowledgeGroups 是统一知识树下的诊断层，主链路是知识点 -> 能力点 -> 易错点/提升点；不要把知识树和标准库当成两套平行库。",
                 "standardLibrary 是教学参考规范包，像课程标准和教案目录，用于细颗粒定位、标准化命名和区分基础层/提高层，不是强制答案表。",
                 "primaryKnowledgeNodeCode 是主知识路径，relatedKnowledgeNodeCodes 只是辅助上下文；学生端知识路径优先沿主路径表达，不把相关标签平铺成独立问题。",
                 "先基于题目、代码、判题结果和 evidenceRefs 自由诊断，再输出 diagnosisCandidates 并评判它们对标准库是 HIT、PARTIAL、MISS 还是 OUT_OF_LIBRARY。",

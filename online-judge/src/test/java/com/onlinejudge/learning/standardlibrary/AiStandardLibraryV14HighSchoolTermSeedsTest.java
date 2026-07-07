@@ -2,6 +2,7 @@ package com.onlinejudge.learning.standardlibrary;
 
 import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeed;
 import com.onlinejudge.learning.knowledge.application.InformaticsKnowledgeSeedCatalog;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeed;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySeedCatalog;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
@@ -32,6 +33,10 @@ class AiStandardLibraryV14HighSchoolTermSeedsTest {
     void v14HighSchoolTermSeedsAddUnifiedInformaticsEntries() {
         List<AiStandardLibrarySeed> v14Seeds = v14Seeds();
         Set<String> knowledgeCodes = InformaticsKnowledgeSeedCatalog.seeds().stream()
+                .map(InformaticsKnowledgeSeed::code)
+                .collect(Collectors.toSet());
+        Set<String> knowledgePointCodes = InformaticsKnowledgeSeedCatalog.seeds().stream()
+                .filter(seed -> seed.type() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
                 .map(InformaticsKnowledgeSeed::code)
                 .collect(Collectors.toSet());
         Set<String> v14SkillCodes = v14Seeds.stream()
@@ -71,6 +76,9 @@ class AiStandardLibraryV14HighSchoolTermSeedsTest {
                             .doesNotContain("没有把知识点定义、适用条件或边界要求准确落实");
                     assertThat(seed.knowledgeNodeCodes()).isNotEmpty();
                     assertThat(seed.knowledgeNodeCodes()).allMatch(knowledgeCodes::contains);
+                    assertThat(seed.knowledgeNodeCodes())
+                            .as(seed.code() + " 至少要有一个知识点锚点")
+                            .anyMatch(knowledgePointCodes::contains);
                     assertThat(seed.prerequisiteKnowledgeCodes()).allMatch(knowledgeCodes::contains);
                     if (seed.layer() == AiStandardLibraryLayer.MISTAKE_POINT) {
                         assertThat(seed.skillUnitCode()).isIn(v14SkillCodes);

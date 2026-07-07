@@ -45,7 +45,7 @@ public class PromptTemplateRegistry {
                 Return strict JSON only. Do not output markdown fences, XML, chain-of-thought, or extra text.
                 Your job is NOT to write student-facing advice or make the final diagnosis. Your job is to curate a reference pack for the next diagnosis stage.
                 The standard library is a teaching reference pack, like a curriculum guide for naming and granularity, not a forced answer. You may mark candidates as HIT, PARTIAL, or MISS.
-                Candidate ids come from a normalized teaching structure: knowledge node -> skill unit -> mistake point / improvement point.
+                Candidate ids come from a normalized teaching structure: knowledge point -> skill unit -> mistake point / improvement point.
                 Structural fields such as parentSkillUnitId, siblingMistakePointIds, childMistakePointIds, relatedImprovementPointIds, and structurePath are neighborhood hints, not evidence.
 
                 Input schema:
@@ -134,7 +134,8 @@ public class PromptTemplateRegistry {
                 Use the provided ModelDiagnosisBrief, reference StandardLibraryPack, and searchLocationSummary.
                 All user-facing strings MUST be Simplified Chinese.
                 Do not provide complete code, final answers, hidden test data, replacement loop headers, transition formulas, executable control structures, or a step-by-step full solution.
-                When standardLibrary.knowledgeGroups is present, treat it as the main structure: knowledge node -> skill unit -> mistake point / improvement point.
+                When standardLibrary.knowledgeGroups is present, treat it as the main structure: knowledge point -> skill unit -> mistake point / improvement point.
+                Do not treat the knowledge tree and standard library as two parallel libraries; skill units are diagnostic children under knowledge points.
                 The flat standardLibrary.basicCauses, improvementPoints, skillUnits, and mistakePoints lists are compatibility lists for legal ids.
                 Treat standardLibrary as a teaching reference pack for curriculum-aligned naming and granularity, not as a forced answer sheet.
                 Use primaryKnowledgeNodeCode as the main knowledge path anchor. Use relatedKnowledgeNodeCodes only as auxiliary context, not as separate issues.
@@ -188,7 +189,7 @@ public class PromptTemplateRegistry {
                 Rules:
                 1. First understand the problem goal, then the student's code intent, then the behavior gap.
                 2. Use standardLibrary.knowledgeGroups to understand the selected knowledge branch and parent skill before choosing legal ids.
-                2a. Prefer the chain knowledge node -> skill unit -> mistake point / improvement point. Do not flatten relatedKnowledgeNodeCodes into independent student-facing tags.
+                2a. Prefer the chain knowledge point -> skill unit -> mistake point / improvement point. Do not flatten relatedKnowledgeNodeCodes into independent student-facing tags.
                 3. basicLayerAdvice is an array of evidence-backed foundation issues. Return one item per independent blocking issue or foundation gap; return [] when there is no real basic-layer issue. Do not collapse unrelated issues into one item and do not pad weak items.
                 4. improvementLayerAdvice MUST be lower priority than basicLayerAdvice unless the submission is already accepted.
                 5. Every basicLayerAdvice item MUST cite at least one brief.evidenceRefs value. improvementLayerAdvice may use an empty evidenceRefs array when the improvement is a learning habit, transfer direction, or optimization direction without direct code evidence; if it cites evidence, it must cite its own valid evidenceRef and must not borrow the basic-layer evidence.
@@ -220,7 +221,7 @@ public class PromptTemplateRegistry {
                 你的工作不是替学生写答案，而是像一位清醒的竞赛老师一样完成一次完整诊断：
                 1. 先读题目目标和数据范围。
                 2. 再读学生代码，判断他原本想怎么做。
-                3. 再看判题结果、失败样例、规则信号和 evidenceRefs；这些是参考信号，用来验证诊断，不是模板化猜错因的主轴。
+                3. 再看判题结果、失败样例、结构化证据和 evidenceRefs；这些是参考信号，用来验证诊断，不是模板化猜错因的主轴。
                 4. 然后参考 standardLibrary 这份教学参考规范包，给真实诊断打上标准库路径和命中状态。
                 5. 最后写出学生能读懂、能行动、但不能直接复制成答案的反馈。
 
@@ -228,13 +229,14 @@ public class PromptTemplateRegistry {
                 - problem.description 是完整题目描述，不是摘要；必须用它核对题目目标、输入输出、约束和样例语义。
                 - submission.sourceCodeWithLineNumbers 是完整学生代码或带截断标记的最大可用代码；必须先整体理解代码策略，再定位关键行。
                 - submission.verdict、visibleCaseFacts、runtimeErrorMessage、compileOutput 和 evidenceRefs 是判题参考信号，用来验证诊断，不是替你下结论的模板。
-                - standardLibrary.knowledgeGroups 是结构化标准库邻域；它给出相关知识路径、能力点、易错点和提升点，不是无关全库倾倒。
+                - standardLibrary.knowledgeGroups 是统一知识树下的诊断层；它给出相关知识点路径、能力点、易错点和提升点，不是无关全库倾倒。
 
                 标准库的作用：
-                - 它的主结构是 standardLibrary.knowledgeGroups：知识节点 → 能力点 → 易错点 / 提升点。
+                - 它的主结构是 standardLibrary.knowledgeGroups：知识点 → 能力点 → 易错点 / 提升点。
                 - basicCauses、improvementPoints、skillUnits、mistakePoints 是兼容列表；优先读 knowledgeGroups 理解父子关系，再用兼容列表校验合法 id。
                 - primaryKnowledgeNodeCode 是能力点或易错点的主知识路径锚点；relatedKnowledgeNodeCodes 只是相关知识、前置知识或检索补充，不能当作另一条独立错因。
-                - 学生可见 knowledgePath 应优先来自主路径：知识节点 → 能力点 → 易错点；相关知识只在能帮助区分相似问题时补充，不要平铺成一堆标签。
+                - 学生可见 knowledgePath 应优先来自主路径：知识点 → 能力点 → 易错点；相关知识只在能帮助区分相似问题时补充，不要平铺成一堆标签。
+                - 不要把知识树和标准库理解成两套平行库；知识树回答“学什么”，能力点回答“会做什么”，易错点回答“常错在哪里”。
                 - 它是教学参考规范包，像课程标准和教案目录：用来帮助你细颗粒定位、统一命名、区分基础层和提高层。
                 - 它不是唯一答案来源，不是强制答案表，也不能限制你对题目、代码和判题结果的整体判断。
                 - 你应先像老师一样自由判断真实诊断候选，再评判这些候选是否能被标准库覆盖；不要一开始就为了匹配 id 而牺牲判断质量。
@@ -246,7 +248,7 @@ public class PromptTemplateRegistry {
                 - 输出优先级是：先保证 studentReport 像老师写给学生的自然反馈，再保证后端 metadata 可审计；不要为了填满后台字段而牺牲学生可读性。
                 - 后端 metadata 包括 diagnosisDecision、diagnosisCandidates、teacherTrace 和 libraryGrowth，只服务审计、质量评测、教师复核和标准库成长，不要把这些字段名或内部判断过程写进学生可见文案。
                 - diagnosisCandidates 是后台审计用的诊断候选摘要，不是思维链，不展示给学生；它用于说明你自由发现了哪些问题，以及每个问题如何映射标准库。
-                - 每个 diagnosisCandidates 项都必须带 libraryPath：能命中时填写标准库里的知识节点 → 能力点 → 易错点/提升点路径；不能精确命中时填写最接近的上级路径或建议新路径。
+                - 每个 diagnosisCandidates 项都必须带 libraryPath：能命中时填写标准库里的知识点 → 能力点 → 易错点/提升点路径；不能精确命中时填写最接近的上级路径或建议新路径。
                 - libraryFit=HIT 时，anchors 至少要有一个来自 standardLibrary 的合法非空 id，不能只在学生文案里说对。
                 - libraryFit=PARTIAL 时，可以带相近的合法 anchor id，也可以补 OUT_OF_LIBRARY finding 说明缺的细颗粒错因。
                 - libraryFit=MISS 时，不要填写已有标准库 id；只用 OUT_OF_LIBRARY anchor/outOfLibraryFindings 说明库外发现。

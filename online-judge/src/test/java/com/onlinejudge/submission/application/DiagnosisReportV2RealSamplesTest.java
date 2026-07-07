@@ -45,7 +45,7 @@ class DiagnosisReportV2RealSamplesTest {
             assertThat(sample.expectedAnchors()).isNotEmpty();
             assertThat(sample.expectedLibraryPath()).isNotEmpty();
             assertThat(sample.contextPackageRequirements())
-                    .contains("完整题目", "完整代码", "判题参考信号", "结构化标准库邻域");
+                    .contains("完整题目", "完整代码", "判题参考信号", "统一知识树诊断层");
             assertThat(sample.expectedStudentFeedbackQuality()).hasSizeGreaterThanOrEqualTo(3);
             assertThat(sample.quickFeedbackKnownLimit()).isNotBlank();
             assertThat(sample.formalMustImproveAtLeastOneOf()).isNotEmpty();

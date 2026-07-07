@@ -1,12 +1,16 @@
 package com.onlinejudge.submission.application;
 
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
+import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -22,7 +26,7 @@ class SearchLocationPackSelectorTest {
                 item("MP_RANGE_RIGHT_ENDPOINT_MISSING", AiStandardLibraryLayer.MISTAKE_POINT),
                 item("IP_BOUNDARY_TESTING", AiStandardLibraryLayer.IMPROVEMENT_POINT)
         ));
-        SearchLocationPackSelector selector = new SearchLocationPackSelector(libraryService, new DiagnosisTaxonomy());
+        SearchLocationPackSelector selector = selector(libraryService);
 
         StandardLibraryPack pack = selector.select(output(), candidatePack(), fallbackPack());
 
@@ -38,6 +42,12 @@ class SearchLocationPackSelectorTest {
                 .containsExactly("IP_BOUNDARY_TESTING");
         assertThat(pack.getKnowledgeAnchors()).extracting(StandardLibraryPack.KnowledgeAnchorOption::getId)
                 .contains("BASIC.LOOP.BOUNDARY");
+        assertThat(pack.getKnowledgeAnchors()).filteredOn(anchor -> anchor.getId().equals("BASIC.LOOP.BOUNDARY"))
+                .singleElement()
+                .satisfies(anchor -> {
+                    assertThat(anchor.getName()).isEqualTo("循环边界");
+                    assertThat(anchor.getPath()).isEqualTo("基础语法 / 循环结构 / 循环边界");
+                });
         assertThat(pack.getIssueTags()).extracting(StandardLibraryPack.TagOption::getId)
                 .containsExactly("LOOP_BOUNDARY");
         assertThat(pack.getFineGrainedTags()).extracting(StandardLibraryPack.TagOption::getId)
@@ -56,7 +66,7 @@ class SearchLocationPackSelectorTest {
                 item("MP_RANGE_LEFT_ENDPOINT_EXTRA", AiStandardLibraryLayer.MISTAKE_POINT),
                 item("IP_BOUNDARY_TESTING", AiStandardLibraryLayer.IMPROVEMENT_POINT)
         ));
-        SearchLocationPackSelector selector = new SearchLocationPackSelector(libraryService, new DiagnosisTaxonomy());
+        SearchLocationPackSelector selector = selector(libraryService);
 
         StandardLibraryPack pack = selector.select(outputWithOnlyMistake(), candidatePackWithNeighborhood(), fallbackPack());
 
@@ -71,6 +81,8 @@ class SearchLocationPackSelectorTest {
                 .containsExactly("IP_BOUNDARY_TESTING");
         assertThat(pack.getKnowledgeGroups()).singleElement().satisfies(group -> {
             assertThat(group.getId()).isEqualTo("BASIC.LOOP.BOUNDARY");
+            assertThat(group.getName()).isEqualTo("循环边界");
+            assertThat(group.getPath()).isEqualTo("基础语法 / 循环结构 / 循环边界");
             assertThat(group.getSkillUnits()).singleElement().satisfies(skillGroup -> {
                 assertThat(skillGroup.getSkillUnit().getId()).isEqualTo("SK_RANGE_BOUNDARY");
                 assertThat(skillGroup.getMistakePoints())
@@ -89,6 +101,32 @@ class SearchLocationPackSelectorTest {
             });
         });
         assertThat(pack.getSearchLocationSummary().getSelectedCount()).isEqualTo(4);
+    }
+
+    private SearchLocationPackSelector selector(AiStandardLibraryService libraryService) {
+        InformaticsKnowledgeNodeRepository knowledgeRepository = mock(InformaticsKnowledgeNodeRepository.class);
+        when(knowledgeRepository.findByCode("BASIC.LOOP.BOUNDARY"))
+                .thenReturn(Optional.of(knowledgeNode(
+                        "BASIC.LOOP.BOUNDARY",
+                        "循环边界",
+                        "基础语法 / 循环结构 / 循环边界")));
+        when(knowledgeRepository.findByCode("BASIC.LOOP.FOR"))
+                .thenReturn(Optional.of(knowledgeNode(
+                        "BASIC.LOOP.FOR",
+                        "for 循环",
+                        "基础语法 / 循环结构 / for 循环")));
+        return new SearchLocationPackSelector(libraryService, new DiagnosisTaxonomy(), knowledgeRepository);
+    }
+
+    private InformaticsKnowledgeNode knowledgeNode(String code, String name, String path) {
+        return InformaticsKnowledgeNode.builder()
+                .code(code)
+                .type(InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
+                .name(name)
+                .description("细颗粒知识点：" + name)
+                .path(path)
+                .enabled(true)
+                .build();
     }
 
     private SearchLocationOutput output() {
