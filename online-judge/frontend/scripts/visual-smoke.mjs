@@ -39,8 +39,9 @@ const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, fi
 [
   ".student-assignment-grid",
   ".teacher-shell-nav",
-  ".teacher-home-status-strip",
-  ".teacher-assignment-list",
+  ".teacher-analytics-summary",
+  ".teacher-analytics-board",
+  ".teacher-analytics-granularity",
   ".problem-compact-details",
   ".editor-workbench",
   ".management-home-grid",
@@ -54,8 +55,8 @@ const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, fi
   "教师",
   "登录查看课堂作业",
   "暂无课堂作业",
-  "班级进度",
-  "先看这些学生",
+  "教学结果分析",
+  "AI 知识归因",
   "/api/teacher/assignments/",
   "class-review-feedback",
   "ENTERED_PROBLEM"

@@ -45,13 +45,11 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
     teacherShell: {
       aria: "教师工作台导航",
       kicker: "教师端",
-      title: "课堂工作台",
-      footnote: "先看作业，再下钻到题目和学生证据。",
+      title: "教学分析",
+      footnote: "按班级、作业、题目递进查看客观结果。",
       nav: {
-        assignments: "作业中心",
-        assignmentsDescription: "作业、题目与批阅入口",
-        classLearning: "班级学情",
-        classLearningDescription: "学生 x 作业推进矩阵",
+        analytics: "教学分析",
+        analyticsDescription: "班级、作业、题目结果",
         roster: "班级名单",
         rosterDescription: "学生导入与班级维护",
         problemBank: "题库管理",
@@ -65,6 +63,147 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       breadcrumb: "作业",
       backAssignments: "返回作业",
       newAssignment: "新建作业"
+    },
+    teacherAnalytics: {
+      kicker: "教学结果分析",
+      landing: {
+        title: "选择班级",
+        description: "先进入班级，再查看这个班级下的作业和题目结果。",
+        classList: "班级列表",
+        classFallback: "班级",
+        noTeacherName: "未设置教师"
+      },
+      breadcrumb: {
+        classes: "班级"
+      },
+      scope: {
+        class: "班级",
+        assignment: "作业",
+        problem: "题目"
+      },
+      class: {
+        description: "查看这个班级跨作业的提交、正确率、错误分布和知识路径。"
+      },
+      assignment: {
+        description: "查看这次作业的题目结果、错误分布和 AI 知识归因。"
+      },
+      problem: {
+        description: "查看这道题的提交情况、错因分布、知识路径和证据样本。"
+      },
+      actions: {
+        newAssignment: "新建作业"
+      },
+      loading: {
+        classes: "正在读取班级",
+        class: "正在读取班级分析",
+        assignment: "正在读取作业分析",
+        problem: "正在读取题目分析"
+      },
+      errors: {
+        load: "教学分析数据读取失败。"
+      },
+      granularity: {
+        chapter: "按章节",
+        knowledgePoint: "按知识点",
+        skillUnit: "按能力点",
+        mistakePoint: "按易错点"
+      },
+      metrics: {
+        assignments: "作业数",
+        students: "学生数",
+        submissions: "提交数",
+        accuracy: "正确率",
+        errorCount: "错误次数",
+        affectedStudents: "涉及学生",
+        submittedStudents: "提交人数",
+        unsubmittedStudents: "未提交人数",
+        averageAttempts: "平均提交",
+        lowPassProblems: "低通过题",
+        passedStudents: "通过人数",
+        failedStudents: "未通过人数"
+      },
+      sections: {
+        metrics: "基础指标",
+        visualization: "数据可视化",
+        ranking: "错误分布",
+        share: "占比",
+        currentPath: "当前知识路径",
+        assignments: "作业",
+        problems: "题目"
+      },
+      scopeTitle: "{{scope}}结果分布",
+      pathMeta: "{{count}} 次 · {{students}} 名学生 · {{problems}} 道题",
+      pathLabel: "路径",
+      status: {
+        active: "进行中",
+        draft: "草稿",
+        closed: "已结束"
+      },
+      defaultLabels: {
+        defaultClass: "默认班级",
+        assignmentFallbackWithId: "课堂作业 #{{id}}",
+        pilotAssignment: "课堂编程作业",
+        arraySequence: "数组与序列",
+        ioString: "输入输出与字符串",
+        loopRecursion: "循环与递归",
+        dataStructure: "数据结构",
+        dynamicProgramming: "动态规划",
+        general: "综合应用",
+        boundary: "边界处理",
+        ioFormat: "输入输出规范",
+        stateMaintenance: "状态维护",
+        problem: "题目",
+        submissionRecord: "提交记录",
+        studentWithId: "学生 #{{id}}"
+      },
+      tables: {
+        assignmentTitle: "作业列表",
+        problemTitle: "题目列表"
+      },
+      units: {
+        count: "次",
+        problem: "题",
+        passed: "通过"
+      },
+      ai: {
+        title: "AI 知识归因",
+        class: "班级路径",
+        assignment: "作业路径",
+        problem: "题目路径"
+      },
+      fit: {
+        HIT: "标准库命中",
+        PARTIAL: "标准库半命中",
+        MISS: "库外候选",
+        UNKNOWN: "归属未确认"
+      },
+      evidence: {
+        title: "证据样本"
+      },
+      correction: {
+        title: "校正归因",
+        issue: "错因",
+        fineIssue: "细分错因",
+        note: "记录",
+        submit: "保存校正",
+        unavailable: "暂无可校正提交。"
+      },
+      empty: {
+        noClasses: "暂无班级",
+        noClassesDescription: "创建班级后，这里会进入班级分析。",
+        classNotFound: "班级未找到",
+        classNotFoundDescription: "返回班级列表重新选择。",
+        assignmentNotFound: "作业未找到",
+        assignmentNotFoundDescription: "返回班级页面重新选择作业。",
+        problemNotFound: "题目未找到",
+        problemNotFoundDescription: "返回作业页面重新选择题目。",
+        noAssignments: "当前班级暂无作业数据。",
+        noSubmissions: "暂无提交数据，图表会在提交后生成。",
+        noInsight: "暂无可归因数据。",
+        noEvidence: "暂无提交证据样本。",
+        noKnowledgePath: "暂无知识路径。",
+        noIssue: "暂无集中错因"
+      }
     },
     teacherHome: {
       classOverview: "班级概览",
@@ -336,13 +475,11 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
     teacherShell: {
       aria: "Teacher workbench navigation",
       kicker: "Teacher",
-      title: "Class Workbench",
-      footnote: "Start from assignments, then drill into problems and student evidence.",
+      title: "Teaching Analytics",
+      footnote: "Drill from class to assignment to problem for objective results.",
       nav: {
-        assignments: "Assignments",
-        assignmentsDescription: "Assignments, problems, and review",
-        classLearning: "Class Insights",
-        classLearningDescription: "Student x assignment matrix",
+        analytics: "Teaching Analytics",
+        analyticsDescription: "Class, assignment, and problem results",
         roster: "Class Roster",
         rosterDescription: "Student import and class setup",
         problemBank: "Problem Bank",
@@ -356,6 +493,147 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       breadcrumb: "Assignments",
       backAssignments: "Back to assignments",
       newAssignment: "New assignment"
+    },
+    teacherAnalytics: {
+      kicker: "Teaching Results",
+      landing: {
+        title: "Choose a class",
+        description: "Start with a class, then drill into its assignments and problem results.",
+        classList: "Class list",
+        classFallback: "Class",
+        noTeacherName: "No teacher name"
+      },
+      breadcrumb: {
+        classes: "Classes"
+      },
+      scope: {
+        class: "Class",
+        assignment: "Assignment",
+        problem: "Problem"
+      },
+      class: {
+        description: "Review cross-assignment submissions, accuracy, error distribution, and knowledge paths."
+      },
+      assignment: {
+        description: "Review problem results, error distribution, and AI knowledge attribution for this assignment."
+      },
+      problem: {
+        description: "Review submissions, error distribution, knowledge path, and evidence samples for this problem."
+      },
+      actions: {
+        newAssignment: "New assignment"
+      },
+      loading: {
+        classes: "Loading classes",
+        class: "Loading class analytics",
+        assignment: "Loading assignment analytics",
+        problem: "Loading problem analytics"
+      },
+      errors: {
+        load: "Failed to load teaching analytics."
+      },
+      granularity: {
+        chapter: "By chapter",
+        knowledgePoint: "By knowledge point",
+        skillUnit: "By skill unit",
+        mistakePoint: "By mistake point"
+      },
+      metrics: {
+        assignments: "Assignments",
+        students: "Students",
+        submissions: "Submissions",
+        accuracy: "Accuracy",
+        errorCount: "Errors",
+        affectedStudents: "Students affected",
+        submittedStudents: "Submitted",
+        unsubmittedStudents: "Not submitted",
+        averageAttempts: "Avg attempts",
+        lowPassProblems: "Low-pass problems",
+        passedStudents: "Passed",
+        failedStudents: "Failed"
+      },
+      sections: {
+        metrics: "Core metrics",
+        visualization: "Data visualization",
+        ranking: "Error distribution",
+        share: "Share",
+        currentPath: "Current knowledge path",
+        assignments: "Assignments",
+        problems: "Problems"
+      },
+      scopeTitle: "{{scope}} result distribution",
+      pathMeta: "{{count}} times · {{students}} students · {{problems}} problems",
+      pathLabel: "Path",
+      status: {
+        active: "Active",
+        draft: "Draft",
+        closed: "Closed"
+      },
+      defaultLabels: {
+        defaultClass: "Default class",
+        assignmentFallbackWithId: "Class assignment #{{id}}",
+        pilotAssignment: "Class coding assignment",
+        arraySequence: "Arrays and sequences",
+        ioString: "Input, output, and strings",
+        loopRecursion: "Loops and recursion",
+        dataStructure: "Data structures",
+        dynamicProgramming: "Dynamic programming",
+        general: "General application",
+        boundary: "Boundary handling",
+        ioFormat: "Input/output format",
+        stateMaintenance: "State maintenance",
+        problem: "Problem",
+        submissionRecord: "Submission record",
+        studentWithId: "Student #{{id}}"
+      },
+      tables: {
+        assignmentTitle: "Assignments",
+        problemTitle: "Problems"
+      },
+      units: {
+        count: "times",
+        problem: "problems",
+        passed: "passed"
+      },
+      ai: {
+        title: "AI Knowledge Attribution",
+        class: "Class paths",
+        assignment: "Assignment paths",
+        problem: "Problem paths"
+      },
+      fit: {
+        HIT: "Library hit",
+        PARTIAL: "Partial library match",
+        MISS: "Out-of-library candidate",
+        UNKNOWN: "Unconfirmed attribution"
+      },
+      evidence: {
+        title: "Evidence samples"
+      },
+      correction: {
+        title: "Correct attribution",
+        issue: "Issue",
+        fineIssue: "Detailed issue",
+        note: "Note",
+        submit: "Save correction",
+        unavailable: "No correctable submission yet."
+      },
+      empty: {
+        noClasses: "No classes yet",
+        noClassesDescription: "Create a class to open class analytics.",
+        classNotFound: "Class not found",
+        classNotFoundDescription: "Return to the class list and choose again.",
+        assignmentNotFound: "Assignment not found",
+        assignmentNotFoundDescription: "Return to the class page and choose another assignment.",
+        problemNotFound: "Problem not found",
+        problemNotFoundDescription: "Return to the assignment page and choose another problem.",
+        noAssignments: "No assignment data for this class yet.",
+        noSubmissions: "No submission data yet. Charts will appear after submissions arrive.",
+        noInsight: "No attribution data yet.",
+        noEvidence: "No evidence samples yet.",
+        noKnowledgePath: "No knowledge path yet.",
+        noIssue: "No shared issue yet"
+      }
     },
     teacherHome: {
       classOverview: "Class overview",

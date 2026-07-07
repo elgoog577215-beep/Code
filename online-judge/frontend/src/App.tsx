@@ -2,23 +2,25 @@ import { lazy, ReactNode, Suspense, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import { BookOpenCheck, LogIn, Menu, Moon, Sun, UserRound, UsersRound, X } from "lucide-react";
-import TeacherPage from "./features/teacher/TeacherPage";
 import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
 import { TeacherShell } from "./features/teacher/TeacherShell";
 import { useTranslation } from "./shared/i18n";
 import { clearActiveStudent, loadStudent, onActiveStudentChange } from "./shared/storage";
 import { Button } from "./shared/ui/Button";
 import { EmptyState } from "./shared/ui/EmptyState";
+import "./features/teacher-analytics/TeacherAnalytics.css";
 
 const StudentPage = lazy(() => import("./features/student/StudentPage"));
 const StudentLoginPage = lazy(() => import("./features/student/StudentLoginPage"));
 const StudentAssignmentPage = lazy(() => import("./features/student/StudentAssignmentPage"));
 const ProblemPage = lazy(() => import("./features/problem/ProblemPage"));
-const AssignmentDetailPage = lazy(() => import("./features/teacher/AssignmentDetailPage"));
 const AssignmentCreatePage = lazy(() => import("./features/teacher/AssignmentCreatePage"));
 const TeacherManagementPage = lazy(() => import("./features/teacher/TeacherManagementPage"));
-const ClassOverviewPage = lazy(() => import("./features/insights/ClassOverviewPage"));
 const TaskEditorPage = lazy(() => import("./features/task-editor/TaskEditorPage"));
+const TeacherAnalyticsLandingPage = lazy(() => import("./features/teacher-analytics/pages/TeacherAnalyticsLandingPage"));
+const ClassAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ClassAnalyticsPage"));
+const AssignmentAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/AssignmentAnalyticsPage"));
+const ProblemAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ProblemAnalyticsPage"));
 
 type Theme = "light" | "dark";
 type NavItem = {
@@ -103,6 +105,21 @@ function TeacherRoute({ children }: { children: ReactNode }) {
       <TeacherShell>{children}</TeacherShell>
     </TeacherAuthGate>
   );
+}
+
+function LegacyAssignmentRedirect({ level }: { level: "assignment" | "problem" | "student" }) {
+  const location = useLocation();
+  const match = location.pathname.match(/\/app\/teacher\/assignment\/([^/]+)(?:\/problems\/([^/]+))?(?:\/students\/([^/]+))?/);
+  const assignmentId = match?.[1];
+  const problemId = match?.[2];
+  const search = location.search || "";
+  if (!assignmentId) {
+    return <Navigate to="/app/teacher/classes" replace />;
+  }
+  if (level !== "assignment" && problemId) {
+    return <Navigate to={`/app/teacher/classes/0/assignments/${assignmentId}/problems/${problemId}${search}`} replace />;
+  }
+  return <Navigate to={`/app/teacher/classes/0/assignments/${assignmentId}${search}`} replace />;
 }
 
 function Header() {
@@ -253,8 +270,11 @@ export default function App() {
             <Route path="/app/student/login" element={<StudentLoginPage />} />
             <Route path="/app/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
             <Route path="/app/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
-            <Route path="/app/teacher" element={<TeacherRoute><TeacherPage /></TeacherRoute>} />
-            <Route path="/app/teacher/classes" element={<TeacherRoute><ClassOverviewPage /></TeacherRoute>} />
+            <Route path="/app/teacher" element={<TeacherRoute><Navigate to="/app/teacher/classes" replace /></TeacherRoute>} />
+            <Route path="/app/teacher/classes" element={<TeacherRoute><TeacherAnalyticsLandingPage /></TeacherRoute>} />
+            <Route path="/app/teacher/classes/:classId" element={<TeacherRoute><ClassAnalyticsPage /></TeacherRoute>} />
+            <Route path="/app/teacher/classes/:classId/assignments/:assignmentId" element={<TeacherRoute><AssignmentAnalyticsPage /></TeacherRoute>} />
+            <Route path="/app/teacher/classes/:classId/assignments/:assignmentId/problems/:problemId" element={<TeacherRoute><ProblemAnalyticsPage /></TeacherRoute>} />
             <Route path="/app/teacher/manage" element={<TeacherRoute><TeacherManagementPage section="home" /></TeacherRoute>} />
             <Route path="/app/teacher/manage/classes" element={<TeacherRoute><TeacherManagementPage section="classes" /></TeacherRoute>} />
             <Route path="/app/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
@@ -263,9 +283,9 @@ export default function App() {
             <Route path="/app/class-overview" element={<Navigate to="/app/teacher/classes" replace />} />
             <Route path="/app/task-editor" element={<TeacherRoute><TaskEditorPage /></TeacherRoute>} />
             <Route path="/app/teacher/assignment/new" element={<TeacherRoute><AssignmentCreatePage /></TeacherRoute>} />
-            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherRoute><AssignmentDetailPage /></TeacherRoute>} />
-            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherRoute><AssignmentDetailPage /></TeacherRoute>} />
-            <Route path="/app/teacher/assignment/:assignmentId" element={<TeacherRoute><AssignmentDetailPage /></TeacherRoute>} />
+            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherRoute><LegacyAssignmentRedirect level="student" /></TeacherRoute>} />
+            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherRoute><LegacyAssignmentRedirect level="problem" /></TeacherRoute>} />
+            <Route path="/app/teacher/assignment/:assignmentId" element={<TeacherRoute><LegacyAssignmentRedirect level="assignment" /></TeacherRoute>} />
             <Route path="*" element={<Navigate to="/app" replace />} />
           </Routes>
         </Suspense>

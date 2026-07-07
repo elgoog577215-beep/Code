@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { BookOpenCheck, BrainCircuit, Database, UsersRound } from "lucide-react";
+import { BarChart3, BrainCircuit, Database, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "../../shared/i18n";
 import "./TeacherHomeRefresh.css";
@@ -19,20 +19,14 @@ export function TeacherShell({ children }: { children: ReactNode }) {
   const pathname = location.pathname;
   const items: TeacherNavItem[] = [
     {
-      to: "/app/teacher",
-      label: t("teacherShell.nav.assignments"),
-      description: t("teacherShell.nav.assignmentsDescription"),
-      icon: BookOpenCheck,
+      to: "/app/teacher/classes",
+      label: t("teacherShell.nav.analytics"),
+      description: t("teacherShell.nav.analyticsDescription"),
+      icon: BarChart3,
       activeWhen: current =>
         current === "/app/teacher" ||
+        current.startsWith("/app/teacher/classes") ||
         current.startsWith("/app/teacher/assignment")
-    },
-    {
-      to: "/app/teacher/classes",
-      label: t("teacherShell.nav.classLearning"),
-      description: t("teacherShell.nav.classLearningDescription"),
-      icon: UsersRound,
-      activeWhen: current => current.startsWith("/app/teacher/classes")
     },
     {
       to: "/app/teacher/manage/classes",

@@ -33,6 +33,163 @@
     "teacherTitle": "Teacher Workbench",
     "teacherDescription": "Review classes, assignments, problems, and students, plus manage rosters, problems, and the AI library."
   },
+  "teacherShell": {
+    "aria": "Teacher workbench navigation",
+    "kicker": "Teacher",
+    "title": "Teaching Analytics",
+    "footnote": "Drill from class to assignment to problem for objective results.",
+    "nav": {
+      "analytics": "Teaching Analytics",
+      "analyticsDescription": "Class, assignment, and problem results",
+      "roster": "Class Roster",
+      "rosterDescription": "Student import and class setup",
+      "problemBank": "Problem Bank",
+      "problemBankDescription": "Problem list and editor",
+      "aiLibrary": "AI Library",
+      "aiLibraryDescription": "Approved library and governance"
+    }
+  },
+  "teacherAnalytics": {
+    "kicker": "Teaching Results",
+    "landing": {
+      "title": "Choose a class",
+      "description": "Start with a class, then drill into its assignments and problem results.",
+      "classList": "Class list",
+      "classFallback": "Class",
+      "noTeacherName": "No teacher name"
+    },
+    "breadcrumb": {
+      "classes": "Classes"
+    },
+    "scope": {
+      "class": "Class",
+      "assignment": "Assignment",
+      "problem": "Problem"
+    },
+    "class": {
+      "description": "Review cross-assignment submissions, accuracy, error distribution, and knowledge paths."
+    },
+    "assignment": {
+      "description": "Review problem results, error distribution, and AI knowledge attribution for this assignment."
+    },
+    "problem": {
+      "description": "Review submissions, error distribution, knowledge path, and evidence samples for this problem."
+    },
+    "actions": {
+      "newAssignment": "New assignment"
+    },
+    "loading": {
+      "classes": "Loading classes",
+      "class": "Loading class analytics",
+      "assignment": "Loading assignment analytics",
+      "problem": "Loading problem analytics"
+    },
+    "errors": {
+      "load": "Failed to load teaching analytics."
+    },
+    "granularity": {
+      "chapter": "By chapter",
+      "knowledgePoint": "By knowledge point",
+      "skillUnit": "By skill unit",
+      "mistakePoint": "By mistake point"
+    },
+    "metrics": {
+      "assignments": "Assignments",
+      "students": "Students",
+      "submissions": "Submissions",
+      "accuracy": "Accuracy",
+      "errorCount": "Errors",
+      "affectedStudents": "Students affected",
+      "submittedStudents": "Submitted",
+      "unsubmittedStudents": "Not submitted",
+      "averageAttempts": "Avg attempts",
+      "lowPassProblems": "Low-pass problems",
+      "passedStudents": "Passed",
+      "failedStudents": "Failed"
+    },
+    "sections": {
+      "metrics": "Core metrics",
+      "visualization": "Data visualization",
+      "ranking": "Error distribution",
+      "share": "Share",
+      "currentPath": "Current knowledge path",
+      "assignments": "Assignments",
+      "problems": "Problems"
+    },
+    "scopeTitle": "{{scope}} result distribution",
+    "pathMeta": "{{count}} times · {{students}} students · {{problems}} problems",
+    "pathLabel": "Path",
+    "status": {
+      "active": "Active",
+      "draft": "Draft",
+      "closed": "Closed"
+    },
+    "defaultLabels": {
+      "defaultClass": "Default class",
+      "assignmentFallbackWithId": "Class assignment #{{id}}",
+      "pilotAssignment": "Class coding assignment",
+      "arraySequence": "Arrays and sequences",
+      "ioString": "Input, output, and strings",
+      "loopRecursion": "Loops and recursion",
+      "dataStructure": "Data structures",
+      "dynamicProgramming": "Dynamic programming",
+      "general": "General application",
+      "boundary": "Boundary handling",
+      "ioFormat": "Input/output format",
+      "stateMaintenance": "State maintenance",
+      "problem": "Problem",
+      "submissionRecord": "Submission record",
+      "studentWithId": "Student #{{id}}"
+    },
+    "tables": {
+      "assignmentTitle": "Assignments",
+      "problemTitle": "Problems"
+    },
+    "units": {
+      "count": "times",
+      "problem": "problems",
+      "passed": "passed"
+    },
+    "ai": {
+      "title": "AI Knowledge Attribution",
+      "class": "Class paths",
+      "assignment": "Assignment paths",
+      "problem": "Problem paths"
+    },
+    "fit": {
+      "HIT": "Library hit",
+      "PARTIAL": "Partial library match",
+      "MISS": "Out-of-library candidate",
+      "UNKNOWN": "Unconfirmed attribution"
+    },
+    "evidence": {
+      "title": "Evidence samples"
+    },
+    "correction": {
+      "title": "Correct attribution",
+      "issue": "Issue",
+      "fineIssue": "Detailed issue",
+      "note": "Note",
+      "submit": "Save correction",
+      "unavailable": "No correctable submission yet."
+    },
+    "empty": {
+      "noClasses": "No classes yet",
+      "noClassesDescription": "Create a class to open class analytics.",
+      "classNotFound": "Class not found",
+      "classNotFoundDescription": "Return to the class list and choose again.",
+      "assignmentNotFound": "Assignment not found",
+      "assignmentNotFoundDescription": "Return to the class page and choose another assignment.",
+      "problemNotFound": "Problem not found",
+      "problemNotFoundDescription": "Return to the assignment page and choose another problem.",
+      "noAssignments": "No assignment data for this class yet.",
+      "noSubmissions": "No submission data yet. Charts will appear after submissions arrive.",
+      "noInsight": "No attribution data yet.",
+      "noEvidence": "No evidence samples yet.",
+      "noKnowledgePath": "No knowledge path yet.",
+      "noIssue": "No shared issue yet"
+    }
+  },
   "teacherHome": {
     "classOverview": "Class overview",
     "classLabel": "Class",

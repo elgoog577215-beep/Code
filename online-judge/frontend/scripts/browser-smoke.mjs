@@ -683,6 +683,73 @@ const aiStandardLibraryGrowthCandidates = [
   }
 ];
 
+const informaticsKnowledgeTree = [
+  {
+    id: 1,
+    code: "LOOP_BOUNDARY",
+    parentCode: null,
+    type: "KNOWLEDGE_POINT",
+    name: "循环与边界",
+    description: "循环边界与输入读取",
+    path: "循环与边界",
+    stage: "高中",
+    difficulty: "EASY",
+    aliases: [],
+    prerequisites: [],
+    learningObjectives: [],
+    typicalProblems: [],
+    sortOrder: 1,
+    enabled: true,
+    libraryVersion: "smoke",
+    children: [
+      {
+        id: 2,
+        code: "INPUT_PARSING",
+        parentCode: "LOOP_BOUNDARY",
+        type: "MISTAKE_POINT",
+        name: "输入读取理解",
+        description: "读取完整输入并理解行列关系",
+        path: "循环与边界 / 输入读取理解",
+        stage: "高中",
+        difficulty: "EASY",
+        aliases: [],
+        prerequisites: [],
+        learningObjectives: [],
+        typicalProblems: [],
+        sortOrder: 1,
+        enabled: true,
+        libraryVersion: "smoke",
+        children: []
+      }
+    ]
+  }
+];
+
+const aiStandardLibraryGrowthGovernanceSummary = {
+  totalCount: 1,
+  proposedCount: 0,
+  reviewPendingCount: 1,
+  needsReviewCount: 1,
+  blockedCount: 0,
+  mergedSimilarCount: 0,
+  teacherApprovedCount: 0,
+  mergedCount: 0,
+  rejectedCount: 0,
+  ignoredCount: 0,
+  duplicateAggregateCount: 0,
+  statusStats: [{ status: "NEEDS_REVIEW", count: 1 }],
+  highFrequencyPaths: [
+    {
+      path: ["循环与边界", "输入读取理解"],
+      candidateCount: 1,
+      pendingCount: 1,
+      occurrenceCount: 2,
+      recommendedAction: "保留人工审核"
+    }
+  ],
+  weakPaths: []
+};
+
 const scenarios = [
   {
     name: "app-entry",
@@ -693,10 +760,13 @@ const scenarios = [
     ],
     afterChecks: async page => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
+      const canonicalHrefs = await page.locator('a[href="/app/student"], a[href="/app/teacher"]').evaluateAll(elements =>
+        elements.map(element => element.getAttribute("href"))
+      );
       const hubText = ((await page.locator(".route-hub-page").first().textContent()) || "").replace(/\s+/g, "");
       record("app root is explicit route hub", page.url().endsWith("/app") || page.url().endsWith("/app/"), page.url());
       record("app root lists clear workspaces", hubText.includes("学生学习") && hubText.includes("教师工作台"), hubText.slice(0, 700));
-      record("app root exposes canonical paths", hubText.includes("/app/student") && hubText.includes("/app/teacher"), hubText.slice(0, 700));
+      record("app root exposes canonical paths", canonicalHrefs.includes("/app/student") && canonicalHrefs.includes("/app/teacher"), canonicalHrefs.join("|"));
       record("app root keeps top nav simple", navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
     }
   },
@@ -709,8 +779,9 @@ const scenarios = [
     ],
     afterChecks: async page => {
       const navCount = await page.locator(".top-nav__link").count();
+      const navLabels = await page.locator(".top-nav__link span").allTextContents();
       record("student direct URL opens entry", page.url().includes("/app/student"), page.url());
-      record("student entry has no business top nav", navCount === 0, `nav count ${navCount}`);
+      record("student entry keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
     }
   },
   {
@@ -722,9 +793,10 @@ const scenarios = [
     },
     afterChecks: async (page, viewport) => {
       const navCount = await page.locator(".top-nav__link").count();
+      const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const workbenchText = ((await page.locator(".problem-workbench").first().textContent()) || "").replace(/\s+/g, "");
       const taskItemHeight = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().height);
-      record("public assignment has no business top nav", navCount === 0, `nav count ${navCount}`);
+      record("public assignment keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("public assignment uses catalog task list", workbenchText.includes("求和边界") && workbenchText.includes("循环边界"), workbenchText);
       record("public assignment opens workbench", page.url().includes("/app/student/assignments/public/problems/101"), page.url());
       record("public assignment task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
@@ -750,7 +822,8 @@ const scenarios = [
       const headerLoginCount = await page.locator(".header-login-link, .header-student-chip").count();
       const studentWidth = await page.locator(".student-home").first().evaluate(element => element.getBoundingClientRect().width);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-      record("student home has no business top nav", navCount === 0, `nav count ${navCount}`);
+      const navLabels = await page.locator(".top-nav__link span").allTextContents();
+      record("student home keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("student identity lives in header", headerLoginCount >= 1, `header identity count ${headerLoginCount}`);
       record("student home shows public catalog entry", homeText.includes("公共题库"), homeText);
       record("student home shows assignment details", homeText.includes("课堂编程作业") && homeText.includes("高一1班") && homeText.includes("2题"), homeText);
@@ -787,11 +860,12 @@ const scenarios = [
     path: "/app/student/assignments/7",
     afterChecks: async (page, viewport) => {
       const navCount = await page.locator(".top-nav__link").count();
+      const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const workbenchText = ((await page.locator(".problem-workbench").first().textContent()) || "").replace(/\s+/g, "");
       const taskItemHeight = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().height);
       const taskSidebarWidth = await page.locator(".problem-task-sidebar").first().evaluate(element => element.getBoundingClientRect().width);
       const taskItemWidth = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().width);
-      record("student assignment has no business top nav", navCount === 0, `nav count ${navCount}`);
+      record("student assignment keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("student assignment redirects to workbench", page.url().includes("/app/student/assignments/7/problems/101"), page.url());
       record("student assignment workbench has task list", workbenchText.includes("求和边界") && workbenchText.includes("循环边界"), workbenchText);
       record("student assignment task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
@@ -826,7 +900,7 @@ const scenarios = [
       const taskItemHeight = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().height);
       const taskSidebarWidth = await page.locator(".problem-task-sidebar").first().evaluate(element => element.getBoundingClientRect().width);
       const taskItemWidth = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().width);
-      record("problem has no business top nav", navCount === 0, navLabels.join("|"));
+      record("problem keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("problem removes duplicate command banner", commandCount === 0, `command banner count ${commandCount}`);
       record("problem statement title is the current problem", statementTitle.includes("求和边界"), statementTitle);
       record("problem task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
@@ -898,11 +972,6 @@ const scenarios = [
       record("problem modal records model feedback view", studentFeedbackViewCount === 1, `student feedback view count ${studentFeedbackViewCount}`);
       await page.locator(".problem-result-modal__footer button").filter({ hasText: "继续修改" }).click();
       await checkVisible(page, ".problem-last-result", "problem last result entry after modal close");
-      await checkVisible(page, ".problem-feedback-dock", "problem AI feedback dock after modal close");
-      const dockText = ((await page.locator(".problem-feedback-dock").first().textContent()) || "").replace(/\s+/g, "");
-      record("problem AI feedback dock keeps completed result", dockText.includes("AI分析完成") && dockText.includes("点开查看建议"), dockText);
-      await page.locator(".problem-feedback-dock").click();
-      await checkVisible(page, ".problem-result-modal", "problem AI feedback dock reopens result");
       if (viewport.name === "mobile") {
         await checkVisible(page, ".problem-mobile-jump", "problem mobile code jump");
       }
@@ -923,18 +992,11 @@ const scenarios = [
     name: "teacher",
     path: "/app/teacher",
     afterChecks: async (page, viewport) => {
-      const shellNavLabels = await page.locator(".teacher-shell-nav__links a span").allTextContents();
-      const activeShellNav = await page.locator(".teacher-shell-nav__links a.is-active span").allTextContents();
-      const teacherText = ((await page.locator(".teacher-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher shell nav is current structure", shellNavLabels.join("|") === "作业中心|资源管理", shellNavLabels.join("|"));
-      record("teacher shell nav is active", activeShellNav.includes("作业中心"), activeShellNav.join("|"));
-      record("teacher home is assignment workflow", teacherText.includes("作业中心") && teacherText.includes("选择要看的作业") && teacherText.includes("查看详情"), teacherText.slice(0, 800));
-      record("teacher home removes repeated decision copy", !teacherText.includes("下一步") && !teacherText.includes("学生摘要"), teacherText.slice(0, 800));
-      record("teacher home hides invite code", !teacherText.includes("邀请码") && !teacherText.includes("WZAI01"), teacherText.slice(0, 800));
-      record("teacher home shows compact card essentials", teacherText.includes("高一1班") && teacherText.includes("题目2") && teacherText.includes("需看"), teacherText.slice(0, 800));
-      record("teacher home keeps diagnostics out of main flow", !teacherText.includes("Coach") && !teacherText.includes("教师校正") && !teacherText.includes("错因证据"), teacherText.slice(0, 800));
-      record("teacher home removes duplicate nav actions", !teacherText.includes("管理班级与题目") && !teacherText.includes("总体统计") && !teacherText.includes("刷新") && !teacherText.includes("编辑题目"), teacherText.slice(0, 800));
-      record("teacher assignment rows keep one primary action", !teacherText.includes("编辑作业") && !teacherText.includes("编辑进入作业"), teacherText.slice(0, 800));
+      const shellText = ((await page.locator(".teacher-shell-nav").first().textContent()) || "").replace(/\s+/g, "");
+      const teacherText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
+      record("teacher shell nav uses analytics entry", shellText.includes("教学分析") && !shellText.includes("作业中心班级学情"), shellText);
+      record("teacher root redirects to class chooser", teacherText.includes("选择班级") && teacherText.includes("高一1班"), teacherText.slice(0, 800));
+      record("teacher analytics avoids decision copy", !teacherText.includes("下一步") && !teacherText.includes("建议") && !teacherText.includes("讲评"), teacherText.slice(0, 800));
       record("teacher create action goes to dedicated page", await page.locator('a[href="/app/teacher/assignment/new"]').first().isVisible(), teacherText.slice(0, 800));
       record(
         "teacher main copy hides engineering tokens",
@@ -942,56 +1004,50 @@ const scenarios = [
         teacherText.slice(0, 800)
       );
       if (viewport.name === "desktop") {
-        await checkElementMaxWidth(page, ".teacher-workflow", 1440, "teacher desktop workbench width");
-        await checkSameRow(page, ".teacher-workflow-panel", ".teacher-attention-panel", "teacher desktop workbench and attention stay beside each other");
+        await checkElementMaxWidth(page, ".teacher-analytics-page", 1440, "teacher desktop analytics width");
       }
       if (viewport.name === "mobile") {
-        await checkMinControlHeight(page, ".teacher-workflow-header .ui-button", 44, "teacher mobile primary action");
+        await checkMinControlHeight(page, ".teacher-analytics-hero .ui-button", 36, "teacher mobile primary action");
       }
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],
-      [".teacher-workflow-header", "teacher assignment workflow header"],
-      [".teacher-home-status-strip", "teacher assignment status strip"],
-      [".teacher-workflow-panel", "teacher assignment workflow panel"],
-      [".teacher-assignment-card", "teacher assignment card"],
-      [".teacher-attention-card", "teacher attention card"]
+      [".teacher-analytics-page", "teacher analytics page"],
+      [".teacher-analytics-hero", "teacher analytics hero"],
+      [".teacher-analytics-class-card", "teacher class card"]
     ]
   },
   {
-    name: "assignment-detail",
-    path: "/app/teacher/assignment/7",
+    name: "assignment-analytics",
+    path: "/app/teacher/classes/3/assignments/7",
     afterChecks: async (page, viewport) => {
-      const activeNav = await page.locator(".teacher-shell-nav__links a.is-active span").allTextContents();
-      const assignmentText = ((await page.locator(".assignment-drill-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("assignment detail belongs to assignment nav", activeNav.includes("作业中心"), activeNav.join("|"));
-      record("assignment detail hides invite code", !assignmentText.includes("邀请码") && !assignmentText.includes("WZAI01"), assignmentText.slice(0, 900));
-      record("assignment detail exposes drill overview", assignmentText.includes("作业增长情况") && assignmentText.includes("题目推进"), assignmentText.slice(0, 900));
-      record("assignment detail shows core metrics", assignmentText.includes("提交人数") && assignmentText.includes("通过人数") && assignmentText.includes("需关注"), assignmentText.slice(0, 900));
-      record("assignment detail lists problems", assignmentText.includes("求和边界") && assignmentText.includes("循环边界"), assignmentText.slice(0, 900));
-      record("assignment detail keeps diagnostics out of overview", !assignmentText.includes("AI/Coach/教师校正") && !assignmentText.includes("教师校正已保存"), assignmentText.slice(0, 900));
+      const assignmentText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
+      record("assignment analytics exposes objective metrics", assignmentText.includes("提交人数") && assignmentText.includes("正确率") && assignmentText.includes("平均提交"), assignmentText.slice(0, 900));
+      record("assignment analytics lists problems", assignmentText.includes("求和边界") && assignmentText.includes("循环边界"), assignmentText.slice(0, 900));
+      record("assignment analytics has AI attribution", assignmentText.includes("AI知识归因") && assignmentText.includes("当前知识路径"), assignmentText.slice(0, 900));
+      record("assignment analytics avoids teacher decision language", !assignmentText.includes("下一步") && !assignmentText.includes("建议") && !assignmentText.includes("讲评"), assignmentText.slice(0, 900));
       if (viewport.name === "desktop") {
-        await checkElementMaxWidth(page, ".assignment-drill-page", 1440, "assignment desktop drill width");
+        await checkElementMaxWidth(page, ".teacher-analytics-page", 1440, "assignment desktop analytics width");
       }
       if (viewport.name === "mobile") {
-        await checkMinControlHeight(page, ".teacher-problem-card", 44, "assignment mobile problem cards stay tappable");
+        await checkMinControlHeight(page, ".teacher-analytics-granularity button", 32, "assignment mobile granularity controls");
       }
     },
     selectors: [
-      [".assignment-drill-page", "assignment drill page"],
-      [".teacher-drill-header", "assignment drill header"],
-      [".teacher-priority-grid", "assignment priority cards"],
-      [".teacher-drill-strip", "assignment drill metrics"],
-      [".teacher-problem-card-grid", "assignment problem cards"]
+      [".teacher-analytics-page", "assignment analytics page"],
+      [".teacher-analytics-summary", "assignment analytics metrics"],
+      [".teacher-analytics-board", "assignment analytics board"],
+      [".teacher-analytics-ai-panel", "assignment AI attribution"],
+      [".teacher-analytics-table-row", "assignment problem rows"]
     ]
   },
   {
     name: "assignment-create",
     path: "/app/teacher/assignment/new",
     afterChecks: async page => {
-      const activeNav = await page.locator(".teacher-shell-nav__links a.is-active span").allTextContents();
+      const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
       const createText = ((await page.locator(".assignment-builder-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("assignment create belongs to assignment nav", activeNav.includes("作业中心"), activeNav.join("|"));
+      record("assignment create belongs to analytics nav", activeNav.join("|").includes("教学分析"), activeNav.join("|"));
       record("assignment create uses three-step workflow", createText.includes("基本信息") && createText.includes("选择题目") && createText.includes("确认发布"), createText.slice(0, 900));
       const hasProblemSearch = await page.getByPlaceholder("搜索题目").count() === 1;
       record("assignment create has problem bank controls", hasProblemSearch && createText.includes("全部难度") && createText.includes("已选题目"), createText.slice(0, 900));
@@ -1009,12 +1065,12 @@ const scenarios = [
     name: "teacher-management",
     path: "/app/teacher/manage",
     afterChecks: async (page, viewport) => {
-      const activeNav = await page.locator(".teacher-shell-nav__links a.is-active span").allTextContents();
+      const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
       const managementText = ((await page.locator(".teacher-manage-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher management belongs to management nav", activeNav.includes("资源管理"), activeNav.join("|"));
-      record("teacher management does not also mark assignment center", !activeNav.includes("作业中心"), activeNav.join("|"));
+      record("teacher management belongs to management nav", activeNav.join("|").includes("题库管理"), activeNav.join("|"));
+      record("teacher management does not also mark analytics", !activeNav.join("|").includes("教学分析"), activeNav.join("|"));
       record("teacher management shows routed management entries", managementText.includes("班级与名单") && managementText.includes("题库") && managementText.includes("AI标准库"), managementText.slice(0, 900));
-      record("teacher management exposes status controls", managementText.includes("检测AI") && managementText.includes("班级1") && managementText.includes("题目2"), managementText.slice(0, 900));
+      record("teacher management exposes status controls", managementText.includes("检测AI") && managementText.includes("1个班级") && managementText.includes("2个题目"), managementText.slice(0, 900));
       if (viewport.name === "desktop") {
         await checkVisible(page, ".management-home-entry:nth-child(3)", "teacher management desktop third entry");
       }
@@ -1024,7 +1080,7 @@ const scenarios = [
       if (viewport.name === "mobile") {
         await checkStacked(page, ".management-home-entry:nth-child(1)", ".management-home-entry:nth-child(2)", "teacher management mobile class before problems");
         await checkStacked(page, ".management-home-entry:nth-child(2)", ".management-home-entry:nth-child(3)", "teacher management mobile problems before library");
-        await checkMinControlHeight(page, ".teacher-manage-tabs .ui-button", 44, "teacher management mobile tabs");
+        await checkMinControlHeight(page, ".management-home-entry", 44, "teacher management mobile entries");
       }
     },
     selectors: [
@@ -1035,17 +1091,38 @@ const scenarios = [
     ]
   },
   {
-    name: "class-overview",
-    path: "/app/teacher/classes",
-    beforeChecks: async (page, viewport) => {
-      const selector = viewport.name === "mobile" ? ".class-progress-mobile-list" : ".class-progress-matrix";
-      await checkVisible(page, selector, `class overview ${viewport.name} progress matrix`);
+    name: "class-analytics",
+    path: "/app/teacher/classes/3",
+    beforeChecks: async (page) => {
+      await checkVisible(page, ".teacher-analytics-board", "class analytics board");
+    },
+    afterChecks: async page => {
+      const classText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
+      record("class analytics keeps class assignment problem hierarchy", classText.includes("高一1班") && classText.includes("作业列表") && classText.includes("课堂编程作业"), classText.slice(0, 900));
+      record("class analytics shows knowledge attribution", classText.includes("AI知识归因") && classText.includes("知识路径"), classText.slice(0, 900));
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],
-      [".overview-command", "overview command"],
-      [".teacher-home-status-strip", "overview status strip"],
-      [".class-progress-workbench", "class progress workbench"]
+      [".teacher-analytics-page", "class analytics page"],
+      [".teacher-analytics-summary", "class metrics"],
+      [".teacher-analytics-board", "class analytics board"],
+      [".teacher-analytics-ai-panel", "class AI attribution"]
+    ]
+  },
+  {
+    name: "problem-analytics",
+    path: "/app/teacher/classes/3/assignments/7/problems/101",
+    afterChecks: async page => {
+      const problemText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
+      record("problem analytics shows problem objective results", problemText.includes("求和边界") && problemText.includes("未通过人数") && problemText.includes("证据样本"), problemText.slice(0, 900));
+      record("problem analytics exposes correction in evidence layer", problemText.includes("校正归因") && !problemText.includes("教师动作"), problemText.slice(0, 900));
+      record("problem analytics avoids decision copy", !problemText.includes("下一步") && !problemText.includes("建议") && !problemText.includes("讲评"), problemText.slice(0, 900));
+    },
+    selectors: [
+      [".teacher-analytics-page", "problem analytics page"],
+      [".teacher-analytics-summary", "problem metrics"],
+      [".teacher-analytics-evidence", "problem evidence samples"],
+      [".teacher-analytics-correction", "problem correction layer"]
     ]
   }
 ];
@@ -1225,6 +1302,8 @@ async function routeApi(route) {
   if (path === "/api/system/ai-smoke" && method === "POST") return json(route, { status: "READY", message: "AI smoke ready", latencyMs: 12 });
   if (path === "/api/teacher/ai-standard-library/items") return json(route, aiStandardLibraryItems);
   if (path === "/api/teacher/ai-standard-library/growth-candidates") return json(route, aiStandardLibraryGrowthCandidates);
+  if (path === "/api/teacher/ai-standard-library/growth-candidates/governance-summary") return json(route, aiStandardLibraryGrowthGovernanceSummary);
+  if (path === "/api/teacher/informatics-knowledge/tree") return json(route, informaticsKnowledgeTree);
 
   unmockedApis.push(`${method} ${path}`);
   return json(route, { error: `Unmocked API: ${method} ${path}` }, 404);

@@ -1,15 +1,4 @@
-# teacher-console-ui Specification
-
-## Purpose
-TBD - created by archiving change redesign-teacher-console-ui. Update Purpose after archive.
-## Requirements
-### Requirement: 教师端必须使用统一侧栏工作台
-教师端页面 SHALL 使用统一左侧栏表达教师主导航，并在右侧内容区展示当前页面任务。
-
-#### Scenario: 教师进入任意教师页面
-- **WHEN** 教师访问作业中心、班级学情、题库管理、AI 标准库、新建作业、作业详情或学生诊断页面
-- **THEN** 页面 SHALL 显示同一套教师侧栏导航
-- **AND** 当前模块 SHALL 具有清晰 active 状态
+## MODIFIED Requirements
 
 ### Requirement: 作业路径必须按教学对象分层下钻
 教师端正式分析路径 SHALL 按班级、作业、题目递进下钻，并把旧作业详情中的题目、学生、诊断和校正能力迁移到新的对象层级中。
@@ -59,12 +48,3 @@ TBD - created by archiving change redesign-teacher-console-ui. Update Purpose af
 - **WHEN** 教师在班级学情页选择章节、知识点、能力点或易错点粒度
 - **THEN** 页面 SHALL 在当前班级范围内重新聚合可视化结果
 - **AND** 页面 SHALL 保留学生提交证据入口用于核验归因
-
-### Requirement: 学生端必须轻量协调视觉边界
-学生端 SHALL 保持现有做题主体流程，同时在返回入口、按钮、边界、间距和表面层次上与教师端新视觉保持一致。
-
-#### Scenario: 学生打开作业或题目页面
-- **WHEN** 页面展示返回链接、主要按钮、面板或列表边界
-- **THEN** 这些元素 SHALL 使用与新教师端一致的圆角、边界、按钮高度和清晰焦点状态
-- **AND** 学生端做题、提交和 AI 反馈主体流程 SHALL 不被重排
-
