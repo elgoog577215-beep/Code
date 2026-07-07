@@ -19,7 +19,6 @@ class DiagnosticAgentServiceLearningMemoryTest {
     void repeatedLearningMemoryShrinksInterventionWithoutOverridingCurrentDiagnosis() {
         DiagnosticAgentService service = new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
-                new RuleSignalAnalyzer(),
                 new PassThroughAiReportService(),
                 new PassThroughHintSafetyService(),
                 new DiagnosisTaxonomy()

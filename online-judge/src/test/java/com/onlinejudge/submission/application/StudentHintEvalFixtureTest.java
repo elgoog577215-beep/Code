@@ -5,6 +5,7 @@ import com.onlinejudge.classroom.application.HintSafetyService;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -258,6 +259,7 @@ class StudentHintEvalFixtureTest {
     }
 
     @Test
+    @Disabled("旧 RuleSignalAnalyzer 已归档，学生主链路不再追求本地规则信号覆盖率。")
     void backendAgentBlindEvalExposesRuleSignalCoverage() throws IOException {
         DiagnosticAgentService service = newService();
         List<StudentHintEvalFixtureLoader.Fixture> fixtures = loadFixtures();
@@ -345,6 +347,7 @@ class StudentHintEvalFixtureTest {
     }
 
     @Test
+    @Disabled("旧 RuleSignalAnalyzer 已归档，负例规则信号覆盖门禁不再适用。")
     void backendAgentNegativeEvalGuardsAgainstFalsePositiveTags() throws IOException {
         DiagnosticAgentService service = newService();
         List<StudentHintEvalFixtureLoader.Fixture> fixtures = loadNegativeFixtures();
@@ -453,6 +456,7 @@ class StudentHintEvalFixtureTest {
     }
 
     @Test
+    @Disabled("旧 RuleSignalAnalyzer 已归档，公开回放的本地 verdict 规则信号门禁不再适用。")
     void backendAgentPublicReplayEvalKeepsVerdictLevelSignalsStable() throws IOException {
         DiagnosticAgentService service = newService();
         List<StudentHintEvalFixtureLoader.Fixture> fixtures = loadPublicReplayFixtures();
@@ -848,7 +852,6 @@ class StudentHintEvalFixtureTest {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         return new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
-                new RuleSignalAnalyzer(),
                 new PassThroughAiReportService(),
                 new HintSafetyService(null, objectMapper, taxonomy),
                 taxonomy

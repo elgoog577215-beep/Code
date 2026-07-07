@@ -57,7 +57,7 @@ class ModelDiagnosisBriefBuilderTest {
     }
 
     @Test
-    void briefCarriesCandidateSignalsAndEvidenceRefs() {
+    void briefUsesOnlyJudgeBaselineAndMemoryEvidenceRefs() {
         ModelDiagnosisBrief brief = briefBuilder.build(
                 DiagnosisEvidencePackage.builder()
                         .problem(problem())
@@ -80,11 +80,12 @@ class ModelDiagnosisBriefBuilderTest {
                         .build()
         );
 
-        assertThat(brief.getCandidateSignals()).hasSize(1);
-        assertThat(brief.getCandidateSignals().get(0).getEvidenceRef()).isEqualTo("code:range_excludes_n");
-        assertThat(brief.getAllowedIssueTags()).contains("LOOP_BOUNDARY", "BOUNDARY_CONDITION", "NEEDS_MORE_EVIDENCE");
+        assertThat(brief.getCandidateSignals()).isEmpty();
+        assertThat(brief.getAllowedIssueTags()).contains("BOUNDARY_CONDITION", "NEEDS_MORE_EVIDENCE");
+        assertThat(brief.getAllowedIssueTags()).doesNotContain("LOOP_BOUNDARY");
         assertThat(brief.getAllowedFineGrainedTags()).contains("OFF_BY_ONE");
-        assertThat(brief.getEvidenceRefs()).contains("code:range_excludes_n", "judge:first_failed_case", "baseline:teacher");
+        assertThat(brief.getEvidenceRefs()).contains("judge:first_failed_case", "baseline:teacher");
+        assertThat(brief.getEvidenceRefs()).doesNotContain("code:range_excludes_n");
         assertThat(brief.getKeyCodeExcerpt()).contains("1:");
     }
 
@@ -114,7 +115,7 @@ class ModelDiagnosisBriefBuilderTest {
     }
 
     @Test
-    void standardLibraryPackKeepsCandidateTagsAndLayeredKnowledge() {
+    void standardLibraryPackIgnoresLegacyRuleSignalTags() {
         ModelDiagnosisBrief brief = briefBuilder.build(
                 DiagnosisEvidencePackage.builder()
                         .problem(problem())
@@ -127,15 +128,15 @@ class ModelDiagnosisBriefBuilderTest {
         StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals());
 
         assertThat(pack.getIssueTags()).extracting(StandardLibraryPack.TagOption::getId)
-                .contains("LOOP_BOUNDARY", "NEEDS_MORE_EVIDENCE");
+                .containsExactly("NEEDS_MORE_EVIDENCE");
         assertThat(pack.getFineGrainedTags()).extracting(StandardLibraryPack.TagOption::getId)
-                .contains("OFF_BY_ONE");
+                .isEmpty();
         assertThat(pack.getTeachingActions()).extracting(StandardLibraryPack.TeachingActionOption::getId)
-                .contains("TRACE_VARIABLES", "COLLECT_EVIDENCE");
+                .containsExactly("COLLECT_EVIDENCE");
         assertThat(pack.getBasicCauses()).extracting(StandardLibraryPack.BasicCauseOption::getId)
-                .contains("LOOP_BOUNDARY", "OFF_BY_ONE", "NEEDS_MORE_EVIDENCE");
+                .containsExactly("NEEDS_MORE_EVIDENCE");
         assertThat(pack.getImprovementPoints()).extracting(StandardLibraryPack.ImprovementPointOption::getId)
-                .contains("TESTING_HABIT", "BOUNDARY_AWARENESS");
+                .contains("TESTING_HABIT", "TRANSFER_REVIEW");
     }
 
     @Test
@@ -166,7 +167,7 @@ class ModelDiagnosisBriefBuilderTest {
     }
 
     @Test
-    void briefCarriesLearningMemoryAsAuxiliaryEvidenceWithoutDroppingCurrentSignals() {
+    void briefCarriesLearningMemoryWithoutTurningItIntoCandidateSignals() {
         DiagnosisEvidencePackage evidencePackage = DiagnosisEvidencePackage.builder()
                 .problem(problem())
                 .submission(submission())
@@ -210,19 +211,13 @@ class ModelDiagnosisBriefBuilderTest {
                 .contains("recurringIssueTags")
                 .contains("abilityFocus");
         assertThat(brief.getEvidenceRefs())
-                .contains("judge:first_failed_case", "code:range_excludes_n", "memory:student:9");
-        assertThat(brief.getAllowedIssueTags()).contains("LOOP_BOUNDARY", "IO_FORMAT", "NEEDS_MORE_EVIDENCE");
-        assertThat(brief.getAllowedFineGrainedTags()).contains("OFF_BY_ONE", "INPUT_PARSING");
-        assertThat(brief.getCandidateSignals())
-                .anySatisfy(signal -> {
-                    assertThat(signal.getEvidenceRef()).isEqualTo("code:range_excludes_n");
-                    assertThat(signal.getConfidence()).isGreaterThan(0.8);
-                })
-	                .anySatisfy(signal -> {
-	                    assertThat(signal.getEvidenceRef()).isEqualTo("memory:recurring_issue:IO_FORMAT");
-	                    assertThat(signal.getConfidence()).isLessThan(0.6);
-	                    assertThat(signal.getReason()).contains("auxiliary");
-	                });
+                .contains("judge:first_failed_case", "memory:student:9");
+        assertThat(brief.getEvidenceRefs()).doesNotContain("code:range_excludes_n");
+        assertThat(brief.getAllowedIssueTags()).contains("IO_FORMAT", "NEEDS_MORE_EVIDENCE");
+        assertThat(brief.getAllowedIssueTags()).doesNotContain("LOOP_BOUNDARY");
+        assertThat(brief.getAllowedFineGrainedTags()).contains("INPUT_PARSING");
+        assertThat(brief.getAllowedFineGrainedTags()).doesNotContain("OFF_BY_ONE");
+        assertThat(brief.getCandidateSignals()).isEmpty();
     }
 
     @Test
@@ -251,16 +246,13 @@ class ModelDiagnosisBriefBuilderTest {
                 .contains("corrected=INPUT_PARSING")
                 .contains("count=2");
         assertThat(brief.getLearningMemorySummary()).contains("teacherCalibration");
-        assertThat(brief.getAllowedIssueTags()).contains("LOOP_BOUNDARY", "IO_FORMAT");
-        assertThat(brief.getAllowedFineGrainedTags()).contains("OFF_BY_ONE", "INPUT_PARSING");
-        assertThat(brief.getEvidenceRefs()).contains("memory:teacher_calibration:input_parsing");
-        assertThat(brief.getCandidateSignals())
-                .anySatisfy(signal -> {
-                    assertThat(signal.getEvidenceRef()).isEqualTo("memory:teacher_calibration:input_parsing");
-                    assertThat(signal.getIssueTag()).isEqualTo("IO_FORMAT");
-                    assertThat(signal.getFineGrainedTag()).isEqualTo("INPUT_PARSING");
-                    assertThat(signal.getReason()).contains("Teacher calibration");
-                });
+        assertThat(brief.getAllowedIssueTags()).contains("IO_FORMAT", "NEEDS_MORE_EVIDENCE");
+        assertThat(brief.getAllowedIssueTags()).doesNotContain("LOOP_BOUNDARY");
+        assertThat(brief.getAllowedFineGrainedTags()).contains("INPUT_PARSING");
+        assertThat(brief.getAllowedFineGrainedTags()).doesNotContain("OFF_BY_ONE");
+        assertThat(brief.getEvidenceRefs()).contains("memory:teacher_corrections:2");
+        assertThat(brief.getEvidenceRefs()).doesNotContain("memory:teacher_calibration:input_parsing");
+        assertThat(brief.getCandidateSignals()).isEmpty();
     }
 
     private DiagnosisEvidencePackage.ProblemEvidence problem() {

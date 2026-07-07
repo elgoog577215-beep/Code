@@ -39,12 +39,6 @@ public class StandardLibraryPackBuilder {
         if (brief != null && brief.getAllowedFineGrainedTags() != null) {
             fineTagIds.addAll(brief.getAllowedFineGrainedTags());
         }
-        if (ruleSignals != null && ruleSignals.getCandidateIssueTags() != null) {
-            issueTagIds.addAll(ruleSignals.getCandidateIssueTags());
-        }
-        if (ruleSignals != null && ruleSignals.getCandidateFineGrainedTags() != null) {
-            fineTagIds.addAll(ruleSignals.getCandidateFineGrainedTags());
-        }
 
         issueTagIds.add("NEEDS_MORE_EVIDENCE");
 

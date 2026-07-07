@@ -36,7 +36,6 @@ class StudentAiFeedbackEventTest {
     private final StudentAiFeedbackEventRepository eventRepository = mock(StudentAiFeedbackEventRepository.class);
     private final AiReportService aiReportService = mock(AiReportService.class);
     private final DiagnosisEvidencePackageBuilder evidencePackageBuilder = new DiagnosisEvidencePackageBuilder();
-    private final RuleSignalAnalyzer ruleSignalAnalyzer = new RuleSignalAnalyzer();
     private final StudentAiFeedbackService service = new StudentAiFeedbackService(
             submissionRepository,
             problemRepository,
@@ -45,7 +44,6 @@ class StudentAiFeedbackEventTest {
             eventRepository,
             aiReportService,
             evidencePackageBuilder,
-            ruleSignalAnalyzer,
             objectMapper
     );
 
@@ -98,8 +96,7 @@ class StudentAiFeedbackEventTest {
         when(aiReportService.generateStudentAiFeedback(
                 any(Problem.class),
                 any(Submission.class),
-                any(DiagnosisEvidencePackage.class),
-                any(RuleSignalAnalyzer.RuleSignalResult.class)
+                any(DiagnosisEvidencePackage.class)
         )).thenReturn(fastReadyFeedback());
         when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
         when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -116,8 +113,7 @@ class StudentAiFeedbackEventTest {
         verify(aiReportService).generateStudentAiFeedback(
                 any(Problem.class),
                 any(Submission.class),
-                any(DiagnosisEvidencePackage.class),
-                any(RuleSignalAnalyzer.RuleSignalResult.class)
+                any(DiagnosisEvidencePackage.class)
         );
     }
 
@@ -129,8 +125,7 @@ class StudentAiFeedbackEventTest {
         when(aiReportService.generateStudentAiFeedback(
                 any(Problem.class),
                 any(Submission.class),
-                any(DiagnosisEvidencePackage.class),
-                any(RuleSignalAnalyzer.RuleSignalResult.class)
+                any(DiagnosisEvidencePackage.class)
         )).thenReturn(failedFastFeedback("AI_UNAVAILABLE"));
         when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
         when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -152,8 +147,7 @@ class StudentAiFeedbackEventTest {
         when(aiReportService.generateStudentAiFeedback(
                 any(Problem.class),
                 any(Submission.class),
-                any(DiagnosisEvidencePackage.class),
-                any(RuleSignalAnalyzer.RuleSignalResult.class)
+                any(DiagnosisEvidencePackage.class)
         )).thenReturn(null);
         when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
         when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));

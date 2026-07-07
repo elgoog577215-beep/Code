@@ -118,7 +118,7 @@ public class PromptTemplateRegistry {
                 6. basicCandidates should focus on current blocking causes: syntax, IO, runtime, boundary, state, recursion, DP transition, or other concrete error sources.
                 7. improvementCandidates should focus on non-blocking improvement directions: complexity, data structure choice, modeling, proof, testing habit, or transfer.
                 8. knowledgeAnchors should identify the knowledge/skill branch that explains the selected candidates.
-                9. Every selected item MUST cite at least one brief.evidenceRefs or brief.candidateSignals.evidenceRef value.
+                9. Every selected item MUST cite at least one brief.evidenceRefs value.
                 10. confidence MUST be between 0 and 1.
                 11. Return only the candidates supported by actual evidence. Typical compact output stays within 0-8 basicCandidates, 0-5 improvementCandidates, and 0-5 knowledgeAnchors; these are budget ceilings, not quotas, and 0 is valid for MISS or evidence gaps.
                 12. Use judge facts as evidence, but still read the code behavior. Hidden data must not be guessed.
@@ -191,7 +191,7 @@ public class PromptTemplateRegistry {
                 2a. Prefer the chain knowledge node -> skill unit -> mistake point / improvement point. Do not flatten relatedKnowledgeNodeCodes into independent student-facing tags.
                 3. basicLayerAdvice is an array of evidence-backed foundation issues. Return one item per independent blocking issue or foundation gap; return [] when there is no real basic-layer issue. Do not collapse unrelated issues into one item and do not pad weak items.
                 4. improvementLayerAdvice MUST be lower priority than basicLayerAdvice unless the submission is already accepted.
-                5. Every basicLayerAdvice item MUST cite at least one brief.evidenceRefs or brief.candidateSignals evidenceRef value. improvementLayerAdvice may use an empty evidenceRefs array when the improvement is a learning habit, transfer direction, or optimization direction without direct code evidence; if it cites evidence, it must cite its own valid evidenceRef and must not borrow the basic-layer evidence.
+                5. Every basicLayerAdvice item MUST cite at least one brief.evidenceRefs value. improvementLayerAdvice may use an empty evidenceRefs array when the improvement is a learning habit, transfer direction, or optimization direction without direct code evidence; if it cites evidence, it must cite its own valid evidenceRef and must not borrow the basic-layer evidence.
                 6. mistakePointId MUST come from standardLibrary.mistakePoints or be null when no precise mistake point exists.
                 7. skillUnitId MUST come from standardLibrary.skillUnits or be null when no precise skill unit exists.
                 8. improvementPointId MUST come from standardLibrary.improvementPoints or be null when no precise improvement point exists.
@@ -387,7 +387,7 @@ public class PromptTemplateRegistry {
                 4. C++ 类型与精度问题只能引导学生手推“操作数类型 -> 中间结果 -> 赋值结果”，不要写出强制转换表达式或可直接替换的算式。
                 5. 复杂度问题先让学生估算操作次数，再谈可能的优化方向，不能直接给完整优化方案。
                 6. 隐藏测试失败时，必须说明隐藏数据不可见，引导学生自造边界样例或反例，不能猜隐藏数据。
-                7. 每个 evidenceRefs 值必须原样来自 brief.evidenceRefs 或 brief.candidateSignals.evidenceRef，不要在 evidenceRefs 里拼接行号、输出片段或解释。不要用 sourceCode、problemConstraints、judgeResult、verdict、code 这类泛化别名代替真实 evidenceRef。
+                7. 每个 evidenceRefs 值必须原样来自 brief.evidenceRefs，不要在 evidenceRefs 里拼接行号、输出片段或解释。不要用 sourceCode、problemConstraints、judgeResult、verdict、code 这类泛化别名代替真实 evidenceRef。
                 8. 输出必须是合法 JSON。studentReport 三个字段必须是普通单行字符串；不要在字符串里写未转义英文双引号、换行、项目符号或嵌套对象片段。
                 9. 不要把学生变量的具体修正值或初始化位置直接写出来，例如“把某变量重新从 0 开始”“放到循环内部初始化”“显式清空全局状态”；应改成引导学生检查每组开始时变量是否还带着上一组的值。
                 10. studentAction 和 nextActionText 必须是检查、手推、比较、核对类动作，不要写删除、替换、改成这类直接编辑命令。

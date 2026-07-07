@@ -632,7 +632,6 @@ class AssistantLiveEvalQualityGateTest {
                             "lowLatencyRequestBytes < standardRequestBytes",
                             "lowLatencyRequestCompact=true",
                             "compressionRatio < 1.0",
-                            "candidateSignalCount > 0",
                             "evidenceRefCount > 0",
                             "issueTagCount > 0",
                             "teachingActionCount > 0",

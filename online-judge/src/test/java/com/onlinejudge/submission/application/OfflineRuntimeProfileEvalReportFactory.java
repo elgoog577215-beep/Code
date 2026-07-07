@@ -102,7 +102,6 @@ public class OfflineRuntimeProfileEvalReportFactory {
         boolean hiddenBoundaryPresent = brief != null && brief.getHiddenDataBoundary() != null;
         List<String> failureReasons = failureReasons(
                 reduced,
-                candidateSignalCount,
                 evidenceRefCount,
                 issueTagCount,
                 teachingActionCount,
@@ -119,7 +118,6 @@ public class OfflineRuntimeProfileEvalReportFactory {
         List<String> autoFailureReasons = autoFailureReasons(
                 autoPlan.isRequestCompact(),
                 autoReduced,
-                autoCandidateSignalCount,
                 autoEvidenceRefCount,
                 autoIssueTagCount,
                 autoTeachingActionCount,
@@ -183,7 +181,6 @@ public class OfflineRuntimeProfileEvalReportFactory {
     }
 
     private List<String> failureReasons(boolean reduced,
-                                        int candidateSignalCount,
                                         int evidenceRefCount,
                                         int issueTagCount,
                                         int teachingActionCount,
@@ -191,9 +188,6 @@ public class OfflineRuntimeProfileEvalReportFactory {
         List<String> reasons = new ArrayList<>();
         if (!reduced) {
             reasons.add("LOW_LATENCY_REQUEST_NOT_SMALLER");
-        }
-        if (candidateSignalCount <= 0) {
-            reasons.add("MISSING_CANDIDATE_SIGNALS");
         }
         if (evidenceRefCount <= 0) {
             reasons.add("MISSING_EVIDENCE_REFS");
@@ -212,7 +206,6 @@ public class OfflineRuntimeProfileEvalReportFactory {
 
     private List<String> autoFailureReasons(boolean autoCompact,
                                             boolean autoReduced,
-                                            int candidateSignalCount,
                                             int evidenceRefCount,
                                             int issueTagCount,
                                             int teachingActionCount,
@@ -220,9 +213,6 @@ public class OfflineRuntimeProfileEvalReportFactory {
         List<String> reasons = new ArrayList<>();
         if (autoCompact && !autoReduced) {
             reasons.add("AUTO_REQUEST_NOT_SMALLER");
-        }
-        if (candidateSignalCount <= 0) {
-            reasons.add("AUTO_MISSING_CANDIDATE_SIGNALS");
         }
         if (evidenceRefCount <= 0) {
             reasons.add("AUTO_MISSING_EVIDENCE_REFS");

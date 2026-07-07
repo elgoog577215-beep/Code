@@ -37,7 +37,6 @@ public class StudentAiFeedbackService {
     private final StudentAiFeedbackEventRepository studentAiFeedbackEventRepository;
     private final AiReportService aiReportService;
     private final DiagnosisEvidencePackageBuilder evidencePackageBuilder;
-    private final RuleSignalAnalyzer ruleSignalAnalyzer;
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
@@ -125,12 +124,10 @@ public class StudentAiFeedbackService {
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + submission.getProblemId()));
         List<SubmissionCaseResult> caseResults = submissionCaseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(submissionId);
         DiagnosisEvidencePackage evidencePackage = evidencePackageBuilder.build(problem, submission, caseResults, null, null);
-        RuleSignalAnalyzer.RuleSignalResult ruleSignals = ruleSignalAnalyzer.analyze(evidencePackage);
         StudentAiFeedbackResponse feedback = aiReportService.generateStudentAiFeedback(
                 problem,
                 submission,
-                evidencePackage,
-                ruleSignals
+                evidencePackage
         );
         return saveFeedback(submission, feedback == null ? failedFeedback(submissionId, "STUDENT_FEEDBACK_EMPTY") : feedback);
     }

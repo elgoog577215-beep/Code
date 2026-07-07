@@ -423,7 +423,6 @@ class AssistantLiveEvalTest {
     private DiagnosticAgentService newDiagnosticAgentService(AiReportService aiReportService) {
         return new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
-                new RuleSignalAnalyzer(),
                 aiReportService,
                 new HintSafetyService(null, objectMapper, taxonomy),
                 taxonomy

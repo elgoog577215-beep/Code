@@ -1253,12 +1253,12 @@ class ModelDiagnosisEvalTest {
                     assertThat(entry.getAutoRequestBytes()).isLessThan(entry.getStandardRequestBytes());
                     assertThat(entry.getAutoRequestBytes()).isEqualTo(entry.getLowLatencyRequestBytes());
                     assertThat(entry.getAutoCompressionRatio()).isBetween(0.0, 1.0);
-                    assertThat(entry.getCandidateSignalCount()).isPositive();
+                    assertThat(entry.getCandidateSignalCount()).isZero();
                     assertThat(entry.getEvidenceRefCount()).isPositive();
                     assertThat(entry.getIssueTagCount()).isPositive();
                     assertThat(entry.getTeachingActionCount()).isPositive();
                     assertThat(entry.getHiddenBoundaryPresent()).isTrue();
-                    assertThat(entry.getAutoCandidateSignalCount()).isPositive();
+                    assertThat(entry.getAutoCandidateSignalCount()).isZero();
                     assertThat(entry.getAutoEvidenceRefCount()).isPositive();
                     assertThat(entry.getAutoIssueTagCount()).isPositive();
                     assertThat(entry.getAutoTeachingActionCount()).isPositive();
@@ -1342,7 +1342,20 @@ class ModelDiagnosisEvalTest {
                     fixture.toSubmission(),
                     fixture.toCaseResults(),
                     fixture.toBaseline(),
-                    Assignment.HintPolicy.L2
+                    Assignment.HintPolicy.L2,
+                    null,
+                    DiagnosisEvidencePackage.StudentLearningMemorySnapshot.builder()
+                            .teacherCalibrationPatterns(List.of(DiagnosisEvidencePackage.TeacherCalibrationPattern.builder()
+                                    .originalIssueTag(firstOrBlank(fixture.toBaseline().getIssueTags()))
+                                    .originalFineGrainedTag(firstOrBlank(fixture.toBaseline().getFineGrainedTags()))
+                                    .correctedIssueTag(fixture.teacherCorrection().correctedIssueTag())
+                                    .correctedFineGrainedTag(fixture.teacherCorrection().correctedFineGrainedTag())
+                                    .correctionCount(1L)
+                                    .latestTeacherNote(fixture.teacherCorrection().teacherNote())
+                                    .evidenceRefs(List.of("teacher_correction:" + fixture.correctionId()))
+                                    .build()))
+                            .evidenceRefs(List.of("teacher_correction:" + fixture.correctionId()))
+                            .build()
             );
             SubmissionAnalysisResponse analysis = result.analysis();
             String combinedText = String.join("\n",
@@ -1355,12 +1368,15 @@ class ModelDiagnosisEvalTest {
                     analysis.getLearningInterventionPlan() == null ? "" : safe(analysis.getLearningInterventionPlan().getStudentTask())
             );
 
-            assertThat(analysis.getIssueTags())
-                    .as(fixture.name() + " issue tags")
-                    .containsAnyElementsOf(fixture.expectedIssueTags());
-            assertThat(analysis.getFineGrainedTags())
-                    .as(fixture.name() + " fine tags")
-                    .containsAnyElementsOf(fixture.expectedFineTags());
+            assertThat(analysis.getTeacherCalibrationSignal())
+                    .as(fixture.name() + " teacher calibration signal")
+                    .isNotNull();
+            assertThat(analysis.getTeacherCalibrationSignal().getCorrectedIssueTag())
+                    .as(fixture.name() + " corrected issue tag")
+                    .isIn(fixture.expectedIssueTags());
+            assertThat(analysis.getTeacherCalibrationSignal().getCorrectedFineGrainedTag())
+                    .as(fixture.name() + " corrected fine tag")
+                    .isIn(fixture.expectedFineTags());
             assertThat(analysis.getEvidenceRefs())
                     .as(fixture.name() + " evidence refs")
                     .contains("teacher_correction:" + fixture.correctionId());
@@ -1485,7 +1501,6 @@ class ModelDiagnosisEvalTest {
                 Boolean.parseBoolean(valueOrDefault(System.getenv("AI_STREAM_FALLBACK_ENABLED"), "false")));
         return new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
-                new RuleSignalAnalyzer(),
                 aiReportService,
                 new HintSafetyService(null, new ObjectMapper(), taxonomy),
                 taxonomy
@@ -1496,7 +1511,6 @@ class ModelDiagnosisEvalTest {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         return new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
-                new RuleSignalAnalyzer(),
                 new PassThroughAiReportService(),
                 new HintSafetyService(null, objectMapper, taxonomy),
                 taxonomy
@@ -1621,7 +1635,7 @@ class ModelDiagnosisEvalTest {
                 .summary("规则层初步诊断")
                 .issueTags(issueTags)
                 .fineGrainedTags(fineTags)
-                .evidenceRefs(List.of())
+                .evidenceRefs(List.of("verdict:" + scenario.toLowerCase()))
                 .confidence(0.7)
                 .answerLeakRisk("LOW")
                 .build();
@@ -3174,6 +3188,16 @@ class ModelDiagnosisEvalTest {
 
     private String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private String firstOrBlank(List<String> values) {
+        if (values == null) {
+            return "";
+        }
+        return values.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElse("");
     }
 
     private static class PassThroughAiReportService extends AiReportService {

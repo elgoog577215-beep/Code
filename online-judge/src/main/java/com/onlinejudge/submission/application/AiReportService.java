@@ -259,8 +259,7 @@ public class AiReportService {
 
     public StudentAiFeedbackResponse generateStudentAiFeedback(Problem problem,
                                                                Submission submission,
-                                                               DiagnosisEvidencePackage evidencePackage,
-                                                               RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                               DiagnosisEvidencePackage evidencePackage) {
         long startedAt = System.nanoTime();
         if (!canCallAi()) {
             return feedbackFailure(submission, "FAILED", "AI_UNAVAILABLE", startedAt);
@@ -268,8 +267,8 @@ public class AiReportService {
 
         try {
             Map<String, String> evidenceCandidateRefs = Map.of();
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan = prepareStudentFeedbackRuntimePlan(evidencePackage, ruleSignals);
-            Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, ruleSignals, runtimePlan);
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan = prepareStudentFeedbackRuntimePlan(evidencePackage);
+            Map<String, Object> context = compactStudentFastFeedbackContext(problem, submission, evidencePackage, runtimePlan);
 
             String systemPrompt = """
                     你是高中信息学在线判题系统的学生快反馈教练。
@@ -285,10 +284,10 @@ public class AiReportService {
                     3. improvementLayerText 写 1-2 个短句，70-140 个中文字符，概括修复基础问题后值得提升的方向；不要复述基础层。
                     4. nextActionText 只写 1 个学生马上能做的自查动作，用一句话表达，不要编号，不超过 60 个中文字符。
                     5. repairItems 和 improvementItems 都按真实证据返回 0 到多条：有几个彼此独立的错误就给几条 repairItems，有几个真实提升方向就给几条 improvementItems；不要强行合并成一条，也不要为了显得丰富而凑数。
-                    6. 不要把 candidateSignals 或 ruleSignals 当成结论；必须让题目目标、代码行为、评测结果三者能对上。
+                    6. 必须让题目目标、代码行为、评测结果三者能对上；不要猜测判题未提供的信息。
                     7. 后端没有预选错误代码行；你必须自己阅读 submission.sourceCodeWithLineNumbers，并在 evidenceRefs 中填写 code:line:N 或 code:range:A-B。不要使用 E1/E2 这类候选 ID。不能猜隐藏测试。
                     8. 禁止给最终代码、完整答案、完整修改方案、逐行改法或“把这一行改成...”这类可复制表达；建议动作写成检查、手推、比较、核对，不写删除、替换、改成。
-                    9. 学生可见文字不能复述 verdict:、code:、evidenceRefs、judgeFacts、candidateSignals 等内部字段名或证据标记。
+                    9. 学生可见文字不能复述 verdict:、code:、evidenceRefs、judgeFacts 等内部字段名或证据标记。
                     10. 如果证据不足或泄题风险为 HIGH，返回空建议，并在 blockedReasons 说明原因。
                     11. 如果运行错误信息里出现行号，基础层必须回到 submission.sourceCodeWithLineNumbers 中核对对应代码行；不要把“代码很长、helper 太多、需要精简”当作主因，除非它直接导致该行异常。
                     12. 如果异常是 IndexError/list index out of range，基础层必须围绕“下标访问范围”和“容器长度”解释，不要只给代码整理建议。
@@ -353,19 +352,18 @@ public class AiReportService {
     }
 
     private ExternalModelAgentRuntime.RuntimePlan prepareStudentFeedbackRuntimePlan(
-            DiagnosisEvidencePackage evidencePackage,
-            RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
-        if (externalModelAgentRuntime == null || evidencePackage == null || ruleSignals == null) {
+            DiagnosisEvidencePackage evidencePackage) {
+        if (externalModelAgentRuntime == null || evidencePackage == null) {
             return null;
         }
         try {
             ExternalModelAgentRuntime.RuntimePlan runtimePlan = externalModelAgentRuntime.prepare(
                     evidencePackage,
-                    ruleSignals,
+                    null,
                     null,
                     externalRuntimeProfile
             );
-            return applyLocalSearchLocationOnly(runtimePlan, ruleSignals);
+            return applyLocalSearchLocationOnly(runtimePlan);
         } catch (Exception exception) {
             log.warn("Student AI feedback standard library context unavailable. reason={}", exception.getMessage());
             return null;
@@ -373,12 +371,11 @@ public class AiReportService {
     }
 
     private ExternalModelAgentRuntime.RuntimePlan applyLocalSearchLocationOnly(
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-            RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
         if (runtimePlan == null || searchLocationRetrievalService == null || searchLocationPackSelector == null) {
             return runtimePlan;
         }
-        SearchLocationCandidatePack candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief(), ruleSignals);
+        SearchLocationCandidatePack candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief(), null);
         if (candidatePack == null) {
             return runtimePlan;
         }
@@ -754,7 +751,7 @@ public class AiReportService {
         }
         SearchLocationCandidatePack candidatePack = null;
         try {
-            candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief(), ruleSignals);
+            candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief(), null);
             if (candidatePack.getCandidates() == null || candidatePack.getCandidates().isEmpty()) {
                 if (!searchLocationProperties.isEnabled()) {
                     runtimePlan.setSearchLocationResult(SearchLocationResult.localOnly(
@@ -2422,41 +2419,14 @@ public class AiReportService {
         return context;
     }
 
-    private Map<String, Object> compactRuleSignals(RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
-        Map<String, Object> context = new LinkedHashMap<>();
-        if (ruleSignals == null) {
-            context.put("signals", List.of());
-            context.put("candidateIssueTags", List.of());
-            context.put("candidateFineGrainedTags", List.of());
-            context.put("evidenceRefs", List.of());
-            return context;
-        }
-        context.put("signals", ruleSignals.getSignals() == null ? List.of() : ruleSignals.getSignals().stream()
-                .limit(8)
-                .map(signal -> Map.of(
-                        "evidenceRef", defaultIfBlank(signal.getEvidenceRef(), ""),
-                        "coarseTag", defaultIfBlank(signal.getCoarseTag(), ""),
-                        "fineTag", defaultIfBlank(signal.getFineTag(), ""),
-                        "message", defaultIfBlank(signal.getMessage(), ""),
-                        "confidence", signal.getConfidence() == null ? 0 : signal.getConfidence()
-                ))
-                .toList());
-        context.put("candidateIssueTags", cleanList(ruleSignals.getCandidateIssueTags(), List.of()).stream().limit(6).toList());
-        context.put("candidateFineGrainedTags", cleanList(ruleSignals.getCandidateFineGrainedTags(), List.of()).stream().limit(6).toList());
-        context.put("evidenceRefs", cleanList(ruleSignals.getEvidenceRefs(), List.of()).stream().limit(10).toList());
-        return context;
-    }
-
     private Map<String, Object> compactStudentFastFeedbackContext(Problem problem,
                                                                   Submission submission,
                                                                   DiagnosisEvidencePackage evidencePackage,
-                                                                  RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                                                   ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("problem", compactStudentProblemContext(problem, evidencePackage));
         context.put("submission", compactStudentSubmissionContext(submission, evidencePackage));
         context.put("judgeFacts", compactStudentJudgeFacts(evidencePackage == null ? null : evidencePackage.getJudgeFacts()));
-        context.put("candidateSignals", compactStudentRuleSignals(ruleSignals));
         if (runtimePlan != null && runtimePlan.getStandardLibraryPack() != null) {
             context.put("standardLibrary", runtimePlan.getStandardLibraryPack());
             context.put("searchLocationSummary", runtimePlan.getStandardLibraryPack().getSearchLocationSummary());
@@ -2550,31 +2520,6 @@ public class AiReportService {
                         "expectedOutputPreview", truncateText(item.getExpectedOutputPreview(), 120)
                 ))
                 .orElse(Map.of());
-    }
-
-    private Map<String, Object> compactStudentRuleSignals(RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
-        Map<String, Object> context = new LinkedHashMap<>();
-        if (ruleSignals == null) {
-            context.put("signals", List.of());
-            context.put("candidateIssueTags", List.of());
-            context.put("candidateFineGrainedTags", List.of());
-            context.put("evidenceRefs", List.of());
-            return context;
-        }
-        context.put("signals", ruleSignals.getSignals() == null ? List.of() : ruleSignals.getSignals().stream()
-                .filter(signal -> signal != null)
-                .limit(3)
-                .map(signal -> Map.of(
-                        "evidenceRef", defaultIfBlank(signal.getEvidenceRef(), ""),
-                        "coarseTag", defaultIfBlank(signal.getCoarseTag(), ""),
-                        "fineTag", defaultIfBlank(signal.getFineTag(), ""),
-                        "message", truncateText(signal.getMessage(), 120)
-                ))
-                .toList());
-        context.put("candidateIssueTags", cleanList(ruleSignals.getCandidateIssueTags(), List.of()).stream().limit(3).toList());
-        context.put("candidateFineGrainedTags", cleanList(ruleSignals.getCandidateFineGrainedTags(), List.of()).stream().limit(3).toList());
-        context.put("evidenceRefs", cleanList(ruleSignals.getEvidenceRefs(), List.of()).stream().limit(6).toList());
-        return context;
     }
 
     private StudentAiFeedbackResponse normalizeStudentFastFeedback(StudentFastFeedbackPayload payload,

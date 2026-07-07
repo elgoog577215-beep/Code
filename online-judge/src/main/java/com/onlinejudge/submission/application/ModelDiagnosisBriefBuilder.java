@@ -22,9 +22,8 @@ public class ModelDiagnosisBriefBuilder {
         DiagnosisEvidencePackage.SubmissionEvidence submission = evidencePackage == null ? null : evidencePackage.getSubmission();
         DiagnosisEvidencePackage.JudgeFacts judgeFacts = evidencePackage == null ? null : evidencePackage.getJudgeFacts();
 
-        List<ModelDiagnosisBrief.CandidateSignal> candidateSignals = new ArrayList<>(toCandidateSignals(ruleSignals));
-        candidateSignals.addAll(toMemoryCandidateSignals(evidencePackage));
-        List<String> evidenceRefs = collectEvidenceRefs(ruleSignals, candidateSignals, judgeFacts, evidencePackage, baseline);
+        List<ModelDiagnosisBrief.CandidateSignal> candidateSignals = List.of();
+        List<String> evidenceRefs = collectEvidenceRefs(judgeFacts, evidencePackage, baseline);
 
         return ModelDiagnosisBrief.builder()
                 .schemaVersion(ModelDiagnosisBrief.SCHEMA_VERSION)
@@ -38,13 +37,13 @@ public class ModelDiagnosisBriefBuilder {
                 .visibleCaseFacts(visibleCaseFacts(judgeFacts))
                 .candidateSignals(candidateSignals)
                 .evidenceRefs(evidenceRefs)
-                .allowedIssueTags(allowedIssueTags(ruleSignals, evidencePackage, baseline))
-                .allowedFineGrainedTags(allowedFineTags(ruleSignals, evidencePackage, baseline))
+                .allowedIssueTags(allowedIssueTags(evidencePackage, baseline))
+                .allowedFineGrainedTags(allowedFineTags(evidencePackage, baseline))
                 .learningTrajectorySummary(learningTrajectorySummary(evidencePackage, baseline))
                 .learningMemorySummary(learningMemorySummary(evidencePackage))
                 .teacherCalibrationSummary(teacherCalibrationSummary(evidencePackage))
                 .hiddenDataBoundary(hiddenDataBoundary(judgeFacts))
-                .uncertainty(uncertainty(judgeFacts, ruleSignals))
+                .uncertainty(uncertainty(judgeFacts))
                 .build();
     }
 
@@ -124,88 +123,10 @@ public class ModelDiagnosisBriefBuilder {
                 .toList();
     }
 
-    private List<ModelDiagnosisBrief.CandidateSignal> toCandidateSignals(RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
-        if (ruleSignals == null || ruleSignals.getSignals() == null) {
-            return List.of();
-        }
-        return ruleSignals.getSignals().stream()
-                .map(signal -> ModelDiagnosisBrief.CandidateSignal.builder()
-                        .evidenceRef(signal.getEvidenceRef())
-                        .issueTag(signal.getCoarseTag())
-                        .fineGrainedTag(signal.getFineTag())
-                        .confidence(signal.getConfidence())
-                        .reason(signal.getMessage())
-                        .build())
-                .toList();
-    }
-
-    private List<ModelDiagnosisBrief.CandidateSignal> toMemoryCandidateSignals(DiagnosisEvidencePackage evidencePackage) {
-        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
-                evidencePackage == null ? null : evidencePackage.getLearningMemory();
-        if (memory == null) {
-            return List.of();
-        }
-        List<ModelDiagnosisBrief.CandidateSignal> signals = new ArrayList<>();
-        if (memory.getRecurringFineGrainedTags() != null) {
-            memory.getRecurringFineGrainedTags().stream()
-                    .limit(3)
-                    .forEach(stat -> signals.add(ModelDiagnosisBrief.CandidateSignal.builder()
-                            .evidenceRef("memory:recurring_fine:" + stat.getTag())
-                            .issueTag(null)
-                            .fineGrainedTag(stat.getTag())
-                            .confidence(memoryConfidence(stat.getCount()))
-                            .reason("Student memory shows repeated fine-grained issue. Use only as auxiliary evidence after current submission facts.")
-                            .build()));
-        }
-        if (memory.getRecurringIssueTags() != null) {
-            memory.getRecurringIssueTags().stream()
-                    .limit(3)
-                    .forEach(stat -> signals.add(ModelDiagnosisBrief.CandidateSignal.builder()
-                            .evidenceRef("memory:recurring_issue:" + stat.getTag())
-                            .issueTag(stat.getTag())
-                            .fineGrainedTag(null)
-                            .confidence(memoryConfidence(stat.getCount()))
-                            .reason("Student memory shows repeated issue tag. Use only as auxiliary evidence; current submission evidence has higher priority.")
-                            .build()));
-        }
-        if (memory.getTeacherCalibrationPatterns() != null) {
-            memory.getTeacherCalibrationPatterns().stream()
-                    .limit(3)
-                    .forEach(pattern -> signals.add(ModelDiagnosisBrief.CandidateSignal.builder()
-                            .evidenceRef(firstEvidenceRef(pattern))
-                            .issueTag(blankToNull(pattern.getCorrectedIssueTag()))
-                            .fineGrainedTag(blankToNull(pattern.getCorrectedFineGrainedTag()))
-                            .confidence(teacherCalibrationConfidence(pattern))
-                            .reason("Teacher calibration pattern: previous AI diagnosis was corrected by teacher. Use as auxiliary constraint; current submission facts still have priority.")
-                            .build()));
-        }
-        return signals;
-    }
-
-    private double memoryConfidence(Long count) {
-        long safeCount = count == null ? 0L : count;
-        if (safeCount >= 4) {
-            return 0.58;
-        }
-        if (safeCount >= 3) {
-            return 0.52;
-        }
-        return 0.46;
-    }
-
-    private List<String> collectEvidenceRefs(RuleSignalAnalyzer.RuleSignalResult ruleSignals,
-                                             List<ModelDiagnosisBrief.CandidateSignal> candidateSignals,
-                                             DiagnosisEvidencePackage.JudgeFacts judgeFacts,
+    private List<String> collectEvidenceRefs(DiagnosisEvidencePackage.JudgeFacts judgeFacts,
                                              DiagnosisEvidencePackage evidencePackage,
                                              SubmissionAnalysisResponse baseline) {
         Set<String> refs = new LinkedHashSet<>();
-        if (ruleSignals != null && ruleSignals.getEvidenceRefs() != null) {
-            refs.addAll(ruleSignals.getEvidenceRefs());
-        }
-        candidateSignals.stream()
-                .map(ModelDiagnosisBrief.CandidateSignal::getEvidenceRef)
-                .filter(ref -> ref != null && !ref.isBlank())
-                .forEach(refs::add);
         if (judgeFacts != null && judgeFacts.getFirstFailedCase() != null) {
             refs.add("judge:first_failed_case");
         }
@@ -223,13 +144,9 @@ public class ModelDiagnosisBriefBuilder {
         return List.copyOf(refs);
     }
 
-    private List<String> allowedIssueTags(RuleSignalAnalyzer.RuleSignalResult ruleSignals,
-                                          DiagnosisEvidencePackage evidencePackage,
+    private List<String> allowedIssueTags(DiagnosisEvidencePackage evidencePackage,
                                           SubmissionAnalysisResponse baseline) {
         Set<String> tags = new LinkedHashSet<>();
-        if (ruleSignals != null && ruleSignals.getCandidateIssueTags() != null) {
-            tags.addAll(ruleSignals.getCandidateIssueTags());
-        }
         if (baseline != null && baseline.getIssueTags() != null) {
             tags.addAll(baseline.getIssueTags());
         }
@@ -246,13 +163,9 @@ public class ModelDiagnosisBriefBuilder {
         return List.copyOf(tags);
     }
 
-    private List<String> allowedFineTags(RuleSignalAnalyzer.RuleSignalResult ruleSignals,
-                                         DiagnosisEvidencePackage evidencePackage,
+    private List<String> allowedFineTags(DiagnosisEvidencePackage evidencePackage,
                                          SubmissionAnalysisResponse baseline) {
         Set<String> tags = new LinkedHashSet<>();
-        if (ruleSignals != null && ruleSignals.getCandidateFineGrainedTags() != null) {
-            tags.addAll(ruleSignals.getCandidateFineGrainedTags());
-        }
         if (baseline != null && baseline.getFineGrainedTags() != null) {
             tags.addAll(baseline.getFineGrainedTags());
         }
@@ -386,28 +299,6 @@ public class ModelDiagnosisBriefBuilder {
                 .forEach(tags::add);
     }
 
-    private String firstEvidenceRef(DiagnosisEvidencePackage.TeacherCalibrationPattern pattern) {
-        if (pattern == null || pattern.getEvidenceRefs() == null || pattern.getEvidenceRefs().isEmpty()) {
-            return "memory:teacher_calibration";
-        }
-        return pattern.getEvidenceRefs().get(0);
-    }
-
-    private Double teacherCalibrationConfidence(DiagnosisEvidencePackage.TeacherCalibrationPattern pattern) {
-        long count = pattern == null || pattern.getCorrectionCount() == null ? 0L : pattern.getCorrectionCount();
-        if (count >= 3) {
-            return 0.64;
-        }
-        if (count >= 2) {
-            return 0.58;
-        }
-        return 0.5;
-    }
-
-    private String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
-    }
-
     private void addMemoryStats(List<String> parts,
                                 String name,
                                 List<DiagnosisEvidencePackage.MemoryTagStat> stats) {
@@ -443,15 +334,11 @@ public class ModelDiagnosisBriefBuilder {
                 .build();
     }
 
-    private String uncertainty(DiagnosisEvidencePackage.JudgeFacts judgeFacts,
-                               RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
-        if (ruleSignals == null || ruleSignals.getSignals() == null || ruleSignals.getSignals().isEmpty()) {
-            return "No strong local rule signal is available; model must stay within evidence and can choose NEEDS_MORE_EVIDENCE.";
-        }
+    private String uncertainty(DiagnosisEvidencePackage.JudgeFacts judgeFacts) {
         if (judgeFacts != null && Boolean.TRUE.equals(judgeFacts.getHiddenFailureObserved())) {
             return "Hidden failure is observed, but hidden test data is unavailable; do not guess hidden data.";
         }
-        return "Use candidate signals as bounded evidence; cite evidenceRefs instead of inventing facts.";
+        return "Use judge facts, source code, and evidenceRefs only; do not invent facts.";
     }
 
     private void addNamedList(List<String> parts, String name, List<String> values) {

@@ -27,7 +27,7 @@ public class SearchLocationRetrievalService {
     public SearchLocationCandidatePack retrieve(ModelDiagnosisBrief brief,
                                                 RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
         List<AiStandardLibraryItem> items = standardLibraryService.enabledSearchLocationItems();
-        String query = buildQuery(brief, ruleSignals);
+        String query = buildQuery(brief);
         Set<String> tokens = tokens(query);
         EmbeddingClient.EmbeddingResponse queryEmbedding = shouldUseVector()
                 ? embeddingClient.embed(query)
@@ -36,7 +36,7 @@ public class SearchLocationRetrievalService {
         List<SearchLocationCandidate> candidates = new ArrayList<>();
         for (AiStandardLibraryItem item : items) {
             double textScore = textScore(item, tokens, brief);
-            double signalScore = signalScore(item, brief, ruleSignals);
+            double signalScore = 0;
             double vectorScore = vectorScore(item, queryEmbedding.vector(), tokens);
             double finalScore = normalizeWeight(properties.getTextWeight()) * textScore
                     + normalizeWeight(properties.getSignalWeight()) * signalScore
@@ -46,7 +46,7 @@ public class SearchLocationRetrievalService {
             }
             candidates.add(toCandidate(item, textScore, vectorScore, signalScore, finalScore,
                     shouldUseVector() && "READY".equals(queryEmbedding.status()),
-                    matchedSignals(item, tokens, brief, ruleSignals)));
+                    matchedSignals(item, tokens, brief)));
         }
         List<SearchLocationCandidate> ranked = candidates.stream()
                 .sorted(Comparator.comparing(SearchLocationCandidate::getFinalScore,
@@ -140,36 +140,6 @@ public class SearchLocationRetrievalService {
         }
         if ((verdict.contains("TIME") || verdict.contains("TLE")) && (text.contains("复杂度") || text.contains("枚举"))) {
             score += 0.4;
-        }
-        return Math.min(1.0, score);
-    }
-
-    private double signalScore(AiStandardLibraryItem item,
-                               ModelDiagnosisBrief brief,
-                               RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
-        Set<String> signals = new LinkedHashSet<>();
-        if (brief != null && brief.getAllowedIssueTags() != null) {
-            signals.addAll(brief.getAllowedIssueTags());
-        }
-        if (brief != null && brief.getAllowedFineGrainedTags() != null) {
-            signals.addAll(brief.getAllowedFineGrainedTags());
-        }
-        if (ruleSignals != null && ruleSignals.getCandidateIssueTags() != null) {
-            signals.addAll(ruleSignals.getCandidateIssueTags());
-        }
-        if (ruleSignals != null && ruleSignals.getCandidateFineGrainedTags() != null) {
-            signals.addAll(ruleSignals.getCandidateFineGrainedTags());
-        }
-        String haystack = searchableText(item).toUpperCase(Locale.ROOT);
-        double score = 0;
-        for (String signal : signals) {
-            String normalized = safe(signal).toUpperCase(Locale.ROOT);
-            if (!normalized.isBlank() && haystack.contains(normalized)) {
-                score += 0.35;
-            }
-        }
-        if (item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT && score == 0 && !signals.isEmpty()) {
-            score += 0.08;
         }
         return Math.min(1.0, score);
     }
@@ -303,9 +273,6 @@ public class SearchLocationRetrievalService {
         if (textScore > 0) {
             sources.add("KEYWORD");
         }
-        if (signalScore > 0) {
-            sources.add("RULE_SIGNAL");
-        }
         if (vectorReady && vectorScore > 0) {
             sources.add("VECTOR");
         }
@@ -346,8 +313,7 @@ public class SearchLocationRetrievalService {
 
     private List<String> matchedSignals(AiStandardLibraryItem item,
                                         Set<String> tokens,
-                                        ModelDiagnosisBrief brief,
-                                        RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                        ModelDiagnosisBrief brief) {
         LinkedHashSet<String> matches = new LinkedHashSet<>();
         String text = searchableText(item).toLowerCase(Locale.ROOT);
         tokens.stream()
@@ -357,13 +323,10 @@ public class SearchLocationRetrievalService {
         if (brief != null && brief.getVerdict() != null) {
             matches.add("verdict:" + brief.getVerdict());
         }
-        if (ruleSignals != null && ruleSignals.getEvidenceRefs() != null) {
-            ruleSignals.getEvidenceRefs().stream().limit(3).forEach(ref -> matches.add("evidence:" + ref));
-        }
         return matches.stream().toList();
     }
 
-    private String buildQuery(ModelDiagnosisBrief brief, RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+    private String buildQuery(ModelDiagnosisBrief brief) {
         StringBuilder builder = new StringBuilder();
         if (brief != null) {
             append(builder, brief.getProblemBrief());
@@ -376,21 +339,6 @@ public class SearchLocationRetrievalService {
                 append(builder, brief.getFirstFailedCase().getInput());
                 append(builder, brief.getFirstFailedCase().getExpectedOutput());
                 append(builder, brief.getFirstFailedCase().getActualOutput());
-            }
-            if (brief.getCandidateSignals() != null) {
-                brief.getCandidateSignals().forEach(signal -> {
-                    append(builder, signal.getIssueTag());
-                    append(builder, signal.getFineGrainedTag());
-                    append(builder, signal.getReason());
-                });
-            }
-        }
-        if (ruleSignals != null) {
-            if (ruleSignals.getCandidateIssueTags() != null) {
-                ruleSignals.getCandidateIssueTags().forEach(value -> append(builder, value));
-            }
-            if (ruleSignals.getCandidateFineGrainedTags() != null) {
-                ruleSignals.getCandidateFineGrainedTags().forEach(value -> append(builder, value));
             }
         }
         return builder.toString();

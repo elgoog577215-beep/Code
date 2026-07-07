@@ -16,26 +16,26 @@ class ExternalModelOutputNormalizerTest {
     @Test
     void normalizesStudentFeedbackEvidenceAndImprovementCategory() {
         Fixture fixture = fixture();
-        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback(" testing_habit ", " CODE:RANGE_EXCLUDES_N ");
+        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback(" testing_habit ", " JUDGE:FIRST_FAILED_CASE ");
 
         SubmissionAnalysisResponse.StudentFeedback normalized =
                 normalizer.normalizeStudentFeedback(feedback, fixture.runtimePlan());
 
         assertThat(normalized.getBlockingIssues()).singleElement()
-                .satisfies(issue -> assertThat(issue.getEvidenceRefs()).containsExactly("code:range_excludes_n"));
+                .satisfies(issue -> assertThat(issue.getEvidenceRefs()).containsExactly("judge:first_failed_case"));
         assertThat(normalized.getImprovementOpportunities()).singleElement()
                 .satisfies(item -> {
                     assertThat(item.getCategory()).isEqualTo("TESTING_HABIT");
-                    assertThat(item.getEvidenceRefs()).containsExactly("code:range_excludes_n");
+                    assertThat(item.getEvidenceRefs()).containsExactly("judge:first_failed_case");
                 });
-        assertThat(normalized.getNextLearningAction().getEvidenceRefs()).containsExactly("code:range_excludes_n");
+        assertThat(normalized.getNextLearningAction().getEvidenceRefs()).containsExactly("judge:first_failed_case");
         assertThat(validator.validateStudentFeedback(normalized, fixture.brief(), fixture.pack()).isValid()).isTrue();
     }
 
     @Test
     void leavesUnknownCategoryForStrictValidation() {
         Fixture fixture = fixture();
-        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback("made_up", "code:range_excludes_n");
+        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback("made_up", "judge:first_failed_case");
 
         SubmissionAnalysisResponse.StudentFeedback normalized =
                 normalizer.normalizeStudentFeedback(feedback, fixture.runtimePlan());
@@ -48,7 +48,7 @@ class ExternalModelOutputNormalizerTest {
     @Test
     void calibratesModelReportedHighRiskWhenVisibleTextIsSafe() {
         Fixture fixture = fixture();
-        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback("TESTING_HABIT", "code:range_excludes_n");
+        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback("TESTING_HABIT", "judge:first_failed_case");
         feedback.getNextLearningAction().setAnswerLeakRisk("HIGH");
 
         SubmissionAnalysisResponse.StudentFeedback normalized =
@@ -61,7 +61,7 @@ class ExternalModelOutputNormalizerTest {
     @Test
     void keepsUnsafeFeedbackVisibleForValidator() {
         Fixture fixture = fixture();
-        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback("TESTING_HABIT", "code:range_excludes_n");
+        SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback("TESTING_HABIT", "judge:first_failed_case");
         feedback.getBlockingIssues().get(0).setNextAction("直接改成 range(1, n + 1)。");
 
         SubmissionAnalysisResponse.StudentFeedback normalized =
@@ -113,6 +113,15 @@ class ExternalModelOutputNormalizerTest {
                         .verdict("WRONG_ANSWER")
                         .sourceCodeWithLineNumbers("1: for i in range(1, n):")
                         .sourceCodeLineCount(1)
+                        .build())
+                .judgeFacts(DiagnosisEvidencePackage.JudgeFacts.builder()
+                        .firstFailedCase(SubmissionAnalysisResponse.FailedCaseSnapshot.builder()
+                                .testCaseNumber(1)
+                                .hidden(false)
+                                .input("3")
+                                .expectedOutput("6")
+                                .actualOutput("3")
+                                .build())
                         .build())
                 .build();
         RuleSignalAnalyzer.RuleSignalResult ruleSignals = RuleSignalAnalyzer.RuleSignalResult.builder()

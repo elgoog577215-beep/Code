@@ -16,11 +16,10 @@ import java.util.List;
 public class DiagnosticAgentService {
 
     private static final String AGENT_VERSION = "diagnostic-agent-v2";
-    private static final String RULE_PROMPT_VERSION = "rule-signal-diagnosis-v1";
+    private static final String BASELINE_PROMPT_VERSION = "diagnostic-baseline-v1";
     private static final int MAX_CONTEXT_EVIDENCE_REFS = 16;
 
     private final DiagnosisEvidencePackageBuilder evidencePackageBuilder;
-    private final RuleSignalAnalyzer ruleSignalAnalyzer;
     private final AiReportService aiReportService;
     private final HintSafetyService hintSafetyService;
     private final DiagnosisTaxonomy diagnosisTaxonomy;
@@ -28,13 +27,11 @@ public class DiagnosticAgentService {
 
     @Autowired
     public DiagnosticAgentService(DiagnosisEvidencePackageBuilder evidencePackageBuilder,
-                                  RuleSignalAnalyzer ruleSignalAnalyzer,
                                   AiReportService aiReportService,
                                   HintSafetyService hintSafetyService,
                                   DiagnosisTaxonomy diagnosisTaxonomy,
                                   StudentFeedbackViewAssembler studentFeedbackViewAssembler) {
         this.evidencePackageBuilder = evidencePackageBuilder;
-        this.ruleSignalAnalyzer = ruleSignalAnalyzer;
         this.aiReportService = aiReportService;
         this.hintSafetyService = hintSafetyService;
         this.diagnosisTaxonomy = diagnosisTaxonomy;
@@ -42,13 +39,11 @@ public class DiagnosticAgentService {
     }
 
     public DiagnosticAgentService(DiagnosisEvidencePackageBuilder evidencePackageBuilder,
-                                  RuleSignalAnalyzer ruleSignalAnalyzer,
                                   AiReportService aiReportService,
                                   HintSafetyService hintSafetyService,
                                   DiagnosisTaxonomy diagnosisTaxonomy) {
         this(
                 evidencePackageBuilder,
-                ruleSignalAnalyzer,
                 aiReportService,
                 hintSafetyService,
                 diagnosisTaxonomy,
@@ -90,8 +85,7 @@ public class DiagnosticAgentService {
                 historyEvidence,
                 learningMemory
         );
-        RuleSignalAnalyzer.RuleSignalResult ruleSignals = ruleSignalAnalyzer.analyze(evidencePackage);
-        ruleSignals = applyHistorySignals(ruleSignals, evidencePackage);
+        RuleSignalAnalyzer.RuleSignalResult ruleSignals = RuleSignalAnalyzer.empty();
         SubmissionAnalysisResponse ruleAware = applyRuleSignals(baseline, ruleSignals);
         ModelStageResult modelStage = enhanceWithModel(problem, submission, ruleAware, evidencePackage, ruleSignals);
         SubmissionAnalysisResponse enhanced = modelStage.analysis();
@@ -1066,46 +1060,6 @@ public class DiagnosticAgentService {
                 .build();
     }
 
-    private RuleSignalAnalyzer.RuleSignalResult applyHistorySignals(RuleSignalAnalyzer.RuleSignalResult ruleSignals,
-                                                                    DiagnosisEvidencePackage evidencePackage) {
-        if (ruleSignals == null || evidencePackage == null || evidencePackage.getHistory() == null) {
-            return ruleSignals;
-        }
-        DiagnosisEvidencePackage.HistoryEvidence history = evidencePackage.getHistory();
-        String transition = history.getTransitionSignal() == null ? "" : history.getTransitionSignal();
-        String currentVerdict = normalizeVerdict(evidencePackage.getSubmission() == null
-                ? null
-                : evidencePackage.getSubmission().getVerdict());
-        boolean possibleRegression = isRegression(history.getPreviousVerdict(), currentVerdict)
-                || ((transition.contains("变化为") || transition.toLowerCase().contains("regression"))
-                && !isAccepted(currentVerdict));
-        if (!possibleRegression) {
-            return ruleSignals;
-        }
-        RuleSignalAnalyzer.Signal signal = RuleSignalAnalyzer.Signal.builder()
-                .evidenceRef("history:verdict_transition")
-                .coarseTag("NEEDS_MORE_EVIDENCE")
-                .fineTag("PARTIAL_FIX_REGRESSION")
-                .confidence(0.56)
-                .message("本次评测阶段相对上次发生变化但仍未通过，可能存在局部修复后引入的新问题。")
-                .build();
-        return RuleSignalAnalyzer.RuleSignalResult.builder()
-                .signals(DiagnosisListSupport.append(ruleSignals.getSignals(), signal))
-                .candidateIssueTags(DiagnosisListSupport.deduplicate(DiagnosisListSupport.merge(
-                        ruleSignals.getCandidateIssueTags(),
-                        List.of("NEEDS_MORE_EVIDENCE")
-                )))
-                .candidateFineGrainedTags(DiagnosisListSupport.deduplicate(DiagnosisListSupport.merge(
-                        ruleSignals.getCandidateFineGrainedTags(),
-                        List.of("PARTIAL_FIX_REGRESSION")
-                )))
-                .evidenceRefs(DiagnosisListSupport.deduplicate(DiagnosisListSupport.merge(
-                        ruleSignals.getEvidenceRefs(),
-                        List.of("history:verdict_transition")
-                )))
-                .build();
-    }
-
     private List<String> mergeLists(List<String> left, List<String> right) {
         return DiagnosisListSupport.merge(left, right);
     }
@@ -1143,10 +1097,10 @@ public class DiagnosticAgentService {
                 fallbackUsed ? "RULE_FALLBACK" : "MODEL_COMPLETED"
         );
         return SubmissionAnalysisResponse.AiInvocation.builder()
-                .provider(defaultIfBlank(existing == null ? null : existing.getProvider(), modelFallbackUsed ? "LOCAL_RULES" : "AI_PROVIDER"))
-                .model(defaultIfBlank(existing == null ? null : existing.getModel(), modelFallbackUsed ? "rule-signals" : "unknown-model"))
-                .modelVersion(defaultIfBlank(existing == null ? null : existing.getModelVersion(), modelFallbackUsed ? "rule-signals-v1" : "unknown-model"))
-                .promptVersion(defaultIfBlank(existing == null ? null : existing.getPromptVersion(), RULE_PROMPT_VERSION))
+                .provider(defaultIfBlank(existing == null ? null : existing.getProvider(), modelFallbackUsed ? "LOCAL_BASELINE" : "AI_PROVIDER"))
+                .model(defaultIfBlank(existing == null ? null : existing.getModel(), modelFallbackUsed ? "local-baseline" : "unknown-model"))
+                .modelVersion(defaultIfBlank(existing == null ? null : existing.getModelVersion(), modelFallbackUsed ? "local-baseline-v1" : "unknown-model"))
+                .promptVersion(defaultIfBlank(existing == null ? null : existing.getPromptVersion(), BASELINE_PROMPT_VERSION))
                 .agentVersion(AGENT_VERSION)
                 .analysisSchemaVersion(defaultIfBlank(
                         existing == null ? null : existing.getAnalysisSchemaVersion(),

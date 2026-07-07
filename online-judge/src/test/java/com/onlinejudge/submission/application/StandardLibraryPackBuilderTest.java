@@ -78,7 +78,7 @@ class StandardLibraryPackBuilderTest {
     }
 
     @Test
-    void ruleSignalsAddFineGrainedBasicCausesAndTeachingActions() {
+    void legacyRuleSignalsDoNotAddStandardLibraryEntries() {
         ModelDiagnosisBrief brief = ModelDiagnosisBrief.builder()
                 .allowedIssueTags(List.of("BOUNDARY_CONDITION"))
                 .build();
@@ -90,13 +90,16 @@ class StandardLibraryPackBuilderTest {
 
         assertThat(pack.getBasicCauses())
                 .extracting(StandardLibraryPack.BasicCauseOption::getId)
-                .contains("BOUNDARY_CONDITION", "OUTPUT_FORMAT_DETAIL", "NEEDS_MORE_EVIDENCE");
+                .contains("BOUNDARY_CONDITION", "NEEDS_MORE_EVIDENCE")
+                .doesNotContain("OUTPUT_FORMAT_DETAIL");
         assertThat(pack.getTeachingActions())
                 .extracting(StandardLibraryPack.TeachingActionOption::getId)
-                .contains("ASK_MIN_CASE", "COMPARE_OUTPUT");
+                .contains("ASK_MIN_CASE", "COLLECT_EVIDENCE")
+                .doesNotContain("COMPARE_OUTPUT");
         assertThat(pack.getImprovementPoints())
                 .extracting(StandardLibraryPack.ImprovementPointOption::getId)
-                .contains("TESTING_HABIT", "BOUNDARY_AWARENESS", "CODE_ORGANIZATION");
+                .contains("TESTING_HABIT", "BOUNDARY_AWARENESS")
+                .doesNotContain("CODE_ORGANIZATION");
     }
 
     @Test

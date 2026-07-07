@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DiagnosticAgentServiceTest {
 
     @Test
-    void diagnoseMergesRuleSignalsAndKeepsEvidenceRefs() {
+    void diagnoseDoesNotInjectLegacyRuleSignals() {
         DiagnosticAgentService service = newService();
 
         Submission submission = Submission.builder()
@@ -57,9 +57,10 @@ class DiagnosticAgentServiceTest {
                 Assignment.HintPolicy.L2
         );
 
-        assertThat(result.analysis().getIssueTags()).contains("LOOP_BOUNDARY");
-        assertThat(result.analysis().getFineGrainedTags()).contains("OFF_BY_ONE");
-        assertThat(result.analysis().getEvidenceRefs()).contains("code:plus_minus_one");
+        assertThat(result.analysis().getIssueTags()).contains("BOUNDARY_CONDITION");
+        assertThat(result.analysis().getIssueTags()).doesNotContain("LOOP_BOUNDARY");
+        assertThat(result.analysis().getFineGrainedTags()).doesNotContain("OFF_BY_ONE");
+        assertThat(result.analysis().getEvidenceRefs()).doesNotContain("code:plus_minus_one");
         assertThat(result.traceSummary()).contains("diagnostic-agent-v2");
         assertThat(result.analysis().getDiagnosticTrace()).contains("model=rule-fallback");
         assertThat(result.analysis().getAiInvocation()).isNotNull();
@@ -67,14 +68,13 @@ class DiagnosticAgentServiceTest {
         assertThat(result.analysis().getAiInvocation().isFallbackUsed()).isTrue();
         assertThat(result.analysis().getStudentHintPlan()).isNotNull();
         assertThat(result.analysis().getStudentHintPlan().getHintLevel()).isEqualTo("L2");
-        assertThat(result.analysis().getStudentHintPlan().getProblemType()).isEqualTo("差一位错误");
-        assertThat(result.analysis().getStudentHintPlan().getTeachingAction()).isEqualTo("TRACE_VARIABLES");
-        assertThat(result.analysis().getStudentHintPlan().getEvidenceRefs()).contains("code:plus_minus_one");
+        assertThat(result.analysis().getStudentHintPlan().getProblemType()).isNotBlank();
+        assertThat(result.analysis().getStudentHintPlan().getEvidenceRefs()).doesNotContain("code:plus_minus_one");
         assertThat(result.analysis().getLearningInterventionPlan()).isNotNull();
-        assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isEqualTo("VARIABLE_TRACE");
+        assertThat(result.analysis().getLearningInterventionPlan().getInterventionType()).isNotBlank();
         assertThat(result.analysis().getLearningInterventionPlan().getStudentTask()).isNotBlank();
         assertThat(result.analysis().getLearningInterventionPlan().getCompletionSignal()).isNotBlank();
-        assertThat(result.analysis().getLearningInterventionPlan().getEvidenceRefs()).contains("code:plus_minus_one");
+        assertThat(result.analysis().getLearningInterventionPlan().getEvidenceRefs()).doesNotContain("code:plus_minus_one");
     }
 
     @Test
@@ -135,7 +135,6 @@ class DiagnosticAgentServiceTest {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         DiagnosticAgentService service = new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
-                new RuleSignalAnalyzer(),
                 new GenericComplexityAiReportService(),
                 new PassThroughHintSafetyService(taxonomy),
                 taxonomy
@@ -189,7 +188,6 @@ class DiagnosticAgentServiceTest {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         DiagnosticAgentService service = new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
-                new RuleSignalAnalyzer(),
                 new ModelOnlyEvidenceAiReportService(),
                 new PassThroughHintSafetyService(taxonomy),
                 taxonomy
@@ -251,10 +249,10 @@ class DiagnosticAgentServiceTest {
         assertThat(result.analysis().getFineGrainedTags()).contains("DP_STATE_DESIGN");
         assertThat(result.analysis().getEvidenceRefs()).contains(
                 "model:dp_state_decision",
-                "problem:dp_state_needs_design",
                 "verdict:wrong_answer",
                 "judge:first_failed_case:1"
         );
+        assertThat(result.analysis().getEvidenceRefs()).doesNotContain("problem:dp_state_needs_design");
         assertThat(result.analysis().getStudentHintPlan().getEvidenceRefs()).contains("verdict:wrong_answer");
     }
 
@@ -300,8 +298,8 @@ class DiagnosticAgentServiceTest {
                 history
         );
 
-        assertThat(result.analysis().getFineGrainedTags()).contains("PARTIAL_FIX_REGRESSION");
-        assertThat(result.analysis().getEvidenceRefs()).contains("history:verdict_transition");
+        assertThat(result.analysis().getFineGrainedTags()).doesNotContain("PARTIAL_FIX_REGRESSION");
+        assertThat(result.analysis().getEvidenceRefs()).doesNotContain("history:verdict_transition");
         assertThat(result.analysis().getLearningTrajectorySignal()).isNotNull();
         assertThat(result.analysis().getLearningTrajectorySignal().getPhase()).isEqualTo("REGRESSION");
         assertThat(result.analysis().getLearningInterventionPlan()).isNotNull();
@@ -465,7 +463,6 @@ class DiagnosticAgentServiceTest {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         DiagnosticAgentService service = new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
-                new RuleSignalAnalyzer(),
                 new FailingAiReportService(),
                 new PassThroughHintSafetyService(taxonomy),
                 taxonomy
@@ -505,8 +502,9 @@ class DiagnosticAgentServiceTest {
                 Assignment.HintPolicy.L2
         );
 
-        assertThat(result.analysis().getIssueTags()).contains("LOOP_BOUNDARY");
-        assertThat(result.analysis().getFineGrainedTags()).contains("OFF_BY_ONE");
+        assertThat(result.analysis().getIssueTags()).contains("NEEDS_MORE_EVIDENCE");
+        assertThat(result.analysis().getIssueTags()).doesNotContain("LOOP_BOUNDARY");
+        assertThat(result.analysis().getFineGrainedTags()).doesNotContain("OFF_BY_ONE");
         assertThat(result.analysis().getDiagnosticTrace()).contains("model=rule-fallback");
         assertThat(result.traceSummary()).contains("model=rule-fallback");
     }
@@ -619,7 +617,6 @@ class DiagnosticAgentServiceTest {
         DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
         return new DiagnosticAgentService(
                 new DiagnosisEvidencePackageBuilder(),
-                new RuleSignalAnalyzer(),
                 new PassThroughAiReportService(),
                 new PassThroughHintSafetyService(taxonomy),
                 taxonomy

@@ -15,7 +15,7 @@ import static org.mockito.Mockito.when;
 class SearchLocationRetrievalServiceTest {
 
     @Test
-    void textRetrievalRanksBoundaryMistakeFromCodeAndSignals() {
+    void textRetrievalRanksBoundaryMistakeFromCodeAndLibraryText() {
         AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
         when(libraryService.enabledSearchLocationItems()).thenReturn(List.of(
                 item("SK_RANGE_BOUNDARY", AiStandardLibraryLayer.SKILL_UNIT,
@@ -41,7 +41,8 @@ class SearchLocationRetrievalServiceTest {
         SearchLocationCandidatePack pack = service.retrieve(brief(), ruleSignals());
 
         assertThat(pack.getEmbeddingStatus()).isEqualTo("DISABLED");
-        assertThat(pack.getRecallSources()).contains("STRUCTURE", "KEYWORD", "RULE_SIGNAL");
+        assertThat(pack.getRecallSources()).contains("STRUCTURE", "KEYWORD");
+        assertThat(pack.getRecallSources()).doesNotContain("RULE_SIGNAL");
         assertThat(pack.getCandidates()).isNotEmpty();
         assertThat(pack.getCandidates().get(0).getId()).isEqualTo("MP_RANGE_RIGHT_ENDPOINT_MISSING");
         assertThat(pack.getCandidates().get(0).getMatchedSignals()).contains("verdict:WRONG_ANSWER");

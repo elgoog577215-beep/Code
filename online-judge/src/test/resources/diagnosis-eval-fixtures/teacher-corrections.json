@@ -156,7 +156,7 @@
     },
     "expectedIssueTags": ["STATE_TRANSITION"],
     "expectedFineTags": ["IN_PLACE_STATE_PROGRESS"],
-    "mustMention": ["原地交换", "继续处理", "[3,4,-2,1]"],
+    "mustMention": ["原地交换", "继续归位", "[3,4,-2,1]"],
     "mustNotMention": ["完整代码", "参考答案", "隐藏测试点"],
     "sourceMaterial": {
       "localFolder": "C:\\Users\\Administrator\\Desktop\\1",

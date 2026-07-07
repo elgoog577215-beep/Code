@@ -104,7 +104,7 @@ class ModelOutputValidatorTest {
         assertThat(smallPlan.isRequestCompact()).isFalse();
         assertThat(largePlan.getRuntimeProfile()).isEqualTo("auto");
         assertThat(largePlan.isRequestCompact()).isTrue();
-        assertThat(largePlan.getBrief().getCandidateSignals()).hasSize(3);
+        assertThat(largePlan.getBrief().getCandidateSignals()).isEmpty();
         assertThat(largePlan.getBrief().getKeyCodeExcerpt()).contains("truncated for model");
     }
 
@@ -149,25 +149,25 @@ class ModelOutputValidatorTest {
                         .priority(1)
                         .title("当前最需要先处理的问题")
                         .studentMessage("循环边界和题目要求不一致，先手推最小样例。")
-                        .evidence("code:range_excludes_n")
+                        .evidence("judge:first_failed_case")
                         .nextAction(nextAction)
                         .issueTag("SK_LOOP_BOUNDARY")
                         .fineGrainedTag("MP_RANGE_RIGHT_ENDPOINT")
-                        .evidenceRefs(List.of("code:range_excludes_n"))
+                        .evidenceRefs(List.of("judge:first_failed_case"))
                         .build()))
                 .secondaryIssues(List.of())
                 .improvementOpportunities(List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
                         .category(improvementCategory)
                         .studentMessage("通过后补一个最小边界自测。")
                         .benefit("能提前发现边界遗漏。")
-                        .evidenceRefs(List.of("code:range_excludes_n"))
+                        .evidenceRefs(List.of("judge:first_failed_case"))
                         .build()))
                 .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
                         .hintLevel("L2")
                         .action("TRACE_VARIABLES")
                         .task(nextAction)
                         .checkQuestion("当 n=1 时循环执行几次？")
-                        .evidenceRefs(List.of("code:range_excludes_n"))
+                        .evidenceRefs(List.of("judge:first_failed_case"))
                         .answerLeakRisk("LOW")
                         .build())
                 .build();
@@ -184,6 +184,15 @@ class ModelOutputValidatorTest {
                         .verdict("WRONG_ANSWER")
                         .sourceCodeWithLineNumbers("1: for i in range(1, n):")
                         .sourceCodeLineCount(1)
+                        .build())
+                .judgeFacts(DiagnosisEvidencePackage.JudgeFacts.builder()
+                        .firstFailedCase(SubmissionAnalysisResponse.FailedCaseSnapshot.builder()
+                                .testCaseNumber(1)
+                                .hidden(false)
+                                .input("3")
+                                .expectedOutput("6")
+                                .actualOutput("3")
+                                .build())
                         .build())
                 .build();
         RuleSignalAnalyzer.RuleSignalResult ruleSignals = RuleSignalAnalyzer.RuleSignalResult.builder()
@@ -222,6 +231,15 @@ class ModelOutputValidatorTest {
                         .sourceCode(source)
                         .sourceCodeWithLineNumbers(source)
                         .sourceCodeLineCount(80 * 5)
+                        .build())
+                .judgeFacts(DiagnosisEvidencePackage.JudgeFacts.builder()
+                        .firstFailedCase(SubmissionAnalysisResponse.FailedCaseSnapshot.builder()
+                                .testCaseNumber(1)
+                                .hidden(false)
+                                .input("3")
+                                .expectedOutput("6")
+                                .actualOutput("3")
+                                .build())
                         .build())
                 .build();
         RuleSignalAnalyzer.RuleSignalResult ruleSignals = RuleSignalAnalyzer.RuleSignalResult.builder()

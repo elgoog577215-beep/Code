@@ -57,8 +57,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(feedback.getStatus()).isEqualTo("READY");
@@ -82,9 +81,9 @@ class StudentAiFeedbackModelTest {
         assertThat(service.lastSystemPrompt())
                 .contains("学生快反馈教练", "studentReport", "禁止给最终代码", "不要只解释第一个");
         assertThat(service.lastUserPrompt())
-                .contains("judgeFacts", "candidateSignals", "sourceCodeWithLineNumbers", "n = int(input())")
+                .contains("judgeFacts", "sourceCodeWithLineNumbers", "n = int(input())")
                 .contains("不要把内部字段名写进学生反馈");
-        assertThat(service.lastUserPrompt()).doesNotContain("sourceExcerpt", "evidenceCandidates", "primaryRuntimeEvidence", "sourceCodeForLineAnalysis");
+        assertThat(service.lastUserPrompt()).doesNotContain("candidateSignals", "sourceExcerpt", "evidenceCandidates", "primaryRuntimeEvidence", "sourceCodeForLineAnalysis");
         assertThat(service.lastOutputTokens()).isEqualTo(1800);
     }
 
@@ -144,8 +143,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(feedback.getStatus()).isEqualTo("READY");
@@ -188,8 +186,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(service.lastUserPrompt())
@@ -210,7 +207,7 @@ class StudentAiFeedbackModelTest {
     void studentFastFeedbackReceivesStandardLibraryContextAndKeepsLibraryIds() {
         ExternalModelAgentRuntime runtime = mock(ExternalModelAgentRuntime.class);
         when(runtime.prepare(any(DiagnosisEvidencePackage.class),
-                any(RuleSignalAnalyzer.RuleSignalResult.class),
+                isNull(),
                 isNull(),
                 anyString()))
                 .thenReturn(ExternalModelAgentRuntime.RuntimePlan.builder()
@@ -247,8 +244,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(service.lastUserPrompt())
@@ -297,8 +293,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(feedback.getStatus()).isEqualTo("READY");
@@ -355,8 +350,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(feedback.getStatus()).isEqualTo("READY");
@@ -390,8 +384,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(feedback.getStatus()).isEqualTo("SAFETY_REJECTED");
@@ -420,8 +413,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(feedback.getStudentReport().getNextActionText())
@@ -448,8 +440,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(feedback.getStudentReport().getBasicLayerText())
@@ -477,8 +468,7 @@ class StudentAiFeedbackModelTest {
         service.generateStudentAiFeedback(
                 problem(),
                 longRuntimeSubmission(),
-                longRuntimeEvidencePackage(),
-                ruleSignals()
+                longRuntimeEvidencePackage()
         );
 
         assertThat(service.lastUserPrompt())
@@ -512,8 +502,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 longRuntimeSubmission(),
-                longRuntimeEvidencePackage(),
-                ruleSignals()
+                longRuntimeEvidencePackage()
         );
 
         assertThat(feedback.getStatus()).isEqualTo("READY");
@@ -576,8 +565,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 longRuntimeSubmission(),
-                longRuntimeEvidencePackage(),
-                ruleSignals()
+                longRuntimeEvidencePackage()
         );
 
         assertThat(feedback.getRepairItems())
@@ -623,8 +611,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 longRuntimeSubmission(),
-                longRuntimeEvidencePackage(),
-                ruleSignals()
+                longRuntimeEvidencePackage()
         );
 
         assertThat(feedback.getStudentReport().getBasicLayerText()).contains("索引越界");
@@ -674,8 +661,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 longRuntimeSubmission(),
-                longRuntimeEvidencePackage(),
-                ruleSignals()
+                longRuntimeEvidencePackage()
         );
 
         assertThat(feedback.getImprovementItems())
@@ -691,8 +677,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(feedback.getStatus()).isEqualTo("FAILED");
@@ -711,8 +696,7 @@ class StudentAiFeedbackModelTest {
         StudentAiFeedbackResponse feedback = service.generateStudentAiFeedback(
                 problem(),
                 submission(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(feedback.getStatus()).isEqualTo("FAILED");
@@ -887,21 +871,6 @@ class StudentAiFeedbackModelTest {
             builder.append(i + 1).append(": ").append(lines[i]);
         }
         return builder.toString();
-    }
-
-    private RuleSignalAnalyzer.RuleSignalResult ruleSignals() {
-        return RuleSignalAnalyzer.RuleSignalResult.builder()
-                .candidateIssueTags(List.of("IO_FORMAT"))
-                .candidateFineGrainedTags(List.of("INPUT_PARSING"))
-                .evidenceRefs(List.of("judge:first_failed_case:1", "code:line:1"))
-                .signals(List.of(RuleSignalAnalyzer.Signal.builder()
-                        .evidenceRef("code:line:1")
-                        .coarseTag("IO_FORMAT")
-                        .fineTag("INPUT_PARSING")
-                        .confidence(0.86)
-                        .message("代码读取结构和题面输入格式不匹配。")
-                        .build()))
-                .build();
     }
 
     private StandardLibraryPack studentStandardLibraryPack() {
