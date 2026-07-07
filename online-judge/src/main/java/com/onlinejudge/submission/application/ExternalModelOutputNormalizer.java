@@ -87,12 +87,6 @@ public class ExternalModelOutputNormalizer {
             return refs;
         }
         addEvidenceRefs(refs, brief.getEvidenceRefs());
-        if (brief.getCandidateSignals() != null) {
-            brief.getCandidateSignals().stream()
-                    .map(ModelDiagnosisBrief.CandidateSignal::getEvidenceRef)
-                    .filter(ref -> ref != null && !ref.isBlank())
-                    .forEach(ref -> refs.putIfAbsent(normalizeKey(ref), ref));
-        }
         return refs;
     }
 

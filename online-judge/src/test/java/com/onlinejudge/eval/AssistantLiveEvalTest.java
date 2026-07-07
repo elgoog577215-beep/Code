@@ -13,7 +13,6 @@ import com.onlinejudge.submission.application.ExternalModelAgentRuntime;
 import com.onlinejudge.submission.application.ModelDiagnosisBriefBuilder;
 import com.onlinejudge.submission.application.ModelOutputValidator;
 import com.onlinejudge.submission.application.PromptTemplateRegistry;
-import com.onlinejudge.submission.application.RuleSignalAnalyzer;
 import com.onlinejudge.submission.application.StandardLibraryPackBuilder;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import org.junit.jupiter.api.Assumptions;

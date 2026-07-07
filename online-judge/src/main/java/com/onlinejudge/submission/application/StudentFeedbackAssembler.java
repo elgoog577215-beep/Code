@@ -21,7 +21,6 @@ public class StudentFeedbackAssembler {
 
     public SubmissionAnalysisResponse.StudentFeedback assemble(SubmissionAnalysisResponse analysis,
                                                                DiagnosisEvidencePackage evidencePackage,
-                                                               RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                                                boolean fallbackUsed) {
         if (analysis == null) {
             return null;
@@ -33,10 +32,7 @@ public class StudentFeedbackAssembler {
         String primaryIssueTag = primaryIssueTag(analysis);
         String fineGrainedTag = primaryFineTag(analysis);
         String teachingTag = fineGrainedTag.isBlank() ? primaryIssueTag : fineGrainedTag;
-        List<String> evidenceRefs = deduplicate(merge(
-                analysis.getEvidenceRefs(),
-                ruleSignals == null ? List.of() : ruleSignals.getEvidenceRefs()
-        ));
+        List<String> evidenceRefs = deduplicate(analysis.getEvidenceRefs());
         SubmissionAnalysisResponse.FeedbackIssue blockingIssue = buildBlockingIssue(
                 analysis,
                 evidencePackage,

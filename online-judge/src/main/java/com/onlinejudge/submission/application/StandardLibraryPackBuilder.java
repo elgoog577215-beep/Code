@@ -28,8 +28,7 @@ public class StandardLibraryPackBuilder {
         this.aiStandardLibraryService = aiStandardLibraryService;
     }
 
-    public StandardLibraryPack build(ModelDiagnosisBrief brief,
-                                     RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+    public StandardLibraryPack build(ModelDiagnosisBrief brief) {
         Set<String> issueTagIds = new LinkedHashSet<>();
         Set<String> fineTagIds = new LinkedHashSet<>();
 

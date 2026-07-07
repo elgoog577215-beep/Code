@@ -35,7 +35,5 @@ public class SearchLocationCandidate {
     private List<String> extensionCandidateIds;
     private Double textScore;
     private Double vectorScore;
-    private Double signalScore;
     private Double finalScore;
-    private List<String> matchedSignals;
 }

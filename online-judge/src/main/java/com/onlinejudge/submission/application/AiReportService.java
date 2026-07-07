@@ -210,14 +210,13 @@ public class AiReportService {
     public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                 Submission submission,
                                                                 SubmissionAnalysisResponse fallback) {
-        return enhanceSubmissionAnalysis(problem, submission, fallback, null, null);
+        return enhanceSubmissionAnalysis(problem, submission, fallback, null);
     }
 
     public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                 Submission submission,
                                                                 SubmissionAnalysisResponse fallback,
-                                                                DiagnosisEvidencePackage evidencePackage,
-                                                                RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                                DiagnosisEvidencePackage evidencePackage) {
         if (!canCallAi()) {
             log.info("AI submission analysis skipped because AI access is unavailable. submissionId={}", submission.getId());
             return fallback;
@@ -232,12 +231,11 @@ public class AiReportService {
             List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues = fallback == null || fallback.getLineIssues() == null
                     ? List.of()
                     : fallback.getLineIssues();
-            if (shouldUseExternalRuntime(evidencePackage, ruleSignals)) {
+            if (shouldUseExternalRuntime(evidencePackage)) {
                 return enhanceWithExternalRuntime(
                         submission,
                         fallback,
                         evidencePackage,
-                        ruleSignals,
                         rawSourceCode,
                         baselineLineIssues
                 );
@@ -250,7 +248,7 @@ public class AiReportService {
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            if (shouldUseExternalRuntime(evidencePackage, ruleSignals)) {
+            if (shouldUseExternalRuntime(evidencePackage)) {
                 return runtimeFallback(fallback, stageFailureFromException("SUBMISSION_ANALYSIS", exception));
             }
             return fallback;
@@ -320,28 +318,24 @@ public class AiReportService {
         }
     }
 
-    private boolean shouldUseExternalRuntime(DiagnosisEvidencePackage evidencePackage,
-                                             RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+    private boolean shouldUseExternalRuntime(DiagnosisEvidencePackage evidencePackage) {
         return externalRuntimeEnabled
                 && externalModelAgentRuntime != null
-                && evidencePackage != null
-                && ruleSignals != null;
+                && evidencePackage != null;
     }
 
     private SubmissionAnalysisResponse enhanceWithExternalRuntime(Submission submission,
                                                                   SubmissionAnalysisResponse fallback,
                                                                   DiagnosisEvidencePackage evidencePackage,
-                                                                  RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                                                   String rawSourceCode,
                                                                   List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues)
             throws JsonProcessingException, IOException, InterruptedException {
         ExternalModelAgentRuntime.RuntimePlan runtimePlan = externalModelAgentRuntime.prepare(
                 evidencePackage,
-                ruleSignals,
                 fallback,
                 teacherDiagnosisRuntimeProfile()
         );
-        runtimePlan = applySearchLocationIfAvailable(runtimePlan, ruleSignals);
+        runtimePlan = applySearchLocationIfAvailable(runtimePlan);
         return enhanceWithAdviceGenerationRuntime(
                 submission,
                 fallback,
@@ -360,7 +354,6 @@ public class AiReportService {
             ExternalModelAgentRuntime.RuntimePlan runtimePlan = externalModelAgentRuntime.prepare(
                     evidencePackage,
                     null,
-                    null,
                     externalRuntimeProfile
             );
             return applyLocalSearchLocationOnly(runtimePlan);
@@ -375,7 +368,7 @@ public class AiReportService {
         if (runtimePlan == null || searchLocationRetrievalService == null || searchLocationPackSelector == null) {
             return runtimePlan;
         }
-        SearchLocationCandidatePack candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief(), null);
+        SearchLocationCandidatePack candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief());
         if (candidatePack == null) {
             return runtimePlan;
         }
@@ -731,8 +724,7 @@ public class AiReportService {
     }
 
     private ExternalModelAgentRuntime.RuntimePlan applySearchLocationIfAvailable(
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-            RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
         if (runtimePlan == null) {
             return runtimePlan;
         }
@@ -751,7 +743,7 @@ public class AiReportService {
         }
         SearchLocationCandidatePack candidatePack = null;
         try {
-            candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief(), null);
+            candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief());
             if (candidatePack.getCandidates() == null || candidatePack.getCandidates().isEmpty()) {
                 if (!searchLocationProperties.isEnabled()) {
                     runtimePlan.setSearchLocationResult(SearchLocationResult.localOnly(
@@ -884,9 +876,9 @@ public class AiReportService {
                 .confidence(candidate.getFinalScore() == null ? 0.5 : Math.max(0.0, Math.min(1.0, candidate.getFinalScore())))
                 .evidenceRefs(List.of())
                 .reason("召回：" + candidate.getName())
-                .recallReason(String.join(", ", candidate.getMatchedSignals() == null
+                .recallReason(String.join(", ", candidate.getRecallSources() == null
                         ? List.of()
-                        : candidate.getMatchedSignals().stream().limit(3).toList()))
+                        : candidate.getRecallSources().stream().limit(3).toList()))
                 .evidenceSource("LOCAL_RECALL")
                 .uncertainty("由单诊断 Agent 最终确认。")
                 .build();
@@ -3222,7 +3214,7 @@ public class AiReportService {
 
     private String cleanStudentReportText(String value) {
         String text = cleanupAiText(value).trim();
-        text = text.replaceAll("（?\\(?\\s*(?:verdict|code|evidenceRefs?|judgeFacts|candidateSignals)\\s*:[^）)；;。\\n]*(?:，\\s*(?:verdict|code|evidenceRefs?|judgeFacts|candidateSignals)\\s*:[^）)；;。\\n]*)*\\s*\\)?）?", "").trim();
+        text = text.replaceAll("（?\\(?\\s*(?:verdict|code|evidenceRefs?|judgeFacts)\\s*:[^）)；;。\\n]*(?:，\\s*(?:verdict|code|evidenceRefs?|judgeFacts)\\s*:[^）)；;。\\n]*)*\\s*\\)?）?", "").trim();
         if (text.length() > 320) {
             text = text.substring(0, 320).trim();
         }

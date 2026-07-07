@@ -15,5 +15,4 @@ public class SearchLocationProperties {
     private boolean requireVector = false;
     private double textWeight = 0.45;
     private double vectorWeight = 0.35;
-    private double signalWeight = 0.20;
 }

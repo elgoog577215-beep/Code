@@ -66,7 +66,6 @@ class ModelOutputValidatorTest {
 
         ExternalModelAgentRuntime.RuntimePlan plan = runtime.prepare(
                 fixture.evidencePackage(),
-                fixture.ruleSignals(),
                 null
         );
 
@@ -89,13 +88,11 @@ class ModelOutputValidatorTest {
 
         ExternalModelAgentRuntime.RuntimePlan smallPlan = runtime.prepare(
                 fixture().evidencePackage(),
-                fixture().ruleSignals(),
                 null,
                 ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO
         );
         ExternalModelAgentRuntime.RuntimePlan largePlan = runtime.prepare(
                 largeFixture().evidencePackage(),
-                largeFixture().ruleSignals(),
                 null,
                 ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO
         );
@@ -104,7 +101,6 @@ class ModelOutputValidatorTest {
         assertThat(smallPlan.isRequestCompact()).isFalse();
         assertThat(largePlan.getRuntimeProfile()).isEqualTo("auto");
         assertThat(largePlan.isRequestCompact()).isTrue();
-        assertThat(largePlan.getBrief().getCandidateSignals()).isEmpty();
         assertThat(largePlan.getBrief().getKeyCodeExcerpt()).contains("truncated for model");
     }
 
@@ -195,21 +191,9 @@ class ModelOutputValidatorTest {
                                 .build())
                         .build())
                 .build();
-        RuleSignalAnalyzer.RuleSignalResult ruleSignals = RuleSignalAnalyzer.RuleSignalResult.builder()
-                .candidateIssueTags(List.of("LOOP_BOUNDARY"))
-                .candidateFineGrainedTags(List.of("OFF_BY_ONE"))
-                .evidenceRefs(List.of("code:range_excludes_n"))
-                .signals(List.of(RuleSignalAnalyzer.Signal.builder()
-                        .evidenceRef("code:range_excludes_n")
-                        .coarseTag("LOOP_BOUNDARY")
-                        .fineTag("OFF_BY_ONE")
-                        .confidence(0.9)
-                        .message("range excludes n")
-                        .build()))
-                .build();
-        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, ruleSignals, null);
-        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals);
-        return new Fixture(evidencePackage, ruleSignals, brief, pack);
+        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, null);
+        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief);
+        return new Fixture(evidencePackage, brief, pack);
     }
 
     private Fixture largeFixture() {
@@ -242,35 +226,12 @@ class ModelOutputValidatorTest {
                                 .build())
                         .build())
                 .build();
-        RuleSignalAnalyzer.RuleSignalResult ruleSignals = RuleSignalAnalyzer.RuleSignalResult.builder()
-                .candidateIssueTags(List.of("LOOP_BOUNDARY"))
-                .candidateFineGrainedTags(List.of("OFF_BY_ONE"))
-                .evidenceRefs(List.of("code:range_excludes_n"))
-                .signals(List.of(
-                        signal("code:range_excludes_n", 0.9),
-                        signal("case:first_failed", 0.8),
-                        signal("code:loop_header", 0.7),
-                        signal("code:sum_delta", 0.6),
-                        signal("memory:repeat", 0.5)
-                ))
-                .build();
-        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, ruleSignals, null);
-        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals);
-        return new Fixture(evidencePackage, ruleSignals, brief, pack);
-    }
-
-    private RuleSignalAnalyzer.Signal signal(String ref, double confidence) {
-        return RuleSignalAnalyzer.Signal.builder()
-                .evidenceRef(ref)
-                .coarseTag("LOOP_BOUNDARY")
-                .fineTag("OFF_BY_ONE")
-                .confidence(confidence)
-                .message(ref)
-                .build();
+        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, null);
+        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief);
+        return new Fixture(evidencePackage, brief, pack);
     }
 
     private record Fixture(DiagnosisEvidencePackage evidencePackage,
-                           RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                            ModelDiagnosisBrief brief,
                            StandardLibraryPack pack) {
     }

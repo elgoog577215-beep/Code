@@ -1253,12 +1253,10 @@ class ModelDiagnosisEvalTest {
                     assertThat(entry.getAutoRequestBytes()).isLessThan(entry.getStandardRequestBytes());
                     assertThat(entry.getAutoRequestBytes()).isEqualTo(entry.getLowLatencyRequestBytes());
                     assertThat(entry.getAutoCompressionRatio()).isBetween(0.0, 1.0);
-                    assertThat(entry.getCandidateSignalCount()).isZero();
                     assertThat(entry.getEvidenceRefCount()).isPositive();
                     assertThat(entry.getIssueTagCount()).isPositive();
                     assertThat(entry.getTeachingActionCount()).isPositive();
                     assertThat(entry.getHiddenBoundaryPresent()).isTrue();
-                    assertThat(entry.getAutoCandidateSignalCount()).isZero();
                     assertThat(entry.getAutoEvidenceRefCount()).isPositive();
                     assertThat(entry.getAutoIssueTagCount()).isPositive();
                     assertThat(entry.getAutoTeachingActionCount()).isPositive();
@@ -2369,7 +2367,6 @@ class ModelDiagnosisEvalTest {
                 new ModelOutputValidator()
         );
         DiagnosisEvidencePackageBuilder evidenceBuilder = new DiagnosisEvidencePackageBuilder();
-        RuleSignalAnalyzer signalAnalyzer = new RuleSignalAnalyzer();
         List<OfflineRuntimeProfileEvalReportFactory.OfflineEvalCase> offlineCases = cases.stream()
                 .map(evalCase -> {
                     DiagnosisEvidencePackage evidencePackage = evidenceBuilder.build(
@@ -2381,11 +2378,9 @@ class ModelDiagnosisEvalTest {
                             null,
                             null
                     );
-                    RuleSignalAnalyzer.RuleSignalResult ruleSignals = signalAnalyzer.analyze(evidencePackage);
                     return new OfflineRuntimeProfileEvalReportFactory.OfflineEvalCase(
                             evalCase.name(),
                             evidencePackage,
-                            ruleSignals,
                             evalCase.baseline()
                     );
                 })
@@ -3209,8 +3204,7 @@ class ModelDiagnosisEvalTest {
         public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                     Submission submission,
                                                                     SubmissionAnalysisResponse fallback,
-                                                                    DiagnosisEvidencePackage evidencePackage,
-                                                                    RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                                    DiagnosisEvidencePackage evidencePackage) {
             return fallback;
         }
     }

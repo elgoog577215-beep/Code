@@ -16,13 +16,11 @@ public class ModelDiagnosisBriefBuilder {
     private static final int MAX_CASE_FACTS = 5;
 
     public ModelDiagnosisBrief build(DiagnosisEvidencePackage evidencePackage,
-                                     RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                      SubmissionAnalysisResponse baseline) {
         DiagnosisEvidencePackage.ProblemEvidence problem = evidencePackage == null ? null : evidencePackage.getProblem();
         DiagnosisEvidencePackage.SubmissionEvidence submission = evidencePackage == null ? null : evidencePackage.getSubmission();
         DiagnosisEvidencePackage.JudgeFacts judgeFacts = evidencePackage == null ? null : evidencePackage.getJudgeFacts();
 
-        List<ModelDiagnosisBrief.CandidateSignal> candidateSignals = List.of();
         List<String> evidenceRefs = collectEvidenceRefs(judgeFacts, evidencePackage, baseline);
 
         return ModelDiagnosisBrief.builder()
@@ -35,7 +33,6 @@ public class ModelDiagnosisBriefBuilder {
                 .sourceCodeLineCount(submission == null ? null : submission.getSourceCodeLineCount())
                 .firstFailedCase(sanitizedFirstFailedCase(judgeFacts))
                 .visibleCaseFacts(visibleCaseFacts(judgeFacts))
-                .candidateSignals(candidateSignals)
                 .evidenceRefs(evidenceRefs)
                 .allowedIssueTags(allowedIssueTags(evidencePackage, baseline))
                 .allowedFineGrainedTags(allowedFineTags(evidencePackage, baseline))

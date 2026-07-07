@@ -154,12 +154,6 @@ class SearchLocationOutputValidatorTest {
     private ModelDiagnosisBrief brief() {
         return ModelDiagnosisBrief.builder()
                 .evidenceRefs(List.of("code:range_excludes_n"))
-                .candidateSignals(List.of(ModelDiagnosisBrief.CandidateSignal.builder()
-                        .evidenceRef("code:range_excludes_n")
-                        .issueTag("LOOP_BOUNDARY")
-                        .fineGrainedTag("OFF_BY_ONE")
-                        .confidence(0.9)
-                        .build()))
                 .build();
     }
 }

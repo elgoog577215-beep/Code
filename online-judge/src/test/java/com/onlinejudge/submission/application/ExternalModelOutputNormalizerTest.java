@@ -124,20 +124,8 @@ class ExternalModelOutputNormalizerTest {
                                 .build())
                         .build())
                 .build();
-        RuleSignalAnalyzer.RuleSignalResult ruleSignals = RuleSignalAnalyzer.RuleSignalResult.builder()
-                .candidateIssueTags(List.of("LOOP_BOUNDARY"))
-                .candidateFineGrainedTags(List.of("OFF_BY_ONE"))
-                .evidenceRefs(List.of("code:range_excludes_n"))
-                .signals(List.of(RuleSignalAnalyzer.Signal.builder()
-                        .evidenceRef("code:range_excludes_n")
-                        .coarseTag("LOOP_BOUNDARY")
-                        .fineTag("OFF_BY_ONE")
-                        .confidence(0.9)
-                        .message("range excludes n")
-                        .build()))
-                .build();
-        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, ruleSignals, null);
-        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals);
+        ModelDiagnosisBrief brief = new ModelDiagnosisBriefBuilder().build(evidencePackage, null);
+        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief);
         return new Fixture(ExternalModelAgentRuntime.RuntimePlan.builder()
                 .brief(brief)
                 .standardLibraryPack(pack)

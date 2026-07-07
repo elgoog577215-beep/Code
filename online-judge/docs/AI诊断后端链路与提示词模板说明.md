@@ -267,7 +267,7 @@ Rules:
 5. basicCandidates should focus on current blocking causes: syntax, IO, runtime, boundary, state, recursion, DP transition, or other concrete error sources.
 6. improvementCandidates should focus on non-blocking improvement directions: complexity, data structure choice, modeling, proof, testing habit, or transfer.
 7. knowledgeAnchors should identify the knowledge/skill branch that explains the selected candidates.
-8. Every selected item MUST cite at least one brief.evidenceRefs or brief.candidateSignals.evidenceRef value.
+8. Every selected item MUST cite at least one brief.evidenceRefs value.
 9. confidence MUST be between 0 and 1.
 10. Prefer 3-8 basicCandidates, 1-5 improvementCandidates, and 1-5 knowledgeAnchors. Do not pad weak candidates.
 11. Use judge facts as evidence, but still read the code behavior. Hidden data must not be guessed.
@@ -638,7 +638,7 @@ Rules:
 1. First understand the problem goal, then the student's code intent, then the behavior gap.
 2. basicLayerAdvice MUST describe the current blocking issue or foundation gap. It is not a full fix.
 3. improvementLayerAdvice MUST be lower priority than basicLayerAdvice unless the submission is already accepted.
-4. Every advice item MUST cite at least one brief.evidenceRefs or brief.candidateSignals evidenceRef value.
+4. Every advice item MUST cite at least one brief.evidenceRefs value.
 5. mistakePointId MUST come from standardLibrary.mistakePoints or be null when no precise mistake point exists.
 6. skillUnitId MUST come from standardLibrary.skillUnits or be null when no precise skill unit exists.
 7. improvementPointId MUST come from standardLibrary.improvementPoints or be null when no precise improvement point exists.

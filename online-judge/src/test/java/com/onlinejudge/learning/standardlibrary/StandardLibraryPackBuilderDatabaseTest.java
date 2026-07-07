@@ -81,7 +81,7 @@ class StandardLibraryPackBuilderDatabaseTest {
 
         StandardLibraryPack pack = builder.build(ModelDiagnosisBrief.builder()
                 .allowedIssueTags(List.of("IO_FORMAT"))
-                .build(), null);
+                .build());
 
         assertThat(pack.getBasicCauses())
                 .filteredOn(cause -> "IO_FORMAT".equals(cause.getId()))
@@ -183,7 +183,7 @@ class StandardLibraryPackBuilderDatabaseTest {
 
         StandardLibraryPack pack = builder.build(ModelDiagnosisBrief.builder()
                 .allowedIssueTags(List.of("IO_FORMAT"))
-                .build(), null);
+                .build());
 
         assertThat(pack.getBasicCauses())
                 .filteredOn(cause -> "IO_FORMAT".equals(cause.getId()))
@@ -199,7 +199,7 @@ class StandardLibraryPackBuilderDatabaseTest {
         StandardLibraryPack fallbackPack = new StandardLibraryPackBuilder(new com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy())
                 .build(ModelDiagnosisBrief.builder()
                         .allowedIssueTags(List.of("IO_FORMAT"))
-                        .build(), null);
+                        .build());
 
         assertThat(fallbackPack.getBasicCauses())
                 .filteredOn(cause -> "IO_FORMAT".equals(cause.getId()))

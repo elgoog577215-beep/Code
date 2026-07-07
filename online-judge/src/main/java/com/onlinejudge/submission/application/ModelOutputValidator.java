@@ -94,12 +94,6 @@ public class ModelOutputValidator {
         if (brief.getEvidenceRefs() != null) {
             refs.addAll(brief.getEvidenceRefs());
         }
-        if (brief.getCandidateSignals() != null) {
-            brief.getCandidateSignals().stream()
-                    .map(ModelDiagnosisBrief.CandidateSignal::getEvidenceRef)
-                    .filter(ref -> ref != null && !ref.isBlank())
-                    .forEach(refs::add);
-        }
         return refs;
     }
 

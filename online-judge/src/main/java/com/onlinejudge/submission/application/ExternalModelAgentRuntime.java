@@ -6,7 +6,6 @@ import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.Comparator;
 import java.util.List;
 
 @Component
@@ -17,13 +16,10 @@ public class ExternalModelAgentRuntime {
     public static final String RUNTIME_PROFILE_AUTO = "auto";
 
     private static final int AUTO_COMPACT_SOURCE_LINE_THRESHOLD = 50;
-    private static final int AUTO_COMPACT_SIGNAL_SOURCE_LINE_THRESHOLD = 30;
     private static final int AUTO_COMPACT_CODE_LENGTH_THRESHOLD = 3200;
-    private static final int AUTO_COMPACT_SIGNAL_THRESHOLD = 4;
     private static final int COMPACT_PROBLEM_BRIEF_LENGTH = 260;
     private static final int COMPACT_PROBLEM_CONSTRAINTS_LENGTH = 220;
     private static final int COMPACT_CODE_EXCERPT_LENGTH = 1400;
-    private static final int COMPACT_SIGNAL_REASON_LENGTH = 120;
     private static final int COMPACT_TRAJECTORY_LENGTH = 240;
     private static final int COMPACT_UNCERTAINTY_LENGTH = 220;
 
@@ -73,20 +69,18 @@ public class ExternalModelAgentRuntime {
     }
 
     public RuntimePlan prepare(DiagnosisEvidencePackage evidencePackage,
-                               RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                SubmissionAnalysisResponse fallback) {
-        return prepare(evidencePackage, ruleSignals, fallback, RUNTIME_PROFILE_STANDARD);
+        return prepare(evidencePackage, fallback, RUNTIME_PROFILE_STANDARD);
     }
 
     public RuntimePlan prepare(DiagnosisEvidencePackage evidencePackage,
-                               RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                SubmissionAnalysisResponse fallback,
                                String runtimeProfile) {
         String normalizedProfile = normalizeRuntimeProfile(runtimeProfile);
-        ModelDiagnosisBrief standardBrief = briefBuilder.build(evidencePackage, ruleSignals, fallback);
+        ModelDiagnosisBrief standardBrief = briefBuilder.build(evidencePackage, fallback);
         boolean compact = shouldCompact(normalizedProfile, standardBrief);
         ModelDiagnosisBrief brief = compact ? compactBrief(standardBrief) : standardBrief;
-        StandardLibraryPack standardLibraryPack = standardLibraryPackBuilder.build(brief, ruleSignals);
+        StandardLibraryPack standardLibraryPack = standardLibraryPackBuilder.build(brief);
         if (compact) {
             standardLibraryPack = compactStandardLibraryPack(standardLibraryPack);
         }
@@ -126,11 +120,8 @@ public class ExternalModelAgentRuntime {
         }
         int sourceLines = brief.getSourceCodeLineCount() == null ? 0 : brief.getSourceCodeLineCount();
         int codeLength = brief.getKeyCodeExcerpt() == null ? 0 : brief.getKeyCodeExcerpt().length();
-        int signalCount = brief.getCandidateSignals() == null ? 0 : brief.getCandidateSignals().size();
         return sourceLines >= AUTO_COMPACT_SOURCE_LINE_THRESHOLD
-                || codeLength >= AUTO_COMPACT_CODE_LENGTH_THRESHOLD
-                || (sourceLines >= AUTO_COMPACT_SIGNAL_SOURCE_LINE_THRESHOLD
-                && signalCount >= AUTO_COMPACT_SIGNAL_THRESHOLD);
+                || codeLength >= AUTO_COMPACT_CODE_LENGTH_THRESHOLD;
     }
 
     private ModelDiagnosisBrief compactBrief(ModelDiagnosisBrief source) {
@@ -147,7 +138,6 @@ public class ExternalModelAgentRuntime {
                 .sourceCodeLineCount(source.getSourceCodeLineCount())
                 .firstFailedCase(compactFailedCase(source.getFirstFailedCase()))
                 .visibleCaseFacts(compactVisibleCaseFacts(source.getVisibleCaseFacts()))
-                .candidateSignals(compactCandidateSignals(source.getCandidateSignals()))
                 .evidenceRefs(source.getEvidenceRefs())
                 .allowedIssueTags(source.getAllowedIssueTags())
                 .allowedFineGrainedTags(source.getAllowedFineGrainedTags())
@@ -191,26 +181,6 @@ public class ExternalModelAgentRuntime {
                         .expectedOutputPreview(Boolean.TRUE.equals(item.getHidden())
                                 ? null
                                 : truncate(item.getExpectedOutputPreview(), 160))
-                        .build())
-                .toList();
-    }
-
-    private List<ModelDiagnosisBrief.CandidateSignal> compactCandidateSignals(
-            List<ModelDiagnosisBrief.CandidateSignal> source) {
-        if (source == null || source.isEmpty()) {
-            return List.of();
-        }
-        return source.stream()
-                .sorted(Comparator.comparing(
-                        ModelDiagnosisBrief.CandidateSignal::getConfidence,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .limit(3)
-                .map(signal -> ModelDiagnosisBrief.CandidateSignal.builder()
-                        .evidenceRef(signal.getEvidenceRef())
-                        .issueTag(signal.getIssueTag())
-                        .fineGrainedTag(signal.getFineGrainedTag())
-                        .confidence(signal.getConfidence())
-                        .reason(truncate(signal.getReason(), COMPACT_SIGNAL_REASON_LENGTH))
                         .build())
                 .toList();
     }

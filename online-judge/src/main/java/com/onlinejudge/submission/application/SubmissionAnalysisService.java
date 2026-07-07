@@ -455,7 +455,7 @@ public class SubmissionAnalysisService {
                 .reportMarkdown(reportMarkdown)
                 .build();
         response.setStudentFeedback(new StudentFeedbackAssembler(diagnosisTaxonomy)
-                .assemble(response, null, null, true));
+                .assemble(response, null, true));
         return response;
     }
 

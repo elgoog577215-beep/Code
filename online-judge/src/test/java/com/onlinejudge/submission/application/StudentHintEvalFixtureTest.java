@@ -259,7 +259,7 @@ class StudentHintEvalFixtureTest {
     }
 
     @Test
-    @Disabled("旧 RuleSignalAnalyzer 已归档，学生主链路不再追求本地规则信号覆盖率。")
+    @Disabled("旧本地规则信号器已归档，学生主链路不再追求本地规则信号覆盖率。")
     void backendAgentBlindEvalExposesRuleSignalCoverage() throws IOException {
         DiagnosticAgentService service = newService();
         List<StudentHintEvalFixtureLoader.Fixture> fixtures = loadFixtures();
@@ -347,7 +347,7 @@ class StudentHintEvalFixtureTest {
     }
 
     @Test
-    @Disabled("旧 RuleSignalAnalyzer 已归档，负例规则信号覆盖门禁不再适用。")
+    @Disabled("旧本地规则信号器已归档，负例规则信号覆盖门禁不再适用。")
     void backendAgentNegativeEvalGuardsAgainstFalsePositiveTags() throws IOException {
         DiagnosticAgentService service = newService();
         List<StudentHintEvalFixtureLoader.Fixture> fixtures = loadNegativeFixtures();
@@ -456,7 +456,7 @@ class StudentHintEvalFixtureTest {
     }
 
     @Test
-    @Disabled("旧 RuleSignalAnalyzer 已归档，公开回放的本地 verdict 规则信号门禁不再适用。")
+    @Disabled("旧本地规则信号器已归档，公开回放的本地 verdict 规则信号门禁不再适用。")
     void backendAgentPublicReplayEvalKeepsVerdictLevelSignalsStable() throws IOException {
         DiagnosticAgentService service = newService();
         List<StudentHintEvalFixtureLoader.Fixture> fixtures = loadPublicReplayFixtures();
@@ -867,8 +867,7 @@ class StudentHintEvalFixtureTest {
         public SubmissionAnalysisResponse enhanceSubmissionAnalysis(com.onlinejudge.problem.domain.Problem problem,
                                                                     com.onlinejudge.submission.domain.Submission submission,
                                                                     SubmissionAnalysisResponse fallback,
-                                                                    DiagnosisEvidencePackage evidencePackage,
-                                                                    RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                                    DiagnosisEvidencePackage evidencePackage) {
             return fallback;
         }
     }

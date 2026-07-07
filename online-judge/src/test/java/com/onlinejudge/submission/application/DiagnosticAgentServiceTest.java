@@ -632,8 +632,7 @@ class DiagnosticAgentServiceTest {
         public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                     Submission submission,
                                                                     SubmissionAnalysisResponse fallback,
-                                                                    DiagnosisEvidencePackage evidencePackage,
-                                                                    RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                                    DiagnosisEvidencePackage evidencePackage) {
             return fallback;
         }
     }
@@ -655,8 +654,7 @@ class DiagnosticAgentServiceTest {
         public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                     Submission submission,
                                                                     SubmissionAnalysisResponse fallback,
-                                                                    DiagnosisEvidencePackage evidencePackage,
-                                                                    RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                                    DiagnosisEvidencePackage evidencePackage) {
             throw new IllegalStateException("model stage unavailable");
         }
     }
@@ -666,8 +664,7 @@ class DiagnosticAgentServiceTest {
         public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                     Submission submission,
                                                                     SubmissionAnalysisResponse fallback,
-                                                                    DiagnosisEvidencePackage evidencePackage,
-                                                                    RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                                    DiagnosisEvidencePackage evidencePackage) {
             fallback.setIssueTags(List.of("TIME_COMPLEXITY"));
             fallback.setFineGrainedTags(List.of("OVER_SIMULATION"));
             fallback.setStudentHint("请根据诊断标签补充一个最小验证。");
@@ -700,8 +697,7 @@ class DiagnosticAgentServiceTest {
         public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                     Submission submission,
                                                                     SubmissionAnalysisResponse fallback,
-                                                                    DiagnosisEvidencePackage evidencePackage,
-                                                                    RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                                    DiagnosisEvidencePackage evidencePackage) {
             return SubmissionAnalysisResponse.builder()
                     .analysisSchemaVersion("diagnosis-v1")
                     .evidenceSchemaVersion(DiagnosisEvidencePackage.SCHEMA_VERSION)

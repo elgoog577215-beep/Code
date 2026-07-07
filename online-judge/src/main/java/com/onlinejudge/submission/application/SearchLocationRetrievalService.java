@@ -24,8 +24,7 @@ public class SearchLocationRetrievalService {
     private final SearchLocationProperties properties;
     private final EmbeddingClient embeddingClient;
 
-    public SearchLocationCandidatePack retrieve(ModelDiagnosisBrief brief,
-                                                RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+    public SearchLocationCandidatePack retrieve(ModelDiagnosisBrief brief) {
         List<AiStandardLibraryItem> items = standardLibraryService.enabledSearchLocationItems();
         String query = buildQuery(brief);
         Set<String> tokens = tokens(query);
@@ -36,17 +35,14 @@ public class SearchLocationRetrievalService {
         List<SearchLocationCandidate> candidates = new ArrayList<>();
         for (AiStandardLibraryItem item : items) {
             double textScore = textScore(item, tokens, brief);
-            double signalScore = 0;
             double vectorScore = vectorScore(item, queryEmbedding.vector(), tokens);
             double finalScore = normalizeWeight(properties.getTextWeight()) * textScore
-                    + normalizeWeight(properties.getSignalWeight()) * signalScore
                     + normalizeWeight(properties.getVectorWeight()) * vectorScore;
             if (finalScore <= 0 && !isBaselineCandidate(item)) {
                 continue;
             }
-            candidates.add(toCandidate(item, textScore, vectorScore, signalScore, finalScore,
-                    shouldUseVector() && "READY".equals(queryEmbedding.status()),
-                    matchedSignals(item, tokens, brief)));
+            candidates.add(toCandidate(item, textScore, vectorScore, finalScore,
+                    shouldUseVector() && "READY".equals(queryEmbedding.status())));
         }
         List<SearchLocationCandidate> ranked = candidates.stream()
                 .sorted(Comparator.comparing(SearchLocationCandidate::getFinalScore,
@@ -152,10 +148,8 @@ public class SearchLocationRetrievalService {
     private SearchLocationCandidate toCandidate(AiStandardLibraryItem item,
                                                 double textScore,
                                                 double vectorScore,
-                                                double signalScore,
                                                 double finalScore,
-                                                boolean vectorReady,
-                                                List<String> matchedSignals) {
+                                                boolean vectorReady) {
         return SearchLocationCandidate.builder()
                 .itemId(item.getId())
                 .id(item.getCode())
@@ -170,7 +164,7 @@ public class SearchLocationRetrievalService {
                 .knowledgeNodeCodes(lines(item.getKnowledgeNodeCodes()))
                 .structurePath(structurePath(item))
                 .applicableLanguages(lines(item.getApplicableLanguages()))
-                .recallSources(recallSources(item, textScore, vectorScore, signalScore, vectorReady))
+                .recallSources(recallSources(item, textScore, vectorScore, vectorReady))
                 .parentKnowledgePath(parentKnowledgePath(item))
                 .childMistakePointIds(List.of())
                 .siblingMistakePointIds(List.of())
@@ -178,9 +172,7 @@ public class SearchLocationRetrievalService {
                 .extensionCandidateIds(List.of())
                 .textScore(round(textScore))
                 .vectorScore(round(vectorScore))
-                .signalScore(round(signalScore))
                 .finalScore(round(finalScore))
-                .matchedSignals(matchedSignals)
                 .build();
     }
 
@@ -264,7 +256,6 @@ public class SearchLocationRetrievalService {
     private List<String> recallSources(AiStandardLibraryItem item,
                                        double textScore,
                                        double vectorScore,
-                                       double signalScore,
                                        boolean vectorReady) {
         LinkedHashSet<String> sources = new LinkedHashSet<>();
         if (!safe(item.getKnowledgeNodeCodes()).isBlank() || !safe(item.getSkillUnitCode()).isBlank()) {
@@ -309,21 +300,6 @@ public class SearchLocationRetrievalService {
                 .filter(value -> !value.isBlank())
                 .distinct()
                 .toList();
-    }
-
-    private List<String> matchedSignals(AiStandardLibraryItem item,
-                                        Set<String> tokens,
-                                        ModelDiagnosisBrief brief) {
-        LinkedHashSet<String> matches = new LinkedHashSet<>();
-        String text = searchableText(item).toLowerCase(Locale.ROOT);
-        tokens.stream()
-                .filter(token -> token.length() >= 2 && text.contains(token))
-                .limit(6)
-                .forEach(token -> matches.add("text:" + token));
-        if (brief != null && brief.getVerdict() != null) {
-            matches.add("verdict:" + brief.getVerdict());
-        }
-        return matches.stream().toList();
     }
 
     private String buildQuery(ModelDiagnosisBrief brief) {

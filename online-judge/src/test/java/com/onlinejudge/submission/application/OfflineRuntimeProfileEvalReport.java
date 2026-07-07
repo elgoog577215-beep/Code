@@ -42,13 +42,11 @@ public class OfflineRuntimeProfileEvalReport {
         private Boolean lowLatencyRequestCompact;
         private String autoRuntimeProfile;
         private Boolean autoRequestCompact;
-        private Integer candidateSignalCount;
         private Integer evidenceRefCount;
         private Integer issueTagCount;
         private Integer fineTagCount;
         private Integer teachingActionCount;
         private Boolean hiddenBoundaryPresent;
-        private Integer autoCandidateSignalCount;
         private Integer autoEvidenceRefCount;
         private Integer autoIssueTagCount;
         private Integer autoFineTagCount;

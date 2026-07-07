@@ -37,7 +37,7 @@ class ModelDiagnosisBriefBuilderTest {
                         .build())
                 .build();
 
-        ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, ruleSignals(), null);
+        ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, null);
 
         assertThat(brief.getFirstFailedCase()).isNotNull();
         assertThat(brief.getFirstFailedCase().isHidden()).isTrue();
@@ -72,7 +72,6 @@ class ModelDiagnosisBriefBuilderTest {
                                         .build())
                                 .build())
                         .build(),
-                ruleSignals(),
                 SubmissionAnalysisResponse.builder()
                         .issueTags(List.of("BOUNDARY_CONDITION"))
                         .fineGrainedTags(List.of("OFF_BY_ONE"))
@@ -80,7 +79,6 @@ class ModelDiagnosisBriefBuilderTest {
                         .build()
         );
 
-        assertThat(brief.getCandidateSignals()).isEmpty();
         assertThat(brief.getAllowedIssueTags()).contains("BOUNDARY_CONDITION", "NEEDS_MORE_EVIDENCE");
         assertThat(brief.getAllowedIssueTags()).doesNotContain("LOOP_BOUNDARY");
         assertThat(brief.getAllowedFineGrainedTags()).contains("OFF_BY_ONE");
@@ -106,7 +104,6 @@ class ModelDiagnosisBriefBuilderTest {
                                         .build()))
                                 .build())
                         .build(),
-                ruleSignals(),
                 null
         );
 
@@ -115,17 +112,16 @@ class ModelDiagnosisBriefBuilderTest {
     }
 
     @Test
-    void standardLibraryPackIgnoresLegacyRuleSignalTags() {
+    void standardLibraryPackUsesOnlyBriefAllowedTags() {
         ModelDiagnosisBrief brief = briefBuilder.build(
                 DiagnosisEvidencePackage.builder()
                         .problem(problem())
                         .submission(submission())
                         .build(),
-                ruleSignals(),
                 null
         );
 
-        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief, ruleSignals());
+        StandardLibraryPack pack = new StandardLibraryPackBuilder(new DiagnosisTaxonomy()).build(brief);
 
         assertThat(pack.getIssueTags()).extracting(StandardLibraryPack.TagOption::getId)
                 .containsExactly("NEEDS_MORE_EVIDENCE");
@@ -155,7 +151,6 @@ class ModelDiagnosisBriefBuilderTest {
                                 .previousLearningActionNextAdjustment("Shrink the next task.")
                                 .build())
                         .build(),
-                ruleSignals(),
                 null
         );
 
@@ -167,7 +162,7 @@ class ModelDiagnosisBriefBuilderTest {
     }
 
     @Test
-    void briefCarriesLearningMemoryWithoutTurningItIntoCandidateSignals() {
+    void briefCarriesLearningMemoryWithoutTurningItIntoCurrentCodeEvidence() {
         DiagnosisEvidencePackage evidencePackage = DiagnosisEvidencePackage.builder()
                 .problem(problem())
                 .submission(submission())
@@ -204,7 +199,7 @@ class ModelDiagnosisBriefBuilderTest {
                         .build())
                 .build();
 
-        ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, ruleSignals(), null);
+        ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, null);
 
         assertThat(brief.getLearningMemorySummary())
                 .contains("observedSubmissions=5")
@@ -217,7 +212,6 @@ class ModelDiagnosisBriefBuilderTest {
         assertThat(brief.getAllowedIssueTags()).doesNotContain("LOOP_BOUNDARY");
         assertThat(brief.getAllowedFineGrainedTags()).contains("INPUT_PARSING");
         assertThat(brief.getAllowedFineGrainedTags()).doesNotContain("OFF_BY_ONE");
-        assertThat(brief.getCandidateSignals()).isEmpty();
     }
 
     @Test
@@ -240,7 +234,7 @@ class ModelDiagnosisBriefBuilderTest {
                         .build())
                 .build();
 
-        ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, ruleSignals(), null);
+        ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, null);
 
         assertThat(brief.getTeacherCalibrationSummary())
                 .contains("corrected=INPUT_PARSING")
@@ -252,7 +246,6 @@ class ModelDiagnosisBriefBuilderTest {
         assertThat(brief.getAllowedFineGrainedTags()).doesNotContain("OFF_BY_ONE");
         assertThat(brief.getEvidenceRefs()).contains("memory:teacher_corrections:2");
         assertThat(brief.getEvidenceRefs()).doesNotContain("memory:teacher_calibration:input_parsing");
-        assertThat(brief.getCandidateSignals()).isEmpty();
     }
 
     private DiagnosisEvidencePackage.ProblemEvidence problem() {
@@ -290,18 +283,4 @@ class ModelDiagnosisBriefBuilderTest {
                 .build();
     }
 
-    private RuleSignalAnalyzer.RuleSignalResult ruleSignals() {
-        return RuleSignalAnalyzer.RuleSignalResult.builder()
-                .candidateIssueTags(List.of("LOOP_BOUNDARY"))
-                .candidateFineGrainedTags(List.of("OFF_BY_ONE"))
-                .evidenceRefs(List.of("code:range_excludes_n"))
-                .signals(List.of(RuleSignalAnalyzer.Signal.builder()
-                        .evidenceRef("code:range_excludes_n")
-                        .coarseTag("LOOP_BOUNDARY")
-                        .fineTag("OFF_BY_ONE")
-                        .confidence(0.91)
-                        .message("range(1, n) excludes n")
-                        .build()))
-                .build();
-    }
 }

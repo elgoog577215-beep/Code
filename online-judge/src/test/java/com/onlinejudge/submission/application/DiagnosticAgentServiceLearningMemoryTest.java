@@ -100,8 +100,7 @@ class DiagnosticAgentServiceLearningMemoryTest {
         public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                     Submission submission,
                                                                     SubmissionAnalysisResponse fallback,
-                                                                    DiagnosisEvidencePackage evidencePackage,
-                                                                    RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                                    DiagnosisEvidencePackage evidencePackage) {
             return fallback;
         }
     }

@@ -208,7 +208,6 @@ class StudentAiFeedbackModelTest {
         ExternalModelAgentRuntime runtime = mock(ExternalModelAgentRuntime.class);
         when(runtime.prepare(any(DiagnosisEvidencePackage.class),
                 isNull(),
-                isNull(),
                 anyString()))
                 .thenReturn(ExternalModelAgentRuntime.RuntimePlan.builder()
                         .brief(ModelDiagnosisBrief.builder().build())

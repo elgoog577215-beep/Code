@@ -95,12 +95,6 @@ public class SearchLocationOutputValidator {
         if (brief != null && brief.getEvidenceRefs() != null) {
             refs.addAll(brief.getEvidenceRefs());
         }
-        if (brief != null && brief.getCandidateSignals() != null) {
-            brief.getCandidateSignals().stream()
-                    .filter(signal -> signal != null && signal.getEvidenceRef() != null)
-                    .map(ModelDiagnosisBrief.CandidateSignal::getEvidenceRef)
-                    .forEach(refs::add);
-        }
         return refs;
     }
 

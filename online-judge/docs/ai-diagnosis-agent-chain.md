@@ -359,9 +359,8 @@ PARTIAL 也可能只是表面相似。
 
 | 后端组件 | 当前职责 |
 |---|---|
-| `DiagnosticAgentService` | 组织诊断入口，构造规则诊断、证据包，并调用 AI 增强 |
+| `DiagnosticAgentService` | 组织诊断入口，构造本地 baseline、证据包，并调用 AI 增强 |
 | `DiagnosisEvidencePackageBuilder` | 整理题目、提交、判题结果、失败样例等证据 |
-| `RuleSignalAnalyzer` | 产生规则信号，作为保底和搜索定位参考 |
 | `AiReportService` | 调用外部模型，协调搜索定位和建议生成 |
 | `SearchLocationRetrievalService` | 本地召回标准库候选 |
 | `SearchLocationOutputValidator` | 校验搜索定位输出 |
@@ -380,7 +379,6 @@ PARTIAL 也可能只是表面相似。
 SubmissionAnalysisService
 -> DiagnosticAgentService
 -> DiagnosisEvidencePackageBuilder
--> RuleSignalAnalyzer
 -> AiReportService.enhanceSubmissionAnalysis
 -> ExternalModelAgentRuntime.createRuntimePlan
 -> SearchLocationRetrievalService.retrieve

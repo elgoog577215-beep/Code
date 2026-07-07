@@ -21,7 +21,7 @@ class StandardLibraryPackBuilderTest {
                 .allowedFineGrainedTags(List.of("INPUT_PARSING", "BRUTE_FORCE_LIMIT", "GREEDY_ASSUMPTION"))
                 .build();
 
-        StandardLibraryPack pack = builder.build(brief, null);
+        StandardLibraryPack pack = builder.build(brief);
 
         assertThat(pack.getBasicCauses())
                 .extracting(StandardLibraryPack.BasicCauseOption::getId)
@@ -78,15 +78,12 @@ class StandardLibraryPackBuilderTest {
     }
 
     @Test
-    void legacyRuleSignalsDoNotAddStandardLibraryEntries() {
+    void briefAllowedTagsDriveStandardLibraryEntries() {
         ModelDiagnosisBrief brief = ModelDiagnosisBrief.builder()
                 .allowedIssueTags(List.of("BOUNDARY_CONDITION"))
                 .build();
-        RuleSignalAnalyzer.RuleSignalResult signals = RuleSignalAnalyzer.RuleSignalResult.builder()
-                .candidateFineGrainedTags(List.of("OUTPUT_FORMAT_DETAIL"))
-                .build();
 
-        StandardLibraryPack pack = builder.build(brief, signals);
+        StandardLibraryPack pack = builder.build(brief);
 
         assertThat(pack.getBasicCauses())
                 .extracting(StandardLibraryPack.BasicCauseOption::getId)
@@ -104,7 +101,7 @@ class StandardLibraryPackBuilderTest {
 
     @Test
     void defaultSliceStillCarriesEvidenceCollectionAndReviewKnowledge() {
-        StandardLibraryPack pack = builder.build(ModelDiagnosisBrief.builder().build(), null);
+        StandardLibraryPack pack = builder.build(ModelDiagnosisBrief.builder().build());
 
         assertThat(pack.getBasicCauses())
                 .extracting(StandardLibraryPack.BasicCauseOption::getId)
@@ -128,7 +125,7 @@ class StandardLibraryPackBuilderTest {
         StandardLibraryPack fullPack = builder.build(ModelDiagnosisBrief.builder()
                 .allowedIssueTags(List.of("TIME_COMPLEXITY", "STATE_TRANSITION"))
                 .allowedFineGrainedTags(List.of("BRUTE_FORCE_LIMIT", "DP_STATE_DESIGN"))
-                .build(), null);
+                .build());
 
         StandardLibraryPack compactPack = ReflectionTestUtils.invokeMethod(runtime, "compactStandardLibraryPack", fullPack);
 
@@ -232,13 +229,11 @@ class StandardLibraryPackBuilderTest {
 
         ExternalModelAgentRuntime.RuntimePlan standardPlan = runtime.prepare(
                 DiagnosisEvidencePackage.builder().build(),
-                RuleSignalAnalyzer.RuleSignalResult.builder().build(),
                 null,
                 ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD
         );
         ExternalModelAgentRuntime.RuntimePlan lowLatencyPlan = runtime.prepare(
                 DiagnosisEvidencePackage.builder().build(),
-                RuleSignalAnalyzer.RuleSignalResult.builder().build(),
                 null,
                 ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY
         );

@@ -23,7 +23,7 @@
 
 ## 当前状态
 
-正式学生 AI prompt、学生快反馈上下文、本地标准库召回加权都不再使用 `candidateSignals` 或 `RuleSignalAnalyzer` 输出。主代码中的 `RuleSignalAnalyzer` 仅保留 DTO 和旧调用兼容壳，运行时返回空信号。
+正式学生 AI prompt、学生快反馈上下文、本地标准库召回加权都不再使用 `candidateSignals` 或 `RuleSignalAnalyzer` 输出。主代码中的 `RuleSignalAnalyzer`、`RuleSignalResult` 和 `ModelDiagnosisBrief.candidateSignals` 已删除；历史实现只保留在本归档目录的源码快照里。
 
 源码快照：
 

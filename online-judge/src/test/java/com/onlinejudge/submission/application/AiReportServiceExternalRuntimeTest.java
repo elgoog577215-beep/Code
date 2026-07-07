@@ -28,8 +28,7 @@ class AiReportServiceExternalRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(service.callCount()).isEqualTo(1);
@@ -92,8 +91,7 @@ class AiReportServiceExternalRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(analysis.getSourceType()).isEqualTo("RULE_BASED_V1");
@@ -119,8 +117,7 @@ class AiReportServiceExternalRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_RUNTIME_FALLBACK");
@@ -147,8 +144,7 @@ class AiReportServiceExternalRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
@@ -241,21 +237,6 @@ class AiReportServiceExternalRuntimeTest {
                                 .actualOutput("0")
                                 .build())
                         .build())
-                .build();
-    }
-
-    private RuleSignalAnalyzer.RuleSignalResult ruleSignals() {
-        return RuleSignalAnalyzer.RuleSignalResult.builder()
-                .candidateIssueTags(List.of("LOOP_BOUNDARY"))
-                .candidateFineGrainedTags(List.of("OFF_BY_ONE"))
-                .evidenceRefs(List.of("code:range_excludes_n"))
-                .signals(List.of(RuleSignalAnalyzer.Signal.builder()
-                        .evidenceRef("code:range_excludes_n")
-                        .coarseTag("LOOP_BOUNDARY")
-                        .fineTag("OFF_BY_ONE")
-                        .confidence(0.9)
-                        .message("range(1, n) excludes n")
-                        .build()))
                 .build();
     }
 

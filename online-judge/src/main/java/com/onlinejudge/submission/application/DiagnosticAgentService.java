@@ -85,15 +85,13 @@ public class DiagnosticAgentService {
                 historyEvidence,
                 learningMemory
         );
-        RuleSignalAnalyzer.RuleSignalResult ruleSignals = RuleSignalAnalyzer.empty();
-        SubmissionAnalysisResponse ruleAware = applyRuleSignals(baseline, ruleSignals);
-        ModelStageResult modelStage = enhanceWithModel(problem, submission, ruleAware, evidencePackage, ruleSignals);
+        ModelStageResult modelStage = enhanceWithModel(problem, submission, baseline, evidencePackage);
         SubmissionAnalysisResponse enhanced = modelStage.analysis();
         enhanced.setIssueTags(diagnosisTaxonomy.normalizeIssueTags(enhanced.getIssueTags()));
         enhanced.setFineGrainedTags(diagnosisTaxonomy.normalizeFineGrainedTags(enhanced.getFineGrainedTags()));
-        enhanced = preserveContextEvidenceRefs(enhanced, evidencePackage, ruleSignals);
+        enhanced = preserveContextEvidenceRefs(enhanced, evidencePackage);
         enhanced = applyLowConfidenceGuard(enhanced);
-        enhanced = applyTeacherCalibration(enhanced, evidencePackage, ruleSignals);
+        enhanced = applyTeacherCalibration(enhanced, evidencePackage);
         SubmissionAnalysisResponse.LearningTrajectorySignal trajectorySignal =
                 resolveLearningTrajectory(enhanced, evidencePackage);
         enhanced.setLearningTrajectorySignal(trajectorySignal);
@@ -111,12 +109,12 @@ public class DiagnosticAgentService {
         enhanced.setLearningInterventionPlan(resolveInterventionPlan(enhanced, effectivePolicy, evidencePackage));
         enhanced = hintSafetyService.verifyAndRecord(enhanced, effectivePolicy);
         enhanced.setStudentFeedback(new StudentFeedbackAssembler(diagnosisTaxonomy)
-                .assemble(enhanced, evidencePackage, ruleSignals, modelStage.fallbackUsed()));
-        String traceSummary = buildTraceSummary(ruleSignals, enhanced, modelStage.fallbackUsed());
+                .assemble(enhanced, evidencePackage, modelStage.fallbackUsed()));
+        String traceSummary = buildTraceSummary(enhanced, modelStage.fallbackUsed());
         enhanced.setDiagnosticTrace(traceSummary);
         enhanced.setAiInvocation(resolveInvocation(enhanced, modelStage.fallbackUsed()));
         enhanced.setStudentFeedbackView(studentFeedbackViewAssembler.assemble(enhanced));
-        return new AgentResult(enhanced, evidencePackage, ruleSignals, traceSummary);
+        return new AgentResult(enhanced, evidencePackage, traceSummary);
     }
 
     private SubmissionAnalysisResponse.StudentHintPlan resolveHintPlan(SubmissionAnalysisResponse analysis,
@@ -613,48 +611,23 @@ public class DiagnosticAgentService {
 
     private ModelStageResult enhanceWithModel(Problem problem,
                                               Submission submission,
-                                              SubmissionAnalysisResponse ruleAware,
-                                              DiagnosisEvidencePackage evidencePackage,
-                                              RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                              SubmissionAnalysisResponse fallback,
+                                              DiagnosisEvidencePackage evidencePackage) {
         try {
             SubmissionAnalysisResponse enhanced = aiReportService.enhanceSubmissionAnalysis(
                     problem,
                     submission,
-                    ruleAware,
-                    evidencePackage,
-                    ruleSignals
+                    fallback,
+                    evidencePackage
             );
             boolean fallbackUsed = enhanced == null
-                    || enhanced == ruleAware
-                    || (enhanced.getSourceType() != null && enhanced.getSourceType().equals(ruleAware.getSourceType()));
-            return new ModelStageResult(enhanced == null ? ruleAware : enhanced, fallbackUsed);
+                    || enhanced == fallback
+                    || (enhanced.getSourceType() != null && fallback != null
+                    && enhanced.getSourceType().equals(fallback.getSourceType()));
+            return new ModelStageResult(enhanced == null ? fallback : enhanced, fallbackUsed);
         } catch (RuntimeException exception) {
-            return new ModelStageResult(ruleAware, true);
+            return new ModelStageResult(fallback, true);
         }
-    }
-
-    private SubmissionAnalysisResponse applyRuleSignals(SubmissionAnalysisResponse analysis,
-                                                        RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
-        if (analysis == null || ruleSignals == null) {
-            return analysis;
-        }
-        analysis.setIssueTags(diagnosisTaxonomy.normalizeIssueTags(mergeLists(
-                analysis.getIssueTags(),
-                ruleSignals.getCandidateIssueTags()
-        )));
-        analysis.setFineGrainedTags(diagnosisTaxonomy.normalizeFineGrainedTags(mergeLists(
-                analysis.getFineGrainedTags(),
-                ruleSignals.getCandidateFineGrainedTags()
-        )));
-        analysis.setEvidenceRefs(DiagnosisListSupport.deduplicate(mergeLists(
-                analysis.getEvidenceRefs(),
-                ruleSignals.getEvidenceRefs()
-        )));
-        if (analysis.getUncertainty() == null || analysis.getUncertainty().isBlank()) {
-            analysis.setUncertainty("当前为规则诊断与评测事实生成的初步结论，隐藏测试点相关判断只表示可能方向。");
-        }
-        applyLowConfidenceGuard(analysis);
-        return analysis;
     }
 
     private SubmissionAnalysisResponse applyLowConfidenceGuard(SubmissionAnalysisResponse analysis) {
@@ -679,13 +652,12 @@ public class DiagnosticAgentService {
     }
 
     private SubmissionAnalysisResponse preserveContextEvidenceRefs(SubmissionAnalysisResponse analysis,
-                                                                   DiagnosisEvidencePackage evidencePackage,
-                                                                   RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                                   DiagnosisEvidencePackage evidencePackage) {
         if (analysis == null) {
             return null;
         }
         analysis.setEvidenceRefs(DiagnosisListSupport.deduplicate(mergeLists(
-                mergeLists(analysis.getEvidenceRefs(), ruleSignals == null ? List.of() : ruleSignals.getEvidenceRefs()),
+                analysis.getEvidenceRefs(),
                 contextEvidenceRefs(evidencePackage)
         )).stream().limit(MAX_CONTEXT_EVIDENCE_REFS).toList());
         return analysis;
@@ -766,13 +738,12 @@ public class DiagnosticAgentService {
     }
 
     private SubmissionAnalysisResponse applyTeacherCalibration(SubmissionAnalysisResponse analysis,
-                                                               DiagnosisEvidencePackage evidencePackage,
-                                                               RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                                               DiagnosisEvidencePackage evidencePackage) {
         if (analysis == null || evidencePackage == null || evidencePackage.getLearningMemory() == null) {
             return analysis;
         }
         DiagnosisEvidencePackage.TeacherCalibrationPattern pattern =
-                selectTeacherCalibrationPattern(evidencePackage.getLearningMemory().getTeacherCalibrationPatterns(), analysis, ruleSignals);
+                selectTeacherCalibrationPattern(evidencePackage.getLearningMemory().getTeacherCalibrationPatterns(), analysis);
         if (pattern == null) {
             return analysis;
         }
@@ -826,39 +797,27 @@ public class DiagnosticAgentService {
 
     private DiagnosisEvidencePackage.TeacherCalibrationPattern selectTeacherCalibrationPattern(
             List<DiagnosisEvidencePackage.TeacherCalibrationPattern> patterns,
-            SubmissionAnalysisResponse analysis,
-            RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+            SubmissionAnalysisResponse analysis) {
         if (patterns == null || patterns.isEmpty()) {
             return null;
         }
         return patterns.stream()
                 .filter(pattern -> pattern != null && hasCorrectedTag(pattern))
                 .sorted((left, right) -> Integer.compare(
-                        teacherCalibrationScore(right, analysis, ruleSignals),
-                        teacherCalibrationScore(left, analysis, ruleSignals)))
+                        teacherCalibrationScore(right, analysis),
+                        teacherCalibrationScore(left, analysis)))
                 .findFirst()
                 .orElse(null);
     }
 
     private int teacherCalibrationScore(DiagnosisEvidencePackage.TeacherCalibrationPattern pattern,
-                                        SubmissionAnalysisResponse analysis,
-                                        RuleSignalAnalyzer.RuleSignalResult ruleSignals) {
+                                        SubmissionAnalysisResponse analysis) {
         int score = 0;
         if (containsTag(analysis, pattern.getCorrectedIssueTag(), pattern.getCorrectedFineGrainedTag())) {
             score += 80;
         }
         if (containsTag(analysis, pattern.getOriginalIssueTag(), pattern.getOriginalFineGrainedTag())) {
             score += 70;
-        }
-        if (ruleSignals != null) {
-            if (tagListContains(ruleSignals.getCandidateIssueTags(), pattern.getCorrectedIssueTag())
-                    || tagListContains(ruleSignals.getCandidateFineGrainedTags(), pattern.getCorrectedFineGrainedTag())) {
-                score += 50;
-            }
-            if (tagListContains(ruleSignals.getCandidateIssueTags(), pattern.getOriginalIssueTag())
-                    || tagListContains(ruleSignals.getCandidateFineGrainedTags(), pattern.getOriginalFineGrainedTag())) {
-                score += 45;
-            }
         }
         long count = pattern.getCorrectionCount() == null ? 0L : pattern.getCorrectionCount();
         score += (int) Math.min(20L, count * 5L);
@@ -1071,18 +1030,15 @@ public class DiagnosticAgentService {
         return List.of(value);
     }
 
-    private String buildTraceSummary(RuleSignalAnalyzer.RuleSignalResult ruleSignals,
-                                     SubmissionAnalysisResponse analysis,
+    private String buildTraceSummary(SubmissionAnalysisResponse analysis,
                                      boolean modelFallbackUsed) {
-        int signalCount = ruleSignals == null || ruleSignals.getSignals() == null ? 0 : ruleSignals.getSignals().size();
         int evidenceRefCount = analysis == null || analysis.getEvidenceRefs() == null ? 0 : analysis.getEvidenceRefs().size();
         String source = analysis == null ? "UNKNOWN" : analysis.getSourceType();
         String modelStage = modelFallbackUsed ? "model=rule-fallback" : "model=completed";
         String trajectory = analysis == null || analysis.getLearningTrajectorySignal() == null
                 ? ""
                 : " trajectory=" + analysis.getLearningTrajectorySignal().getPhase();
-        return AGENT_VERSION + " signals=" + signalCount
-                + " evidenceRefs=" + evidenceRefCount
+        return AGENT_VERSION + " evidenceRefs=" + evidenceRefCount
                 + " source=" + source
                 + " " + modelStage
                 + trajectory;
@@ -1221,7 +1177,6 @@ public class DiagnosticAgentService {
 
     public record AgentResult(SubmissionAnalysisResponse analysis,
                               DiagnosisEvidencePackage evidencePackage,
-                              RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                               String traceSummary) {
     }
 

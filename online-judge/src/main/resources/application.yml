@@ -65,7 +65,6 @@ ai:
     require-vector: ${AI_SEARCH_REQUIRE_VECTOR:false}
     text-weight: ${AI_SEARCH_TEXT_WEIGHT:0.45}
     vector-weight: ${AI_SEARCH_VECTOR_WEIGHT:0.35}
-    signal-weight: ${AI_SEARCH_SIGNAL_WEIGHT:0.20}
   embedding:
     enabled: ${AI_EMBEDDING_ENABLED:false}
     maintenance-enabled: ${AI_EMBEDDING_MAINTENANCE_ENABLED:false}

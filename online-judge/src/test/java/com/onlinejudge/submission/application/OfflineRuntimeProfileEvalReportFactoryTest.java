@@ -21,7 +21,6 @@ class OfflineRuntimeProfileEvalReportFactoryTest {
         ).fromCases(List.of(new OfflineRuntimeProfileEvalReportFactory.OfflineEvalCase(
                 "missing-anchors",
                 DiagnosisEvidencePackage.builder().build(),
-                RuleSignalAnalyzer.RuleSignalResult.builder().build(),
                 SubmissionAnalysisResponse.builder().submissionId(1L).build()
         )));
 
@@ -63,12 +62,10 @@ class OfflineRuntimeProfileEvalReportFactoryTest {
 
         @Override
         public RuntimePlan prepare(DiagnosisEvidencePackage evidencePackage,
-                                   RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                    SubmissionAnalysisResponse fallback,
                                    String runtimeProfile) {
             ModelDiagnosisBrief brief = ModelDiagnosisBrief.builder()
                     .schemaVersion(ModelDiagnosisBrief.SCHEMA_VERSION)
-                    .candidateSignals(List.of())
                     .evidenceRefs(List.of())
                     .build();
             StandardLibraryPack pack = StandardLibraryPack.builder()

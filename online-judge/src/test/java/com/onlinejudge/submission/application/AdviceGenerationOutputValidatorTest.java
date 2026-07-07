@@ -1009,13 +1009,6 @@ class AdviceGenerationOutputValidatorTest {
                         .expectedOutputPreview("12")
                         .build()))
                 .evidenceRefs(List.of("code:range_excludes_n", "judge:first_failed_case"))
-                .candidateSignals(List.of(ModelDiagnosisBrief.CandidateSignal.builder()
-                        .evidenceRef("code:range_excludes_n")
-                        .issueTag("LOOP_BOUNDARY")
-                        .fineGrainedTag("OFF_BY_ONE")
-                        .confidence(0.9)
-                        .reason("range excludes n")
-                        .build()))
                 .build();
     }
 

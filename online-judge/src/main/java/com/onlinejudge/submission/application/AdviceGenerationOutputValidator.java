@@ -529,12 +529,6 @@ public class AdviceGenerationOutputValidator {
         if (brief.getEvidenceRefs() != null) {
             refs.addAll(brief.getEvidenceRefs());
         }
-        if (brief.getCandidateSignals() != null) {
-            brief.getCandidateSignals().stream()
-                    .filter(signal -> signal != null && signal.getEvidenceRef() != null)
-                    .map(ModelDiagnosisBrief.CandidateSignal::getEvidenceRef)
-                    .forEach(refs::add);
-        }
         return refs;
     }
 

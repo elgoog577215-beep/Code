@@ -31,7 +31,7 @@ class StudentFeedbackAssemblerTest {
                 .build();
 
         SubmissionAnalysisResponse.StudentFeedback feedback =
-                assembler.assemble(analysis, null, ruleSignals("IO_FORMAT", "INPUT_PARSING"), true);
+                assembler.assemble(analysis, null, true);
 
         assertBasicContract(feedback);
         assertThat(feedback.getSummary()).contains("本地可验证反馈");
@@ -57,7 +57,7 @@ class StudentFeedbackAssemblerTest {
                 .build();
 
         SubmissionAnalysisResponse.StudentFeedback feedback =
-                assembler.assemble(analysis, null, ruleSignals("BOUNDARY_CONDITION", "EDGE_CASE_MISSING"), true);
+                assembler.assemble(analysis, null, true);
 
         assertBasicContract(feedback);
         String text = feedbackText(feedback);
@@ -77,7 +77,7 @@ class StudentFeedbackAssemblerTest {
                 .build();
 
         SubmissionAnalysisResponse.StudentFeedback feedback =
-                assembler.assemble(analysis, null, ruleSignals("ALGORITHM_STRATEGY", "DP_STATE_DESIGN"), true);
+                assembler.assemble(analysis, null, true);
 
         assertBasicContract(feedback);
         String text = feedbackText(feedback);
@@ -98,7 +98,7 @@ class StudentFeedbackAssemblerTest {
                 .build();
 
         SubmissionAnalysisResponse.StudentFeedback feedback =
-                assembler.assemble(analysis, null, null, true);
+                assembler.assemble(analysis, null, true);
 
         assertBasicContract(feedback);
         assertThat(feedback.getBlockingIssues().get(0).getStudentMessage()).contains("复盘");
@@ -118,7 +118,7 @@ class StudentFeedbackAssemblerTest {
                 .build();
 
         SubmissionAnalysisResponse.StudentFeedback feedback =
-                assembler.assemble(analysis, null, null, true);
+                assembler.assemble(analysis, null, true);
 
         assertBasicContract(feedback);
         assertThat(feedback.getBlockingIssues().get(0).getIssueTag()).isEqualTo("NEEDS_MORE_EVIDENCE");
@@ -143,15 +143,6 @@ class StudentFeedbackAssemblerTest {
                         .answerLeakRisk("LOW")
                         .build())
                 .answerLeakRisk("LOW");
-    }
-
-    private RuleSignalAnalyzer.RuleSignalResult ruleSignals(String issueTag, String fineTag) {
-        return RuleSignalAnalyzer.RuleSignalResult.builder()
-                .candidateIssueTags(List.of(issueTag))
-                .candidateFineGrainedTags(List.of(fineTag))
-                .evidenceRefs(List.of("rule:" + issueTag.toLowerCase()))
-                .signals(List.of())
-                .build();
     }
 
     private void assertBasicContract(SubmissionAnalysisResponse.StudentFeedback feedback) {

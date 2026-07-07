@@ -35,8 +35,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(service.callCount()).isEqualTo(1);
@@ -62,8 +61,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(analysis.getAiInvocation().getRuntimeProfile())
@@ -83,8 +81,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(service.callCount()).isEqualTo(2);
@@ -116,8 +113,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(analysis.getReportMarkdown())
@@ -135,8 +131,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
@@ -198,8 +193,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(analysis.getSourceType()).isEqualTo("RULE_BASED_V1");
@@ -221,8 +215,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(service.callCount()).isEqualTo(2);
@@ -245,8 +238,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
@@ -273,8 +265,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 problem(),
                 submission(),
                 fallback(),
-                evidencePackage(),
-                ruleSignals()
+                evidencePackage()
         );
 
         verify(growthAgentService).proposeFromDiagnosisOutput(
@@ -468,21 +459,6 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                                 .actualOutput("0")
                                 .build())
                         .build())
-                .build();
-    }
-
-    private RuleSignalAnalyzer.RuleSignalResult ruleSignals() {
-        return RuleSignalAnalyzer.RuleSignalResult.builder()
-                .candidateIssueTags(List.of("LOOP_BOUNDARY"))
-                .candidateFineGrainedTags(List.of("OFF_BY_ONE"))
-                .evidenceRefs(List.of("code:range_excludes_n"))
-                .signals(List.of(RuleSignalAnalyzer.Signal.builder()
-                        .evidenceRef("code:range_excludes_n")
-                        .coarseTag("LOOP_BOUNDARY")
-                        .fineTag("OFF_BY_ONE")
-                        .confidence(0.9)
-                        .message("range(1, n) excludes n")
-                        .build()))
                 .build();
     }
 

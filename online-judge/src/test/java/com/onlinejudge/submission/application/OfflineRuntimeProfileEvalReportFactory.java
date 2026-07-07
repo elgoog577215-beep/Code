@@ -71,19 +71,16 @@ public class OfflineRuntimeProfileEvalReportFactory {
     private OfflineRuntimeProfileEvalReport.Entry fromCase(OfflineEvalCase evalCase) {
         ExternalModelAgentRuntime.RuntimePlan standardPlan = runtime.prepare(
                 evalCase.evidencePackage(),
-                evalCase.ruleSignals(),
                 evalCase.baseline(),
                 ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD
         );
         ExternalModelAgentRuntime.RuntimePlan lowLatencyPlan = runtime.prepare(
                 evalCase.evidencePackage(),
-                evalCase.ruleSignals(),
                 evalCase.baseline(),
                 ExternalModelAgentRuntime.RUNTIME_PROFILE_LOW_LATENCY
         );
         ExternalModelAgentRuntime.RuntimePlan autoPlan = runtime.prepare(
                 evalCase.evidencePackage(),
-                evalCase.ruleSignals(),
                 evalCase.baseline(),
                 ExternalModelAgentRuntime.RUNTIME_PROFILE_AUTO
         );
@@ -94,7 +91,6 @@ public class OfflineRuntimeProfileEvalReportFactory {
         boolean autoReduced = autoBytes > 0 && standardBytes > 0 && autoBytes < standardBytes;
         ModelDiagnosisBrief brief = lowLatencyPlan.getBrief();
         StandardLibraryPack pack = lowLatencyPlan.getStandardLibraryPack();
-        int candidateSignalCount = size(brief == null ? null : brief.getCandidateSignals());
         int evidenceRefCount = size(brief == null ? null : brief.getEvidenceRefs());
         int issueTagCount = size(pack == null ? null : pack.getIssueTags());
         int fineTagCount = size(pack == null ? null : pack.getFineGrainedTags());
@@ -109,7 +105,6 @@ public class OfflineRuntimeProfileEvalReportFactory {
         );
         ModelDiagnosisBrief autoBrief = autoPlan.getBrief();
         StandardLibraryPack autoPack = autoPlan.getStandardLibraryPack();
-        int autoCandidateSignalCount = size(autoBrief == null ? null : autoBrief.getCandidateSignals());
         int autoEvidenceRefCount = size(autoBrief == null ? null : autoBrief.getEvidenceRefs());
         int autoIssueTagCount = size(autoPack == null ? null : autoPack.getIssueTags());
         int autoFineTagCount = size(autoPack == null ? null : autoPack.getFineGrainedTags());
@@ -137,13 +132,11 @@ public class OfflineRuntimeProfileEvalReportFactory {
                 .lowLatencyRequestCompact(lowLatencyPlan.isRequestCompact())
                 .autoRuntimeProfile(autoPlan.getRuntimeProfile())
                 .autoRequestCompact(autoPlan.isRequestCompact())
-                .candidateSignalCount(candidateSignalCount)
                 .evidenceRefCount(evidenceRefCount)
                 .issueTagCount(issueTagCount)
                 .fineTagCount(fineTagCount)
                 .teachingActionCount(teachingActionCount)
                 .hiddenBoundaryPresent(hiddenBoundaryPresent)
-                .autoCandidateSignalCount(autoCandidateSignalCount)
                 .autoEvidenceRefCount(autoEvidenceRefCount)
                 .autoIssueTagCount(autoIssueTagCount)
                 .autoFineTagCount(autoFineTagCount)
@@ -246,7 +239,6 @@ public class OfflineRuntimeProfileEvalReportFactory {
 
     public record OfflineEvalCase(String caseId,
                                   DiagnosisEvidencePackage evidencePackage,
-                                  RuleSignalAnalyzer.RuleSignalResult ruleSignals,
                                   com.onlinejudge.submission.dto.SubmissionAnalysisResponse baseline) {
     }
 }

@@ -27,7 +27,6 @@ public class ModelDiagnosisBrief {
     private Integer sourceCodeLineCount;
     private SubmissionAnalysisResponse.FailedCaseSnapshot firstFailedCase;
     private List<VisibleCaseFact> visibleCaseFacts;
-    private List<CandidateSignal> candidateSignals;
     private List<String> evidenceRefs;
     private List<String> allowedIssueTags;
     private List<String> allowedFineGrainedTags;
@@ -51,19 +50,6 @@ public class ModelDiagnosisBrief {
         private String inputPreview;
         private String actualOutputPreview;
         private String expectedOutputPreview;
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class CandidateSignal {
-        private String evidenceRef;
-        private String issueTag;
-        private String fineGrainedTag;
-        private Double confidence;
-        private String reason;
     }
 
     @Data

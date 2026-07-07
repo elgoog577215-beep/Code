@@ -38,14 +38,13 @@ class SearchLocationRetrievalServiceTest {
                 mock(EmbeddingClient.class)
         );
 
-        SearchLocationCandidatePack pack = service.retrieve(brief(), ruleSignals());
+        SearchLocationCandidatePack pack = service.retrieve(brief());
 
         assertThat(pack.getEmbeddingStatus()).isEqualTo("DISABLED");
         assertThat(pack.getRecallSources()).contains("STRUCTURE", "KEYWORD");
         assertThat(pack.getRecallSources()).doesNotContain("RULE_SIGNAL");
         assertThat(pack.getCandidates()).isNotEmpty();
         assertThat(pack.getCandidates().get(0).getId()).isEqualTo("MP_RANGE_RIGHT_ENDPOINT_MISSING");
-        assertThat(pack.getCandidates().get(0).getMatchedSignals()).contains("verdict:WRONG_ANSWER");
         assertThat(pack.getCandidates().get(0).getParentKnowledgePath()).isEqualTo("BASIC > LOOP > BOUNDARY");
         assertThat(pack.getCandidates().get(0).getParentSkillUnitId()).isEqualTo("SK_RANGE_BOUNDARY");
         assertThat(pack.getCandidates().get(0).getPrimaryKnowledgeNodeCode()).isEqualTo("BASIC.LOOP.BOUNDARY");
@@ -88,7 +87,7 @@ class SearchLocationRetrievalServiceTest {
                 embeddingClient
         );
 
-        SearchLocationCandidatePack pack = service.retrieve(brief(), ruleSignals());
+        SearchLocationCandidatePack pack = service.retrieve(brief());
 
         assertThat(pack.getEmbeddingStatus()).isEqualTo("VECTOR_DEGRADED:EMBEDDING_HTTP_429");
         assertThat(pack.getFallbackReason()).isEqualTo("EMBEDDING_HTTP_429");
@@ -127,11 +126,4 @@ class SearchLocationRetrievalServiceTest {
                 .build();
     }
 
-    private RuleSignalAnalyzer.RuleSignalResult ruleSignals() {
-        return RuleSignalAnalyzer.RuleSignalResult.builder()
-                .candidateIssueTags(List.of("LOOP_BOUNDARY"))
-                .candidateFineGrainedTags(List.of("OFF_BY_ONE"))
-                .evidenceRefs(List.of("code:range_excludes_n"))
-                .build();
-    }
 }

@@ -236,7 +236,7 @@ public class CoachAgentService {
                 .allowedIssueTags(List.copyOf(issueTags))
                 .allowedFineGrainedTags(List.copyOf(fineTags))
                 .build();
-        return new StandardLibraryPackBuilder(diagnosisTaxonomy).build(brief, null);
+        return new StandardLibraryPackBuilder(diagnosisTaxonomy).build(brief);
     }
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
