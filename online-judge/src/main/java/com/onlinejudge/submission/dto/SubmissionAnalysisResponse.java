@@ -341,13 +341,10 @@ public class SubmissionAnalysisResponse {
         private Integer streamInvalidChunkCount;
         private String streamFinishReason;
         private Boolean streamFallbackRetryUsed;
-        private Boolean searchLocationEnabled;
-        private String searchLocationStatus;
-        private Integer searchLocationCandidateCount;
-        private Integer searchLocationSelectedCount;
-        private String searchLocationFailureReason;
-        private List<String> recallSources;
-        private String embeddingStatus;
+        private Boolean standardLibraryNavigationEnabled;
+        private String standardLibraryNavigationStatus;
+        private Integer standardLibraryNavigationSelectedCount;
+        private String standardLibraryNavigationFailureReason;
         private String adviceGenerationStatus;
         private String adviceGenerationFailureReason;
         private Integer basicAdviceCount;

@@ -35,13 +35,11 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.timeout-seconds=${AI_EVAL_TIMEOUT_SECONDS:45}",
         "ai.external-runtime-enabled=true",
         "ai.external-runtime-profile=${AI_EVAL_RUNTIME_PROFILE:low-latency}",
-        "ai.diagnosis-report-v2-enabled=true",
+        "ai.diagnosis-report-v3-enabled=true",
         "ai.max-output-tokens=${AI_EVAL_MAX_OUTPUT_TOKENS:1800}",
         "ai.stream-enabled=${AI_EVAL_STREAM_ENABLED:false}",
         "ai.structured-retry-enabled=${AI_EVAL_STRUCTURED_RETRY_ENABLED:true}",
         "ai.structured-retry-output-tokens=${AI_EVAL_STRUCTURED_RETRY_OUTPUT_TOKENS:2600}",
-        "ai.search-location.enabled=false",
-        "ai.embedding.enabled=false",
         "ai.standard-library-growth.enabled=false"
 })
 class DiagnosisReportV2RealSamplesSimulationTest {

@@ -21,17 +21,22 @@
 - **AND** trace SHALL 记录失败原因
 
 ### Requirement: 默认实时链路保持单诊断 Agent
-
-系统 SHALL 默认关闭实时搜索 Agent，只使用本地召回和一次外部诊断 Agent。
+系统 SHALL 默认使用“初步诊断 -> AI 标准库导航 -> 最终诊断”的实时链路，其中只有最终诊断 Agent 生成学生可见复盘报告。
 
 #### Scenario: 默认诊断
-- **WHEN** 未显式开启 `AI_SEARCH_LOCATION_ENABLED`
-- **THEN** 实时诊断 SHALL 只调用一次外部模型
-- **AND** 输入 SHALL 包含本地召回的树形标准库候选包
-- **AND** trace SHALL 标记召回状态为 `LOCAL_RECALL`
+- **WHEN** 学生提交产生判题结果且外部 AI 可用
+- **THEN** 实时诊断 SHALL 先生成初步诊断
+- **AND** 实时诊断 SHALL 通过 AI 标准库导航选择知识点、能力点、易错点和提升点
+- **AND** 实时诊断 SHALL 由最终诊断 Agent 返回 `studentReport`
+- **AND** trace SHALL 标记标准库定位状态为 `AI_NAVIGATION`
+
+#### Scenario: 默认链路保留导航依据
+- **WHEN** 系统执行实时诊断
+- **THEN** 最终诊断输入 SHALL 包含 AI 标准库导航结果
+- **AND** trace SHALL 保留导航阶段状态
 
 #### Scenario: 标准库未命中
-- **WHEN** 本地召回候选不覆盖真实错因
+- **WHEN** AI 标准库导航或最终诊断判断现有标准库不覆盖真实错因
 - **THEN** 诊断 Agent SHALL 能返回 `OUT_OF_LIBRARY`
 - **AND** 系统 SHALL 记录库外发现候选
 - **AND** 不得把不匹配的标准库条目强行作为答案
@@ -69,16 +74,10 @@
 - **AND** 失败 SHALL 归入 `RECALL_MISS`、`MODEL_MISREAD`、`TEXT_BAD`、`ANSWER_LEAK`、`TOO_LONG`、`LIBRARY_GAP`、`VALIDATOR_TOO_STRICT` 或 `VALIDATOR_TOO_LOOSE`
 
 ### Requirement: 标准库成长候选不实时入库
-
-系统 SHALL 将库外发现进入候选池，并等待教师审核后再进入正式标准库。
+系统 SHALL 将库外发现进入候选池，并等待教师审核后再进入正式标准库；AI 标准库导航可以提出候选路径，但不得直接写入正式标准库。
 
 #### Scenario: 发现库外错因
-- **WHEN** 诊断输出 `OUT_OF_LIBRARY`
+- **WHEN** 初步诊断、AI 标准库导航或最终诊断输出 `OUT_OF_LIBRARY`
 - **THEN** 系统 SHALL 创建或聚合标准库成长候选
 - **AND** 候选 SHALL 包含来源提交、建议路径、相似已有条目、证据摘要、出现次数和状态
 - **AND** 正式标准库 SHALL 不被实时自动修改
-
-#### Scenario: 教师批准候选
-- **WHEN** 教师批准标准库成长候选
-- **THEN** 系统 SHALL 将其转为正式标准库条目
-- **AND** 标记对应 embedding 过期，等待后台重建

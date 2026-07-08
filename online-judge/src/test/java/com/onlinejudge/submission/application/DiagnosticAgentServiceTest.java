@@ -237,10 +237,8 @@ class DiagnosticAgentServiceTest {
         );
 
         assertThat(result.analysis().getAiInvocation().isFallbackUsed()).isFalse();
-        assertThat(result.analysis().getAiInvocation().getSearchLocationStatus()).isEqualTo("SUCCESS");
-        assertThat(result.analysis().getAiInvocation().getSearchLocationCandidateCount()).isEqualTo(4);
-        assertThat(result.analysis().getAiInvocation().getSearchLocationSelectedCount()).isEqualTo(2);
-        assertThat(result.analysis().getAiInvocation().getEmbeddingStatus()).isEqualTo("VECTOR_DEGRADED");
+        assertThat(result.analysis().getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("SUCCESS");
+        assertThat(result.analysis().getAiInvocation().getStandardLibraryNavigationSelectedCount()).isEqualTo(2);
         assertThat(result.analysis().getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
         assertThat(result.analysis().getAiInvocation().getBasicAdviceCount()).isEqualTo(1);
         assertThat(result.analysis().getAiInvocation().getImprovementAdviceCount()).isEqualTo(1);
@@ -799,11 +797,9 @@ class DiagnosticAgentServiceTest {
                             .status("MODEL_COMPLETED")
                             .fallbackUsed(false)
                             .runtimeMode("single-call")
-                            .searchLocationEnabled(true)
-                            .searchLocationStatus("SUCCESS")
-                            .searchLocationCandidateCount(4)
-                            .searchLocationSelectedCount(2)
-                            .embeddingStatus("VECTOR_DEGRADED")
+                            .standardLibraryNavigationEnabled(true)
+                            .standardLibraryNavigationStatus("SUCCESS")
+                            .standardLibraryNavigationSelectedCount(2)
                             .adviceGenerationStatus("SUCCESS")
                             .basicAdviceCount(1)
                             .improvementAdviceCount(1)

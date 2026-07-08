@@ -30,22 +30,12 @@ BASE_URL = (
     or os.environ.get("AI_BASE_URL")
     or "https://api-inference.modelscope.cn/v1"
 )
-EMBEDDING_BASE_URL = (
-    DOTENV.get("AI_EMBEDDING_BASE_URL")
-    or os.environ.get("AI_EMBEDDING_BASE_URL")
-    or BASE_URL
-)
 DEFAULT_MODEL = (
     DOTENV.get("OJ_AI_MODEL")
     or DOTENV.get("AI_MODEL")
     or os.environ.get("OJ_AI_MODEL")
     or os.environ.get("AI_MODEL")
     or "Qwen/Qwen3-235B-A22B-Instruct-2507"
-)
-DEFAULT_EMBEDDING_MODEL = (
-    DOTENV.get("AI_EMBEDDING_MODEL")
-    or os.environ.get("AI_EMBEDDING_MODEL")
-    or "Qwen/Qwen3-Embedding-0.6B"
 )
 
 
@@ -56,14 +46,6 @@ def api_key() -> str:
         or os.environ.get("OJ_MODELSCOPE_API_KEY")
         or os.environ.get("MODELSCOPE_API_KEY")
         or ""
-    )
-
-
-def embedding_api_key() -> str:
-    return (
-        DOTENV.get("AI_EMBEDDING_API_KEY")
-        or os.environ.get("AI_EMBEDDING_API_KEY")
-        or api_key()
     )
 
 
@@ -132,40 +114,14 @@ def smoke(model: str) -> None:
         raise SystemExit("Smoke response did not include OK.")
 
 
-def embedding_smoke(model: str) -> None:
-    payload = {
-        "model": model,
-        "input": "循环边界错误：Python range 右端不包含。",
-        "encoding_format": "float",
-    }
-    status, text, latency = request(
-        "/embeddings",
-        "POST",
-        payload,
-        base_url=EMBEDDING_BASE_URL,
-        bearer_token=embedding_api_key(),
-    )
-    print(f"POST /embeddings model={model} -> HTTP {status} ({latency} ms)")
-    print(text[:1200].replace("\n", " "))
-    if status != 200:
-        raise SystemExit(1)
-    root = json.loads(text)
-    vector = (((root.get("data") or [{}])[0]).get("embedding") or [])
-    if not vector:
-        raise SystemExit("Embedding response did not include a vector.")
-    print(f"embedding dimensions={len(vector)}")
-
-
 def main() -> None:
     command = sys.argv[1] if len(sys.argv) > 1 else "smoke"
     if command == "list":
         list_models()
     elif command == "smoke":
         smoke(sys.argv[2] if len(sys.argv) > 2 else DEFAULT_MODEL)
-    elif command == "embedding-smoke":
-        embedding_smoke(sys.argv[2] if len(sys.argv) > 2 else DEFAULT_EMBEDDING_MODEL)
     else:
-        raise SystemExit("Usage: scripts/check-modelscope-models.py [list|smoke MODEL_ID|embedding-smoke MODEL_ID]")
+        raise SystemExit("Usage: scripts/check-modelscope-models.py [list|smoke MODEL_ID]")
 
 
 if __name__ == "__main__":

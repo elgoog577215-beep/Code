@@ -17,7 +17,7 @@ TBD - created by archiving change complete-ai-diagnosis-quality-loop. Update Pur
 #### Scenario: 失败分类稳定
 - **WHEN** 样例诊断未达到质量要求
 - **THEN** 系统 SHALL 将失败归入 `RECALL_MISS`、`MODEL_MISREAD`、`TEXT_BAD`、`ANSWER_LEAK`、`TOO_LONG`、`LIBRARY_GAP`、`VALIDATOR_TOO_STRICT` 或 `VALIDATOR_TOO_LOOSE`
-- **AND** 分类 SHALL 能指向召回、模型、提示词、标准库或后端校验中的具体责任层
+- **AND** 分类 SHALL 能指向导航、模型、提示词、标准库或后端校验中的具体责任层
 
 #### Scenario: 学生可见反馈进入人工审查
 - **WHEN** live eval 或诊断质量评测运行完成

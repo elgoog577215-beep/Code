@@ -93,7 +93,7 @@ class StandardLibraryPackBuilderDatabaseTest {
     }
 
     @Test
-    void searchLocationItemsPreferNormalizedStructure() {
+    void navigationItemsPreferNormalizedStructure() {
         var legacySkill = repository.findByLayerAndCode(AiStandardLibraryLayer.SKILL_UNIT,
                 "SK_BINARY_ANSWER_CHECK").orElseThrow();
         legacySkill.setName("旧表二分答案能力");
@@ -103,7 +103,7 @@ class StandardLibraryPackBuilderDatabaseTest {
         normalizedSkill.setName("规范结构二分答案能力");
         skillUnitRepository.saveAndFlush(normalizedSkill);
 
-        assertThat(standardLibraryService.enabledSearchLocationItems())
+        assertThat(standardLibraryService.enabledNavigationItems())
                 .filteredOn(item -> "SK_BINARY_ANSWER_CHECK".equals(item.getCode()))
                 .singleElement()
                 .satisfies(item -> assertThat(item.getName()).isEqualTo("规范结构二分答案能力"));
@@ -122,7 +122,7 @@ class StandardLibraryPackBuilderDatabaseTest {
         Set<String> basicCauseIds = standardLibraryService.enabledBasicCauses().stream()
                 .map(StandardLibraryPack.BasicCauseOption::getId)
                 .collect(Collectors.toSet());
-        Set<String> searchItemCodes = standardLibraryService.enabledSearchLocationItems().stream()
+        Set<String> searchItemCodes = standardLibraryService.enabledNavigationItems().stream()
                 .map(item -> item.getCode())
                 .collect(Collectors.toSet());
 
@@ -164,7 +164,7 @@ class StandardLibraryPackBuilderDatabaseTest {
         assertThat(standardLibraryService.enabledBasicCauses())
                 .extracting(StandardLibraryPack.BasicCauseOption::getId)
                 .doesNotContain(archivedMistake.code());
-        assertThat(standardLibraryService.enabledSearchLocationItems())
+        assertThat(standardLibraryService.enabledNavigationItems())
                 .extracting(item -> item.getCode())
                 .doesNotContain(archivedSkill.code(), archivedMistake.code());
     }

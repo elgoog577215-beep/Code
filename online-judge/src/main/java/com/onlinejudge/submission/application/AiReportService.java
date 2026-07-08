@@ -77,7 +77,7 @@ public class AiReportService {
                            ExternalModelFailureClassifier failureClassifier,
                            ExternalModelBudgetGuard budgetGuard) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
-                (ExternalModelChatRequestFactory) null, null, null, null, null, null);
+                (ExternalModelChatRequestFactory) null, null, null, null, null);
     }
 
     public AiReportService(ObjectMapper objectMapper,
@@ -87,7 +87,7 @@ public class AiReportService {
                            ExternalModelBudgetGuard budgetGuard,
                            ExternalModelChatRequestFactory chatRequestFactory) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
-                chatRequestFactory, null, null, null, null, null, null);
+                chatRequestFactory, null, null, null, null);
     }
 
     @Autowired
@@ -96,20 +96,13 @@ public class AiReportService {
                            ExternalModelAgentRuntime externalModelAgentRuntime,
                            ExternalModelFailureClassifier failureClassifier,
                            ExternalModelBudgetGuard budgetGuard,
-                           SearchLocationRetrievalService searchLocationRetrievalService,
-                           SearchLocationOutputValidator searchLocationOutputValidator,
-                           SearchLocationOutputNormalizer searchLocationOutputNormalizer,
-                           SearchLocationPackSelector searchLocationPackSelector,
-                           SearchLocationProperties searchLocationProperties,
                            AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService,
                            AiStandardLibraryService standardLibraryService,
                            StandardLibraryNavigationOutputValidator standardLibraryNavigationOutputValidator,
                            StandardLibraryNavigationPackBuilder standardLibraryNavigationPackBuilder) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
-                new ExternalModelChatRequestFactory(), searchLocationRetrievalService, searchLocationOutputValidator,
-                searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties,
-                standardLibraryGrowthAgentService, standardLibraryService, standardLibraryNavigationOutputValidator,
-                standardLibraryNavigationPackBuilder);
+                new ExternalModelChatRequestFactory(), standardLibraryGrowthAgentService, standardLibraryService,
+                standardLibraryNavigationOutputValidator, standardLibraryNavigationPackBuilder);
     }
 
     public AiReportService(ObjectMapper objectMapper,
@@ -118,46 +111,6 @@ public class AiReportService {
                            ExternalModelFailureClassifier failureClassifier,
                            ExternalModelBudgetGuard budgetGuard,
                            ExternalModelChatRequestFactory chatRequestFactory,
-                           SearchLocationRetrievalService searchLocationRetrievalService,
-                           SearchLocationOutputValidator searchLocationOutputValidator,
-                           SearchLocationOutputNormalizer searchLocationOutputNormalizer,
-                           SearchLocationPackSelector searchLocationPackSelector,
-                           SearchLocationProperties searchLocationProperties) {
-        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
-                chatRequestFactory, searchLocationRetrievalService, searchLocationOutputValidator,
-                searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties, null,
-                null, null, null);
-    }
-
-    public AiReportService(ObjectMapper objectMapper,
-                           AiCodeAssistSupport aiCodeAssistSupport,
-                           ExternalModelAgentRuntime externalModelAgentRuntime,
-                           ExternalModelFailureClassifier failureClassifier,
-                           ExternalModelBudgetGuard budgetGuard,
-                           ExternalModelChatRequestFactory chatRequestFactory,
-                           SearchLocationRetrievalService searchLocationRetrievalService,
-                           SearchLocationOutputValidator searchLocationOutputValidator,
-                           SearchLocationOutputNormalizer searchLocationOutputNormalizer,
-                           SearchLocationPackSelector searchLocationPackSelector,
-                           SearchLocationProperties searchLocationProperties,
-                           AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService) {
-        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
-                chatRequestFactory, searchLocationRetrievalService, searchLocationOutputValidator,
-                searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties,
-                standardLibraryGrowthAgentService, null, null, null);
-    }
-
-    public AiReportService(ObjectMapper objectMapper,
-                           AiCodeAssistSupport aiCodeAssistSupport,
-                           ExternalModelAgentRuntime externalModelAgentRuntime,
-                           ExternalModelFailureClassifier failureClassifier,
-                           ExternalModelBudgetGuard budgetGuard,
-                           ExternalModelChatRequestFactory chatRequestFactory,
-                           SearchLocationRetrievalService searchLocationRetrievalService,
-                           SearchLocationOutputValidator searchLocationOutputValidator,
-                           SearchLocationOutputNormalizer searchLocationOutputNormalizer,
-                           SearchLocationPackSelector searchLocationPackSelector,
-                           SearchLocationProperties searchLocationProperties,
                            AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService,
                            AiStandardLibraryService standardLibraryService,
                            StandardLibraryNavigationOutputValidator standardLibraryNavigationOutputValidator,
@@ -595,7 +548,7 @@ public class AiReportService {
                 "problem.description 是完整题目描述；submission.sourceCodeWithLineNumbers 是完整学生代码或最大可用带行号代码。",
                 "submission.verdict、visibleCaseFacts、runtimeErrorMessage、compileOutput 和 evidenceRefs 只是判题参考信号，用来验证诊断。",
                 "freeDiagnosis 是未看标准库前的初步诊断，用来保持对题目和代码的独立判断。",
-                "navigationResult 是 AI 逐层浏览标准库后的路径选择，不是后端本地召回。",
+                "navigationResult 是 AI 逐层浏览标准库后的路径选择，不是后端预选候选。",
                 "standardLibrary.knowledgeGroups 是 AI 导航确认后的统一知识树诊断层，主链路是知识点 -> 能力点 -> 易错点/提升点；不要把知识树和标准库当成两套平行库。",
                 "standardLibrary 是教学参考规范包，像课程标准和教案目录，用于细颗粒定位、标准化命名和区分基础层/提高层，不是强制答案表。",
                 "primaryKnowledgeNodeCode 是主知识路径，relatedKnowledgeNodeCodes 只是辅助上下文；学生端知识路径优先沿主路径表达，不把相关标签平铺成独立问题。",
@@ -664,14 +617,13 @@ public class AiReportService {
             }
             runtimePlan.setStandardLibraryNavigationOutput(navigationOutput);
             runtimePlan.setStandardLibraryPack(selectedPack);
-            runtimePlan.setSearchLocationResult(SearchLocationResult.builder()
+            runtimePlan.setStandardLibraryNavigationResult(StandardLibraryNavigationResult.builder()
                     .enabled(true)
                     .status("AI_NAVIGATION")
-                    .embeddingStatus("NOT_USED")
                     .failureReason("")
-                    .candidateCount(0)
                     .selectedCount(navigationSelectedCount(navigationOutput))
                     .selectedPack(selectedPack)
+                    .output(navigationOutput)
                     .build());
             return ExternalModelStagePayloads.StageValidationResult.builder()
                     .valid(true)
@@ -810,9 +762,9 @@ public class AiReportService {
         ));
         request.put("brief", runtimePlan.getBrief());
         request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
-        request.put("searchLocationSummary", runtimePlan.getStandardLibraryPack() == null
+        request.put("standardLibraryNavigationSummary", runtimePlan.getStandardLibraryPack() == null
                 ? null
-                : runtimePlan.getStandardLibraryPack().getSearchLocationSummary());
+                : runtimePlan.getStandardLibraryPack().getStandardLibraryNavigationSummary());
         request.put("previousOutput", unsafeOutput);
         request.put("validationFailure", Map.of(
                 "stage", failure == null ? "DIAGNOSIS_AND_ADVICE" : defaultIfBlank(failure.getStage(), "DIAGNOSIS_AND_ADVICE"),
@@ -1029,13 +981,12 @@ public class AiReportService {
             }
         }
         if (runtimePlan != null && runtimePlan.getStandardLibraryPack() != null
-                && runtimePlan.getStandardLibraryPack().getSearchLocationSummary() != null) {
-            StandardLibraryPack.SearchLocationSummary summary =
-                    runtimePlan.getStandardLibraryPack().getSearchLocationSummary();
+                && runtimePlan.getStandardLibraryPack().getStandardLibraryNavigationSummary() != null) {
+            StandardLibraryPack.StandardLibraryNavigationSummary summary =
+                    runtimePlan.getStandardLibraryPack().getStandardLibraryNavigationSummary();
             builder.append("### 定位说明\n\n");
             appendMarkdownLine(builder, "定位状态", summary.getStatus());
-            appendMarkdownLine(builder, "候选数量", summary.getCandidateCount() == null ? "" : summary.getCandidateCount().toString());
-            appendMarkdownLine(builder, "精选数量", summary.getSelectedCount() == null ? "" : summary.getSelectedCount().toString());
+            appendMarkdownLine(builder, "选中数量", summary.getSelectedCount() == null ? "" : summary.getSelectedCount().toString());
         }
         String markdown = builder.toString().trim();
         return markdown;
@@ -2128,13 +2079,10 @@ public class AiReportService {
                 .streamInvalidChunkCount(telemetry.streamInvalidChunkCount())
                 .streamFinishReason(telemetry.streamFinishReason())
                 .streamFallbackRetryUsed(telemetry.streamFallbackRetryUsed())
-                .searchLocationEnabled(searchLocation(runtimePlan).enabled())
-                .searchLocationStatus(searchLocation(runtimePlan).status())
-                .searchLocationCandidateCount(searchLocation(runtimePlan).candidateCount())
-                .searchLocationSelectedCount(searchLocation(runtimePlan).selectedCount())
-                .searchLocationFailureReason(searchLocation(runtimePlan).failureReason())
-                .recallSources(recallSources(runtimePlan))
-                .embeddingStatus(searchLocation(runtimePlan).embeddingStatus())
+                .standardLibraryNavigationEnabled(standardLibraryNavigation(runtimePlan).enabled())
+                .standardLibraryNavigationStatus(standardLibraryNavigation(runtimePlan).status())
+                .standardLibraryNavigationSelectedCount(standardLibraryNavigation(runtimePlan).selectedCount())
+                .standardLibraryNavigationFailureReason(standardLibraryNavigation(runtimePlan).failureReason())
                 .adviceGenerationStatus(adviceGeneration(runtimePlan).status())
                 .adviceGenerationFailureReason(adviceGeneration(runtimePlan).failureReason())
                 .basicAdviceCount(adviceGeneration(runtimePlan).basicAdviceCount())
@@ -2148,13 +2096,6 @@ public class AiReportService {
                 .diagnosisSoftFixes(diagnosisSoftFixes(runtimePlan))
                 .diagnosisHardFailures(diagnosisHardFailures(runtimePlan))
                 .build();
-    }
-
-    private List<String> recallSources(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        SearchLocationCandidatePack candidatePack = searchLocation(runtimePlan).candidatePack();
-        return candidatePack == null || candidatePack.getRecallSources() == null
-                ? List.of()
-                : candidatePack.getRecallSources();
     }
 
     private Integer studentReportLength(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
@@ -2205,11 +2146,11 @@ public class AiReportService {
                 : output.getTeacherTrace().getHardFailures();
     }
 
-    private SearchLocationResult searchLocation(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        if (runtimePlan == null || runtimePlan.getSearchLocationResult() == null) {
-            return SearchLocationResult.disabled();
+    private StandardLibraryNavigationResult standardLibraryNavigation(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (runtimePlan == null || runtimePlan.getStandardLibraryNavigationResult() == null) {
+            return StandardLibraryNavigationResult.disabled();
         }
-        return runtimePlan.getSearchLocationResult();
+        return runtimePlan.getStandardLibraryNavigationResult();
     }
 
     private AdviceGenerationResult adviceGeneration(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
@@ -2399,7 +2340,7 @@ public class AiReportService {
         context.put("judgeFacts", compactStudentJudgeFacts(evidencePackage == null ? null : evidencePackage.getJudgeFacts()));
         if (runtimePlan != null && runtimePlan.getStandardLibraryPack() != null) {
             context.put("standardLibrary", runtimePlan.getStandardLibraryPack());
-            context.put("searchLocationSummary", runtimePlan.getStandardLibraryPack().getSearchLocationSummary());
+            context.put("standardLibraryNavigationSummary", runtimePlan.getStandardLibraryPack().getStandardLibraryNavigationSummary());
         }
         context.put("safetyRules", List.of(
                 "只给定位和验证动作，不给完整代码或完整答案。",

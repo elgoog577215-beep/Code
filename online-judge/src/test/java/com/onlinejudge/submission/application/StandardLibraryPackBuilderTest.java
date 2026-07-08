@@ -150,8 +150,7 @@ class StandardLibraryPackBuilderTest {
                 .contains("standardLibrary")
                 .contains("studentReport")
                 .contains("libraryGrowth.candidates")
-                .contains("继承 diagnosis-report-v2")
-                .doesNotContain("search-location");
+                .contains("每个学生可见判断都要有证据引用");
     }
 
     private StandardLibraryPack.MistakePointOption mistake(String id) {

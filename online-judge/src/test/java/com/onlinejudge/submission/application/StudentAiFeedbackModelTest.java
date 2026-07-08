@@ -910,9 +910,8 @@ class StudentAiFeedbackModelTest {
                         .build()))
                 .skillUnits(List.of(skill))
                 .mistakePoints(List.of(mistake))
-                .searchLocationSummary(StandardLibraryPack.SearchLocationSummary.builder()
+                .standardLibraryNavigationSummary(StandardLibraryPack.StandardLibraryNavigationSummary.builder()
                         .status("AI_NAVIGATION")
-                        .candidateCount(2)
                         .selectedCount(2)
                         .build())
                 .build();
@@ -946,12 +945,10 @@ class StudentAiFeedbackModelTest {
                     new ExternalModelFailureClassifier(),
                     new ExternalModelBudgetGuard(),
                     new ExternalModelChatRequestFactory(),
+                    growthAgentService,
                     null,
                     null,
-                    null,
-                    null,
-                    null,
-                    growthAgentService);
+                    null);
             this.response = response;
         }
 

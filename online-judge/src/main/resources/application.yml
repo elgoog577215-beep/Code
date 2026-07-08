@@ -45,7 +45,7 @@ ai:
   timeout-seconds: ${AI_TIMEOUT_SECONDS:30}
   external-runtime-enabled: ${AI_EXTERNAL_RUNTIME_ENABLED:true}
   external-runtime-profile: ${AI_EXTERNAL_RUNTIME_PROFILE:standard}
-  diagnosis-report-v3-enabled: ${AI_DIAGNOSIS_REPORT_V3_ENABLED:${AI_DIAGNOSIS_REPORT_V2_ENABLED:true}}
+  diagnosis-report-v3-enabled: ${AI_DIAGNOSIS_REPORT_V3_ENABLED:true}
   max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1800}
   stream-enabled: ${AI_STREAM_ENABLED:true}
   stream-fallback-enabled: ${AI_STREAM_FALLBACK_ENABLED:false}
@@ -56,23 +56,6 @@ ai:
     backoff-ms: ${AI_RETRY_BACKOFF_MS:700}
   student-feedback:
     min-request-interval-ms: ${AI_STUDENT_FEEDBACK_MIN_REQUEST_INTERVAL_MS:2000}
-  # Legacy/offline search-location settings. The default diagnosis path uses AI standard-library navigation,
-  # not backend local recall.
-  search-location:
-    enabled: ${AI_SEARCH_LOCATION_ENABLED:false}
-    mode: ${AI_SEARCH_LOCATION_MODE:hybrid}
-    candidate-limit: ${AI_SEARCH_LOCATION_CANDIDATE_LIMIT:120}
-    selected-limit: ${AI_SEARCH_LOCATION_SELECTED_LIMIT:15}
-    require-vector: ${AI_SEARCH_REQUIRE_VECTOR:false}
-    text-weight: ${AI_SEARCH_TEXT_WEIGHT:0.45}
-    vector-weight: ${AI_SEARCH_VECTOR_WEIGHT:0.35}
-  embedding:
-    enabled: ${AI_EMBEDDING_ENABLED:false}
-    maintenance-enabled: ${AI_EMBEDDING_MAINTENANCE_ENABLED:false}
-    base-url: ${AI_EMBEDDING_BASE_URL:${OJ_AI_BASE_URL:${AI_BASE_URL:https://api-inference.modelscope.cn/v1}}}
-    api-key: ${AI_EMBEDDING_API_KEY:${OJ_MODELSCOPE_API_KEY:${MODELSCOPE_API_KEY:}}}
-    model: ${AI_EMBEDDING_MODEL:Qwen/Qwen3-Embedding-0.6B}
-    timeout-seconds: ${AI_EMBEDDING_TIMEOUT_SECONDS:20}
   standard-library-growth:
     enabled: ${AI_STANDARD_LIBRARY_GROWTH_ENABLED:true}
     auto-merge-enabled: ${AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED:false}

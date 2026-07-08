@@ -14,7 +14,6 @@ public class PromptTemplateRegistry {
     public static final String FREE_DIAGNOSIS_V1 = "free-diagnosis-v1";
     public static final String STANDARD_LIBRARY_NAVIGATION_V1 = "standard-library-navigation-v1";
     public static final String DIAGNOSIS_REPORT_V3 = "diagnosis-report-v3";
-    public static final String SEARCH_LOCATION_V1 = "search-location-v1";
 
     private final Map<String, PromptTemplate> templates = Map.of(
             FREE_DIAGNOSIS_V1, PromptTemplate.builder()
@@ -31,11 +30,6 @@ public class PromptTemplateRegistry {
                     .version(DIAGNOSIS_REPORT_V3)
                     .stage("DIAGNOSIS_REPORT")
                     .systemPrompt(diagnosisReportV3SystemPrompt())
-                    .build(),
-            SEARCH_LOCATION_V1, PromptTemplate.builder()
-                    .version(SEARCH_LOCATION_V1)
-                    .stage("SEARCH_LOCATION")
-                    .systemPrompt(searchLocationSystemPrompt())
                     .build(),
             DIAGNOSIS_AND_ADVICE_V1, PromptTemplate.builder()
                     .version(DIAGNOSIS_AND_ADVICE_V1)
@@ -182,7 +176,7 @@ public class PromptTemplateRegistry {
                   "standardLibrary": StandardLibraryPack
                 }
 
-                Output schema: AdviceGenerationOutput，与 diagnosis-report-v2 相同，必须包含 studentReport、diagnosisDecision、diagnosisCandidates、teacherTrace 和 libraryGrowth。
+                Output schema: AdviceGenerationOutput，必须包含 studentReport、diagnosisDecision、diagnosisCandidates、teacherTrace 和 libraryGrowth。
 
                 Rules:
                 1. studentReport 只写基础层诊断、提高层诊断和下一步动作，不暴露“初步诊断”“导航轮次”等内部过程。
@@ -190,95 +184,7 @@ public class PromptTemplateRegistry {
                 3. 如果 navigationResult 标记 OUT_OF_LIBRARY 或 unresolvedGaps，libraryGrowth.candidates 只能进入待审核候选，状态必须是 NEEDS_REVIEW。
                 4. standardLibrary 仍是教学参考规范包，不是强制答案表；最终判断以当前提交证据为准。
                 5. 不要给完整代码、替换表达式、最终答案、隐藏测试猜测或可复制改法。
-                6. 继承 diagnosis-report-v2 的所有学生安全边界、证据引用要求和标准库 HIT/PARTIAL/MISS/OUT_OF_LIBRARY 规则。
-                """;
-    }
-
-    private String searchLocationSystemPrompt() {
-        return """
-                You are the search-location stage of an education coding agent.
-                Return strict JSON only. Do not output markdown fences, XML, chain-of-thought, or extra text.
-                Your job is NOT to write student-facing advice or make the final diagnosis. Your job is to curate a reference pack for the next diagnosis stage.
-                The standard library is a teaching reference pack, like a curriculum guide for naming and granularity, not a forced answer. You may mark candidates as HIT, PARTIAL, or MISS.
-                Candidate ids come from a normalized teaching structure: knowledge point -> skill unit -> mistake point / improvement point.
-                Structural fields such as parentSkillUnitId, siblingMistakePointIds, childMistakePointIds, relatedImprovementPointIds, and structurePath are neighborhood hints, not evidence.
-
-                Input schema:
-                {
-                  "brief": ModelDiagnosisBrief,
-                  "candidatePack": SearchLocationCandidatePack
-                }
-
-                Output schema:
-                {
-                  "libraryFit": "HIT"|"PARTIAL"|"MISS",
-                  "basicCandidates": [{
-                    "id": string,
-                    "layer": "MISTAKE_POINT"|"BASIC_CAUSE"|"SKILL_UNIT"|"KNOWLEDGE_NODE",
-                    "knowledgeNodeId": string|null,
-                    "skillUnitId": string|null,
-                    "mistakePointId": string|null,
-                    "libraryFit": "HIT"|"PARTIAL"|"MISS",
-                    "priority": number,
-                    "confidence": number,
-                    "evidenceRefs": string[],
-                    "reason": string,
-                    "recallReason": string,
-                    "evidenceSource": string,
-                    "uncertainty": string
-                  }],
-                  "improvementCandidates": [{
-                    "id": string,
-                    "layer": "IMPROVEMENT_POINT"|"SKILL_UNIT"|"KNOWLEDGE_NODE",
-                    "knowledgeNodeId": string|null,
-                    "skillUnitId": string|null,
-                    "mistakePointId": string|null,
-                    "libraryFit": "HIT"|"PARTIAL"|"MISS",
-                    "priority": number,
-                    "confidence": number,
-                    "evidenceRefs": string[],
-                    "reason": string,
-                    "recallReason": string,
-                    "evidenceSource": string,
-                    "uncertainty": string
-                  }],
-                  "knowledgeAnchors": [{
-                    "id": string,
-                    "layer": "KNOWLEDGE_NODE"|"SKILL_UNIT",
-                    "knowledgeNodeId": string|null,
-                    "skillUnitId": string|null,
-                    "mistakePointId": string|null,
-                    "libraryFit": "HIT"|"PARTIAL"|"MISS",
-                    "priority": number,
-                    "confidence": number,
-                    "evidenceRefs": string[],
-                    "reason": string,
-                    "recallReason": string,
-                    "evidenceSource": string,
-                    "uncertainty": string
-                  }],
-                  "uncertainty": string,
-                  "uncertaintyPoints": string[],
-                  "needsMoreEvidence": boolean,
-                  "needsLibraryGrowth": boolean,
-                  "libraryGrowthReason": string|null
-                }
-
-                Rules:
-                1. Select only ids that appear in candidatePack.candidates.id.
-                2. Read structurePath and parentSkillUnitId before deciding whether nearby mistake points are siblings or truly separate issues.
-                3. Set libraryFit=HIT when a candidate precisely covers the current evidence-backed issue.
-                4. Set libraryFit=PARTIAL when the branch is useful but the exact fine-grained cause is missing.
-                5. Set libraryFit=MISS when current candidates do not explain the issue. Return empty candidate arrays when no candidate is useful; keep the closest anchor only if it genuinely helps navigation.
-                6. basicCandidates should focus on current blocking causes: syntax, IO, runtime, boundary, state, recursion, DP transition, or other concrete error sources.
-                7. improvementCandidates should focus on non-blocking improvement directions: complexity, data structure choice, modeling, proof, testing habit, or transfer.
-                8. knowledgeAnchors should identify the knowledge/skill branch that explains the selected candidates.
-                9. Every selected item MUST cite at least one brief.evidenceRefs value.
-                10. confidence MUST be between 0 and 1.
-                11. Return only the candidates supported by actual evidence. Typical compact output stays within 0-8 basicCandidates, 0-5 improvementCandidates, and 0-5 knowledgeAnchors; these are budget ceilings, not quotas, and 0 is valid for MISS or evidence gaps.
-                12. Use judge facts as evidence, but still read the code behavior. Hidden data must not be guessed.
-                13. Do not provide complete code, final answers, executable fixes, hidden test data, or student-facing tutorial text.
-                14. Keep reason concise and evidence-grounded.
+                6. 每个学生可见判断都要有证据引用；标准库命中状态只能使用 HIT、PARTIAL、MISS、OUT_OF_LIBRARY。
                 """;
     }
 
@@ -286,7 +192,7 @@ public class PromptTemplateRegistry {
         return """
                 You are the complete diagnosis and advice generation stage of an education coding agent.
                 Return strict JSON only. Do not output markdown fences, XML, chain-of-thought, or extra text.
-                Use the provided ModelDiagnosisBrief, reference StandardLibraryPack, and searchLocationSummary.
+                Use the provided ModelDiagnosisBrief, reference StandardLibraryPack, and standardLibraryNavigationSummary.
                 All user-facing strings MUST be Simplified Chinese.
                 Do not provide complete code, final answers, hidden test data, replacement loop headers, transition formulas, executable control structures, or a step-by-step full solution.
                 When standardLibrary.knowledgeGroups is present, treat it as the main structure: knowledge point -> skill unit -> mistake point / improvement point.
@@ -300,7 +206,7 @@ public class PromptTemplateRegistry {
                 {
                   "brief": ModelDiagnosisBrief,
                   "standardLibrary": StandardLibraryPack,
-                  "searchLocationSummary": StandardLibraryPack.SearchLocationSummary|null
+                  "standardLibraryNavigationSummary": StandardLibraryPack.StandardLibraryNavigationSummary|null
                 }
 
                 Output schema:

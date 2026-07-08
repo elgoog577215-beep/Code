@@ -4,36 +4,28 @@
 TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Purpose after archive.
 ## Requirements
 ### Requirement: 实时诊断使用单诊断 Agent
-系统 SHALL 在默认实时 AI 诊断链路中只调用一次外部大模型，由单诊断 Agent 完成问题定位、候选取舍、学生反馈和结构化元数据输出。
+系统 SHALL 在学生可见内容生产上只保留一个最终诊断 Agent；前置初步诊断和 AI 标准库导航只生产中间结构、导航路径和标准库锚点，不直接生成学生可见报告。
 
-#### Scenario: 默认实时诊断只调用一次外部模型
+#### Scenario: 默认实时诊断使用三阶段编排
 - **WHEN** 学生提交代码且外部 AI 可用
-- **THEN** 系统 SHALL 只调用正式诊断报告模型阶段，不调用外部搜索定位模型阶段
+- **THEN** 系统 MAY 调用初步诊断、AI 标准库导航和最终诊断三个阶段
+- **AND** 只有最终诊断阶段 SHALL 生成 `studentReport`
 
-#### Scenario: 默认配置关闭实时搜索 Agent
-- **WHEN** 未显式开启 `AI_SEARCH_LOCATION_ENABLED`
-- **THEN** 系统 SHALL 不调用 `search-location-v1`
-- **AND** trace SHALL 将召回状态标记为 `LOCAL_RECALL`
+#### Scenario: 默认配置使用 AI 导航
+- **WHEN** 系统执行默认实时诊断
+- **THEN** 系统 SHALL 先执行初步诊断和 AI 标准库导航
+- **AND** trace SHALL 将标准库定位状态标记为 `AI_NAVIGATION`
 
-#### Scenario: 单诊断 Agent 接收本地召回候选
-- **WHEN** 后端已从标准库本地召回候选条目
-- **THEN** 单诊断 Agent 的输入 MUST 包含题目、代码、判题结果、证据和树形候选标准库上下文
+#### Scenario: 前置阶段不污染学生报告
+- **WHEN** 初步诊断或标准库导航产生中间判断
+- **THEN** 学生端 SHALL NOT 直接展示这些中间判断
+- **AND** 中间判断 SHALL 只用于最终诊断、教师 trace、评测和待审核成长候选
 
-#### Scenario: 单诊断 Agent 接收主路径语义
-- **WHEN** 候选标准库上下文包含能力点或易错点
-- **THEN** 单诊断 Agent 的输入 MUST 保留主知识点、相关知识点和能力点归属
-- **AND** 模型 SHALL 被提示优先沿主知识点 -> 能力点 -> 易错点理解，而不是把所有知识点当作平铺标签
+### Requirement: 标准库作为教学坐标而不是强制答案
+系统 SHALL 允许最终诊断 Agent 对 AI 导航选中的标准库路径标记命中、部分命中、未命中或库外发现。
 
-#### Scenario: 显式打开搜索 Agent 对照路线
-- **WHEN** 配置显式设置 `AI_SEARCH_LOCATION_ENABLED=true`
-- **THEN** 系统 MAY 运行搜索 Agent 对照路线
-- **AND** trace SHALL 清楚标记该路线不是默认教学路线
-
-### Requirement: 标准库作为候选地图而不是强制答案
-系统 SHALL 允许单诊断 Agent 对本地召回候选标记命中、部分命中或未命中，并允许输出库外发现。
-
-#### Scenario: 候选不匹配真实问题
-- **WHEN** 本地召回候选不能解释学生错误
+#### Scenario: 导航路径不匹配真实问题
+- **WHEN** AI 导航选中的标准库路径不能解释学生错误
 - **THEN** 模型输出 SHALL 能标记未命中并给出库外发现，而不是强行绑定错误标准库条目
 
 ### Requirement: 学生反馈以自然报告为主
@@ -62,15 +54,15 @@ TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Pur
 - **AND** 下一步行动 MUST NOT 以可复制代码修改步骤作为主表达
 
 ### Requirement: 单诊断 Agent 必须接收知识点诊断层候选包
-单诊断 Agent 的标准库上下文 SHALL 按知识点、能力点、易错点和提升点组织，且 SHALL 明确该结构是一棵统一知识树下的诊断层，而不是知识树和标准库两套平行库。
+最终诊断 Agent 的标准库上下文 SHALL 来自 AI 导航确认后的知识点诊断层结构，且 SHALL 明确该结构是一棵统一知识树下的诊断层，而不是知识树和标准库两套平行库。
 
-#### Scenario: 诊断上下文包含知识点诊断层
-- **WHEN** 系统准备单诊断 Agent 输入
-- **THEN** `standardLibrary.knowledgeGroups` SHALL 以知识点为第一层
-- **AND** 每个知识点分组 SHALL 包含该知识点下召回的能力点、易错点或提升点
-- **AND** prompt SHALL 要求模型沿“知识点 -> 能力点 -> 易错点”理解候选结构
+#### Scenario: 最终诊断上下文包含导航确认路径
+- **WHEN** 系统准备最终诊断 Agent 输入
+- **THEN** `standardLibrary.knowledgeGroups` SHALL 以 AI 导航选中的知识点为第一层
+- **AND** 每个知识点分组 SHALL 包含该知识点下被导航选中的能力点、易错点或提升点
+- **AND** prompt SHALL 要求模型沿“知识点 -> 能力点 -> 易错点/提升点”理解候选结构
 
 #### Scenario: 模型仍可自由判断命中状态
-- **WHEN** 知识点诊断层候选无法解释当前提交
-- **THEN** 模型 SHALL 可以返回 PARTIAL、MISS 或 OUT_OF_LIBRARY
-- **AND** 模型 SHALL NOT 因存在同知识点候选而强行输出易错点 HIT
+- **WHEN** AI 导航确认的知识点诊断层仍无法解释当前提交
+- **THEN** 最终诊断模型 SHALL 可以返回 `PARTIAL`、`MISS` 或 `OUT_OF_LIBRARY`
+- **AND** 模型 SHALL NOT 因导航阶段选择过同知识点而强行输出易错点 `HIT`

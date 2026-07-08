@@ -13,7 +13,6 @@ import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRequest
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemResponse;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationExpansionResponse;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
-import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryEmbeddingRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
@@ -41,7 +40,6 @@ import java.util.stream.Collectors;
 public class AiStandardLibraryService {
 
     private final AiStandardLibraryItemRepository repository;
-    private final AiStandardLibraryEmbeddingRepository embeddingRepository;
     private final AiStandardSkillUnitRepository skillUnitRepository;
     private final AiStandardMistakePointRepository mistakePointRepository;
     private final AiStandardImprovementPointRepository improvementPointRepository;
@@ -80,7 +78,6 @@ public class AiStandardLibraryService {
         apply(item, request);
         AiStandardLibraryItem saved = repository.save(item);
         syncCanonicalFromSnapshot(saved, null, "");
-        markEmbeddingStale(saved);
         return AiStandardLibraryItemResponse.from(saved);
     }
 
@@ -101,7 +98,6 @@ public class AiStandardLibraryService {
         apply(item, request);
         AiStandardLibraryItem saved = repository.save(item);
         syncCanonicalFromSnapshot(saved, previousLayer, previousCode);
-        markEmbeddingStale(saved);
         return AiStandardLibraryItemResponse.from(saved);
     }
 
@@ -113,7 +109,6 @@ public class AiStandardLibraryService {
         item.setEnabled(enabled);
         AiStandardLibraryItem saved = repository.save(item);
         syncCanonicalFromSnapshot(saved, previousLayer, previousCode);
-        markEmbeddingStale(saved);
         return AiStandardLibraryItemResponse.from(saved);
     }
 
@@ -157,7 +152,7 @@ public class AiStandardLibraryService {
 
     @Transactional(readOnly = true)
     public boolean hasEnabledKnowledge() {
-        if (!normalizedSearchLocationItems().isEmpty()) {
+        if (!normalizedNavigationItems().isEmpty()) {
             return true;
         }
         return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
@@ -165,8 +160,8 @@ public class AiStandardLibraryService {
     }
 
     @Transactional(readOnly = true)
-    public List<AiStandardLibraryItem> enabledSearchLocationItems() {
-        List<AiStandardLibraryItem> normalizedItems = normalizedSearchLocationItems();
+    public List<AiStandardLibraryItem> enabledNavigationItems() {
+        List<AiStandardLibraryItem> normalizedItems = normalizedNavigationItems();
         List<AiStandardLibraryItem> legacyItems = repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
                 .filter(item -> item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT
                         || item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
@@ -178,8 +173,8 @@ public class AiStandardLibraryService {
             return legacyItems;
         }
         LinkedHashMap<String, AiStandardLibraryItem> merged = new LinkedHashMap<>();
-        normalizedItems.forEach(item -> merged.put(searchItemKey(item), item));
-        legacyItems.forEach(item -> merged.putIfAbsent(searchItemKey(item), item));
+        normalizedItems.forEach(item -> merged.put(navigationItemKey(item), item));
+        legacyItems.forEach(item -> merged.putIfAbsent(navigationItemKey(item), item));
         return merged.values().stream().toList();
     }
 
@@ -284,20 +279,6 @@ public class AiStandardLibraryService {
             return canonical;
         }
         return repository.findByLayerAndCode(layer, normalizedCode);
-    }
-
-    @Transactional
-    public void markEmbeddingStale(AiStandardLibraryItem item) {
-        if (item == null || item.getId() == null) {
-            return;
-        }
-        embeddingRepository.findAll().stream()
-                .filter(embedding -> embedding.getItem() != null && item.getId().equals(embedding.getItem().getId()))
-                .forEach(embedding -> {
-                    embedding.setStatus("STALE");
-                    embedding.setFailureReason("标准库条目已更新，等待重建 embedding。");
-                    embeddingRepository.save(embedding);
-                });
     }
 
     StandardLibraryPack.BasicCauseOption toBasicCause(AiStandardLibraryItem item) {
@@ -434,13 +415,13 @@ public class AiStandardLibraryService {
     private Optional<AiStandardLibraryItem> canonicalAsLegacy(AiStandardLibraryLayer layer, String code) {
         AiStandardLibraryLayer canonicalLayer = canonicalLayer(layer);
         if (canonicalLayer == AiStandardLibraryLayer.SKILL_UNIT) {
-            return skillUnitRepository.findByCode(code).map(this::toLegacySearchItem);
+            return skillUnitRepository.findByCode(code).map(this::toLegacyNavigationItem);
         }
         if (canonicalLayer == AiStandardLibraryLayer.MISTAKE_POINT) {
-            return mistakePointRepository.findByCode(code).map(this::toLegacySearchItem);
+            return mistakePointRepository.findByCode(code).map(this::toLegacyNavigationItem);
         }
         if (canonicalLayer == AiStandardLibraryLayer.IMPROVEMENT_POINT) {
-            return improvementPointRepository.findByCode(code).map(this::toLegacySearchItem);
+            return improvementPointRepository.findByCode(code).map(this::toLegacyNavigationItem);
         }
         return Optional.empty();
     }
@@ -604,7 +585,7 @@ public class AiStandardLibraryService {
         return layer;
     }
 
-    private List<AiStandardLibraryItem> normalizedSearchLocationItems() {
+    private List<AiStandardLibraryItem> normalizedNavigationItems() {
         List<AiStandardSkillUnit> skills = skillUnitRepository.findByEnabledTrueOrderByCategoryAscCodeAsc();
         List<AiStandardMistakePoint> mistakes = mistakePointRepository.findByEnabledTrueOrderByCategoryAscCodeAsc();
         List<AiStandardImprovementPoint> improvements =
@@ -613,9 +594,9 @@ public class AiStandardLibraryService {
             return List.of();
         }
         List<AiStandardLibraryItem> items = new ArrayList<>();
-        skills.stream().map(this::toLegacySearchItem).forEach(items::add);
-        mistakes.stream().map(this::toLegacySearchItem).forEach(items::add);
-        improvements.stream().map(this::toLegacySearchItem).forEach(items::add);
+        skills.stream().map(this::toLegacyNavigationItem).forEach(items::add);
+        mistakes.stream().map(this::toLegacyNavigationItem).forEach(items::add);
+        improvements.stream().map(this::toLegacyNavigationItem).forEach(items::add);
         return preferIntelligentItems(items, AiStandardLibraryItem::getCode);
     }
 
@@ -628,13 +609,13 @@ public class AiStandardLibraryService {
                 .toList();
     }
 
-    private String searchItemKey(AiStandardLibraryItem item) {
+    private String navigationItemKey(AiStandardLibraryItem item) {
         String layer = item.getLayer() == null ? "" : item.getLayer().name();
         String code = item.getCode() == null ? "" : item.getCode();
         return layer + "/" + code;
     }
 
-    private AiStandardLibraryItem toLegacySearchItem(AiStandardSkillUnit item) {
+    private AiStandardLibraryItem toLegacyNavigationItem(AiStandardSkillUnit item) {
         return AiStandardLibraryItem.builder()
                 .id(item.getId())
                 .layer(AiStandardLibraryLayer.SKILL_UNIT)
@@ -672,7 +653,7 @@ public class AiStandardLibraryService {
                 .build();
     }
 
-    private AiStandardLibraryItem toLegacySearchItem(AiStandardMistakePoint item) {
+    private AiStandardLibraryItem toLegacyNavigationItem(AiStandardMistakePoint item) {
         return AiStandardLibraryItem.builder()
                 .id(item.getId())
                 .layer(AiStandardLibraryLayer.MISTAKE_POINT)
@@ -710,7 +691,7 @@ public class AiStandardLibraryService {
                 .build();
     }
 
-    private AiStandardLibraryItem toLegacySearchItem(AiStandardImprovementPoint item) {
+    private AiStandardLibraryItem toLegacyNavigationItem(AiStandardImprovementPoint item) {
         return AiStandardLibraryItem.builder()
                 .id(item.getId())
                 .layer(AiStandardLibraryLayer.IMPROVEMENT_POINT)

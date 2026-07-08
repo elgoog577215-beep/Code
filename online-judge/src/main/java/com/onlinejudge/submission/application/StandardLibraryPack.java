@@ -27,7 +27,7 @@ public class StandardLibraryPack {
     private List<KnowledgeAnchorOption> knowledgeAnchors;
     private List<SkillUnitOption> skillUnits;
     private List<MistakePointOption> mistakePoints;
-    private SearchLocationSummary searchLocationSummary;
+    private StandardLibraryNavigationSummary standardLibraryNavigationSummary;
     private List<TagOption> issueTags;
     private List<TagOption> fineGrainedTags;
     private List<ImprovementTagOption> improvementTags;
@@ -157,11 +157,9 @@ public class StandardLibraryPack {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class SearchLocationSummary {
+    public static class StandardLibraryNavigationSummary {
         private String status;
-        private String embeddingStatus;
         private String failureReason;
-        private Integer candidateCount;
         private Integer selectedCount;
         private String uncertainty;
     }

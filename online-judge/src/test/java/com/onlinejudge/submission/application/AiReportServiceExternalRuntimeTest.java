@@ -29,7 +29,7 @@ class AiReportServiceExternalRuntimeTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void externalRuntimeCompletesAdviceGenerationWithoutSearchLocation() {
+    void externalRuntimeCompletesAdviceGenerationWithStandardLibraryNavigation() {
         StubAiReportService service = newService(validAdviceResponse());
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
@@ -429,11 +429,6 @@ class AiReportServiceExternalRuntimeTest {
                     budgetGuard,
                     new ExternalModelChatRequestFactory(),
                     null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
                     navigationDeps.standardLibraryService(),
                     new StandardLibraryNavigationOutputValidator(),
                     new StandardLibraryNavigationPackBuilder(
@@ -493,11 +488,6 @@ class AiReportServiceExternalRuntimeTest {
                     new ExternalModelFailureClassifier(),
                     new ExternalModelBudgetGuard(),
                     new ExternalModelChatRequestFactory(),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
                     null,
                     navigationDeps.standardLibraryService(),
                     new StandardLibraryNavigationOutputValidator(),

@@ -123,7 +123,7 @@ public class ExternalModelAgentRuntime {
         private StandardLibraryPack standardLibraryPack;
         private FreeDiagnosisOutput freeDiagnosisOutput;
         private StandardLibraryNavigationOutput standardLibraryNavigationOutput;
-        private SearchLocationResult searchLocationResult;
+        private StandardLibraryNavigationResult standardLibraryNavigationResult;
         private AdviceGenerationResult adviceGenerationResult;
         private PromptTemplateRegistry.PromptTemplate freeDiagnosisPrompt;
         private PromptTemplateRegistry.PromptTemplate standardLibraryNavigationPrompt;

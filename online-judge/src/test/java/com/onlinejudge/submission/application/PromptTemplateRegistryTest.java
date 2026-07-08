@@ -10,13 +10,11 @@ class PromptTemplateRegistryTest {
     private final PromptTemplateRegistry registry = new PromptTemplateRegistry();
 
     @Test
-    void registersSearchLocationAdviceAndDiagnosisReportPrompts() {
+    void registersStandardLibraryNavigationAdviceAndDiagnosisReportPrompts() {
         PromptTemplateRegistry.PromptTemplate freeDiagnosis =
                 registry.get(PromptTemplateRegistry.FREE_DIAGNOSIS_V1);
         PromptTemplateRegistry.PromptTemplate navigation =
                 registry.get(PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1);
-        PromptTemplateRegistry.PromptTemplate searchLocation =
-                registry.get(PromptTemplateRegistry.SEARCH_LOCATION_V1);
         PromptTemplateRegistry.PromptTemplate advice =
                 registry.get(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
         PromptTemplateRegistry.PromptTemplate report =
@@ -43,28 +41,6 @@ class PromptTemplateRegistryTest {
                 .contains("selectedPaths")
                 .contains("unresolvedGaps")
                 .contains("不要自己创造正式标准库 ID");
-
-        assertThat(searchLocation.getStage()).isEqualTo("SEARCH_LOCATION");
-        assertThat(searchLocation.getSystemPrompt())
-                .contains("search-location stage")
-                .contains("candidatePack")
-                .contains("basicCandidates")
-                .contains("improvementCandidates")
-                .contains("knowledgeAnchors")
-                .contains("reference pack")
-                .contains("teaching reference pack")
-                .contains("curriculum guide")
-                .contains("HIT")
-                .contains("PARTIAL")
-                .contains("MISS")
-                .contains("0 is valid for MISS or evidence gaps")
-                .contains("normalized teaching structure")
-                .contains("knowledge point -> skill unit -> mistake point / improvement point")
-                .contains("parentSkillUnitId")
-                .contains("structurePath")
-                .contains("siblingMistakePointIds")
-                .contains("relatedImprovementPointIds")
-                .contains("Do not provide complete code");
 
         assertThat(advice.getStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
         assertThat(advice.getSystemPrompt())
@@ -166,7 +142,7 @@ class PromptTemplateRegistryTest {
                 .contains("studentReport")
                 .contains("libraryGrowth.candidates")
                 .contains("NEEDS_REVIEW")
-                .contains("继承 diagnosis-report-v2");
+                .contains("每个学生可见判断都要有证据引用");
     }
 
     @Test

@@ -35,7 +35,7 @@ public class ReadinessService {
     @Value("${readiness.ai-blocking:${AI_READINESS_BLOCKING:true}}")
     private boolean aiBlocking;
 
-    @Value("${ai.diagnosis-report-v3-enabled:${AI_DIAGNOSIS_REPORT_V3_ENABLED:${AI_DIAGNOSIS_REPORT_V2_ENABLED:true}}}")
+    @Value("${ai.diagnosis-report-v3-enabled:${AI_DIAGNOSIS_REPORT_V3_ENABLED:true}}")
     private boolean diagnosisReportV3Enabled = true;
 
     public ReadinessResponse getReadiness() {

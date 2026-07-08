@@ -348,7 +348,7 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(normalized.getPrimaryKnowledgeNodeCode()).isEqualTo("BASIC.ARRAY.TRAVERSAL");
         assertThat(normalized.getMisconception()).contains("循环次数");
         assertThat(normalized.getSymptom()).contains("a[j]");
-        assertThat(standardLibraryService.enabledSearchLocationItems())
+        assertThat(standardLibraryService.enabledNavigationItems())
                 .anySatisfy(item -> {
                     assertThat(item.getCode()).isEqualTo("MP_CANONICAL_WRITE_TEST");
                     assertThat(item.getCommonCodePatterns()).contains("a[j]");
@@ -357,7 +357,7 @@ class AiStandardLibraryGrowthAgentServiceTest {
         standardLibraryService.setEnabled(created.getId(), false);
 
         assertThat(mistakePointRepository.findByCode("MP_CANONICAL_WRITE_TEST").orElseThrow().isEnabled()).isFalse();
-        assertThat(standardLibraryService.enabledSearchLocationItems())
+        assertThat(standardLibraryService.enabledNavigationItems())
                 .noneMatch(item -> item.getCode().equals("MP_CANONICAL_WRITE_TEST"));
     }
 
@@ -409,7 +409,7 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(normalized.getRepairStrategy()).contains("错误表现").contains("典型代码特征").contains("学生解释话术");
         assertThat(normalized.getSkillUnitCode()).isEqualTo("SK_LOOP_ENDPOINT_INCLUSION");
         assertThat(normalized.getKnowledgeNodeCodes()).contains("BASIC.LOOP.BOUNDARY.左闭右开");
-        assertThat(standardLibraryService.enabledSearchLocationItems())
+        assertThat(standardLibraryService.enabledNavigationItems())
                 .anySatisfy(item -> {
                     assertThat(item.getLayer()).isEqualTo(AiStandardLibraryLayer.MISTAKE_POINT);
                     assertThat(item.getCode()).isEqualTo(candidate.getSuggestedCode());

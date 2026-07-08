@@ -604,7 +604,7 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void acceptsLegacyBasicCauseIdWhenSearchLocationFallsBack() {
+    void acceptsLegacyBasicCauseIdWhenStandardLibraryNavigationFallsBack() {
         AdviceGenerationOutput output = validOutput();
         output.getBasicLayerAdvice().get(0).setMistakePointId("LOOP_BOUNDARY");
         output.getBasicLayerAdvice().get(0).setSkillUnitId(null);

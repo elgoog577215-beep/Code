@@ -54,8 +54,7 @@ class StandardLibraryNavigationPackBuilderTest {
                         .build()))
                 .build());
 
-        assertThat(pack.getSearchLocationSummary().getStatus()).isEqualTo("AI_NAVIGATION");
-        assertThat(pack.getSearchLocationSummary().getEmbeddingStatus()).isEqualTo("NOT_USED");
+        assertThat(pack.getStandardLibraryNavigationSummary().getStatus()).isEqualTo("AI_NAVIGATION");
         assertThat(pack.getKnowledgeAnchors())
                 .extracting(StandardLibraryPack.KnowledgeAnchorOption::getId)
                 .containsExactly("DS.QUEUE.CIRCULAR.index_wrap");

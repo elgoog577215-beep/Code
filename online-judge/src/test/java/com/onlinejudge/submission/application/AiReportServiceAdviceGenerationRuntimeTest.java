@@ -51,11 +51,10 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 .contains("brief", "freeDiagnosis", "navigationResult", "standardLibrary")
                 .contains("mistakePoints")
                 .contains("MP_RANGE_RIGHT_ENDPOINT_MISSING")
-                .contains("\"status\":\"AI_NAVIGATION\"")
-                .doesNotContain("candidatePack", "LOCAL_RECALL");
+                .contains("\"status\":\"AI_NAVIGATION\"");
         assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
-        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("AI_NAVIGATION");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("AI_NAVIGATION");
         assertThat(analysis.getBasicLayerAdvice()).hasSize(1);
         assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getTitle())
                 .contains("循环右边界");
@@ -204,7 +203,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
         assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("STANDARD_LIBRARY_NAVIGATION");
         assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INVALID_JSON");
-        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("DISABLED");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("DISABLED");
         assertThat(analysis.getUncertainty()).contains("未使用本地规则兜底");
         assertThat(analysis.getBasicLayerAdvice()).isEmpty();
     }
@@ -229,7 +228,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
-        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("AI_NAVIGATION");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("AI_NAVIGATION");
         assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
         assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getNextAction())
                 .doesNotContain("直接改成", "range(1, n + 1)");
@@ -369,7 +368,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                         .hasChildren(true)
                         .build()
         ));
-        for (AiStandardLibraryItem item : searchLocationItems()) {
+        for (AiStandardLibraryItem item : navigationItems()) {
             when(libraryService.findFormalItemAsLegacy(item.getLayer(), item.getCode()))
                     .thenReturn(Optional.of(item));
         }
@@ -392,7 +391,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         );
     }
 
-    private List<AiStandardLibraryItem> searchLocationItems() {
+    private List<AiStandardLibraryItem> navigationItems() {
         return List.of(
                 item("SK_RANGE_BOUNDARY", AiStandardLibraryLayer.SKILL_UNIT,
                         "循环边界",
@@ -810,11 +809,6 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     new ExternalModelFailureClassifier(),
                     new ExternalModelBudgetGuard(),
                     new ExternalModelChatRequestFactory(),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
                     growthAgentService,
                     standardLibraryService,
                     new StandardLibraryNavigationOutputValidator(),
