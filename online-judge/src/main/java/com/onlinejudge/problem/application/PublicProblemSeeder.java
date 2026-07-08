@@ -6,6 +6,7 @@ import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.problem.persistence.TestCaseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,7 @@ import java.util.stream.IntStream;
 @Component
 @Order(2)
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "app.content-seed", name = "enabled", havingValue = "true")
 public class PublicProblemSeeder implements CommandLineRunner {
 
     private final ProblemRepository problemRepository;

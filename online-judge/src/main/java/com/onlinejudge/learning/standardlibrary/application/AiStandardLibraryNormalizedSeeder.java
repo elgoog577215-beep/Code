@@ -19,6 +19,7 @@ import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitR
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 @Order(6)
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(prefix = "app.content-seed", name = "enabled", havingValue = "true")
 public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
 
     private static final String UNMAPPED_KNOWLEDGE_NODE = "STANDARD_LIBRARY.UNMAPPED";

@@ -77,6 +77,8 @@ spring:
 
 app:
   profile: school
+  content-seed:
+    enabled: ${APP_CONTENT_SEED_ENABLED:false}
 
 ---
 spring:
@@ -86,6 +88,8 @@ spring:
 
 app:
   profile: dev
+  content-seed:
+    enabled: ${APP_CONTENT_SEED_ENABLED:false}
 
 logging:
   file:

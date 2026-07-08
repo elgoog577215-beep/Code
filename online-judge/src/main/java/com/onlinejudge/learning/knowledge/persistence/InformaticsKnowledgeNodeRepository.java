@@ -27,6 +27,8 @@ public interface InformaticsKnowledgeNodeRepository extends JpaRepository<Inform
 
     boolean existsByEnabledTrueAndParentCode(String parentCode);
 
+    long countByEnabledTrue();
+
     List<InformaticsKnowledgeNode> findByEnabledTrueOrderByPathAscSortOrderAscCodeAsc();
 
     List<InformaticsKnowledgeNode> findAllByOrderByPathAscSortOrderAscCodeAsc();

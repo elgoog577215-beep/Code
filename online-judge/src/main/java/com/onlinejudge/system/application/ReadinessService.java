@@ -2,7 +2,11 @@ package com.onlinejudge.system.application;
 
 import com.onlinejudge.shared.security.SchoolSecurityProperties;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthProperties;
-import com.onlinejudge.submission.application.PromptTemplateRegistry;
+import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
+import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.system.dto.AiSmokeResponse;
 import com.onlinejudge.system.dto.ExecutorStatusResponse;
 import com.onlinejudge.system.dto.ReadinessResponse;
@@ -22,6 +26,11 @@ public class ReadinessService {
     private final AiSmokeService aiSmokeService;
     private final SchoolSecurityProperties securityProperties;
     private final AiStandardLibraryGrowthProperties growthProperties;
+    private final ProblemRepository problemRepository;
+    private final InformaticsKnowledgeNodeRepository knowledgeNodeRepository;
+    private final AiStandardSkillUnitRepository skillUnitRepository;
+    private final AiStandardMistakePointRepository mistakePointRepository;
+    private final AiStandardImprovementPointRepository improvementPointRepository;
 
     @Value("${spring.datasource.url:}")
     private String datasourceUrl;
@@ -91,6 +100,8 @@ public class ReadinessService {
                 h2 ? "当前使用 H2 文件数据库，仅适合开发或极小范围试点。" : "当前未使用 H2，适合学校部署。",
                 "学校模式请使用 Postgres，并配置备份。"
         ));
+
+        checks.add(databaseContentCheck());
 
         checks.add(check(
                 "teacher-password",
@@ -196,6 +207,43 @@ public class ReadinessService {
         }
         boolean degraded = checks.stream().anyMatch(check -> !"PASS".equals(check.getStatus()));
         return degraded ? "DEGRADED" : "READY";
+    }
+
+    private ReadinessResponse.Check databaseContentCheck() {
+        try {
+            long problems = problemRepository.count();
+            long knowledgeNodes = knowledgeNodeRepository.countByEnabledTrue();
+            long skills = skillUnitRepository.countByEnabledTrue();
+            long mistakes = mistakePointRepository.countByEnabledTrue();
+            long improvements = improvementPointRepository.countByEnabledTrue();
+            boolean ready = problems > 0
+                    && knowledgeNodes > 0
+                    && skills > 0
+                    && mistakes > 0
+                    && improvements > 0;
+            return check(
+                    "database-content",
+                    "正式内容库",
+                    ready ? "PASS" : securityProperties.schoolProfile() ? "FAIL" : "WARN",
+                    securityProperties.schoolProfile() && !ready,
+                    ready
+                            ? "正式数据库已有题库、知识树和 AI 标准库内容。"
+                            : "正式数据库内容不完整：problems=%d, knowledgeNodes=%d, skills=%d, mistakes=%d, improvements=%d。"
+                            .formatted(problems, knowledgeNodes, skills, mistakes, improvements),
+                    ready
+                            ? "继续使用数据库作为正式内容主库。"
+                            : "先执行数据库内容迁移和验证，不要依赖运行时 seed 自动补齐。"
+            );
+        } catch (RuntimeException ex) {
+            return check(
+                    "database-content",
+                    "正式内容库",
+                    securityProperties.schoolProfile() ? "FAIL" : "WARN",
+                    securityProperties.schoolProfile(),
+                    "无法读取正式内容表：" + ex.getMessage(),
+                    "检查数据库连接、表结构迁移和内容迁移状态。"
+            );
+        }
     }
 
     private ReadinessResponse.Check check(String id,

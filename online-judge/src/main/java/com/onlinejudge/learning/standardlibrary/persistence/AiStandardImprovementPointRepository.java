@@ -11,6 +11,8 @@ public interface AiStandardImprovementPointRepository extends JpaRepository<AiSt
 
     Optional<AiStandardImprovementPoint> findByCode(String code);
 
+    long countByEnabledTrue();
+
     List<AiStandardImprovementPoint> findByEnabledTrueOrderByCategoryAscCodeAsc();
 
     List<AiStandardImprovementPoint> findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(

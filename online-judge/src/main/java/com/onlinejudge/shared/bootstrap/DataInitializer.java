@@ -9,6 +9,7 @@ import com.onlinejudge.problem.persistence.TestCaseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +19,7 @@ import java.util.List;
 @Order(1)
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(prefix = "app.content-seed", name = "enabled", havingValue = "true")
 public class DataInitializer implements CommandLineRunner {
 
     private final ProblemRepository problemRepository;
