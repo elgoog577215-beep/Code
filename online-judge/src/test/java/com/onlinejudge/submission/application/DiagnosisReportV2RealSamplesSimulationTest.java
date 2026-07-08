@@ -386,6 +386,10 @@ class DiagnosisReportV2RealSamplesSimulationTest {
             String failureReason = invocation == null
                     ? ""
                     : safe(invocation.getFailureStage()) + "/" + safe(invocation.getFailureReason());
+            String uncertainty = safe(analysis.getUncertainty());
+            if (!uncertainty.isBlank() && !"/".equals(failureReason)) {
+                failureReason = failureReason + " " + excerpt(uncertainty, 180);
+            }
             ReportEntry draft = new ReportEntry(
                     sample.title(),
                     latencyMs,

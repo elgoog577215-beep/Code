@@ -631,6 +631,9 @@ public class AiReportService {
                             runtimePlan.getBrief(),
                             selectedPack);
             if (!validation.isValid()) {
+                log.warn("External model standard library navigation failed validation. reason={}, message={}",
+                        validation.getFailureReason(),
+                        validation.getMessage());
                 return validation;
             }
             runtimePlan.setStandardLibraryNavigationOutput(navigationOutput);
