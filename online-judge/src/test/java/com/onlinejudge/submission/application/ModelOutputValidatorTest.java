@@ -27,6 +27,25 @@ class ModelOutputValidatorTest {
     }
 
     @Test
+    void acceptsCodeRangeEvidenceInStudentFeedback() {
+        Fixture fixture = largeFixture();
+        SubmissionAnalysisResponse.StudentFeedback feedback = validStudentFeedback(
+                "TESTING_HABIT",
+                "列出 range 产生的 i。"
+        );
+        feedback.getBlockingIssues().get(0).setEvidenceRefs(List.of("code:range:2-4"));
+        feedback.getNextLearningAction().setEvidenceRefs(List.of("code:line:3-5"));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validateStudentFeedback(
+                feedback,
+                fixture.brief(),
+                fixture.pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
     void rejectsInvalidStudentFeedbackImprovementCategory() {
         Fixture fixture = fixture();
 

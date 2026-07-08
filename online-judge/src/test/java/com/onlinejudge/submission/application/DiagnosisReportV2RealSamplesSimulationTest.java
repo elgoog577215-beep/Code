@@ -40,6 +40,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.stream-enabled=${AI_EVAL_STREAM_ENABLED:false}",
         "ai.structured-retry-enabled=${AI_EVAL_STRUCTURED_RETRY_ENABLED:true}",
         "ai.structured-retry-output-tokens=${AI_EVAL_STRUCTURED_RETRY_OUTPUT_TOKENS:2600}",
+        "ai.retry.max-attempts=${AI_EVAL_RETRY_MAX_ATTEMPTS:1}",
+        "ai.retry.backoff-ms=${AI_EVAL_RETRY_BACKOFF_MS:700}",
+        "ai.budget-guard.enabled=${AI_EVAL_BUDGET_GUARD_ENABLED:true}",
         "ai.standard-library-growth.enabled=false"
 })
 class DiagnosisReportV2RealSamplesSimulationTest {

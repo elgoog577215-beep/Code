@@ -35,6 +35,60 @@ class StandardLibraryNavigationOutputValidatorTest {
     }
 
     @Test
+    void acceptsCodeRangeAndNormalizesEvidenceAliases() {
+        StandardLibraryNavigationOutput output = StandardLibraryNavigationOutput.builder()
+                .status("DONE")
+                .selectedPaths(List.of(StandardLibraryNavigationOutput.SelectedPath.builder()
+                        .knowledgeNodeCode("DS.QUEUE.CIRCULAR.index_wrap")
+                        .skillUnitCode("SK_QUEUE_CIRCULAR_INDEX")
+                        .mistakePointCode("MP_QUEUE_REAR_WITHOUT_MOD")
+                        .libraryFit("HIT")
+                        .reason("证据显示队尾推进后没有回绕。")
+                        .evidenceRefs(List.of("code:line:3-5", "judge:first_failed_case:case1"))
+                        .confidence(0.86)
+                        .build()))
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(output, brief(), pack());
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getSelectedPaths()).singleElement()
+                .satisfies(path -> assertThat(path.getEvidenceRefs())
+                        .containsExactly("code:range:3-5", "judge:first_failed_case"));
+        assertThat(result.getSoftFixes())
+                .contains("evidenceRef alias code:line:3-5 -> code:range:3-5")
+                .contains("evidenceRef alias judge:first_failed_case:case1 -> judge:first_failed_case");
+    }
+
+    @Test
+    void ignoresStaleSelectedBranchesAfterDoneNavigation() {
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                StandardLibraryNavigationOutput.builder()
+                        .status("DONE")
+                        .selectedBranches(List.of(StandardLibraryNavigationOutput.SelectedBranch.builder()
+                                .knowledgeNodeCode("STALE.NOT_VISIBLE")
+                                .reason("上一轮残留分支，不参与最终锚定。")
+                                .evidenceRefs(List.of("code:line:18"))
+                                .confidence(0.7)
+                                .build()))
+                        .selectedPaths(List.of(StandardLibraryNavigationOutput.SelectedPath.builder()
+                                .knowledgeNodeCode("DS.QUEUE.CIRCULAR.index_wrap")
+                                .skillUnitCode("SK_QUEUE_CIRCULAR_INDEX")
+                                .mistakePointCode("MP_QUEUE_REAR_WITHOUT_MOD")
+                                .libraryFit("HIT")
+                                .reason("证据显示队尾推进后没有回绕。")
+                                .evidenceRefs(List.of("code:line:18"))
+                                .confidence(0.86)
+                                .build()))
+                        .unresolvedGaps(List.of())
+                        .build(),
+                brief(),
+                pack());
+
+        assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
     void rejectsUnknownStandardLibraryAnchor() {
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 StandardLibraryNavigationOutput.builder()
@@ -88,7 +142,8 @@ class StandardLibraryNavigationOutputValidatorTest {
     private ModelDiagnosisBrief brief() {
         return ModelDiagnosisBrief.builder()
                 .verdict("RUNTIME_ERROR")
-                .evidenceRefs(List.of("code:line:18", "judge:case:2"))
+                .sourceCodeLineCount(40)
+                .evidenceRefs(List.of("code:line:18", "judge:case:2", "judge:first_failed_case"))
                 .build();
     }
 

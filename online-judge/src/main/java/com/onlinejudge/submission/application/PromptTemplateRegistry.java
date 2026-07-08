@@ -113,6 +113,17 @@ public class PromptTemplateRegistry {
                     "roots": AiStandardLibraryNavigationNodeResponse[],
                     "expandedNode": AiStandardLibraryNavigationExpansionResponse|null,
                     "diagnosticLayer": AiStandardLibraryDiagnosticLayerResponse|null,
+                    "expandedNodes": AiStandardLibraryNavigationExpansionResponse[],
+                    "diagnosticLayers": AiStandardLibraryDiagnosticLayerResponse[],
+                    "visibleKnowledgeNodeCodes": string[],
+                    "visibleDiagnosticCodes": {
+                      "knowledgeNodeCodes": string[],
+                      "skillUnitCodes": string[],
+                      "mistakePointCodes": string[],
+                      "improvementPointCodes": string[]
+                    },
+                    "mustFinishNow": boolean,
+                    "navigationInstruction": string,
                     "maxRounds": number,
                     "maxBranchesPerRound": number,
                     "maxFinalAnchors": number
@@ -149,14 +160,16 @@ public class PromptTemplateRegistry {
                 }
 
                 Rules:
-                1. 每轮最多选择 maxBranchesPerRound 个 selectedBranches。
-                2. 只有 navigationView 中出现过的 code 才能被选择。
-                3. 如果已经看到知识点诊断层，优先返回 selectedPaths；如果还需要展开，返回 selectedBranches。
-                4. 找不到精确易错点时允许 PARTIAL 或 OUT_OF_LIBRARY，并填写 unresolvedGaps。
-                5. 每个选择都必须引用 brief.evidenceRefs。
-                6. 不要自己创造正式标准库 ID；库外内容只能进入 unresolvedGaps。
-                """;
-    }
+                1. 每轮最多选择 maxBranchesPerRound 个 selectedBranches；如果只需要一个主方向，就只选最主要的一个。
+                2. selectedBranches.knowledgeNodeCode 只能从 navigationView.visibleKnowledgeNodeCodes 中选择，不能使用你知道但当前视图没出现的 code。
+                3. 如果已经看到 diagnosticLayers，优先从 visibleDiagnosticCodes 中选择能力点、易错点或提升点，返回 DONE 和 selectedPaths。
+                4. selectedPaths 中的 skillUnitCode、mistakePointCode、improvementPointCode 只能使用 visibleDiagnosticCodes 中出现的 code；找不到精确易错点时允许 PARTIAL 或 OUT_OF_LIBRARY，并填写 unresolvedGaps。
+                5. 如果 navigationView.mustFinishNow 为 true，必须返回 DONE 或 NO_MATCH，不要返回 CONTINUE。
+                6. 如果 navigationView.repair 存在，上一轮有非法 code；本轮必须按 navigationInstruction 修正，不要重复非法 code。
+                7. 每个选择都必须引用 brief.evidenceRefs。
+                8. 不要自己创造正式标准库 ID；库外内容只能进入 unresolvedGaps。
+	                """;
+	    }
 
     private String diagnosisReportV3SystemPrompt() {
         return """
@@ -176,15 +189,61 @@ public class PromptTemplateRegistry {
                   "standardLibrary": StandardLibraryPack
                 }
 
-                Output schema: AdviceGenerationOutput，必须包含 studentReport、diagnosisDecision、diagnosisCandidates、teacherTrace 和 libraryGrowth。
+                Output schema:
+                {
+                  "studentReport": {
+                    "hintLevel": "L1"|"L2"|"L3"|"L4",
+                    "basicLayerText": string,
+                    "improvementLayerText": string,
+                    "nextActionText": string
+                  },
+                  "caseUnderstanding": {
+                    "problemGoal": string,
+                    "codeIntent": string,
+                    "behaviorGap": string,
+                    "primaryEvidenceRef": string
+                  },
+                  "diagnosisDecision": {
+                    "libraryFit": "HIT"|"PARTIAL"|"MISS"|"OUT_OF_LIBRARY",
+                    "anchors": [{
+                      "id": string|null,
+                      "type": "KNOWLEDGE_NODE"|"SKILL_UNIT"|"MISTAKE_POINT"|"IMPROVEMENT_POINT"|"OUT_OF_LIBRARY",
+                      "role": "PRIMARY"|"SECONDARY",
+                      "confidence": number,
+                      "evidenceRefs": string[],
+                      "reason": string
+                    }],
+                    "outOfLibraryFindings": [],
+                    "uncertainty": string
+                  },
+                  "diagnosisCandidates": [{
+                    "name": string,
+                    "layer": "BASIC"|"IMPROVEMENT",
+                    "libraryFit": "HIT"|"PARTIAL"|"MISS"|"OUT_OF_LIBRARY",
+                    "anchorId": string|null,
+                    "anchorType": "KNOWLEDGE_NODE"|"SKILL_UNIT"|"MISTAKE_POINT"|"IMPROVEMENT_POINT"|"OUT_OF_LIBRARY",
+                    "libraryPath": string[],
+                    "role": "PRIMARY"|"SECONDARY",
+                    "evidenceRefs": string[],
+                    "reason": string,
+                    "confidence": number
+                  }],
+                  "basicLayerAdvice": [],
+                  "improvementLayerAdvice": [],
+                  "nextStepPlan": [],
+                  "teacherTrace": {"reasoningSummary": string, "uncertainty": string, "qualityFlags": [], "softFixes": [], "hardFailures": []},
+                  "libraryGrowth": {"candidates": []},
+                  "studentSummary": string
+                }
 
                 Rules:
-                1. studentReport 只写基础层诊断、提高层诊断和下一步动作，不暴露“初步诊断”“导航轮次”等内部过程。
+                1. studentReport 必须是对象，不能是字符串；basicLayerText、improvementLayerText、nextActionText 必须分开写。
                 2. diagnosisDecision 和 diagnosisCandidates 必须优先使用 navigationResult 中被证据支持的标准库路径。
                 3. 如果 navigationResult 标记 OUT_OF_LIBRARY 或 unresolvedGaps，libraryGrowth.candidates 只能进入待审核候选，状态必须是 NEEDS_REVIEW。
                 4. standardLibrary 仍是教学参考规范包，不是强制答案表；最终判断以当前提交证据为准。
                 5. 不要给完整代码、替换表达式、最终答案、隐藏测试猜测或可复制改法。
-                6. 每个学生可见判断都要有证据引用；标准库命中状态只能使用 HIT、PARTIAL、MISS、OUT_OF_LIBRARY。
+                6. 每个学生可见判断都要有证据引用；标准库命中字段必须叫 libraryFit，不能叫 status。
+                7. caseUnderstanding.primaryEvidenceRef、anchors.evidenceRefs、diagnosisCandidates.evidenceRefs 必须使用 brief.evidenceRefs 或 code:line:N。
                 """;
     }
 

@@ -20,7 +20,9 @@ public class StandardLibraryNavigationOutputValidator {
         if (!List.of("CONTINUE", "DONE", "NO_MATCH").contains(status)) {
             return invalid(ModelStageFailureReason.INVALID_JSON, "navigation status is invalid.");
         }
-        Set<String> evidenceRefs = evidenceRefs(brief);
+        Set<String> evidenceRefs = EvidenceRefSupport.validEvidenceRefs(brief);
+        List<String> orderedEvidenceRefs = EvidenceRefSupport.orderedEvidenceRefs(brief);
+        List<String> softFixes = new java.util.ArrayList<>();
         Set<String> knowledgeIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getKnowledgeAnchors());
         Set<String> skillIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getSkillUnits());
         Set<String> mistakeIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getMistakePoints());
@@ -34,21 +36,25 @@ public class StandardLibraryNavigationOutputValidator {
             return invalid(ModelStageFailureReason.INVALID_JSON, "DONE navigation requires selectedPaths.");
         }
 
-        for (StandardLibraryNavigationOutput.SelectedBranch branch : safe(output.getSelectedBranches())) {
-            if (branch == null || blank(branch.getKnowledgeNodeCode())) {
-                return invalid(ModelStageFailureReason.INVALID_JSON, "selectedBranches contains incomplete item.");
-            }
-            if (!knowledgeIds.isEmpty() && !knowledgeIds.contains(id(branch.getKnowledgeNodeCode()))) {
-                return invalid(ModelStageFailureReason.INVALID_TAG,
-                        "selected branch knowledgeNodeCode is unknown: " + branch.getKnowledgeNodeCode());
-            }
-            String invalidEvidence = invalidEvidenceRefs(branch.getEvidenceRefs(), evidenceRefs,
-                    "selectedBranches.evidenceRefs");
-            if (!invalidEvidence.isBlank()) {
-                return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
-            }
-            if (invalidConfidence(branch.getConfidence())) {
-                return invalid(ModelStageFailureReason.INVALID_JSON, "selected branch confidence is invalid.");
+        if ("CONTINUE".equals(status)) {
+            for (StandardLibraryNavigationOutput.SelectedBranch branch : safe(output.getSelectedBranches())) {
+                if (branch == null || blank(branch.getKnowledgeNodeCode())) {
+                    return invalid(ModelStageFailureReason.INVALID_JSON, "selectedBranches contains incomplete item.");
+                }
+                if (!knowledgeIds.isEmpty() && !knowledgeIds.contains(id(branch.getKnowledgeNodeCode()))) {
+                    return invalid(ModelStageFailureReason.INVALID_TAG,
+                            "selected branch knowledgeNodeCode is unknown: " + branch.getKnowledgeNodeCode());
+                }
+                branch.setEvidenceRefs(EvidenceRefSupport.normalizeEvidenceRefs(branch.getEvidenceRefs(),
+                        evidenceRefs, orderedEvidenceRefs, brief, softFixes));
+                String invalidEvidence = EvidenceRefSupport.invalidEvidenceRefs(branch.getEvidenceRefs(), evidenceRefs,
+                        brief, "selectedBranches.evidenceRefs", true);
+                if (!invalidEvidence.isBlank()) {
+                    return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
+                }
+                if (invalidConfidence(branch.getConfidence())) {
+                    return invalid(ModelStageFailureReason.INVALID_JSON, "selected branch confidence is invalid.");
+                }
             }
         }
 
@@ -77,8 +83,10 @@ public class StandardLibraryNavigationOutputValidator {
                     && blank(path.getImprovementPointCode())) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "HIT selected path requires a standard library anchor.");
             }
-            String invalidEvidence = invalidEvidenceRefs(path.getEvidenceRefs(), evidenceRefs,
-                    "selectedPaths.evidenceRefs");
+            path.setEvidenceRefs(EvidenceRefSupport.normalizeEvidenceRefs(path.getEvidenceRefs(),
+                    evidenceRefs, orderedEvidenceRefs, brief, softFixes));
+            String invalidEvidence = EvidenceRefSupport.invalidEvidenceRefs(path.getEvidenceRefs(), evidenceRefs,
+                    brief, "selectedPaths.evidenceRefs", true);
             if (!invalidEvidence.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
             }
@@ -91,8 +99,10 @@ public class StandardLibraryNavigationOutputValidator {
             if (gap == null || blank(gap.getName()) || blank(gap.getReason())) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "unresolvedGaps contains incomplete item.");
             }
-            String invalidEvidence = invalidEvidenceRefs(gap.getEvidenceRefs(), evidenceRefs,
-                    "unresolvedGaps.evidenceRefs");
+            gap.setEvidenceRefs(EvidenceRefSupport.normalizeEvidenceRefs(gap.getEvidenceRefs(),
+                    evidenceRefs, orderedEvidenceRefs, brief, softFixes));
+            String invalidEvidence = EvidenceRefSupport.invalidEvidenceRefs(gap.getEvidenceRefs(), evidenceRefs,
+                    brief, "unresolvedGaps.evidenceRefs", true);
             if (!invalidEvidence.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
             }
@@ -105,7 +115,7 @@ public class StandardLibraryNavigationOutputValidator {
                 .stage("STANDARD_LIBRARY_NAVIGATION")
                 .failureReason(ModelStageFailureReason.NONE)
                 .message("")
-                .softFixes(List.of())
+                .softFixes(softFixes)
                 .hardFailures(List.of())
                 .build();
     }
@@ -113,31 +123,6 @@ public class StandardLibraryNavigationOutputValidator {
     private boolean knownOrBlank(String value, Set<String> allowedIds) {
         String normalized = id(value);
         return normalized.isBlank() || allowedIds.contains(normalized);
-    }
-
-    private Set<String> evidenceRefs(ModelDiagnosisBrief brief) {
-        LinkedHashSet<String> refs = new LinkedHashSet<>();
-        if (brief == null || brief.getEvidenceRefs() == null) {
-            return refs;
-        }
-        brief.getEvidenceRefs().forEach(ref -> {
-            if (ref != null && !ref.isBlank()) {
-                refs.add(ref.trim());
-            }
-        });
-        return refs;
-    }
-
-    private String invalidEvidenceRefs(List<String> refs, Set<String> allowedRefs, String field) {
-        if (refs == null || refs.isEmpty()) {
-            return field + " is empty.";
-        }
-        for (String ref : refs) {
-            if (ref == null || ref.isBlank() || !allowedRefs.contains(ref.trim())) {
-                return field + " contains invalid evidence ref: " + ref;
-            }
-        }
-        return "";
     }
 
     private Set<String> ids(List<?> values) {

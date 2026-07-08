@@ -67,18 +67,22 @@ public class ExternalModelOutputNormalizer {
         }
         Map<String, String> lookup = evidenceLookup(brief);
         return refs.stream()
-                .map(ref -> normalizeEvidenceRef(ref, lookup))
+                .map(ref -> normalizeEvidenceRef(ref, lookup, brief))
                 .filter(ref -> ref != null && !ref.isBlank())
                 .distinct()
                 .toList();
     }
 
-    private String normalizeEvidenceRef(String rawValue, Map<String, String> lookup) {
+    private String normalizeEvidenceRef(String rawValue, Map<String, String> lookup, ModelDiagnosisBrief brief) {
         if (rawValue == null || rawValue.isBlank()) {
             return rawValue;
         }
         String trimmed = rawValue.trim();
-        return lookup.getOrDefault(normalizeKey(trimmed), trimmed);
+        String exact = lookup.get(normalizeKey(trimmed));
+        if (exact != null) {
+            return exact;
+        }
+        return EvidenceRefSupport.normalizeEvidenceRef(trimmed, brief);
     }
 
     private Map<String, String> evidenceLookup(ModelDiagnosisBrief brief) {

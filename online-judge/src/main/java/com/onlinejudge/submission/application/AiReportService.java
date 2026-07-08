@@ -4,8 +4,13 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryDiagnosticLayerResponse;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationExpansionResponse;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
 import com.onlinejudge.problem.domain.Problem;
@@ -40,6 +45,8 @@ public class AiReportService {
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
     private static final String STUDENT_FAST_FEEDBACK_PROMPT_VERSION = "student-fast-feedback-v2";
     private static final Pattern RUNTIME_LINE_PATTERN = Pattern.compile("\\bline\\s+(\\d+)\\b");
+    private static final int STANDARD_LIBRARY_NAVIGATION_DEFAULT_MAX_ROUNDS = 6;
+    private static final int STANDARD_LIBRARY_NAVIGATION_MAX_BRANCHES = 3;
 
     private final ObjectMapper objectMapper;
     private final AiCodeAssistSupport aiCodeAssistSupport;
@@ -176,6 +183,9 @@ public class AiReportService {
 
     @Value("${ai.student-feedback.min-request-interval-ms:2000}")
     private long studentFeedbackMinRequestIntervalMs;
+
+    @Value("${ai.standard-library-navigation.max-rounds:6}")
+    private int standardLibraryNavigationMaxRounds = STANDARD_LIBRARY_NAVIGATION_DEFAULT_MAX_ROUNDS;
 
     private final Object studentFeedbackThrottle = new Object();
     private long lastStudentFeedbackRequestAtMs = 0L;
@@ -595,8 +605,16 @@ public class AiReportService {
                         "free diagnosis output is empty.");
             }
             runtimePlan.setFreeDiagnosisOutput(freeDiagnosis);
-            StandardLibraryNavigationOutput navigationOutput =
+            NavigationLoopResult navigationLoopResult =
                     callStandardLibraryNavigationLoop(runtimePlan, freeDiagnosis);
+            if (navigationLoopResult == null) {
+                return invalidStage("STANDARD_LIBRARY_NAVIGATION", ModelStageFailureReason.EMPTY_RESPONSE,
+                        "standard library navigation output is empty.");
+            }
+            if (navigationLoopResult.failure() != null) {
+                return navigationLoopResult.failure();
+            }
+            StandardLibraryNavigationOutput navigationOutput = navigationLoopResult.output();
             if (navigationOutput == null) {
                 return invalidStage("STANDARD_LIBRARY_NAVIGATION", ModelStageFailureReason.EMPTY_RESPONSE,
                         "standard library navigation output is empty.");
@@ -654,45 +672,92 @@ public class AiReportService {
         return retryStructuredModelStagePayload(systemPrompt, userPrompt, runtimePlan, FreeDiagnosisOutput.class);
     }
 
-    private StandardLibraryNavigationOutput callStandardLibraryNavigationLoop(
+    private NavigationLoopResult callStandardLibraryNavigationLoop(
             ExternalModelAgentRuntime.RuntimePlan runtimePlan,
             FreeDiagnosisOutput freeDiagnosis)
             throws JsonProcessingException, IOException, InterruptedException {
-        Object roots = standardLibraryService.listRootKnowledgeAreas();
-        Object expandedNode = null;
-        Object diagnosticLayer = null;
+        List<AiStandardLibraryNavigationNodeResponse> roots = safeNavigationNodes(standardLibraryService.listRootKnowledgeAreas());
+        List<AiStandardLibraryNavigationExpansionResponse> expandedNodes = List.of();
+        List<AiStandardLibraryDiagnosticLayerResponse> diagnosticLayers = List.of();
+        int maxRounds = navigationMaxRounds();
         StandardLibraryNavigationOutput latest = null;
-        for (int round = 1; round <= 3; round++) {
-            Map<String, Object> navigationView = new LinkedHashMap<>();
-            navigationView.put("round", round);
-            navigationView.put("roots", round == 1 ? roots : List.of());
-            navigationView.put("expandedNode", expandedNode);
-            navigationView.put("diagnosticLayer", diagnosticLayer);
-            navigationView.put("maxRounds", 3);
-            navigationView.put("maxBranchesPerRound", 3);
-            navigationView.put("maxFinalAnchors", 12);
+        for (int round = 1; round <= maxRounds; round++) {
+            List<AiStandardLibraryNavigationNodeResponse> visibleRoots = round == 1 ? roots : List.of();
+            Map<String, Object> navigationView = navigationView(
+                    round,
+                    maxRounds,
+                    visibleRoots,
+                    expandedNodes,
+                    diagnosticLayers,
+                    null
+            );
             latest = callStandardLibraryNavigationStage(runtimePlan, freeDiagnosis, navigationView);
             if (latest == null) {
-                return null;
+                return NavigationLoopResult.empty();
             }
             String status = defaultIfBlank(latest.getStatus(), "").trim().toUpperCase();
             if ("DONE".equals(status) || "NO_MATCH".equals(status)) {
-                return latest;
+                return NavigationLoopResult.success(latest);
             }
-            StandardLibraryNavigationOutput.SelectedBranch branch = firstNavigationBranch(latest);
-            if (branch == null || defaultIfBlank(branch.getKnowledgeNodeCode(), "").isBlank()) {
-                return latest;
+            if (!"CONTINUE".equals(status)) {
+                return NavigationLoopResult.success(latest);
             }
-            String code = branch.getKnowledgeNodeCode();
-            try {
-                diagnosticLayer = standardLibraryService.expandDiagnosticLayer(code);
-                expandedNode = null;
-            } catch (IllegalArgumentException exception) {
-                expandedNode = standardLibraryService.expandKnowledgeNode(code, 0, 50);
-                diagnosticLayer = null;
+            if (round >= maxRounds) {
+                return NavigationLoopResult.failure(invalidStage("STANDARD_LIBRARY_NAVIGATION",
+                        ModelStageFailureReason.INVALID_JSON,
+                        "AI_NAVIGATION_ROUND_LIMIT_REACHED"));
             }
+            List<StandardLibraryNavigationOutput.SelectedBranch> branches = selectedNavigationBranches(latest);
+            if (branches.isEmpty()) {
+                return NavigationLoopResult.failure(invalidStage("STANDARD_LIBRARY_NAVIGATION",
+                        ModelStageFailureReason.INVALID_JSON,
+                        "CONTINUE navigation requires selectedBranches."));
+            }
+            Set<String> visibleKnowledgeCodes = visibleKnowledgeNodeCodes(visibleRoots, expandedNodes);
+            List<String> invalidCodes = invalidSelectedBranchCodes(branches, visibleKnowledgeCodes);
+            if (!invalidCodes.isEmpty()) {
+                latest = repairInvalidNavigationBranches(
+                        runtimePlan,
+                        freeDiagnosis,
+                        navigationView,
+                        latest,
+                        invalidCodes);
+                if (latest == null) {
+                    return NavigationLoopResult.empty();
+                }
+                status = defaultIfBlank(latest.getStatus(), "").trim().toUpperCase();
+                if ("DONE".equals(status) || "NO_MATCH".equals(status)) {
+                    return NavigationLoopResult.success(latest);
+                }
+                if (!"CONTINUE".equals(status)) {
+                    return NavigationLoopResult.success(latest);
+                }
+                branches = selectedNavigationBranches(latest);
+                invalidCodes = invalidSelectedBranchCodes(branches, visibleKnowledgeCodes);
+                if (branches.isEmpty()) {
+                    return NavigationLoopResult.failure(invalidStage("STANDARD_LIBRARY_NAVIGATION",
+                            ModelStageFailureReason.INVALID_JSON,
+                            "CONTINUE navigation repair requires selectedBranches."));
+                }
+                if (!invalidCodes.isEmpty()) {
+                    return NavigationLoopResult.failure(invalidStage("STANDARD_LIBRARY_NAVIGATION",
+                            ModelStageFailureReason.INVALID_TAG,
+                            "selected branch knowledgeNodeCode is not visible in current navigation view: "
+                                    + String.join(", ", invalidCodes)));
+                }
+            }
+            NavigationExpansionBatch next = expandSelectedNavigationBranches(branches);
+            if (next.expandedNodes().isEmpty() && next.diagnosticLayers().isEmpty()) {
+                return NavigationLoopResult.failure(invalidStage("STANDARD_LIBRARY_NAVIGATION",
+                        ModelStageFailureReason.INVALID_TAG,
+                        "selected branches did not expand to knowledge nodes or diagnostic layers."));
+            }
+            expandedNodes = next.expandedNodes();
+            diagnosticLayers = next.diagnosticLayers();
         }
-        return latest;
+        return NavigationLoopResult.failure(invalidStage("STANDARD_LIBRARY_NAVIGATION",
+                ModelStageFailureReason.INVALID_JSON,
+                "AI_NAVIGATION_ROUND_LIMIT_REACHED"));
     }
 
     private StandardLibraryNavigationOutput callStandardLibraryNavigationStage(
@@ -715,6 +780,192 @@ public class AiReportService {
         }
         return retryStructuredModelStagePayload(systemPrompt, userPrompt, runtimePlan,
                 StandardLibraryNavigationOutput.class);
+    }
+
+    private Map<String, Object> navigationView(
+            int round,
+            int maxRounds,
+            List<AiStandardLibraryNavigationNodeResponse> roots,
+            List<AiStandardLibraryNavigationExpansionResponse> expandedNodes,
+            List<AiStandardLibraryDiagnosticLayerResponse> diagnosticLayers,
+            Map<String, Object> repair) {
+        Map<String, Object> navigationView = new LinkedHashMap<>();
+        boolean mustFinishNow = round >= maxRounds;
+        navigationView.put("round", round);
+        navigationView.put("roots", roots);
+        navigationView.put("expandedNode", firstOrNull(expandedNodes));
+        navigationView.put("diagnosticLayer", firstOrNull(diagnosticLayers));
+        navigationView.put("expandedNodes", expandedNodes);
+        navigationView.put("diagnosticLayers", diagnosticLayers);
+        navigationView.put("visibleKnowledgeNodeCodes", visibleKnowledgeNodeCodes(roots, expandedNodes));
+        navigationView.put("visibleDiagnosticCodes", visibleDiagnosticCodes(diagnosticLayers));
+        navigationView.put("mustFinishNow", mustFinishNow);
+        navigationView.put("navigationInstruction", mustFinishNow
+                ? "这是本次允许的最后一轮，必须返回 DONE 或 NO_MATCH，不要返回 CONTINUE。"
+                : "如果需要继续展开，只能从 visibleKnowledgeNodeCodes 中选择 selectedBranches；如果已经看到 diagnosticLayers，优先返回 DONE 和 selectedPaths。");
+        navigationView.put("maxRounds", maxRounds);
+        navigationView.put("maxBranchesPerRound", STANDARD_LIBRARY_NAVIGATION_MAX_BRANCHES);
+        navigationView.put("maxFinalAnchors", 12);
+        if (repair != null && !repair.isEmpty()) {
+            navigationView.put("repair", repair);
+        }
+        return navigationView;
+    }
+
+    private StandardLibraryNavigationOutput repairInvalidNavigationBranches(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            FreeDiagnosisOutput freeDiagnosis,
+            Map<String, Object> previousNavigationView,
+            StandardLibraryNavigationOutput invalidOutput,
+            List<String> invalidCodes)
+            throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> repair = new LinkedHashMap<>();
+        repair.put("reason", "INVALID_BRANCH_CODE");
+        repair.put("invalidKnowledgeNodeCodes", invalidCodes);
+        repair.put("previousOutput", invalidOutput);
+        repair.put("instruction", "上一轮 selectedBranches 引用了当前视图未出现的知识节点 code。请只从 visibleKnowledgeNodeCodes 中重选，或返回 NO_MATCH。");
+        Map<String, Object> repairedView = new LinkedHashMap<>(previousNavigationView);
+        repairedView.put("repair", repair);
+        repairedView.put("navigationInstruction",
+                "修正上一轮非法分支：只能从 visibleKnowledgeNodeCodes 中选择 selectedBranches；如果没有合适分支，返回 NO_MATCH。");
+        return callStandardLibraryNavigationStage(runtimePlan, freeDiagnosis, repairedView);
+    }
+
+    private NavigationExpansionBatch expandSelectedNavigationBranches(
+            List<StandardLibraryNavigationOutput.SelectedBranch> branches) {
+        List<AiStandardLibraryNavigationExpansionResponse> expandedNodes = new ArrayList<>();
+        List<AiStandardLibraryDiagnosticLayerResponse> diagnosticLayers = new ArrayList<>();
+        for (StandardLibraryNavigationOutput.SelectedBranch branch : branches) {
+            String code = defaultIfBlank(branch.getKnowledgeNodeCode(), "").trim();
+            if (code.isBlank()) {
+                continue;
+            }
+            try {
+                diagnosticLayers.add(standardLibraryService.expandDiagnosticLayer(code));
+            } catch (IllegalArgumentException exception) {
+                try {
+                    expandedNodes.add(standardLibraryService.expandKnowledgeNode(code, 0, 50));
+                } catch (IllegalArgumentException nested) {
+                    throw new IllegalArgumentException("selected branch cannot be expanded: " + code, nested);
+                }
+            }
+        }
+        return new NavigationExpansionBatch(expandedNodes, diagnosticLayers);
+    }
+
+    private List<StandardLibraryNavigationOutput.SelectedBranch> selectedNavigationBranches(
+            StandardLibraryNavigationOutput output) {
+        if (output == null || output.getSelectedBranches() == null) {
+            return List.of();
+        }
+        LinkedHashMap<String, StandardLibraryNavigationOutput.SelectedBranch> branches = new LinkedHashMap<>();
+        for (StandardLibraryNavigationOutput.SelectedBranch branch : output.getSelectedBranches()) {
+            if (branch == null || defaultIfBlank(branch.getKnowledgeNodeCode(), "").isBlank()) {
+                continue;
+            }
+            String code = branch.getKnowledgeNodeCode().trim();
+            branches.putIfAbsent(code, branch);
+            if (branches.size() >= STANDARD_LIBRARY_NAVIGATION_MAX_BRANCHES) {
+                break;
+            }
+        }
+        return branches.values().stream().toList();
+    }
+
+    private List<String> invalidSelectedBranchCodes(
+            List<StandardLibraryNavigationOutput.SelectedBranch> branches,
+            Set<String> visibleKnowledgeCodes) {
+        if (branches == null || branches.isEmpty()) {
+            return List.of();
+        }
+        Set<String> visible = visibleKnowledgeCodes == null ? Set.of() : visibleKnowledgeCodes;
+        return branches.stream()
+                .map(StandardLibraryNavigationOutput.SelectedBranch::getKnowledgeNodeCode)
+                .map(code -> defaultIfBlank(code, "").trim())
+                .filter(code -> !code.isBlank())
+                .filter(code -> !visible.contains(code))
+                .distinct()
+                .toList();
+    }
+
+    private Set<String> visibleKnowledgeNodeCodes(
+            List<AiStandardLibraryNavigationNodeResponse> roots,
+            List<AiStandardLibraryNavigationExpansionResponse> expandedNodes) {
+        LinkedHashSet<String> codes = new LinkedHashSet<>();
+        safeNavigationNodes(roots).forEach(node -> addNavigationNodeCode(codes, node));
+        safeNavigationExpansions(expandedNodes).forEach(expansion ->
+                safeNavigationNodes(expansion.getChildren()).forEach(node -> addNavigationNodeCode(codes, node)));
+        return codes;
+    }
+
+    private Map<String, Object> visibleDiagnosticCodes(
+            List<AiStandardLibraryDiagnosticLayerResponse> diagnosticLayers) {
+        LinkedHashSet<String> knowledgeNodeCodes = new LinkedHashSet<>();
+        LinkedHashSet<String> skillUnitCodes = new LinkedHashSet<>();
+        LinkedHashSet<String> mistakePointCodes = new LinkedHashSet<>();
+        LinkedHashSet<String> improvementPointCodes = new LinkedHashSet<>();
+        for (AiStandardLibraryDiagnosticLayerResponse layer : safeDiagnosticLayers(diagnosticLayers)) {
+            addNavigationNodeCode(knowledgeNodeCodes, layer.getKnowledgePoint());
+            for (AiStandardLibraryDiagnosticLayerResponse.SkillUnit skill : safeList(layer.getSkillUnits())) {
+                addIfNotBlank(skillUnitCodes, skill.getCode());
+                for (AiStandardLibraryDiagnosticLayerResponse.MistakePoint mistake : safeList(skill.getMistakePoints())) {
+                    addIfNotBlank(mistakePointCodes, mistake.getCode());
+                }
+                for (AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint improvement : safeList(skill.getImprovementPoints())) {
+                    addIfNotBlank(improvementPointCodes, improvement.getCode());
+                }
+            }
+            for (AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint improvement :
+                    safeList(layer.getDirectImprovementPoints())) {
+                addIfNotBlank(improvementPointCodes, improvement.getCode());
+            }
+        }
+        Map<String, Object> codes = new LinkedHashMap<>();
+        codes.put("knowledgeNodeCodes", knowledgeNodeCodes.stream().toList());
+        codes.put("skillUnitCodes", skillUnitCodes.stream().toList());
+        codes.put("mistakePointCodes", mistakePointCodes.stream().toList());
+        codes.put("improvementPointCodes", improvementPointCodes.stream().toList());
+        return codes;
+    }
+
+    private int navigationMaxRounds() {
+        return Math.max(3, Math.min(Math.max(standardLibraryNavigationMaxRounds, 0), 10));
+    }
+
+    private <T> T firstOrNull(List<T> values) {
+        return values == null || values.isEmpty() ? null : values.get(0);
+    }
+
+    private List<AiStandardLibraryNavigationNodeResponse> safeNavigationNodes(
+            List<AiStandardLibraryNavigationNodeResponse> values) {
+        return values == null ? List.of() : values;
+    }
+
+    private List<AiStandardLibraryNavigationExpansionResponse> safeNavigationExpansions(
+            List<AiStandardLibraryNavigationExpansionResponse> values) {
+        return values == null ? List.of() : values;
+    }
+
+    private List<AiStandardLibraryDiagnosticLayerResponse> safeDiagnosticLayers(
+            List<AiStandardLibraryDiagnosticLayerResponse> values) {
+        return values == null ? List.of() : values;
+    }
+
+    private <T> List<T> safeList(List<T> values) {
+        return values == null ? List.of() : values;
+    }
+
+    private void addNavigationNodeCode(Set<String> codes, AiStandardLibraryNavigationNodeResponse node) {
+        if (node != null) {
+            addIfNotBlank(codes, node.getCode());
+        }
+    }
+
+    private void addIfNotBlank(Set<String> values, String value) {
+        String normalized = defaultIfBlank(value, "").trim();
+        if (!normalized.isBlank()) {
+            values.add(normalized);
+        }
     }
 
     private StandardLibraryNavigationOutput.SelectedBranch firstNavigationBranch(
@@ -1892,12 +2143,21 @@ public class AiReportService {
         try {
             return objectMapper.readValue(normalized, payloadType);
         } catch (JsonProcessingException firstError) {
+            T repairedOutput = parseRepairedModelStagePayload(normalized, payloadType);
+            if (repairedOutput != null) {
+                return repairedOutput;
+            }
             int start = normalized.indexOf('{');
             int end = normalized.lastIndexOf('}');
             if (start >= 0 && end > start) {
+                String objectPayload = normalized.substring(start, end + 1);
                 try {
-                    return objectMapper.readValue(normalized.substring(start, end + 1), payloadType);
+                    return objectMapper.readValue(objectPayload, payloadType);
                 } catch (JsonProcessingException ignored) {
+                    repairedOutput = parseRepairedModelStagePayload(objectPayload, payloadType);
+                    if (repairedOutput != null) {
+                        return repairedOutput;
+                    }
                     log.warn("AI payload parsing failed. type={}, error={}, contentPreview={}",
                             payloadType.getSimpleName(),
                             ignored.getMessage(),
@@ -1906,6 +2166,217 @@ public class AiReportService {
             }
             return null;
         }
+    }
+
+    private <T> T parseRepairedModelStagePayload(String rawJson, Class<T> payloadType) {
+        if (payloadType != AdviceGenerationOutput.class || rawJson == null || rawJson.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(rawJson);
+            if (!(root instanceof ObjectNode objectNode)) {
+                return null;
+            }
+            boolean changed = repairAdviceGenerationObjectNode(objectNode);
+            if (!changed) {
+                return null;
+            }
+            return objectMapper.treeToValue(objectNode, payloadType);
+        } catch (JsonProcessingException exception) {
+            log.warn("AI advice payload repair failed. error={}, contentPreview={}",
+                    exception.getMessage(),
+                    previewBody(rawJson));
+            return null;
+        }
+    }
+
+    private boolean repairAdviceGenerationObjectNode(ObjectNode root) {
+        boolean changed = false;
+        changed |= repairAdviceStudentReport(root);
+        changed |= repairAdviceDiagnosisDecision(root);
+        changed |= repairAdviceDiagnosisCandidates(root);
+        changed |= repairAdviceLibraryGrowth(root);
+        return changed;
+    }
+
+    private boolean repairAdviceStudentReport(ObjectNode root) {
+        JsonNode studentReport = root.get("studentReport");
+        if (studentReport == null || !studentReport.isTextual()) {
+            return false;
+        }
+        String reportText = cleanupAiText(studentReport.asText());
+        if (reportText.isBlank()) {
+            return false;
+        }
+        ObjectNode repaired = objectMapper.createObjectNode();
+        repaired.put("hintLevel", "L3");
+        repaired.put("basicLayerText", stripInlineNextAction(reportText));
+        repaired.put("improvementLayerText", "");
+        repaired.put("nextActionText", extractInlineNextAction(reportText));
+        root.set("studentReport", repaired);
+        if (!root.hasNonNull("studentSummary")) {
+            root.put("studentSummary", stripInlineNextAction(reportText));
+        }
+        return true;
+    }
+
+    private boolean repairAdviceDiagnosisDecision(ObjectNode root) {
+        JsonNode decisionNode = root.get("diagnosisDecision");
+        if (!(decisionNode instanceof ObjectNode decision)) {
+            return false;
+        }
+        boolean changed = false;
+        if (!decision.hasNonNull("libraryFit") && decision.hasNonNull("status")) {
+            decision.set("libraryFit", decision.get("status"));
+            changed = true;
+        }
+        if (!decision.has("anchors") && (decision.has("id") || decision.has("evidenceRefs") || decision.has("status"))) {
+            ArrayNode anchors = objectMapper.createArrayNode();
+            ObjectNode anchor = objectMapper.createObjectNode();
+            if (decision.hasNonNull("id") && !decision.get("id").isNull()) {
+                anchor.set("id", decision.get("id"));
+            }
+            String fit = decision.hasNonNull("libraryFit") ? decision.get("libraryFit").asText("") : "";
+            anchor.put("type", "OUT_OF_LIBRARY".equalsIgnoreCase(fit) ? "OUT_OF_LIBRARY" : "KNOWLEDGE_NODE");
+            anchor.put("role", "PRIMARY");
+            if (decision.hasNonNull("confidence")) {
+                anchor.set("confidence", decision.get("confidence"));
+            } else {
+                anchor.put("confidence", 0.75);
+            }
+            if (decision.has("evidenceRefs")) {
+                anchor.set("evidenceRefs", ensureTextArray(decision.get("evidenceRefs")));
+            }
+            anchor.put("reason", decision.path("reason").asText("模型给出的诊断决策。"));
+            anchors.add(anchor);
+            decision.set("anchors", anchors);
+            changed = true;
+        }
+        if (decision.has("libraryPath") && decision.get("libraryPath").isTextual()) {
+            ArrayNode path = objectMapper.createArrayNode();
+            path.add(decision.get("libraryPath").asText());
+            decision.set("libraryPath", path);
+            changed = true;
+        }
+        if (decision.has("id") || decision.has("status") || decision.has("evidenceRefs")
+                || decision.has("confidence") || decision.has("reason") || decision.has("libraryPath")) {
+            decision.remove(List.of("id", "status", "evidenceRefs", "confidence", "reason", "libraryPath"));
+            changed = true;
+        }
+        return changed;
+    }
+
+    private boolean repairAdviceDiagnosisCandidates(ObjectNode root) {
+        JsonNode candidatesNode = root.get("diagnosisCandidates");
+        if (candidatesNode == null || !candidatesNode.isArray()) {
+            return false;
+        }
+        boolean changed = false;
+        for (JsonNode node : candidatesNode) {
+            if (!(node instanceof ObjectNode candidate)) {
+                continue;
+            }
+            if (!candidate.hasNonNull("libraryFit") && candidate.hasNonNull("status")) {
+                candidate.set("libraryFit", candidate.get("status"));
+                changed = true;
+            }
+            if (!candidate.hasNonNull("anchorId") && candidate.hasNonNull("id")) {
+                candidate.set("anchorId", candidate.get("id"));
+                changed = true;
+            }
+            if (!candidate.hasNonNull("anchorType")) {
+                String fit = candidate.path("libraryFit").asText("");
+                candidate.put("anchorType", "OUT_OF_LIBRARY".equalsIgnoreCase(fit) ? "OUT_OF_LIBRARY" : "KNOWLEDGE_NODE");
+                changed = true;
+            }
+            if (candidate.has("libraryPath") && candidate.get("libraryPath").isTextual()) {
+                ArrayNode path = objectMapper.createArrayNode();
+                path.add(candidate.get("libraryPath").asText());
+                candidate.set("libraryPath", path);
+                changed = true;
+            }
+            if (candidate.has("id") || candidate.has("status")) {
+                candidate.remove(List.of("id", "status"));
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private boolean repairAdviceLibraryGrowth(ObjectNode root) {
+        JsonNode growthNode = root.get("libraryGrowth");
+        if (!(growthNode instanceof ObjectNode growth)) {
+            return false;
+        }
+        JsonNode candidatesNode = growth.get("candidates");
+        if (candidatesNode == null || !candidatesNode.isArray()) {
+            return false;
+        }
+        boolean changed = false;
+        for (JsonNode node : candidatesNode) {
+            if (!(node instanceof ObjectNode candidate)) {
+                continue;
+            }
+            if (candidate.has("suggestedPath") && candidate.get("suggestedPath").isTextual()) {
+                ArrayNode path = objectMapper.createArrayNode();
+                path.add(candidate.get("suggestedPath").asText());
+                candidate.set("suggestedPath", path);
+                changed = true;
+            }
+            if (!candidate.hasNonNull("status")) {
+                candidate.put("status", "NEEDS_REVIEW");
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private ArrayNode ensureTextArray(JsonNode node) {
+        ArrayNode array = objectMapper.createArrayNode();
+        if (node == null || node.isNull()) {
+            return array;
+        }
+        if (node.isArray()) {
+            node.forEach(array::add);
+            return array;
+        }
+        if (node.isTextual() && !node.asText().isBlank()) {
+            array.add(node.asText());
+        }
+        return array;
+    }
+
+    private String stripInlineNextAction(String text) {
+        String normalized = cleanupAiText(text);
+        int index = inlineNextActionIndex(normalized);
+        if (index < 0) {
+            return normalized;
+        }
+        return normalized.substring(0, index).trim();
+    }
+
+    private String extractInlineNextAction(String text) {
+        String normalized = cleanupAiText(text);
+        int index = inlineNextActionIndex(normalized);
+        if (index < 0) {
+            return "先复核模型指出的证据。";
+        }
+        String action = normalized.substring(index)
+                .replaceFirst("^下一步(?:动作|建议|行动)?[：:]?", "")
+                .trim();
+        return action.isBlank() ? "先复核模型指出的证据。" : action;
+    }
+
+    private int inlineNextActionIndex(String text) {
+        String normalized = cleanupAiText(text);
+        int best = -1;
+        for (String marker : List.of("下一步动作", "下一步建议", "下一步行动", "下一步")) {
+            int index = normalized.indexOf(marker);
+            if (index >= 0 && (best < 0 || index < best)) {
+                best = index;
+            }
+        }
+        return best;
     }
 
     private String previewBody(String body) {
@@ -3186,6 +3657,26 @@ public class AiReportService {
             return normalized;
         }
         return "LOW";
+    }
+
+    private record NavigationLoopResult(StandardLibraryNavigationOutput output,
+                                        ExternalModelStagePayloads.StageValidationResult failure) {
+        static NavigationLoopResult success(StandardLibraryNavigationOutput output) {
+            return new NavigationLoopResult(output, null);
+        }
+
+        static NavigationLoopResult failure(ExternalModelStagePayloads.StageValidationResult failure) {
+            return new NavigationLoopResult(null, failure);
+        }
+
+        static NavigationLoopResult empty() {
+            return new NavigationLoopResult(null, null);
+        }
+    }
+
+    private record NavigationExpansionBatch(
+            List<AiStandardLibraryNavigationExpansionResponse> expandedNodes,
+            List<AiStandardLibraryDiagnosticLayerResponse> diagnosticLayers) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

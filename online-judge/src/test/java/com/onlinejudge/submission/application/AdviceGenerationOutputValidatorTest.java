@@ -121,6 +121,29 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
+    void acceptsDiagnosisReportV2CodeRangeAndEvidenceAliases() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("HIT",
+                "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                "MISTAKE_POINT");
+        output.getDiagnosisDecision().getAnchors().get(0)
+                .setEvidenceRefs(List.of("code:line:3-5", "judge:first_failed_case:case1"));
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getDiagnosisDecision().getAnchors()).singleElement()
+                .satisfies(anchor -> assertThat(anchor.getEvidenceRefs())
+                        .containsExactly("code:range:3-5", "judge:first_failed_case"));
+        assertThat(result.getSoftFixes())
+                .contains("evidenceRef alias code:line:3-5 -> code:range:3-5")
+                .contains("evidenceRef alias judge:first_failed_case:case1 -> judge:first_failed_case");
+    }
+
+    @Test
     void softDowngradesDiagnosisReportV2HitWithoutKnownAnchorId() {
         AdviceGenerationOutput output = validDiagnosisReportV2("HIT", null, "OUT_OF_LIBRARY");
 
@@ -1001,6 +1024,7 @@ class AdviceGenerationOutputValidatorTest {
         return ModelDiagnosisBrief.builder()
                 .schemaVersion(ModelDiagnosisBrief.SCHEMA_VERSION)
                 .verdict(verdict)
+                .sourceCodeLineCount(20)
                 .visibleCaseFacts(List.of(ModelDiagnosisBrief.VisibleCaseFact.builder()
                         .testCaseNumber(1)
                         .hidden(false)

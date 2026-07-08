@@ -6,6 +6,8 @@ import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySer
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryDiagnosticLayerResponse;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationExpansionResponse;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
 import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
 import com.onlinejudge.problem.domain.Problem;
@@ -58,6 +60,100 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getBasicLayerAdvice()).hasSize(1);
         assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getTitle())
                 .contains("循环右边界");
+    }
+
+    @Test
+    void navigationLoopReachesDiagnosticLayerAcrossFullKnowledgeTreeDepth() {
+        AiStandardLibraryService libraryService = deepNavigationLibraryService();
+        StubAiReportService service = newServiceWithNavigationSequence(
+                libraryService,
+                List.of(
+                        navigationContinueResponse("BASIC"),
+                        navigationContinueResponse("BASIC.LOOP"),
+                        navigationContinueResponse("BASIC.LOOP.BOUNDARY"),
+                        navigationContinueResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"),
+                        navigationDoneForKnowledgePointResponse()
+                ),
+                validAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(7);
+        assertThat(service.userPrompt(4))
+                .contains("\"visibleKnowledgeNodeCodes\"")
+                .contains("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")
+                .contains("\"maxRounds\":6");
+        assertThat(service.userPrompt(5))
+                .contains("\"diagnosticLayers\"")
+                .contains("\"visibleDiagnosticCodes\"")
+                .contains("SK_RANGE_BOUNDARY")
+                .contains("MP_RANGE_RIGHT_ENDPOINT_MISSING");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("AI_NAVIGATION");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationSelectedCount()).isGreaterThan(0);
+    }
+
+    @Test
+    void invalidNavigationBranchGetsOneRepairAttemptBeforeContinuing() {
+        AiStandardLibraryService libraryService = deepNavigationLibraryService();
+        StubAiReportService service = newServiceWithNavigationSequence(
+                libraryService,
+                List.of(
+                        navigationContinueResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"),
+                        navigationContinueResponse("BASIC"),
+                        navigationDoneResponse()
+                ),
+                validAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(5);
+        assertThat(service.userPrompt(2))
+                .contains("\"repair\"")
+                .contains("INVALID_BRANCH_CODE")
+                .contains("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")
+                .contains("visibleKnowledgeNodeCodes");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("AI_NAVIGATION");
+    }
+
+    @Test
+    void invalidNavigationBranchFailsClosedWhenRepairRepeatsIllegalCode() {
+        AiStandardLibraryService libraryService = deepNavigationLibraryService();
+        StubAiReportService service = newServiceWithNavigationSequence(
+                libraryService,
+                List.of(
+                        navigationContinueResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"),
+                        navigationContinueResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")
+                ),
+                validAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("STANDARD_LIBRARY_NAVIGATION");
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INVALID_TAG");
+        assertThat(analysis.getBasicLayerAdvice()).isEmpty();
+        assertThat(analysis.getUncertainty()).contains("未使用本地规则兜底");
     }
 
     @Test
@@ -125,6 +221,26 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getReportMarkdown())
                 .contains("### 基础层", "### 基础层明细", "循环右边界漏取", "失败样例对照不足")
                 .contains("### 提高层明细", "补充边界样例意识", "保留手推记录");
+    }
+
+    @Test
+    void repairsLiveAdviceShapeWhenStudentReportIsReturnedAsString() {
+        StubAiReportService service = newService(liveAdviceResponseWithStringStudentReport());
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getStudentFeedback().getSummary()).contains("循环范围");
+        assertThat(analysis.getStudentFeedback().getNextLearningAction().getTask()).contains("手推");
+        assertThat(analysis.getStudentFeedback().getNextLearningAction().getEvidenceRefs())
+                .contains("code:line:3");
+        assertThat(analysis.getAiInvocation().getDiagnosisSoftFixes())
+                .anySatisfy(item -> assertThat(item).contains("diagnosisDecision.libraryFit normalized"));
     }
 
     @Test
@@ -325,6 +441,27 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         return service;
     }
 
+    private StubAiReportService newServiceWithNavigationSequence(AiStandardLibraryService libraryService,
+                                                                 List<String> navigationResponses,
+                                                                 String... adviceResponses) {
+        InformaticsKnowledgeNodeRepository knowledgeRepository = knowledgeRepository();
+        StubAiReportService service = new StubAiReportService(
+                objectMapper,
+                runtime(),
+                libraryService,
+                new StandardLibraryNavigationPackBuilder(libraryService, knowledgeRepository),
+                null,
+                withNavigationSequence(navigationResponses, adviceResponses)
+        );
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalRuntimeProfile", ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 1200);
+        return service;
+    }
+
     private StubAiReportService newServiceWithNavigationResponse(String navigationResponse, String... responses) {
         AiStandardLibraryService libraryService = standardLibraryService();
         InformaticsKnowledgeNodeRepository knowledgeRepository = knowledgeRepository();
@@ -350,9 +487,13 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     private String[] withNavigationResponse(String navigationResponse, String... adviceResponses) {
+        return withNavigationSequence(List.of(navigationResponse), adviceResponses);
+    }
+
+    private String[] withNavigationSequence(List<String> navigationResponses, String... adviceResponses) {
         List<String> responses = new ArrayList<>();
         responses.add(freeDiagnosisResponse());
-        responses.add(navigationResponse);
+        responses.addAll(navigationResponses);
         responses.addAll(List.of(adviceResponses));
         return responses.toArray(String[]::new);
     }
@@ -375,9 +516,103 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         return libraryService;
     }
 
+    private AiStandardLibraryService deepNavigationLibraryService() {
+        AiStandardLibraryService libraryService = standardLibraryService();
+        when(libraryService.expandDiagnosticLayer("BASIC"))
+                .thenThrow(new IllegalArgumentException("not a knowledge point"));
+        when(libraryService.expandDiagnosticLayer("BASIC.LOOP"))
+                .thenThrow(new IllegalArgumentException("not a knowledge point"));
+        when(libraryService.expandDiagnosticLayer("BASIC.LOOP.BOUNDARY"))
+                .thenThrow(new IllegalArgumentException("not a knowledge point"));
+        when(libraryService.expandDiagnosticLayer("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"))
+                .thenReturn(diagnosticLayer());
+        when(libraryService.expandKnowledgeNode("BASIC", 0, 50))
+                .thenReturn(expansion(
+                        node("BASIC", null, "DOMAIN", "基础语法", "基础语法", true, false),
+                        List.of(node("BASIC.LOOP", "BASIC", "CHAPTER", "循环结构", "基础语法 / 循环结构", true, false))));
+        when(libraryService.expandKnowledgeNode("BASIC.LOOP", 0, 50))
+                .thenReturn(expansion(
+                        node("BASIC.LOOP", "BASIC", "CHAPTER", "循环结构", "基础语法 / 循环结构", true, false),
+                        List.of(node("BASIC.LOOP.BOUNDARY", "BASIC.LOOP", "TOPIC", "循环边界", "基础语法 / 循环结构 / 循环边界", true, false))));
+        when(libraryService.expandKnowledgeNode("BASIC.LOOP.BOUNDARY", 0, 50))
+                .thenReturn(expansion(
+                        node("BASIC.LOOP.BOUNDARY", "BASIC.LOOP", "TOPIC", "循环边界", "基础语法 / 循环结构 / 循环边界", true, false),
+                        List.of(node("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL", "BASIC.LOOP.BOUNDARY", "KNOWLEDGE_POINT",
+                                "闭区间循环边界", "基础语法 / 循环结构 / 循环边界 / 闭区间循环边界", false, true))));
+        return libraryService;
+    }
+
+    private AiStandardLibraryNavigationExpansionResponse expansion(
+            AiStandardLibraryNavigationNodeResponse node,
+            List<AiStandardLibraryNavigationNodeResponse> children) {
+        return AiStandardLibraryNavigationExpansionResponse.builder()
+                .node(node)
+                .ancestors(List.of())
+                .children(children)
+                .childPage(0)
+                .childSize(50)
+                .childTotal(children.size())
+                .childHasMore(false)
+                .build();
+    }
+
+    private AiStandardLibraryDiagnosticLayerResponse diagnosticLayer() {
+        return AiStandardLibraryDiagnosticLayerResponse.builder()
+                .knowledgePoint(node("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL", "BASIC.LOOP.BOUNDARY", "KNOWLEDGE_POINT",
+                        "闭区间循环边界", "基础语法 / 循环结构 / 循环边界 / 闭区间循环边界", false, true))
+                .skillUnits(List.of(AiStandardLibraryDiagnosticLayerResponse.SkillUnit.builder()
+                        .code("SK_RANGE_BOUNDARY")
+                        .category("循环边界")
+                        .name("闭区间与 range 边界对应")
+                        .description("能把题目闭区间要求转成实际循环范围。")
+                        .primaryKnowledgeNodeCode("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")
+                        .knowledgeNodeCodes(List.of("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"))
+                        .mistakePoints(List.of(AiStandardLibraryDiagnosticLayerResponse.MistakePoint.builder()
+                                .code("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                                .category("循环边界")
+                                .name("右端点漏取")
+                                .description("使用不含右端点的循环范围表达闭区间。")
+                                .skillUnitCode("SK_RANGE_BOUNDARY")
+                                .primaryKnowledgeNodeCode("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")
+                                .knowledgeNodeCodes(List.of("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"))
+                                .build()))
+                        .improvementPoints(List.of(AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint.builder()
+                                .code("TESTING_HABIT")
+                                .category("自测")
+                                .name("补充边界样例意识")
+                                .description("用最小值和端点样例检查边界。")
+                                .skillUnitCode("SK_RANGE_BOUNDARY")
+                                .primaryKnowledgeNodeCode("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")
+                                .knowledgeNodeCodes(List.of("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"))
+                                .build()))
+                        .build()))
+                .directImprovementPoints(List.of())
+                .build();
+    }
+
+    private AiStandardLibraryNavigationNodeResponse node(String code,
+                                                         String parentCode,
+                                                         String type,
+                                                         String name,
+                                                         String path,
+                                                         boolean hasChildren,
+                                                         boolean hasDiagnosticLayer) {
+        return AiStandardLibraryNavigationNodeResponse.builder()
+                .code(code)
+                .parentCode(parentCode)
+                .type(type)
+                .name(name)
+                .path(path)
+                .aliases(List.of())
+                .hasChildren(hasChildren)
+                .hasDiagnosticLayer(hasDiagnosticLayer)
+                .build();
+    }
+
     private InformaticsKnowledgeNodeRepository knowledgeRepository() {
         InformaticsKnowledgeNodeRepository repository = mock(InformaticsKnowledgeNodeRepository.class);
         when(repository.findByCode("BASIC.LOOP.BOUNDARY")).thenReturn(Optional.empty());
+        when(repository.findByCode("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")).thenReturn(Optional.empty());
         return repository;
     }
 
@@ -579,6 +814,44 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 """;
     }
 
+    private String navigationDoneForKnowledgePointResponse() {
+        return """
+                {
+                  "status": "DONE",
+                  "selectedBranches": [],
+                  "selectedPaths": [{
+                    "knowledgeNodeCode": "BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL",
+                    "skillUnitCode": "SK_RANGE_BOUNDARY",
+                    "mistakePointCode": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                    "improvementPointCode": "TESTING_HABIT",
+                    "libraryFit": "HIT",
+                    "reason": "代码中的 range(1, n) 与题目闭区间要求不一致。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.9
+                  }],
+                  "unresolvedGaps": [],
+                  "uncertainty": "已经看到知识点诊断层并完成锚定。"
+                }
+                """;
+    }
+
+    private String navigationContinueResponse(String code) {
+        return """
+                {
+                  "status": "CONTINUE",
+                  "selectedBranches": [{
+                    "knowledgeNodeCode": "%s",
+                    "reason": "该分支最贴近循环边界问题。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.86
+                  }],
+                  "selectedPaths": [],
+                  "unresolvedGaps": [],
+                  "uncertainty": "继续展开该分支。"
+                }
+                """.formatted(code);
+    }
+
     private String diagnosisReportV2WithGrowthCandidateResponse() {
         return """
                 {
@@ -615,6 +888,40 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     }]
                   },
                   "studentSummary": "这次重点是循环边界。"
+                }
+                """;
+    }
+
+    private String liveAdviceResponseWithStringStudentReport() {
+        return """
+                {
+                  "studentReport": "你的代码在处理求和范围时，循环范围没有覆盖题目要求的右端点。题目要求累加 1 到 n，但当前循环只走到 n 前一个位置。下一步动作：先手推 n=1 和 n=2 时循环变量实际出现过哪些值。",
+                  "diagnosisDecision": {
+                    "id": null,
+                    "status": "OUT_OF_LIBRARY",
+                    "evidenceRefs": ["code:line:3"],
+                    "confidence": 0.86,
+                    "reason": "模型识别到循环右端点漏取。"
+                  },
+                  "diagnosisCandidates": [{
+                    "name": "循环右端点漏取",
+                    "status": "OUT_OF_LIBRARY",
+                    "anchorId": null,
+                    "libraryPath": "循环边界",
+                    "role": "PRIMARY",
+                    "evidenceRefs": ["code:line:3"],
+                    "reason": "range(1, n) 没有覆盖 n。",
+                    "confidence": 0.86
+                  }],
+                  "teacherTrace": {
+                    "reasoningSummary": "循环边界与题意闭区间不一致。",
+                    "uncertainty": "可见失败样例支持该判断。",
+                    "qualityFlags": [],
+                    "softFixes": [],
+                    "hardFailures": []
+                  },
+                  "libraryGrowth": {"candidates": []},
+                  "studentSummary": "循环范围没有覆盖题目要求的右端点。"
                 }
                 """;
     }

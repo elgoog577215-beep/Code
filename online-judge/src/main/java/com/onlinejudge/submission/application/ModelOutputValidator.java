@@ -37,7 +37,8 @@ public class ModelOutputValidator {
             String invalidIssueRef = invalidRefSummary(
                     "studentFeedback.blockingIssues[" + indexOf(feedback.getBlockingIssues(), issue) + "].evidenceRefs",
                     issue.getEvidenceRefs(),
-                    validRefs
+                    validRefs,
+                    brief
             );
             if (!invalidIssueRef.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidIssueRef);
@@ -46,7 +47,8 @@ public class ModelOutputValidator {
         String invalidNextActionRef = invalidRefSummary(
                 "studentFeedback.nextLearningAction.evidenceRefs",
                 feedback.getNextLearningAction().getEvidenceRefs(),
-                validRefs
+                validRefs,
+                brief
         );
         if (!invalidNextActionRef.isBlank()) {
             return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidNextActionRef);
@@ -76,7 +78,8 @@ public class ModelOutputValidator {
                         : invalidRefSummary(
                         "studentFeedback.improvementOpportunities[" + indexOf(feedback.getImprovementOpportunities(), item) + "].evidenceRefs",
                         item.getEvidenceRefs(),
-                        validRefs
+                        validRefs,
+                        brief
                 );
                 if (!invalidImprovementRef.isBlank()) {
                     return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidImprovementRef);
@@ -87,17 +90,13 @@ public class ModelOutputValidator {
     }
 
     private Set<String> validEvidenceRefs(ModelDiagnosisBrief brief) {
-        Set<String> refs = new LinkedHashSet<>();
-        if (brief == null) {
-            return refs;
-        }
-        if (brief.getEvidenceRefs() != null) {
-            refs.addAll(brief.getEvidenceRefs());
-        }
-        return refs;
+        return EvidenceRefSupport.validEvidenceRefs(brief);
     }
 
-    private String invalidRefSummary(String fieldName, List<String> refs, Set<String> validRefs) {
+    private String invalidRefSummary(String fieldName,
+                                     List<String> refs,
+                                     Set<String> validRefs,
+                                     ModelDiagnosisBrief brief) {
         if (refs == null || refs.isEmpty()) {
             return fieldName + " missing evidenceRefs.";
         }
@@ -105,7 +104,10 @@ public class ModelOutputValidator {
             if (ref == null || ref.isBlank()) {
                 return fieldName + " contains blank evidenceRef.";
             }
-            if (validRefs == null || !validRefs.contains(ref)) {
+            String normalized = EvidenceRefSupport.normalizeEvidenceRef(ref, validRefs,
+                    EvidenceRefSupport.orderedEvidenceRefs(brief), brief);
+            if (validRefs == null
+                    || (!validRefs.contains(normalized) && !EvidenceRefSupport.isValidEvidenceRef(normalized, brief))) {
                 return fieldName + " invalid evidenceRef=" + ref;
             }
         }

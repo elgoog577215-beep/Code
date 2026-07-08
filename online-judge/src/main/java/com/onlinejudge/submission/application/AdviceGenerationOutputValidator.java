@@ -32,6 +32,7 @@ public class AdviceGenerationOutputValidator {
             return invalid(ModelStageFailureReason.INVALID_JSON, "caseUnderstanding is missing.");
         }
         Set<String> evidenceRefs = evidenceRefs(brief);
+        List<String> orderedEvidenceRefs = EvidenceRefSupport.orderedEvidenceRefs(brief);
         if (!isAccepted(brief) && safe(output.getBasicLayerAdvice()).isEmpty()) {
             return invalid(ModelStageFailureReason.INVALID_JSON, "Non-accepted submission requires basicLayerAdvice.");
         }
@@ -39,9 +40,13 @@ public class AdviceGenerationOutputValidator {
             return invalid(ModelStageFailureReason.INVALID_JSON, "nextStepPlan is empty.");
         }
         String primaryRef = output.getCaseUnderstanding().getPrimaryEvidenceRef();
-        if (primaryRef == null || primaryRef.isBlank() || !evidenceRefs.contains(primaryRef)) {
+        String normalizedPrimaryRef = EvidenceRefSupport.normalizeEvidenceRef(primaryRef, brief);
+        if (normalizedPrimaryRef.isBlank() || !EvidenceRefSupport.isValidEvidenceRef(normalizedPrimaryRef, brief)) {
             return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
-                    "caseUnderstanding.primaryEvidenceRef is invalid.");
+                    "caseUnderstanding.primaryEvidenceRef is invalid: " + primaryRef);
+        }
+        if (!normalizedPrimaryRef.equals(primaryRef)) {
+            output.getCaseUnderstanding().setPrimaryEvidenceRef(normalizedPrimaryRef);
         }
         Set<String> mistakeIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getMistakePoints());
         mistakeIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getBasicCauses()));
@@ -57,7 +62,9 @@ public class AdviceGenerationOutputValidator {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "basicLayerAdvice is missing title/action/question.");
             }
             clearUnknownBasicAdviceIds(item, mistakeIds, skillIds, softFixes);
-            String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
+            item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs,
+                    brief, softFixes));
+            String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, brief,
                     "basicLayerAdvice.evidenceRefs");
             if (!invalidEvidence.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
@@ -80,7 +87,9 @@ public class AdviceGenerationOutputValidator {
                         "improvementLayerAdvice is missing title/suggestion/benefit.");
             }
             clearUnknownImprovementAdviceIds(item, improvementIds, skillIds, softFixes);
-            String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
+            item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs,
+                    brief, softFixes));
+            String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, brief,
                     "improvementLayerAdvice.evidenceRefs", false);
             if (!invalidEvidence.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
@@ -97,9 +106,13 @@ public class AdviceGenerationOutputValidator {
             if (item == null || blank(item.getTarget()) || blank(item.getReason())) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "nextStepPlan item is incomplete.");
             }
-            if (!blank(item.getEvidenceRef()) && !evidenceRefs.contains(item.getEvidenceRef())) {
+            String normalizedEvidenceRef = EvidenceRefSupport.normalizeEvidenceRef(item.getEvidenceRef(), brief);
+            if (!blank(item.getEvidenceRef()) && !EvidenceRefSupport.isValidEvidenceRef(normalizedEvidenceRef, brief)) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF,
                         "nextStepPlan evidenceRef is invalid: " + item.getEvidenceRef());
+            }
+            if (!blank(normalizedEvidenceRef)) {
+                item.setEvidenceRef(normalizedEvidenceRef);
             }
             if (unsafe(item.getTarget(), item.getReason())) {
                 return invalid(ModelStageFailureReason.SAFETY_RISK, "nextStepPlan contains answer leak.");
@@ -153,7 +166,7 @@ public class AdviceGenerationOutputValidator {
         trimStudentReport(report, softFixes);
 
         Set<String> evidenceRefs = evidenceRefs(brief);
-        List<String> orderedEvidenceRefs = evidenceRefs.stream().toList();
+        List<String> orderedEvidenceRefs = EvidenceRefSupport.orderedEvidenceRefs(brief);
         Set<String> allowedIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getMistakePoints());
         allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getBasicCauses()));
         allowedIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getSkillUnits()));
@@ -165,12 +178,13 @@ public class AdviceGenerationOutputValidator {
         Set<String> improvementIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getImprovementPoints());
         Map<String, String> standardLibraryAliases = standardLibraryAliases(standardLibraryPack);
 
-        sanitizeDiagnosisCandidates(output, allowedIds, evidenceRefs, orderedEvidenceRefs, softFixes);
-        sanitizeLibraryGrowth(output, evidenceRefs, orderedEvidenceRefs, softFixes);
+        sanitizeDiagnosisCandidates(output, allowedIds, evidenceRefs, orderedEvidenceRefs, brief, softFixes);
+        sanitizeLibraryGrowth(output, evidenceRefs, orderedEvidenceRefs, brief, softFixes);
         ExternalModelStagePayloads.StageValidationResult adviceItemsFailure = validateReportAdviceItems(
                 output,
                 evidenceRefs,
                 orderedEvidenceRefs,
+                brief,
                 mistakeIds,
                 skillIds,
                 improvementIds,
@@ -226,8 +240,8 @@ public class AdviceGenerationOutputValidator {
                     decision.setLibraryFit(fit);
                     softFixes.add("diagnosisDecision.libraryFit normalized: MISS -> PARTIAL because known anchor exists");
                 }
-                anchor.setEvidenceRefs(normalizeEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
-                String invalidEvidence = invalidEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs,
+                anchor.setEvidenceRefs(normalizeEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, brief, softFixes));
+                String invalidEvidence = invalidEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs, brief,
                         "diagnosisDecision.anchors.evidenceRefs");
                 if (!invalidEvidence.isBlank()) {
                     return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
@@ -250,8 +264,8 @@ public class AdviceGenerationOutputValidator {
                     softFixes.add("diagnosisDecision.outOfLibraryFinding dropped: incomplete item");
                     continue;
                 }
-                finding.setEvidenceRefs(normalizeEvidenceRefs(finding.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
-                String invalidEvidence = invalidEvidenceRefs(finding.getEvidenceRefs(), evidenceRefs,
+                finding.setEvidenceRefs(normalizeEvidenceRefs(finding.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, brief, softFixes));
+                String invalidEvidence = invalidEvidenceRefs(finding.getEvidenceRefs(), evidenceRefs, brief,
                         "diagnosisDecision.outOfLibraryFindings.evidenceRefs");
                 if (!invalidEvidence.isBlank()) {
                     softFixes.add("diagnosisDecision.outOfLibraryFinding dropped: " + invalidEvidence);
@@ -286,6 +300,7 @@ public class AdviceGenerationOutputValidator {
             AdviceGenerationOutput output,
             Set<String> evidenceRefs,
             List<String> orderedEvidenceRefs,
+            ModelDiagnosisBrief brief,
             Set<String> mistakeIds,
             Set<String> skillIds,
             Set<String> improvementIds,
@@ -299,8 +314,9 @@ public class AdviceGenerationOutputValidator {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "basicLayerAdvice is missing title/action/question.");
             }
             clearUnknownBasicAdviceIds(item, mistakeIds, skillIds, softFixes);
-            item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
-            String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
+            item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs,
+                    brief, softFixes));
+            String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, brief,
                     "basicLayerAdvice.evidenceRefs");
             if (!invalidEvidence.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
@@ -322,8 +338,9 @@ public class AdviceGenerationOutputValidator {
                         "improvementLayerAdvice is missing title/suggestion/benefit.");
             }
             clearUnknownImprovementAdviceIds(item, improvementIds, skillIds, softFixes);
-            item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, softFixes));
-            String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs,
+            item.setEvidenceRefs(normalizeEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs,
+                    brief, softFixes));
+            String invalidEvidence = invalidEvidenceRefs(item.getEvidenceRefs(), evidenceRefs, brief,
                     "improvementLayerAdvice.evidenceRefs", false);
             if (!invalidEvidence.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
@@ -375,6 +392,7 @@ public class AdviceGenerationOutputValidator {
             Set<String> allowedIds,
             Set<String> evidenceRefs,
             List<String> orderedEvidenceRefs,
+            ModelDiagnosisBrief brief,
             List<String> softFixes
     ) {
         List<AdviceGenerationOutput.DiagnosisCandidate> validCandidates = new java.util.ArrayList<>();
@@ -420,8 +438,8 @@ public class AdviceGenerationOutputValidator {
                 softFixes.add("diagnosisCandidate converted to OUT_OF_LIBRARY: " + anchorId);
             }
             candidate.setEvidenceRefs(normalizeEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
-                    orderedEvidenceRefs, softFixes));
-            String invalidEvidence = invalidEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
+                    orderedEvidenceRefs, brief, softFixes));
+            String invalidEvidence = invalidEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs, brief,
                     "diagnosisCandidates.evidenceRefs");
             if (!invalidEvidence.isBlank()) {
                 softFixes.add("diagnosisCandidate dropped: " + invalidEvidence);
@@ -446,6 +464,7 @@ public class AdviceGenerationOutputValidator {
             AdviceGenerationOutput output,
             Set<String> evidenceRefs,
             List<String> orderedEvidenceRefs,
+            ModelDiagnosisBrief brief,
             List<String> softFixes
     ) {
         AdviceGenerationOutput.LibraryGrowth growth = output.getLibraryGrowth();
@@ -478,8 +497,8 @@ public class AdviceGenerationOutputValidator {
                 continue;
             }
             candidate.setEvidenceRefs(normalizeEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
-                    orderedEvidenceRefs, softFixes));
-            String invalidEvidence = invalidEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
+                    orderedEvidenceRefs, brief, softFixes));
+            String invalidEvidence = invalidEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs, brief,
                     "libraryGrowth.candidates.evidenceRefs", false);
             if (!invalidEvidence.isBlank()) {
                 candidate.setEvidenceRefs(List.of());
@@ -522,14 +541,7 @@ public class AdviceGenerationOutputValidator {
     }
 
     private Set<String> evidenceRefs(ModelDiagnosisBrief brief) {
-        LinkedHashSet<String> refs = new LinkedHashSet<>();
-        if (brief == null) {
-            return refs;
-        }
-        if (brief.getEvidenceRefs() != null) {
-            refs.addAll(brief.getEvidenceRefs());
-        }
-        return refs;
+        return EvidenceRefSupport.validEvidenceRefs(brief);
     }
 
     private Set<String> ids(List<?> values) {
@@ -739,65 +751,24 @@ public class AdviceGenerationOutputValidator {
         return normalized;
     }
 
-    private String invalidEvidenceRefs(List<String> refs, Set<String> validRefs, String field) {
-        return invalidEvidenceRefs(refs, validRefs, field, true);
+    private String invalidEvidenceRefs(List<String> refs, Set<String> validRefs, ModelDiagnosisBrief brief, String field) {
+        return invalidEvidenceRefs(refs, validRefs, brief, field, true);
     }
 
-    private String invalidEvidenceRefs(List<String> refs, Set<String> validRefs, String field, boolean required) {
-        if (refs == null || refs.isEmpty()) {
-            return required ? field + " is empty." : "";
-        }
-        for (String ref : refs) {
-            if (ref == null || ref.isBlank() || !validRefs.contains(ref)) {
-                return field + " contains invalid evidenceRef=" + ref;
-            }
-        }
-        return "";
+    private String invalidEvidenceRefs(List<String> refs,
+                                       Set<String> validRefs,
+                                       ModelDiagnosisBrief brief,
+                                       String field,
+                                       boolean required) {
+        return EvidenceRefSupport.invalidEvidenceRefs(refs, validRefs, brief, field, required);
     }
 
     private List<String> normalizeEvidenceRefs(List<String> refs,
                                                Set<String> validRefs,
                                                List<String> orderedValidRefs,
+                                               ModelDiagnosisBrief brief,
                                                List<String> softFixes) {
-        if (refs == null || refs.isEmpty() || validRefs == null || validRefs.isEmpty()) {
-            return refs;
-        }
-        List<String> normalizedRefs = new java.util.ArrayList<>(refs);
-        for (int i = 0; i < refs.size(); i++) {
-            String ref = refs.get(i);
-            if (ref == null || ref.isBlank() || validRefs.contains(ref)) {
-                continue;
-            }
-            String replacement = evidenceAlias(ref, orderedValidRefs);
-            if (!replacement.isBlank()) {
-                normalizedRefs.set(i, replacement);
-                softFixes.add("evidenceRef alias " + ref + " -> " + replacement);
-            }
-        }
-        return normalizedRefs;
-    }
-
-    private String evidenceAlias(String ref, List<String> orderedValidRefs) {
-        if (orderedValidRefs == null || orderedValidRefs.isEmpty()) {
-            return "";
-        }
-        String byPrefix = firstEvidenceThatMatchesRelaxedRef(orderedValidRefs, ref);
-        if (!byPrefix.isBlank()) {
-            return byPrefix;
-        }
-        return "";
-    }
-
-    private String firstEvidenceThatMatchesRelaxedRef(List<String> evidenceRefs, String rawRef) {
-        if (rawRef == null || rawRef.isBlank()) {
-            return "";
-        }
-        String trimmed = rawRef.trim();
-        return evidenceRefs.stream()
-                .filter(ref -> ref != null && !ref.isBlank())
-                .filter(ref -> trimmed.startsWith(ref + ":") || ref.startsWith(trimmed + ":"))
-                .findFirst()
-                .orElse("");
+        return EvidenceRefSupport.normalizeEvidenceRefs(refs, validRefs, orderedValidRefs, brief, softFixes);
     }
 
     private boolean invalidConfidence(Double confidence) {
