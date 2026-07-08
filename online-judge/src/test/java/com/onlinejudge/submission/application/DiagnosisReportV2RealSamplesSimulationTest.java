@@ -372,14 +372,8 @@ class DiagnosisReportV2RealSamplesSimulationTest {
             if (analysis.getStudentFeedback() != null && analysis.getStudentFeedback().getNextLearningAction() != null) {
                 nextAction = excerpt(analysis.getStudentFeedback().getNextLearningAction().getTask(), 140);
             }
-            String basicAdvice = safeList(analysis.getBasicLayerAdvice()).stream()
-                    .map(item -> excerpt(item.getTitle() + "：" + item.getStudentAction(), 120))
-                    .findFirst()
-                    .orElse("");
-            String improvementAdvice = safeList(analysis.getImprovementLayerAdvice()).stream()
-                    .map(item -> excerpt(item.getTitle() + "：" + item.getSuggestion(), 120))
-                    .findFirst()
-                    .orElse("");
+            String basicAdvice = joinedBasicAdvice(analysis.getBasicLayerAdvice());
+            String improvementAdvice = joinedImprovementAdvice(analysis.getImprovementLayerAdvice());
             String status = invocation == null ? analysis.getSourceType() : invocation.getStatus();
             String libraryFit = invocation == null ? "" : invocation.getDiagnosisLibraryFit();
             boolean fallback = invocation == null || invocation.isFallbackUsed();
@@ -424,6 +418,33 @@ class DiagnosisReportV2RealSamplesSimulationTest {
 
         private static <T> List<T> safeList(List<T> values) {
             return values == null ? List.of() : values;
+        }
+
+        private static String joinedBasicAdvice(List<SubmissionAnalysisResponse.BasicLayerAdvice> values) {
+            List<SubmissionAnalysisResponse.BasicLayerAdvice> items = safeList(values);
+            List<String> lines = new ArrayList<>();
+            for (int i = 0; i < items.size(); i++) {
+                SubmissionAnalysisResponse.BasicLayerAdvice item = items.get(i);
+                if (item == null) {
+                    continue;
+                }
+                lines.add((lines.size() + 1) + ". "
+                        + excerpt(item.getTitle() + "：" + item.getStudentAction(), 120));
+            }
+            return String.join("；", lines);
+        }
+
+        private static String joinedImprovementAdvice(List<SubmissionAnalysisResponse.ImprovementLayerAdvice> values) {
+            List<SubmissionAnalysisResponse.ImprovementLayerAdvice> items = safeList(values);
+            List<String> lines = new ArrayList<>();
+            for (SubmissionAnalysisResponse.ImprovementLayerAdvice item : items) {
+                if (item == null) {
+                    continue;
+                }
+                lines.add((lines.size() + 1) + ". "
+                        + excerpt(item.getTitle() + "：" + item.getSuggestion(), 120));
+            }
+            return String.join("；", lines);
         }
     }
 }
