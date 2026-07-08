@@ -1,5 +1,6 @@
 package com.onlinejudge.submission.application;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -74,6 +75,14 @@ public class AdviceGenerationOutput {
         private String reason;
         private List<String> evidenceRefs;
         private Double confidence;
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public static OutOfLibraryFinding fromString(String value) {
+            return OutOfLibraryFinding.builder()
+                    .name(value)
+                    .reason(value)
+                    .build();
+        }
     }
 
     @Data
@@ -169,6 +178,7 @@ public class AdviceGenerationOutput {
     public static class BasicLayerAdvice {
         private String mistakePointId;
         private String skillUnitId;
+        private String text;
         private String title;
         private String whatHappened;
         private String whyItMatters;
@@ -186,6 +196,7 @@ public class AdviceGenerationOutput {
     public static class ImprovementLayerAdvice {
         private String improvementPointId;
         private String skillUnitId;
+        private String text;
         private String title;
         private String currentLimit;
         private String suggestion;

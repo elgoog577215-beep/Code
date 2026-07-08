@@ -1,5 +1,6 @@
 package com.onlinejudge.submission.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -8,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AdviceGenerationOutputNormalizerTest {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final AdviceGenerationOutputNormalizer normalizer = new AdviceGenerationOutputNormalizer();
     private final AdviceGenerationOutputValidator validator = new AdviceGenerationOutputValidator();
 
@@ -67,6 +69,70 @@ class AdviceGenerationOutputNormalizerTest {
         assertThat(validator.validate(normalized, brief(), pack()).isValid()).isTrue();
     }
 
+    @Test
+    void parsesStringOutOfLibraryFindingsAsObjects() throws Exception {
+        AdviceGenerationOutput output = objectMapper.readValue("""
+                {
+                  "diagnosisDecision": {
+                    "libraryFit": "OUT_OF_LIBRARY",
+                    "outOfLibraryFindings": ["rollback_components_restore_error"]
+                  }
+                }
+                """, AdviceGenerationOutput.class);
+
+        assertThat(output.getDiagnosisDecision().getOutOfLibraryFindings()).singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.getName()).isEqualTo("rollback_components_restore_error");
+                    assertThat(finding.getReason()).isEqualTo("rollback_components_restore_error");
+                });
+    }
+
+    @Test
+    void expandsTextOnlyAdviceItemsIntoStructuredAdvice() throws Exception {
+        AdviceGenerationOutput output = objectMapper.readValue("""
+                {
+                  "caseUnderstanding": {
+                    "problemGoal": "离线处理动态图连通性。",
+                    "codeIntent": "使用线段树分治和可回滚并查集。",
+                    "behaviorGap": "删除后查询仍然连通。",
+                    "primaryEvidenceRef": "judge:first_failed_case"
+                  },
+                  "basicLayerAdvice": [{
+                    "text": "检查 RollbackDSU 的 rollback 方法，确保状态能准确恢复。",
+                    "evidenceRefs": ["code:line:88", "code:line:95"]
+                  }, {
+                    "text": "审查 remove_edge 中边存在区间的右边界。",
+                    "evidenceRefs": ["code:line:160"]
+                  }],
+                  "improvementLayerAdvice": [{
+                    "text": "编写针对并查集回滚的单元测试。",
+                    "evidenceRefs": ["judge:first_failed_case"]
+                  }, {
+                    "text": "打印线段树分治关键时刻的边集合。",
+                    "evidenceRefs": ["code:line:106"]
+                  }],
+                  "studentSummary": "先从回滚和区间边界入手。"
+                }
+                """, AdviceGenerationOutput.class);
+
+        AdviceGenerationOutput normalized = normalizer.normalize(output, StandardLibraryPack.builder().build());
+
+        assertThat(normalized.getBasicLayerAdvice()).hasSize(2)
+                .allSatisfy(item -> {
+                    assertThat(item.getTitle()).isNotBlank();
+                    assertThat(item.getStudentAction()).isNotBlank();
+                    assertThat(item.getCheckQuestion()).isNotBlank();
+                });
+        assertThat(normalized.getImprovementLayerAdvice()).hasSize(2)
+                .allSatisfy(item -> {
+                    assertThat(item.getTitle()).isNotBlank();
+                    assertThat(item.getSuggestion()).isNotBlank();
+                    assertThat(item.getStudentBenefit()).isNotBlank();
+                });
+        assertThat(validator.validate(normalized, longCodeBrief(), StandardLibraryPack.builder().build()).isValid())
+                .isTrue();
+    }
+
     private AdviceGenerationOutput validOutput() {
         return AdviceGenerationOutput.builder()
                 .caseUnderstanding(AdviceGenerationOutput.CaseUnderstanding.builder()
@@ -111,6 +177,15 @@ class AdviceGenerationOutputNormalizerTest {
                 .schemaVersion(ModelDiagnosisBrief.SCHEMA_VERSION)
                 .verdict("WRONG_ANSWER")
                 .evidenceRefs(List.of("code:range_excludes_n"))
+                .build();
+    }
+
+    private ModelDiagnosisBrief longCodeBrief() {
+        return ModelDiagnosisBrief.builder()
+                .schemaVersion(ModelDiagnosisBrief.SCHEMA_VERSION)
+                .verdict("WRONG_ANSWER")
+                .sourceCodeLineCount(220)
+                .evidenceRefs(List.of("judge:first_failed_case"))
                 .build();
     }
 

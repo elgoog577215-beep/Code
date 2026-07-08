@@ -60,7 +60,7 @@ class DiagnosisReportV2RealSamplesSimulationTest {
         Assumptions.assumeTrue(!env("AI_EVAL_API_KEY", env("MODELSCOPE_API_KEY", "")).isBlank(),
                 "Set AI_EVAL_API_KEY or MODELSCOPE_API_KEY to call the external model.");
 
-        List<RealSample> samples = loadSamples();
+        List<RealSample> samples = selectedSamples(loadSamples());
         int limit = (int) longEnv("AI_REAL_SAMPLE_SIMULATION_LIMIT", samples.size());
         List<RealSample> selected = samples.stream().limit(Math.max(1, Math.min(limit, samples.size()))).toList();
 
@@ -69,16 +69,23 @@ class DiagnosisReportV2RealSamplesSimulationTest {
             waitBetweenCases(index, longEnv("AI_EVAL_CASE_DELAY_MS", 750));
             RealSample sample = selected.get(index);
             SimulationFixture fixture = fixtureFor(sample);
-            long startedAt = System.nanoTime();
-            DiagnosticAgentService.AgentResult result = diagnosticAgentService.diagnose(
-                    fixture.problem(),
-                    fixture.submission(),
-                    fixture.caseResults(),
-                    fixture.baseline(),
-                    Assignment.HintPolicy.L3
-            );
-            long latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
-            entries.add(ReportEntry.from(sample, result.analysis(), latencyMs, codexSimulation(sample.id())));
+            List<AiReportService.ModelCallTraceEvent> traceEvents = new ArrayList<>();
+            DiagnosticAgentService.AgentResult result;
+            long latencyMs;
+            try (AutoCloseable ignored = AiReportService.captureModelCallTrace(traceEvents::add)) {
+                long startedAt = System.nanoTime();
+                result = diagnosticAgentService.diagnose(
+                        fixture.problem(),
+                        fixture.submission(),
+                        fixture.caseResults(),
+                        fixture.baseline(),
+                        Assignment.HintPolicy.L3
+                );
+                latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
+            }
+            Path tracePath = writeTrace(sample, result.analysis(), traceEvents);
+            entries.add(ReportEntry.from(sample, result.analysis(), latencyMs, codexSimulation(sample.id()),
+                    tracePath, traceEvents));
         }
 
         Path reportPath = writeReport(entries);
@@ -106,6 +113,26 @@ class DiagnosisReportV2RealSamplesSimulationTest {
             return objectMapper.readValue(input, new TypeReference<>() {
             });
         }
+    }
+
+    private List<RealSample> selectedSamples(List<RealSample> samples) {
+        String rawIds = env("AI_REAL_SAMPLE_SIMULATION_IDS", "");
+        if (rawIds.isBlank()) {
+            return samples;
+        }
+        List<String> ids = new ArrayList<>();
+        for (String id : rawIds.split(",")) {
+            String normalized = id.trim();
+            if (!normalized.isBlank()) {
+                ids.add(normalized);
+            }
+        }
+        if (ids.isEmpty()) {
+            return samples;
+        }
+        return samples.stream()
+                .filter(sample -> ids.contains(sample.id()))
+                .toList();
     }
 
     private SimulationFixture fixtureFor(RealSample sample) throws Exception {
@@ -263,21 +290,23 @@ class DiagnosisReportV2RealSamplesSimulationTest {
         out.append("- 样本数：").append(entries.size()).append("\n");
         out.append("- 网站线：Spring `DiagnosticAgentService` + 当前标准库 + 当前 prompt/validator + 外部模型。\n");
         out.append("- Codex 仿真线：Codex 按同题题意、代码、失败样例给出的理想诊断摘要。\n\n");
-        out.append("| 题目 | 网站状态 | 失败原因 | 网站 libraryFit | 网站建议数 | Codex libraryFit | 对照判断 |\n");
-        out.append("|---|---|---|---:|---:|---:|---|\n");
+        out.append("| 题目 | 网站状态 | 阶段 trace | 标准库挂接 | advice | 网站建议数 | trace 文件 | 对照判断 |\n");
+        out.append("|---|---|---|---|---|---:|---|---|\n");
         for (ReportEntry entry : entries) {
             out.append("| ")
                     .append(escape(entry.title()))
                     .append(" | ")
                     .append(escape(entry.websiteStatus()))
                     .append(" | ")
-                    .append(escape(entry.websiteFailureReason()))
+                    .append(escape(entry.traceStages()))
                     .append(" | ")
-                    .append(escape(entry.websiteLibraryFit()))
+                    .append(escape(entry.standardLibraryNavigationStatus()))
+                    .append(" | ")
+                    .append(escape(entry.adviceGenerationStatus()))
                     .append(" | ")
                     .append(entry.websiteAdviceCount())
                     .append(" | ")
-                    .append(escape(entry.codex().libraryFit()))
+                    .append(escape(entry.tracePath()))
                     .append(" | ")
                     .append(escape(entry.comparison()))
                     .append(" |\n");
@@ -288,6 +317,10 @@ class DiagnosisReportV2RealSamplesSimulationTest {
             out.append("- 网站耗时：").append(entry.latencyMs()).append(" ms\n");
             out.append("- 网站状态：").append(entry.websiteStatus()).append("，fallback=").append(entry.fallbackUsed()).append("\n");
             out.append("- 失败原因：").append(entry.websiteFailureReason()).append("\n");
+            out.append("- trace 文件：`").append(entry.tracePath()).append("`\n");
+            out.append("- 阶段 trace：").append(entry.traceStages()).append("\n");
+            out.append("- 标准库挂接：").append(entry.standardLibraryNavigationStatus()).append("\n");
+            out.append("- advice 状态：").append(entry.adviceGenerationStatus()).append("\n");
             out.append("- 网站摘要：").append(entry.websiteSummary()).append("\n");
             out.append("- 网站基础建议：").append(entry.websiteBasicAdvice()).append("\n");
             out.append("- 网站提高建议：").append(entry.websiteImprovementAdvice()).append("\n");
@@ -298,6 +331,54 @@ class DiagnosisReportV2RealSamplesSimulationTest {
         }
         Files.writeString(reportPath, out.toString());
         return reportPath;
+    }
+
+    private Path writeTrace(RealSample sample,
+                            SubmissionAnalysisResponse analysis,
+                            List<AiReportService.ModelCallTraceEvent> traceEvents) throws Exception {
+        Path dir = Path.of("target", "ai-simulation-reports");
+        Files.createDirectories(dir);
+        Path tracePath = dir.resolve("ai-request-trace-" + sample.id() + "-"
+                + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".jsonl");
+        List<String> lines = new ArrayList<>();
+        int index = 1;
+        for (AiReportService.ModelCallTraceEvent event : traceEvents) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("type", "model-call");
+            row.put("sampleId", sample.id());
+            row.put("sampleTitle", sample.title());
+            row.put("index", index++);
+            row.put("stage", event.stage());
+            row.put("stream", event.stream());
+            row.put("outputTokens", event.outputTokens());
+            row.put("runtimeProfile", event.runtimeProfile());
+            row.put("requestCompact", event.requestCompact());
+            row.put("latencyMs", event.latencyMs());
+            row.put("systemPrompt", event.systemPrompt());
+            row.put("userPrompt", event.userPrompt());
+            row.put("requestBody", event.requestBody());
+            row.put("responseBody", event.responseBody());
+            row.put("content", event.content());
+            row.put("error", event.error());
+            lines.add(objectMapper.writeValueAsString(row));
+        }
+        SubmissionAnalysisResponse.AiInvocation invocation = analysis == null ? null : analysis.getAiInvocation();
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("type", "backend-summary");
+        summary.put("sampleId", sample.id());
+        summary.put("status", invocation == null ? "" : invocation.getStatus());
+        summary.put("failureStage", invocation == null ? "" : invocation.getFailureStage());
+        summary.put("failureReason", invocation == null ? "" : invocation.getFailureReason());
+        summary.put("standardLibraryNavigationStatus", invocation == null ? "" : invocation.getStandardLibraryNavigationStatus());
+        summary.put("standardLibraryNavigationFailureReason",
+                invocation == null ? "" : invocation.getStandardLibraryNavigationFailureReason());
+        summary.put("adviceGenerationStatus", invocation == null ? "" : invocation.getAdviceGenerationStatus());
+        summary.put("adviceGenerationFailureReason", invocation == null ? "" : invocation.getAdviceGenerationFailureReason());
+        summary.put("basicAdviceCount", invocation == null ? null : invocation.getBasicAdviceCount());
+        summary.put("improvementAdviceCount", invocation == null ? null : invocation.getImprovementAdviceCount());
+        lines.add(objectMapper.writeValueAsString(summary));
+        Files.writeString(tracePath, String.join("\n", lines) + "\n");
+        return tracePath;
     }
 
     private static String comparison(RealSample sample, SubmissionAnalysisResponse analysis, CodexSimulation codex) {
@@ -415,13 +496,19 @@ class DiagnosisReportV2RealSamplesSimulationTest {
             String websiteBasicAdvice,
             String websiteImprovementAdvice,
             String websiteNextAction,
+            String tracePath,
+            String traceStages,
+            String standardLibraryNavigationStatus,
+            String adviceGenerationStatus,
             CodexSimulation codex,
             String comparison
     ) {
         static ReportEntry from(RealSample sample,
                                 SubmissionAnalysisResponse analysis,
                                 long latencyMs,
-                                CodexSimulation codex) {
+                                CodexSimulation codex,
+                                Path tracePath,
+                                List<AiReportService.ModelCallTraceEvent> traceEvents) {
             SubmissionAnalysisResponse.AiInvocation invocation = analysis.getAiInvocation();
             int basicCount = invocation == null || invocation.getBasicAdviceCount() == null
                     ? safeList(analysis.getBasicLayerAdvice()).size()
@@ -457,6 +544,10 @@ class DiagnosisReportV2RealSamplesSimulationTest {
                     basicAdvice,
                     improvementAdvice,
                     nextAction,
+                    tracePath == null ? "" : tracePath.toString(),
+                    traceStages(traceEvents),
+                    invocation == null ? "" : safe(invocation.getStandardLibraryNavigationStatus()),
+                    invocation == null ? "" : safe(invocation.getAdviceGenerationStatus()),
                     codex,
                     ""
             );
@@ -472,6 +563,10 @@ class DiagnosisReportV2RealSamplesSimulationTest {
                     draft.websiteBasicAdvice(),
                     draft.websiteImprovementAdvice(),
                     draft.websiteNextAction(),
+                    draft.tracePath(),
+                    draft.traceStages(),
+                    draft.standardLibraryNavigationStatus(),
+                    draft.adviceGenerationStatus(),
                     draft.codex(),
                     DiagnosisReportV2RealSamplesSimulationTest.comparison(sample, analysis, codex)
             );
@@ -493,6 +588,18 @@ class DiagnosisReportV2RealSamplesSimulationTest {
                         + excerpt(item.getTitle() + "：" + item.getStudentAction(), 120));
             }
             return String.join("；", lines);
+        }
+
+        private static String traceStages(List<AiReportService.ModelCallTraceEvent> values) {
+            List<String> stages = new ArrayList<>();
+            for (AiReportService.ModelCallTraceEvent event : safeList(values)) {
+                if (event == null) {
+                    continue;
+                }
+                String suffix = safe(event.error()).isBlank() ? "OK" : "ERR";
+                stages.add(event.stage() + ":" + suffix);
+            }
+            return String.join(" -> ", stages);
         }
 
         private static String joinedImprovementAdvice(List<SubmissionAnalysisResponse.ImprovementLayerAdvice> values) {

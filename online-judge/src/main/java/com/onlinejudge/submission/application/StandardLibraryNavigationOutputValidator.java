@@ -48,7 +48,7 @@ public class StandardLibraryNavigationOutputValidator {
                 branch.setEvidenceRefs(EvidenceRefSupport.normalizeEvidenceRefs(branch.getEvidenceRefs(),
                         evidenceRefs, orderedEvidenceRefs, brief, softFixes));
                 String invalidEvidence = EvidenceRefSupport.invalidEvidenceRefs(branch.getEvidenceRefs(), evidenceRefs,
-                        brief, "selectedBranches.evidenceRefs", true);
+                        brief, "selectedBranches.evidenceRefs", false);
                 if (!invalidEvidence.isBlank()) {
                     return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
                 }
@@ -86,7 +86,7 @@ public class StandardLibraryNavigationOutputValidator {
             path.setEvidenceRefs(EvidenceRefSupport.normalizeEvidenceRefs(path.getEvidenceRefs(),
                     evidenceRefs, orderedEvidenceRefs, brief, softFixes));
             String invalidEvidence = EvidenceRefSupport.invalidEvidenceRefs(path.getEvidenceRefs(), evidenceRefs,
-                    brief, "selectedPaths.evidenceRefs", true);
+                    brief, "selectedPaths.evidenceRefs", false);
             if (!invalidEvidence.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
             }
@@ -102,7 +102,7 @@ public class StandardLibraryNavigationOutputValidator {
             gap.setEvidenceRefs(EvidenceRefSupport.normalizeEvidenceRefs(gap.getEvidenceRefs(),
                     evidenceRefs, orderedEvidenceRefs, brief, softFixes));
             String invalidEvidence = EvidenceRefSupport.invalidEvidenceRefs(gap.getEvidenceRefs(), evidenceRefs,
-                    brief, "unresolvedGaps.evidenceRefs", true);
+                    brief, "unresolvedGaps.evidenceRefs", false);
             if (!invalidEvidence.isBlank()) {
                 return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidEvidence);
             }

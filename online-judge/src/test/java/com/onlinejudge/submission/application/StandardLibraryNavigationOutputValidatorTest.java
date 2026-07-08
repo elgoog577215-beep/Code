@@ -35,6 +35,27 @@ class StandardLibraryNavigationOutputValidatorTest {
     }
 
     @Test
+    void acceptsNavigationWithoutEvidenceRefs() {
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                StandardLibraryNavigationOutput.builder()
+                        .status("DONE")
+                        .selectedPaths(List.of(StandardLibraryNavigationOutput.SelectedPath.builder()
+                                .knowledgeNodeCode("DS.QUEUE.CIRCULAR.index_wrap")
+                                .skillUnitCode("SK_QUEUE_CIRCULAR_INDEX")
+                                .mistakePointCode("MP_QUEUE_REAR_WITHOUT_MOD")
+                                .libraryFit("HIT")
+                                .reason("逐层挂接只负责标准库定位，证据由自由诊断和建议阶段校验。")
+                                .confidence(0.86)
+                                .build()))
+                        .build(),
+                brief(),
+                pack());
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.NONE);
+    }
+
+    @Test
     void acceptsCodeRangeAndNormalizesEvidenceAliases() {
         StandardLibraryNavigationOutput output = StandardLibraryNavigationOutput.builder()
                 .status("DONE")
@@ -58,6 +79,58 @@ class StandardLibraryNavigationOutputValidatorTest {
         assertThat(result.getSoftFixes())
                 .contains("evidenceRef alias code:line:3-5 -> code:range:3-5")
                 .contains("evidenceRef alias judge:first_failed_case:case1 -> judge:first_failed_case");
+    }
+
+    @Test
+    void acceptsBareCodeLineAndRangeEvidenceAliases() {
+        StandardLibraryNavigationOutput output = StandardLibraryNavigationOutput.builder()
+                .status("DONE")
+                .selectedPaths(List.of(StandardLibraryNavigationOutput.SelectedPath.builder()
+                        .knowledgeNodeCode("DS.QUEUE.CIRCULAR.index_wrap")
+                        .skillUnitCode("SK_QUEUE_CIRCULAR_INDEX")
+                        .mistakePointCode("MP_QUEUE_REAR_WITHOUT_MOD")
+                        .libraryFit("HIT")
+                        .reason("模型用 code:N 和 code:A-B 简写引用源码证据。")
+                        .evidenceRefs(List.of("code:18", "code:3-5"))
+                        .confidence(0.86)
+                        .build()))
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(output, brief(), pack());
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getSelectedPaths()).singleElement()
+                .satisfies(path -> assertThat(path.getEvidenceRefs())
+                        .containsExactly("code:line:18", "code:range:3-5"));
+        assertThat(result.getSoftFixes())
+                .contains("evidenceRef alias code:18 -> code:line:18")
+                .contains("evidenceRef alias code:3-5 -> code:range:3-5");
+    }
+
+    @Test
+    void acceptsModelStyleCodeLineAndJudgeCaseAliases() {
+        StandardLibraryNavigationOutput output = StandardLibraryNavigationOutput.builder()
+                .status("DONE")
+                .selectedPaths(List.of(StandardLibraryNavigationOutput.SelectedPath.builder()
+                        .knowledgeNodeCode("DS.QUEUE.CIRCULAR.index_wrap")
+                        .skillUnitCode("SK_QUEUE_CIRCULAR_INDEX")
+                        .mistakePointCode("MP_QUEUE_REAR_WITHOUT_MOD")
+                        .libraryFit("HIT")
+                        .reason("模型用 code:line_18_comment 和 judge:case_1_output 引用证据。")
+                        .evidenceRefs(List.of("code:line_18_comment", "judge:case_1_output"))
+                        .confidence(0.86)
+                        .build()))
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(output, brief(), pack());
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getSelectedPaths()).singleElement()
+                .satisfies(path -> assertThat(path.getEvidenceRefs())
+                        .containsExactly("code:line:18", "judge:first_failed_case"));
+        assertThat(result.getSoftFixes())
+                .contains("evidenceRef alias code:line_18_comment -> code:line:18")
+                .contains("evidenceRef alias judge:case_1_output -> judge:first_failed_case");
     }
 
     @Test

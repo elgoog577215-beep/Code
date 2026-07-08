@@ -33,6 +33,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -64,6 +65,7 @@ public class AiReportService {
     private final ThreadLocal<ExternalModelRequestContext> nextRequestContext =
             ThreadLocal.withInitial(ExternalModelRequestContext::standard);
     private final ThreadLocal<String> lastModelStageRawContent = ThreadLocal.withInitial(() -> "");
+    private static final ThreadLocal<Consumer<ModelCallTraceEvent>> MODEL_CALL_TRACE_SINK = new ThreadLocal<>();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -553,23 +555,25 @@ public class AiReportService {
     private AdviceGenerationOutput callAdviceGenerationStage(
             ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
         Map<String, Object> request = new LinkedHashMap<>();
-        request.put("task", "请完成一次高中信息学提交最终诊断：读取原始上下文、初步诊断和 AI 标准库导航结果，生成 studentReport 和结构化元数据。");
+        request.put("task", "请完成一次高中信息学提交最终诊断：以自由诊断 issues 为主输入，结合可选标准库挂接结果，生成多条学生建议和结构化元数据。");
         request.put("contextPolicy", List.of(
                 "problem.description 是完整题目描述；submission.sourceCodeWithLineNumbers 是完整学生代码或最大可用带行号代码。",
                 "submission.verdict、visibleCaseFacts、runtimeErrorMessage、compileOutput 和 evidenceRefs 只是判题参考信号，用来验证诊断。",
-                "freeDiagnosis 是未看标准库前的初步诊断，用来保持对题目和代码的独立判断。",
-                "navigationResult 是 AI 逐层浏览标准库后的路径选择，不是后端预选候选。",
-                "standardLibrary.knowledgeGroups 是 AI 导航确认后的统一知识树诊断层，主链路是知识点 -> 能力点 -> 易错点/提升点；不要把知识树和标准库当成两套平行库。",
-                "standardLibrary 是教学参考规范包，像课程标准和教案目录，用于细颗粒定位、标准化命名和区分基础层/提高层，不是强制答案表。",
+                "freeDiagnosis.issues 是本阶段最重要的输入；每个 issue 都代表一个有证据支持的独立诊断点。",
+                "libraryAnchors 是后端按 issue 逐层浏览标准库得到的可选挂接结果；anchorStatus 不是学生可见文案。",
+                "standardLibrary 是教学参考规范包，用于统一术语、路径和颗粒度；即使为空或未命中，也必须继续基于 issues 生成学生建议。",
                 "primaryKnowledgeNodeCode 是主知识路径，relatedKnowledgeNodeCodes 只是辅助上下文；学生端知识路径优先沿主路径表达，不把相关标签平铺成独立问题。",
-                "先基于题目、代码、判题结果和 evidenceRefs 自由诊断，再输出 diagnosisCandidates 并评判它们对标准库是 HIT、PARTIAL、MISS 还是 OUT_OF_LIBRARY。",
-                "判题结果只是参考信号；如果代码语义已经显示题意约束和实际转移不一致，应优先诊断这类真实差异。",
-                "每个 diagnosisCandidates 项必须携带 libraryPath；如果具体错因未覆盖，挂到最接近的上级路径，并给出可审核的 libraryGrowth 候选。",
-                "如果候选不匹配，允许 null id、MISS 或 OUT_OF_LIBRARY，并给出可审核的库外发现。",
+                "basicLayerAdvice 应尽量一条对应一个主要 issue；多个 issue 不要压缩成一条笼统建议。",
+                "improvementLayerAdvice 可以围绕复盘、自测、迁移和调试习惯给出多条方向，但不能重复基础层建议。",
+                "如果某个 issue 没有标准库 anchor，相关标准库 id 可以留空，不要因此删除该 issue 的建议。",
                 "学生可见反馈要自然、具体、可行动，但不能给完整答案或逐行改法。"
         ));
         request.put("brief", runtimePlan.getBrief());
         request.put("freeDiagnosis", runtimePlan.getFreeDiagnosisOutput());
+        request.put("issues", runtimePlan.getFreeDiagnosisOutput() == null
+                ? List.of()
+                : safeList(runtimePlan.getFreeDiagnosisOutput().getIssues()));
+        request.put("libraryAnchors", safeList(runtimePlan.getIssueLibraryAnchors()));
         request.put("navigationResult", runtimePlan.getStandardLibraryNavigationOutput());
         request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
         activateRuntimePlan(runtimePlan);
@@ -594,69 +598,560 @@ public class AiReportService {
         if (runtimePlan == null) {
             return invalidStage("AI_NAVIGATION", ModelStageFailureReason.INVALID_JSON, "runtimePlan is missing.");
         }
-        if (standardLibraryService == null || standardLibraryNavigationPackBuilder == null) {
-            return invalidStage("AI_NAVIGATION", ModelStageFailureReason.INVALID_JSON,
-                    "STANDARD_LIBRARY_NAVIGATION_SERVICES_UNAVAILABLE");
-        }
+        FreeDiagnosisOutput freeDiagnosis;
         try {
-            FreeDiagnosisOutput freeDiagnosis = callFreeDiagnosisStage(runtimePlan);
+            freeDiagnosis = callFreeDiagnosisStage(runtimePlan);
             if (freeDiagnosis == null) {
                 return invalidStage("FREE_DIAGNOSIS", ModelStageFailureReason.EMPTY_RESPONSE,
                         "free diagnosis output is empty.");
             }
-            runtimePlan.setFreeDiagnosisOutput(freeDiagnosis);
-            NavigationLoopResult navigationLoopResult =
-                    callStandardLibraryNavigationLoop(runtimePlan, freeDiagnosis);
-            if (navigationLoopResult == null) {
-                return invalidStage("STANDARD_LIBRARY_NAVIGATION", ModelStageFailureReason.EMPTY_RESPONSE,
-                        "standard library navigation output is empty.");
-            }
-            if (navigationLoopResult.failure() != null) {
-                return navigationLoopResult.failure();
-            }
-            StandardLibraryNavigationOutput navigationOutput = navigationLoopResult.output();
-            if (navigationOutput == null) {
-                return invalidStage("STANDARD_LIBRARY_NAVIGATION", ModelStageFailureReason.EMPTY_RESPONSE,
-                        "standard library navigation output is empty.");
-            }
-            String status = defaultIfBlank(navigationOutput.getStatus(), "").trim().toUpperCase();
-            if ("CONTINUE".equals(status)) {
-                return invalidStage("STANDARD_LIBRARY_NAVIGATION", ModelStageFailureReason.INVALID_JSON,
-                        "AI_NAVIGATION_ROUND_LIMIT_REACHED");
-            }
-            StandardLibraryPack selectedPack = standardLibraryNavigationPackBuilder.build(navigationOutput);
-            ExternalModelStagePayloads.StageValidationResult validation =
-                    standardLibraryNavigationOutputValidator.validate(
-                            navigationOutput,
-                            runtimePlan.getBrief(),
-                            selectedPack);
-            if (!validation.isValid()) {
-                log.warn("External model standard library navigation failed validation. reason={}, message={}",
-                        validation.getFailureReason(),
-                        validation.getMessage());
-                return validation;
-            }
-            runtimePlan.setStandardLibraryNavigationOutput(navigationOutput);
-            runtimePlan.setStandardLibraryPack(selectedPack);
-            runtimePlan.setStandardLibraryNavigationResult(StandardLibraryNavigationResult.builder()
-                    .enabled(true)
-                    .status("AI_NAVIGATION")
-                    .failureReason("")
-                    .selectedCount(navigationSelectedCount(navigationOutput))
-                    .selectedPack(selectedPack)
-                    .output(navigationOutput)
-                    .build());
-            return ExternalModelStagePayloads.StageValidationResult.builder()
-                    .valid(true)
-                    .stage("AI_NAVIGATION")
-                    .failureReason(ModelStageFailureReason.NONE)
-                    .message("")
-                    .softFixes(List.of())
-                    .hardFailures(List.of())
-                    .build();
         } catch (Exception exception) {
-            return stageFailureFromException("AI_NAVIGATION", exception);
+            return stageFailureFromException("FREE_DIAGNOSIS", exception);
         }
+        List<FreeDiagnosisOutput.Issue> issues = validatedFreeDiagnosisIssues(
+                freeDiagnosis,
+                runtimePlan.getBrief()
+        );
+        if (issues.isEmpty()) {
+            return invalidStage("FREE_DIAGNOSIS", ModelStageFailureReason.INVALID_EVIDENCE_REF,
+                    "free diagnosis output contains no valid issues.");
+        }
+        freeDiagnosis.setIssues(issues);
+        runtimePlan.setFreeDiagnosisOutput(freeDiagnosis);
+        applyIssueLibraryAnchors(runtimePlan, issues);
+        return ExternalModelStagePayloads.StageValidationResult.builder()
+                .valid(true)
+                .stage("AI_NAVIGATION")
+                .failureReason(ModelStageFailureReason.NONE)
+                .message("")
+                .softFixes(List.of())
+                .hardFailures(List.of())
+                .build();
+    }
+
+    private void applyIssueLibraryAnchors(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+                                          List<FreeDiagnosisOutput.Issue> issues) {
+        if (standardLibraryService == null || standardLibraryNavigationPackBuilder == null) {
+            List<IssueLibraryAnchor> anchors = anchorsWithStatus(issues, "ATTACHMENT_FAILED",
+                    "STANDARD_LIBRARY_NAVIGATION_SERVICES_UNAVAILABLE");
+            setLayeredAttachmentArtifacts(runtimePlan, anchors, "ATTACHMENT_FAILED",
+                    "STANDARD_LIBRARY_NAVIGATION_SERVICES_UNAVAILABLE");
+            return;
+        }
+        List<AiStandardLibraryNavigationNodeResponse> roots;
+        try {
+            roots = safeNavigationNodes(standardLibraryService.listRootKnowledgeAreas());
+        } catch (Exception exception) {
+            List<IssueLibraryAnchor> anchors = anchorsWithStatus(issues, "ATTACHMENT_FAILED",
+                    exception.getMessage());
+            setLayeredAttachmentArtifacts(runtimePlan, anchors, "ATTACHMENT_FAILED", exception.getMessage());
+            return;
+        }
+        if (roots.isEmpty()) {
+            List<IssueLibraryAnchor> anchors = anchorsWithStatus(issues, "LIBRARY_EMPTY",
+                    "standard library root is empty.");
+            setLayeredAttachmentArtifacts(runtimePlan, anchors, "LIBRARY_EMPTY", "standard library root is empty.");
+            return;
+        }
+        List<IssueLibraryAnchor> anchors = new ArrayList<>();
+        for (FreeDiagnosisOutput.Issue issue : issues) {
+            anchors.add(attachIssueToStandardLibrary(runtimePlan, issue, roots));
+        }
+        setLayeredAttachmentArtifacts(runtimePlan, anchors, aggregateAnchorStatus(anchors), "");
+    }
+
+    private List<FreeDiagnosisOutput.Issue> validatedFreeDiagnosisIssues(FreeDiagnosisOutput output,
+                                                                         ModelDiagnosisBrief brief) {
+        List<FreeDiagnosisOutput.Issue> source = output == null ? List.of() : safeList(output.getIssues());
+        if (source.isEmpty()) {
+            source = issuesFromHypotheses(output);
+        }
+        Set<String> validRefs = EvidenceRefSupport.validEvidenceRefs(brief);
+        List<String> orderedRefs = EvidenceRefSupport.orderedEvidenceRefs(brief);
+        List<FreeDiagnosisOutput.Issue> validIssues = new ArrayList<>();
+        int index = 1;
+        for (FreeDiagnosisOutput.Issue raw : source) {
+            if (raw == null) {
+                continue;
+            }
+            List<String> evidenceRefs = EvidenceRefSupport.normalizeEvidenceRefs(
+                    raw.getEvidenceRefs(),
+                    validRefs,
+                    orderedRefs,
+                    brief,
+                    null
+            );
+            String invalidEvidence = EvidenceRefSupport.invalidEvidenceRefs(
+                    evidenceRefs,
+                    validRefs,
+                    brief,
+                    "freeDiagnosis.issues.evidenceRefs",
+                    true
+            );
+            if (!invalidEvidence.isBlank()) {
+                continue;
+            }
+            String title = cleanupAiText(raw.getTitle());
+            if (title.isBlank()) {
+                continue;
+            }
+            Double confidence = raw.getConfidence();
+            if (confidence == null || confidence < 0 || confidence > 1
+                    || confidence.isNaN() || confidence.isInfinite()) {
+                confidence = 0.6;
+            }
+            validIssues.add(FreeDiagnosisOutput.Issue.builder()
+                    .issueId(defaultIfBlank(cleanupAiText(raw.getIssueId()), "I" + index))
+                    .title(title)
+                    .whatHappened(defaultIfBlank(cleanupAiText(raw.getWhatHappened()), title))
+                    .whyItMatters(defaultIfBlank(cleanupAiText(raw.getWhyItMatters()), cleanupAiText(raw.getWhatHappened())))
+                    .evidenceRefs(evidenceRefs)
+                    .severity(defaultIfBlank(cleanupAiText(raw.getSeverity()), "MAJOR"))
+                    .confidence(confidence)
+                    .build());
+            index++;
+        }
+        return validIssues;
+    }
+
+    private List<FreeDiagnosisOutput.Issue> issuesFromHypotheses(FreeDiagnosisOutput output) {
+        if (output == null || output.getHypotheses() == null) {
+            return List.of();
+        }
+        List<FreeDiagnosisOutput.Issue> issues = new ArrayList<>();
+        int index = 1;
+        for (FreeDiagnosisOutput.Hypothesis hypothesis : output.getHypotheses()) {
+            if (hypothesis == null) {
+                continue;
+            }
+            issues.add(FreeDiagnosisOutput.Issue.builder()
+                    .issueId("I" + index++)
+                    .title(hypothesis.getName())
+                    .whatHappened(hypothesis.getReason())
+                    .whyItMatters(hypothesis.getReason())
+                    .evidenceRefs(hypothesis.getEvidenceRefs())
+                    .severity("MAJOR")
+                    .confidence(hypothesis.getConfidence())
+                    .build());
+        }
+        return issues;
+    }
+
+    private IssueLibraryAnchor attachIssueToStandardLibrary(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+                                                            FreeDiagnosisOutput.Issue issue,
+                                                            List<AiStandardLibraryNavigationNodeResponse> roots) {
+        List<IssueLibraryAnchor.PathNode> breadcrumb = new ArrayList<>();
+        List<AiStandardLibraryNavigationNodeResponse> nodes = roots;
+        List<AiStandardLibraryDiagnosticLayerResponse> diagnosticLayers = List.of();
+        int maxRounds = navigationMaxRounds();
+        for (int round = 1; round <= maxRounds; round++) {
+            if (nodes.isEmpty() && diagnosticLayers.isEmpty()) {
+                return anchorWithStatus(issue, "NO_MATCH", breadcrumb, "current standard library layer is empty.", null);
+            }
+            LayeredAttachmentAction action;
+            try {
+                action = callLayeredAttachmentActionStage(
+                        runtimePlan,
+                        issue,
+                        breadcrumb,
+                        nodes,
+                        diagnosticLayers,
+                        round,
+                        maxRounds
+                );
+            } catch (Exception exception) {
+                return anchorWithStatus(issue, "ATTACHMENT_FAILED", breadcrumb, exception.getMessage(), null);
+            }
+            if (action == null) {
+                return anchorWithStatus(issue, "ATTACHMENT_FAILED", breadcrumb, "layered attachment output is empty.", null);
+            }
+            String actionName = defaultIfBlank(action.getAction(), "").trim().toUpperCase();
+            if ("DONE".equals(actionName)) {
+                return anchorFromDiagnosticSelection(issue, breadcrumb, diagnosticLayers, action, false);
+            }
+            if ("NO_MATCH".equals(actionName)) {
+                return anchorWithStatus(issue, "NO_MATCH", breadcrumb, action.getReason(), action.getConfidence());
+            }
+            if (!"SELECT".equals(actionName)) {
+                return anchorWithStatus(issue, "ATTACHMENT_FAILED", breadcrumb,
+                        "invalid layered attachment action: " + action.getAction(), action.getConfidence());
+            }
+            List<String> codes = cleanList(action.getCodes(), List.of()).stream()
+                    .map(String::trim)
+                    .filter(value -> !value.isBlank())
+                    .limit(2)
+                    .toList();
+            if (codes.isEmpty()) {
+                return anchorWithStatus(issue, "NO_MATCH", breadcrumb, "SELECT action returned empty codes.",
+                        action.getConfidence());
+            }
+            String code = codes.get(0);
+            if (diagnosticCodeVisible(code, diagnosticLayers)) {
+                return anchorFromDiagnosticSelection(issue, breadcrumb, diagnosticLayers, action, true);
+            }
+            AiStandardLibraryNavigationNodeResponse node = findNavigationNode(nodes, code);
+            if (node == null) {
+                return anchorWithStatus(issue, "ATTACHMENT_FAILED", breadcrumb,
+                        "ATTACHMENT_INVALID_CODE:" + code, action.getConfidence());
+            }
+            breadcrumb.add(pathNode(node));
+            try {
+                diagnosticLayers = List.of(standardLibraryService.expandDiagnosticLayer(code));
+                nodes = List.of();
+            } catch (IllegalArgumentException notKnowledgePoint) {
+                try {
+                    AiStandardLibraryNavigationExpansionResponse expansion =
+                            standardLibraryService.expandKnowledgeNode(code, 0, 50);
+                    nodes = safeNavigationNodes(expansion == null ? null : expansion.getChildren());
+                    diagnosticLayers = List.of();
+                } catch (Exception exception) {
+                    return anchorWithStatus(issue, "ATTACHMENT_FAILED", breadcrumb, exception.getMessage(),
+                            action.getConfidence());
+                }
+            } catch (Exception exception) {
+                return anchorWithStatus(issue, "ATTACHMENT_FAILED", breadcrumb, exception.getMessage(),
+                        action.getConfidence());
+            }
+        }
+        return anchorWithStatus(issue, "ATTACHMENT_FAILED", breadcrumb, "AI_NAVIGATION_ROUND_LIMIT_REACHED", null);
+    }
+
+    private LayeredAttachmentAction callLayeredAttachmentActionStage(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            FreeDiagnosisOutput.Issue issue,
+            List<IssueLibraryAnchor.PathNode> breadcrumb,
+            List<AiStandardLibraryNavigationNodeResponse> nodes,
+            List<AiStandardLibraryDiagnosticLayerResponse> diagnosticLayers,
+            int round,
+            int maxRounds) throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("task", "为当前 issue 从当前可见标准库目录中选择下一层，或结束挂接。");
+        request.put("issue", issue);
+        request.put("breadcrumb", breadcrumb);
+        request.put("currentLayer", Map.of(
+                "round", round,
+                "maxRounds", maxRounds,
+                "nodes", currentLayerNodes(nodes),
+                "diagnosticItems", currentDiagnosticItems(diagnosticLayers)
+        ));
+        request.put("allowedActions", List.of("SELECT", "DONE", "NO_MATCH"));
+        activateRuntimePlan(runtimePlan);
+        String systemPrompt = runtimePlan.getStandardLibraryNavigationPrompt().getSystemPrompt();
+        String userPrompt = objectMapper.writeValueAsString(request);
+        String content = chatCompletion(systemPrompt, userPrompt);
+        LayeredAttachmentAction output = parseModelStagePayload(content, LayeredAttachmentAction.class);
+        if (output != null) {
+            return output;
+        }
+        return retryStructuredModelStagePayload(systemPrompt, userPrompt, runtimePlan, LayeredAttachmentAction.class);
+    }
+
+    private List<Map<String, Object>> currentLayerNodes(List<AiStandardLibraryNavigationNodeResponse> nodes) {
+        return safeNavigationNodes(nodes).stream()
+                .map(node -> {
+                    Map<String, Object> value = new LinkedHashMap<>();
+                    value.put("code", node.getCode());
+                    value.put("name", node.getName());
+                    value.put("type", node.getType());
+                    value.put("description", node.getDescription());
+                    return value;
+                })
+                .toList();
+    }
+
+    private List<Map<String, Object>> currentDiagnosticItems(
+            List<AiStandardLibraryDiagnosticLayerResponse> diagnosticLayers) {
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (AiStandardLibraryDiagnosticLayerResponse layer : safeDiagnosticLayers(diagnosticLayers)) {
+            addDiagnosticItem(items, pathNode(layer.getKnowledgePoint()), "KNOWLEDGE_POINT", null);
+            for (AiStandardLibraryDiagnosticLayerResponse.SkillUnit skill : safeList(layer.getSkillUnits())) {
+                addDiagnosticItem(items, skill.getCode(), skill.getName(), "SKILL_UNIT", skill.getDescription());
+                for (AiStandardLibraryDiagnosticLayerResponse.MistakePoint mistake : safeList(skill.getMistakePoints())) {
+                    addDiagnosticItem(items, mistake.getCode(), mistake.getName(), "MISTAKE_POINT",
+                            mistake.getDescription());
+                }
+                for (AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint improvement :
+                        safeList(skill.getImprovementPoints())) {
+                    addDiagnosticItem(items, improvement.getCode(), improvement.getName(), "IMPROVEMENT_POINT",
+                            improvement.getDescription());
+                }
+            }
+            for (AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint improvement :
+                    safeList(layer.getDirectImprovementPoints())) {
+                addDiagnosticItem(items, improvement.getCode(), improvement.getName(), "IMPROVEMENT_POINT",
+                        improvement.getDescription());
+            }
+        }
+        return items;
+    }
+
+    private void addDiagnosticItem(List<Map<String, Object>> items,
+                                   IssueLibraryAnchor.PathNode node,
+                                   String type,
+                                   String description) {
+        if (node == null) {
+            return;
+        }
+        addDiagnosticItem(items, node.getCode(), node.getName(), type, description);
+    }
+
+    private void addDiagnosticItem(List<Map<String, Object>> items,
+                                   String code,
+                                   String name,
+                                   String type,
+                                   String description) {
+        String normalizedCode = defaultIfBlank(code, "").trim();
+        if (normalizedCode.isBlank()) {
+            return;
+        }
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("code", normalizedCode);
+        item.put("name", defaultIfBlank(name, normalizedCode));
+        item.put("type", type);
+        item.put("description", defaultIfBlank(description, ""));
+        items.add(item);
+    }
+
+    private IssueLibraryAnchor anchorFromDiagnosticSelection(FreeDiagnosisOutput.Issue issue,
+                                                            List<IssueLibraryAnchor.PathNode> breadcrumb,
+                                                            List<AiStandardLibraryDiagnosticLayerResponse> layers,
+                                                            LayeredAttachmentAction action,
+                                                            boolean selectedDiagnosticCode) {
+        LinkedHashSet<String> codes = new LinkedHashSet<>(cleanList(action == null ? null : action.getCodes(), List.of()));
+        String skillUnitCode = "";
+        String mistakePointCode = "";
+        String improvementPointCode = "";
+        List<IssueLibraryAnchor.PathNode> path = new ArrayList<>(breadcrumb);
+        for (AiStandardLibraryDiagnosticLayerResponse layer : safeDiagnosticLayers(layers)) {
+            IssueLibraryAnchor.PathNode knowledgePoint = pathNode(layer.getKnowledgePoint());
+            if (knowledgePoint != null && path.stream().noneMatch(item -> knowledgePoint.getCode().equals(item.getCode()))) {
+                path.add(knowledgePoint);
+            }
+            for (AiStandardLibraryDiagnosticLayerResponse.SkillUnit skill : safeList(layer.getSkillUnits())) {
+                if (codes.contains(skill.getCode())) {
+                    skillUnitCode = skill.getCode();
+                }
+                for (AiStandardLibraryDiagnosticLayerResponse.MistakePoint mistake : safeList(skill.getMistakePoints())) {
+                    if (codes.contains(mistake.getCode())) {
+                        mistakePointCode = mistake.getCode();
+                        skillUnitCode = defaultIfBlank(skillUnitCode, skill.getCode());
+                    }
+                }
+                for (AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint improvement :
+                        safeList(skill.getImprovementPoints())) {
+                    if (codes.contains(improvement.getCode())) {
+                        improvementPointCode = improvement.getCode();
+                        skillUnitCode = defaultIfBlank(skillUnitCode, skill.getCode());
+                    }
+                }
+            }
+            for (AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint improvement :
+                    safeList(layer.getDirectImprovementPoints())) {
+                if (codes.contains(improvement.getCode())) {
+                    improvementPointCode = improvement.getCode();
+                }
+            }
+        }
+        boolean hasFormalAnchor = !skillUnitCode.isBlank() || !mistakePointCode.isBlank() || !improvementPointCode.isBlank();
+        return IssueLibraryAnchor.builder()
+                .issueId(issue.getIssueId())
+                .anchorStatus(hasFormalAnchor || selectedDiagnosticCode ? "HIT" : "PARTIAL")
+                .path(path)
+                .skillUnitCode(blankToNull(skillUnitCode))
+                .mistakePointCode(blankToNull(mistakePointCode))
+                .improvementPointCode(blankToNull(improvementPointCode))
+                .reason(defaultIfBlank(action == null ? "" : action.getReason(), "standard library attachment completed."))
+                .confidence(action == null ? null : action.getConfidence())
+                .build();
+    }
+
+    private boolean diagnosticCodeVisible(String code, List<AiStandardLibraryDiagnosticLayerResponse> layers) {
+        String normalized = defaultIfBlank(code, "").trim();
+        if (normalized.isBlank()) {
+            return false;
+        }
+        return currentDiagnosticItems(layers).stream()
+                .map(item -> defaultIfBlank((String) item.get("code"), ""))
+                .anyMatch(normalized::equals);
+    }
+
+    private AiStandardLibraryNavigationNodeResponse findNavigationNode(
+            List<AiStandardLibraryNavigationNodeResponse> nodes,
+            String code) {
+        String normalized = defaultIfBlank(code, "").trim();
+        return safeNavigationNodes(nodes).stream()
+                .filter(node -> normalized.equals(defaultIfBlank(node.getCode(), "").trim()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private List<IssueLibraryAnchor> anchorsWithStatus(List<FreeDiagnosisOutput.Issue> issues,
+                                                       String status,
+                                                       String reason) {
+        return safeList(issues).stream()
+                .map(issue -> anchorWithStatus(issue, status, List.of(), reason, null))
+                .toList();
+    }
+
+    private IssueLibraryAnchor anchorWithStatus(FreeDiagnosisOutput.Issue issue,
+                                                String status,
+                                                List<IssueLibraryAnchor.PathNode> breadcrumb,
+                                                String reason,
+                                                Double confidence) {
+        return IssueLibraryAnchor.builder()
+                .issueId(issue == null ? "" : issue.getIssueId())
+                .anchorStatus(status)
+                .path(breadcrumb == null ? List.of() : List.copyOf(breadcrumb))
+                .reason(defaultIfBlank(reason, status))
+                .confidence(confidence)
+                .build();
+    }
+
+    private void setLayeredAttachmentArtifacts(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+                                               List<IssueLibraryAnchor> anchors,
+                                               String status,
+                                               String failureReason) {
+        StandardLibraryNavigationOutput output = navigationOutputFromAnchors(anchors);
+        StandardLibraryPack pack = packForNavigationOutput(output, status, failureReason);
+        runtimePlan.setIssueLibraryAnchors(anchors);
+        runtimePlan.setStandardLibraryNavigationOutput(output);
+        runtimePlan.setStandardLibraryPack(pack);
+        runtimePlan.setStandardLibraryNavigationResult(StandardLibraryNavigationResult.builder()
+                .enabled(true)
+                .status(status)
+                .failureReason(defaultIfBlank(failureReason, ""))
+                .selectedCount(navigationSelectedCount(output))
+                .selectedPack(pack)
+                .output(output)
+                .build());
+    }
+
+    private StandardLibraryNavigationOutput navigationOutputFromAnchors(List<IssueLibraryAnchor> anchors) {
+        List<StandardLibraryNavigationOutput.SelectedPath> selectedPaths = safeList(anchors).stream()
+                .filter(anchor -> List.of("HIT", "PARTIAL").contains(defaultIfBlank(anchor.getAnchorStatus(), "")))
+                .map(anchor -> StandardLibraryNavigationOutput.SelectedPath.builder()
+                        .knowledgeNodeCode(lastPathCode(anchor.getPath()))
+                        .skillUnitCode(anchor.getSkillUnitCode())
+                        .mistakePointCode(anchor.getMistakePointCode())
+                        .improvementPointCode(anchor.getImprovementPointCode())
+                        .libraryFit("HIT".equals(anchor.getAnchorStatus()) ? "HIT" : "PARTIAL")
+                        .reason(anchor.getReason())
+                        .evidenceRefs(List.of())
+                        .confidence(anchor.getConfidence())
+                        .build())
+                .toList();
+        List<StandardLibraryNavigationOutput.UnresolvedGap> gaps = safeList(anchors).stream()
+                .filter(anchor -> !List.of("HIT", "PARTIAL").contains(defaultIfBlank(anchor.getAnchorStatus(), "")))
+                .map(anchor -> StandardLibraryNavigationOutput.UnresolvedGap.builder()
+                        .name(defaultIfBlank(anchor.getIssueId(), "ISSUE"))
+                        .reason(anchor.getAnchorStatus() + ":" + defaultIfBlank(anchor.getReason(), ""))
+                        .suggestedPath(List.of())
+                        .evidenceRefs(List.of())
+                        .confidence(anchor.getConfidence())
+                        .build())
+                .toList();
+        return StandardLibraryNavigationOutput.builder()
+                .status(selectedPaths.isEmpty() ? "NO_MATCH" : "DONE")
+                .selectedBranches(List.of())
+                .selectedPaths(selectedPaths)
+                .unresolvedGaps(gaps)
+                .uncertainty(anchorSummary(anchors))
+                .build();
+    }
+
+    private StandardLibraryPack packForNavigationOutput(StandardLibraryNavigationOutput output,
+                                                        String status,
+                                                        String failureReason) {
+        StandardLibraryPack pack;
+        try {
+            pack = standardLibraryNavigationPackBuilder == null
+                    ? emptyStandardLibraryPack(status, failureReason, output == null ? "" : output.getUncertainty())
+                    : standardLibraryNavigationPackBuilder.build(output);
+        } catch (Exception exception) {
+            pack = emptyStandardLibraryPack("ATTACHMENT_FAILED", exception.getMessage(),
+                    output == null ? "" : output.getUncertainty());
+            status = "ATTACHMENT_FAILED";
+            failureReason = exception.getMessage();
+        }
+        if (pack.getStandardLibraryNavigationSummary() == null) {
+            pack.setStandardLibraryNavigationSummary(StandardLibraryPack.StandardLibraryNavigationSummary.builder()
+                    .build());
+        }
+        pack.getStandardLibraryNavigationSummary().setStatus(status);
+        pack.getStandardLibraryNavigationSummary().setFailureReason(defaultIfBlank(failureReason, ""));
+        pack.getStandardLibraryNavigationSummary().setSelectedCount(navigationSelectedCount(output));
+        pack.getStandardLibraryNavigationSummary().setUncertainty(output == null ? "" : output.getUncertainty());
+        return pack;
+    }
+
+    private StandardLibraryPack emptyStandardLibraryPack(String status, String failureReason, String uncertainty) {
+        return StandardLibraryPack.builder()
+                .schemaVersion(StandardLibraryPack.SCHEMA_VERSION)
+                .structureVersion(StandardLibraryPack.STRUCTURE_VERSION)
+                .knowledgeGroups(List.of())
+                .basicCauses(List.of())
+                .improvementPoints(List.of())
+                .knowledgeAnchors(List.of())
+                .skillUnits(List.of())
+                .mistakePoints(List.of())
+                .standardLibraryNavigationSummary(StandardLibraryPack.StandardLibraryNavigationSummary.builder()
+                        .status(status)
+                        .failureReason(defaultIfBlank(failureReason, ""))
+                        .selectedCount(0)
+                        .uncertainty(defaultIfBlank(uncertainty, ""))
+                        .build())
+                .issueTags(List.of())
+                .fineGrainedTags(List.of())
+                .improvementTags(List.of())
+                .teachingActions(List.of())
+                .build();
+    }
+
+    private String aggregateAnchorStatus(List<IssueLibraryAnchor> anchors) {
+        if (safeList(anchors).stream().anyMatch(anchor ->
+                List.of("HIT", "PARTIAL").contains(defaultIfBlank(anchor.getAnchorStatus(), "")))) {
+            return "LAYERED_ATTACHMENT";
+        }
+        if (!safeList(anchors).isEmpty() && safeList(anchors).stream()
+                .allMatch(anchor -> "LIBRARY_EMPTY".equals(anchor.getAnchorStatus()))) {
+            return "LIBRARY_EMPTY";
+        }
+        if (!safeList(anchors).isEmpty() && safeList(anchors).stream()
+                .allMatch(anchor -> "NO_MATCH".equals(anchor.getAnchorStatus()))) {
+            return "NO_MATCH";
+        }
+        return "ATTACHMENT_FAILED";
+    }
+
+    private String anchorSummary(List<IssueLibraryAnchor> anchors) {
+        return safeList(anchors).stream()
+                .map(anchor -> defaultIfBlank(anchor.getIssueId(), "ISSUE")
+                        + "=" + defaultIfBlank(anchor.getAnchorStatus(), "UNKNOWN"))
+                .toList()
+                .toString();
+    }
+
+    private String lastPathCode(List<IssueLibraryAnchor.PathNode> path) {
+        if (path == null || path.isEmpty()) {
+            return null;
+        }
+        return path.get(path.size() - 1).getCode();
+    }
+
+    private IssueLibraryAnchor.PathNode pathNode(AiStandardLibraryNavigationNodeResponse node) {
+        if (node == null || defaultIfBlank(node.getCode(), "").isBlank()) {
+            return null;
+        }
+        return IssueLibraryAnchor.PathNode.builder()
+                .code(node.getCode())
+                .name(node.getName())
+                .type(node.getType())
+                .build();
+    }
+
+    private String blankToNull(String value) {
+        String normalized = defaultIfBlank(value, "").trim();
+        return normalized.isBlank() ? null : normalized;
     }
 
     private FreeDiagnosisOutput callFreeDiagnosisStage(ExternalModelAgentRuntime.RuntimePlan runtimePlan)
@@ -1779,6 +2274,27 @@ public class AiReportService {
         return model;
     }
 
+    public static AutoCloseable captureModelCallTrace(Consumer<ModelCallTraceEvent> sink) {
+        MODEL_CALL_TRACE_SINK.set(sink);
+        return MODEL_CALL_TRACE_SINK::remove;
+    }
+
+    public record ModelCallTraceEvent(
+            String stage,
+            boolean stream,
+            int outputTokens,
+            String runtimeProfile,
+            boolean requestCompact,
+            String systemPrompt,
+            String userPrompt,
+            String requestBody,
+            String responseBody,
+            String content,
+            String error,
+            long latencyMs
+    ) {
+    }
+
     public String smokeChatCompletion() throws IOException, InterruptedException {
         if (!canCallAi()) {
             throw new IOException("AI is disabled or API key is blank");
@@ -1946,24 +2462,83 @@ public class AiReportService {
                 ? ExternalModelCallTelemetry.stream(0, 0, 0, 0, "")
                 : ExternalModelCallTelemetry.nonStream("")).withRequestTelemetry(requestBytes, activeProfile, activeCompact));
 
-        String responseBody = sendChatCompletionRequest(serializedRequest, stream);
-        String content;
-        if (stream) {
-            ParsedStreamingContent parsed = extractStreamingChatMessageContent(responseBody);
-            content = parsed.content();
-            lastCallTelemetry.set(parsed.telemetry().withRequestTelemetry(requestBytes, activeProfile, activeCompact));
-        } else {
-            JsonNode root = objectMapper.readTree(responseBody);
-            content = extractChatMessageContent(root);
-            lastCallTelemetry.set(ExternalModelCallTelemetry.nonStream(extractFinishReason(root.path("choices").path(0)))
-                    .withRequestTelemetry(requestBytes, activeProfile, activeCompact));
+        long startedAt = System.nanoTime();
+        String responseBody = "";
+        String content = "";
+        try {
+            responseBody = sendChatCompletionRequest(serializedRequest, stream);
+            if (stream) {
+                ParsedStreamingContent parsed = extractStreamingChatMessageContent(responseBody);
+                content = parsed.content();
+                lastCallTelemetry.set(parsed.telemetry().withRequestTelemetry(requestBytes, activeProfile, activeCompact));
+            } else {
+                JsonNode root = objectMapper.readTree(responseBody);
+                content = extractChatMessageContent(root);
+                lastCallTelemetry.set(ExternalModelCallTelemetry.nonStream(extractFinishReason(root.path("choices").path(0)))
+                        .withRequestTelemetry(requestBytes, activeProfile, activeCompact));
+            }
+            if (content.isBlank()) {
+                log.warn("AI response did not include usable message content. bodyPreview={}",
+                        previewBody(responseBody));
+                throw new IOException("AI response did not include message content");
+            }
+            recordModelCallTrace(systemPrompt, userPrompt, serializedRequest, responseBody, content, "",
+                    stream, outputTokens, activeProfile, activeCompact, startedAt);
+            return content;
+        } catch (IOException | InterruptedException | RuntimeException exception) {
+            recordModelCallTrace(systemPrompt, userPrompt, serializedRequest, responseBody, content,
+                    exception.getMessage(), stream, outputTokens, activeProfile, activeCompact, startedAt);
+            throw exception;
         }
-        if (content.isBlank()) {
-            log.warn("AI response did not include usable message content. bodyPreview={}",
-                    previewBody(responseBody));
-            throw new IOException("AI response did not include message content");
+    }
+
+    private void recordModelCallTrace(String systemPrompt,
+                                      String userPrompt,
+                                      String requestBody,
+                                      String responseBody,
+                                      String content,
+                                      String error,
+                                      boolean stream,
+                                      int outputTokens,
+                                      String runtimeProfile,
+                                      boolean requestCompact,
+                                      long startedAt) {
+        Consumer<ModelCallTraceEvent> sink = MODEL_CALL_TRACE_SINK.get();
+        if (sink == null) {
+            return;
         }
-        return content;
+        long latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
+        sink.accept(new ModelCallTraceEvent(
+                traceStage(systemPrompt),
+                stream,
+                outputTokens,
+                runtimeProfile,
+                requestCompact,
+                systemPrompt,
+                userPrompt,
+                requestBody,
+                responseBody,
+                content,
+                defaultIfBlank(error, ""),
+                latencyMs
+        ));
+    }
+
+    private String traceStage(String systemPrompt) {
+        String text = defaultIfBlank(systemPrompt, "");
+        if (text.contains("free-diagnosis-v1")) {
+            return "FREE_DIAGNOSIS";
+        }
+        if (text.contains("standard-library-navigation-v1")) {
+            return "LAYERED_ATTACHMENT";
+        }
+        if (text.contains("diagnosis-report-v3")) {
+            return "ADVICE_GENERATION";
+        }
+        if (text.contains("student-fast-feedback")) {
+            return "STUDENT_FAST_FEEDBACK";
+        }
+        return "MODEL_CALL";
     }
 
     protected String sendChatCompletionRequest(String requestBody, boolean stream) throws IOException, InterruptedException {

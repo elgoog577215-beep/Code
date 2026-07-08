@@ -25,8 +25,68 @@ public class AdviceGenerationOutputNormalizer {
         if (output.getImprovementLayerAdvice() != null) {
             output.getImprovementLayerAdvice().forEach(item -> normalizeImprovementAdvice(item, improvementIds, skillIds));
         }
+        normalizeNextStepPlan(output);
         normalizeStudentReport(output.getStudentReport());
         return output;
+    }
+
+    private void normalizeNextStepPlan(AdviceGenerationOutput output) {
+        if (output == null || output.getNextStepPlan() != null && !output.getNextStepPlan().isEmpty()) {
+            return;
+        }
+        AdviceGenerationOutput.NextStepAdvice nextStep = nextStepFromBasicAdvice(output.getBasicLayerAdvice());
+        if (nextStep == null) {
+            nextStep = nextStepFromImprovementAdvice(output.getImprovementLayerAdvice());
+        }
+        if (nextStep != null) {
+            output.setNextStepPlan(List.of(nextStep));
+        }
+    }
+
+    private AdviceGenerationOutput.NextStepAdvice nextStepFromBasicAdvice(
+            List<AdviceGenerationOutput.BasicLayerAdvice> values) {
+        if (values == null) {
+            return null;
+        }
+        for (AdviceGenerationOutput.BasicLayerAdvice item : values) {
+            if (item == null) {
+                continue;
+            }
+            String target = firstNonBlank(item.getStudentAction(), item.getText(), item.getTitle());
+            if (target.isBlank()) {
+                continue;
+            }
+            return AdviceGenerationOutput.NextStepAdvice.builder()
+                    .step(1)
+                    .target(target)
+                    .reason("这是当前最直接的排查入口。")
+                    .evidenceRef(firstEvidenceRef(item.getEvidenceRefs()))
+                    .build();
+        }
+        return null;
+    }
+
+    private AdviceGenerationOutput.NextStepAdvice nextStepFromImprovementAdvice(
+            List<AdviceGenerationOutput.ImprovementLayerAdvice> values) {
+        if (values == null) {
+            return null;
+        }
+        for (AdviceGenerationOutput.ImprovementLayerAdvice item : values) {
+            if (item == null) {
+                continue;
+            }
+            String target = firstNonBlank(item.getSuggestion(), item.getText(), item.getTitle());
+            if (target.isBlank()) {
+                continue;
+            }
+            return AdviceGenerationOutput.NextStepAdvice.builder()
+                    .step(1)
+                    .target(target)
+                    .reason("这是当前最容易验证的改进动作。")
+                    .evidenceRef(firstEvidenceRef(item.getEvidenceRefs()))
+                    .build();
+        }
+        return null;
     }
 
     private void normalizeStudentReport(AdviceGenerationOutput.StudentReport report) {
@@ -69,6 +129,27 @@ public class AdviceGenerationOutputNormalizer {
         if (item == null) {
             return;
         }
+        String text = clean(item.getText());
+        if (!text.isBlank()) {
+            if (clean(item.getTitle()).isBlank()) {
+                item.setTitle(titleFromText(text));
+            }
+            if (clean(item.getWhatHappened()).isBlank()) {
+                item.setWhatHappened(text);
+            }
+            if (clean(item.getWhyItMatters()).isBlank()) {
+                item.setWhyItMatters("这个问题会影响当前提交的正确性。");
+            }
+            if (clean(item.getStudentAction()).isBlank()) {
+                item.setStudentAction(text);
+            }
+            if (clean(item.getCheckQuestion()).isBlank()) {
+                item.setCheckQuestion("这个现象能否用当前失败样例复现？");
+            }
+            if (item.getConfidence() == null) {
+                item.setConfidence(0.7);
+            }
+        }
         String mistake = normalizeKey(item.getMistakePointId());
         String skill = normalizeKey(item.getSkillUnitId());
         if (!skill.isBlank() && !skillIds.contains(skill)) {
@@ -88,6 +169,24 @@ public class AdviceGenerationOutputNormalizer {
                                             Set<String> skillIds) {
         if (item == null) {
             return;
+        }
+        String text = clean(item.getText());
+        if (!text.isBlank()) {
+            if (clean(item.getTitle()).isBlank()) {
+                item.setTitle(titleFromText(text));
+            }
+            if (clean(item.getCurrentLimit()).isBlank()) {
+                item.setCurrentLimit("当前需要补充复盘和自测。");
+            }
+            if (clean(item.getSuggestion()).isBlank()) {
+                item.setSuggestion(text);
+            }
+            if (clean(item.getStudentBenefit()).isBlank()) {
+                item.setStudentBenefit("能帮助你更早发现同类问题。");
+            }
+            if (item.getConfidence() == null) {
+                item.setConfidence(0.7);
+            }
         }
         String improvement = normalizeKey(item.getImprovementPointId());
         String skill = normalizeKey(item.getSkillUnitId());
@@ -127,5 +226,48 @@ public class AdviceGenerationOutputNormalizer {
 
     private String normalizeKey(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String clean(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            String cleaned = clean(value);
+            if (!cleaned.isBlank()) {
+                return cleaned;
+            }
+        }
+        return "";
+    }
+
+    private String firstEvidenceRef(List<String> evidenceRefs) {
+        if (evidenceRefs == null) {
+            return null;
+        }
+        for (String evidenceRef : evidenceRefs) {
+            String cleaned = clean(evidenceRef);
+            if (!cleaned.isBlank()) {
+                return cleaned;
+            }
+        }
+        return null;
+    }
+
+    private String titleFromText(String text) {
+        String normalized = clean(text).replaceAll("\\s+", " ");
+        if (normalized.isBlank()) {
+            return "";
+        }
+        String[] parts = normalized.split("[。；;，,：:]", 2);
+        String title = parts.length == 0 ? normalized : parts[0].trim();
+        if (title.isBlank()) {
+            title = normalized;
+        }
+        return title.length() <= 28 ? title : title.substring(0, 28);
     }
 }

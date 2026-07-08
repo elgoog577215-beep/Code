@@ -28,6 +28,7 @@ class PromptTemplateRegistryTest {
                 .contains("不受标准库候选影响")
                 .contains("禁止接收或猜测标准库 ID")
                 .contains("problemUnderstanding")
+                .contains("issues")
                 .contains("navigationIntent")
                 .contains("不能写数据库 ID");
 
@@ -36,11 +37,14 @@ class PromptTemplateRegistryTest {
                 .contains("standard-library-navigation-v1")
                 .contains("大章节 -> 小章节 -> 知识点")
                 .contains("知识点下面是诊断层")
-                .contains("maxBranchesPerRound")
-                .contains("selectedBranches")
-                .contains("selectedPaths")
-                .contains("unresolvedGaps")
-                .contains("不要自己创造正式标准库 ID");
+                .contains("currentLayer")
+                .contains("allowedActions")
+                .contains("\"action\": \"SELECT\"|\"DONE\"|\"NO_MATCH\"")
+                .contains("codes")
+                .contains("不要自己创造正式标准库 ID")
+                .doesNotContain("selectedBranches")
+                .doesNotContain("selectedPaths")
+                .doesNotContain("unresolvedGaps");
 
         assertThat(advice.getStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
         assertThat(advice.getSystemPrompt())
@@ -135,9 +139,10 @@ class PromptTemplateRegistryTest {
         assertThat(reportV3.getStage()).isEqualTo("DIAGNOSIS_REPORT");
         assertThat(reportV3.getSystemPrompt())
                 .contains("diagnosis-report-v3")
-                .contains("初步诊断")
-                .contains("AI 标准库导航结果")
+                .contains("自由诊断 issues")
+                .contains("可选标准库挂接结果")
                 .contains("standardLibrary")
+                .contains("libraryAnchors")
                 .contains("navigationResult")
                 .contains("studentReport")
                 .contains("libraryGrowth.candidates")

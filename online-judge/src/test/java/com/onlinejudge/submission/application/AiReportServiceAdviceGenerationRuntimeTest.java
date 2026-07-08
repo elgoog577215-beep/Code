@@ -43,20 +43,20 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(service.callCount()).isEqualTo(4);
         assertThat(service.systemPrompt(0)).contains("free-diagnosis-v1");
         assertThat(service.systemPrompt(1)).contains("standard-library-navigation-v1");
-        assertThat(service.systemPrompt(2)).contains("diagnosis-report-v3");
+        assertThat(service.systemPrompt(3)).contains("diagnosis-report-v3");
         assertThat(service.userPrompt(1))
-                .contains("maxRounds", "maxBranchesPerRound", "maxFinalAnchors");
-        assertThat(service.userPrompt(2))
-                .contains("brief", "freeDiagnosis", "navigationResult", "standardLibrary")
+                .contains("currentLayer", "allowedActions", "maxRounds");
+        assertThat(service.userPrompt(3))
+                .contains("brief", "freeDiagnosis", "issues", "libraryAnchors", "standardLibrary")
                 .contains("mistakePoints")
                 .contains("MP_RANGE_RIGHT_ENDPOINT_MISSING")
-                .contains("\"status\":\"AI_NAVIGATION\"");
+                .contains("\"status\":\"LAYERED_ATTACHMENT\"");
         assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
-        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("AI_NAVIGATION");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
         assertThat(analysis.getBasicLayerAdvice()).hasSize(1);
         assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getTitle())
                 .contains("循环右边界");
@@ -68,11 +68,11 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         StubAiReportService service = newServiceWithNavigationSequence(
                 libraryService,
                 List.of(
-                        navigationContinueResponse("BASIC"),
-                        navigationContinueResponse("BASIC.LOOP"),
-                        navigationContinueResponse("BASIC.LOOP.BOUNDARY"),
-                        navigationContinueResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"),
-                        navigationDoneForKnowledgePointResponse()
+                        attachmentSelectResponse("BASIC"),
+                        attachmentSelectResponse("BASIC.LOOP"),
+                        attachmentSelectResponse("BASIC.LOOP.BOUNDARY"),
+                        attachmentSelectResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"),
+                        attachmentSelectResponse("MP_RANGE_RIGHT_ENDPOINT_MISSING")
                 ),
                 validAdviceResponse()
         );
@@ -86,16 +86,15 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
         assertThat(service.callCount()).isEqualTo(7);
         assertThat(service.userPrompt(4))
-                .contains("\"visibleKnowledgeNodeCodes\"")
+                .contains("\"nodes\"")
                 .contains("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")
                 .contains("\"maxRounds\":6");
         assertThat(service.userPrompt(5))
-                .contains("\"diagnosticLayers\"")
-                .contains("\"visibleDiagnosticCodes\"")
+                .contains("\"diagnosticItems\"")
                 .contains("SK_RANGE_BOUNDARY")
                 .contains("MP_RANGE_RIGHT_ENDPOINT_MISSING");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
-        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("AI_NAVIGATION");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
         assertThat(analysis.getAiInvocation().getStandardLibraryNavigationSelectedCount()).isGreaterThan(0);
     }
 
@@ -105,38 +104,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         StubAiReportService service = newServiceWithNavigationSequence(
                 libraryService,
                 List.of(
-                        navigationContinueResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"),
-                        navigationContinueResponse("BASIC"),
-                        navigationDoneResponse()
-                ),
-                validAdviceResponse()
-        );
-
-        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
-                problem(),
-                submission(),
-                fallback(),
-                evidencePackage()
-        );
-
-        assertThat(service.callCount()).isEqualTo(5);
-        assertThat(service.userPrompt(2))
-                .contains("\"repair\"")
-                .contains("INVALID_BRANCH_CODE")
-                .contains("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")
-                .contains("visibleKnowledgeNodeCodes");
-        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
-        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("AI_NAVIGATION");
-    }
-
-    @Test
-    void invalidNavigationBranchFailsClosedWhenRepairRepeatsIllegalCode() {
-        AiStandardLibraryService libraryService = deepNavigationLibraryService();
-        StubAiReportService service = newServiceWithNavigationSequence(
-                libraryService,
-                List.of(
-                        navigationContinueResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"),
-                        navigationContinueResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")
+                        attachmentSelectResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL")
                 ),
                 validAdviceResponse()
         );
@@ -149,11 +117,45 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         );
 
         assertThat(service.callCount()).isEqualTo(3);
-        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
-        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("STANDARD_LIBRARY_NAVIGATION");
-        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INVALID_TAG");
-        assertThat(analysis.getBasicLayerAdvice()).isEmpty();
-        assertThat(analysis.getUncertainty()).contains("未使用本地规则兜底");
+        assertThat(service.userPrompt(1))
+                .contains("\"allowedActions\"")
+                .contains("\"code\":\"BASIC\"")
+                .doesNotContain("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("ATTACHMENT_FAILED");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+    }
+
+    @Test
+    void invalidNavigationBranchFailsClosedWhenRepairRepeatsIllegalCode() {
+        AiStandardLibraryService libraryService = deepNavigationLibraryService();
+        StubAiReportService service = newServiceWithNavigationSequence(
+                libraryService,
+                List.of(
+                        """
+                        {
+                          "action": "WRONG",
+                          "codes": ["BASIC"],
+                          "reason": "动作不在允许范围内。",
+                          "confidence": 0.4
+                        }
+                        """
+                ),
+                validAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEmpty();
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("ATTACHMENT_FAILED");
+        assertThat(analysis.getBasicLayerAdvice()).hasSize(1);
     }
 
     @Test
@@ -221,6 +223,35 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getReportMarkdown())
                 .contains("### 基础层", "### 基础层明细", "循环右边界漏取", "失败样例对照不足")
                 .contains("### 提高层明细", "补充边界样例意识", "保留手推记录");
+    }
+
+    @Test
+    void emptyStandardLibraryStillGeneratesAdviceForMultipleIssues() {
+        StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
+                emptyStandardLibraryService(),
+                multiIssueFreeDiagnosisResponse(),
+                List.of(),
+                multiIssueAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(2);
+        assertThat(service.userPrompt(1))
+                .contains("\"issues\"")
+                .contains("\"issueId\":\"I1\"", "\"issueId\":\"I2\"", "\"issueId\":\"I3\"")
+                .contains("\"anchorStatus\":\"LIBRARY_EMPTY\"");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LIBRARY_EMPTY");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getBasicLayerAdvice()).hasSize(3);
+        assertThat(analysis.getImprovementLayerAdvice()).hasSize(2);
+        assertThat(analysis.getStudentFeedback().getBlockingIssues()).hasSize(3);
     }
 
     @Test
@@ -301,8 +332,10 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         StubAiReportService service = newServiceWithNavigationResponse(
                 """
                 {
-                  "status": "CONTINUE",
-                  "selectedBranches": []
+                  "action": "SELECT",
+                  "codes": [],
+                  "reason": "当前层没有合适分支。",
+                  "confidence": 0.4
                 }
                 """,
                 validAdviceResponse()
@@ -315,13 +348,12 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(service.callCount()).isEqualTo(2);
-        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
-        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("STANDARD_LIBRARY_NAVIGATION");
-        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INVALID_JSON");
-        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("DISABLED");
-        assertThat(analysis.getUncertainty()).contains("未使用本地规则兜底");
-        assertThat(analysis.getBasicLayerAdvice()).isEmpty();
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEmpty();
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("NO_MATCH");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getBasicLayerAdvice()).hasSize(1);
     }
 
     @Test
@@ -338,13 +370,13 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(service.callCount()).isEqualTo(4);
-        assertThat(service.userPrompt(3)).contains("previousOutput", "validationFailure");
-        assertThat(service.systemPrompt(3)).contains("DP 或状态设计问题", "不要写前驱状态", "空间压缩");
+        assertThat(service.callCount()).isEqualTo(5);
+        assertThat(service.userPrompt(4)).contains("previousOutput", "validationFailure");
+        assertThat(service.systemPrompt(4)).contains("DP 或状态设计问题", "不要写前驱状态", "空间压缩");
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
-        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("AI_NAVIGATION");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
         assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
         assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getNextAction())
                 .doesNotContain("直接改成", "range(1, n + 1)");
@@ -444,6 +476,19 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     private StubAiReportService newServiceWithNavigationSequence(AiStandardLibraryService libraryService,
                                                                  List<String> navigationResponses,
                                                                  String... adviceResponses) {
+        return newServiceWithFreeDiagnosisAndNavigationSequence(
+                libraryService,
+                freeDiagnosisResponse(),
+                navigationResponses,
+                adviceResponses
+        );
+    }
+
+    private StubAiReportService newServiceWithFreeDiagnosisAndNavigationSequence(
+            AiStandardLibraryService libraryService,
+            String freeDiagnosisResponse,
+            List<String> navigationResponses,
+            String... adviceResponses) {
         InformaticsKnowledgeNodeRepository knowledgeRepository = knowledgeRepository();
         StubAiReportService service = new StubAiReportService(
                 objectMapper,
@@ -451,7 +496,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 libraryService,
                 new StandardLibraryNavigationPackBuilder(libraryService, knowledgeRepository),
                 null,
-                withNavigationSequence(navigationResponses, adviceResponses)
+                withFreeDiagnosisAndNavigationSequence(freeDiagnosisResponse, navigationResponses, adviceResponses)
         );
         ReflectionTestUtils.setField(service, "enabled", true);
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
@@ -483,7 +528,10 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     private String[] withNavigationResponses(String... adviceResponses) {
-        return withNavigationResponse(navigationDoneResponse(), adviceResponses);
+        return withNavigationSequence(List.of(
+                attachmentSelectResponse("BASIC"),
+                attachmentSelectResponse("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+        ), adviceResponses);
     }
 
     private String[] withNavigationResponse(String navigationResponse, String... adviceResponses) {
@@ -491,8 +539,14 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     private String[] withNavigationSequence(List<String> navigationResponses, String... adviceResponses) {
+        return withFreeDiagnosisAndNavigationSequence(freeDiagnosisResponse(), navigationResponses, adviceResponses);
+    }
+
+    private String[] withFreeDiagnosisAndNavigationSequence(String freeDiagnosisResponse,
+                                                            List<String> navigationResponses,
+                                                            String... adviceResponses) {
         List<String> responses = new ArrayList<>();
-        responses.add(freeDiagnosisResponse());
+        responses.add(freeDiagnosisResponse);
         responses.addAll(navigationResponses);
         responses.addAll(List.of(adviceResponses));
         return responses.toArray(String[]::new);
@@ -509,10 +563,17 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                         .hasChildren(true)
                         .build()
         ));
+        when(libraryService.expandDiagnosticLayer("BASIC")).thenReturn(diagnosticLayer());
         for (AiStandardLibraryItem item : navigationItems()) {
             when(libraryService.findFormalItemAsLegacy(item.getLayer(), item.getCode()))
                     .thenReturn(Optional.of(item));
         }
+        return libraryService;
+    }
+
+    private AiStandardLibraryService emptyStandardLibraryService() {
+        AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
+        when(libraryService.listRootKnowledgeAreas()).thenReturn(List.of());
         return libraryService;
     }
 
@@ -779,10 +840,13 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                   "problemUnderstanding": "题目要求输出 1 到 n 的整数和。",
                   "codeIntent": "学生想用循环累加 total。",
                   "behaviorGap": "循环没有覆盖题目要求的末端。",
-                  "hypotheses": [{
-                    "name": "循环右边界漏取",
-                    "reason": "range(1, n) 与闭区间题意不一致。",
+                  "issues": [{
+                    "issueId": "I1",
+                    "title": "循环右边界漏取",
+                    "whatHappened": "range(1, n) 与闭区间题意不一致。",
+                    "whyItMatters": "端点漏处理会让求和结果偏小。",
                     "evidenceRefs": ["code:range_excludes_n"],
+                    "severity": "MAJOR",
                     "confidence": 0.9
                   }],
                   "navigationIntent": {
@@ -794,60 +858,49 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 """;
     }
 
-    private String navigationDoneResponse() {
+    private String multiIssueFreeDiagnosisResponse() {
         return """
                 {
-                  "status": "DONE",
-                  "selectedPaths": [{
-                    "knowledgeNodeCode": "BASIC.LOOP.BOUNDARY",
-                    "skillUnitCode": "SK_RANGE_BOUNDARY",
-                    "mistakePointCode": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
-                    "improvementPointCode": "TESTING_HABIT",
-                    "libraryFit": "HIT",
-                    "reason": "代码中的 range(1, n) 与题目闭区间要求不一致。",
+                  "problemUnderstanding": "题目要求输出 1 到 n 的整数和。",
+                  "codeIntent": "学生想用循环累加 total。",
+                  "behaviorGap": "循环范围和样例对照都暴露问题。",
+                  "issues": [{
+                    "issueId": "I1",
+                    "title": "循环右边界漏取",
+                    "whatHappened": "循环没有覆盖题目要求的末端。",
+                    "whyItMatters": "端点漏处理会让结果偏小。",
                     "evidenceRefs": ["code:range_excludes_n"],
+                    "severity": "MAJOR",
                     "confidence": 0.9
+                  }, {
+                    "issueId": "I2",
+                    "title": "失败样例对照不足",
+                    "whatHappened": "可见失败样例已经显示实际输出和期望不同。",
+                    "whyItMatters": "不对照差异就容易只凭感觉修改。",
+                    "evidenceRefs": ["judge:first_failed_case"],
+                    "severity": "MAJOR",
+                    "confidence": 0.8
+                  }, {
+                    "issueId": "I3",
+                    "title": "循环变量手推缺失",
+                    "whatHappened": "当前代码没有帮助自己确认循环变量实际取值。",
+                    "whyItMatters": "缺少手推会让边界问题反复出现。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "severity": "MINOR",
+                    "confidence": 0.7
                   }],
-                  "unresolvedGaps": [],
-                  "uncertainty": "可见证据已经较明确。"
+                  "uncertainty": ""
                 }
                 """;
     }
 
-    private String navigationDoneForKnowledgePointResponse() {
+    private String attachmentSelectResponse(String code) {
         return """
                 {
-                  "status": "DONE",
-                  "selectedBranches": [],
-                  "selectedPaths": [{
-                    "knowledgeNodeCode": "BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL",
-                    "skillUnitCode": "SK_RANGE_BOUNDARY",
-                    "mistakePointCode": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
-                    "improvementPointCode": "TESTING_HABIT",
-                    "libraryFit": "HIT",
-                    "reason": "代码中的 range(1, n) 与题目闭区间要求不一致。",
-                    "evidenceRefs": ["code:range_excludes_n"],
-                    "confidence": 0.9
-                  }],
-                  "unresolvedGaps": [],
-                  "uncertainty": "已经看到知识点诊断层并完成锚定。"
-                }
-                """;
-    }
-
-    private String navigationContinueResponse(String code) {
-        return """
-                {
-                  "status": "CONTINUE",
-                  "selectedBranches": [{
-                    "knowledgeNodeCode": "%s",
-                    "reason": "该分支最贴近循环边界问题。",
-                    "evidenceRefs": ["code:range_excludes_n"],
-                    "confidence": 0.86
-                  }],
-                  "selectedPaths": [],
-                  "unresolvedGaps": [],
-                  "uncertainty": "继续展开该分支。"
+                  "action": "SELECT",
+                  "codes": ["%s"],
+                  "reason": "该分支最贴近循环边界问题。",
+                  "confidence": 0.86
                 }
                 """.formatted(code);
     }
@@ -1053,6 +1106,76 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "nextActionText": "先写出循环变量序列。"
                   },
                   "studentSummary": "这次有多个可独立检查的点。"
+                }
+                """;
+    }
+
+    private String multiIssueAdviceResponse() {
+        return """
+                {
+                  "caseUnderstanding": {
+                    "problemGoal": "题目要求输出 1 到 n 的整数和。",
+                    "codeIntent": "学生使用循环累加 total。",
+                    "behaviorGap": "循环范围没有覆盖题意，并且失败样例已经暴露差异。",
+                    "primaryEvidenceRef": "code:range_excludes_n"
+                  },
+                  "basicLayerAdvice": [{
+                    "mistakePointId": null,
+                    "skillUnitId": null,
+                    "title": "循环右边界漏取",
+                    "whatHappened": "当前循环范围没有覆盖题目要求的最后一个数。",
+                    "whyItMatters": "少处理一个端点会让求和结果偏小。",
+                    "studentAction": "先手推 n=1 和 n=2 时循环变量实际出现过哪些值。",
+                    "checkQuestion": "最后一个应该被处理的数有没有进入循环？",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.92
+                  }, {
+                    "mistakePointId": null,
+                    "skillUnitId": null,
+                    "title": "失败样例对照不足",
+                    "whatHappened": "可见失败样例已经显示实际输出与预期不一致。",
+                    "whyItMatters": "不对照差异就容易只凭感觉修改。",
+                    "studentAction": "把实际输出和预期输出逐项写在旁边。",
+                    "checkQuestion": "第一处差异来自哪个循环取值？",
+                    "evidenceRefs": ["judge:first_failed_case"],
+                    "confidence": 0.78
+                  }, {
+                    "mistakePointId": null,
+                    "skillUnitId": null,
+                    "title": "循环变量手推缺失",
+                    "whatHappened": "当前缺少对循环变量取值序列的手推记录。",
+                    "whyItMatters": "看不到变量序列就难以定位边界。",
+                    "studentAction": "先写出循环变量实际取值序列。",
+                    "checkQuestion": "变量序列和题目要求的闭区间一致吗？",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.7
+                  }],
+                  "improvementLayerAdvice": [{
+                    "improvementPointId": null,
+                    "skillUnitId": null,
+                    "title": "补充边界样例意识",
+                    "currentLimit": "当前自测没有覆盖端点。",
+                    "suggestion": "修复后补测最小值和端点附近样例。",
+                    "studentBenefit": "能更早发现开闭区间问题。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.8
+                  }, {
+                    "improvementPointId": null,
+                    "skillUnitId": null,
+                    "title": "保留手推记录",
+                    "currentLimit": "调试过程缺少可复盘记录。",
+                    "suggestion": "每次修改前后保留一份变量取值记录。",
+                    "studentBenefit": "能判断修改是否真的解决同一类边界。",
+                    "evidenceRefs": ["judge:first_failed_case"],
+                    "confidence": 0.74
+                  }],
+                  "nextStepPlan": [{
+                    "step": 1,
+                    "target": "手推循环变量取值。",
+                    "reason": "这是当前阻塞通过的问题。",
+                    "evidenceRef": "code:range_excludes_n"
+                  }],
+                  "studentSummary": "这次有多个需要分开检查的问题。"
                 }
                 """;
     }

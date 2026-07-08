@@ -17,9 +17,25 @@ public class FreeDiagnosisOutput {
     private String problemUnderstanding;
     private String codeIntent;
     private String behaviorGap;
+    private List<Issue> issues;
     private List<Hypothesis> hypotheses;
     private NavigationIntent navigationIntent;
     private String uncertainty;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class Issue {
+        private String issueId;
+        private String title;
+        private String whatHappened;
+        private String whyItMatters;
+        private List<String> evidenceRefs;
+        private String severity;
+        private Double confidence;
+    }
 
     @Data
     @Builder

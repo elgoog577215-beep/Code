@@ -3,6 +3,7 @@ package com.onlinejudge.submission.application;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -11,7 +12,10 @@ final class EvidenceRefSupport {
 
     private static final int MAX_CODE_LINE_EVIDENCE_REFS = 500;
     private static final Pattern CODE_LINE = Pattern.compile("^code:line:(\\d+)$");
+    private static final Pattern CODE_LINE_WORD = Pattern.compile("^code:line[_-](\\d+)(?:[_-].*)?$");
     private static final Pattern CODE_RANGE = Pattern.compile("^code:range:(\\d+)-(\\d+)$");
+    private static final Pattern CODE_BARE_LINE = Pattern.compile("^code:(\\d+)$");
+    private static final Pattern CODE_BARE_RANGE = Pattern.compile("^code:(\\d+)-(\\d+)$");
     private static final Pattern CODE_LINE_RANGE = Pattern.compile("^code:line:(\\d+)-(\\d+)$");
     private static final Pattern SHORT_LINE = Pattern.compile("^line:(\\d+)$");
     private static final Pattern SHORT_LINES = Pattern.compile("^lines?:(\\d+)-(\\d+)$");
@@ -72,6 +76,10 @@ final class EvidenceRefSupport {
         if (!canonicalCodeRef.isBlank()) {
             return canonicalCodeRef;
         }
+        String canonicalJudgeRef = canonicalJudgeRef(trimmed, validRefs);
+        if (!canonicalJudgeRef.isBlank()) {
+            return canonicalJudgeRef;
+        }
         String relaxed = firstEvidenceThatMatchesRelaxedRef(orderedValidRefs, trimmed);
         return relaxed.isBlank() ? trimmed : relaxed;
     }
@@ -125,10 +133,20 @@ final class EvidenceRefSupport {
     }
 
     private static String canonicalCodeRef(String rawRef, ModelDiagnosisBrief brief) {
-        String normalized = rawRef.replaceAll("\\s+", "");
+        String normalized = rawRef.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
         Matcher line = CODE_LINE.matcher(normalized);
         if (line.matches()) {
             int value = parsePositiveInt(line.group(1));
+            return validCodeLine(value, brief) ? "code:line:" + value : "";
+        }
+        Matcher wordLine = CODE_LINE_WORD.matcher(normalized);
+        if (wordLine.matches()) {
+            int value = parsePositiveInt(wordLine.group(1));
+            return validCodeLine(value, brief) ? "code:line:" + value : "";
+        }
+        Matcher bareLine = CODE_BARE_LINE.matcher(normalized);
+        if (bareLine.matches()) {
+            int value = parsePositiveInt(bareLine.group(1));
             return validCodeLine(value, brief) ? "code:line:" + value : "";
         }
         Matcher shortLine = SHORT_LINE.matcher(normalized);
@@ -145,6 +163,10 @@ final class EvidenceRefSupport {
         if (range.matches()) {
             return canonicalRange(range.group(1), range.group(2), brief);
         }
+        Matcher bareRange = CODE_BARE_RANGE.matcher(normalized);
+        if (bareRange.matches()) {
+            return canonicalRange(bareRange.group(1), bareRange.group(2), brief);
+        }
         Matcher lineRange = CODE_LINE_RANGE.matcher(normalized);
         if (lineRange.matches()) {
             return canonicalRange(lineRange.group(1), lineRange.group(2), brief);
@@ -156,6 +178,19 @@ final class EvidenceRefSupport {
         Matcher sourceLines = SOURCE_LINES.matcher(normalized);
         if (sourceLines.matches()) {
             return canonicalRange(sourceLines.group(1), sourceLines.group(2), brief);
+        }
+        return "";
+    }
+
+    private static String canonicalJudgeRef(String rawRef, Set<String> validRefs) {
+        if (validRefs == null || !validRefs.contains("judge:first_failed_case")) {
+            return "";
+        }
+        String normalized = rawRef == null
+                ? ""
+                : rawRef.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+        if (normalized.matches("^judge:(case|first_failed_case)[_:\\-]?\\d*([_:\\-].*)?$")) {
+            return "judge:first_failed_case";
         }
         return "";
     }

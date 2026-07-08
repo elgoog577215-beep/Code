@@ -122,6 +122,7 @@ public class ExternalModelAgentRuntime {
         private ModelDiagnosisBrief brief;
         private StandardLibraryPack standardLibraryPack;
         private FreeDiagnosisOutput freeDiagnosisOutput;
+        private java.util.List<IssueLibraryAnchor> issueLibraryAnchors;
         private StandardLibraryNavigationOutput standardLibraryNavigationOutput;
         private StandardLibraryNavigationResult standardLibraryNavigationResult;
         private AdviceGenerationResult adviceGenerationResult;
