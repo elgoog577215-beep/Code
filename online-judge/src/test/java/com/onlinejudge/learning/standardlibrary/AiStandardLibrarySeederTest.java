@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,6 +44,7 @@ class AiStandardLibrarySeederTest {
             "backups/standard-library/generated-fallback-archive-2026-07-06/generated-fallback-seeds.json");
     private static final String LEGACY_FALLBACK_SKILL_CODE = "SK_BASIC_IO_STDIN_DDADF4B0";
     private static final String LEGACY_FALLBACK_MISTAKE_CODE = "MP_BASIC_IO_STDIN_DDADF4B0";
+    private static final String LEGACY_FULL_COVERAGE_BASIC_CAUSE_CODE = "KB_BASIC_BRANCH_IF_4D9D4F62";
 
     @Autowired
     AiStandardLibraryItemRepository repository;
@@ -168,8 +170,32 @@ class AiStandardLibrarySeederTest {
                 AiStandardLibraryLayer.SKILL_UNIT, LEGACY_FALLBACK_SKILL_CODE)).isTrue();
         assertThat(AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(
                 AiStandardLibraryLayer.MISTAKE_POINT, LEGACY_FALLBACK_MISTAKE_CODE)).isTrue();
+        assertThat(AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(
+                AiStandardLibraryLayer.BASIC_CAUSE, LEGACY_FULL_COVERAGE_BASIC_CAUSE_CODE)).isTrue();
         assertThat(repository.findByLayerAndCode(AiStandardLibraryLayer.SKILL_UNIT, LEGACY_FALLBACK_SKILL_CODE)).isEmpty();
         assertThat(repository.findByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, LEGACY_FALLBACK_MISTAKE_CODE)).isEmpty();
+    }
+
+    @Test
+    @Transactional
+    void disablesLegacyFullCoverageBasicCauseRowsOnStartup() {
+        AiStandardLibraryItem legacy = repository.save(AiStandardLibraryItem.builder()
+                .layer(AiStandardLibraryLayer.BASIC_CAUSE)
+                .code(LEGACY_FULL_COVERAGE_BASIC_CAUSE_CODE)
+                .category("知识点错因/程序设计基础")
+                .name("单分支判断掌握偏差")
+                .description("学生在「程序设计基础 / 条件分支 / if 条件 / 单分支判断」相关代码中出现概念理解、边界处理或应用迁移偏差。")
+                .studentExplanation("先回到「单分支判断」这个知识点，确认题目里它对应的是输入、状态、循环、结构还是算法选择。")
+                .teacherExplanation("该条目用于覆盖知识点「程序设计基础 / 条件分支 / if 条件 / 单分支判断」下的常见基础层错因，教师可根据课堂题型继续细化证据信号。")
+                .abilityPoint("单分支判断")
+                .knowledgeNodeCodes("BASIC.BRANCH.IF.单分支判断")
+                .enabled(true)
+                .libraryVersion("standard-library-db-v2-full-coverage")
+                .build());
+
+        seeder.run();
+
+        assertThat(repository.findById(legacy.getId()).orElseThrow().isEnabled()).isFalse();
     }
 
     @Test

@@ -40,14 +40,21 @@ public final class AiStandardLibrarySeedCatalog {
     }
 
     public static boolean isGeneratedFallbackCode(AiStandardLibraryLayer layer, String code) {
-        if (layer != AiStandardLibraryLayer.SKILL_UNIT && layer != AiStandardLibraryLayer.MISTAKE_POINT) {
+        if (layer != AiStandardLibraryLayer.SKILL_UNIT
+                && layer != AiStandardLibraryLayer.MISTAKE_POINT
+                && layer != AiStandardLibraryLayer.BASIC_CAUSE) {
             return false;
         }
         String normalized = code == null ? "" : code.trim().toUpperCase(Locale.ROOT);
         if (normalized.isBlank()) {
             return false;
         }
-        String prefix = layer == AiStandardLibraryLayer.SKILL_UNIT ? "SK" : "MP";
+        String prefix = switch (layer) {
+            case SKILL_UNIT -> "SK";
+            case MISTAKE_POINT -> "MP";
+            case BASIC_CAUSE -> "KB";
+            case IMPROVEMENT_POINT -> "";
+        };
         return InformaticsKnowledgeSeedCatalog.seeds().stream()
                 .filter(knowledge -> knowledge.type() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
                 .map(knowledge -> generatedCode(prefix, knowledge.code()))
@@ -56,7 +63,8 @@ public final class AiStandardLibrarySeedCatalog {
 
     public static boolean isGeneratedFallbackCode(String code) {
         return isGeneratedFallbackCode(AiStandardLibraryLayer.SKILL_UNIT, code)
-                || isGeneratedFallbackCode(AiStandardLibraryLayer.MISTAKE_POINT, code);
+                || isGeneratedFallbackCode(AiStandardLibraryLayer.MISTAKE_POINT, code)
+                || isGeneratedFallbackCode(AiStandardLibraryLayer.BASIC_CAUSE, code);
     }
 
     private static void highQualitySamples(List<AiStandardLibrarySeed> seeds) {
