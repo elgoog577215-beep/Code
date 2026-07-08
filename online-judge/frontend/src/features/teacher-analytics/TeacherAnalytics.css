@@ -396,7 +396,7 @@
 
 .teacher-analytics-table-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.2fr) repeat(4, minmax(82px, 0.5fr));
+  grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(112px, 0.55fr)) minmax(142px, 0.7fr);
   gap: 0.7rem;
   align-items: center;
   min-height: 48px;
@@ -548,6 +548,6 @@
   }
 
   .teacher-analytics-table-row {
-    min-width: 680px;
+    min-width: 760px;
   }
 }

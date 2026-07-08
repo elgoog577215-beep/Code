@@ -88,10 +88,10 @@ export function AnalyticsDashboard({ snapshot, t, correction }: Props) {
                 {snapshot.assignmentRows.map(row => (
                   <Link className="teacher-analytics-table-row" to={row.href} key={row.id}>
                     <strong>{row.title}</strong>
-                    <span>{row.status}</span>
-                    <span>{row.problemCount} {t("teacherAnalytics.units.problem")}</span>
-                    <span>{row.submittedStudentCount}/{row.participantCount || "-"}</span>
-                    <span>{formatPercent(row.passRate)}</span>
+                    <span>{t("teacherAnalytics.tableLabels.status")} {row.status}</span>
+                    <span>{t("teacherAnalytics.tableLabels.problemCount")} {row.problemCount} {t("teacherAnalytics.units.problem")}</span>
+                    <span>{t("teacherAnalytics.tableLabels.submissions")} {row.submittedStudentCount}/{row.participantCount || "-"}</span>
+                    <span>{t("teacherAnalytics.tableLabels.accuracy")} {formatPercent(row.passRate)}</span>
                   </Link>
                 ))}
               </div>
@@ -108,10 +108,10 @@ export function AnalyticsDashboard({ snapshot, t, correction }: Props) {
                 {snapshot.problemRows.map(row => (
                   <Link className="teacher-analytics-table-row" to={row.href} key={row.id}>
                     <strong>{row.title}</strong>
-                    <span>{row.submittedStudentCount}/{row.participantCount || "-"}</span>
-                    <span>{row.passedStudentCount} {t("teacherAnalytics.units.passed")}</span>
-                    <span>{formatPercent(row.passRate)}</span>
-                    <span>{row.topIssue || t("teacherAnalytics.empty.noIssue")}</span>
+                    <span>{t("teacherAnalytics.tableLabels.submissions")} {row.submittedStudentCount}/{row.participantCount || "-"}</span>
+                    <span>{t("teacherAnalytics.tableLabels.passed")} {row.passedStudentCount} {t("teacherAnalytics.units.passed")}</span>
+                    <span>{t("teacherAnalytics.tableLabels.accuracy")} {formatPercent(row.passRate)}</span>
+                    <span>{t("teacherAnalytics.tableLabels.issue")} {row.topIssue || t("teacherAnalytics.empty.noIssue")}</span>
                   </Link>
                 ))}
               </div>

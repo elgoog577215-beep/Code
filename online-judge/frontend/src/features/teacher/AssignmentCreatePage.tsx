@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
 import type { ClassGroup, Difficulty, ProblemCatalogItem } from "../../shared/api/types";
 import { difficultyLabel, displayText } from "../../shared/format";
+import { useTranslation } from "../../shared/i18n";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea, TextInput } from "../../shared/ui/Field";
@@ -59,6 +60,7 @@ function teacherErrorMessage(error: unknown, fallback: string) {
 
 export default function AssignmentCreatePage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
   const [form, setForm] = useState<AssignmentForm>(EMPTY_ASSIGNMENT);
@@ -180,7 +182,7 @@ export default function AssignmentCreatePage() {
       <section className="teacher-workflow-header">
         <div>
           <ButtonLink to="/app/teacher/classes" variant="ghost" icon={<ArrowLeft size={17} />}>
-            返回作业中心
+            {t("teacherAnalytics.actions.backToAnalytics")}
           </ButtonLink>
           <p className="eyebrow">新建作业</p>
           <h1>布置课堂练习</h1>

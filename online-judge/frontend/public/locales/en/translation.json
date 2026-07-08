@@ -76,7 +76,8 @@
       "description": "Review submissions, error distribution, knowledge path, and evidence samples for this problem."
     },
     "actions": {
-      "newAssignment": "New assignment"
+      "newAssignment": "New assignment",
+      "backToAnalytics": "Back to analytics"
     },
     "loading": {
       "classes": "Loading classes",
@@ -144,6 +145,14 @@
     "tables": {
       "assignmentTitle": "Assignments",
       "problemTitle": "Problems"
+    },
+    "tableLabels": {
+      "status": "Status",
+      "problemCount": "Problems",
+      "submissions": "Submitted",
+      "accuracy": "Accuracy",
+      "passed": "Passed",
+      "issue": "Issue"
     },
     "units": {
       "count": "times",

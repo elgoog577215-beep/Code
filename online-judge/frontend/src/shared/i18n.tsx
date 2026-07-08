@@ -91,7 +91,8 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         description: "查看这道题的提交情况、错因分布、知识路径和证据样本。"
       },
       actions: {
-        newAssignment: "新建作业"
+        newAssignment: "新建作业",
+        backToAnalytics: "返回教学分析"
       },
       loading: {
         classes: "正在读取班级",
@@ -159,6 +160,14 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       tables: {
         assignmentTitle: "作业列表",
         problemTitle: "题目列表"
+      },
+      tableLabels: {
+        status: "状态",
+        problemCount: "题目",
+        submissions: "提交",
+        accuracy: "正确率",
+        passed: "通过",
+        issue: "错因"
       },
       units: {
         count: "次",
@@ -521,7 +530,8 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         description: "Review submissions, error distribution, knowledge path, and evidence samples for this problem."
       },
       actions: {
-        newAssignment: "New assignment"
+        newAssignment: "New assignment",
+        backToAnalytics: "Back to analytics"
       },
       loading: {
         classes: "Loading classes",
@@ -589,6 +599,14 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       tables: {
         assignmentTitle: "Assignments",
         problemTitle: "Problems"
+      },
+      tableLabels: {
+        status: "Status",
+        problemCount: "Problems",
+        submissions: "Submitted",
+        accuracy: "Accuracy",
+        passed: "Passed",
+        issue: "Issue"
       },
       units: {
         count: "times",

@@ -64,7 +64,11 @@ export function assignmentPassRate(overview?: AssignmentOverview | null) {
 }
 
 export function formatPercent(value?: number | null) {
-  return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value * 100)}%` : "-";
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "-";
+  }
+  const percent = Math.abs(value) > 1 ? value : value * 100;
+  return `${Math.round(percent)}%`;
 }
 
 export function formatRatio(left: number, right: number) {
@@ -183,7 +187,7 @@ export function buildProblemAnalyticsSnapshot(input: {
       metric("submittedStudents", submitted || "-"),
       metric("passedStudents", passed || "-"),
       metric("failedStudents", failed || "-"),
-      metric("accuracy", formatPercent(problem.passRate)),
+      metric("accuracy", formatPercent(rateToRatio(problem.passRate))),
       metric("averageAttempts", typeof problem.averageAttempts === "number" ? problem.averageAttempts.toFixed(1).replace(/\\.0$/, "") : "-")
     ],
     insightBuckets: buildBucketsFromProblem(problem, evidence, input.t),
@@ -205,7 +209,7 @@ export function problemRows(overview: AssignmentOverview, classId: number, assig
       submittedStudentCount: problem.submittedStudentCount,
       passedStudentCount: problem.passedStudentCount,
       participantCount: problem.classStudentCount || overview.participantCount,
-      passRate: problem.passRate ?? null,
+      passRate: rateToRatio(problem.passRate),
       topIssue: problem.topIssues?.[0]?.label || null
     }));
 }
@@ -313,7 +317,7 @@ function addIssueBucket(
   const path = inferPath(label, issue.abilityPoint, problem?.title, t);
   const count = Math.max(1, issue.count || 0);
   const evidence = student ? [studentEvidence(problem, student, undefined, undefined, undefined, t)] : fallbackEvidenceForProblem(fallbackEvidence, problem);
-  const affected = issue.affectedStudentCount || (student ? 1 : count);
+  const affected = issue.affectedStudentCount || (student ? 1 : countEvidenceStudents(evidence));
   addPath(target.chapter, path[0], count, affected, problem ? 1 : undefined, path, evidence);
   addPath(target.knowledgePoint, path[1], count, affected, problem ? 1 : undefined, path, evidence);
   addPath(target.skillUnit, path[2], count, affected, problem ? 1 : undefined, path, evidence);
@@ -334,9 +338,10 @@ function addAbilityBucket(
   const path = inferPath(label, label, problem?.title, t);
   const count = Math.max(1, ability.submissionCount || ability.taskCount || 0);
   const evidence = fallbackEvidenceForProblem(fallbackEvidence, problem);
-  addPath(target.chapter, path[0], count, count, problem ? 1 : undefined, path, evidence);
-  addPath(target.knowledgePoint, path[1], count, count, problem ? 1 : undefined, path, evidence);
-  addPath(target.skillUnit, path[2], count, count, problem ? 1 : undefined, path, evidence);
+  const affected = countEvidenceStudents(evidence);
+  addPath(target.chapter, path[0], count, affected, problem ? 1 : undefined, path, evidence);
+  addPath(target.knowledgePoint, path[1], count, affected, problem ? 1 : undefined, path, evidence);
+  addPath(target.skillUnit, path[2], count, affected, problem ? 1 : undefined, path, evidence);
 }
 
 function addPath(
@@ -383,9 +388,28 @@ function mapBuckets(buckets: Record<AnalyticsGranularity, Map<string, InsightBuc
 function finalizeBuckets(map: Map<string, InsightBucket>) {
   const total = [...map.values()].reduce((sum, item) => sum + item.count, 0);
   return [...map.values()]
-    .map(item => ({ ...item, rate: total ? item.count / total : null, evidence: item.evidence.slice(0, 4) }))
+    .map(item => {
+      const evidence = item.evidence.slice(0, 4);
+      return {
+        ...item,
+        affectedStudentCount: countEvidenceStudents(evidence) || item.affectedStudentCount,
+        rate: total ? item.count / total : null,
+        evidence
+      };
+    })
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "zh-Hans-CN"))
     .slice(0, 8);
+}
+
+function rateToRatio(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return Math.abs(value) > 1 ? value / 100 : value;
+}
+
+function countEvidenceStudents(evidence: AnalyticsEvidenceSample[]) {
+  return new Set(evidence.map(item => item.studentProfileId).filter((id): id is number => typeof id === "number")).size;
 }
 
 function inferPath(label: string, ability?: string | null, title?: string | null, t?: AnalyticsTranslator): KnowledgePathNode[] {

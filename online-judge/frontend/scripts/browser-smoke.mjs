@@ -1026,6 +1026,7 @@ const scenarios = [
       record("assignment analytics lists problems", assignmentText.includes("求和边界") && assignmentText.includes("循环边界"), assignmentText.slice(0, 900));
       record("assignment analytics has AI attribution", assignmentText.includes("AI知识归因") && assignmentText.includes("当前知识路径"), assignmentText.slice(0, 900));
       record("assignment analytics avoids teacher decision language", !assignmentText.includes("下一步") && !assignmentText.includes("建议") && !assignmentText.includes("讲评"), assignmentText.slice(0, 900));
+      record("assignment analytics normalizes percent fields", assignmentText.includes("40%") && assignmentText.includes("83%") && !assignmentText.includes("4000%") && !assignmentText.includes("8330%"), assignmentText.slice(0, 900));
       if (viewport.name === "desktop") {
         await checkElementMaxWidth(page, ".teacher-analytics-page", 1440, "assignment desktop analytics width");
       }
@@ -1049,6 +1050,7 @@ const scenarios = [
       const createText = ((await page.locator(".assignment-builder-page").first().textContent()) || "").replace(/\s+/g, "");
       record("assignment create belongs to analytics nav", activeNav.join("|").includes("教学分析"), activeNav.join("|"));
       record("assignment create uses three-step workflow", createText.includes("基本信息") && createText.includes("选择题目") && createText.includes("确认发布"), createText.slice(0, 900));
+      record("assignment create returns to analytics wording", createText.includes("返回教学分析") && !createText.includes("返回作业中心"), createText.slice(0, 900));
       const hasProblemSearch = await page.getByPlaceholder("搜索题目").count() === 1;
       record("assignment create has problem bank controls", hasProblemSearch && createText.includes("全部难度") && createText.includes("已选题目"), createText.slice(0, 900));
       record("assignment create hides duplicate management links", !createText.includes("管理班级与题目") && !createText.includes("总体统计") && !createText.includes("编辑题目"), createText.slice(0, 900));
@@ -1100,6 +1102,7 @@ const scenarios = [
       const classText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
       record("class analytics keeps class assignment problem hierarchy", classText.includes("高一1班") && classText.includes("作业列表") && classText.includes("课堂编程作业"), classText.slice(0, 900));
       record("class analytics shows knowledge attribution", classText.includes("AI知识归因") && classText.includes("知识路径"), classText.slice(0, 900));
+      record("class analytics normalizes percent fields", classText.includes("40%") && classText.includes("83%") && !classText.includes("4000%") && !classText.includes("8330%"), classText.slice(0, 900));
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],
@@ -1117,6 +1120,7 @@ const scenarios = [
       record("problem analytics shows problem objective results", problemText.includes("求和边界") && problemText.includes("未通过人数") && problemText.includes("证据样本"), problemText.slice(0, 900));
       record("problem analytics exposes correction in evidence layer", problemText.includes("校正归因") && !problemText.includes("教师动作"), problemText.slice(0, 900));
       record("problem analytics avoids decision copy", !problemText.includes("下一步") && !problemText.includes("建议") && !problemText.includes("讲评"), problemText.slice(0, 900));
+      record("problem analytics normalizes percent fields", problemText.includes("40%") && !problemText.includes("4000%"), problemText.slice(0, 900));
     },
     selectors: [
       [".teacher-analytics-page", "problem analytics page"],
