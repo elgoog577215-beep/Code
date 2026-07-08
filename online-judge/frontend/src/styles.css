@@ -18499,6 +18499,116 @@ button.standard-library-governance-path {
   }
 }
 
+/* 题目编辑比例修复：按信息权重分配字段高度，而不是共用一套卡片规则。 */
+.task-editor-page .editor-problem-panel .panel__body {
+  padding-bottom: 0.68rem;
+}
+
+.task-editor-page textarea.editor-statement-textarea {
+  min-height: clamp(190px, 26vh, 340px);
+  max-height: min(52vh, 520px);
+  line-height: 1.46;
+}
+
+.task-editor-page textarea.editor-code-textarea {
+  min-height: 128px;
+  max-height: min(42vh, 360px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  line-height: 1.42;
+}
+
+.task-editor-page textarea.editor-test-textarea {
+  min-height: 48px;
+  max-height: 148px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  line-height: 1.35;
+}
+
+.task-editor-page .editor-tests-panel .panel__body > .stack {
+  gap: 0.5rem;
+}
+
+.task-editor-page .editor-test-row {
+  gap: 0.44rem;
+  padding: 0.56rem 0.62rem;
+  border-color: color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 54%, transparent);
+  box-shadow: none;
+}
+
+.task-editor-page .editor-test-row > .actions {
+  display: grid;
+  grid-template-columns: repeat(3, max-content);
+  justify-content: start;
+  align-items: center;
+  gap: 0.36rem;
+}
+
+.task-editor-page .editor-test-row > .actions .ui-button,
+.task-editor-page .editor-test-row > .actions .editor-test-toggle {
+  width: auto;
+  min-height: 32px;
+  padding: 0.22rem 0.46rem;
+}
+
+.task-editor-page .editor-test-row > .actions .ui-button {
+  min-width: 0;
+}
+
+.task-editor-page .editor-test-row .two-column {
+  gap: 0.55rem;
+  align-items: start;
+}
+
+.task-editor-page .editor-test-row .field {
+  gap: 0.18rem;
+}
+
+.task-editor-page .editor-test-row .field > span:first-child {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+}
+
+.task-editor-page--embedded textarea.editor-statement-textarea {
+  min-height: clamp(180px, 24vh, 320px);
+  max-height: min(50vh, 480px);
+}
+
+.task-editor-page--embedded textarea.editor-code-textarea {
+  min-height: 120px;
+  max-height: min(38vh, 340px);
+}
+
+.task-editor-page--embedded .editor-test-row textarea.editor-test-textarea {
+  min-height: 46px;
+  max-height: 136px;
+}
+
+@media (max-width: 760px) {
+  .task-editor-page textarea.editor-statement-textarea,
+  .task-editor-page--embedded textarea.editor-statement-textarea {
+    min-height: 220px;
+    max-height: none;
+  }
+
+  .task-editor-page textarea.editor-code-textarea,
+  .task-editor-page--embedded textarea.editor-code-textarea {
+    min-height: 128px;
+    max-height: none;
+  }
+
+  .task-editor-page .editor-test-row {
+    padding: 0.52rem;
+  }
+}
+
+@media (min-width: 360px) and (max-width: 760px) {
+  .task-editor-page .editor-test-row .two-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

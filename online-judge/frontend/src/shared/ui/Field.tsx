@@ -18,14 +18,14 @@ export function Field({
   );
 }
 
-export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className="control" {...props} />;
+export function TextInput({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={`control ${className}`.trim()} {...props} />;
 }
 
-export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className="control control--textarea" {...props} />;
+export function TextArea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={`control control--textarea ${className}`.trim()} {...props} />;
 }
 
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className="control" {...props} />;
+export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={`control ${className}`.trim()} {...props} />;
 }

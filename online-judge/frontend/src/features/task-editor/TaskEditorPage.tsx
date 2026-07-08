@@ -32,6 +32,12 @@ const initialProblem = {
   testCases: [{ input: "", expectedOutput: "", hidden: false }] as TestCaseDraft[]
 };
 
+function adaptiveRows(value: string, minRows: number, maxRows: number, charsPerRow: number) {
+  const lines = value ? value.split("\n") : [""];
+  const estimatedRows = lines.reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerRow)), 0);
+  return Math.min(maxRows, Math.max(minRows, estimatedRows));
+}
+
 type TaskEditorPageProps = {
   embedded?: boolean;
   selectedProblemId?: number | null;
@@ -229,7 +235,7 @@ export default function TaskEditorPage({
 
       <section className="editor-workbench editor-workbench--single">
         <div className="editor-primary-stack">
-          <Panel title="题目信息" action={<StatusPill tone={readinessTone}>{publishState}</StatusPill>}>
+          <Panel className="editor-problem-panel" title="题目信息" action={<StatusPill tone={readinessTone}>{publishState}</StatusPill>}>
             <div className="stack">
               <div className="form-grid">
                 <Field label="题目标题">
@@ -247,13 +253,19 @@ export default function TaskEditorPage({
                 </Field>
               </div>
               <Field label="题面">
-                <TextArea value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} />
+                <TextArea
+                  className="editor-statement-textarea"
+                  value={form.description}
+                  onChange={event => setForm({ ...form, description: event.target.value })}
+                  rows={adaptiveRows(form.description, 8, 16, 72)}
+                />
               </Field>
               <Field label="默认代码">
                 <TextArea
+                  className="editor-code-textarea"
                   value={form.starterCode}
                   onChange={event => setForm({ ...form, starterCode: event.target.value })}
-                  rows={8}
+                  rows={adaptiveRows(form.starterCode, 6, 14, 84)}
                 />
               </Field>
               <details className="editor-compact-details">
@@ -294,6 +306,7 @@ export default function TaskEditorPage({
           </Panel>
 
           <Panel
+            className="editor-tests-panel"
             title="测试点"
             action={
               <div className="actions">
@@ -323,10 +336,20 @@ export default function TaskEditorPage({
                   </div>
                   <div className="two-column">
                     <Field label="输入">
-                      <TextArea value={item.input} onChange={event => updateTestCase(index, { input: event.target.value })} />
+                      <TextArea
+                        className="editor-test-textarea"
+                        value={item.input}
+                        onChange={event => updateTestCase(index, { input: event.target.value })}
+                        rows={adaptiveRows(item.input, 2, 6, 48)}
+                      />
                     </Field>
                     <Field label="期望输出">
-                      <TextArea value={item.expectedOutput} onChange={event => updateTestCase(index, { expectedOutput: event.target.value })} />
+                      <TextArea
+                        className="editor-test-textarea"
+                        value={item.expectedOutput}
+                        onChange={event => updateTestCase(index, { expectedOutput: event.target.value })}
+                        rows={adaptiveRows(item.expectedOutput, 2, 6, 48)}
+                      />
                     </Field>
                   </div>
                 </div>
