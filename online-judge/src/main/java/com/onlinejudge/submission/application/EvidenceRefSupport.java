@@ -134,6 +134,7 @@ final class EvidenceRefSupport {
 
     private static String canonicalCodeRef(String rawRef, ModelDiagnosisBrief brief) {
         String normalized = rawRef.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+        normalized = normalized.replaceFirst("^keycodeexcerpt:", "code:");
         Matcher line = CODE_LINE.matcher(normalized);
         if (line.matches()) {
             int value = parsePositiveInt(line.group(1));

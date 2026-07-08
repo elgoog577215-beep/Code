@@ -108,6 +108,29 @@ class StandardLibraryNavigationOutputValidatorTest {
     }
 
     @Test
+    void acceptsKeyCodeExcerptEvidenceAliases() {
+        StandardLibraryNavigationOutput output = StandardLibraryNavigationOutput.builder()
+                .status("DONE")
+                .selectedPaths(List.of(StandardLibraryNavigationOutput.SelectedPath.builder()
+                        .knowledgeNodeCode("DS.QUEUE.CIRCULAR.index_wrap")
+                        .skillUnitCode("SK_QUEUE_CIRCULAR_INDEX")
+                        .mistakePointCode("MP_QUEUE_REAR_WITHOUT_MOD")
+                        .libraryFit("HIT")
+                        .reason("模型用 keyCodeExcerpt:A-B 引用带行号代码片段。")
+                        .evidenceRefs(List.of("keyCodeExcerpt:147-149", "keyCodeExcerpt:148"))
+                        .confidence(0.86)
+                        .build()))
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(output, longCodeBrief(), pack());
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getSelectedPaths()).singleElement()
+                .satisfies(path -> assertThat(path.getEvidenceRefs())
+                        .containsExactly("code:range:147-149", "code:line:148"));
+    }
+
+    @Test
     void acceptsModelStyleCodeLineAndJudgeCaseAliases() {
         StandardLibraryNavigationOutput output = StandardLibraryNavigationOutput.builder()
                 .status("DONE")
@@ -240,6 +263,14 @@ class StandardLibraryNavigationOutputValidatorTest {
                 .verdict("RUNTIME_ERROR")
                 .sourceCodeLineCount(40)
                 .evidenceRefs(List.of("code:line:18", "judge:case:2", "judge:first_failed_case"))
+                .build();
+    }
+
+    private ModelDiagnosisBrief longCodeBrief() {
+        return ModelDiagnosisBrief.builder()
+                .verdict("WRONG_ANSWER")
+                .sourceCodeLineCount(226)
+                .evidenceRefs(List.of("judge:first_failed_case"))
                 .build();
     }
 

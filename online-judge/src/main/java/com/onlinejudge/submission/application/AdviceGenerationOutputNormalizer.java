@@ -19,11 +19,14 @@ public class AdviceGenerationOutputNormalizer {
         mistakeIds.addAll(ids(standardLibraryPack == null ? null : standardLibraryPack.getBasicCauses()));
         Set<String> skillIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getSkillUnits());
         Set<String> improvementIds = ids(standardLibraryPack == null ? null : standardLibraryPack.getImprovementPoints());
+        String fallbackEvidenceRef = output.getCaseUnderstanding() == null
+                ? ""
+                : clean(output.getCaseUnderstanding().getPrimaryEvidenceRef());
         if (output.getBasicLayerAdvice() != null) {
-            output.getBasicLayerAdvice().forEach(item -> normalizeBasicAdvice(item, mistakeIds, skillIds));
+            output.getBasicLayerAdvice().forEach(item -> normalizeBasicAdvice(item, mistakeIds, skillIds, fallbackEvidenceRef));
         }
         if (output.getImprovementLayerAdvice() != null) {
-            output.getImprovementLayerAdvice().forEach(item -> normalizeImprovementAdvice(item, improvementIds, skillIds));
+            output.getImprovementLayerAdvice().forEach(item -> normalizeImprovementAdvice(item, improvementIds, skillIds, fallbackEvidenceRef));
         }
         normalizeNextStepPlan(output);
         normalizeStudentReport(output.getStudentReport());
@@ -125,7 +128,8 @@ public class AdviceGenerationOutputNormalizer {
 
     private void normalizeBasicAdvice(AdviceGenerationOutput.BasicLayerAdvice item,
                                       Set<String> mistakeIds,
-                                      Set<String> skillIds) {
+                                      Set<String> skillIds,
+                                      String fallbackEvidenceRef) {
         if (item == null) {
             return;
         }
@@ -149,6 +153,10 @@ public class AdviceGenerationOutputNormalizer {
             if (item.getConfidence() == null) {
                 item.setConfidence(0.7);
             }
+            if ((item.getEvidenceRefs() == null || item.getEvidenceRefs().isEmpty())
+                    && !clean(fallbackEvidenceRef).isBlank()) {
+                item.setEvidenceRefs(List.of(fallbackEvidenceRef));
+            }
         }
         String mistake = normalizeKey(item.getMistakePointId());
         String skill = normalizeKey(item.getSkillUnitId());
@@ -166,7 +174,8 @@ public class AdviceGenerationOutputNormalizer {
 
     private void normalizeImprovementAdvice(AdviceGenerationOutput.ImprovementLayerAdvice item,
                                             Set<String> improvementIds,
-                                            Set<String> skillIds) {
+                                            Set<String> skillIds,
+                                            String fallbackEvidenceRef) {
         if (item == null) {
             return;
         }
@@ -186,6 +195,10 @@ public class AdviceGenerationOutputNormalizer {
             }
             if (item.getConfidence() == null) {
                 item.setConfidence(0.7);
+            }
+            if ((item.getEvidenceRefs() == null || item.getEvidenceRefs().isEmpty())
+                    && !clean(fallbackEvidenceRef).isBlank()) {
+                item.setEvidenceRefs(List.of(fallbackEvidenceRef));
             }
         }
         String improvement = normalizeKey(item.getImprovementPointId());

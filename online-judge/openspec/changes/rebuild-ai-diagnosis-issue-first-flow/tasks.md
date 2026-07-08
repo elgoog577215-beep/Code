@@ -32,7 +32,7 @@
 
 - [x] 5.1 增加阶段化 trace 落盘，记录自由诊断、逐层挂接和 advice generation 的请求摘要、响应、后端判定和降级原因。
 - [x] 5.2 更新 `DiagnosisReportV2RealSamplesSimulationTest` 报告，展示 trace 路径、阶段状态和多条建议。
-- [ ] 5.3 用第一道高级长代码样本跑一次 trace，确认报告能区分自由诊断成功、标准库挂接降级和 advice 结果。（2026-07-08 已重跑五题 live，报告落盘到 `target/ai-simulation-reports/real-samples-website-vs-codex-20260708-225550.md`；当前 ModelScope token 返回 401，内容级验收需换有效 token 后复跑。）
+- [x] 5.3 用第一道高级长代码样本跑一次 trace，确认报告能区分自由诊断成功、标准库挂接降级和 advice 结果。（2026-07-08 使用 `Qwen/Qwen3-Coder-30B-A3B-Instruct` 重跑五题 live，报告落盘到 `target/ai-simulation-reports/real-samples-website-vs-codex-20260708-231907.md`；5/5 `MODEL_COMPLETED`，每题均有多条基础建议和提高建议。）
 
 ## 6. 清理旧主路径
 
@@ -46,4 +46,4 @@
 - [x] 7.2 运行 AI 诊断、标准库挂接、建议映射和真实样本报告相关测试。
 - [x] 7.3 运行 `git diff --check`。
 - [x] 7.4 更新 `docs/ai-memory/项目决策.md` 或 `错误经验.md`，记录 issue-first 和标准库挂接边界。
-- [ ] 7.5 提交并推送当前分支。
+- [x] 7.5 提交并推送当前分支。

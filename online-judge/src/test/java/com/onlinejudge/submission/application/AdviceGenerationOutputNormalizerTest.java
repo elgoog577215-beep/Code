@@ -133,6 +133,48 @@ class AdviceGenerationOutputNormalizerTest {
                 .isTrue();
     }
 
+    @Test
+    void expandsStringAdviceItemsIntoStructuredAdvice() throws Exception {
+        AdviceGenerationOutput output = objectMapper.readValue("""
+                {
+                  "caseUnderstanding": {
+                    "problemGoal": "分层最短路。",
+                    "codeIntent": "维护 dist[node][used]。",
+                    "behaviorGap": "优惠券没有降低路径费用。",
+                    "primaryEvidenceRef": "judge:first_failed_case"
+                  },
+                  "basicLayerAdvice": [
+                    "检查 should_skip_state 函数中的剪枝逻辑，确保它能区分不同优惠券使用数量下的状态。"
+                  ],
+                  "improvementLayerAdvice": [
+                    "补充一个同一节点不同 used 层的手推样例。"
+                  ],
+                  "nextStepPlan": [
+                    "先画出 dist[node][used] 的状态表。"
+                  ],
+                  "studentSummary": "先检查分层状态。"
+                }
+                """, AdviceGenerationOutput.class);
+
+        AdviceGenerationOutput normalized = normalizer.normalize(output, StandardLibraryPack.builder().build());
+
+        assertThat(normalized.getBasicLayerAdvice()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getText()).contains("should_skip_state");
+                    assertThat(item.getTitle()).isNotBlank();
+                    assertThat(item.getStudentAction()).isNotBlank();
+                });
+        assertThat(normalized.getImprovementLayerAdvice()).singleElement()
+                .satisfies(item -> assertThat(item.getSuggestion()).contains("手推样例"));
+        assertThat(normalized.getNextStepPlan()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getTarget()).contains("状态表");
+                    assertThat(item.getReason()).contains("状态表");
+                });
+        assertThat(validator.validate(normalized, longCodeBrief(), StandardLibraryPack.builder().build()).isValid())
+                .isTrue();
+    }
+
     private AdviceGenerationOutput validOutput() {
         return AdviceGenerationOutput.builder()
                 .caseUnderstanding(AdviceGenerationOutput.CaseUnderstanding.builder()

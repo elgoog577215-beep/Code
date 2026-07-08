@@ -186,6 +186,13 @@ public class AdviceGenerationOutput {
         private String checkQuestion;
         private List<String> evidenceRefs;
         private Double confidence;
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public static BasicLayerAdvice fromString(String value) {
+            return BasicLayerAdvice.builder()
+                    .text(value)
+                    .build();
+        }
     }
 
     @Data
@@ -203,6 +210,13 @@ public class AdviceGenerationOutput {
         private String studentBenefit;
         private List<String> evidenceRefs;
         private Double confidence;
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public static ImprovementLayerAdvice fromString(String value) {
+            return ImprovementLayerAdvice.builder()
+                    .text(value)
+                    .build();
+        }
     }
 
     @Data
@@ -215,5 +229,14 @@ public class AdviceGenerationOutput {
         private String target;
         private String reason;
         private String evidenceRef;
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public static NextStepAdvice fromString(String value) {
+            return NextStepAdvice.builder()
+                    .step(1)
+                    .target(value)
+                    .reason(value)
+                    .build();
+        }
     }
 }
