@@ -4,29 +4,33 @@
 TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Purpose after archive.
 ## Requirements
 ### Requirement: 诊断编排默认使用 AI 标准库导航
-系统 SHALL 在默认诊断编排中使用“初步诊断 -> AI 标准库导航 -> 最终诊断”的三阶段编排，由 AI 在理解当前提交后逐层选择标准库路径。
+系统 SHALL 在默认诊断编排中使用“自由诊断 issues -> 可选标准库逐层挂接 -> 建议生成”的编排。自由诊断和建议生成是主链路；标准库挂接 SHALL 只作为命名、路径和成长线索辅助，不得作为学生建议生成的硬闸门。
 
-#### Scenario: 默认诊断使用 AI 导航
+#### Scenario: 默认诊断使用 issue-first 编排
 - **WHEN** 学生提交代码且外部 AI 可用
-- **THEN** 系统 SHALL 先执行初步诊断
-- **AND** 系统 SHALL 通过 AI 标准库导航选择知识路径
-- **AND** trace SHALL 标记标准库定位来源为 `AI_NAVIGATION`
+- **THEN** 系统 SHALL 先执行自由诊断并生成 `issues[]`
+- **AND** 系统 SHALL 尝试对每个 issue 执行标准库逐层挂接
+- **AND** 系统 SHALL 基于 `issues[]` 生成学生可见建议
+- **AND** trace SHALL 标记标准库定位来源为 `LAYERED_ATTACHMENT`、`LIBRARY_EMPTY`、`NO_MATCH` 或 `ATTACHMENT_FAILED`
 
-#### Scenario: 初步诊断先于标准库导航
+#### Scenario: 自由诊断先于标准库挂接
 - **WHEN** 系统启动默认 AI 诊断
-- **THEN** 系统 MUST 先调用初步诊断阶段读取题目、完整代码和判题事实
-- **AND** 初步诊断阶段 SHALL NOT 接收标准库候选包或标准库 ID 列表
+- **THEN** 系统 MUST 先调用自由诊断阶段读取题目、完整代码和判题事实
+- **AND** 自由诊断阶段 SHALL NOT 接收标准库候选包或标准库 ID 列表
 
-#### Scenario: AI 导航标准库
-- **WHEN** 初步诊断阶段返回合法导航意图
-- **THEN** 系统 MUST 让 AI 基于标准库目录逐层选择大章节、小章节、知识点和诊断层条目
-- **AND** 后端 MUST 只展开 AI 选择的标准库节点
-- **AND** trace SHALL 标记标准库定位来源为 `AI_NAVIGATION`
+#### Scenario: 后端控制标准库逐层挂接
+- **WHEN** 自由诊断阶段返回合法 issues
+- **THEN** 系统 MUST 由后端基于标准库目录逐层提供大章节、小章节、知识点和诊断层条目
+- **AND** AI MUST 只对当前层返回选择、完成或无匹配动作
+- **AND** 后端 MUST 只展开 AI 在当前层合法选择的标准库节点
+- **AND** trace SHALL 记录每个 issue 的挂接状态
 
-#### Scenario: 导航失败关闭
-- **WHEN** 初步诊断或标准库导航阶段失败、超时、输出无效或超过轮次限制
-- **THEN** 系统 MUST 将 AI 诊断标记为失败或阶段失败
-- **AND** 系统 MUST NOT 生成缺少导航依据的学生可见诊断
+#### Scenario: 挂接失败不关闭诊断
+- **WHEN** 标准库挂接阶段失败、超时、输出无效、根目录为空或超过轮次限制
+- **THEN** 系统 MUST 保留自由诊断 issues
+- **AND** 系统 MUST 将对应 issue 的标准库挂接状态标记为不可用或未命中
+- **AND** 系统 MUST 继续执行 advice generation
+- **AND** 系统 MUST NOT 仅因标准库挂接失败而返回 `MODEL_FAILED`
 
 ### Requirement: AI 诊断应把标准库作为教学参考规范包
 系统 SHALL 将 AI 导航选中的标准库结构传递给最终诊断阶段，并将其定位为教学参考规范包，用于统一术语、颗粒度和成长线索；最终诊断仍 MUST 以题目、代码、判题事实和证据引用为准。
@@ -88,28 +92,28 @@ TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Pur
 - **AND** 不得只依赖第一条失败样例、第一条本地信号或压缩摘要生成完整诊断
 
 ### Requirement: AI 标准库导航必须覆盖真实知识树深度
-系统 SHALL 让 AI 标准库导航能够从当前知识树根节点逐层展开到知识点诊断层，并 SHALL 在每轮导航视图中提供当前允许选择的知识节点 code 和诊断层 code。系统 MUST NOT 因默认轮数不足而在模型看到知识点诊断层前强制失败。
+系统 SHALL 让后端控制的标准库逐层挂接能够从当前知识树根节点逐层展开到知识点诊断层，并 SHALL 在每轮挂接视图中只提供当前层允许选择的知识节点 code 或诊断层 code。系统 MUST NOT 因模型未维护旧导航状态机而强制失败。
 
-#### Scenario: 多层知识树导航完成
+#### Scenario: 多层知识树挂接完成
 - **WHEN** 标准库路径包含根节点、大章节、小章节、知识点和知识点诊断层
-- **THEN** 系统 SHALL 允许 AI 导航完成逐层展开
-- **AND** 系统 SHALL 在看到诊断层后接受包含能力点、易错点或提升点的 `DONE` 导航结果
-- **AND** 系统 SHALL 将导航结果传给最终诊断阶段
+- **THEN** 系统 SHALL 允许后端逐层展开并完成挂接
+- **AND** 系统 SHALL 在看到诊断层后接受绑定能力点、易错点或提升点的完成结果
+- **AND** 系统 SHALL 将挂接结果作为 advice generation 的可选 anchors
 
 #### Scenario: 当前视图限定可选 code
-- **WHEN** 系统向 AI 发送某一轮标准库导航视图
-- **THEN** 视图 SHALL 包含当前可选择的知识节点 code 列表
+- **WHEN** 系统向 AI 发送某一轮标准库挂接视图
+- **THEN** 视图 SHALL 包含当前可选择的 code 列表
 - **AND** 如果已展开知识点诊断层，视图 SHALL 包含当前可选择的能力点、易错点和提升点 code 列表
-- **AND** 模型返回的 `selectedBranches` MUST 只引用当前视图中出现的知识节点 code
+- **AND** 模型返回的 code MUST 只引用当前视图中出现的 code
 
-#### Scenario: 非法分支选择修正
-- **WHEN** 模型返回的 `selectedBranches` 引用了当前视图没有出现的知识节点 code
-- **THEN** 系统 SHALL 最多发起一次结构化修正请求
-- **AND** 修正请求 SHALL 要求模型从当前合法 code 中重选或返回 `NO_MATCH`
-- **AND** 如果修正后仍不合法，系统 SHALL 标记标准库导航失败
+#### Scenario: 非法选择降级
+- **WHEN** 模型返回当前视图没有出现的 code
+- **THEN** 系统 SHALL 最多发起一次结构化重问或直接丢弃非法 code
+- **AND** 如果修正后仍不合法，系统 SHALL 标记该 issue 挂接失败
+- **AND** 系统 MUST NOT 因单个 issue 挂接失败而阻断 advice generation
 
 #### Scenario: 最后一轮不得继续展开
-- **WHEN** 标准库导航到达本次允许的最后一轮
+- **WHEN** 标准库挂接到达本次允许的最后一轮
 - **THEN** 系统 SHALL 要求模型返回 `DONE` 或 `NO_MATCH`
-- **AND** 如果模型仍返回 `CONTINUE`，系统 SHALL 标记标准库导航失败
-- **AND** 系统 MUST NOT 恢复本地召回或生成缺少导航依据的学生可见诊断
+- **AND** 如果模型仍要求继续选择，系统 SHALL 标记该 issue 挂接失败
+- **AND** 系统 MUST 继续基于已有 issues 生成学生可见诊断建议

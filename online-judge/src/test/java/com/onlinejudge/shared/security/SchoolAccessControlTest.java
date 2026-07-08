@@ -42,7 +42,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "TEACHER_SESSION_SECRET=test-teacher-session-secret-1234567890",
         "TEACHER_DEV_AUTO_AUTH=false",
         "STUDENT_TOKEN_SECRET=test-student-token-secret-1234567890",
-        "AI_ENABLED=false"
+        "AI_ENABLED=false",
+        "app.content-seed.enabled=true"
 })
 class SchoolAccessControlTest {
 

@@ -38,6 +38,30 @@ public class StandardLibraryNavigationPackBuilder {
         skillIds.forEach(id -> addItem(selectedItems, AiStandardLibraryLayer.SKILL_UNIT, id));
         mistakeIds.forEach(id -> addItem(selectedItems, AiStandardLibraryLayer.MISTAKE_POINT, id));
         improvementIds.forEach(id -> addItem(selectedItems, AiStandardLibraryLayer.IMPROVEMENT_POINT, id));
+        return buildFromSelectedItems(selectedItems, knowledgeIds, "AI_NAVIGATION",
+                output == null ? "" : output.getUncertainty());
+    }
+
+    public StandardLibraryPack buildFromItems(List<AiStandardLibraryItem> seedItems,
+                                              String status,
+                                              String uncertainty) {
+        LinkedHashMap<String, AiStandardLibraryItem> selectedItems = new LinkedHashMap<>();
+        for (AiStandardLibraryItem item : safe(seedItems)) {
+            if (item == null || item.getLayer() == null || normalize(item.getCode()).isBlank()) {
+                continue;
+            }
+            selectedItems.putIfAbsent(item.getLayer().name() + "/" + item.getCode(), item);
+            if (item.getLayer() != AiStandardLibraryLayer.SKILL_UNIT) {
+                addItem(selectedItems, AiStandardLibraryLayer.SKILL_UNIT, item.getSkillUnitCode());
+            }
+        }
+        return buildFromSelectedItems(selectedItems, new LinkedHashSet<>(), status, uncertainty);
+    }
+
+    private StandardLibraryPack buildFromSelectedItems(LinkedHashMap<String, AiStandardLibraryItem> selectedItems,
+                                                       LinkedHashSet<String> knowledgeIds,
+                                                       String status,
+                                                       String uncertainty) {
         for (AiStandardLibraryItem item : selectedItems.values()) {
             add(knowledgeIds, primaryKnowledgeCode(item));
             lines(item.getKnowledgeNodeCodes()).forEach(code -> add(knowledgeIds, code));
@@ -79,10 +103,10 @@ public class StandardLibraryNavigationPackBuilder {
                 .skillUnits(skillUnits)
                 .mistakePoints(mistakePoints)
                 .standardLibraryNavigationSummary(StandardLibraryPack.StandardLibraryNavigationSummary.builder()
-                        .status("AI_NAVIGATION")
+                        .status(firstNonBlank(status, "LOCAL_RECALL"))
                         .failureReason("")
                         .selectedCount(items.size() + anchors.size())
-                        .uncertainty(output == null ? "" : output.getUncertainty())
+                        .uncertainty(firstNonBlank(uncertainty, ""))
                         .build())
                 .issueTags(List.of())
                 .fineGrainedTags(List.of())

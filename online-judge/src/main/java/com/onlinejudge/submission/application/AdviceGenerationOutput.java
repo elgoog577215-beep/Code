@@ -1,5 +1,6 @@
 package com.onlinejudge.submission.application;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
@@ -180,9 +181,12 @@ public class AdviceGenerationOutput {
         private String skillUnitId;
         private String text;
         private String title;
+        @JsonAlias({"body", "description", "reason"})
         private String whatHappened;
         private String whyItMatters;
+        @JsonAlias({"action", "advice", "suggestion"})
         private String studentAction;
+        @JsonAlias({"question", "check"})
         private String checkQuestion;
         private List<String> evidenceRefs;
         private Double confidence;
@@ -205,8 +209,11 @@ public class AdviceGenerationOutput {
         private String skillUnitId;
         private String text;
         private String title;
+        @JsonAlias({"whatHappened", "currentIssue", "currentProblem"})
         private String currentLimit;
+        @JsonAlias({"studentAction", "action", "advice"})
         private String suggestion;
+        @JsonAlias({"benefit", "whyItMatters"})
         private String studentBenefit;
         private List<String> evidenceRefs;
         private Double confidence;

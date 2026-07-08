@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryDiagnosticLayerResponse;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationExpansionResponse;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
@@ -28,6 +29,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -340,20 +342,140 @@ public class AiReportService {
 
     private ExternalModelAgentRuntime.RuntimePlan prepareStudentFeedbackRuntimePlan(
             DiagnosisEvidencePackage evidencePackage) {
+        ExternalModelAgentRuntime.RuntimePlan runtimePlan = null;
         if (externalModelAgentRuntime == null || evidencePackage == null) {
-            return null;
+            StandardLibraryPack pack = localStudentStandardLibraryPack(evidencePackage);
+            return pack == null ? null : ExternalModelAgentRuntime.RuntimePlan.builder()
+                    .standardLibraryPack(pack)
+                    .build();
         }
         try {
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan = externalModelAgentRuntime.prepare(
+            runtimePlan = externalModelAgentRuntime.prepare(
                     evidencePackage,
                     null,
                     externalRuntimeProfile
             );
-            return runtimePlan;
         } catch (Exception exception) {
-            log.warn("Student AI feedback standard library context unavailable. reason={}", exception.getMessage());
+            log.warn("Student AI feedback runtime context unavailable. reason={}", exception.getMessage());
+        }
+        StandardLibraryPack pack = localStudentStandardLibraryPack(evidencePackage);
+        if (pack == null) {
+            return runtimePlan;
+        }
+        if (runtimePlan == null) {
+            return ExternalModelAgentRuntime.RuntimePlan.builder()
+                    .standardLibraryPack(pack)
+                    .build();
+        }
+        if (runtimePlan.getStandardLibraryPack() == null) {
+            runtimePlan.setStandardLibraryPack(pack);
+        }
+        return runtimePlan;
+    }
+
+    private StandardLibraryPack localStudentStandardLibraryPack(DiagnosisEvidencePackage evidencePackage) {
+        if (standardLibraryService == null || standardLibraryNavigationPackBuilder == null || evidencePackage == null) {
             return null;
         }
+        try {
+            List<AiStandardLibraryItem> items = standardLibraryService.enabledNavigationItems();
+            if (items.isEmpty()) {
+                return emptyStandardLibraryPack("LIBRARY_EMPTY", "", "");
+            }
+            String haystack = studentRecallHaystack(evidencePackage);
+            List<AiStandardLibraryItem> ranked = items.stream()
+                    .filter(item -> item != null)
+                    .sorted(Comparator
+                            .comparingInt((AiStandardLibraryItem item) -> localRecallScore(item, haystack))
+                            .reversed()
+                            .thenComparing(item -> defaultIfBlank(item.getCategory(), ""))
+                            .thenComparing(item -> defaultIfBlank(item.getCode(), "")))
+                    .limit(40)
+                    .toList();
+            return standardLibraryNavigationPackBuilder.buildFromItems(ranked, "LOCAL_RECALL",
+                    "本地召回树形标准库包，供单诊断 Agent 参考。");
+        } catch (Exception exception) {
+            log.warn("Student AI feedback local standard library recall failed. reason={}", exception.getMessage());
+            return emptyStandardLibraryPack("ATTACHMENT_FAILED", exception.getMessage(), "");
+        }
+    }
+
+    private String studentRecallHaystack(DiagnosisEvidencePackage evidencePackage) {
+        StringBuilder builder = new StringBuilder();
+        DiagnosisEvidencePackage.ProblemEvidence problem = evidencePackage.getProblem();
+        if (problem != null) {
+            builder.append(problem.getTitle()).append('\n')
+                    .append(problem.getDescription()).append('\n')
+                    .append(problem.getDifficulty()).append('\n')
+                    .append(String.join("\n", cleanList(problem.getKnowledgePoints(), List.of()))).append('\n')
+                    .append(String.join("\n", cleanList(problem.getCommonMistakes(), List.of()))).append('\n');
+        }
+        DiagnosisEvidencePackage.SubmissionEvidence submission = evidencePackage.getSubmission();
+        if (submission != null) {
+            builder.append(submission.getLanguage()).append('\n')
+                    .append(submission.getVerdict()).append('\n')
+                    .append(submission.getSourceCodeWithLineNumbers()).append('\n');
+        }
+        DiagnosisEvidencePackage.JudgeFacts judgeFacts = evidencePackage.getJudgeFacts();
+        if (judgeFacts != null) {
+            builder.append(judgeFacts.getRuntimeErrorMessage()).append('\n')
+                    .append(judgeFacts.getCompileOutput()).append('\n');
+            for (DiagnosisEvidencePackage.CaseSummary item : judgeFacts.getCaseResultsSummary() == null
+                    ? List.<DiagnosisEvidencePackage.CaseSummary>of()
+                    : judgeFacts.getCaseResultsSummary()) {
+                if (item == null || Boolean.TRUE.equals(item.getHidden())) {
+                    continue;
+                }
+                builder.append(item.getActualOutputPreview()).append('\n')
+                        .append(item.getExpectedOutputPreview()).append('\n');
+            }
+        }
+        return normalizeRecallText(builder.toString());
+    }
+
+    private int localRecallScore(AiStandardLibraryItem item, String haystack) {
+        if (item == null || haystack == null || haystack.isBlank()) {
+            return 0;
+        }
+        int score = 0;
+        score += recallFieldScore(haystack, item.getName(), 8);
+        score += recallFieldScore(haystack, item.getCategory(), 5);
+        score += recallFieldScore(haystack, item.getDescription(), 3);
+        score += recallFieldScore(haystack, item.getCommonMisconception(), 3);
+        score += recallFieldScore(haystack, item.getEvidenceSignals(), 4);
+        score += recallFieldScore(haystack, item.getCommonCodePatterns(), 6);
+        score += recallFieldScore(haystack, item.getJudgeSignals(), 6);
+        score += recallFieldScore(haystack, item.getWhenToUse(), 3);
+        score += recallFieldScore(haystack, item.getStudentBenefit(), 2);
+        return score;
+    }
+
+    private int recallFieldScore(String haystack, String rawValue, int weight) {
+        String value = normalizeRecallText(rawValue);
+        if (value.isBlank()) {
+            return 0;
+        }
+        if (haystack.contains(value)) {
+            return weight * 3;
+        }
+        int score = 0;
+        for (String token : value.split("[^\\p{IsHan}A-Za-z0-9_]+")) {
+            if (token.length() >= 2 && haystack.contains(token)) {
+                score += weight;
+            }
+        }
+        for (int index = 0; index + 4 <= value.length(); index += 2) {
+            String fragment = value.substring(index, index + 4);
+            if (haystack.contains(fragment)) {
+                score += Math.max(1, weight / 2);
+                break;
+            }
+        }
+        return score;
+    }
+
+    private String normalizeRecallText(String value) {
+        return value == null ? "" : value.toLowerCase().replaceAll("\\s+", " ").trim();
     }
 
     private SubmissionAnalysisResponse enhanceWithAdviceGenerationRuntime(
@@ -3936,12 +4058,33 @@ public class AiReportService {
     }
 
     private String resolveStudentEvidenceRef(String ref, Map<String, String> evidenceCandidateRefs) {
-        String cleaned = cleanupAiText(ref);
+        String cleaned = normalizeStudentEvidenceRef(cleanupAiText(ref));
         if (cleaned.isBlank()) {
             return "";
         }
         String mapped = evidenceCandidateRefs == null ? null : evidenceCandidateRefs.get(cleaned);
         return mapped == null ? cleaned : mapped;
+    }
+
+    private String normalizeStudentEvidenceRef(String value) {
+        String cleaned = defaultIfBlank(value, "").trim();
+        if (cleaned.isBlank()) {
+            return "";
+        }
+        String compact = cleaned.replaceAll("\\s+", "");
+        Matcher lineMatcher = Pattern.compile("(?i)^code[:_\\-]?line[:_\\-]?(\\d+)$").matcher(compact);
+        if (lineMatcher.find()) {
+            return "code:line:" + lineMatcher.group(1);
+        }
+        Matcher rangeMatcher = Pattern.compile("(?i)^code[:_\\-]?range[:_\\-]?(\\d+)[:_\\-](\\d+)$").matcher(compact);
+        if (rangeMatcher.find()) {
+            return "code:range:" + rangeMatcher.group(1) + "-" + rangeMatcher.group(2);
+        }
+        Matcher judgeCaseMatcher = Pattern.compile("(?i)^judge[:_\\-]?case[:_\\-]?(\\d+)(?:[:_\\-]?output)?$").matcher(compact);
+        if (judgeCaseMatcher.find()) {
+            return "judge:first_failed_case:" + judgeCaseMatcher.group(1);
+        }
+        return cleaned;
     }
 
     private List<StudentAiFeedbackResponse.FeedbackItem> enrichFeedbackItems(List<StudentAiFeedbackResponse.FeedbackItem> items,

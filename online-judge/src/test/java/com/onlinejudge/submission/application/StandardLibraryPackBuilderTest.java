@@ -144,8 +144,8 @@ class StandardLibraryPackBuilderTest {
         assertThat(ignoredProfilePlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
         assertThat(ignoredProfilePlan.getAdvicePrompt().getSystemPrompt())
                 .contains("diagnosis-report-v3")
-                .contains("初步诊断")
-                .contains("AI 标准库导航结果")
+                .contains("自由诊断")
+                .contains("标准库挂接结果")
                 .contains("navigationResult")
                 .contains("standardLibrary")
                 .contains("studentReport")

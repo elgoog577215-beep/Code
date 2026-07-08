@@ -1,10 +1,12 @@
 package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 
@@ -20,11 +22,11 @@ class DiagnosisReportV2RealSamplesTest {
 
         assertThat(samples).extracting(RealSample::id)
                 .containsExactly(
-                        "sum-right-endpoint",
-                        "matrix-difference-prefix-restore",
-                        "monotonic-stack-duplicates",
-                        "stone-merge-dp-interval",
-                        "dynamic-connectivity-missing-union",
+                        "advanced-coupon-shortest-path-state",
+                        "advanced-interval-dp-order-sum",
+                        "advanced-segment-tree-lazy-range",
+                        "advanced-offline-connectivity-rollback",
+                        "advanced-tree-rerooting-weighted",
                         "string-window-boundary",
                         "sliding-window-balance-count",
                         "layered-shortest-path-state",
@@ -59,7 +61,7 @@ class DiagnosisReportV2RealSamplesTest {
         samples.forEach(sample -> {
             assertThat(sample.quickFeedbackKnownLimit())
                     .as(sample.id() + " quick feedback limitation")
-                    .containsAnyOf("快反馈", "通常", "可能", "常说");
+                    .containsAnyOf("快反馈", "短反馈", "通常", "可能", "常说");
             assertThat(sample.formalMustImproveAtLeastOneOf())
                     .as(sample.id() + " formal chain improvement")
                     .allSatisfy(requirement -> assertThat(requirement).isNotBlank());
@@ -108,17 +110,37 @@ class DiagnosisReportV2RealSamplesTest {
     private List<RealSample> loadSamples() throws Exception {
         try (InputStream input = getClass().getResourceAsStream("/diagnosis-eval-fixtures/diagnosis-report-v2-real-samples.json")) {
             assertThat(input).isNotNull();
-            return objectMapper.readValue(input, new TypeReference<>() {
+            List<RealSample> samples = objectMapper.readValue(input, new TypeReference<>() {
             });
+            return resolveSampleCodeResources(samples);
         }
     }
 
+    private List<RealSample> resolveSampleCodeResources(List<RealSample> samples) throws Exception {
+        java.util.ArrayList<RealSample> resolved = new java.util.ArrayList<>();
+        for (RealSample sample : samples) {
+            String code = sample.buggyCode();
+            if ((code == null || code.isBlank())
+                    && sample.buggyCodeResource() != null
+                    && !sample.buggyCodeResource().isBlank()) {
+                try (InputStream input = getClass().getResourceAsStream(sample.buggyCodeResource())) {
+                    assertThat(input).as(sample.id() + " buggyCodeResource").isNotNull();
+                    code = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+                }
+            }
+            resolved.add(sample.withBuggyCode(code));
+        }
+        return resolved;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private record RealSample(
             String id,
             String title,
             String problemSummary,
             String language,
             String buggyCode,
+            String buggyCodeResource,
             String judgeResult,
             String expectedLibraryFit,
             List<String> expectedAnchors,
@@ -130,5 +152,11 @@ class DiagnosisReportV2RealSamplesTest {
             String quickFeedbackKnownLimit,
             List<String> formalMustImproveAtLeastOneOf
     ) {
+        RealSample withBuggyCode(String resolvedCode) {
+            return new RealSample(id, title, problemSummary, language, resolvedCode, buggyCodeResource, judgeResult,
+                    expectedLibraryFit, expectedAnchors, expectedLibraryPath, expectedGrowthCandidateFields,
+                    contextPackageRequirements, expectedStudentFeedbackQuality, shouldGenerateGrowthCandidate,
+                    quickFeedbackKnownLimit, formalMustImproveAtLeastOneOf);
+        }
     }
 }

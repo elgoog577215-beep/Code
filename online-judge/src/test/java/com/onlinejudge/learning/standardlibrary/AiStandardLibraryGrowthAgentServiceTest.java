@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "TEACHER_SESSION_SECRET=test-teacher-session-secret-1234567890",
         "STUDENT_TOKEN_SECRET=test-student-token-secret-1234567890",
         "AI_ENABLED=false",
+        "app.content-seed.enabled=true",
         "ai.standard-library-growth.auto-merge-enabled=false"
 })
 class AiStandardLibraryGrowthAgentServiceTest {

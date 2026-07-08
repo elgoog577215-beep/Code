@@ -218,6 +218,10 @@ public class PromptTemplateRegistry {
                 7. caseUnderstanding.primaryEvidenceRef、anchors.evidenceRefs、diagnosisCandidates.evidenceRefs 必须使用 brief.evidenceRefs 或 code:line:N。
                 8. basicLayerAdvice 应覆盖多个独立 issues；不要因为只有一个标准库 anchor 就删掉其他有证据 issue。
                 9. standardLibrary 为空、libraryAnchors 为 LIBRARY_EMPTY、NO_MATCH 或 ATTACHMENT_FAILED 时，仍然基于 issues 生成建议，标准库 id 可以留空。
+                10. basicLayerAdvice 的 title 只写问题名，whatHappened 和 studentAction 不要重复标题；studentAction 必须是“检查什么现象 + 怎么手推验证”，不要写“直接修改某函数”。
+                11. improvementLayerAdvice 必须绑定当前 issue、标准库 anchor 或当前算法机制；不要泛泛写“培养调试习惯”，除非同时说明本题要观察的具体状态、区间、边集合或 lazy 标记。
+                12. nextStepPlan 只能返回 1 条，并且只包含一个可执行小动作，例如“画出 dist[node][used] 状态表”；不要把多个修复步骤打包在一起。
+                13. 学生可见字段禁止出现“直接改成”“替换为”“完整代码”“参考代码”“最终答案”等直给表达。
                 """;
     }
 

@@ -22,7 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "TEACHER_PASSWORD=test-teacher-password",
         "TEACHER_SESSION_SECRET=test-teacher-session-secret-1234567890",
         "STUDENT_TOKEN_SECRET=test-student-token-secret-1234567890",
-        "AI_ENABLED=false"
+        "AI_ENABLED=false",
+        "app.content-seed.enabled=true"
 })
 class InformaticsKnowledgeServiceTest {
 

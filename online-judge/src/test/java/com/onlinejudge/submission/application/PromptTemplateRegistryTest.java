@@ -147,7 +147,11 @@ class PromptTemplateRegistryTest {
                 .contains("studentReport")
                 .contains("libraryGrowth.candidates")
                 .contains("NEEDS_REVIEW")
-                .contains("每个学生可见判断都要有证据引用");
+                .contains("每个学生可见判断都要有证据引用")
+                .contains("检查什么现象 + 怎么手推验证")
+                .contains("必须绑定当前 issue")
+                .contains("nextStepPlan 只能返回 1 条")
+                .contains("学生可见字段禁止出现“直接改成”“替换为”“完整代码”");
     }
 
     @Test

@@ -175,6 +175,151 @@ class AdviceGenerationOutputNormalizerTest {
                 .isTrue();
     }
 
+    @Test
+    void stripsRepeatedTitleFromStudentVisibleAdviceFields() {
+        AdviceGenerationOutput output = validOutput();
+        output.getBasicLayerAdvice().get(0).setTitle("检查 should_skip_state 函数的剪枝逻辑");
+        output.getBasicLayerAdvice().get(0).setWhatHappened(
+                "检查 should_skip_state 函数的剪枝逻辑：同一节点不同 used 层被合并判断。");
+        output.getBasicLayerAdvice().get(0).setStudentAction(
+                "检查 should_skip_state 函数的剪枝逻辑，先手推同一节点不同 used 层的 dist 值。");
+        output.getImprovementLayerAdvice().get(0).setTitle("线段树 lazy 累积检查");
+        output.getImprovementLayerAdvice().get(0).setSuggestion(
+                "线段树 lazy 累积检查：连续两次区间加后观察 lazy 和 max 的变化。");
+
+        AdviceGenerationOutput normalized = normalizer.normalize(output, pack());
+
+        assertThat(normalized.getBasicLayerAdvice()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getWhatHappened()).isEqualTo("同一节点不同 used 层被合并判断。");
+                    assertThat(item.getStudentAction()).isEqualTo("先手推同一节点不同 used 层的 dist 值");
+                });
+        assertThat(normalized.getImprovementLayerAdvice()).singleElement()
+                .satisfies(item -> assertThat(item.getSuggestion())
+                        .isEqualTo("连续两次区间加后观察 lazy 和 max 的变化"));
+    }
+
+    @Test
+    void sanitizesDirectFixToneAndKeepsOneSmallNextStep() {
+        AdviceGenerationOutput output = validOutput();
+        output.getBasicLayerAdvice().get(0).setStudentAction(
+                "直接修改 should_skip_state 函数，然后再处理答案统计。");
+        output.getImprovementLayerAdvice().get(0).setSuggestion("直接调整 lazy 标记，然后补自测。");
+        output.setNextStepPlan(List.of(
+                AdviceGenerationOutput.NextStepAdvice.builder()
+                        .step(1)
+                        .target("先画出 dist[node][used] 状态表，然后修改剪枝条件。")
+                        .reason("先观察状态表，然后再动代码。")
+                        .evidenceRef("code:range_excludes_n")
+                        .build(),
+                AdviceGenerationOutput.NextStepAdvice.builder()
+                        .step(2)
+                        .target("再检查答案统计。")
+                        .reason("第二步。")
+                        .evidenceRef("code:range_excludes_n")
+                        .build()
+        ));
+
+        AdviceGenerationOutput normalized = normalizer.normalize(output, pack());
+        String visible = String.join(" ",
+                normalized.getBasicLayerAdvice().get(0).getStudentAction(),
+                normalized.getImprovementLayerAdvice().get(0).getSuggestion(),
+                normalized.getNextStepPlan().get(0).getTarget(),
+                normalized.getNextStepPlan().get(0).getReason());
+
+        assertThat(visible).doesNotContain("直接修改", "直接改成", "完整代码", "替换为");
+        assertThat(normalized.getBasicLayerAdvice().get(0).getStudentAction())
+                .isEqualTo("检查 should_skip_state 函数");
+        assertThat(normalized.getImprovementLayerAdvice().get(0).getSuggestion())
+                .isEqualTo("检查 lazy 标记");
+        assertThat(normalized.getNextStepPlan()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getStep()).isEqualTo(1);
+                    assertThat(item.getTarget()).isEqualTo("先画出 dist[node][used] 状态表");
+                    assertThat(item.getReason()).isEqualTo("先观察状态表");
+                });
+        assertThat(validator.validate(normalized, brief(), pack()).isValid()).isTrue();
+    }
+
+    @Test
+    void repairsLiveAdviceItemsThatUseBasicFieldNames() throws Exception {
+        AdviceGenerationOutput output = objectMapper.readValue("""
+                {
+                  "studentReport": {
+                    "hintLevel": "L3",
+                    "basicLayerText": "先检查线段树 lazy 累积。",
+                    "improvementLayerText": "再补一个连续区间更新 trace。",
+                    "nextActionText": "画出 lazy 和 max 的变化表。"
+                  },
+                  "caseUnderstanding": {
+                    "problemGoal": "维护区间加和区间最大值。",
+                    "codeIntent": "使用懒标记线段树。",
+                    "behaviorGap": "连续更新后最大值错误。",
+                    "primaryEvidenceRef": "code:range_excludes_n"
+                  },
+                  "basicLayerAdvice": [{
+                    "title": "懒标记覆盖而非累积",
+                    "whatHappened": "apply_add 中 lazy 被覆盖，连续两次区间加后前一次更新会丢失。",
+                    "studentAction": "连续两次区间加后观察 lazy 和 max 的变化。",
+                    "evidenceRefs": ["code:range_excludes_n"]
+                  }],
+                  "improvementLayerAdvice": [{
+                    "title": "调试懒标记传播过程",
+                    "whatHappened": "懒标记传播过程缺少可复盘记录。",
+                    "studentAction": "设计一组简单操作序列，记录每一步 lazy 状态变化。",
+                    "evidenceRefs": ["code:range_excludes_n"]
+                  }],
+                  "nextStepPlan": ["画出 lazy 和 max 的变化表。"],
+                  "studentSummary": "先看 lazy 累积。"
+                }
+                """, AdviceGenerationOutput.class);
+
+        AdviceGenerationOutput normalized = normalizer.normalize(output, pack());
+
+        assertThat(normalized.getBasicLayerAdvice()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getWhyItMatters()).isNotBlank();
+                    assertThat(item.getCheckQuestion()).isNotBlank();
+                });
+        assertThat(normalized.getImprovementLayerAdvice()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getCurrentLimit()).contains("懒标记传播过程");
+                    assertThat(item.getSuggestion()).contains("简单操作序列");
+                    assertThat(item.getStudentBenefit()).isNotBlank();
+                });
+        assertThat(validator.validate(normalized, brief(), pack()).isValid()).isTrue();
+    }
+
+    @Test
+    void cleansLiveSafetyRetryLeakPhrasesBeforeValidation() {
+        AdviceGenerationOutput output = validOutput();
+        output.setStudentReport(AdviceGenerationOutput.StudentReport.builder()
+                .hintLevel("L3")
+                .basicLayerText("先检查回滚状态和时间区间。")
+                .improvementLayerText("再复盘线段树分治中的时间片隔离。")
+                .nextActionText("选择一个节点手动追踪换根过程，观察当前公式如何影响最终答案。")
+                .build());
+        output.getBasicLayerAdvice().get(0).setWhatHappened(
+                "在remove_edge方法中，将边的结束时间设为当前时间，而实际上该边应在时间t-1之前仍然有效。");
+        output.setNextStepPlan(List.of(AdviceGenerationOutput.NextStepAdvice.builder()
+                .step(1)
+                .target("选择一个节点手动追踪换根过程，观察当前公式如何影响最终答案。")
+                .reason("观察当前公式如何影响最终答案。")
+                .evidenceRef("code:range_excludes_n")
+                .build()));
+
+        AdviceGenerationOutput normalized = normalizer.normalize(output, pack());
+        String visible = String.join(" ",
+                normalized.getStudentReport().getNextActionText(),
+                normalized.getBasicLayerAdvice().get(0).getWhatHappened(),
+                normalized.getNextStepPlan().get(0).getTarget(),
+                normalized.getNextStepPlan().get(0).getReason());
+
+        assertThat(visible)
+                .doesNotContain("最终答案", "将边的结束时间设为", "应在时间t-1", "直接改成", "替换为");
+        assertThat(validator.validate(normalized, brief(), pack()).isValid()).isTrue();
+    }
+
     private AdviceGenerationOutput validOutput() {
         return AdviceGenerationOutput.builder()
                 .caseUnderstanding(AdviceGenerationOutput.CaseUnderstanding.builder()

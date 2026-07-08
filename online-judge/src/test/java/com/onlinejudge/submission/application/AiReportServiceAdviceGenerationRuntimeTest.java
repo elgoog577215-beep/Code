@@ -93,6 +93,10 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 .contains("\"diagnosticItems\"")
                 .contains("SK_RANGE_BOUNDARY")
                 .contains("MP_RANGE_RIGHT_ENDPOINT_MISSING");
+        assertThat(service.userPrompt(6))
+                .contains("\"anchorStatus\":\"HIT\"")
+                .contains("\"skillUnitCode\":\"SK_RANGE_BOUNDARY\"")
+                .contains("\"mistakePointCode\":\"MP_RANGE_RIGHT_ENDPOINT_MISSING\"");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
         assertThat(analysis.getAiInvocation().getStandardLibraryNavigationSelectedCount()).isGreaterThan(0);
