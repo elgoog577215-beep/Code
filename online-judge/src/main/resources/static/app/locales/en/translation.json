@@ -33,6 +33,94 @@
     "teacherTitle": "Teacher Workbench",
     "teacherDescription": "Review classes, assignments, problems, and students, plus manage rosters, problems, and the AI library."
   },
+  "studentHome": {
+    "eyebrow": "Student",
+    "title": "Start Practice",
+    "subtitleGuest": "Begin with the public problem bank; log in to see class assignments, mistakes, and personal records.",
+    "subtitleSignedIn": "{{name}}, choose what to continue today.",
+    "noteGuest": "Practice without logging in",
+    "noteSignedIn": "Assignments and review stay in sync",
+    "taskCount": "{{count}} problems",
+    "errors": {
+      "publicBank": "The public problem bank is unavailable.",
+      "assignments": "Failed to load teacher assignments."
+    },
+    "loading": {
+      "publicBank": "Loading",
+      "assignments": "Loading class assignments",
+      "assignmentHint": "You can practice in the public bank first"
+    },
+    "public": {
+      "title": "Public Problem Bank",
+      "meta": "{{count}} problems · start now",
+      "description": "Start from basics, or search directly by problem number or title.",
+      "cta": "Start practice"
+    },
+    "login": {
+      "title": "Log in for class assignments",
+      "meta": "Class assignments and personal records",
+      "description": "After login, teacher tasks, submissions, and review suggestions appear here.",
+      "cta": "Log in"
+    },
+    "assignment": {
+      "description": "Opening an assignment takes you to the next problem automatically.",
+      "cta": "Open assignment"
+    },
+    "emptyAssignments": {
+      "title": "No class assignments",
+      "meta": "They will appear here after your teacher publishes them"
+    },
+    "review": {
+      "aria": "My mistake review",
+      "eyebrow": "My Review",
+      "title": "Problems to revisit",
+      "loading": "Loading profile",
+      "waiting": "Waiting for more submissions",
+      "failedCount": "{{count}} failed submissions",
+      "profileBuilding": "Profile is still forming",
+      "focusHint": "Review one problem around {{focus}} first.",
+      "organizing": "Organizing recent mistakes.",
+      "empty": "Review cards will appear here after a few submissions."
+    }
+  },
+  "studentPublic": {
+    "eyebrow": "Student",
+    "title": "Public Problem Bank",
+    "subtitle": "{{count}} problems. Filter by difficulty or search by number and title.",
+    "back": "Back",
+    "loading": "Loading public problem bank",
+    "enteringAssignment": "Opening assignment",
+    "assignmentTitle": "Class Assignment",
+    "noProblems": "No problems",
+    "searchAria": "Search public problems",
+    "searchPlaceholder": "Search number, title, or keyword",
+    "clearSearch": "Clear search",
+    "filterAria": "Filter by difficulty and drafts",
+    "status": "Showing {{visible}}/{{total}} problems",
+    "draftCount": "{{count}} with drafts",
+    "clearFilters": "Clear filters",
+    "resume": "Continue: {{title}}",
+    "listAria": "Public problems",
+    "problemFallback": "Open the problem to read the full statement.",
+    "timeLimit": "{{value}} ms",
+    "memoryLimit": "{{value}} MB",
+    "emptyFiltered": "No matching problems",
+    "empty": "No public problems",
+    "errors": {
+      "load": "Failed to load the public problem bank.",
+      "assignmentLoad": "Failed to load the assignment."
+    },
+    "filters": {
+      "all": "All",
+      "draft": "Draft"
+    },
+    "difficulty": {
+      "easy": "Basic",
+      "medium": "Intermediate",
+      "hard": "Challenge",
+      "unknown": "Unrated"
+    }
+  },
   "teacherShell": {
     "aria": "Teacher workbench navigation",
     "kicker": "Teacher",

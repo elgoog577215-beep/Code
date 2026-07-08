@@ -18499,6 +18499,264 @@ button.standard-library-governance-path {
   }
 }
 
+/* 学生首页与公共题库整理：突出学习入口，不影响作答页三栏。 */
+.student-home--assignments {
+  width: min(100%, 980px);
+  gap: 0.82rem;
+  padding-block: clamp(0.7rem, 4.2vh, 2.6rem);
+}
+
+.student-home-command--entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1rem;
+  padding: 0.92rem 1rem;
+}
+
+.student-home-command--entry p:not(.eyebrow) {
+  max-width: 58ch;
+  margin: 0.28rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.student-home--assignments .student-entry-list {
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.78fr);
+  align-items: stretch;
+  gap: 0.7rem;
+}
+
+.student-home--assignments .student-entry-link {
+  min-height: 136px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.74rem;
+  padding: 0.92rem;
+  border-left-width: 1px;
+}
+
+.student-home--assignments .student-entry-link--primary {
+  min-height: 152px;
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 64%, transparent), transparent 62%),
+    var(--surface);
+}
+
+.student-home--assignments .student-entry-link--secondary,
+.student-home--assignments .student-entry-link--muted {
+  min-height: 152px;
+}
+
+.student-entry-link__icon {
+  width: 2.2rem;
+  height: 2.2rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  border-radius: 10px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 42%, var(--surface));
+}
+
+.student-entry-link__icon svg {
+  position: static;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.student-entry-link__main span {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+.student-entry-link__cta {
+  align-self: end;
+  justify-self: end;
+  padding: 0.28rem 0.52rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 34%, var(--surface));
+  font-size: 0.76rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.student-home--assignments .student-entry-link > svg {
+  position: static;
+  align-self: end;
+  color: var(--brand-strong);
+}
+
+.student-public-page {
+  width: min(100%, 1180px);
+  gap: 0.74rem;
+}
+
+.student-public-page .student-home-command--entry {
+  align-items: center;
+}
+
+.public-problem-toolbar {
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: 0.62rem;
+}
+
+.public-problem-filter button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+}
+
+.public-problem-filter button span {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 38%, transparent);
+  font-size: 0.72rem;
+}
+
+.public-problem-filter button:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+}
+
+.public-problem-list {
+  grid-template-columns: repeat(auto-fit, minmax(278px, 1fr));
+  gap: 0.72rem;
+}
+
+.public-problem-card {
+  min-height: 154px;
+  align-content: stretch;
+  padding: 0.82rem;
+  border-left-width: 1px;
+}
+
+.public-problem-card__main {
+  min-width: 0;
+  display: grid;
+  gap: 0.58rem;
+}
+
+.public-problem-card__top {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.58rem;
+}
+
+.public-problem-card__top strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 1.06rem;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.public-problem-card__top > span {
+  padding: 0.2rem 0.42rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.public-problem-card__summary {
+  min-height: 2.8em;
+  color: var(--ink-soft);
+  font-size: 0.83rem;
+  font-weight: 720;
+  line-height: 1.48;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.public-problem-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+}
+
+.public-problem-card__meta span {
+  padding: 0.22rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 18%, var(--line));
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--brand-soft) 20%, transparent);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.public-problem-card > svg {
+  position: absolute;
+  right: 0.78rem;
+  bottom: 0.78rem;
+}
+
+:root[data-theme="dark"] .student-entry-link__icon,
+:root[data-theme="dark"] .student-entry-link__cta,
+:root[data-theme="dark"] .public-problem-card__top > span,
+:root[data-theme="dark"] .public-problem-card__meta span,
+:root[data-theme="dark"] .public-problem-filter button span {
+  background: color-mix(in srgb, #123139 72%, transparent);
+  border-color: #2d6970;
+}
+
+@media (max-width: 860px) {
+  .student-home--assignments .student-entry-list,
+  .public-problem-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-problem-filter {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 680px) {
+  .student-home-command--entry {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .student-home--assignments .student-entry-link {
+    min-height: 118px;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .student-entry-link__cta {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .student-home--assignments .student-entry-link > svg {
+    position: absolute;
+    right: 0.78rem;
+    bottom: 0.78rem;
+  }
+
+  .public-problem-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* 题目编辑比例修复：按信息权重分配字段高度，而不是共用一套卡片规则。 */
 .task-editor-page .editor-problem-panel .panel__body {
   padding-bottom: 0.68rem;

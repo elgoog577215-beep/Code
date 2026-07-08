@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, LogIn, RotateCcw } from "lucide-react";
+import { ArrowRight, BookOpen, ClipboardList, LogIn, RotateCcw } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { Assignment, ClassGroup, ReviewCard, StudentAbilityProfile, StudentProfile } from "../../shared/api/types";
 import { verdictLabel } from "../../shared/format";
+import { useTranslation } from "../../shared/i18n";
 import { loadStudent, onActiveStudentChange } from "../../shared/storage";
 
 function visibleAssignmentTitle(assignment: Assignment) {
@@ -19,6 +20,7 @@ function reviewCardLink(card: ReviewCard, studentId: number) {
 }
 
 export default function StudentPage() {
+  const { t } = useTranslation();
   const [student, setStudent] = useState<StudentProfile | null>(() => loadStudent());
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -30,7 +32,7 @@ export default function StudentPage() {
 
   useEffect(() => {
     return onActiveStudentChange(() => setStudent(loadStudent()));
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let ignore = false;
@@ -42,7 +44,7 @@ export default function StudentPage() {
       })
       .catch(() => {
         if (!ignore) {
-          setFailed("公共题库暂时不可用。");
+          setFailed(t("studentHome.errors.publicBank"));
         }
       });
     return () => {
@@ -83,7 +85,7 @@ export default function StudentPage() {
       })
       .catch(() => {
         if (!ignore) {
-          setFailed("老师作业加载失败。");
+          setFailed(t("studentHome.errors.assignments"));
         }
       })
       .finally(() => {
@@ -110,7 +112,7 @@ export default function StudentPage() {
     return () => {
       ignore = true;
     };
-  }, [student]);
+  }, [student, t]);
 
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
   const reviewCards = useMemo(() => (abilityProfile?.reviewCards || []).slice(0, 3), [abilityProfile]);
@@ -130,7 +132,7 @@ export default function StudentPage() {
     const taskCount = assignment.tasks?.length || 0;
     return [
       assignment.className,
-      `${taskCount} 题`,
+      t("studentHome.taskCount", { count: taskCount }),
       assignment.classGroupId ? teacherByClassId.get(assignment.classGroupId) : null
     ].filter(Boolean);
   }
@@ -141,72 +143,100 @@ export default function StudentPage() {
 
       <section className="student-home-command student-home-command--compact student-home-command--entry">
         <div>
-          <p className="eyebrow">学生端</p>
-          <h1>选择练习入口</h1>
+          <p className="eyebrow">{t("studentHome.eyebrow")}</p>
+          <h1>{t("studentHome.title")}</h1>
+          <p>{student ? t("studentHome.subtitleSignedIn", { name: student.displayName }) : t("studentHome.subtitleGuest")}</p>
         </div>
         <span className="student-home-command__note">
-          {student ? `${student.displayName}，继续当前任务。` : "可先刷公共题库，登录后查看课堂作业。"}
+          {student ? t("studentHome.noteSignedIn") : t("studentHome.noteGuest")}
         </span>
       </section>
 
       <nav id="assignments" className="student-entry-list" aria-label="学生入口">
-        <Link className="student-entry-link" to="/app/student/assignments/public">
-          <span className="student-entry-link__main">
-            <strong>公共题库</strong>
-            <small>{problemCount !== null ? `${problemCount} 题` : "正在读取"}</small>
+        <Link className="student-entry-link student-entry-link--primary" to="/app/student/assignments/public">
+          <span className="student-entry-link__icon" aria-hidden="true">
+            <BookOpen size={20} />
           </span>
+          <span className="student-entry-link__main">
+            <strong>{t("studentHome.public.title")}</strong>
+            <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
+            <span>{t("studentHome.public.description")}</span>
+          </span>
+          <span className="student-entry-link__cta">{t("studentHome.public.cta")}</span>
           <ArrowRight size={18} aria-hidden="true" />
         </Link>
 
         {!student ? (
-          <Link className="student-entry-link" to="/app/student/login">
-            <span className="student-entry-link__main">
-              <strong>登录查看课堂作业</strong>
-              <small>班级作业和个人记录会出现在这里</small>
+          <Link className="student-entry-link student-entry-link--secondary" to="/app/student/login">
+            <span className="student-entry-link__icon" aria-hidden="true">
+              <LogIn size={20} />
             </span>
-            <LogIn size={18} aria-hidden="true" />
+            <span className="student-entry-link__main">
+              <strong>{t("studentHome.login.title")}</strong>
+              <small>{t("studentHome.login.meta")}</small>
+              <span>{t("studentHome.login.description")}</span>
+            </span>
+            <span className="student-entry-link__cta">{t("studentHome.login.cta")}</span>
+            <ArrowRight size={18} aria-hidden="true" />
           </Link>
         ) : assignmentLoading ? (
           <div className="student-entry-link student-entry-link--muted" role="status" aria-live="polite">
+            <span className="student-entry-link__icon" aria-hidden="true">
+              <ClipboardList size={20} />
+            </span>
             <span className="student-entry-link__main">
-              <strong>正在读取课堂作业</strong>
-              <small>公共题库可先进入练习</small>
+              <strong>{t("studentHome.loading.assignments")}</strong>
+              <small>{t("studentHome.loading.assignmentHint")}</small>
             </span>
           </div>
         ) : visibleAssignments.length ? (
           visibleAssignments.map(assignment => (
-            <Link className="student-entry-link" to={`/app/student/assignments/${assignment.id}`} key={assignment.id}>
+            <Link className="student-entry-link student-entry-link--secondary" to={`/app/student/assignments/${assignment.id}`} key={assignment.id}>
+              <span className="student-entry-link__icon" aria-hidden="true">
+                <ClipboardList size={20} />
+              </span>
               <span className="student-entry-link__main">
                 <strong>{visibleAssignmentTitle(assignment)}</strong>
                 <small>{assignmentDetails(assignment).join(" · ")}</small>
+                <span>{t("studentHome.assignment.description")}</span>
               </span>
+              <span className="student-entry-link__cta">{t("studentHome.assignment.cta")}</span>
               <ArrowRight size={18} aria-hidden="true" />
             </Link>
           ))
         ) : (
           <div className="student-entry-link student-entry-link--muted">
+            <span className="student-entry-link__icon" aria-hidden="true">
+              <ClipboardList size={20} />
+            </span>
             <span className="student-entry-link__main">
-              <strong>暂无课堂作业</strong>
-              <small>老师发布后会自动出现在这里</small>
+              <strong>{t("studentHome.emptyAssignments.title")}</strong>
+              <small>{t("studentHome.emptyAssignments.meta")}</small>
             </span>
           </div>
         )}
       </nav>
 
       {student ? (
-        <section className="student-review-panel" aria-label="我的错题复盘">
+        <section className="student-review-panel" aria-label={t("studentHome.review.aria")}>
           <div className="student-review-panel__head">
             <div>
-              <p className="eyebrow">我的复盘</p>
-              <h2>最近该回看的题</h2>
+              <p className="eyebrow">{t("studentHome.review.eyebrow")}</p>
+              <h2>{t("studentHome.review.title")}</h2>
             </div>
-            <span>{profileLoading ? "正在读取画像" : abilityProfile?.failedSubmissionCount ? `${abilityProfile.failedSubmissionCount} 次未通过记录` : "等待更多提交"}</span>
+            <span>
+              {profileLoading
+                ? t("studentHome.review.loading")
+                : abilityProfile?.failedSubmissionCount
+                  ? t("studentHome.review.failedCount", { count: abilityProfile.failedSubmissionCount })
+                  : t("studentHome.review.waiting")}
+            </span>
           </div>
 
           {abilityProfile?.fineGrainedProfile?.aiContextSummary || abilityFocus || fineFocus ? (
             <div className="student-review-summary">
-              <strong>{abilityFocus || "画像仍在形成"}</strong>
-              <p>{abilityProfile?.fineGrainedProfile?.aiContextSummary || `先围绕 ${fineFocus || abilityFocus} 做一次错题复盘。`}</p>
+              <strong>{abilityFocus || t("studentHome.review.profileBuilding")}</strong>
+              <p>{abilityProfile?.fineGrainedProfile?.aiContextSummary || t("studentHome.review.focusHint", { focus: fineFocus || abilityFocus || t("studentHome.review.profileBuilding") })}</p>
             </div>
           ) : null}
 
@@ -232,7 +262,7 @@ export default function StudentPage() {
             </div>
           ) : (
             <div className="student-review-empty">
-              {profileLoading ? "正在整理最近错题。" : "完成几次提交后，这里会出现可复盘的错题卡片。"}
+              {profileLoading ? t("studentHome.review.organizing") : t("studentHome.review.empty")}
             </div>
           )}
         </section>

@@ -42,6 +42,94 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       teacherTitle: "教师工作台",
       teacherDescription: "查看班级、作业、题目和学生，也管理名单、题库与 AI 标准库。"
     },
+    studentHome: {
+      eyebrow: "学生端",
+      title: "开始练习",
+      subtitleGuest: "先从公共题库进入练习；登录后再查看课堂作业、错题和个人记录。",
+      subtitleSignedIn: "{{name}}，选择今天要继续的练习。",
+      noteGuest: "不登录也可以刷题",
+      noteSignedIn: "课堂作业和复盘会同步更新",
+      taskCount: "{{count}} 题",
+      errors: {
+        publicBank: "公共题库暂时不可用。",
+        assignments: "老师作业加载失败。"
+      },
+      loading: {
+        publicBank: "正在读取",
+        assignments: "正在读取课堂作业",
+        assignmentHint: "公共题库可先进入练习"
+      },
+      public: {
+        title: "公共题库",
+        meta: "{{count}} 题 · 可直接练习",
+        description: "从基础题开始，也可以直接搜索题号或题目名称。",
+        cta: "开始刷题"
+      },
+      login: {
+        title: "登录查看课堂作业",
+        meta: "班级作业和个人记录",
+        description: "登录后会显示老师发布的任务、提交记录和复盘建议。",
+        cta: "去登录"
+      },
+      assignment: {
+        description: "进入后会自动打开当前作业的下一道题。",
+        cta: "进入作业"
+      },
+      emptyAssignments: {
+        title: "暂无课堂作业",
+        meta: "老师发布后会自动出现在这里"
+      },
+      review: {
+        aria: "我的错题复盘",
+        eyebrow: "我的复盘",
+        title: "最近该回看的题",
+        loading: "正在读取画像",
+        waiting: "等待更多提交",
+        failedCount: "{{count}} 次未通过记录",
+        profileBuilding: "画像仍在形成",
+        focusHint: "先围绕 {{focus}} 做一次错题复盘。",
+        organizing: "正在整理最近错题。",
+        empty: "完成几次提交后，这里会出现可复盘的错题卡片。"
+      }
+    },
+    studentPublic: {
+      eyebrow: "学生端",
+      title: "公共题库",
+      subtitle: "{{count}} 道题，按难度筛选或直接搜索题号、题名。",
+      back: "返回",
+      loading: "正在读取公共题库",
+      enteringAssignment: "正在进入作业",
+      assignmentTitle: "课堂作业",
+      noProblems: "暂无题目",
+      searchAria: "搜索公共题目",
+      searchPlaceholder: "搜索题号、题目或关键词",
+      clearSearch: "清空搜索",
+      filterAria: "按难度和草稿筛选",
+      status: "显示 {{visible}}/{{total}} 题",
+      draftCount: "{{count}} 题有草稿",
+      clearFilters: "清空筛选",
+      resume: "继续上次：{{title}}",
+      listAria: "公共题目",
+      problemFallback: "打开题目查看完整题面。",
+      timeLimit: "{{value}} ms",
+      memoryLimit: "{{value}} MB",
+      emptyFiltered: "没有匹配的题目",
+      empty: "暂无公共题目",
+      errors: {
+        load: "公共题库加载失败。",
+        assignmentLoad: "作业加载失败。"
+      },
+      filters: {
+        all: "全部",
+        draft: "有草稿"
+      },
+      difficulty: {
+        easy: "基础",
+        medium: "提高",
+        hard: "挑战",
+        unknown: "未分级"
+      }
+    },
     teacherShell: {
       aria: "教师工作台导航",
       kicker: "教师端",
@@ -587,6 +675,94 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       studentDescription: "Open class assignments, public practice, and personal submission records.",
       teacherTitle: "Teacher Workbench",
       teacherDescription: "Review classes, assignments, problems, and students, plus manage rosters, problems, and the AI library."
+    },
+    studentHome: {
+      eyebrow: "Student",
+      title: "Start Practice",
+      subtitleGuest: "Begin with the public problem bank; log in to see class assignments, mistakes, and personal records.",
+      subtitleSignedIn: "{{name}}, choose what to continue today.",
+      noteGuest: "Practice without logging in",
+      noteSignedIn: "Assignments and review stay in sync",
+      taskCount: "{{count}} problems",
+      errors: {
+        publicBank: "The public problem bank is unavailable.",
+        assignments: "Failed to load teacher assignments."
+      },
+      loading: {
+        publicBank: "Loading",
+        assignments: "Loading class assignments",
+        assignmentHint: "You can practice in the public bank first"
+      },
+      public: {
+        title: "Public Problem Bank",
+        meta: "{{count}} problems · start now",
+        description: "Start from basics, or search directly by problem number or title.",
+        cta: "Start practice"
+      },
+      login: {
+        title: "Log in for class assignments",
+        meta: "Class assignments and personal records",
+        description: "After login, teacher tasks, submissions, and review suggestions appear here.",
+        cta: "Log in"
+      },
+      assignment: {
+        description: "Opening an assignment takes you to the next problem automatically.",
+        cta: "Open assignment"
+      },
+      emptyAssignments: {
+        title: "No class assignments",
+        meta: "They will appear here after your teacher publishes them"
+      },
+      review: {
+        aria: "My mistake review",
+        eyebrow: "My Review",
+        title: "Problems to revisit",
+        loading: "Loading profile",
+        waiting: "Waiting for more submissions",
+        failedCount: "{{count}} failed submissions",
+        profileBuilding: "Profile is still forming",
+        focusHint: "Review one problem around {{focus}} first.",
+        organizing: "Organizing recent mistakes.",
+        empty: "Review cards will appear here after a few submissions."
+      }
+    },
+    studentPublic: {
+      eyebrow: "Student",
+      title: "Public Problem Bank",
+      subtitle: "{{count}} problems. Filter by difficulty or search by number and title.",
+      back: "Back",
+      loading: "Loading public problem bank",
+      enteringAssignment: "Opening assignment",
+      assignmentTitle: "Class Assignment",
+      noProblems: "No problems",
+      searchAria: "Search public problems",
+      searchPlaceholder: "Search number, title, or keyword",
+      clearSearch: "Clear search",
+      filterAria: "Filter by difficulty and drafts",
+      status: "Showing {{visible}}/{{total}} problems",
+      draftCount: "{{count}} with drafts",
+      clearFilters: "Clear filters",
+      resume: "Continue: {{title}}",
+      listAria: "Public problems",
+      problemFallback: "Open the problem to read the full statement.",
+      timeLimit: "{{value}} ms",
+      memoryLimit: "{{value}} MB",
+      emptyFiltered: "No matching problems",
+      empty: "No public problems",
+      errors: {
+        load: "Failed to load the public problem bank.",
+        assignmentLoad: "Failed to load the assignment."
+      },
+      filters: {
+        all: "All",
+        draft: "Draft"
+      },
+      difficulty: {
+        easy: "Basic",
+        medium: "Intermediate",
+        hard: "Challenge",
+        unknown: "Unrated"
+      }
     },
     teacherShell: {
       aria: "Teacher workbench navigation",
