@@ -61,6 +61,29 @@ class StandardLibraryNavigationOutputValidatorTest {
     }
 
     @Test
+    void acceptsSourceLineEvidenceAlias() {
+        StandardLibraryNavigationOutput output = StandardLibraryNavigationOutput.builder()
+                .status("NO_MATCH")
+                .unresolvedGaps(List.of(StandardLibraryNavigationOutput.UnresolvedGap.builder()
+                        .name("长代码中模型引用源码行号")
+                        .reason("模型使用 source:line 形式引用证据。")
+                        .evidenceRefs(List.of("source:line 18", "source:lines:3-5"))
+                        .confidence(0.64)
+                        .build()))
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(output, brief(), pack());
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getUnresolvedGaps()).singleElement()
+                .satisfies(gap -> assertThat(gap.getEvidenceRefs())
+                        .containsExactly("code:line:18", "code:range:3-5"));
+        assertThat(result.getSoftFixes())
+                .contains("evidenceRef alias source:line 18 -> code:line:18")
+                .contains("evidenceRef alias source:lines:3-5 -> code:range:3-5");
+    }
+
+    @Test
     void ignoresStaleSelectedBranchesAfterDoneNavigation() {
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 StandardLibraryNavigationOutput.builder()

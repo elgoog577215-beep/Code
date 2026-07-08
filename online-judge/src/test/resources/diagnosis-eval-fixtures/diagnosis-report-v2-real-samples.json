@@ -1,73 +1,33 @@
 [
   {
-    "id": "sum-right-endpoint",
-    "title": "两数/区间求和端点漏取",
-    "problemSummary": "输入 n，输出 1 到 n 的整数和。",
+    "id": "advanced-coupon-shortest-path-state",
+    "title": "分层优惠最短路多状态剪枝错误",
+    "problemSummary": "无向带权图从 1 到 n，最多使用 k 张优惠券，每张优惠券让一条边费用变为 floor(w / 2)，求最小费用。",
     "language": "PYTHON",
-    "buggyCode": "n = int(input())\ntotal = 0\nfor i in range(1, n):\n    total += i\nprint(total)\n",
+    "buggyCode": "",
+    "buggyCodeResource": "/diagnosis-eval-fixtures/long-code-samples/advanced_coupon_shortest_path_wrong.py",
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "HIT",
-    "expectedAnchors": ["MP_RANGE_RIGHT_ENDPOINT_MISSING", "SK_RANGE_BOUNDARY"],
-    "expectedLibraryPath": ["基础语法", "循环结构", "循环边界", "右端点漏取"],
+    "expectedAnchors": ["SK_GRAPH_LAYERED_SHORTEST_PATH", "MP_DP_STATE_MISSING_DIMENSION"],
+    "expectedLibraryPath": ["图论", "最短路", "分层图状态", "状态剪枝与转移"],
     "expectedGrowthCandidateFields": [],
     "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "统一知识树诊断层"],
     "expectedStudentFeedbackQuality": [
-      "基础层必须指出循环端点与题意范围不一致",
-      "下一步必须要求手推 n=1 或 n=2",
-      "不得直接给出替换后的 loop header"
+      "基础层必须拆开讲优惠边权未折半、按节点全局剪枝破坏层状态、只取恰好 k 层这几个独立问题",
+      "下一步必须要求手推一条边或两层状态的小图",
+      "不得直接给完整 Dijkstra 模板"
     ],
     "shouldGenerateGrowthCandidate": false,
-    "quickFeedbackKnownLimit": "快反馈能发现 range 右端不包含，但通常解释不出为什么最小样例能定位问题。",
-    "formalMustImproveAtLeastOneOf": ["证据解释", "自然语言可读性", "边界自测迁移"]
+    "quickFeedbackKnownLimit": "短反馈可能只抓优惠边权一处，容易漏掉状态剪枝和答案层选择两个独立问题。",
+    "formalMustImproveAtLeastOneOf": ["多条基础建议", "状态维度解释", "关键证据拆分"]
   },
   {
-    "id": "matrix-difference-prefix-restore",
-    "title": "二维差分还原顺序错误",
-    "problemSummary": "给若干矩形加值操作，输出最终矩阵或统计达标格子数。",
+    "id": "advanced-interval-dp-order-sum",
+    "title": "区间 DP 填表顺序与区间和边界错误",
+    "problemSummary": "给定一排石子，反复合并相邻两堆，每次代价为合并区间总重量，求最小总代价。",
     "language": "PYTHON",
-    "buggyCode": "n, m, q = map(int, input().split())\ndiff = [[0]*(m+2) for _ in range(n+2)]\nfor _ in range(q):\n    x1,y1,x2,y2,v = map(int, input().split())\n    diff[x1][y1] += v\n    diff[x2+1][y1] -= v\n    diff[x1][y2+1] -= v\n    diff[x2+1][y2+1] += v\nfor i in range(1, n+1):\n    for j in range(1, m+1):\n        diff[i][j] += diff[i-1][j] + diff[i][j-1]\nprint(diff[n][m])\n",
-    "judgeResult": "WRONG_ANSWER",
-    "expectedLibraryFit": "PARTIAL",
-    "expectedAnchors": ["SK_PREFIX_SUM_2D", "MP_ARRAY_IN_PLACE_UPDATE_OVERWRITES_SOURCE"],
-    "expectedLibraryPath": ["数据结构", "前缀和与差分", "二维差分还原"],
-    "expectedGrowthCandidateFields": ["suggestedPath", "errorSymptom", "typicalCodePattern", "studentExplanation", "status"],
-    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "统一知识树诊断层"],
-    "expectedStudentFeedbackQuality": [
-      "基础层必须解释二维前缀还原时左上角重复计入或状态来源污染",
-      "提高层可以建议用 2x2 或 3x3 手推差分还原表",
-      "不得直接写出完整二维前缀公式"
-    ],
-    "shouldGenerateGrowthCandidate": true,
-    "quickFeedbackKnownLimit": "快反馈可能只说数组更新顺序或公式错误，难以绑定到二维差分还原语义。",
-    "formalMustImproveAtLeastOneOf": ["知识锚点", "手推表格建议", "扩库候选"]
-  },
-  {
-    "id": "monotonic-stack-duplicates",
-    "title": "单调栈重复值处理方向错误",
-    "problemSummary": "对每个元素寻找左侧第一个大于等于或严格大于它的元素。",
-    "language": "CPP17",
-    "buggyCode": "#include <bits/stdc++.h>\nusing namespace std;\nint main(){\n  int n; cin >> n;\n  vector<int>a(n), ans(n);\n  for(int i=0;i<n;i++) cin >> a[i];\n  stack<int> st;\n  for(int i=0;i<n;i++){\n    while(!st.empty() && a[st.top()] <= a[i]) st.pop();\n    ans[i] = st.empty()?0:st.top()+1;\n    st.push(i);\n  }\n  for(int x: ans) cout << x << ' ';\n}\n",
-    "judgeResult": "WRONG_ANSWER",
-    "expectedLibraryFit": "PARTIAL",
-    "expectedAnchors": ["SK_MONOTONIC_STACK", "MP_LOOP_STRICT_INEQUALITY_WHEN_EQUAL_ALLOWED"],
-    "expectedLibraryPath": ["数据结构", "单调栈", "重复值处理"],
-    "expectedGrowthCandidateFields": ["suggestedPath", "errorSymptom", "typicalCodePattern", "studentExplanation", "status"],
-    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "统一知识树诊断层"],
-    "expectedStudentFeedbackQuality": [
-      "基础层必须指出重复值时弹栈条件和题意的严格/非严格关系不一致",
-      "下一步必须要求构造含相等元素的小样例",
-      "不得直接告诉学生把 <= 改成 < 或反过来"
-    ],
-    "shouldGenerateGrowthCandidate": true,
-    "quickFeedbackKnownLimit": "快反馈能看到比较符号，但容易直接给改法或忽略题意里的等号。",
-    "formalMustImproveAtLeastOneOf": ["题意条件解释", "小反例", "答案泄露控制"]
-  },
-  {
-    "id": "stone-merge-dp-interval",
-    "title": "石子合并区间 DP 状态/转移顺序错误",
-    "problemSummary": "合并相邻石子，求最小合并代价。",
-    "language": "PYTHON",
-    "buggyCode": "n = int(input())\na = list(map(int, input().split()))\npre = [0]\nfor x in a:\n    pre.append(pre[-1] + x)\nf = [[0]*n for _ in range(n)]\nfor l in range(n):\n    for r in range(l+1, n):\n        f[l][r] = 10**18\n        for k in range(l, r):\n            f[l][r] = min(f[l][r], f[l][k] + f[k+1][r] + pre[r+1] - pre[l])\nprint(f[0][n-1])\n",
+    "buggyCode": "",
+    "buggyCodeResource": "/diagnosis-eval-fixtures/long-code-samples/advanced_interval_dp_wrong.py",
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "HIT",
     "expectedAnchors": ["SK_DP_INTERVAL", "MP_DP_TRANSITION_ORDER_WRONG"],
@@ -75,34 +35,79 @@
     "expectedGrowthCandidateFields": [],
     "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "统一知识树诊断层"],
     "expectedStudentFeedbackQuality": [
-      "基础层必须指出区间 DP 依赖短区间先计算",
-      "提高层可以提示按区间长度组织手推",
-      "允许提到 f[i][j] 的状态含义，但不得给完整转移式"
+      "基础层必须指出区间 DP 需要按长度递增计算",
+      "基础层还应拆出区间和右端点开闭错误或线性题误进环形分支",
+      "不得直接给完整转移式"
     ],
     "shouldGenerateGrowthCandidate": false,
-    "quickFeedbackKnownLimit": "快反馈可能只说 DP 顺序错，但说不清状态依赖关系。",
-    "formalMustImproveAtLeastOneOf": ["状态定义", "依赖顺序", "手推方法"]
+    "quickFeedbackKnownLimit": "短反馈通常只说 DP 顺序错，容易漏掉区间和边界和误用模板分支。",
+    "formalMustImproveAtLeastOneOf": ["多条基础建议", "状态依赖顺序", "手推区间表"]
   },
   {
-    "id": "dynamic-connectivity-missing-union",
-    "title": "动态连通性并查集合并条件错误",
-    "problemSummary": "支持加边和查询两个点是否连通。",
-    "language": "CPP17",
-    "buggyCode": "#include <bits/stdc++.h>\nusing namespace std;\nvector<int> p;\nint find(int x){ return p[x]==x?x:find(p[x]); }\nint main(){\n  int n,q; cin>>n>>q; p.resize(n+1); iota(p.begin(),p.end(),0);\n  while(q--){\n    int op,a,b; cin>>op>>a>>b;\n    if(op==1){ if(find(a)==find(b)) p[find(a)] = find(b); }\n    else cout << (find(a)==find(b)?\"Yes\":\"No\") << '\\n';\n  }\n}\n",
+    "id": "advanced-segment-tree-lazy-range",
+    "title": "懒标记线段树区间加与区间最大值错误",
+    "problemSummary": "维护数组，支持区间加和区间最大值查询，数组元素可能为负数。",
+    "language": "PYTHON",
+    "buggyCode": "",
+    "buggyCodeResource": "/diagnosis-eval-fixtures/long-code-samples/advanced_segment_tree_lazy_wrong.py",
+    "judgeResult": "WRONG_ANSWER",
+    "expectedLibraryFit": "PARTIAL",
+    "expectedAnchors": ["SK_SEGMENT_TREE_LAZY", "MP_RANGE_RIGHT_ENDPOINT_MISSING"],
+    "expectedLibraryPath": ["数据结构", "线段树", "懒标记", "区间更新与查询"],
+    "expectedGrowthCandidateFields": ["suggestedPath", "errorSymptom", "typicalCodePattern", "studentExplanation", "status"],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "统一知识树诊断层"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须分别说明 lazy 覆盖而不是累加、无交集返回 0 破坏负数最大值、右端坐标转换过宽",
+      "下一步必须要求用两次连续区间加和全负查询手推",
+      "不得直接贴完整线段树代码"
+    ],
+    "shouldGenerateGrowthCandidate": true,
+    "quickFeedbackKnownLimit": "短反馈容易只抓坐标或 lazy 一处，无法证明多条结构化建议是否保留。",
+    "formalMustImproveAtLeastOneOf": ["多条基础建议", "负数反例", "懒标记语义"]
+  },
+  {
+    "id": "advanced-offline-connectivity-rollback",
+    "title": "离线动态连通性回滚并查集区间错误",
+    "problemSummary": "给定加边、删边、查询操作，离线回答每个时刻两点是否连通。",
+    "language": "PYTHON",
+    "buggyCode": "",
+    "buggyCodeResource": "/diagnosis-eval-fixtures/long-code-samples/advanced_offline_connectivity_wrong.py",
     "judgeResult": "WRONG_ANSWER",
     "expectedLibraryFit": "HIT",
-    "expectedAnchors": ["SK_UNION_FIND_CONNECTIVITY", "MP_GRAPH_UNION_CONDITION_REVERSED"],
-    "expectedLibraryPath": ["图论", "并查集", "连通性维护", "合并条件反向"],
+    "expectedAnchors": ["SK_UNION_FIND_CONNECTIVITY", "MP_SIM_UPDATE_ORDER_USES_STALE_STATE"],
+    "expectedLibraryPath": ["图论", "并查集", "回滚并查集", "离线时间区间"],
     "expectedGrowthCandidateFields": [],
     "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "统一知识树诊断层"],
     "expectedStudentFeedbackQuality": [
-      "基础层必须指出合并发生条件和连通性维护目标相反",
-      "下一步必须要求手推两个原本不连通点加边后的父节点变化",
-      "提高层可提示路径压缩风险但不能抢主因"
+      "基础层必须拆出删除时刻区间右端错误、rollback no-op 记录恢复不完整、组件数恢复方式错误",
+      "下一步必须要求手推一条边从加入到删除的时间覆盖区间",
+      "不得直接给完整离线连通性模板"
     ],
     "shouldGenerateGrowthCandidate": false,
-    "quickFeedbackKnownLimit": "快反馈可能只看到 if 条件可疑，缺少并查集语义解释。",
-    "formalMustImproveAtLeastOneOf": ["数据结构语义", "操作前后状态", "主次顺序"]
+    "quickFeedbackKnownLimit": "短反馈容易把问题泛化成并查集写错，缺少时间区间和回滚栈两个证据拆分。",
+    "formalMustImproveAtLeastOneOf": ["多条基础建议", "时间区间手推", "回滚状态恢复"]
+  },
+  {
+    "id": "advanced-tree-rerooting-weighted",
+    "title": "树形换根 DP 权重贡献公式错误",
+    "problemSummary": "给定一棵带点权树，对每个点求其到所有点的距离乘对应点权之和。",
+    "language": "PYTHON",
+    "buggyCode": "",
+    "buggyCodeResource": "/diagnosis-eval-fixtures/long-code-samples/advanced_tree_rerooting_wrong.py",
+    "judgeResult": "WRONG_ANSWER",
+    "expectedLibraryFit": "PARTIAL",
+    "expectedAnchors": ["SK_TREE_DP_REROOTING", "MP_DP_STATE_MISSING_DIMENSION"],
+    "expectedLibraryPath": ["动态规划", "树形 DP", "换根 DP", "贡献转移"],
+    "expectedGrowthCandidateFields": ["suggestedPath", "errorSymptom", "typicalCodePattern", "studentExplanation", "status"],
+    "contextPackageRequirements": ["完整题目", "完整代码", "判题参考信号", "统一知识树诊断层"],
+    "expectedStudentFeedbackQuality": [
+      "基础层必须指出子树贡献用了节点数量而不是子树权重",
+      "基础层还应说明换根公式对子树内外贡献方向写反或漏权重",
+      "下一步必须要求用三点链和非全 1 权重手推"
+    ],
+    "shouldGenerateGrowthCandidate": true,
+    "quickFeedbackKnownLimit": "短反馈容易把换根公式错误说成泛泛 DP 错，无法区分权重贡献和子树内外方向。",
+    "formalMustImproveAtLeastOneOf": ["多条基础建议", "权重贡献解释", "最小链反例"]
   },
   {
     "id": "string-window-boundary",

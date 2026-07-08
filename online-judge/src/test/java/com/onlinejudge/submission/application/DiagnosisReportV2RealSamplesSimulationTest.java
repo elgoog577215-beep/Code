@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -86,6 +87,19 @@ class DiagnosisReportV2RealSamplesSimulationTest {
         assertThat(entries).hasSize(selected.size());
     }
 
+    @Test
+    void firstFiveRealSamplesUseLongNaturalCodeResources() throws Exception {
+        List<RealSample> samples = loadSamples().stream().limit(5).toList();
+
+        assertThat(samples).hasSize(5);
+        for (RealSample sample : samples) {
+            String code = resolvedBuggyCode(sample);
+            assertThat(code.lines().count()).as(sample.id()).isGreaterThanOrEqualTo(200);
+            assertThat(code).as(sample.id()).doesNotContain("helper_1", "helper_2", "def helper_");
+            assertThat(sample.buggyCodeResource()).as(sample.id()).isNotBlank();
+        }
+    }
+
     private List<RealSample> loadSamples() throws Exception {
         try (InputStream input = getClass().getResourceAsStream("/diagnosis-eval-fixtures/diagnosis-report-v2-real-samples.json")) {
             assertThat(input).isNotNull();
@@ -94,7 +108,7 @@ class DiagnosisReportV2RealSamplesSimulationTest {
         }
     }
 
-    private SimulationFixture fixtureFor(RealSample sample) {
+    private SimulationFixture fixtureFor(RealSample sample) throws Exception {
         long stableId = 90_000L + Math.abs(sample.id().hashCode() % 10_000);
         FailureExample failure = failureExample(sample.id());
         Problem problem = Problem.builder()
@@ -116,7 +130,7 @@ class DiagnosisReportV2RealSamplesSimulationTest {
                 .problemId(stableId)
                 .languageName(languageName(sample.language()))
                 .verdict(Submission.Verdict.valueOf(sample.judgeResult()))
-                .sourceCode(sample.buggyCode())
+                .sourceCode(resolvedBuggyCode(sample))
                 .build();
         List<SubmissionCaseResult> caseResults = List.of(SubmissionCaseResult.builder()
                 .submissionId(stableId)
@@ -151,8 +165,39 @@ class DiagnosisReportV2RealSamplesSimulationTest {
         return new SimulationFixture(problem, submission, caseResults, baseline);
     }
 
+    private String resolvedBuggyCode(RealSample sample) throws Exception {
+        String resource = safe(sample.buggyCodeResource());
+        if (resource.isBlank()) {
+            return sample.buggyCode();
+        }
+        try (InputStream input = getClass().getResourceAsStream(resource)) {
+            assertThat(input).as("Missing sample code resource: " + resource).isNotNull();
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
     private FailureExample failureExample(String id) {
         Map<String, FailureExample> examples = new LinkedHashMap<>();
+        examples.put("advanced-coupon-shortest-path-state", new FailureExample(
+                "3 3 1\n1 2 5\n2 3 5\n1 3 100",
+                "10",
+                "7"));
+        examples.put("advanced-interval-dp-order-sum", new FailureExample(
+                "4\n1 2 3 4",
+                "9",
+                "19"));
+        examples.put("advanced-segment-tree-lazy-range", new FailureExample(
+                "3 4\n-5 -4 -6\n1 1 2 3\n1 2 3 4\n2 1 3\n2 3 3",
+                "3\n0",
+                "3\n-2"));
+        examples.put("advanced-offline-connectivity-rollback", new FailureExample(
+                "3 5\n1 1 2\n3 1 2\n2 1 2\n3 1 2\n3 2 3",
+                "Yes\nYes\nNo",
+                "Yes\nNo\nNo"));
+        examples.put("advanced-tree-rerooting-weighted", new FailureExample(
+                "3\n10 1 1\n1 2\n2 3",
+                "-1 -12 -23",
+                "3 2 13"));
         examples.put("sum-right-endpoint", new FailureExample("5", "10", "15"));
         examples.put("matrix-difference-prefix-restore", new FailureExample("2 2 1\n1 1 2 2 3", "3", "3 3\n3 3"));
         examples.put("monotonic-stack-duplicates", new FailureExample("4\n2 2 1 2", "0 0 2 0", "0 1 2 2"));
@@ -166,6 +211,21 @@ class DiagnosisReportV2RealSamplesSimulationTest {
 
     private CodexSimulation codexSimulation(String id) {
         Map<String, CodexSimulation> simulations = new LinkedHashMap<>();
+        simulations.put("advanced-coupon-shortest-path-state", new CodexSimulation(
+                "分层最短路里优惠边没有折半、按节点做全局 best 剪枝会丢掉不同已用券层的状态，最后还只取恰好 k 层而不是最多 k。",
+                "HIT", 3, 1, "先用 3 个点、1 张券的小图手推 dist[node][used]，分别记录普通转移和优惠转移。"));
+        simulations.put("advanced-interval-dp-order-sum", new CodexSimulation(
+                "区间 DP 没有按区间长度推进，区间和函数把右端当成开区间，还把线性合并误切到环形模板和贪心下界。",
+                "HIT", 3, 1, "用 4 堆石子画出长度 1、2、3 的区间表，检查每个状态依赖是否已经算好。"));
+        simulations.put("advanced-segment-tree-lazy-range", new CodexSimulation(
+                "区间加的 lazy 被覆盖而不是累加；负数区间查询的无交集返回 0；输入右端坐标没有正确转成 0-based。",
+                "PARTIAL", 3, 1, "连续做两次区间加，再查一个全负子区间，手推每个节点的 lazy 和 max。"));
+        simulations.put("advanced-offline-connectivity-rollback", new CodexSimulation(
+                "离线动态连通性的删除时间右端应到 t-1，rollback 对 no-op 合并和 components 的恢复不完整，递归回退后状态被污染。",
+                "HIT", 3, 1, "把一条边的 add/remove/query 时间轴画出来，标出它应该覆盖哪些叶子节点。"));
+        simulations.put("advanced-tree-rerooting-weighted", new CodexSimulation(
+                "树形换根 DP 把子树点数当作子树权重使用，换根时对子树内外贡献方向也写反，非全 1 权重链会立刻暴露。",
+                "PARTIAL", 2, 1, "用 3 个点链且点权不相等的例子，分别从每个根计算加权距离和。"));
         simulations.put("sum-right-endpoint", new CodexSimulation(
                 "循环右端点漏取；range 的右端不包含 n，导致 1..n 少算最后一项。",
                 "HIT", 1, 1, "手推 n=1 或 n=2，列出循环变量实际出现过哪些值。"));
@@ -312,6 +372,7 @@ class DiagnosisReportV2RealSamplesSimulationTest {
             String problemSummary,
             String language,
             String buggyCode,
+            String buggyCodeResource,
             String judgeResult,
             String expectedLibraryFit,
             List<String> expectedAnchors,

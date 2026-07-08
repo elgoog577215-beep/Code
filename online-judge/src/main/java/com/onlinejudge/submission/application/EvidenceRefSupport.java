@@ -15,6 +15,8 @@ final class EvidenceRefSupport {
     private static final Pattern CODE_LINE_RANGE = Pattern.compile("^code:line:(\\d+)-(\\d+)$");
     private static final Pattern SHORT_LINE = Pattern.compile("^line:(\\d+)$");
     private static final Pattern SHORT_LINES = Pattern.compile("^lines?:(\\d+)-(\\d+)$");
+    private static final Pattern SOURCE_LINE = Pattern.compile("^source:line:?(\\d+)$");
+    private static final Pattern SOURCE_LINES = Pattern.compile("^source:lines?:(\\d+)-(\\d+)$");
 
     private EvidenceRefSupport() {
     }
@@ -134,6 +136,11 @@ final class EvidenceRefSupport {
             int value = parsePositiveInt(shortLine.group(1));
             return validCodeLine(value, brief) ? "code:line:" + value : "";
         }
+        Matcher sourceLine = SOURCE_LINE.matcher(normalized);
+        if (sourceLine.matches()) {
+            int value = parsePositiveInt(sourceLine.group(1));
+            return validCodeLine(value, brief) ? "code:line:" + value : "";
+        }
         Matcher range = CODE_RANGE.matcher(normalized);
         if (range.matches()) {
             return canonicalRange(range.group(1), range.group(2), brief);
@@ -145,6 +152,10 @@ final class EvidenceRefSupport {
         Matcher shortLines = SHORT_LINES.matcher(normalized);
         if (shortLines.matches()) {
             return canonicalRange(shortLines.group(1), shortLines.group(2), brief);
+        }
+        Matcher sourceLines = SOURCE_LINES.matcher(normalized);
+        if (sourceLines.matches()) {
+            return canonicalRange(sourceLines.group(1), sourceLines.group(2), brief);
         }
         return "";
     }
