@@ -114,8 +114,8 @@ export default function TeacherManagementPage({ section = "home" }: { section?: 
           {section === "home" || section === "classes" ? (
             <p className="eyebrow">{t(meta.eyebrow)}</p>
           ) : (
-            <Link to="/app/teacher/manage/classes" className="teacher-manage-breadcrumb">
-              <ArrowLeft size={15} /> {t("teacherManagement.sections.classes.title")}
+            <Link to="/app/teacher/manage" className="teacher-manage-breadcrumb">
+              <ArrowLeft size={15} /> {t("teacherManagement.sections.home.title")}
             </Link>
           )}
           <h1>{t(meta.title)}</h1>
@@ -128,6 +128,7 @@ export default function TeacherManagementPage({ section = "home" }: { section?: 
 }
 
 export function TeacherManagementTools({ section = "home" }: TeacherManagementToolsProps) {
+  const { t } = useTranslation();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
   const [classForm, setClassForm] = useState({ name: "", grade: "", teacherName: "" });
@@ -453,8 +454,8 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
     }
   }
 
-  const classStatusPill = <StatusPill tone="neutral">{cleanClasses.length} 个班级</StatusPill>;
-  const problemStatusPill = <StatusPill tone="neutral">{problems.length} 个题目</StatusPill>;
+  const classStatusPill = <StatusPill tone="neutral">{t("teacherManagement.classManage.classCount", { count: cleanClasses.length })}</StatusPill>;
+  const problemStatusPill = <StatusPill tone="neutral">{t("teacherManagement.problemManage.problemCount", { count: problems.length })}</StatusPill>;
 
   return (
     <div className="teacher-management-embed teacher-management-embed--routed">
@@ -463,35 +464,42 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
       <section className="management-console">
         <main className="management-workspace">
           {section === "home" ? (
-            <section className="management-home-grid" aria-label="管理入口">
-              <ManagementEntry
-                to="/app/teacher/manage/classes"
-                icon={<UsersRound size={18} />}
-                title="班级与名单"
-                meta={`${cleanClasses.length} 个班级`}
-                description="创建默认班级，导入或更新学生名单。"
-              />
-              <ManagementEntry
-                to="/app/teacher/manage/problems"
-                icon={<BookOpen size={18} />}
-                title="题库"
-                meta={`${problems.length} 个题目`}
-                description="导入题目、维护题面、测试点和教学增强信息。"
-              />
-              <ManagementEntry
-                to="/app/teacher/manage/ai-library"
-                icon={<Database size={18} />}
-                title="AI 标准库"
-                meta="正式库"
-                description="维护能力点、易错点和标准库候选。"
-              />
-              <ManagementEntry
-                to="/app/teacher/manage/system"
-                icon={<Power size={18} />}
-                title="系统状态"
-                meta="AI 检测"
-                description="检查模型配置和关键运行状态。"
-              />
+            <section className="management-home-panel" aria-label={t("teacherManagement.home.aria")}>
+              <div className="management-home-panel__head">
+                <span>{t("teacherManagement.home.eyebrow")}</span>
+                <h2>{t("teacherManagement.home.title")}</h2>
+                <p>{t("teacherManagement.home.description")}</p>
+              </div>
+              <div className="management-home-grid">
+                <ManagementEntry
+                  to="/app/teacher/manage/classes"
+                  icon={<UsersRound size={18} />}
+                  title={t("teacherManagement.home.entries.classes.title")}
+                  meta={t("teacherManagement.home.entries.classes.meta", { count: cleanClasses.length })}
+                  description={t("teacherManagement.home.entries.classes.description")}
+                />
+                <ManagementEntry
+                  to="/app/teacher/manage/problems"
+                  icon={<BookOpen size={18} />}
+                  title={t("teacherManagement.home.entries.problems.title")}
+                  meta={t("teacherManagement.home.entries.problems.meta", { count: problems.length })}
+                  description={t("teacherManagement.home.entries.problems.description")}
+                />
+                <ManagementEntry
+                  to="/app/teacher/manage/ai-library"
+                  icon={<Database size={18} />}
+                  title={t("teacherManagement.home.entries.aiLibrary.title")}
+                  meta={t("teacherManagement.home.entries.aiLibrary.meta")}
+                  description={t("teacherManagement.home.entries.aiLibrary.description")}
+                />
+                <ManagementEntry
+                  to="/app/teacher/manage/system"
+                  icon={<Power size={18} />}
+                  title={t("teacherManagement.home.entries.system.title")}
+                  meta={t("teacherManagement.home.entries.system.meta")}
+                  description={t("teacherManagement.home.entries.system.description")}
+                />
+              </div>
             </section>
           ) : null}
 
@@ -616,13 +624,14 @@ function ClassManageSection({
   onPickFile: (kind: ImportKind, file: File | null) => void | Promise<void>;
   onRunImport: (mode: "preview" | "commit") => void;
 }) {
+  const { t } = useTranslation();
   const selectedClass = classes.find(item => String(item.id) === selectedClassGroupId) || classes[0] || null;
 
   return (
     <section className="management-object-workbench management-object-workbench--classes">
-      <aside className="management-object-list" aria-label="班级列表">
+      <aside className="management-object-list" aria-label={t("teacherManagement.classManage.listAria")}>
         <div className="management-object-list__head">
-          <strong>班级</strong>
+          <strong>{t("teacherManagement.classManage.listTitle")}</strong>
           {dataSummary || <StatusPill tone="neutral">{classes.length} 个</StatusPill>}
         </div>
         {classes.length ? (
@@ -638,73 +647,102 @@ function ClassManageSection({
             </button>
           ))
         ) : (
-          <EmptyState title="暂无班级" description="先创建一个默认班级。" />
+          <EmptyState title={t("teacherManagement.classManage.emptyTitle")} description={t("teacherManagement.classManage.emptyDescription")} />
         )}
         <details className="management-import-drawer management-import-drawer--create">
           <summary>
             <Plus size={15} />
-            创建班级
+            {t("teacherManagement.classManage.create.title")}
           </summary>
           <div className="management-import-drawer__body">
-            <Field label="班级名称">
+            <Field label={t("teacherManagement.classManage.create.name")}>
               <TextInput value={classForm.name} onChange={event => onClassFormChange({ ...classForm, name: event.target.value })} />
             </Field>
-            <Field label="年级">
+            <Field label={t("teacherManagement.classManage.create.grade")}>
               <TextInput value={classForm.grade} onChange={event => onClassFormChange({ ...classForm, grade: event.target.value })} />
             </Field>
-            <Field label="任课老师">
+            <Field label={t("teacherManagement.classManage.create.teacher")}>
               <TextInput value={classForm.teacherName} onChange={event => onClassFormChange({ ...classForm, teacherName: event.target.value })} />
             </Field>
             <Button type="button" variant="primary" onClick={onCreateClass} disabled={busy}>
-              创建
+              {t("teacherManagement.classManage.create.submit")}
             </Button>
           </div>
         </details>
       </aside>
 
-      <section className="management-object-main">
+      <section className="management-object-main management-class-import">
         <div className="management-object-main__head">
           <div>
-            <p className="eyebrow">名单维护</p>
-            <h2>{selectedClass?.name || "默认班级"}</h2>
+            <p className="eyebrow">{t("teacherManagement.classManage.import.eyebrow")}</p>
+            <h2>{selectedClass?.name || t("teacherManagement.classManage.defaultClass")}</h2>
           </div>
-          {selectedClass ? <StatusPill tone="info">导入到当前班级</StatusPill> : <StatusPill tone="warning">等待班级</StatusPill>}
+          {selectedClass ? <StatusPill tone="info">{t("teacherManagement.classManage.import.currentTarget")}</StatusPill> : <StatusPill tone="warning">{t("teacherManagement.classManage.import.waiting")}</StatusPill>}
         </div>
-        <div className="management-import-grid">
-          <FilePicker
-            accept=".csv,.txt,.xlsx"
-            fileName={classFileName}
-            kind="class"
-            label="名单文件"
-            note="CSV 或 XLSX"
-            onPick={onPickFile}
-          />
-          <Field label="目标班级">
-            <Select value={selectedClass ? String(selectedClass.id) : ""} onChange={event => onSelectClass(event.target.value)}>
-              {classes.map(item => (
-                <option value={item.id} key={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+        <div className="management-step-list">
+          <section className="management-step">
+            <span className="management-step__number">1</span>
+            <div className="management-step__body">
+              <div className="management-step__head">
+                <h3>{t("teacherManagement.classManage.import.sourceTitle")}</h3>
+                <p>{t("teacherManagement.classManage.import.sourceDescription")}</p>
+              </div>
+              <div className="management-import-grid">
+                <FilePicker
+                  accept=".csv,.txt,.xlsx"
+                  fileName={classFileName}
+                  kind="class"
+                  label={t("teacherManagement.classManage.import.fileLabel")}
+                  note={t("teacherManagement.classManage.import.fileNote")}
+                  onPick={onPickFile}
+                />
+                <Field label={t("teacherManagement.classManage.import.targetLabel")}>
+                  <Select value={selectedClass ? String(selectedClass.id) : ""} onChange={event => onSelectClass(event.target.value)}>
+                    {classes.map(item => (
+                      <option value={item.id} key={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+            </div>
+          </section>
+          <section className="management-step">
+            <span className="management-step__number">2</span>
+            <div className="management-step__body">
+              <div className="management-step__head">
+                <h3>{t("teacherManagement.classManage.import.pasteTitle")}</h3>
+                <p>{t("teacherManagement.classManage.import.pasteDescription")}</p>
+              </div>
+              <Field label={t("teacherManagement.classManage.import.pasteLabel")}>
+                <TextArea
+                  value={classImport.content}
+                  onChange={event => onClassImportChange({ ...classImport, content: event.target.value })}
+                  placeholder={t("teacherManagement.classManage.import.pastePlaceholder")}
+                />
+              </Field>
+            </div>
+          </section>
+          <section className="management-step management-step--actions">
+            <span className="management-step__number">3</span>
+            <div className="management-step__body">
+              <div className="management-step__head">
+                <h3>{t("teacherManagement.classManage.import.confirmTitle")}</h3>
+                <p>{t("teacherManagement.classManage.import.confirmDescription")}</p>
+              </div>
+              <div className="actions">
+                <Button type="button" variant="secondary" onClick={() => onRunImport("preview")} disabled={busy} icon={<UploadCloud size={17} />}>
+                  {t("teacherManagement.classManage.import.preview")}
+                </Button>
+                <Button type="button" variant="primary" onClick={() => onRunImport("commit")} disabled={busy}>
+                  {t("teacherManagement.classManage.import.commit")}
+                </Button>
+              </div>
+              <ImportResult result={classImportResult} />
+            </div>
+          </section>
         </div>
-        <Field label="粘贴名单">
-          <TextArea
-            value={classImport.content}
-            onChange={event => onClassImportChange({ ...classImport, content: event.target.value })}
-            placeholder={"班级,姓名,学号\n高一1班,张三,01"}
-          />
-        </Field>
-        <div className="actions">
-          <Button type="button" variant="secondary" onClick={() => onRunImport("preview")} disabled={busy} icon={<UploadCloud size={17} />}>
-            预览名单
-          </Button>
-          <Button type="button" variant="primary" onClick={() => onRunImport("commit")} disabled={busy}>
-            导入名单
-          </Button>
-        </div>
-        <ImportResult result={classImportResult} />
       </section>
     </section>
   );
@@ -834,9 +872,10 @@ function ReadinessPanel({
         ? t("teacherManagement.readiness.cannotStart")
         : t("teacherManagement.readiness.trialStart");
   return (
-    <section className="management-readiness">
+    <section className="management-readiness management-readiness--compact" aria-label={t("teacherManagement.readiness.aria")}>
       <div className="management-readiness__head">
         <div>
+          <span>{t("teacherManagement.readiness.summaryLabel")}</span>
           <h2>{t("teacherManagement.readiness.title")}</h2>
           <p>
             {statusDescription}

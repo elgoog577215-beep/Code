@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { BarChart3, BrainCircuit, Database, Power, UsersRound } from "lucide-react";
+import { BarChart3, BrainCircuit, Database, Power, Settings2, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "../../shared/i18n";
 import "./TeacherHomeRefresh.css";
@@ -17,7 +17,8 @@ export function TeacherShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const location = useLocation();
   const pathname = location.pathname;
-  const items: TeacherNavItem[] = [
+  const inManagement = pathname === "/app/teacher/manage" || pathname.startsWith("/app/teacher/manage") || pathname.startsWith("/app/task-editor");
+  const primaryItems: TeacherNavItem[] = [
     {
       to: "/app/teacher/classes",
       label: t("teacherShell.nav.analytics"),
@@ -27,6 +28,15 @@ export function TeacherShell({ children }: { children: ReactNode }) {
         current === "/app/teacher" ||
         current.startsWith("/app/teacher/classes") ||
         current.startsWith("/app/teacher/assignment")
+    }
+  ];
+  const managementItems: TeacherNavItem[] = [
+    {
+      to: "/app/teacher/manage",
+      label: t("teacherShell.nav.managementHome"),
+      description: t("teacherShell.nav.managementHomeDescription"),
+      icon: Settings2,
+      activeWhen: current => current === "/app/teacher/manage"
     },
     {
       to: "/app/teacher/manage/classes",
@@ -65,33 +75,42 @@ export function TeacherShell({ children }: { children: ReactNode }) {
       <aside className="teacher-shell-sidebar" aria-label={t("teacherShell.aria")}>
         <div className="teacher-shell-sidebar__head">
           <span>{t("teacherShell.kicker")}</span>
-          <strong>{t("teacherShell.title")}</strong>
+          <strong>{inManagement ? t("teacherShell.managementTitle") : t("teacherShell.title")}</strong>
         </div>
         <nav className="teacher-shell-nav" aria-label={t("teacherShell.aria")}>
-          {items.map(item => {
-            const active = item.activeWhen(pathname);
-            return (
-              <NavLink
-                to={item.to}
-                className={active ? "teacher-shell-nav__item is-active" : "teacher-shell-nav__item"}
-                key={item.to}
-              >
-                <span className="teacher-shell-nav__icon">
-                  <item.icon size={18} />
-                </span>
-                <span>
-                  <strong>{item.label}</strong>
-                  <small>{item.description}</small>
-                </span>
-              </NavLink>
-            );
-          })}
+          <div className="teacher-shell-nav__section teacher-shell-nav__section--primary">
+            <span className="teacher-shell-nav__group-label">{t("teacherShell.groups.results")}</span>
+            {primaryItems.map(item => renderNavItem(item, pathname))}
+          </div>
+          <div className="teacher-shell-nav__section teacher-shell-nav__section--management">
+            <span className="teacher-shell-nav__group-label">{t("teacherShell.groups.management")}</span>
+            {managementItems.map(item => renderNavItem(item, pathname))}
+          </div>
         </nav>
         <div className="teacher-shell-sidebar__foot">
-          <span>{t("teacherShell.footnote")}</span>
+          <span>{inManagement ? t("teacherShell.managementFootnote") : t("teacherShell.footnote")}</span>
         </div>
       </aside>
       <main className="teacher-shell-main">{children}</main>
     </div>
+  );
+}
+
+function renderNavItem(item: TeacherNavItem, pathname: string) {
+  const active = item.activeWhen(pathname);
+  return (
+    <NavLink
+      to={item.to}
+      className={active ? "teacher-shell-nav__item is-active" : "teacher-shell-nav__item"}
+      key={item.to}
+    >
+      <span className="teacher-shell-nav__icon">
+        <item.icon size={18} />
+      </span>
+      <span>
+        <strong>{item.label}</strong>
+        <small>{item.description}</small>
+      </span>
+    </NavLink>
   );
 }

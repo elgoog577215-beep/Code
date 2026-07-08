@@ -1176,3 +1176,335 @@
     height: 30px;
   }
 }
+
+/* Teacher management cleanup: separate result viewing from maintenance tools. */
+.teacher-console-shell .teacher-shell-nav__section {
+  min-width: 0;
+  display: grid;
+  gap: 0.32rem;
+}
+
+.teacher-console-shell .teacher-shell-nav__section--primary {
+  padding-bottom: 0.48rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.teacher-console-shell .teacher-shell-nav__section--management {
+  padding-top: 0.04rem;
+}
+
+.teacher-console-shell .teacher-shell-nav__group-label {
+  color: var(--ink-faint);
+  font-size: 0.66rem;
+  font-weight: 920;
+  letter-spacing: 0;
+}
+
+.teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__item {
+  min-height: 48px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 0.46rem;
+  padding: 0.34rem 0.42rem;
+}
+
+.teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__icon {
+  width: 30px;
+  height: 30px;
+}
+
+.teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__item.is-active {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--brand-soft) 54%, transparent), color-mix(in srgb, var(--surface) 72%, transparent)),
+    var(--surface);
+}
+
+.teacher-manage-page > .teacher-manage-header:not(:has(.teacher-manage-breadcrumb)) {
+  display: grid;
+}
+
+.teacher-console-shell .teacher-manage-page > .teacher-manage-header {
+  width: min(100%, 1040px);
+  min-height: 0;
+  padding: 0.58rem 0.68rem;
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  box-shadow: none;
+}
+
+.teacher-console-shell .teacher-manage-page > .teacher-manage-header h1 {
+  font-size: clamp(1.16rem, 1.8vw, 1.46rem);
+}
+
+.teacher-console-shell .teacher-manage-page > .teacher-manage-header p:not(.eyebrow) {
+  max-width: 58ch;
+}
+
+.management-home-panel {
+  width: min(100%, 1040px);
+  display: grid;
+  gap: 0.62rem;
+}
+
+.management-home-panel__head {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.management-home-panel__head span {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.management-home-panel__head h2,
+.management-home-panel__head p {
+  margin: 0;
+}
+
+.management-home-panel__head h2 {
+  color: var(--ink);
+  font-size: 1.08rem;
+  line-height: 1.18;
+}
+
+.management-home-panel__head p {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.teacher-manage-page .management-home-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.46rem;
+}
+
+.teacher-manage-page .management-home-entry {
+  min-height: 76px;
+  grid-template-columns: 32px minmax(0, 1fr) auto 16px;
+  align-items: center;
+  align-content: center;
+  gap: 0.5rem;
+  padding: 0.56rem 0.64rem;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+}
+
+.teacher-manage-page .management-home-entry__icon {
+  width: 32px;
+  height: 32px;
+}
+
+.teacher-manage-page .management-home-entry > .status-pill,
+.teacher-manage-page .management-home-entry > svg {
+  position: static;
+  justify-self: end;
+}
+
+.teacher-manage-page .management-home-entry small {
+  -webkit-line-clamp: 1;
+}
+
+.management-object-workbench--classes {
+  grid-template-columns: minmax(220px, 260px) minmax(0, 900px);
+  justify-content: start;
+}
+
+.management-object-workbench--classes .management-object-list,
+.management-object-workbench--classes .management-object-main {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: none;
+}
+
+.management-class-import {
+  max-width: 900px;
+}
+
+.management-step-list {
+  display: grid;
+  border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.management-step {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 0.56rem;
+  padding: 0.68rem 0.08rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+}
+
+.management-step:last-child {
+  border-bottom: 0;
+  padding-bottom: 0.18rem;
+}
+
+.management-step__number {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--line));
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 38%, transparent);
+  font-size: 0.78rem;
+  font-weight: 920;
+}
+
+.management-step__body {
+  min-width: 0;
+  display: grid;
+  gap: 0.48rem;
+}
+
+.management-step__head {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.management-step__head h3,
+.management-step__head p {
+  margin: 0;
+}
+
+.management-step__head h3 {
+  color: var(--ink);
+  font-size: 0.94rem;
+  line-height: 1.2;
+}
+
+.management-step__head p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.42;
+}
+
+.management-class-import .management-import-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.42fr);
+  align-items: end;
+}
+
+.management-class-import .control--textarea {
+  min-height: 96px;
+}
+
+.management-step--actions .actions {
+  justify-content: flex-start;
+}
+
+.teacher-manage-page .management-readiness--compact {
+  width: min(100%, 920px);
+  align-content: start;
+  gap: 0.54rem;
+  padding: 0.68rem 0.72rem;
+  box-shadow: none;
+}
+
+.teacher-manage-page .management-readiness--compact .management-readiness__head {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.teacher-manage-page .management-readiness__head > div > span {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.teacher-manage-page .management-readiness--compact .management-readiness__head > .status-pill {
+  margin-left: 0;
+}
+
+.teacher-manage-page .management-readiness--compact .management-readiness__actions {
+  justify-content: flex-end;
+}
+
+.teacher-manage-page .management-readiness--compact .management-readiness__details {
+  background: transparent;
+}
+
+.teacher-manage-page .management-readiness--compact .management-readiness__checks article {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.teacher-manage-page .management-readiness--compact .management-readiness__checks article p {
+  grid-column: 1 / -1;
+  white-space: normal;
+}
+
+:root[data-theme="dark"] .teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__item.is-active {
+  background: #11211f;
+}
+
+@media (max-width: 980px) {
+  .teacher-console-shell .teacher-shell-nav {
+    display: flex;
+    gap: 0.34rem;
+    overflow-x: auto;
+    padding-bottom: 0.08rem;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 0.34rem;
+    padding: 0;
+    border: 0;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__group-label {
+    display: none;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__item {
+    min-width: 142px;
+  }
+
+  .management-object-workbench--classes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .management-class-import {
+    max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .teacher-console-shell .teacher-manage-page > .teacher-manage-header,
+  .management-home-panel,
+  .teacher-manage-page .management-readiness--compact {
+    width: 100%;
+  }
+
+  .teacher-manage-page .management-home-grid,
+  .teacher-manage-page .management-home-entry,
+  .management-class-import .management-import-grid,
+  .teacher-manage-page .management-readiness--compact .management-readiness__head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-manage-page .management-home-entry > .status-pill,
+  .teacher-manage-page .management-home-entry > svg {
+    justify-self: start;
+  }
+
+  .management-step {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.38rem;
+  }
+
+  .management-step__number {
+    width: fit-content;
+    min-width: 26px;
+  }
+
+  .teacher-manage-page .management-readiness--compact .management-readiness__actions {
+    justify-content: stretch;
+  }
+
+  .teacher-manage-page .management-readiness--compact .management-readiness__actions .ui-button {
+    width: 100%;
+  }
+}

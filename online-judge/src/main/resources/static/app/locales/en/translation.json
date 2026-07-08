@@ -37,10 +37,18 @@
     "aria": "Teacher workbench navigation",
     "kicker": "Teacher",
     "title": "Teaching Analytics",
+    "managementTitle": "Management Tools",
     "footnote": "Drill from class to assignment to problem for objective results.",
+    "managementFootnote": "Maintain classes, problems, the standard library, and runtime state.",
+    "groups": {
+      "results": "Results",
+      "management": "Management tools"
+    },
     "nav": {
       "analytics": "Teaching Analytics",
       "analyticsDescription": "Class, assignment, and problem results",
+      "managementHome": "Management Overview",
+      "managementHomeDescription": "Common maintenance entry",
       "roster": "Class Roster",
       "rosterDescription": "Student import and class setup",
       "problemBank": "Problem Bank",
@@ -319,9 +327,9 @@
   "teacherManagement": {
     "sections": {
       "home": {
-        "eyebrow": "Teacher",
-        "title": "Management",
-        "description": "Manage rosters, problems, the AI library, and AI configuration status."
+        "eyebrow": "Management Tools",
+        "title": "Management Overview",
+        "description": "Maintain rosters, problems, the standard library, and system status in one place."
       },
       "classes": {
         "eyebrow": "Management / Class Roster",
@@ -344,9 +352,74 @@
         "description": "Check AI service, model configuration, and key runtime status."
       }
     },
+    "home": {
+      "aria": "Teacher management entry",
+      "eyebrow": "Management tools",
+      "title": "Maintenance entry",
+      "description": "These are lower-frequency maintenance tools. Teaching results still start from Teaching Analytics.",
+      "entries": {
+        "classes": {
+          "title": "Class Roster",
+          "meta": "{{count}} classes",
+          "description": "Create classes, and import or update student rosters."
+        },
+        "problems": {
+          "title": "Problem Bank",
+          "meta": "{{count}} problems",
+          "description": "Maintain statements, starter code, and test cases."
+        },
+        "aiLibrary": {
+          "title": "AI Library",
+          "meta": "Approved",
+          "description": "Maintain knowledge points, skills, and mistake points."
+        },
+        "system": {
+          "title": "System Status",
+          "meta": "Diagnostics",
+          "description": "Check AI configuration and runtime dependencies."
+        }
+      }
+    },
+    "classManage": {
+      "listAria": "Class list",
+      "listTitle": "Classes",
+      "classCount": "{{count}} classes",
+      "emptyTitle": "No classes yet",
+      "emptyDescription": "Create a default class first.",
+      "defaultClass": "Default class",
+      "create": {
+        "title": "Create class",
+        "name": "Class name",
+        "grade": "Grade",
+        "teacher": "Teacher",
+        "submit": "Create"
+      },
+      "import": {
+        "eyebrow": "Roster maintenance",
+        "currentTarget": "Import to current class",
+        "waiting": "Waiting for class",
+        "sourceTitle": "Choose roster source",
+        "sourceDescription": "Upload CSV/XLSX, or paste the roster in the next step.",
+        "fileLabel": "Roster file",
+        "fileNote": "CSV or XLSX",
+        "targetLabel": "Target class",
+        "pasteTitle": "Paste or review roster",
+        "pasteDescription": "Keep the format as class, name, and student number; preview before importing.",
+        "pasteLabel": "Roster content",
+        "pastePlaceholder": "Class,Name,Student ID\nClass 1,Alice,01",
+        "confirmTitle": "Preview and import",
+        "confirmDescription": "Preview first, then import after the roster looks right.",
+        "preview": "Preview roster",
+        "commit": "Import roster"
+      }
+    },
+    "problemManage": {
+      "problemCount": "{{count}} problems"
+    },
     "readiness": {
       "aria": "System status",
       "title": "Class readiness",
+      "summaryLabel": "Status summary",
       "aiScan": "AI configuration scan",
       "scanDescription": "Check model, key, and invocation health.",
       "ready": "Ready",

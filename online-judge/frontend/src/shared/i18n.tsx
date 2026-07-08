@@ -46,10 +46,18 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       aria: "教师工作台导航",
       kicker: "教师端",
       title: "教学分析",
+      managementTitle: "管理工具",
       footnote: "按班级、作业、题目递进查看客观结果。",
+      managementFootnote: "维护班级、题库、标准库和运行状态。",
+      groups: {
+        results: "结果查看",
+        management: "管理工具"
+      },
       nav: {
         analytics: "教学分析",
         analyticsDescription: "班级、作业、题目结果",
+        managementHome: "管理概览",
+        managementHomeDescription: "常用维护入口",
         roster: "班级名单",
         rosterDescription: "学生导入与班级维护",
         problemBank: "题库管理",
@@ -366,9 +374,9 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
     teacherManagement: {
       sections: {
         home: {
-          eyebrow: "教师端",
-          title: "管理",
-          description: "管理班级名单、题库、AI 标准库和 AI 配置状态。"
+          eyebrow: "管理工具",
+          title: "管理概览",
+          description: "班级、题库、标准库和系统状态集中维护。"
         },
         classes: {
           eyebrow: "管理 / 班级名单",
@@ -391,9 +399,74 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
           description: "检查 AI 服务、模型配置和关键运行状态。"
         }
       },
+      home: {
+        aria: "教师端管理入口",
+        eyebrow: "管理工具",
+        title: "维护入口",
+        description: "这些是低频维护工具，教学结果仍从左侧教学分析进入。",
+        entries: {
+          classes: {
+            title: "班级名单",
+            meta: "{{count}} 个班级",
+            description: "创建班级，导入或更新学生名单。"
+          },
+          problems: {
+            title: "题库管理",
+            meta: "{{count}} 个题目",
+            description: "维护题面、默认代码和测试点。"
+          },
+          aiLibrary: {
+            title: "AI 标准库",
+            meta: "正式库",
+            description: "维护知识点、能力点和易错点。"
+          },
+          system: {
+            title: "系统状态",
+            meta: "诊断",
+            description: "检查 AI 配置和运行依赖。"
+          }
+        }
+      },
+      classManage: {
+        listAria: "班级列表",
+        listTitle: "班级",
+        classCount: "{{count}} 个班级",
+        emptyTitle: "暂无班级",
+        emptyDescription: "先创建一个默认班级。",
+        defaultClass: "默认班级",
+        create: {
+          title: "创建班级",
+          name: "班级名称",
+          grade: "年级",
+          teacher: "任课老师",
+          submit: "创建"
+        },
+        import: {
+          eyebrow: "名单维护",
+          currentTarget: "导入到当前班级",
+          waiting: "等待班级",
+          sourceTitle: "选择名单来源",
+          sourceDescription: "上传 CSV/XLSX，或直接在下一步粘贴名单。",
+          fileLabel: "名单文件",
+          fileNote: "CSV 或 XLSX",
+          targetLabel: "目标班级",
+          pasteTitle: "粘贴或校对名单",
+          pasteDescription: "格式保持为班级、姓名、学号，预览后再导入。",
+          pasteLabel: "名单内容",
+          pastePlaceholder: "班级,姓名,学号\n高一1班,张三,01",
+          confirmTitle: "预览并导入",
+          confirmDescription: "先预览，确认无误后再写入名单。",
+          preview: "预览名单",
+          commit: "导入名单"
+        }
+      },
+      problemManage: {
+        problemCount: "{{count}} 个题目"
+      },
       readiness: {
         aria: "系统状态",
         title: "开课状态",
+        summaryLabel: "状态结论",
         aiScan: "AI 配置扫描",
         scanDescription: "检查模型、密钥和调用链是否可用。",
         ready: "可开课",
@@ -519,10 +592,18 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       aria: "Teacher workbench navigation",
       kicker: "Teacher",
       title: "Teaching Analytics",
+      managementTitle: "Management Tools",
       footnote: "Drill from class to assignment to problem for objective results.",
+      managementFootnote: "Maintain classes, problems, the standard library, and runtime state.",
+      groups: {
+        results: "Results",
+        management: "Management tools"
+      },
       nav: {
         analytics: "Teaching Analytics",
         analyticsDescription: "Class, assignment, and problem results",
+        managementHome: "Management Overview",
+        managementHomeDescription: "Common maintenance entry",
         roster: "Class Roster",
         rosterDescription: "Student import and class setup",
         problemBank: "Problem Bank",
@@ -839,9 +920,9 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
     teacherManagement: {
       sections: {
         home: {
-          eyebrow: "Teacher",
-          title: "Management",
-          description: "Manage rosters, problems, the AI library, and AI configuration status."
+          eyebrow: "Management tools",
+          title: "Management Overview",
+          description: "Maintain classes, problems, the standard library, and system status in one place."
         },
         classes: {
           eyebrow: "Management / Class Roster",
@@ -864,9 +945,74 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
           description: "Check AI service, model configuration, and key runtime status."
         }
       },
+      home: {
+        aria: "Teacher management entry",
+        eyebrow: "Management tools",
+        title: "Maintenance entry",
+        description: "These are lower-frequency maintenance tools. Teaching results still start from Teaching Analytics.",
+        entries: {
+          classes: {
+            title: "Class Roster",
+            meta: "{{count}} classes",
+            description: "Create classes, and import or update student rosters."
+          },
+          problems: {
+            title: "Problem Bank",
+            meta: "{{count}} problems",
+            description: "Maintain statements, starter code, and test cases."
+          },
+          aiLibrary: {
+            title: "AI Library",
+            meta: "Approved",
+            description: "Maintain knowledge points, skills, and mistake points."
+          },
+          system: {
+            title: "System Status",
+            meta: "Diagnostics",
+            description: "Check AI configuration and runtime dependencies."
+          }
+        }
+      },
+      classManage: {
+        listAria: "Class list",
+        listTitle: "Classes",
+        classCount: "{{count}} classes",
+        emptyTitle: "No classes yet",
+        emptyDescription: "Create a default class first.",
+        defaultClass: "Default class",
+        create: {
+          title: "Create class",
+          name: "Class name",
+          grade: "Grade",
+          teacher: "Teacher",
+          submit: "Create"
+        },
+        import: {
+          eyebrow: "Roster maintenance",
+          currentTarget: "Import to current class",
+          waiting: "Waiting for class",
+          sourceTitle: "Choose roster source",
+          sourceDescription: "Upload CSV/XLSX, or paste the roster in the next step.",
+          fileLabel: "Roster file",
+          fileNote: "CSV or XLSX",
+          targetLabel: "Target class",
+          pasteTitle: "Paste or review roster",
+          pasteDescription: "Keep the format as class, name, and student number; preview before importing.",
+          pasteLabel: "Roster content",
+          pastePlaceholder: "Class,Name,Student ID\nClass 1,Alice,01",
+          confirmTitle: "Preview and import",
+          confirmDescription: "Preview first, then import after the roster looks right.",
+          preview: "Preview roster",
+          commit: "Import roster"
+        }
+      },
+      problemManage: {
+        problemCount: "{{count}} problems"
+      },
       readiness: {
         aria: "System status",
         title: "Class readiness",
+        summaryLabel: "Status summary",
         aiScan: "AI configuration scan",
         scanDescription: "Check model, key, and invocation health.",
         ready: "Ready",
