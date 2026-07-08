@@ -114,7 +114,7 @@ class StandardLibraryPackBuilderTest {
     }
 
     @Test
-    void runtimePlanAlwaysUsesFormalAdvicePrompt() {
+    void runtimePlanUsesAiNavigationPromptStackWithoutPrebuiltLibraryPack() {
         ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
                 new ModelDiagnosisBriefBuilder(),
                 builder,
@@ -133,23 +133,25 @@ class StandardLibraryPackBuilderTest {
                 "low-latency"
         );
 
-        assertThat(standardPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        assertThat(standardPlan.getStandardLibraryPack()).isNull();
+        assertThat(standardPlan.getFreeDiagnosisPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.FREE_DIAGNOSIS_V1);
+        assertThat(standardPlan.getStandardLibraryNavigationPrompt().getVersion())
+                .isEqualTo(PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1);
+        assertThat(standardPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
         assertThat(ignoredProfilePlan.getRuntimeProfile()).isEqualTo(ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
         assertThat(ignoredProfilePlan.isRequestCompact()).isFalse();
-        assertThat(ignoredProfilePlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        assertThat(ignoredProfilePlan.getStandardLibraryPack()).isNull();
+        assertThat(ignoredProfilePlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
         assertThat(ignoredProfilePlan.getAdvicePrompt().getSystemPrompt())
-                .contains("diagnosis report v2")
-                .contains("单诊断 Agent")
-                .contains("标准库的作用")
-                .contains("primaryKnowledgeNodeCode")
-                .contains("relatedKnowledgeNodeCodes")
+                .contains("diagnosis-report-v3")
+                .contains("初步诊断")
+                .contains("AI 标准库导航结果")
+                .contains("navigationResult")
+                .contains("standardLibrary")
                 .contains("studentReport")
-                .contains("basicLayerText")
-                .contains("improvementLayerText")
-                .contains("diagnosisDecision")
-                .contains("多个不同失败现象")
-                .contains("不要写删除、替换、改成")
-                .doesNotContain("teachingHint");
+                .contains("libraryGrowth.candidates")
+                .contains("继承 diagnosis-report-v2")
+                .doesNotContain("search-location");
     }
 
     private StandardLibraryPack.MistakePointOption mistake(String id) {

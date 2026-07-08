@@ -696,7 +696,7 @@ public class DiagnosticAgentService {
                 .provider("AI_PROVIDER")
                 .model("unknown-model")
                 .modelVersion("unknown-model")
-                .promptVersion(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2)
+                .promptVersion(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3)
                 .agentVersion(AGENT_VERSION)
                 .analysisSchemaVersion(baseline == null ? "diagnosis-v1" : baseline.getAnalysisSchemaVersion())
                 .evidenceSchemaVersion(baseline == null ? DiagnosisEvidencePackage.SCHEMA_VERSION : baseline.getEvidenceSchemaVersion())

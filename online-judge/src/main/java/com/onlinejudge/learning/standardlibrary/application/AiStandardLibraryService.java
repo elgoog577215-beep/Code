@@ -1,12 +1,18 @@
 package com.onlinejudge.learning.standardlibrary.application;
 
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
+import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardImprovementPoint;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardMistakePoint;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardSkillUnit;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryDiagnosticLayerResponse;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRequest;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemResponse;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationExpansionResponse;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryEmbeddingRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
@@ -14,6 +20,8 @@ import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePoi
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
 import com.onlinejudge.submission.application.StandardLibraryPack;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,8 +31,10 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +45,7 @@ public class AiStandardLibraryService {
     private final AiStandardSkillUnitRepository skillUnitRepository;
     private final AiStandardMistakePointRepository mistakePointRepository;
     private final AiStandardImprovementPointRepository improvementPointRepository;
+    private final InformaticsKnowledgeNodeRepository knowledgeRepository;
 
     @Transactional(readOnly = true)
     public List<AiStandardLibraryItemResponse> list(String layer, String category, String enabled, String query) {
@@ -170,6 +181,89 @@ public class AiStandardLibraryService {
         normalizedItems.forEach(item -> merged.put(searchItemKey(item), item));
         legacyItems.forEach(item -> merged.putIfAbsent(searchItemKey(item), item));
         return merged.values().stream().toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AiStandardLibraryNavigationNodeResponse> listRootKnowledgeAreas() {
+        return knowledgeRepository.findByEnabledTrueAndParentCodeIsNullOrderBySortOrderAscCodeAsc().stream()
+                .map(this::toNavigationNode)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AiStandardLibraryNavigationExpansionResponse expandKnowledgeNode(String code) {
+        return expandKnowledgeNode(code, 0, 50);
+    }
+
+    @Transactional(readOnly = true)
+    public AiStandardLibraryNavigationExpansionResponse expandKnowledgeNode(String code, int page, int size) {
+        InformaticsKnowledgeNode node = findKnowledgeNode(code);
+        int normalizedPage = Math.max(0, page);
+        int normalizedSize = Math.max(1, Math.min(size, 100));
+        List<InformaticsKnowledgeNode> allNodes = knowledgeRepository.findByEnabledTrueOrderByPathAscSortOrderAscCodeAsc();
+        Page<InformaticsKnowledgeNode> childPage = knowledgeRepository
+                .findByEnabledTrueAndParentCodeOrderBySortOrderAscCodeAsc(
+                        node.getCode(),
+                        PageRequest.of(normalizedPage, normalizedSize));
+        List<AiStandardLibraryNavigationNodeResponse> children = childPage.stream()
+                .map(this::toNavigationNode)
+                .toList();
+        return AiStandardLibraryNavigationExpansionResponse.builder()
+                .node(toNavigationNode(node))
+                .ancestors(knowledgeAncestors(node, allNodes))
+                .children(children)
+                .childPage(normalizedPage)
+                .childSize(normalizedSize)
+                .childTotal(childPage.getTotalElements())
+                .childHasMore(childPage.hasNext())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public AiStandardLibraryDiagnosticLayerResponse expandDiagnosticLayer(String knowledgePointCode) {
+        InformaticsKnowledgeNode knowledgePoint = findKnowledgeNode(knowledgePointCode);
+        if (knowledgePoint.getType() != InformaticsKnowledgeNodeType.KNOWLEDGE_POINT) {
+            throw new IllegalArgumentException("诊断层只能展开到知识点: " + knowledgePointCode);
+        }
+        String code = knowledgePoint.getCode();
+        List<AiStandardSkillUnit> skills =
+                skillUnitRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
+        List<AiStandardMistakePoint> mistakes =
+                mistakePointRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
+        List<AiStandardImprovementPoint> improvements =
+                improvementPointRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
+
+        Map<String, List<AiStandardLibraryDiagnosticLayerResponse.MistakePoint>> mistakesBySkill = mistakes.stream()
+                .map(AiStandardLibraryDiagnosticLayerResponse.MistakePoint::from)
+                .collect(Collectors.groupingBy(
+                        item -> normalizeText(item.getSkillUnitCode()),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+        Map<String, List<AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint>> improvementsBySkill =
+                improvements.stream()
+                        .filter(item -> !normalizeText(item.getSkillUnitCode()).isBlank())
+                        .map(AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint::from)
+                        .collect(Collectors.groupingBy(
+                                item -> normalizeText(item.getSkillUnitCode()),
+                                LinkedHashMap::new,
+                                Collectors.toList()));
+        List<AiStandardLibraryDiagnosticLayerResponse.SkillUnit> skillUnits = skills.stream()
+                .map(skill -> AiStandardLibraryDiagnosticLayerResponse.SkillUnit.from(
+                        skill,
+                        mistakesBySkill.getOrDefault(skill.getCode(), List.of()),
+                        improvementsBySkill.getOrDefault(skill.getCode(), List.of())))
+                .toList();
+        List<String> skillCodes = skills.stream().map(AiStandardSkillUnit::getCode).toList();
+        List<AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint> directImprovements = improvements.stream()
+                .filter(item -> normalizeText(item.getSkillUnitCode()).isBlank()
+                        || !skillCodes.contains(normalizeText(item.getSkillUnitCode())))
+                .map(AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint::from)
+                .toList();
+        return AiStandardLibraryDiagnosticLayerResponse.builder()
+                .knowledgePoint(toNavigationNode(knowledgePoint))
+                .skillUnits(skillUnits)
+                .directImprovementPoints(directImprovements)
+                .build();
     }
 
     @Transactional(readOnly = true)
@@ -661,6 +755,47 @@ public class AiStandardLibraryService {
     private AiStandardLibraryItem find(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("标准库条目不存在: " + id));
+    }
+
+    private InformaticsKnowledgeNode findKnowledgeNode(String code) {
+        String normalized = normalizeText(code);
+        if (normalized.isBlank()) {
+            throw new IllegalArgumentException("知识节点编码不能为空");
+        }
+        return knowledgeRepository.findByCode(normalized)
+                .filter(InformaticsKnowledgeNode::isEnabled)
+                .orElseThrow(() -> new IllegalArgumentException("知识节点不存在或已停用: " + code));
+    }
+
+    private AiStandardLibraryNavigationNodeResponse toNavigationNode(InformaticsKnowledgeNode node) {
+        return AiStandardLibraryNavigationNodeResponse.from(
+                node,
+                knowledgeRepository.existsByEnabledTrueAndParentCode(node.getCode()),
+                hasDiagnosticLayer(node.getCode()));
+    }
+
+    private boolean hasDiagnosticLayer(String knowledgePointCode) {
+        return !skillUnitRepository
+                .findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(knowledgePointCode).isEmpty()
+                || !mistakePointRepository
+                .findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(knowledgePointCode).isEmpty()
+                || !improvementPointRepository
+                .findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(knowledgePointCode).isEmpty();
+    }
+
+    private List<AiStandardLibraryNavigationNodeResponse> knowledgeAncestors(InformaticsKnowledgeNode node,
+                                                                             List<InformaticsKnowledgeNode> allNodes) {
+        Map<String, InformaticsKnowledgeNode> byCode = new LinkedHashMap<>();
+        for (InformaticsKnowledgeNode candidate : allNodes) {
+            byCode.put(candidate.getCode(), candidate);
+        }
+        List<AiStandardLibraryNavigationNodeResponse> result = new ArrayList<>();
+        InformaticsKnowledgeNode current = node;
+        while (current.getParentCode() != null && byCode.containsKey(current.getParentCode())) {
+            current = byCode.get(current.getParentCode());
+            result.add(0, toNavigationNode(current));
+        }
+        return result;
     }
 
     private void apply(AiStandardLibraryItem item, AiStandardLibraryItemRequest request) {

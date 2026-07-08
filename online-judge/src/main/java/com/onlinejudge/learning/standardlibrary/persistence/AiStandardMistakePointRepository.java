@@ -12,4 +12,7 @@ public interface AiStandardMistakePointRepository extends JpaRepository<AiStanda
     Optional<AiStandardMistakePoint> findByCode(String code);
 
     List<AiStandardMistakePoint> findByEnabledTrueOrderByCategoryAscCodeAsc();
+
+    List<AiStandardMistakePoint> findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(
+            String primaryKnowledgeNodeCode);
 }

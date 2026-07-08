@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
 import com.onlinejudge.problem.domain.Problem;
@@ -46,12 +47,10 @@ public class AiReportService {
     private final ExternalModelFailureClassifier failureClassifier;
     private final ExternalModelBudgetGuard budgetGuard;
     private final ExternalModelChatRequestFactory chatRequestFactory;
-    private final SearchLocationRetrievalService searchLocationRetrievalService;
-    private final SearchLocationOutputValidator searchLocationOutputValidator;
-    private final SearchLocationOutputNormalizer searchLocationOutputNormalizer;
-    private final SearchLocationPackSelector searchLocationPackSelector;
-    private final SearchLocationProperties searchLocationProperties;
     private final AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService;
+    private final AiStandardLibraryService standardLibraryService;
+    private final StandardLibraryNavigationOutputValidator standardLibraryNavigationOutputValidator;
+    private final StandardLibraryNavigationPackBuilder standardLibraryNavigationPackBuilder;
     private final ThreadLocal<ExternalModelCallTelemetry> lastCallTelemetry = ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
     private final ThreadLocal<ExternalModelCallTelemetry> lastStructuredRetrySourceTelemetry =
             ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
@@ -102,11 +101,15 @@ public class AiReportService {
                            SearchLocationOutputNormalizer searchLocationOutputNormalizer,
                            SearchLocationPackSelector searchLocationPackSelector,
                            SearchLocationProperties searchLocationProperties,
-                           AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService) {
+                           AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService,
+                           AiStandardLibraryService standardLibraryService,
+                           StandardLibraryNavigationOutputValidator standardLibraryNavigationOutputValidator,
+                           StandardLibraryNavigationPackBuilder standardLibraryNavigationPackBuilder) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
                 new ExternalModelChatRequestFactory(), searchLocationRetrievalService, searchLocationOutputValidator,
                 searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties,
-                standardLibraryGrowthAgentService);
+                standardLibraryGrowthAgentService, standardLibraryService, standardLibraryNavigationOutputValidator,
+                standardLibraryNavigationPackBuilder);
     }
 
     public AiReportService(ObjectMapper objectMapper,
@@ -122,7 +125,8 @@ public class AiReportService {
                            SearchLocationProperties searchLocationProperties) {
         this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
                 chatRequestFactory, searchLocationRetrievalService, searchLocationOutputValidator,
-                searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties, null);
+                searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties, null,
+                null, null, null);
     }
 
     public AiReportService(ObjectMapper objectMapper,
@@ -137,22 +141,39 @@ public class AiReportService {
                            SearchLocationPackSelector searchLocationPackSelector,
                            SearchLocationProperties searchLocationProperties,
                            AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService) {
+        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
+                chatRequestFactory, searchLocationRetrievalService, searchLocationOutputValidator,
+                searchLocationOutputNormalizer, searchLocationPackSelector, searchLocationProperties,
+                standardLibraryGrowthAgentService, null, null, null);
+    }
+
+    public AiReportService(ObjectMapper objectMapper,
+                           AiCodeAssistSupport aiCodeAssistSupport,
+                           ExternalModelAgentRuntime externalModelAgentRuntime,
+                           ExternalModelFailureClassifier failureClassifier,
+                           ExternalModelBudgetGuard budgetGuard,
+                           ExternalModelChatRequestFactory chatRequestFactory,
+                           SearchLocationRetrievalService searchLocationRetrievalService,
+                           SearchLocationOutputValidator searchLocationOutputValidator,
+                           SearchLocationOutputNormalizer searchLocationOutputNormalizer,
+                           SearchLocationPackSelector searchLocationPackSelector,
+                           SearchLocationProperties searchLocationProperties,
+                           AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService,
+                           AiStandardLibraryService standardLibraryService,
+                           StandardLibraryNavigationOutputValidator standardLibraryNavigationOutputValidator,
+                           StandardLibraryNavigationPackBuilder standardLibraryNavigationPackBuilder) {
         this.objectMapper = objectMapper;
         this.aiCodeAssistSupport = aiCodeAssistSupport;
         this.externalModelAgentRuntime = externalModelAgentRuntime;
         this.failureClassifier = failureClassifier == null ? new ExternalModelFailureClassifier() : failureClassifier;
         this.budgetGuard = budgetGuard == null ? new ExternalModelBudgetGuard() : budgetGuard;
         this.chatRequestFactory = chatRequestFactory == null ? new ExternalModelChatRequestFactory() : chatRequestFactory;
-        this.searchLocationRetrievalService = searchLocationRetrievalService;
-        this.searchLocationOutputValidator = searchLocationOutputValidator == null
-                ? new SearchLocationOutputValidator()
-                : searchLocationOutputValidator;
-        this.searchLocationOutputNormalizer = searchLocationOutputNormalizer == null
-                ? new SearchLocationOutputNormalizer()
-                : searchLocationOutputNormalizer;
-        this.searchLocationPackSelector = searchLocationPackSelector;
-        this.searchLocationProperties = searchLocationProperties == null ? new SearchLocationProperties() : searchLocationProperties;
         this.standardLibraryGrowthAgentService = standardLibraryGrowthAgentService;
+        this.standardLibraryService = standardLibraryService;
+        this.standardLibraryNavigationOutputValidator = standardLibraryNavigationOutputValidator == null
+                ? new StandardLibraryNavigationOutputValidator()
+                : standardLibraryNavigationOutputValidator;
+        this.standardLibraryNavigationPackBuilder = standardLibraryNavigationPackBuilder;
     }
 
     @Value("${ai.enabled:true}")
@@ -338,7 +359,11 @@ public class AiReportService {
                 baseline,
                 teacherDiagnosisRuntimeProfile()
         );
-        runtimePlan = applySearchLocationIfAvailable(runtimePlan);
+        ExternalModelStagePayloads.StageValidationResult navigationResult =
+                applyAiStandardLibraryNavigation(runtimePlan);
+        if (!navigationResult.isValid()) {
+            return runtimeFailure(baseline, runtimePlan, navigationResult);
+        }
         return enhanceWithAdviceGenerationRuntime(
                 submission,
                 baseline,
@@ -359,49 +384,11 @@ public class AiReportService {
                     null,
                     externalRuntimeProfile
             );
-            return applyLocalSearchLocationOnly(runtimePlan);
+            return runtimePlan;
         } catch (Exception exception) {
             log.warn("Student AI feedback standard library context unavailable. reason={}", exception.getMessage());
             return null;
         }
-    }
-
-    private ExternalModelAgentRuntime.RuntimePlan applyLocalSearchLocationOnly(
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        if (runtimePlan == null || searchLocationRetrievalService == null || searchLocationPackSelector == null) {
-            return runtimePlan;
-        }
-        SearchLocationCandidatePack candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief());
-        if (candidatePack == null) {
-            return runtimePlan;
-        }
-        if (candidatePack.getCandidates() == null || candidatePack.getCandidates().isEmpty()) {
-            runtimePlan.setSearchLocationResult(SearchLocationResult.localOnly(
-                    candidatePack.getEmbeddingStatus(),
-                    candidatePack,
-                    runtimePlan.getStandardLibraryPack()
-            ));
-            return runtimePlan;
-        }
-        SearchLocationOutput localOutput = localSearchLocationOutput(candidatePack);
-        StandardLibraryPack selectedPack = searchLocationPackSelector.select(
-                localOutput,
-                candidatePack,
-                runtimePlan.getStandardLibraryPack()
-        );
-        runtimePlan.setSearchLocationResult(SearchLocationResult.builder()
-                .enabled(false)
-                .status("LOCAL_RECALL")
-                .embeddingStatus(candidatePack.getEmbeddingStatus())
-                .failureReason("")
-                .candidateCount(candidatePack.getCandidateCount())
-                .selectedCount(selectedCount(localOutput))
-                .candidatePack(candidatePack)
-                .output(localOutput)
-                .selectedPack(selectedPack)
-                .build());
-        runtimePlan.setStandardLibraryPack(selectedPack);
-        return runtimePlan;
     }
 
     private SubmissionAnalysisResponse enhanceWithAdviceGenerationRuntime(
@@ -603,11 +590,13 @@ public class AiReportService {
     private AdviceGenerationOutput callAdviceGenerationStage(
             ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
         Map<String, Object> request = new LinkedHashMap<>();
-        request.put("task", "请完成一次高中信息学提交诊断：先整体理解题目、代码和判题结果，再参考标准库候选，最后生成 studentReport 和结构化元数据。");
+        request.put("task", "请完成一次高中信息学提交最终诊断：读取原始上下文、初步诊断和 AI 标准库导航结果，生成 studentReport 和结构化元数据。");
         request.put("contextPolicy", List.of(
                 "problem.description 是完整题目描述；submission.sourceCodeWithLineNumbers 是完整学生代码或最大可用带行号代码。",
                 "submission.verdict、visibleCaseFacts、runtimeErrorMessage、compileOutput 和 evidenceRefs 只是判题参考信号，用来验证诊断。",
-                "standardLibrary.knowledgeGroups 是统一知识树下的诊断层，主链路是知识点 -> 能力点 -> 易错点/提升点；不要把知识树和标准库当成两套平行库。",
+                "freeDiagnosis 是未看标准库前的初步诊断，用来保持对题目和代码的独立判断。",
+                "navigationResult 是 AI 逐层浏览标准库后的路径选择，不是后端本地召回。",
+                "standardLibrary.knowledgeGroups 是 AI 导航确认后的统一知识树诊断层，主链路是知识点 -> 能力点 -> 易错点/提升点；不要把知识树和标准库当成两套平行库。",
                 "standardLibrary 是教学参考规范包，像课程标准和教案目录，用于细颗粒定位、标准化命名和区分基础层/提高层，不是强制答案表。",
                 "primaryKnowledgeNodeCode 是主知识路径，relatedKnowledgeNodeCodes 只是辅助上下文；学生端知识路径优先沿主路径表达，不把相关标签平铺成独立问题。",
                 "先基于题目、代码、判题结果和 evidenceRefs 自由诊断，再输出 diagnosisCandidates 并评判它们对标准库是 HIT、PARTIAL、MISS 还是 OUT_OF_LIBRARY。",
@@ -617,10 +606,9 @@ public class AiReportService {
                 "学生可见反馈要自然、具体、可行动，但不能给完整答案或逐行改法。"
         ));
         request.put("brief", runtimePlan.getBrief());
+        request.put("freeDiagnosis", runtimePlan.getFreeDiagnosisOutput());
+        request.put("navigationResult", runtimePlan.getStandardLibraryNavigationOutput());
         request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
-        request.put("searchLocationSummary", runtimePlan.getStandardLibraryPack() == null
-                ? null
-                : runtimePlan.getStandardLibraryPack().getSearchLocationSummary());
         activateRuntimePlan(runtimePlan);
         String systemPrompt = runtimePlan.getAdvicePrompt().getSystemPrompt();
         String userPrompt = objectMapper.writeValueAsString(request);
@@ -636,6 +624,176 @@ public class AiReportService {
                 runtimePlan,
                 AdviceGenerationOutput.class
         );
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult applyAiStandardLibraryNavigation(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (runtimePlan == null) {
+            return invalidStage("AI_NAVIGATION", ModelStageFailureReason.INVALID_JSON, "runtimePlan is missing.");
+        }
+        if (standardLibraryService == null || standardLibraryNavigationPackBuilder == null) {
+            return invalidStage("AI_NAVIGATION", ModelStageFailureReason.INVALID_JSON,
+                    "STANDARD_LIBRARY_NAVIGATION_SERVICES_UNAVAILABLE");
+        }
+        try {
+            FreeDiagnosisOutput freeDiagnosis = callFreeDiagnosisStage(runtimePlan);
+            if (freeDiagnosis == null) {
+                return invalidStage("FREE_DIAGNOSIS", ModelStageFailureReason.EMPTY_RESPONSE,
+                        "free diagnosis output is empty.");
+            }
+            runtimePlan.setFreeDiagnosisOutput(freeDiagnosis);
+            StandardLibraryNavigationOutput navigationOutput =
+                    callStandardLibraryNavigationLoop(runtimePlan, freeDiagnosis);
+            if (navigationOutput == null) {
+                return invalidStage("STANDARD_LIBRARY_NAVIGATION", ModelStageFailureReason.EMPTY_RESPONSE,
+                        "standard library navigation output is empty.");
+            }
+            String status = defaultIfBlank(navigationOutput.getStatus(), "").trim().toUpperCase();
+            if ("CONTINUE".equals(status)) {
+                return invalidStage("STANDARD_LIBRARY_NAVIGATION", ModelStageFailureReason.INVALID_JSON,
+                        "AI_NAVIGATION_ROUND_LIMIT_REACHED");
+            }
+            StandardLibraryPack selectedPack = standardLibraryNavigationPackBuilder.build(navigationOutput);
+            ExternalModelStagePayloads.StageValidationResult validation =
+                    standardLibraryNavigationOutputValidator.validate(
+                            navigationOutput,
+                            runtimePlan.getBrief(),
+                            selectedPack);
+            if (!validation.isValid()) {
+                return validation;
+            }
+            runtimePlan.setStandardLibraryNavigationOutput(navigationOutput);
+            runtimePlan.setStandardLibraryPack(selectedPack);
+            runtimePlan.setSearchLocationResult(SearchLocationResult.builder()
+                    .enabled(true)
+                    .status("AI_NAVIGATION")
+                    .embeddingStatus("NOT_USED")
+                    .failureReason("")
+                    .candidateCount(0)
+                    .selectedCount(navigationSelectedCount(navigationOutput))
+                    .selectedPack(selectedPack)
+                    .build());
+            return ExternalModelStagePayloads.StageValidationResult.builder()
+                    .valid(true)
+                    .stage("AI_NAVIGATION")
+                    .failureReason(ModelStageFailureReason.NONE)
+                    .message("")
+                    .softFixes(List.of())
+                    .hardFailures(List.of())
+                    .build();
+        } catch (Exception exception) {
+            return stageFailureFromException("AI_NAVIGATION", exception);
+        }
+    }
+
+    private FreeDiagnosisOutput callFreeDiagnosisStage(ExternalModelAgentRuntime.RuntimePlan runtimePlan)
+            throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("task", "先独立理解题目、完整代码和判题事实，生成不含标准库 ID 的初步诊断。");
+        request.put("brief", runtimePlan.getBrief());
+        activateRuntimePlan(runtimePlan);
+        String systemPrompt = runtimePlan.getFreeDiagnosisPrompt().getSystemPrompt();
+        String userPrompt = objectMapper.writeValueAsString(request);
+        String content = chatCompletion(systemPrompt, userPrompt);
+        FreeDiagnosisOutput output = parseModelStagePayload(content, FreeDiagnosisOutput.class);
+        if (output != null) {
+            return output;
+        }
+        return retryStructuredModelStagePayload(systemPrompt, userPrompt, runtimePlan, FreeDiagnosisOutput.class);
+    }
+
+    private StandardLibraryNavigationOutput callStandardLibraryNavigationLoop(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            FreeDiagnosisOutput freeDiagnosis)
+            throws JsonProcessingException, IOException, InterruptedException {
+        Object roots = standardLibraryService.listRootKnowledgeAreas();
+        Object expandedNode = null;
+        Object diagnosticLayer = null;
+        StandardLibraryNavigationOutput latest = null;
+        for (int round = 1; round <= 3; round++) {
+            Map<String, Object> navigationView = new LinkedHashMap<>();
+            navigationView.put("round", round);
+            navigationView.put("roots", round == 1 ? roots : List.of());
+            navigationView.put("expandedNode", expandedNode);
+            navigationView.put("diagnosticLayer", diagnosticLayer);
+            navigationView.put("maxRounds", 3);
+            navigationView.put("maxBranchesPerRound", 3);
+            navigationView.put("maxFinalAnchors", 12);
+            latest = callStandardLibraryNavigationStage(runtimePlan, freeDiagnosis, navigationView);
+            if (latest == null) {
+                return null;
+            }
+            String status = defaultIfBlank(latest.getStatus(), "").trim().toUpperCase();
+            if ("DONE".equals(status) || "NO_MATCH".equals(status)) {
+                return latest;
+            }
+            StandardLibraryNavigationOutput.SelectedBranch branch = firstNavigationBranch(latest);
+            if (branch == null || defaultIfBlank(branch.getKnowledgeNodeCode(), "").isBlank()) {
+                return latest;
+            }
+            String code = branch.getKnowledgeNodeCode();
+            try {
+                diagnosticLayer = standardLibraryService.expandDiagnosticLayer(code);
+                expandedNode = null;
+            } catch (IllegalArgumentException exception) {
+                expandedNode = standardLibraryService.expandKnowledgeNode(code, 0, 50);
+                diagnosticLayer = null;
+            }
+        }
+        return latest;
+    }
+
+    private StandardLibraryNavigationOutput callStandardLibraryNavigationStage(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            FreeDiagnosisOutput freeDiagnosis,
+            Map<String, Object> navigationView)
+            throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("task", "按当前导航视图选择要继续展开的标准库分支，或返回最终标准库路径。");
+        request.put("brief", runtimePlan.getBrief());
+        request.put("freeDiagnosis", freeDiagnosis);
+        request.put("navigationView", navigationView);
+        activateRuntimePlan(runtimePlan);
+        String systemPrompt = runtimePlan.getStandardLibraryNavigationPrompt().getSystemPrompt();
+        String userPrompt = objectMapper.writeValueAsString(request);
+        String content = chatCompletion(systemPrompt, userPrompt);
+        StandardLibraryNavigationOutput output = parseModelStagePayload(content, StandardLibraryNavigationOutput.class);
+        if (output != null) {
+            return output;
+        }
+        return retryStructuredModelStagePayload(systemPrompt, userPrompt, runtimePlan,
+                StandardLibraryNavigationOutput.class);
+    }
+
+    private StandardLibraryNavigationOutput.SelectedBranch firstNavigationBranch(
+            StandardLibraryNavigationOutput output) {
+        if (output == null || output.getSelectedBranches() == null) {
+            return null;
+        }
+        return output.getSelectedBranches().stream()
+                .filter(item -> item != null && !defaultIfBlank(item.getKnowledgeNodeCode(), "").isBlank())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private int navigationSelectedCount(StandardLibraryNavigationOutput output) {
+        if (output == null) {
+            return 0;
+        }
+        return size(output.getSelectedBranches()) + size(output.getSelectedPaths()) + size(output.getUnresolvedGaps());
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult invalidStage(String stage,
+                                                                          ModelStageFailureReason reason,
+                                                                          String message) {
+        return ExternalModelStagePayloads.StageValidationResult.builder()
+                .valid(false)
+                .stage(stage)
+                .failureReason(reason)
+                .message(message)
+                .softFixes(List.of())
+                .hardFailures(List.of(message))
+                .build();
     }
 
     private AdviceGenerationOutput retryAdviceGenerationForSafety(
@@ -719,188 +877,6 @@ public class AiReportService {
             lastModelStageRawContent.set(firstRawContent);
             throw exception;
         }
-    }
-
-    private ExternalModelAgentRuntime.RuntimePlan applySearchLocationIfAvailable(
-            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        if (runtimePlan == null) {
-            return runtimePlan;
-        }
-        if (searchLocationRetrievalService == null || searchLocationPackSelector == null) {
-            if (!searchLocationProperties.isEnabled()) {
-                runtimePlan.setSearchLocationResult(SearchLocationResult.disabled());
-                return runtimePlan;
-            }
-            runtimePlan.setSearchLocationResult(SearchLocationResult.failed(
-                    "FAILED",
-                    "UNAVAILABLE",
-                    "SEARCH_LOCATION_SERVICES_UNAVAILABLE",
-                    null
-            ));
-            return runtimePlan;
-        }
-        SearchLocationCandidatePack candidatePack = null;
-        try {
-            candidatePack = searchLocationRetrievalService.retrieve(runtimePlan.getBrief());
-            if (candidatePack.getCandidates() == null || candidatePack.getCandidates().isEmpty()) {
-                if (!searchLocationProperties.isEnabled()) {
-                    runtimePlan.setSearchLocationResult(SearchLocationResult.localOnly(
-                            candidatePack.getEmbeddingStatus(),
-                            candidatePack,
-                            runtimePlan.getStandardLibraryPack()
-                    ));
-                    return runtimePlan;
-                }
-                runtimePlan.setSearchLocationResult(SearchLocationResult.failed(
-                        "FAILED",
-                        candidatePack.getEmbeddingStatus(),
-                        "NO_SEARCH_LOCATION_CANDIDATES",
-                        candidatePack
-                ));
-                return runtimePlan;
-            }
-            if (!searchLocationProperties.isEnabled()) {
-                SearchLocationOutput localOutput = localSearchLocationOutput(candidatePack);
-                StandardLibraryPack selectedPack = searchLocationPackSelector.select(
-                        localOutput,
-                        candidatePack,
-                        runtimePlan.getStandardLibraryPack()
-                );
-                SearchLocationResult result = SearchLocationResult.builder()
-                        .enabled(false)
-                        .status("LOCAL_RECALL")
-                        .embeddingStatus(candidatePack.getEmbeddingStatus())
-                        .failureReason("")
-                        .candidateCount(candidatePack.getCandidateCount())
-                        .selectedCount(selectedCount(localOutput))
-                        .candidatePack(candidatePack)
-                        .output(localOutput)
-                        .selectedPack(selectedPack)
-                        .build();
-                runtimePlan.setSearchLocationResult(result);
-                runtimePlan.setStandardLibraryPack(selectedPack);
-                return runtimePlan;
-            }
-            if (searchLocationProperties.isRequireVector()
-                    && candidatePack.getEmbeddingStatus() != null
-                    && !"READY".equalsIgnoreCase(candidatePack.getEmbeddingStatus())) {
-                runtimePlan.setSearchLocationResult(SearchLocationResult.failed(
-                        "FAILED",
-                        candidatePack.getEmbeddingStatus(),
-                        "VECTOR_REQUIRED_BUT_UNAVAILABLE",
-                        candidatePack
-                ));
-                return runtimePlan;
-            }
-            SearchLocationOutput output = callSearchLocationStage(runtimePlan, candidatePack);
-            output = searchLocationOutputNormalizer.normalize(output, candidatePack, runtimePlan.getBrief());
-            ExternalModelStagePayloads.StageValidationResult validation =
-                    searchLocationOutputValidator.validate(output, candidatePack, runtimePlan.getBrief());
-            if (validation == null || !validation.isValid()) {
-                runtimePlan.setSearchLocationResult(SearchLocationResult.failed(
-                        "FAILED",
-                        candidatePack.getEmbeddingStatus(),
-                        validation == null ? "SEARCH_LOCATION_INVALID" : validation.getMessage(),
-                        candidatePack
-                ));
-                return runtimePlan;
-            }
-            StandardLibraryPack selectedPack = searchLocationPackSelector.select(
-                    output,
-                    candidatePack,
-                    runtimePlan.getStandardLibraryPack()
-            );
-            SearchLocationResult result = SearchLocationResult.builder()
-                    .enabled(true)
-                    .status("SUCCESS")
-                    .embeddingStatus(candidatePack.getEmbeddingStatus())
-                    .failureReason("")
-                    .candidateCount(candidatePack.getCandidateCount())
-                    .selectedCount(selectedCount(output))
-                    .candidatePack(candidatePack)
-                    .output(output)
-                    .selectedPack(selectedPack)
-                    .build();
-            runtimePlan.setSearchLocationResult(result);
-            runtimePlan.setStandardLibraryPack(selectedPack);
-            return runtimePlan;
-        } catch (Exception exception) {
-            runtimePlan.setSearchLocationResult(SearchLocationResult.failed(
-                    "FAILED",
-                    candidatePack == null ? "UNKNOWN" : candidatePack.getEmbeddingStatus(),
-                    "SEARCH_LOCATION_EXCEPTION:" + exception.getClass().getSimpleName(),
-                    candidatePack
-            ));
-            return runtimePlan;
-        }
-    }
-
-    private SearchLocationOutput localSearchLocationOutput(SearchLocationCandidatePack candidatePack) {
-        List<SearchLocationCandidate> candidates = candidatePack == null || candidatePack.getCandidates() == null
-                ? List.of()
-                : candidatePack.getCandidates();
-        return SearchLocationOutput.builder()
-                .libraryFit(candidates.isEmpty() ? "MISS" : "PARTIAL")
-                .basicCandidates(localSelectedCandidates(candidates, List.of("MISTAKE_POINT", "BASIC_CAUSE"), 8))
-                .improvementCandidates(localSelectedCandidates(candidates, List.of("IMPROVEMENT_POINT"), 4))
-                .knowledgeAnchors(localSelectedCandidates(candidates, List.of("SKILL_UNIT", "KNOWLEDGE_NODE"), 5))
-                .uncertainty("本地召回候选，最终诊断由单诊断 Agent 完成。")
-                .needsMoreEvidence(false)
-                .build();
-    }
-
-    private List<SearchLocationOutput.SelectedCandidate> localSelectedCandidates(List<SearchLocationCandidate> candidates,
-                                                                                 List<String> layers,
-                                                                                 int limit) {
-        return candidates.stream()
-                .filter(candidate -> candidate != null && layers.contains(candidate.getLayer()))
-                .limit(limit)
-                .map(this::toLocalSelectedCandidate)
-                .toList();
-    }
-
-    private SearchLocationOutput.SelectedCandidate toLocalSelectedCandidate(SearchLocationCandidate candidate) {
-        String layer = candidate.getLayer();
-        String id = candidate.getId();
-        return SearchLocationOutput.SelectedCandidate.builder()
-                .id(id)
-                .layer(layer)
-                .skillUnitId("SKILL_UNIT".equals(layer) ? id : candidate.getSkillUnitCode())
-                .mistakePointId("MISTAKE_POINT".equals(layer) ? id : null)
-                .libraryFit("PARTIAL")
-                .priority(1)
-                .confidence(candidate.getFinalScore() == null ? 0.5 : Math.max(0.0, Math.min(1.0, candidate.getFinalScore())))
-                .evidenceRefs(List.of())
-                .reason("召回：" + candidate.getName())
-                .recallReason(String.join(", ", candidate.getRecallSources() == null
-                        ? List.of()
-                        : candidate.getRecallSources().stream().limit(3).toList()))
-                .evidenceSource("LOCAL_RECALL")
-                .uncertainty("由单诊断 Agent 最终确认。")
-                .build();
-    }
-
-    private SearchLocationOutput callSearchLocationStage(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
-                                                        SearchLocationCandidatePack candidatePack)
-            throws JsonProcessingException, IOException, InterruptedException {
-        Map<String, Object> request = new LinkedHashMap<>();
-        request.put("brief", runtimePlan.getBrief());
-        request.put("candidatePack", candidatePack);
-        activateRuntimePlan(runtimePlan);
-        String content = chatCompletion(
-                runtimePlan.getSearchLocationPrompt().getSystemPrompt(),
-                objectMapper.writeValueAsString(request)
-        );
-        return parseModelStagePayload(content, SearchLocationOutput.class);
-    }
-
-    private int selectedCount(SearchLocationOutput output) {
-        if (output == null) {
-            return 0;
-        }
-        return size(output.getBasicCandidates())
-                + size(output.getImprovementCandidates())
-                + size(output.getKnowledgeAnchors());
     }
 
     private int size(List<?> values) {
@@ -1369,7 +1345,7 @@ public class AiReportService {
                 && !cleanupAiText(runtimePlan.getAdvicePrompt().getVersion()).isBlank()) {
             return cleanupAiText(runtimePlan.getAdvicePrompt().getVersion());
         }
-        return PromptTemplateRegistry.DIAGNOSIS_REPORT_V2;
+        return PromptTemplateRegistry.DIAGNOSIS_REPORT_V3;
     }
 
     private String failureSummary(ExternalModelStagePayloads.StageValidationResult failure) {
@@ -2251,7 +2227,8 @@ public class AiReportService {
         if (PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1.equals(version)) {
             return "advice-generation";
         }
-        if (PromptTemplateRegistry.DIAGNOSIS_REPORT_V2.equals(version)) {
+        if (PromptTemplateRegistry.DIAGNOSIS_REPORT_V2.equals(version)
+                || PromptTemplateRegistry.DIAGNOSIS_REPORT_V3.equals(version)) {
             return "diagnosis-report";
         }
         return "external-model";

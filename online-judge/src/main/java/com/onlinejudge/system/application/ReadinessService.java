@@ -35,8 +35,8 @@ public class ReadinessService {
     @Value("${readiness.ai-blocking:${AI_READINESS_BLOCKING:true}}")
     private boolean aiBlocking;
 
-    @Value("${ai.diagnosis-report-v2-enabled:${AI_DIAGNOSIS_REPORT_V2_ENABLED:true}}")
-    private boolean diagnosisReportV2Enabled = true;
+    @Value("${ai.diagnosis-report-v3-enabled:${AI_DIAGNOSIS_REPORT_V3_ENABLED:${AI_DIAGNOSIS_REPORT_V2_ENABLED:true}}}")
+    private boolean diagnosisReportV3Enabled = true;
 
     public ReadinessResponse getReadiness() {
         List<ReadinessResponse.Check> checks = new ArrayList<>();
@@ -132,14 +132,14 @@ public class ReadinessService {
         ));
 
         checks.add(check(
-                "ai-diagnosis-report-v2",
-                "AI 诊断报告 v2",
-                diagnosisReportV2Enabled ? "PASS" : "FAIL",
+                "ai-diagnosis-report-v3",
+                "AI 诊断报告 v3",
+                diagnosisReportV3Enabled ? "PASS" : "FAIL",
                 true,
-                diagnosisReportV2Enabled
-                        ? "诊断报告 v2 已开启。"
-                        : "诊断报告 v2 已关闭。",
-                "设置 AI_DIAGNOSIS_REPORT_V2_ENABLED=true。"
+                diagnosisReportV3Enabled
+                        ? "诊断报告 v3 已开启。"
+                        : "诊断报告 v3 已关闭。",
+                "设置 AI_DIAGNOSIS_REPORT_V3_ENABLED=true。"
         ));
 
         checks.add(check(

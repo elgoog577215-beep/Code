@@ -221,10 +221,14 @@ class AiStandardLibrarySeederTest {
                 "IO_FORMAT",
                 "LOGIC",
                 "MODELING",
+                "INVARIANT",
+                "ORDER",
                 "RUNTIME",
                 "STATE",
                 "SYNTAX",
                 "TRANSITION",
+                "TYPE",
+                "VALIDATION",
                 "VALUE_RANGE");
 
         List<String> errors = new ArrayList<>();

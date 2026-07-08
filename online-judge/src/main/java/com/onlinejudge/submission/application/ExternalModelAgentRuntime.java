@@ -12,7 +12,6 @@ public class ExternalModelAgentRuntime {
     public static final String RUNTIME_PROFILE_STANDARD = "standard";
 
     private final ModelDiagnosisBriefBuilder briefBuilder;
-    private final StandardLibraryPackBuilder standardLibraryPackBuilder;
     private final PromptTemplateRegistry promptTemplateRegistry;
     private final ModelOutputValidator modelOutputValidator;
     private final ExternalModelOutputNormalizer outputNormalizer;
@@ -41,7 +40,6 @@ public class ExternalModelAgentRuntime {
                                      AdviceGenerationOutputNormalizer adviceGenerationOutputNormalizer,
                                      AdviceGenerationFeedbackMapper adviceGenerationFeedbackMapper) {
         this.briefBuilder = briefBuilder;
-        this.standardLibraryPackBuilder = standardLibraryPackBuilder;
         this.promptTemplateRegistry = promptTemplateRegistry;
         this.modelOutputValidator = modelOutputValidator;
         this.outputNormalizer = outputNormalizer == null ? new ExternalModelOutputNormalizer() : outputNormalizer;
@@ -65,12 +63,11 @@ public class ExternalModelAgentRuntime {
                                SubmissionAnalysisResponse fallback,
                                String runtimeProfile) {
         ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, fallback);
-        StandardLibraryPack standardLibraryPack = standardLibraryPackBuilder.build(brief);
         return RuntimePlan.builder()
                 .brief(brief)
-                .standardLibraryPack(standardLibraryPack)
-                .searchLocationPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.SEARCH_LOCATION_V1))
-                .advicePrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2))
+                .freeDiagnosisPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.FREE_DIAGNOSIS_V1))
+                .standardLibraryNavigationPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1))
+                .advicePrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3))
                 .runtimeProfile(RUNTIME_PROFILE_STANDARD)
                 .requestCompact(false)
                 .build();
@@ -124,9 +121,12 @@ public class ExternalModelAgentRuntime {
     public static class RuntimePlan {
         private ModelDiagnosisBrief brief;
         private StandardLibraryPack standardLibraryPack;
+        private FreeDiagnosisOutput freeDiagnosisOutput;
+        private StandardLibraryNavigationOutput standardLibraryNavigationOutput;
         private SearchLocationResult searchLocationResult;
         private AdviceGenerationResult adviceGenerationResult;
-        private PromptTemplateRegistry.PromptTemplate searchLocationPrompt;
+        private PromptTemplateRegistry.PromptTemplate freeDiagnosisPrompt;
+        private PromptTemplateRegistry.PromptTemplate standardLibraryNavigationPrompt;
         private PromptTemplateRegistry.PromptTemplate advicePrompt;
         private String runtimeProfile;
         private boolean requestCompact;

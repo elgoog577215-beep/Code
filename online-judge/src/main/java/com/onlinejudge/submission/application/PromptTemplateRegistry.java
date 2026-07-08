@@ -11,9 +11,27 @@ public class PromptTemplateRegistry {
 
     public static final String DIAGNOSIS_AND_ADVICE_V1 = "diagnosis-and-advice-v1";
     public static final String DIAGNOSIS_REPORT_V2 = "diagnosis-report-v2";
+    public static final String FREE_DIAGNOSIS_V1 = "free-diagnosis-v1";
+    public static final String STANDARD_LIBRARY_NAVIGATION_V1 = "standard-library-navigation-v1";
+    public static final String DIAGNOSIS_REPORT_V3 = "diagnosis-report-v3";
     public static final String SEARCH_LOCATION_V1 = "search-location-v1";
 
     private final Map<String, PromptTemplate> templates = Map.of(
+            FREE_DIAGNOSIS_V1, PromptTemplate.builder()
+                    .version(FREE_DIAGNOSIS_V1)
+                    .stage("FREE_DIAGNOSIS")
+                    .systemPrompt(freeDiagnosisV1SystemPrompt())
+                    .build(),
+            STANDARD_LIBRARY_NAVIGATION_V1, PromptTemplate.builder()
+                    .version(STANDARD_LIBRARY_NAVIGATION_V1)
+                    .stage("STANDARD_LIBRARY_NAVIGATION")
+                    .systemPrompt(standardLibraryNavigationV1SystemPrompt())
+                    .build(),
+            DIAGNOSIS_REPORT_V3, PromptTemplate.builder()
+                    .version(DIAGNOSIS_REPORT_V3)
+                    .stage("DIAGNOSIS_REPORT")
+                    .systemPrompt(diagnosisReportV3SystemPrompt())
+                    .build(),
             SEARCH_LOCATION_V1, PromptTemplate.builder()
                     .version(SEARCH_LOCATION_V1)
                     .stage("SEARCH_LOCATION")
@@ -37,6 +55,143 @@ public class PromptTemplateRegistry {
             throw new IllegalArgumentException("Unknown prompt template version: " + version);
         }
         return template;
+    }
+
+    private String freeDiagnosisV1SystemPrompt() {
+        return """
+                你是高中信息学在线判题系统的初步诊断 Agent。
+                Prompt version: free-diagnosis-v1.
+                只返回严格 JSON。不要输出 markdown 代码块、XML、思维链、解释性前后缀或额外文本。
+                所有学生相关文字必须使用简体中文。
+
+                你的工作是先独立读题、读完整代码、读判题事实，形成不受标准库候选影响的初步判断。
+                本阶段禁止接收或猜测标准库 ID，禁止为了贴合某个库条目而牺牲对代码真实行为的判断。
+
+                Input schema:
+                {
+                  "brief": ModelDiagnosisBrief
+                }
+
+                Output schema:
+                {
+                  "problemUnderstanding": string,
+                  "codeIntent": string,
+                  "behaviorGap": string,
+                  "hypotheses": [{
+                    "name": string,
+                    "reason": string,
+                    "evidenceRefs": string[],
+                    "confidence": number
+                  }],
+                  "navigationIntent": {
+                    "preferredDirections": string[],
+                    "reason": string,
+                    "avoidDirections": string[]
+                  },
+                  "uncertainty": string
+                }
+
+                Rules:
+                1. 不要输出 standardLibraryId、mistakePointId、skillUnitId、improvementPointId 或任何看似标准库 ID 的字段。
+                2. hypotheses 必须来自题目、代码和判题事实，每条都要引用 evidenceRefs。
+                3. navigationIntent 只能写自然语言方向，例如“循环队列下标维护”“二分边界”，不能写数据库 ID。
+                4. 不要给完整代码、替换表达式、最终答案、隐藏测试猜测或可复制改法。
+                5. 如果证据不足，要明确写在 uncertainty 中。
+                """;
+    }
+
+    private String standardLibraryNavigationV1SystemPrompt() {
+        return """
+                你是高中信息学标准库导航 Agent。
+                Prompt version: standard-library-navigation-v1.
+                只返回严格 JSON。不要输出 markdown 代码块、XML、思维链、解释性前后缀或额外文本。
+
+                你的工作不是生成学生反馈，而是根据初步诊断，在标准库树中逐层选择下一步要展开或最终要锚定的节点。
+                标准库是一棵统一知识树：大章节 -> 小章节 -> 知识点；知识点下面是诊断层：能力点 -> 易错点 / 提升点。
+                高中术语和竞赛术语指向同一概念时，优先使用标准库主名，aliases 只用于理解和搜索。
+
+                Input schema:
+                {
+                  "brief": ModelDiagnosisBrief,
+                  "freeDiagnosis": FreeDiagnosisOutput,
+                  "navigationView": {
+                    "round": number,
+                    "roots": AiStandardLibraryNavigationNodeResponse[],
+                    "expandedNode": AiStandardLibraryNavigationExpansionResponse|null,
+                    "diagnosticLayer": AiStandardLibraryDiagnosticLayerResponse|null,
+                    "maxRounds": number,
+                    "maxBranchesPerRound": number,
+                    "maxFinalAnchors": number
+                  }
+                }
+
+                Output schema:
+                {
+                  "status": "CONTINUE"|"DONE"|"NO_MATCH",
+                  "selectedBranches": [{
+                    "knowledgeNodeCode": string,
+                    "reason": string,
+                    "evidenceRefs": string[],
+                    "confidence": number
+                  }],
+                  "selectedPaths": [{
+                    "knowledgeNodeCode": string,
+                    "skillUnitCode": string|null,
+                    "mistakePointCode": string|null,
+                    "improvementPointCode": string|null,
+                    "libraryFit": "HIT"|"PARTIAL"|"MISS"|"OUT_OF_LIBRARY",
+                    "reason": string,
+                    "evidenceRefs": string[],
+                    "confidence": number
+                  }],
+                  "unresolvedGaps": [{
+                    "name": string,
+                    "suggestedPath": string[],
+                    "reason": string,
+                    "evidenceRefs": string[],
+                    "confidence": number
+                  }],
+                  "uncertainty": string
+                }
+
+                Rules:
+                1. 每轮最多选择 maxBranchesPerRound 个 selectedBranches。
+                2. 只有 navigationView 中出现过的 code 才能被选择。
+                3. 如果已经看到知识点诊断层，优先返回 selectedPaths；如果还需要展开，返回 selectedBranches。
+                4. 找不到精确易错点时允许 PARTIAL 或 OUT_OF_LIBRARY，并填写 unresolvedGaps。
+                5. 每个选择都必须引用 brief.evidenceRefs。
+                6. 不要自己创造正式标准库 ID；库外内容只能进入 unresolvedGaps。
+                """;
+    }
+
+    private String diagnosisReportV3SystemPrompt() {
+        return """
+                你是高中信息学在线判题系统的最终诊断 Agent。
+                Prompt version: diagnosis-report-v3.
+                只返回严格 JSON。不要输出 markdown 代码块、XML、思维链、解释性前后缀或额外文本。
+                所有学生可见文字必须使用简体中文。
+
+                你必须同时读取原始提交上下文、初步诊断和 AI 标准库导航结果。
+                初步诊断负责保持对题目和代码的独立判断；标准库导航结果负责统一术语、路径和颗粒度；最终诊断负责生成学生可见报告和后端审计元数据。
+
+                Input schema:
+                {
+                  "brief": ModelDiagnosisBrief,
+                  "freeDiagnosis": FreeDiagnosisOutput,
+                  "navigationResult": StandardLibraryNavigationOutput,
+                  "standardLibrary": StandardLibraryPack
+                }
+
+                Output schema: AdviceGenerationOutput，与 diagnosis-report-v2 相同，必须包含 studentReport、diagnosisDecision、diagnosisCandidates、teacherTrace 和 libraryGrowth。
+
+                Rules:
+                1. studentReport 只写基础层诊断、提高层诊断和下一步动作，不暴露“初步诊断”“导航轮次”等内部过程。
+                2. diagnosisDecision 和 diagnosisCandidates 必须优先使用 navigationResult 中被证据支持的标准库路径。
+                3. 如果 navigationResult 标记 OUT_OF_LIBRARY 或 unresolvedGaps，libraryGrowth.candidates 只能进入待审核候选，状态必须是 NEEDS_REVIEW。
+                4. standardLibrary 仍是教学参考规范包，不是强制答案表；最终判断以当前提交证据为准。
+                5. 不要给完整代码、替换表达式、最终答案、隐藏测试猜测或可复制改法。
+                6. 继承 diagnosis-report-v2 的所有学生安全边界、证据引用要求和标准库 HIT/PARTIAL/MISS/OUT_OF_LIBRARY 规则。
+                """;
     }
 
     private String searchLocationSystemPrompt() {

@@ -6,6 +6,8 @@ import com.onlinejudge.learning.standardlibrary.application.AiStandardLibrarySer
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
+import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
@@ -16,6 +18,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Queue;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,15 +41,21 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(service.callCount()).isEqualTo(1);
-        assertThat(service.userPrompt(0))
-                .contains("brief", "standardLibrary", "searchLocationSummary")
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(service.systemPrompt(0)).contains("free-diagnosis-v1");
+        assertThat(service.systemPrompt(1)).contains("standard-library-navigation-v1");
+        assertThat(service.systemPrompt(2)).contains("diagnosis-report-v3");
+        assertThat(service.userPrompt(1))
+                .contains("maxRounds", "maxBranchesPerRound", "maxFinalAnchors");
+        assertThat(service.userPrompt(2))
+                .contains("brief", "freeDiagnosis", "navigationResult", "standardLibrary")
                 .contains("mistakePoints")
                 .contains("MP_RANGE_RIGHT_ENDPOINT_MISSING")
-                .doesNotContain("candidatePack");
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+                .contains("\"status\":\"AI_NAVIGATION\"")
+                .doesNotContain("candidatePack", "LOCAL_RECALL");
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
-        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("LOCAL_RECALL");
+        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("AI_NAVIGATION");
         assertThat(analysis.getBasicLayerAdvice()).hasSize(1);
         assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getTitle())
                 .contains("循环右边界");
@@ -67,42 +76,6 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getAiInvocation().getRuntimeProfile())
                 .isEqualTo(ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
         assertThat(analysis.getAiInvocation().getRequestCompact()).isFalse();
-    }
-
-    @Test
-    void explicitSearchLocationRuntimeGeneratesStructuredAdviceAfterSearchLocation() {
-        StubAiReportService service = newService(
-                validSearchLocationResponse(),
-                validAdviceResponse()
-        );
-        service.enableSearchLocation();
-
-        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
-                problem(),
-                submission(),
-                fallback(),
-                evidencePackage()
-        );
-
-        assertThat(service.callCount()).isEqualTo(2);
-        assertThat(service.userPrompt(1))
-                .contains("searchLocationSummary", "mistakePoints", "MP_RANGE_RIGHT_ENDPOINT_MISSING")
-                .doesNotContain("SK_UNRELATED_ARRAY_INDEX");
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
-        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
-        assertThat(analysis.getAiInvocation().getBasicAdviceCount()).isEqualTo(1);
-        assertThat(analysis.getAiInvocation().getImprovementAdviceCount()).isEqualTo(1);
-        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("SUCCESS");
-        assertThat(analysis.getCaseUnderstanding().getBehaviorGap()).contains("没有覆盖题目要求的末端");
-        assertThat(analysis.getBasicLayerAdvice()).hasSize(1);
-        assertThat(analysis.getBasicLayerAdvice().get(0).getMistakePointId())
-                .isEqualTo("MP_RANGE_RIGHT_ENDPOINT_MISSING");
-        assertThat(analysis.getImprovementLayerAdvice()).hasSize(1);
-        assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getTitle())
-                .contains("循环右边界");
-        assertThat(analysis.getStudentFeedback().getImprovementOpportunities().get(0).getCategory())
-                .isEqualTo("TESTING_HABIT");
-        assertThat(analysis.getReportMarkdown()).contains("## AI 完整诊断与建议", "### 基础层", "### 提高层");
     }
 
     @Test
@@ -209,6 +182,34 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
+    void navigationValidationFailureStopsBeforeFinalDiagnosisWithoutLocalRecall() {
+        StubAiReportService service = newServiceWithNavigationResponse(
+                """
+                {
+                  "status": "CONTINUE",
+                  "selectedBranches": []
+                }
+                """,
+                validAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(2);
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("STANDARD_LIBRARY_NAVIGATION");
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INVALID_JSON");
+        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("DISABLED");
+        assertThat(analysis.getUncertainty()).contains("未使用本地规则兜底");
+        assertThat(analysis.getBasicLayerAdvice()).isEmpty();
+    }
+
+    @Test
     void safetyRiskAdviceIsRewrittenBeforeFallback() {
         StubAiReportService service = newService(
                 unsafeAdviceResponse(),
@@ -222,13 +223,13 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(service.callCount()).isEqualTo(2);
-        assertThat(service.userPrompt(1)).contains("previousOutput", "validationFailure");
-        assertThat(service.systemPrompt(1)).contains("DP 或状态设计问题", "不要写前驱状态", "空间压缩");
+        assertThat(service.callCount()).isEqualTo(4);
+        assertThat(service.userPrompt(3)).contains("previousOutput", "validationFailure");
+        assertThat(service.systemPrompt(3)).contains("DP 或状态设计问题", "不要写前驱状态", "空间压缩");
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
-        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("LOCAL_RECALL");
+        assertThat(analysis.getAiInvocation().getSearchLocationStatus()).isEqualTo("AI_NAVIGATION");
         assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
         assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getNextAction())
                 .doesNotContain("直接改成", "range(1, n + 1)");
@@ -246,7 +247,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         );
 
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
         assertThat(analysis.getAiInvocation().getDiagnosisLibraryFit()).isEqualTo("PARTIAL");
         assertThat(analysis.getAiInvocation().getDiagnosisSoftFixes())
                 .contains("evidenceRef alias code:range_excludes_n:line3 -> code:range_excludes_n")
@@ -286,26 +287,15 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     private StubAiReportService newService(AiStandardLibraryGrowthAgentService growthAgentService, String... responses) {
-        AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
-        when(libraryService.enabledSearchLocationItems()).thenReturn(searchLocationItems());
-        SearchLocationProperties properties = new SearchLocationProperties();
-        properties.setMode("text");
-        properties.setCandidateLimit(4);
-        SearchLocationRetrievalService retrievalService = new SearchLocationRetrievalService(
-                libraryService,
-                properties,
-                mock(EmbeddingClient.class)
-        );
-        SearchLocationPackSelector selector = new SearchLocationPackSelector(libraryService, new DiagnosisTaxonomy());
+        AiStandardLibraryService libraryService = standardLibraryService();
+        InformaticsKnowledgeNodeRepository knowledgeRepository = knowledgeRepository();
         StubAiReportService service = new StubAiReportService(
                 objectMapper,
                 runtime(),
-                retrievalService,
-                new SearchLocationOutputValidator(),
-                selector,
-                properties,
+                libraryService,
+                new StandardLibraryNavigationPackBuilder(libraryService, knowledgeRepository),
                 growthAgentService,
-                responses
+                withNavigationResponses(responses)
         );
         ReflectionTestUtils.setField(service, "enabled", true);
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
@@ -317,26 +307,15 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     private StubAiReportService newService(String... responses) {
-        AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
-        when(libraryService.enabledSearchLocationItems()).thenReturn(searchLocationItems());
-        SearchLocationProperties properties = new SearchLocationProperties();
-        properties.setMode("text");
-        properties.setCandidateLimit(4);
-        SearchLocationRetrievalService retrievalService = new SearchLocationRetrievalService(
-                libraryService,
-                properties,
-                mock(EmbeddingClient.class)
-        );
-        SearchLocationPackSelector selector = new SearchLocationPackSelector(libraryService, new DiagnosisTaxonomy());
+        AiStandardLibraryService libraryService = standardLibraryService();
+        InformaticsKnowledgeNodeRepository knowledgeRepository = knowledgeRepository();
         StubAiReportService service = new StubAiReportService(
                 objectMapper,
                 runtime(),
-                retrievalService,
-                new SearchLocationOutputValidator(),
-                selector,
-                properties,
+                libraryService,
+                new StandardLibraryNavigationPackBuilder(libraryService, knowledgeRepository),
                 null,
-                responses
+                withNavigationResponses(responses)
         );
         ReflectionTestUtils.setField(service, "enabled", true);
         ReflectionTestUtils.setField(service, "apiKey", "test-key");
@@ -345,6 +324,62 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         ReflectionTestUtils.setField(service, "externalRuntimeProfile", ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
         ReflectionTestUtils.setField(service, "maxOutputTokens", 1200);
         return service;
+    }
+
+    private StubAiReportService newServiceWithNavigationResponse(String navigationResponse, String... responses) {
+        AiStandardLibraryService libraryService = standardLibraryService();
+        InformaticsKnowledgeNodeRepository knowledgeRepository = knowledgeRepository();
+        StubAiReportService service = new StubAiReportService(
+                objectMapper,
+                runtime(),
+                libraryService,
+                new StandardLibraryNavigationPackBuilder(libraryService, knowledgeRepository),
+                null,
+                withNavigationResponse(navigationResponse, responses)
+        );
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "model", "test-model");
+        ReflectionTestUtils.setField(service, "externalRuntimeEnabled", true);
+        ReflectionTestUtils.setField(service, "externalRuntimeProfile", ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 1200);
+        return service;
+    }
+
+    private String[] withNavigationResponses(String... adviceResponses) {
+        return withNavigationResponse(navigationDoneResponse(), adviceResponses);
+    }
+
+    private String[] withNavigationResponse(String navigationResponse, String... adviceResponses) {
+        List<String> responses = new ArrayList<>();
+        responses.add(freeDiagnosisResponse());
+        responses.add(navigationResponse);
+        responses.addAll(List.of(adviceResponses));
+        return responses.toArray(String[]::new);
+    }
+
+    private AiStandardLibraryService standardLibraryService() {
+        AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
+        when(libraryService.listRootKnowledgeAreas()).thenReturn(List.of(
+                AiStandardLibraryNavigationNodeResponse.builder()
+                        .code("BASIC")
+                        .type("DOMAIN")
+                        .name("基础语法")
+                        .path("基础语法")
+                        .hasChildren(true)
+                        .build()
+        ));
+        for (AiStandardLibraryItem item : searchLocationItems()) {
+            when(libraryService.findFormalItemAsLegacy(item.getLayer(), item.getCode()))
+                    .thenReturn(Optional.of(item));
+        }
+        return libraryService;
+    }
+
+    private InformaticsKnowledgeNodeRepository knowledgeRepository() {
+        InformaticsKnowledgeNodeRepository repository = mock(InformaticsKnowledgeNodeRepository.class);
+        when(repository.findByCode("BASIC.LOOP.BOUNDARY")).thenReturn(Optional.empty());
+        return repository;
     }
 
     private ExternalModelAgentRuntime runtime() {
@@ -504,37 +539,43 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 .build();
     }
 
-    private String validSearchLocationResponse() {
+    private String freeDiagnosisResponse() {
         return """
                 {
-                  "basicCandidates": [{
-                    "id": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
-                    "layer": "MISTAKE_POINT",
-                    "mistakePointId": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
-                    "priority": 1,
-                    "confidence": 0.93,
+                  "problemUnderstanding": "题目要求输出 1 到 n 的整数和。",
+                  "codeIntent": "学生想用循环累加 total。",
+                  "behaviorGap": "循环没有覆盖题目要求的末端。",
+                  "hypotheses": [{
+                    "name": "循环右边界漏取",
+                    "reason": "range(1, n) 与闭区间题意不一致。",
                     "evidenceRefs": ["code:range_excludes_n"],
-                    "reason": "代码中的 range(1, n) 与题目闭区间要求不一致。"
+                    "confidence": 0.9
                   }],
-                  "improvementCandidates": [{
-                    "id": "TESTING_HABIT",
-                    "layer": "IMPROVEMENT_POINT",
-                    "priority": 1,
-                    "confidence": 0.8,
+                  "navigationIntent": {
+                    "preferredDirections": ["基础语法", "循环结构", "循环边界"],
+                    "reason": "当前错因首先落在循环边界。"
+                  },
+                  "uncertainty": "可见失败样例已经支持该方向。"
+                }
+                """;
+    }
+
+    private String navigationDoneResponse() {
+        return """
+                {
+                  "status": "DONE",
+                  "selectedPaths": [{
+                    "knowledgeNodeCode": "BASIC.LOOP.BOUNDARY",
+                    "skillUnitCode": "SK_RANGE_BOUNDARY",
+                    "mistakePointCode": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                    "improvementPointCode": "TESTING_HABIT",
+                    "libraryFit": "HIT",
+                    "reason": "代码中的 range(1, n) 与题目闭区间要求不一致。",
                     "evidenceRefs": ["code:range_excludes_n"],
-                    "reason": "修复后应补边界自测。"
+                    "confidence": 0.9
                   }],
-                  "knowledgeAnchors": [{
-                    "id": "SK_RANGE_BOUNDARY",
-                    "layer": "SKILL_UNIT",
-                    "skillUnitId": "SK_RANGE_BOUNDARY",
-                    "priority": 1,
-                    "confidence": 0.88,
-                    "evidenceRefs": ["code:range_excludes_n"],
-                    "reason": "问题落在循环边界能力点。"
-                  }],
-                  "uncertainty": "可见证据已经较明确。",
-                  "needsMoreEvidence": false
+                  "unresolvedGaps": [],
+                  "uncertainty": "可见证据已经较明确。"
                 }
                 """;
     }
@@ -759,10 +800,8 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
         StubAiReportService(ObjectMapper objectMapper,
                             ExternalModelAgentRuntime runtime,
-                            SearchLocationRetrievalService retrievalService,
-                            SearchLocationOutputValidator outputValidator,
-                            SearchLocationPackSelector packSelector,
-                            SearchLocationProperties searchLocationProperties,
+                            AiStandardLibraryService standardLibraryService,
+                            StandardLibraryNavigationPackBuilder navigationPackBuilder,
                             AiStandardLibraryGrowthAgentService growthAgentService,
                             String... responses) {
             super(objectMapper,
@@ -771,12 +810,15 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     new ExternalModelFailureClassifier(),
                     new ExternalModelBudgetGuard(),
                     new ExternalModelChatRequestFactory(),
-                    retrievalService,
-                    outputValidator,
-                    new SearchLocationOutputNormalizer(),
-                    packSelector,
-                    searchLocationProperties,
-                    growthAgentService);
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    growthAgentService,
+                    standardLibraryService,
+                    new StandardLibraryNavigationOutputValidator(),
+                    navigationPackBuilder);
             this.responses.addAll(List.of(responses));
         }
 
@@ -804,12 +846,5 @@ class AiReportServiceAdviceGenerationRuntimeTest {
             return systemPrompts.get(index);
         }
 
-        void enableSearchLocation() {
-            SearchLocationProperties properties =
-                    (SearchLocationProperties) ReflectionTestUtils.getField(this, "searchLocationProperties");
-            if (properties != null) {
-                properties.setEnabled(true);
-            }
-        }
     }
 }

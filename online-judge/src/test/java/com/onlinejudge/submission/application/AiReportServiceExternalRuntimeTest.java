@@ -2,6 +2,11 @@ package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
+import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
+import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
@@ -12,9 +17,12 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Queue;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class AiReportServiceExternalRuntimeTest {
 
@@ -31,8 +39,8 @@ class AiReportServiceExternalRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(service.callCount()).isEqualTo(1);
-        assertThat(service.lastSystemPrompt()).contains("diagnosis report v2");
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(service.lastSystemPrompt()).contains("diagnosis-report-v3");
         assertThat(service.lastSystemPrompt())
                 .contains("diagnosisDecision")
                 .doesNotContain("teachingHint");
@@ -44,7 +52,7 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
         assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("diagnosis-report");
         assertThat(analysis.getAiInvocation().getFailureStage()).isEmpty();
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
@@ -128,7 +136,7 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
         assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("diagnosis-report");
-        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("AI_NAVIGATION");
         assertThat(analysis.getAiInvocation().getFailureReason()).isEqualTo("INSUFFICIENT_QUOTA");
         assertThat(analysis.getUncertainty()).contains("INSUFFICIENT_QUOTA");
         assertThat(analysis.getIssueTags()).isEmpty();
@@ -142,7 +150,12 @@ class AiReportServiceExternalRuntimeTest {
 
     @Test
     void compatibleRequestMergesSystemPromptForModelScope() throws Exception {
-        CapturingAiReportService service = new CapturingAiReportService(objectMapper, validAdviceApiResponse());
+        CapturingAiReportService service = new CapturingAiReportService(
+                objectMapper,
+                apiResponse(freeDiagnosisResponse()),
+                apiResponse(navigationDoneResponse()),
+                apiResponse(validAdviceResponse())
+        );
         configure(service);
         ReflectionTestUtils.setField(service, "streamEnabled", false);
         ReflectionTestUtils.setField(service, "modelScopeCompatibleRequest", "true");
@@ -155,13 +168,13 @@ class AiReportServiceExternalRuntimeTest {
         );
 
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
-        assertThat(service.lastRequestBody()).contains("diagnosis report v2");
+        assertThat(service.lastRequestBody()).contains("diagnosis-report-v3");
         assertThat(service.lastRequestBody()).contains("\"role\":\"user\"");
         assertThat(service.lastRequestBody()).doesNotContain("\"role\":\"system\"");
     }
 
     private StubAiReportService newService(Object... responses) {
-        StubAiReportService service = new StubAiReportService(objectMapper, runtime(), responses);
+        StubAiReportService service = new StubAiReportService(objectMapper, runtime(), withNavigationResponses(responses));
         configure(service);
         return service;
     }
@@ -285,7 +298,15 @@ class AiReportServiceExternalRuntimeTest {
                 .build();
     }
 
-    private String validAdviceApiResponse() {
+    private Object[] withNavigationResponses(Object... adviceResponses) {
+        List<Object> responses = new ArrayList<>();
+        responses.add(freeDiagnosisResponse());
+        responses.add(navigationDoneResponse());
+        responses.addAll(List.of(adviceResponses));
+        return responses.toArray(Object[]::new);
+    }
+
+    private String apiResponse(String content) {
         return """
                 {
                   "choices": [{
@@ -295,7 +316,45 @@ class AiReportServiceExternalRuntimeTest {
                     "finish_reason": "stop"
                   }]
                 }
-                """.formatted(objectMapper.valueToTree(validAdviceResponse()).toString());
+                """.formatted(objectMapper.valueToTree(content).toString());
+    }
+
+    private String freeDiagnosisResponse() {
+        return """
+                {
+                  "problemUnderstanding": "题目要求输出 1 到 n 的整数和。",
+                  "codeIntent": "学生想用循环累加 total。",
+                  "behaviorGap": "循环没有覆盖题目要求的末端。",
+                  "hypotheses": [{
+                    "name": "循环右边界漏取",
+                    "reason": "range(1, n) 与闭区间题意不一致。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.9
+                  }],
+                  "navigationIntent": {
+                    "preferredDirections": ["基础语法", "循环边界"],
+                    "reason": "当前错因首先落在循环边界。"
+                  }
+                }
+                """;
+    }
+
+    private String navigationDoneResponse() {
+        return """
+                {
+                  "status": "DONE",
+                  "selectedPaths": [{
+                    "knowledgeNodeCode": "BASIC.LOOP.BOUNDARY",
+                    "mistakePointCode": "OFF_BY_ONE",
+                    "improvementPointCode": "TESTING_HABIT",
+                    "libraryFit": "HIT",
+                    "reason": "代码中的 range(1, n) 与题目闭区间要求不一致。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.9
+                  }],
+                  "unresolvedGaps": []
+                }
+                """;
     }
 
     private String validAdviceResponse() {
@@ -355,7 +414,31 @@ class AiReportServiceExternalRuntimeTest {
                             ExternalModelAgentRuntime runtime,
                             ExternalModelBudgetGuard budgetGuard,
                             Object... responses) {
-            super(objectMapper, new AiCodeAssistSupport(), runtime, new ExternalModelFailureClassifier(), budgetGuard);
+            this(objectMapper, runtime, budgetGuard, navigationDeps(), responses);
+        }
+
+        private StubAiReportService(ObjectMapper objectMapper,
+                                    ExternalModelAgentRuntime runtime,
+                                    ExternalModelBudgetGuard budgetGuard,
+                                    NavigationDeps navigationDeps,
+                                    Object... responses) {
+            super(objectMapper,
+                    new AiCodeAssistSupport(),
+                    runtime,
+                    new ExternalModelFailureClassifier(),
+                    budgetGuard,
+                    new ExternalModelChatRequestFactory(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    navigationDeps.standardLibraryService(),
+                    new StandardLibraryNavigationOutputValidator(),
+                    new StandardLibraryNavigationPackBuilder(
+                            navigationDeps.standardLibraryService(),
+                            navigationDeps.knowledgeRepository()));
             this.responses.addAll(List.of(responses));
         }
 
@@ -393,12 +476,34 @@ class AiReportServiceExternalRuntimeTest {
         private final List<String> requestBodies = new ArrayList<>();
 
         CapturingAiReportService(ObjectMapper objectMapper, String... responses) {
-            super(objectMapper, new AiCodeAssistSupport(), new ExternalModelAgentRuntime(
-                    new ModelDiagnosisBriefBuilder(),
-                    new StandardLibraryPackBuilder(new DiagnosisTaxonomy()),
-                    new PromptTemplateRegistry(),
-                    new ModelOutputValidator()
-            ));
+            this(objectMapper, navigationDeps(), responses);
+        }
+
+        private CapturingAiReportService(ObjectMapper objectMapper,
+                                         NavigationDeps navigationDeps,
+                                         String... responses) {
+            super(objectMapper,
+                    new AiCodeAssistSupport(),
+                    new ExternalModelAgentRuntime(
+                            new ModelDiagnosisBriefBuilder(),
+                            new StandardLibraryPackBuilder(new DiagnosisTaxonomy()),
+                            new PromptTemplateRegistry(),
+                            new ModelOutputValidator()
+                    ),
+                    new ExternalModelFailureClassifier(),
+                    new ExternalModelBudgetGuard(),
+                    new ExternalModelChatRequestFactory(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    navigationDeps.standardLibraryService(),
+                    new StandardLibraryNavigationOutputValidator(),
+                    new StandardLibraryNavigationPackBuilder(
+                            navigationDeps.standardLibraryService(),
+                            navigationDeps.knowledgeRepository()));
             this.responses.addAll(List.of(responses));
         }
 
@@ -415,5 +520,51 @@ class AiReportServiceExternalRuntimeTest {
         String lastRequestBody() {
             return requestBodies.isEmpty() ? "" : requestBodies.get(requestBodies.size() - 1);
         }
+    }
+
+    private record NavigationDeps(AiStandardLibraryService standardLibraryService,
+                                  InformaticsKnowledgeNodeRepository knowledgeRepository) {
+    }
+
+    private static NavigationDeps navigationDeps() {
+        AiStandardLibraryService libraryService = mock(AiStandardLibraryService.class);
+        when(libraryService.listRootKnowledgeAreas()).thenReturn(List.of(
+                AiStandardLibraryNavigationNodeResponse.builder()
+                        .code("BASIC")
+                        .type("DOMAIN")
+                        .name("基础语法")
+                        .path("基础语法")
+                        .hasChildren(true)
+                        .build()
+        ));
+        when(libraryService.findFormalItemAsLegacy(AiStandardLibraryLayer.MISTAKE_POINT, "OFF_BY_ONE"))
+                .thenReturn(Optional.of(item("OFF_BY_ONE", AiStandardLibraryLayer.MISTAKE_POINT)));
+        when(libraryService.findFormalItemAsLegacy(AiStandardLibraryLayer.IMPROVEMENT_POINT, "TESTING_HABIT"))
+                .thenReturn(Optional.of(item("TESTING_HABIT", AiStandardLibraryLayer.IMPROVEMENT_POINT)));
+        InformaticsKnowledgeNodeRepository repository = mock(InformaticsKnowledgeNodeRepository.class);
+        when(repository.findByCode("BASIC.LOOP.BOUNDARY")).thenReturn(Optional.empty());
+        return new NavigationDeps(libraryService, repository);
+    }
+
+    private static AiStandardLibraryItem item(String code, AiStandardLibraryLayer layer) {
+        return AiStandardLibraryItem.builder()
+                .layer(layer)
+                .code(code)
+                .category("循环边界")
+                .name(code)
+                .description("循环边界诊断项。")
+                .studentExplanation("循环边界诊断项。")
+                .teacherExplanation("循环边界诊断项。")
+                .primaryKnowledgeNodeCode("BASIC.LOOP.BOUNDARY")
+                .knowledgeNodeCodes("BASIC.LOOP.BOUNDARY")
+                .mistakeType("BOUNDARY")
+                .commonMisconception("没有区分 range 右端开区间和题目闭区间。")
+                .skillUnitCode("")
+                .abilityPoint("")
+                .requiredEvidence("code:range_excludes_n")
+                .whenToUse("修复边界问题后复盘。")
+                .studentBenefit("能更早发现端点漏取。")
+                .applicableLanguages("PYTHON")
+                .build();
     }
 }

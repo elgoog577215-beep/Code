@@ -82,10 +82,14 @@ public class StudentFeedbackViewAssembler {
         return "READY";
     }
 
-    private boolean isDiagnosisReportV2(SubmissionAnalysisResponse analysis) {
+    private boolean isDiagnosisReport(SubmissionAnalysisResponse analysis) {
         SubmissionAnalysisResponse.AiInvocation invocation = analysis == null ? null : analysis.getAiInvocation();
-        return invocation != null
-                && PromptTemplateRegistry.DIAGNOSIS_REPORT_V2.equals(safe(invocation.getPromptVersion()).trim());
+        if (invocation == null) {
+            return false;
+        }
+        String version = safe(invocation.getPromptVersion()).trim();
+        return PromptTemplateRegistry.DIAGNOSIS_REPORT_V2.equals(version)
+                || PromptTemplateRegistry.DIAGNOSIS_REPORT_V3.equals(version);
     }
 
     private List<SubmissionAnalysisResponse.FeedbackViewItem> repairItems(SubmissionAnalysisResponse.StudentFeedback feedback,
@@ -96,10 +100,10 @@ public class StudentFeedbackViewAssembler {
                 : feedback.getBlockingIssues();
         for (SubmissionAnalysisResponse.FeedbackIssue issue : issues) {
             String title = cleanTitle(issue.getTitle());
-            boolean diagnosisReportV2 = isDiagnosisReportV2(analysis);
+            boolean diagnosisReport = isDiagnosisReport(analysis);
             String body = clean(defaultIfBlank(
-                    diagnosisReportV2 ? issue.getStudentMessage() : issue.getNextAction(),
-                    diagnosisReportV2 ? issue.getNextAction() : issue.getStudentMessage()
+                    diagnosisReport ? issue.getStudentMessage() : issue.getNextAction(),
+                    diagnosisReport ? issue.getNextAction() : issue.getStudentMessage()
             ));
             if (body.isBlank()) {
                 body = clean(issue.getEvidence());

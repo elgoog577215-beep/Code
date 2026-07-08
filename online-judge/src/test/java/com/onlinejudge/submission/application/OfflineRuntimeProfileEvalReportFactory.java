@@ -90,11 +90,10 @@ public class OfflineRuntimeProfileEvalReportFactory {
         boolean reduced = lowLatencyBytes > 0 && standardBytes > 0 && lowLatencyBytes < standardBytes;
         boolean autoReduced = autoBytes > 0 && standardBytes > 0 && autoBytes < standardBytes;
         ModelDiagnosisBrief brief = lowLatencyPlan.getBrief();
-        StandardLibraryPack pack = lowLatencyPlan.getStandardLibraryPack();
         int evidenceRefCount = size(brief == null ? null : brief.getEvidenceRefs());
-        int issueTagCount = size(pack == null ? null : pack.getIssueTags());
-        int fineTagCount = size(pack == null ? null : pack.getFineGrainedTags());
-        int teachingActionCount = size(pack == null ? null : pack.getTeachingActions());
+        int issueTagCount = size(brief == null ? null : brief.getAllowedIssueTags());
+        int fineTagCount = size(brief == null ? null : brief.getAllowedFineGrainedTags());
+        int teachingActionCount = issueTagCount;
         boolean hiddenBoundaryPresent = brief != null && brief.getHiddenDataBoundary() != null;
         List<String> failureReasons = failureReasons(
                 reduced,
@@ -104,11 +103,10 @@ public class OfflineRuntimeProfileEvalReportFactory {
                 hiddenBoundaryPresent
         );
         ModelDiagnosisBrief autoBrief = autoPlan.getBrief();
-        StandardLibraryPack autoPack = autoPlan.getStandardLibraryPack();
         int autoEvidenceRefCount = size(autoBrief == null ? null : autoBrief.getEvidenceRefs());
-        int autoIssueTagCount = size(autoPack == null ? null : autoPack.getIssueTags());
-        int autoFineTagCount = size(autoPack == null ? null : autoPack.getFineGrainedTags());
-        int autoTeachingActionCount = size(autoPack == null ? null : autoPack.getTeachingActions());
+        int autoIssueTagCount = size(autoBrief == null ? null : autoBrief.getAllowedIssueTags());
+        int autoFineTagCount = size(autoBrief == null ? null : autoBrief.getAllowedFineGrainedTags());
+        int autoTeachingActionCount = autoIssueTagCount;
         boolean autoHiddenBoundaryPresent = autoBrief != null && autoBrief.getHiddenDataBoundary() != null;
         List<String> autoFailureReasons = autoFailureReasons(
                 autoPlan.isRequestCompact(),
@@ -152,6 +150,8 @@ public class OfflineRuntimeProfileEvalReportFactory {
     private int requestBytes(ExternalModelAgentRuntime.RuntimePlan plan) {
         Map<String, Object> stagePayload = new LinkedHashMap<>();
         stagePayload.put("brief", plan.getBrief());
+        stagePayload.put("freeDiagnosis", Map.of("status", "PENDING_FREE_DIAGNOSIS"));
+        stagePayload.put("navigationResult", Map.of("status", "PENDING_AI_NAVIGATION"));
         stagePayload.put("standardLibrary", plan.getStandardLibraryPack());
         Map<String, Object> requestBody = new LinkedHashMap<>();
         requestBody.put("model", MODEL);

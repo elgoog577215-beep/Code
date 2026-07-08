@@ -12,4 +12,7 @@ public interface AiStandardSkillUnitRepository extends JpaRepository<AiStandardS
     Optional<AiStandardSkillUnit> findByCode(String code);
 
     List<AiStandardSkillUnit> findByEnabledTrueOrderByCategoryAscCodeAsc();
+
+    List<AiStandardSkillUnit> findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(
+            String primaryKnowledgeNodeCode);
 }

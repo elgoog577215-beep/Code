@@ -911,7 +911,7 @@ class StudentAiFeedbackModelTest {
                 .skillUnits(List.of(skill))
                 .mistakePoints(List.of(mistake))
                 .searchLocationSummary(StandardLibraryPack.SearchLocationSummary.builder()
-                        .status("LOCAL_RECALL")
+                        .status("AI_NAVIGATION")
                         .candidateCount(2)
                         .selectedCount(2)
                         .build())

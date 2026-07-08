@@ -31,7 +31,7 @@ bash scripts/doctor-school.sh
 4. 确认 AI 诊断链路开关。
 
 ```env
-AI_DIAGNOSIS_REPORT_V2_ENABLED=true
+AI_DIAGNOSIS_REPORT_V3_ENABLED=true
 AI_MODEL_FAILURE_DEGRADE_ENABLED=true
 AI_STANDARD_LIBRARY_GROWTH_ENABLED=true
 AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED=false
@@ -116,7 +116,7 @@ bash scripts/restore-postgres.sh backups/onlinejudge-YYYYMMDD-HHMMSS.sql
 - `C++17 runner image is not built yet`：运行 `bash scripts/build-cpp17-runner.sh` 或重新 `bash scripts/start-school.sh`。
 - AI smoke 显示 `INSUFFICIENT_QUOTA`：ModelScope 额度不足，充值或关闭 AI。
 - AI smoke 显示认证失败：检查 `OJ_MODELSCOPE_API_KEY`。
-- readiness 显示 `AI 诊断报告 v2` 失败：检查 `AI_DIAGNOSIS_REPORT_V2_ENABLED=true`。
+- readiness 显示 `AI 诊断报告 v3` 失败：检查 `AI_DIAGNOSIS_REPORT_V3_ENABLED=true`。
 - readiness 显示成长 Agent 提醒：检查是否符合学校对自动扩库权限的要求。
 - 教师端无法进入：检查 `.env` 中 `TEACHER_PASSWORD` 是否已设置，并重新启动服务。
 

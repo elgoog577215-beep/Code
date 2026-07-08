@@ -1,6 +1,8 @@
 package com.onlinejudge.learning.knowledge.persistence;
 
 import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Collection;
@@ -14,6 +16,16 @@ public interface InformaticsKnowledgeNodeRepository extends JpaRepository<Inform
     Optional<InformaticsKnowledgeNode> findByCode(String code);
 
     List<InformaticsKnowledgeNode> findByCodeIn(Collection<String> codes);
+
+    List<InformaticsKnowledgeNode> findByEnabledTrueAndParentCodeIsNullOrderBySortOrderAscCodeAsc();
+
+    List<InformaticsKnowledgeNode> findByEnabledTrueAndParentCodeOrderBySortOrderAscCodeAsc(String parentCode);
+
+    Page<InformaticsKnowledgeNode> findByEnabledTrueAndParentCodeOrderBySortOrderAscCodeAsc(
+            String parentCode,
+            Pageable pageable);
+
+    boolean existsByEnabledTrueAndParentCode(String parentCode);
 
     List<InformaticsKnowledgeNode> findByEnabledTrueOrderByPathAscSortOrderAscCodeAsc();
 

@@ -23,21 +23,6 @@ public record SearchLocationResult(
                 .build();
     }
 
-    public static SearchLocationResult localOnly(String embeddingStatus,
-                                                 SearchLocationCandidatePack candidatePack,
-                                                 StandardLibraryPack selectedPack) {
-        return SearchLocationResult.builder()
-                .enabled(false)
-                .status("LOCAL_RECALL")
-                .embeddingStatus(embeddingStatus == null || embeddingStatus.isBlank() ? "DISABLED" : embeddingStatus)
-                .failureReason("")
-                .candidateCount(candidatePack == null ? 0 : candidatePack.getCandidateCount())
-                .selectedCount(0)
-                .candidatePack(candidatePack)
-                .selectedPack(selectedPack)
-                .build();
-    }
-
     public static SearchLocationResult failed(String status, String embeddingStatus, String reason,
                                               SearchLocationCandidatePack candidatePack) {
         return SearchLocationResult.builder()

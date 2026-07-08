@@ -11,12 +11,38 @@ class PromptTemplateRegistryTest {
 
     @Test
     void registersSearchLocationAdviceAndDiagnosisReportPrompts() {
+        PromptTemplateRegistry.PromptTemplate freeDiagnosis =
+                registry.get(PromptTemplateRegistry.FREE_DIAGNOSIS_V1);
+        PromptTemplateRegistry.PromptTemplate navigation =
+                registry.get(PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1);
         PromptTemplateRegistry.PromptTemplate searchLocation =
                 registry.get(PromptTemplateRegistry.SEARCH_LOCATION_V1);
         PromptTemplateRegistry.PromptTemplate advice =
                 registry.get(PromptTemplateRegistry.DIAGNOSIS_AND_ADVICE_V1);
         PromptTemplateRegistry.PromptTemplate report =
                 registry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        PromptTemplateRegistry.PromptTemplate reportV3 =
+                registry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
+
+        assertThat(freeDiagnosis.getStage()).isEqualTo("FREE_DIAGNOSIS");
+        assertThat(freeDiagnosis.getSystemPrompt())
+                .contains("free-diagnosis-v1")
+                .contains("不受标准库候选影响")
+                .contains("禁止接收或猜测标准库 ID")
+                .contains("problemUnderstanding")
+                .contains("navigationIntent")
+                .contains("不能写数据库 ID");
+
+        assertThat(navigation.getStage()).isEqualTo("STANDARD_LIBRARY_NAVIGATION");
+        assertThat(navigation.getSystemPrompt())
+                .contains("standard-library-navigation-v1")
+                .contains("大章节 -> 小章节 -> 知识点")
+                .contains("知识点下面是诊断层")
+                .contains("maxBranchesPerRound")
+                .contains("selectedBranches")
+                .contains("selectedPaths")
+                .contains("unresolvedGaps")
+                .contains("不要自己创造正式标准库 ID");
 
         assertThat(searchLocation.getStage()).isEqualTo("SEARCH_LOCATION");
         assertThat(searchLocation.getSystemPrompt())
@@ -129,6 +155,18 @@ class PromptTemplateRegistryTest {
                 .contains("初始化位置")
                 .contains("显式清空全局状态")
                 .contains("studentReport 三个字段必须是普通单行字符串");
+
+        assertThat(reportV3.getStage()).isEqualTo("DIAGNOSIS_REPORT");
+        assertThat(reportV3.getSystemPrompt())
+                .contains("diagnosis-report-v3")
+                .contains("初步诊断")
+                .contains("AI 标准库导航结果")
+                .contains("standardLibrary")
+                .contains("navigationResult")
+                .contains("studentReport")
+                .contains("libraryGrowth.candidates")
+                .contains("NEEDS_REVIEW")
+                .contains("继承 diagnosis-report-v2");
     }
 
     @Test

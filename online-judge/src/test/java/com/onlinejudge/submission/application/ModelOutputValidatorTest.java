@@ -55,7 +55,7 @@ class ModelOutputValidatorTest {
     }
 
     @Test
-    void runtimePlanCarriesBriefLibraryAndNewPromptVersions() {
+    void runtimePlanCarriesBriefAndAiNavigationPromptVersions() {
         Fixture fixture = fixture();
         ExternalModelAgentRuntime runtime = new ExternalModelAgentRuntime(
                 new ModelDiagnosisBriefBuilder(),
@@ -70,9 +70,11 @@ class ModelOutputValidatorTest {
         );
 
         assertThat(plan.getBrief().getSchemaVersion()).isEqualTo(ModelDiagnosisBrief.SCHEMA_VERSION);
-        assertThat(plan.getStandardLibraryPack().getSchemaVersion()).isEqualTo(StandardLibraryPack.SCHEMA_VERSION);
-        assertThat(plan.getSearchLocationPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.SEARCH_LOCATION_V1);
-        assertThat(plan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
+        assertThat(plan.getStandardLibraryPack()).isNull();
+        assertThat(plan.getFreeDiagnosisPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.FREE_DIAGNOSIS_V1);
+        assertThat(plan.getStandardLibraryNavigationPrompt().getVersion())
+                .isEqualTo(PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1);
+        assertThat(plan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
         assertThat(plan.getRuntimeProfile()).isEqualTo("standard");
         assertThat(plan.isRequestCompact()).isFalse();
     }
