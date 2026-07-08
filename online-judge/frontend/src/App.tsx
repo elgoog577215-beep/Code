@@ -275,10 +275,11 @@ export default function App() {
             <Route path="/app/teacher/classes/:classId" element={<TeacherRoute><ClassAnalyticsPage /></TeacherRoute>} />
             <Route path="/app/teacher/classes/:classId/assignments/:assignmentId" element={<TeacherRoute><AssignmentAnalyticsPage /></TeacherRoute>} />
             <Route path="/app/teacher/classes/:classId/assignments/:assignmentId/problems/:problemId" element={<TeacherRoute><ProblemAnalyticsPage /></TeacherRoute>} />
-            <Route path="/app/teacher/manage" element={<TeacherRoute><TeacherManagementPage section="home" /></TeacherRoute>} />
+            <Route path="/app/teacher/manage" element={<TeacherRoute><Navigate to="/app/teacher/manage/classes" replace /></TeacherRoute>} />
             <Route path="/app/teacher/manage/classes" element={<TeacherRoute><TeacherManagementPage section="classes" /></TeacherRoute>} />
             <Route path="/app/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
             <Route path="/app/teacher/manage/ai-library" element={<TeacherRoute><TeacherManagementPage section="ai-library" /></TeacherRoute>} />
+            <Route path="/app/teacher/manage/system" element={<TeacherRoute><TeacherManagementPage section="system" /></TeacherRoute>} />
             <Route path="/app/teacher-management" element={<Navigate to="/app/teacher/manage" replace />} />
             <Route path="/app/class-overview" element={<Navigate to="/app/teacher/classes" replace />} />
             <Route path="/app/task-editor" element={<TeacherRoute><TaskEditorPage /></TeacherRoute>} />

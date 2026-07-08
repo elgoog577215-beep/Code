@@ -55,7 +55,9 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         problemBank: "题库管理",
         problemBankDescription: "题目列表与编辑工作台",
         aiLibrary: "AI 标准库",
-        aiLibraryDescription: "正式库与候选治理"
+        aiLibraryDescription: "正式库与候选治理",
+        system: "系统状态",
+        systemDescription: "AI 检测与运行状态"
       }
     },
     classOverview: {
@@ -362,6 +364,33 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       }
     },
     teacherManagement: {
+      sections: {
+        home: {
+          eyebrow: "教师端",
+          title: "管理",
+          description: "管理班级名单、题库、AI 标准库和 AI 配置状态。"
+        },
+        classes: {
+          eyebrow: "管理 / 班级名单",
+          title: "班级名单",
+          description: "创建默认班级，导入或更新学生名单。"
+        },
+        problems: {
+          eyebrow: "管理 / 题库",
+          title: "题库",
+          description: "导入题目、维护题面、测试点和教学增强信息。"
+        },
+        aiLibrary: {
+          eyebrow: "管理 / AI 标准库",
+          title: "AI 标准库",
+          description: "维护能力点、易错点和 AI 教学解释标准。"
+        },
+        system: {
+          eyebrow: "管理 / 系统状态",
+          title: "系统状态",
+          description: "检查 AI 服务、模型配置和关键运行状态。"
+        }
+      },
       readiness: {
         aria: "系统状态",
         title: "开课状态",
@@ -371,6 +400,10 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         blocked: "需处理",
         degraded: "可试用",
         unknown: "读取中",
+        canStart: "可以开课",
+        cannotStart: "暂不能正式开课",
+        trialStart: "可试用",
+        issueSummary: " · {{blocking}} 阻断 · {{warnings}} 提醒",
         readyDescription: "关键服务已通过检查。",
         blockedDescription: "{{count}} 个阻断需要处理。",
         degradedDescription: "{{count}} 个提醒，先试用再完善。",
@@ -388,7 +421,8 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         checkWarn: "提醒",
         checkPass: "通过",
         allClear: "全部关键检查已通过。",
-        hiddenMore: "还有 {{count}} 项"
+        hiddenMore: "还有 {{count}} 项",
+        moreCompact: "+{{count}}"
       },
       aiLibrary: {
         tabs: {
@@ -494,7 +528,9 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         problemBank: "Problem Bank",
         problemBankDescription: "Problem list and editor",
         aiLibrary: "AI Library",
-        aiLibraryDescription: "Approved library and governance"
+        aiLibraryDescription: "Approved library and governance",
+        system: "System Status",
+        systemDescription: "AI checks and runtime state"
       }
     },
     classOverview: {
@@ -801,6 +837,33 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       }
     },
     teacherManagement: {
+      sections: {
+        home: {
+          eyebrow: "Teacher",
+          title: "Management",
+          description: "Manage rosters, problems, the AI library, and AI configuration status."
+        },
+        classes: {
+          eyebrow: "Management / Class Roster",
+          title: "Class Roster",
+          description: "Create default classes, and import or update student rosters."
+        },
+        problems: {
+          eyebrow: "Management / Problem Bank",
+          title: "Problem Bank",
+          description: "Import problems, and maintain statements, test cases, and teaching enrichments."
+        },
+        aiLibrary: {
+          eyebrow: "Management / AI Library",
+          title: "AI Library",
+          description: "Maintain skills, mistake points, and AI teaching explanation standards."
+        },
+        system: {
+          eyebrow: "Management / System Status",
+          title: "System Status",
+          description: "Check AI service, model configuration, and key runtime status."
+        }
+      },
       readiness: {
         aria: "System status",
         title: "Class readiness",
@@ -810,6 +873,10 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         blocked: "Needs action",
         degraded: "Trial ready",
         unknown: "Loading",
+        canStart: "Ready to start",
+        cannotStart: "Not ready for class",
+        trialStart: "Trial ready",
+        issueSummary: " · {{blocking}} blockers · {{warnings}} warnings",
         readyDescription: "Key services passed the checks.",
         blockedDescription: "{{count}} blocker(s) need attention.",
         degradedDescription: "{{count}} warning(s); safe to trial before polishing.",
@@ -827,7 +894,8 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         checkWarn: "Warning",
         checkPass: "Pass",
         allClear: "All key checks passed.",
-        hiddenMore: "{{count}} more"
+        hiddenMore: "{{count}} more",
+        moreCompact: "+{{count}}"
       },
       aiLibrary: {
         tabs: {

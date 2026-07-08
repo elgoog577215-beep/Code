@@ -1069,27 +1069,50 @@ const scenarios = [
     afterChecks: async (page, viewport) => {
       const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
       const managementText = ((await page.locator(".teacher-manage-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher management belongs to management nav", activeNav.join("|").includes("题库管理"), activeNav.join("|"));
+      record("teacher management redirects to class roster", page.url().includes("/app/teacher/manage/classes"), page.url());
+      record("teacher management belongs to roster nav", activeNav.join("|").includes("班级名单"), activeNav.join("|"));
       record("teacher management does not also mark analytics", !activeNav.join("|").includes("教学分析"), activeNav.join("|"));
-      record("teacher management shows routed management entries", managementText.includes("班级与名单") && managementText.includes("题库") && managementText.includes("AI标准库"), managementText.slice(0, 900));
-      record("teacher management exposes status controls", managementText.includes("检测AI") && managementText.includes("1个班级") && managementText.includes("2个题目"), managementText.slice(0, 900));
+      record("teacher management shows class roster only", managementText.includes("班级名单") && managementText.includes("名单维护") && managementText.includes("创建班级") && managementText.includes("导入名单"), managementText.slice(0, 900));
+      record("teacher management hides unrelated modules", !managementText.includes("AI标准库") && !managementText.includes("检测AI") && !managementText.includes("开课状态") && !managementText.includes("导入题目"), managementText.slice(0, 900));
       if (viewport.name === "desktop") {
-        await checkVisible(page, ".management-home-entry:nth-child(3)", "teacher management desktop third entry");
+        await checkVisible(page, ".management-object-main", "teacher management desktop roster workspace");
       }
       if (viewport.name === "tablet") {
-        await checkVisible(page, ".management-home-entry:nth-child(3)", "teacher management tablet third entry");
+        await checkVisible(page, ".management-object-main", "teacher management tablet roster workspace");
       }
       if (viewport.name === "mobile") {
-        await checkStacked(page, ".management-home-entry:nth-child(1)", ".management-home-entry:nth-child(2)", "teacher management mobile class before problems");
-        await checkStacked(page, ".management-home-entry:nth-child(2)", ".management-home-entry:nth-child(3)", "teacher management mobile problems before library");
-        await checkMinControlHeight(page, ".management-home-entry", 44, "teacher management mobile entries");
+        await checkStacked(page, ".management-object-list", ".management-object-main", "teacher management mobile roster before editor");
+        await checkMinControlHeight(page, ".management-object-row", 44, "teacher management mobile class rows");
       }
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],
-      [".management-console", "management console"],
-      [".management-home-grid", "management home grid"],
-      [".management-home-entry", "management home entry"]
+      [".teacher-manage-page", "teacher manage page"],
+      [".management-object-workbench--classes", "class roster workbench"],
+      [".management-object-list", "class roster list"],
+      [".management-object-main", "class roster import panel"]
+    ]
+  },
+  {
+    name: "teacher-management-system",
+    path: "/app/teacher/manage/system",
+    afterChecks: async (page, viewport) => {
+      const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
+      const systemText = ((await page.locator(".teacher-manage-page").first().textContent()) || "").replace(/\s+/g, "");
+      record("teacher system belongs to system nav", activeNav.join("|").includes("系统状态"), activeNav.join("|"));
+      record("teacher system does not also mark roster", !activeNav.join("|").includes("班级名单"), activeNav.join("|"));
+      record("teacher system shows readiness only", systemText.includes("系统状态") && systemText.includes("开课状态") && systemText.includes("检测AI"), systemText.slice(0, 900));
+      record("teacher system hides management workbenches", !systemText.includes("创建班级") && !systemText.includes("导入名单") && !systemText.includes("导入题目") && !systemText.includes("AI标准库知识树"), systemText.slice(0, 900));
+      if (viewport.name === "mobile") {
+        await checkMinControlHeight(page, ".management-readiness__actions .ui-button", 36, "teacher system mobile readiness actions");
+      }
+    },
+    selectors: [
+      [".teacher-shell-nav", "teacher shell nav"],
+      [".teacher-manage-page", "teacher manage page"],
+      [".management-readiness", "system readiness panel"],
+      [".management-readiness__head", "system readiness head"],
+      [".management-readiness__actions", "system readiness actions"]
     ]
   },
   {

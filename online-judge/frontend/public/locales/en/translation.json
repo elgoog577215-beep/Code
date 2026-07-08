@@ -46,7 +46,9 @@
       "problemBank": "Problem Bank",
       "problemBankDescription": "Problem list and editor",
       "aiLibrary": "AI Library",
-      "aiLibraryDescription": "Approved library and governance"
+      "aiLibraryDescription": "Approved library and governance",
+      "system": "System Status",
+      "systemDescription": "AI checks and runtime state"
     }
   },
   "teacherAnalytics": {
@@ -315,6 +317,66 @@
     }
   },
   "teacherManagement": {
+    "sections": {
+      "home": {
+        "eyebrow": "Teacher",
+        "title": "Management",
+        "description": "Manage rosters, problems, the AI library, and AI configuration status."
+      },
+      "classes": {
+        "eyebrow": "Management / Class Roster",
+        "title": "Class Roster",
+        "description": "Create default classes, and import or update student rosters."
+      },
+      "problems": {
+        "eyebrow": "Management / Problem Bank",
+        "title": "Problem Bank",
+        "description": "Import problems, and maintain statements, test cases, and teaching enrichments."
+      },
+      "aiLibrary": {
+        "eyebrow": "Management / AI Library",
+        "title": "AI Library",
+        "description": "Maintain skills, mistake points, and AI teaching explanation standards."
+      },
+      "system": {
+        "eyebrow": "Management / System Status",
+        "title": "System Status",
+        "description": "Check AI service, model configuration, and key runtime status."
+      }
+    },
+    "readiness": {
+      "aria": "System status",
+      "title": "Class readiness",
+      "aiScan": "AI configuration scan",
+      "scanDescription": "Check model, key, and invocation health.",
+      "ready": "Ready",
+      "blocked": "Needs action",
+      "degraded": "Trial ready",
+      "unknown": "Loading",
+      "canStart": "Ready to start",
+      "cannotStart": "Not ready for class",
+      "trialStart": "Trial ready",
+      "issueSummary": " · {{blocking}} blockers · {{warnings}} warnings",
+      "readyDescription": "Key services passed the checks.",
+      "blockedDescription": "{{count}} blocker(s) need attention.",
+      "degradedDescription": "{{count}} warning(s); safe to trial before polishing.",
+      "loadingDescription": "Loading system status.",
+      "classes": "Classes",
+      "problems": "Problems",
+      "library": "Library",
+      "statsAria": "Management data",
+      "refresh": "Refresh",
+      "runAi": "Check AI",
+      "running": "Checking",
+      "detailSummary": "{{blocking}} blockers · {{warnings}} warnings",
+      "checkDetails": "Check details",
+      "checkFail": "Fail",
+      "checkWarn": "Warning",
+      "checkPass": "Pass",
+      "allClear": "All key checks passed.",
+      "hiddenMore": "{{count}} more",
+      "moreCompact": "+{{count}}"
+    },
     "aiLibrary": {
       "tabs": {
         "library": "Library",

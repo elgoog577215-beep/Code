@@ -46,7 +46,9 @@
       "problemBank": "题库管理",
       "problemBankDescription": "题目列表与编辑工作台",
       "aiLibrary": "AI 标准库",
-      "aiLibraryDescription": "正式库与候选治理"
+      "aiLibraryDescription": "正式库与候选治理",
+      "system": "系统状态",
+      "systemDescription": "AI 检测与运行状态"
     }
   },
   "teacherAnalytics": {
@@ -315,6 +317,66 @@
     }
   },
   "teacherManagement": {
+    "sections": {
+      "home": {
+        "eyebrow": "教师端",
+        "title": "管理",
+        "description": "管理班级名单、题库、AI 标准库和 AI 配置状态。"
+      },
+      "classes": {
+        "eyebrow": "管理 / 班级名单",
+        "title": "班级名单",
+        "description": "创建默认班级，导入或更新学生名单。"
+      },
+      "problems": {
+        "eyebrow": "管理 / 题库",
+        "title": "题库",
+        "description": "导入题目、维护题面、测试点和教学增强信息。"
+      },
+      "aiLibrary": {
+        "eyebrow": "管理 / AI 标准库",
+        "title": "AI 标准库",
+        "description": "维护能力点、易错点和 AI 教学解释标准。"
+      },
+      "system": {
+        "eyebrow": "管理 / 系统状态",
+        "title": "系统状态",
+        "description": "检查 AI 服务、模型配置和关键运行状态。"
+      }
+    },
+    "readiness": {
+      "aria": "系统状态",
+      "title": "开课状态",
+      "aiScan": "AI 配置扫描",
+      "scanDescription": "检查模型、密钥和调用链是否可用。",
+      "ready": "可开课",
+      "blocked": "需处理",
+      "degraded": "可试用",
+      "unknown": "读取中",
+      "canStart": "可以开课",
+      "cannotStart": "暂不能正式开课",
+      "trialStart": "可试用",
+      "issueSummary": " · {{blocking}} 阻断 · {{warnings}} 提醒",
+      "readyDescription": "关键服务已通过检查。",
+      "blockedDescription": "{{count}} 个阻断需要处理。",
+      "degradedDescription": "{{count}} 个提醒，先试用再完善。",
+      "loadingDescription": "正在读取系统状态。",
+      "classes": "班级",
+      "problems": "题目",
+      "library": "标准库",
+      "statsAria": "管理数据",
+      "refresh": "刷新",
+      "runAi": "检测 AI",
+      "running": "检测中",
+      "detailSummary": "{{blocking}} 个阻断 · {{warnings}} 个提醒",
+      "checkDetails": "检查详情",
+      "checkFail": "失败",
+      "checkWarn": "提醒",
+      "checkPass": "通过",
+      "allClear": "全部关键检查已通过。",
+      "hiddenMore": "还有 {{count}} 项",
+      "moreCompact": "+{{count}}"
+    },
     "aiLibrary": {
       "tabs": {
         "library": "正式库",

@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { BarChart3, BrainCircuit, Database, UsersRound } from "lucide-react";
+import { BarChart3, BrainCircuit, Database, Power, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "../../shared/i18n";
 import "./TeacherHomeRefresh.css";
@@ -41,7 +41,6 @@ export function TeacherShell({ children }: { children: ReactNode }) {
       description: t("teacherShell.nav.problemBankDescription"),
       icon: Database,
       activeWhen: current =>
-        current === "/app/teacher/manage" ||
         current.startsWith("/app/teacher/manage/problems") ||
         current.startsWith("/app/task-editor")
     },
@@ -51,6 +50,13 @@ export function TeacherShell({ children }: { children: ReactNode }) {
       description: t("teacherShell.nav.aiLibraryDescription"),
       icon: BrainCircuit,
       activeWhen: current => current.startsWith("/app/teacher/manage/ai-library")
+    },
+    {
+      to: "/app/teacher/manage/system",
+      label: t("teacherShell.nav.system"),
+      description: t("teacherShell.nav.systemDescription"),
+      icon: Power,
+      activeWhen: current => current.startsWith("/app/teacher/manage/system")
     }
   ];
 

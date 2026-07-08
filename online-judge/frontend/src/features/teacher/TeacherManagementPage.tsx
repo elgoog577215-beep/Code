@@ -19,7 +19,7 @@ import type {
 } from "../../shared/api/types";
 import { displayText } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
-import { Button, ButtonLink } from "../../shared/ui/Button";
+import { Button } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea, TextInput } from "../../shared/ui/Field";
 import { StatusPill } from "../../shared/ui/StatusPill";
@@ -74,52 +74,53 @@ const DEFAULT_LIBRARY_FILTERS: LibraryFilters = { query: "", layer: "", category
 type TeacherManagementToolsProps = {
   section?: ManagementSection;
 };
-type ManagementSection = "home" | "classes" | "problems" | "ai-library";
+type ManagementSection = "home" | "classes" | "problems" | "ai-library" | "system";
 
 const MANAGEMENT_SECTION_META = {
   home: {
-    eyebrow: "教师端",
-    title: "管理",
-    description: "管理班级名单、题库、AI 标准库和 AI 配置状态。"
+    eyebrow: "teacherManagement.sections.home.eyebrow",
+    title: "teacherManagement.sections.home.title",
+    description: "teacherManagement.sections.home.description"
   },
   classes: {
-    eyebrow: "管理 / 班级名单",
-    title: "班级名单",
-    description: "创建默认班级，导入或更新学生名单。"
+    eyebrow: "teacherManagement.sections.classes.eyebrow",
+    title: "teacherManagement.sections.classes.title",
+    description: "teacherManagement.sections.classes.description"
   },
   problems: {
-    eyebrow: "管理 / 题库",
-    title: "题库",
-    description: "导入题目、维护题面、测试点和教学增强信息。"
+    eyebrow: "teacherManagement.sections.problems.eyebrow",
+    title: "teacherManagement.sections.problems.title",
+    description: "teacherManagement.sections.problems.description"
   },
   "ai-library": {
-    eyebrow: "管理 / AI 标准库",
-    title: "AI 标准库",
-    description: "维护能力点、易错点和 AI 教学解释标准。"
+    eyebrow: "teacherManagement.sections.aiLibrary.eyebrow",
+    title: "teacherManagement.sections.aiLibrary.title",
+    description: "teacherManagement.sections.aiLibrary.description"
+  },
+  system: {
+    eyebrow: "teacherManagement.sections.system.eyebrow",
+    title: "teacherManagement.sections.system.title",
+    description: "teacherManagement.sections.system.description"
   }
 } satisfies Record<ManagementSection, { eyebrow: string; title: string; description: string }>;
 
 export default function TeacherManagementPage({ section = "home" }: { section?: ManagementSection }) {
+  const { t } = useTranslation();
   const meta = MANAGEMENT_SECTION_META[section];
   return (
     <div className="teacher-page teacher-workflow teacher-manage-page">
       <section className="teacher-workflow-header teacher-workflow-header--simple teacher-manage-header">
         <div>
-          {section === "home" ? (
-            <p className="eyebrow">{meta.eyebrow}</p>
+          {section === "home" || section === "classes" ? (
+            <p className="eyebrow">{t(meta.eyebrow)}</p>
           ) : (
-            <Link to="/app/teacher/manage" className="teacher-manage-breadcrumb">
-              <ArrowLeft size={15} /> 管理
+            <Link to="/app/teacher/manage/classes" className="teacher-manage-breadcrumb">
+              <ArrowLeft size={15} /> {t("teacherManagement.sections.classes.title")}
             </Link>
           )}
-          <h1>{meta.title}</h1>
-          <p>{meta.description}</p>
+          <h1>{t(meta.title)}</h1>
+          <p>{t(meta.description)}</p>
         </div>
-        {section === "home" ? null : (
-          <ButtonLink to="/app/teacher/manage" variant="secondary" icon={<ArrowLeft size={16} />}>
-            返回管理
-          </ButtonLink>
-        )}
       </section>
       <TeacherManagementTools section={section} />
     </div>
@@ -139,8 +140,6 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
   const [problemFileName, setProblemFileName] = useState("");
   const [alert, setAlert] = useState<Alert | null>(null);
   const [busy, setBusy] = useState(true);
-  const [dataReady, setDataReady] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [aiSmokeBusy, setAiSmokeBusy] = useState(false);
   const [libraryItems, setLibraryItems] = useState<AiStandardLibraryItem[]>([]);
@@ -154,18 +153,30 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
   const [selectedProblemId, setSelectedProblemId] = useState<number | null>(null);
 
   useEffect(() => {
-    void loadData();
-    void loadReadiness();
-    void loadKnowledgeTree();
-    void loadStandardLibraryGrowth();
-  }, []);
+    if (section === "home" || section === "classes") {
+      void loadClasses();
+    }
+    if (section === "home" || section === "problems") {
+      void loadProblems();
+    }
+    if (section === "system") {
+      void loadReadiness();
+    }
+    if (section === "ai-library") {
+      void loadKnowledgeTree();
+      void loadStandardLibraryGrowth();
+    }
+  }, [section]);
 
   useEffect(() => {
+    if (section !== "ai-library") {
+      return;
+    }
     const handle = window.setTimeout(() => {
       void loadStandardLibrary(libraryFilters);
     }, 220);
     return () => window.clearTimeout(handle);
-  }, [libraryFilters.query, libraryFilters.layer, libraryFilters.category, libraryFilters.enabled]);
+  }, [section, libraryFilters.query, libraryFilters.layer, libraryFilters.category, libraryFilters.enabled]);
 
   const cleanClasses = useMemo(
     () =>
@@ -178,26 +189,31 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
     [classes]
   );
 
-  async function loadData() {
+  async function loadClasses() {
     setBusy(true);
-    setLoadFailed(false);
     try {
-      const [classResult, problemResult] = await Promise.all([
-        api.classes(),
-        api.problemCatalog()
-      ]);
+      const classResult = await api.classes();
       setClasses(classResult);
-      setProblems(problemResult);
       if (!targetClassGroupId && classResult[0]) {
         setTargetClassGroupId(String(classResult[0].id));
       }
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "班级数据读取失败。" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadProblems() {
+    setBusy(true);
+    try {
+      const problemResult = await api.problemCatalog();
+      setProblems(problemResult);
       if (!selectedProblemId && problemResult[0]) {
         setSelectedProblemId(problemResult[0].id);
       }
-      setDataReady(true);
     } catch (error) {
-      setLoadFailed(true);
-      setDataReady(true);
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "题库数据读取失败。" });
     } finally {
       setBusy(false);
     }
@@ -366,7 +382,7 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
       });
       setClassForm({ name: "", grade: "", teacherName: "" });
       setAlert({ type: "success", message: "班级已创建。" });
-      await loadData();
+      await loadClasses();
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "班级创建失败。" });
     } finally {
@@ -408,7 +424,11 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
       }
       setAlert({ type: "success", message: mode === "preview" ? "预览已生成。" : "导入已完成。" });
       if (mode === "commit") {
-        await loadData();
+        if (kind === "class") {
+          await loadClasses();
+        } else {
+          await loadProblems();
+        }
       }
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "导入失败。" });
@@ -433,25 +453,8 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
     }
   }
 
-  const sidebarStatusCard = section === "classes" || section === "problems" ? (
-    <ManagementStatusCard
-      readiness={readiness}
-      busy={aiSmokeBusy}
-      classCount={cleanClasses.length}
-      problemCount={problems.length}
-      libraryCount={libraryItems.length}
-      onRefresh={loadReadiness}
-      onAiSmoke={runAiSmoke}
-    />
-  ) : null;
-
-  const dataStatusPill = loadFailed ? (
-    <StatusPill tone="warning">读取失败</StatusPill>
-  ) : dataReady ? (
-    <StatusPill tone="neutral">{cleanClasses.length} 个班级 · {problems.length} 个题目</StatusPill>
-  ) : (
-    <StatusPill tone="neutral">读取中</StatusPill>
-  );
+  const classStatusPill = <StatusPill tone="neutral">{cleanClasses.length} 个班级</StatusPill>;
+  const problemStatusPill = <StatusPill tone="neutral">{problems.length} 个题目</StatusPill>;
 
   return (
     <div className="teacher-management-embed teacher-management-embed--routed">
@@ -479,14 +482,15 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
                 to="/app/teacher/manage/ai-library"
                 icon={<Database size={18} />}
                 title="AI 标准库"
-                meta={`${libraryItems.length || 0} 条`}
-                description="维护能力点、易错点和 AI 教学解释标准。"
+                meta="正式库"
+                description="维护能力点、易错点和标准库候选。"
               />
-              <ManagementAiEntry
-                readiness={readiness}
-                busy={aiSmokeBusy}
-                onRefresh={loadReadiness}
-                onAiSmoke={runAiSmoke}
+              <ManagementEntry
+                to="/app/teacher/manage/system"
+                icon={<Power size={18} />}
+                title="系统状态"
+                meta="AI 检测"
+                description="检查模型配置和关键运行状态。"
               />
             </section>
           ) : null}
@@ -500,8 +504,7 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
               classFileName={classFileName}
               classImportResult={classImportResult}
               busy={busy}
-              dataSummary={dataStatusPill}
-              statusCard={sidebarStatusCard}
+              dataSummary={classStatusPill}
               onSelectClass={setTargetClassGroupId}
               onClassFormChange={setClassForm}
               onClassImportChange={setClassImport}
@@ -519,16 +522,24 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
               problemFileName={problemFileName}
               problemImportResult={problemImportResult}
               busy={busy}
-              dataSummary={dataStatusPill}
-              statusCard={sidebarStatusCard}
+              dataSummary={problemStatusPill}
               onSelectProblem={setSelectedProblemId}
               onProblemImportChange={setProblemImport}
               onPickFile={readImportFile}
               onRunImport={mode => void runImport("problem", mode)}
               onProblemSaved={problem => {
                 setSelectedProblemId(problem.id);
-                void loadData();
+                void loadProblems();
               }}
+            />
+          ) : null}
+
+          {section === "system" ? (
+            <ReadinessPanel
+              readiness={readiness}
+              busy={aiSmokeBusy}
+              onRefresh={loadReadiness}
+              onAiSmoke={runAiSmoke}
             />
           ) : null}
 
@@ -574,164 +585,6 @@ function ManagementEntry({ to, icon, title, meta, description }: { to: string; i
   );
 }
 
-function ManagementAiEntry({
-  readiness,
-  busy,
-  onRefresh,
-  onAiSmoke
-}: {
-  readiness: Readiness | null;
-  busy: boolean;
-  onRefresh: () => void;
-  onAiSmoke: () => void;
-}) {
-  const { t } = useTranslation();
-  const status = readiness?.status || "UNKNOWN";
-  const tone = status === "READY" ? "success" : status === "BLOCKED" ? "danger" : "warning";
-  const blocking = readiness?.checks.filter(item => item.blocking && item.status !== "PASS").length || 0;
-  return (
-    <article className="management-home-entry management-home-entry--ai">
-      <span className="management-home-entry__icon">
-        <Power size={18} />
-      </span>
-      <span>
-        <strong>{t("teacherManagement.readiness.aiScan")}</strong>
-        <small>
-          {blocking
-            ? t("teacherManagement.readiness.blockedDescription", { count: blocking })
-            : t("teacherManagement.readiness.scanDescription")}
-        </small>
-      </span>
-      <StatusPill tone={tone}>{readinessStatusLabel(status, t)}</StatusPill>
-      <div className="management-home-entry__actions">
-        <Button type="button" variant="secondary" onClick={() => void onRefresh()}>
-          {t("teacherManagement.readiness.refresh")}
-        </Button>
-        <Button type="button" variant="primary" onClick={() => void onAiSmoke()} disabled={busy}>
-          {busy ? t("teacherManagement.readiness.running") : t("teacherManagement.readiness.runAi")}
-        </Button>
-      </div>
-    </article>
-  );
-}
-
-function ManagementStatusCard({
-  readiness,
-  busy,
-  classCount,
-  problemCount,
-  libraryCount,
-  onRefresh,
-  onAiSmoke
-}: {
-  readiness: Readiness | null;
-  busy: boolean;
-  classCount: number;
-  problemCount: number;
-  libraryCount: number;
-  onRefresh: () => void;
-  onAiSmoke: () => void;
-}) {
-  const { t } = useTranslation();
-  const status = readiness?.status || "UNKNOWN";
-  const tone = status === "READY" ? "success" : status === "BLOCKED" ? "danger" : "warning";
-  const blocking = readiness?.checks.filter(item => item.blocking && item.status !== "PASS") || [];
-  const warnings = readiness?.checks.filter(item => item.status !== "PASS" && !(item.blocking && item.status !== "PASS")) || [];
-  const visibleChecks = [...blocking, ...warnings].slice(0, 5);
-  const hiddenCheckCount = Math.max(0, (blocking.length + warnings.length) - visibleChecks.length);
-
-  return (
-    <section className="management-status-card" aria-label={t("teacherManagement.readiness.aria")}>
-      <div className="management-status-card__head">
-        <span className="management-status-card__icon">
-          <Power size={16} />
-        </span>
-        <div>
-          <strong>{t("teacherManagement.readiness.title")}</strong>
-          <small>{readinessStatusDescription(status, blocking.length, warnings.length, t)}</small>
-        </div>
-        <StatusPill tone={tone}>{readinessStatusLabel(status, t)}</StatusPill>
-      </div>
-      <div className="management-status-card__stats" aria-label={t("teacherManagement.readiness.statsAria")}>
-        <span>
-          <strong>{classCount}</strong>
-          <small>{t("teacherManagement.readiness.classes")}</small>
-        </span>
-        <span>
-          <strong>{problemCount}</strong>
-          <small>{t("teacherManagement.readiness.problems")}</small>
-        </span>
-        <span>
-          <strong>{libraryCount}</strong>
-          <small>{t("teacherManagement.readiness.library")}</small>
-        </span>
-      </div>
-      <div className="management-status-card__actions">
-        <Button type="button" variant="secondary" icon={<RefreshCw size={15} />} onClick={() => void onRefresh()}>
-          {t("teacherManagement.readiness.refresh")}
-        </Button>
-        <Button type="button" variant="primary" icon={<Power size={15} />} onClick={() => void onAiSmoke()} disabled={busy}>
-          {busy ? t("teacherManagement.readiness.running") : t("teacherManagement.readiness.runAi")}
-        </Button>
-      </div>
-      {readiness ? (
-        visibleChecks.length ? (
-          <details className="management-status-card__details">
-            <summary>
-              <span>{t("teacherManagement.readiness.detailSummary", { blocking: blocking.length, warnings: warnings.length })}</span>
-              <small>{t("teacherManagement.readiness.checkDetails")}</small>
-            </summary>
-            <div>
-              {visibleChecks.map(item => (
-                <article key={item.id} title={[item.message, item.action].filter(Boolean).join(" ")}>
-                  <StatusPill tone={item.status === "FAIL" ? "danger" : item.status === "WARN" ? "warning" : "neutral"}>
-                    {readinessCheckStatusLabel(item.status, t)}
-                  </StatusPill>
-                  <span>{item.label}</span>
-                </article>
-              ))}
-              {hiddenCheckCount ? <small>{t("teacherManagement.readiness.hiddenMore", { count: hiddenCheckCount })}</small> : null}
-            </div>
-          </details>
-        ) : (
-          <p className="management-status-card__ok">{t("teacherManagement.readiness.allClear")}</p>
-        )
-      ) : (
-        <p className="management-status-card__ok">{t("teacherManagement.readiness.loadingDescription")}</p>
-      )}
-    </section>
-  );
-}
-
-function readinessStatusLabel(status: string, t: (key: string, params?: Record<string, string | number>) => string) {
-  const key = status.toUpperCase();
-  if (key === "READY") return t("teacherManagement.readiness.ready");
-  if (key === "BLOCKED") return t("teacherManagement.readiness.blocked");
-  if (key === "DEGRADED") return t("teacherManagement.readiness.degraded");
-  return t("teacherManagement.readiness.unknown");
-}
-
-function readinessStatusDescription(
-  status: string,
-  blockingCount: number,
-  warningCount: number,
-  t: (key: string, params?: Record<string, string | number>) => string
-) {
-  const key = status.toUpperCase();
-  if (key === "READY") return t("teacherManagement.readiness.readyDescription");
-  if (key === "BLOCKED") return t("teacherManagement.readiness.blockedDescription", { count: blockingCount });
-  if (key === "DEGRADED") return t("teacherManagement.readiness.degradedDescription", { count: warningCount });
-  return t("teacherManagement.readiness.loadingDescription");
-}
-
-function readinessCheckStatusLabel(status: string, t: (key: string, params?: Record<string, string | number>) => string) {
-  const key = status.toUpperCase();
-  if (key === "FAIL") return t("teacherManagement.readiness.checkFail");
-  if (key === "WARN") return t("teacherManagement.readiness.checkWarn");
-  if (key === "PASS") return t("teacherManagement.readiness.checkPass");
-  return status;
-}
-
 function ClassManageSection({
   classes,
   selectedClassGroupId,
@@ -741,7 +594,6 @@ function ClassManageSection({
   classImportResult,
   busy,
   dataSummary,
-  statusCard,
   onSelectClass,
   onClassFormChange,
   onClassImportChange,
@@ -757,7 +609,6 @@ function ClassManageSection({
   classImportResult: ImportPreview | ImportCommit | null;
   busy: boolean;
   dataSummary?: ReactNode;
-  statusCard?: ReactNode;
   onSelectClass: (id: string) => void;
   onClassFormChange: (form: { name: string; grade: string; teacherName: string }) => void;
   onClassImportChange: (value: { format: string; content: string }) => void;
@@ -774,7 +625,6 @@ function ClassManageSection({
           <strong>班级</strong>
           {dataSummary || <StatusPill tone="neutral">{classes.length} 个</StatusPill>}
         </div>
-        {statusCard}
         {classes.length ? (
           classes.map(item => (
             <button
@@ -868,7 +718,6 @@ function ProblemManageSection({
   problemImportResult,
   busy,
   dataSummary,
-  statusCard,
   onSelectProblem,
   onProblemImportChange,
   onPickFile,
@@ -882,7 +731,6 @@ function ProblemManageSection({
   problemImportResult: ImportPreview | ImportCommit | null;
   busy: boolean;
   dataSummary?: ReactNode;
-  statusCard?: ReactNode;
   onSelectProblem: (id: number | null) => void;
   onProblemImportChange: (value: { format: string; content: string }) => void;
   onPickFile: (kind: ImportKind, file: File | null) => void | Promise<void>;
@@ -898,7 +746,6 @@ function ProblemManageSection({
           <strong>题目</strong>
           {dataSummary || <StatusPill tone="neutral">{problems.length} 个</StatusPill>}
         </div>
-        {statusCard}
         {problems.length ? (
           problems.map(item => (
             <button
@@ -973,30 +820,37 @@ function ReadinessPanel({
   onRefresh: () => void;
   onAiSmoke: () => void;
 }) {
+  const { t } = useTranslation();
   const status = readiness?.status || "UNKNOWN";
   const tone = status === "READY" ? "success" : status === "BLOCKED" ? "danger" : "warning";
   const blocking = readiness?.checks.filter(item => item.blocking && item.status !== "PASS") || [];
   const warnings = readiness?.checks.filter(item => item.status !== "PASS" && !(item.blocking && item.status !== "PASS")) || [];
   const visibleChecks = [...blocking, ...warnings].slice(0, 6);
   const compactChecks = visibleChecks.slice(0, 3);
+  const statusDescription =
+    status === "READY"
+      ? t("teacherManagement.readiness.canStart")
+      : status === "BLOCKED"
+        ? t("teacherManagement.readiness.cannotStart")
+        : t("teacherManagement.readiness.trialStart");
   return (
     <section className="management-readiness">
       <div className="management-readiness__head">
         <div>
-          <h2>开课状态</h2>
+          <h2>{t("teacherManagement.readiness.title")}</h2>
           <p>
-            {status === "READY" ? "可以开课" : status === "BLOCKED" ? "暂不能正式开课" : "可试用"}
-            {readiness ? ` · ${blocking.length} 阻断 · ${warnings.length} 提醒` : ""}
+            {statusDescription}
+            {readiness ? t("teacherManagement.readiness.issueSummary", { blocking: blocking.length, warnings: warnings.length }) : ""}
           </p>
         </div>
-        <StatusPill tone={tone}>{status}</StatusPill>
+        <StatusPill tone={tone}>{readinessStatusText(status, t)}</StatusPill>
         {summary ? <span className="management-readiness__summary">{summary}</span> : null}
         <div className="management-readiness__actions">
           <Button type="button" variant="secondary" onClick={() => void onRefresh()}>
-            刷新
+            {t("teacherManagement.readiness.refresh")}
           </Button>
           <Button type="button" variant="primary" onClick={() => void onAiSmoke()} disabled={busy}>
-            {busy ? "检测中" : "检测 AI"}
+            {busy ? t("teacherManagement.readiness.running") : t("teacherManagement.readiness.runAi")}
           </Button>
         </div>
       </div>
@@ -1006,19 +860,23 @@ function ReadinessPanel({
             <div className="management-readiness__chips">
               {compactChecks.map(item => (
                 <span key={item.id} title={`${item.message} ${item.action}`}>
-                  <StatusPill tone={item.status === "FAIL" ? "danger" : item.status === "WARN" ? "warning" : "neutral"}>{item.status}</StatusPill>
+                  <StatusPill tone={item.status === "FAIL" ? "danger" : item.status === "WARN" ? "warning" : "neutral"}>
+                    {readinessCheckStatusText(item.status, t)}
+                  </StatusPill>
                   {item.label}
                 </span>
               ))}
-              {visibleChecks.length > compactChecks.length ? <small>+{visibleChecks.length - compactChecks.length}</small> : null}
+              {visibleChecks.length > compactChecks.length ? <small>{t("teacherManagement.readiness.moreCompact", { count: visibleChecks.length - compactChecks.length })}</small> : null}
             </div>
             <details className="management-readiness__details">
-              <summary>查看检查详情</summary>
+              <summary>{t("teacherManagement.readiness.checkDetails")}</summary>
               <div className="management-readiness__checks">
                 {visibleChecks.map(item => (
                   <article key={item.id} title={`${item.message} ${item.action}`}>
                     <strong>{item.label}</strong>
-                    <StatusPill tone={item.status === "FAIL" ? "danger" : item.status === "WARN" ? "warning" : "neutral"}>{item.status}</StatusPill>
+                    <StatusPill tone={item.status === "FAIL" ? "danger" : item.status === "WARN" ? "warning" : "neutral"}>
+                      {readinessCheckStatusText(item.status, t)}
+                    </StatusPill>
                     <p>{item.message}</p>
                   </article>
                 ))}
@@ -1026,13 +884,29 @@ function ReadinessPanel({
             </details>
           </>
         ) : (
-          <p className="management-readiness__ok">全部关键检查已通过。</p>
+          <p className="management-readiness__ok">{t("teacherManagement.readiness.allClear")}</p>
         )
       ) : (
-        <p className="management-readiness__ok">正在读取系统状态。</p>
+        <p className="management-readiness__ok">{t("teacherManagement.readiness.loadingDescription")}</p>
       )}
     </section>
   );
+}
+
+function readinessStatusText(status: string, t: (key: string, params?: Record<string, string | number>) => string) {
+  const key = status.toUpperCase();
+  if (key === "READY") return t("teacherManagement.readiness.ready");
+  if (key === "BLOCKED") return t("teacherManagement.readiness.blocked");
+  if (key === "DEGRADED") return t("teacherManagement.readiness.degraded");
+  return t("teacherManagement.readiness.unknown");
+}
+
+function readinessCheckStatusText(status: string, t: (key: string, params?: Record<string, string | number>) => string) {
+  const key = status.toUpperCase();
+  if (key === "FAIL") return t("teacherManagement.readiness.checkFail");
+  if (key === "WARN") return t("teacherManagement.readiness.checkWarn");
+  if (key === "PASS") return t("teacherManagement.readiness.checkPass");
+  return status;
 }
 
 type LibraryCodeGroup = {
