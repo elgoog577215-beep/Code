@@ -2,6 +2,14 @@ package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
+import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardImprovementPoint;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardMistakePoint;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardSkillUnit;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.domain.StudentAiFeedback;
@@ -23,8 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,6 +57,10 @@ public class StudentAiFeedbackService {
     private final StudentAiFeedbackRepository studentAiFeedbackRepository;
     private final StudentAiFeedbackEventRepository studentAiFeedbackEventRepository;
     private final SubmissionAnalysisService submissionAnalysisService;
+    private final AiStandardSkillUnitRepository skillUnitRepository;
+    private final AiStandardMistakePointRepository mistakePointRepository;
+    private final AiStandardImprovementPointRepository improvementPointRepository;
+    private final InformaticsKnowledgeNodeRepository knowledgeRepository;
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
@@ -213,6 +227,7 @@ public class StudentAiFeedbackService {
                     .kind("REPAIR")
                     .skillUnitId(cleanId(advice.getSkillUnitId()))
                     .mistakePointId(cleanId(advice.getMistakePointId()))
+                    .knowledgePath(knowledgePathForRepair(advice.getSkillUnitId(), advice.getMistakePointId()))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
@@ -234,6 +249,7 @@ public class StudentAiFeedbackService {
                     .kind("REPAIR")
                     .skillUnitId(cleanId(issue.getIssueTag()))
                     .mistakePointId(cleanId(issue.getFineGrainedTag()))
+                    .knowledgePath(knowledgePathFallback(issue.getIssueTag(), issue.getFineGrainedTag()))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
@@ -257,6 +273,7 @@ public class StudentAiFeedbackService {
                     .kind("IMPROVEMENT")
                     .skillUnitId(cleanId(advice.getSkillUnitId()))
                     .improvementPointId(cleanId(advice.getImprovementPointId()))
+                    .knowledgePath(knowledgePathForImprovement(advice.getSkillUnitId(), advice.getImprovementPointId()))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("transfer"))
@@ -277,6 +294,7 @@ public class StudentAiFeedbackService {
                     .body(body)
                     .kind("IMPROVEMENT")
                     .improvementPointId(cleanId(item.getCategory()))
+                    .knowledgePath(knowledgePathFallback(item.getCategory()))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("transfer"))
@@ -339,6 +357,131 @@ public class StudentAiFeedbackService {
             refs.addAll(safe(item.getEvidenceRefs()));
         }
         return refs.stream().filter(value -> value != null && !value.isBlank()).toList();
+    }
+
+    private List<String> knowledgePathForRepair(String skillUnitId, String mistakePointId) {
+        String skillCode = clean(skillUnitId);
+        String mistakeCode = clean(mistakePointId);
+        LinkedHashSet<String> path = new LinkedHashSet<>();
+        Optional<AiStandardMistakePoint> mistake = findMistake(mistakeCode);
+        if (mistake.isPresent()) {
+            AiStandardMistakePoint item = mistake.get();
+            addKnowledgeNodePath(path, item.getPrimaryKnowledgeNodeCode());
+            addSkillName(path, firstNonBlank(skillCode, item.getSkillUnitCode()));
+            addIfNotBlank(path, item.getName());
+            return path.isEmpty() ? knowledgePathFallback(skillCode, mistakeCode) : List.copyOf(path);
+        }
+        Optional<AiStandardSkillUnit> skill = findSkill(skillCode);
+        if (skill.isPresent()) {
+            AiStandardSkillUnit item = skill.get();
+            addKnowledgeNodePath(path, item.getPrimaryKnowledgeNodeCode());
+            addIfNotBlank(path, item.getName());
+            return path.isEmpty() ? knowledgePathFallback(skillCode, mistakeCode) : List.copyOf(path);
+        }
+        return knowledgePathFallback(skillCode, mistakeCode);
+    }
+
+    private List<String> knowledgePathForImprovement(String skillUnitId, String improvementPointId) {
+        String skillCode = clean(skillUnitId);
+        String improvementCode = clean(improvementPointId);
+        LinkedHashSet<String> path = new LinkedHashSet<>();
+        Optional<AiStandardImprovementPoint> improvement = findImprovement(improvementCode);
+        if (improvement.isPresent()) {
+            AiStandardImprovementPoint item = improvement.get();
+            addKnowledgeNodePath(path, item.getPrimaryKnowledgeNodeCode());
+            addSkillName(path, firstNonBlank(skillCode, item.getSkillUnitCode()));
+            addIfNotBlank(path, item.getName());
+            return path.isEmpty() ? knowledgePathFallback(skillCode, improvementCode) : List.copyOf(path);
+        }
+        Optional<AiStandardSkillUnit> skill = findSkill(skillCode);
+        if (skill.isPresent()) {
+            AiStandardSkillUnit item = skill.get();
+            addKnowledgeNodePath(path, item.getPrimaryKnowledgeNodeCode());
+            addIfNotBlank(path, item.getName());
+            return path.isEmpty() ? knowledgePathFallback(skillCode, improvementCode) : List.copyOf(path);
+        }
+        return knowledgePathFallback(skillCode, improvementCode);
+    }
+
+    private void addSkillName(LinkedHashSet<String> path, String skillCode) {
+        findSkill(skillCode).ifPresent(skill -> addIfNotBlank(path, skill.getName()));
+    }
+
+    private void addKnowledgeNodePath(LinkedHashSet<String> path, String knowledgeNodeCode) {
+        String code = clean(knowledgeNodeCode);
+        if (code.isBlank()) {
+            return;
+        }
+        Optional<InformaticsKnowledgeNode> node = findKnowledgeNode(code);
+        if (node.isPresent()) {
+            for (String segment : splitKnowledgePath(firstNonBlank(node.get().getPath(), node.get().getName()))) {
+                addIfNotBlank(path, segment);
+            }
+            return;
+        }
+        addIfNotBlank(path, code);
+    }
+
+    private List<String> splitKnowledgePath(String path) {
+        String cleaned = clean(path);
+        if (cleaned.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(cleaned.split("\\s*(?:/|>|›|→)\\s*"))
+                .map(this::clean)
+                .filter(value -> !value.isBlank())
+                .toList();
+    }
+
+    private List<String> knowledgePathFallback(String... values) {
+        LinkedHashSet<String> path = new LinkedHashSet<>();
+        for (String value : values) {
+            addIfNotBlank(path, value);
+        }
+        return List.copyOf(path);
+    }
+
+    private void addIfNotBlank(LinkedHashSet<String> target, String value) {
+        String cleaned = clean(value);
+        if (!cleaned.isBlank()) {
+            target.add(cleaned);
+        }
+    }
+
+    private Optional<AiStandardSkillUnit> findSkill(String code) {
+        String cleaned = clean(code);
+        if (cleaned.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<AiStandardSkillUnit> result = skillUnitRepository.findByCode(cleaned);
+        return result == null ? Optional.empty() : result;
+    }
+
+    private Optional<AiStandardMistakePoint> findMistake(String code) {
+        String cleaned = clean(code);
+        if (cleaned.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<AiStandardMistakePoint> result = mistakePointRepository.findByCode(cleaned);
+        return result == null ? Optional.empty() : result;
+    }
+
+    private Optional<AiStandardImprovementPoint> findImprovement(String code) {
+        String cleaned = clean(code);
+        if (cleaned.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<AiStandardImprovementPoint> result = improvementPointRepository.findByCode(cleaned);
+        return result == null ? Optional.empty() : result;
+    }
+
+    private Optional<InformaticsKnowledgeNode> findKnowledgeNode(String code) {
+        String cleaned = clean(code);
+        if (cleaned.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<InformaticsKnowledgeNode> result = knowledgeRepository.findByCode(cleaned);
+        return result == null ? Optional.empty() : result;
     }
 
     private List<StudentAiFeedbackResponse.EvidenceSnippet> evidenceSnippets(List<String> refs, Submission submission) {

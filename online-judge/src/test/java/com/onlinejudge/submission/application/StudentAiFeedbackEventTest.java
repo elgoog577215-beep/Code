@@ -1,6 +1,15 @@
 package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
+import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardImprovementPoint;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardMistakePoint;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardSkillUnit;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.domain.StudentAiFeedback;
@@ -37,6 +46,10 @@ class StudentAiFeedbackEventTest {
     private final StudentAiFeedbackRepository feedbackRepository = mock(StudentAiFeedbackRepository.class);
     private final StudentAiFeedbackEventRepository eventRepository = mock(StudentAiFeedbackEventRepository.class);
     private final SubmissionAnalysisService submissionAnalysisService = mock(SubmissionAnalysisService.class);
+    private final AiStandardSkillUnitRepository skillUnitRepository = mock(AiStandardSkillUnitRepository.class);
+    private final AiStandardMistakePointRepository mistakePointRepository = mock(AiStandardMistakePointRepository.class);
+    private final AiStandardImprovementPointRepository improvementPointRepository = mock(AiStandardImprovementPointRepository.class);
+    private final InformaticsKnowledgeNodeRepository knowledgeRepository = mock(InformaticsKnowledgeNodeRepository.class);
     private final StudentAiFeedbackService service = new StudentAiFeedbackService(
             submissionRepository,
             problemRepository,
@@ -44,6 +57,10 @@ class StudentAiFeedbackEventTest {
             feedbackRepository,
             eventRepository,
             submissionAnalysisService,
+            skillUnitRepository,
+            mistakePointRepository,
+            improvementPointRepository,
+            knowledgeRepository,
             objectMapper
     );
 
@@ -102,6 +119,7 @@ class StudentAiFeedbackEventTest {
         when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_READY)))
                 .thenReturn(Optional.empty());
+        stubKnowledgePath();
 
         StudentAiFeedbackResponse response = service.generateAndStore(7L);
 
@@ -110,6 +128,10 @@ class StudentAiFeedbackEventTest {
         assertThat(response.getRepairItems()).hasSize(2);
         assertThat(response.getImprovementItems()).hasSize(2);
         assertThat(response.getRepairItems().get(0).getTitle()).contains("输入读取");
+        assertThat(response.getRepairItems().get(0).getKnowledgePath())
+                .containsExactly("信息学基础", "输入输出", "输入格式", "输入读取", "漏读变量");
+        assertThat(response.getImprovementItems().get(0).getKnowledgePath())
+                .containsExactly("信息学基础", "输入输出", "输入格式", "输入读取", "边界样例覆盖");
         assertThat(response.getRepairItems().get(0).getEvidenceSnippets()).singleElement()
                 .satisfies(snippet -> assertThat(snippet.getCode()).contains("a = int(input())"));
         assertThat(response.getStudentReport().getBasicLayerText()).contains("完整链路");
@@ -354,6 +376,8 @@ class StudentAiFeedbackEventTest {
                 .basicLayerAdvice(List.of(
                         SubmissionAnalysisResponse.BasicLayerAdvice.builder()
                                 .title("输入读取只取了一个数")
+                                .skillUnitId("SK_INPUT_READING")
+                                .mistakePointId("MP_INPUT_SECOND_VALUE_MISSING")
                                 .whatHappened("程序只读取了 a，没有读取 b。")
                                 .whyItMatters("题目要求输出两个数的和，少读一个数会让结果偏小。")
                                 .studentAction("手推输入 3 5 时每个变量的值。")
@@ -369,18 +393,60 @@ class StudentAiFeedbackEventTest {
                 .improvementLayerAdvice(List.of(
                         SubmissionAnalysisResponse.ImprovementLayerAdvice.builder()
                                 .title("边界样例覆盖")
+                                .skillUnitId("SK_INPUT_READING")
+                                .improvementPointId("IP_BOUNDARY_CASES")
                                 .suggestion("修完后补测 0、负数和较大数。")
                                 .studentBenefit("避免只适配样例。")
                                 .evidenceRefs(List.of("judge:first_failed_case:1"))
                                 .build(),
                         SubmissionAnalysisResponse.ImprovementLayerAdvice.builder()
                                 .title("输入格式复核")
+                                .skillUnitId("SK_INPUT_READING")
+                                .improvementPointId("IP_INPUT_FORMAT_REVIEW")
                                 .suggestion("先把题面输入格式拆成变量表。")
                                 .studentBenefit("减少漏读变量。")
                                 .evidenceRefs(List.of("code:line:1"))
                                 .build()
                 ))
                 .build();
+    }
+
+    private void stubKnowledgePath() {
+        when(knowledgeRepository.findByCode("BASIC.IO.INPUT_FORMAT"))
+                .thenReturn(Optional.of(InformaticsKnowledgeNode.builder()
+                        .code("BASIC.IO.INPUT_FORMAT")
+                        .type(InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
+                        .name("输入格式")
+                        .path("信息学基础 / 输入输出 / 输入格式")
+                        .enabled(true)
+                        .build()));
+        when(skillUnitRepository.findByCode("SK_INPUT_READING"))
+                .thenReturn(Optional.of(AiStandardSkillUnit.builder()
+                        .code("SK_INPUT_READING")
+                        .name("输入读取")
+                        .primaryKnowledgeNodeCode("BASIC.IO.INPUT_FORMAT")
+                        .build()));
+        when(mistakePointRepository.findByCode("MP_INPUT_SECOND_VALUE_MISSING"))
+                .thenReturn(Optional.of(AiStandardMistakePoint.builder()
+                        .code("MP_INPUT_SECOND_VALUE_MISSING")
+                        .name("漏读变量")
+                        .skillUnitCode("SK_INPUT_READING")
+                        .primaryKnowledgeNodeCode("BASIC.IO.INPUT_FORMAT")
+                        .build()));
+        when(improvementPointRepository.findByCode("IP_BOUNDARY_CASES"))
+                .thenReturn(Optional.of(AiStandardImprovementPoint.builder()
+                        .code("IP_BOUNDARY_CASES")
+                        .name("边界样例覆盖")
+                        .skillUnitCode("SK_INPUT_READING")
+                        .primaryKnowledgeNodeCode("BASIC.IO.INPUT_FORMAT")
+                        .build()));
+        when(improvementPointRepository.findByCode("IP_INPUT_FORMAT_REVIEW"))
+                .thenReturn(Optional.of(AiStandardImprovementPoint.builder()
+                        .code("IP_INPUT_FORMAT_REVIEW")
+                        .name("输入格式复核")
+                        .skillUnitCode("SK_INPUT_READING")
+                        .primaryKnowledgeNodeCode("BASIC.IO.INPUT_FORMAT")
+                        .build()));
     }
 
     private SubmissionAnalysisResponse judgeOnlyCodeNamedAnalysis() {
