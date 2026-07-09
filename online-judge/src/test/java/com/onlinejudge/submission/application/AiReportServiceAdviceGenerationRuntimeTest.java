@@ -288,6 +288,29 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
+    void freeDiagnosisFallsBackToVisibleFailedCaseWhenModelEvidenceRefsAreInvalid() {
+        StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
+                emptyStandardLibraryService(),
+                freeDiagnosisResponseWithInvalidEvidenceRefs(),
+                List.of(),
+                validAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getFailureReason()).isBlank();
+        assertThat(service.userPrompt(1))
+                .contains("\"evidenceRefs\":[\"judge:first_failed_case\"]")
+                .contains("\"anchorStatus\":\"LIBRARY_EMPTY\"");
+    }
+
+    @Test
     void libraryAttachmentCapsIssueNavigationWithoutDroppingAdviceIssues() {
         StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
                 standardLibraryService(),
@@ -1159,6 +1182,26 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "confidence": 0.7
                   }],
                   "uncertainty": ""
+                }
+                """;
+    }
+
+    private String freeDiagnosisResponseWithInvalidEvidenceRefs() {
+        return """
+                {
+                  "problemUnderstanding": "题目要求输出 1 到 n 的整数和。",
+                  "codeIntent": "学生想用循环累加 total。",
+                  "behaviorGap": "公开失败样例显示实际输出和期望输出不同。",
+                  "issues": [{
+                    "issueId": "I1",
+                    "title": "循环右边界漏取",
+                    "whatHappened": "range(1, n) 与闭区间题意不一致。",
+                    "whyItMatters": "端点漏处理会让求和结果偏小。",
+                    "evidenceRefs": ["code:update_boundary", "judge:visible_output_diff"],
+                    "severity": "MAJOR",
+                    "confidence": 0.86
+                  }],
+                  "uncertainty": "公开失败样例支持该方向。"
                 }
                 """;
     }

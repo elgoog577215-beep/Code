@@ -682,6 +682,16 @@ public class AiReportService {
                     true
             );
             if (!invalidEvidence.isBlank()) {
+                evidenceRefs = fallbackFreeDiagnosisEvidenceRefs(raw, validRefs);
+                invalidEvidence = EvidenceRefSupport.invalidEvidenceRefs(
+                        evidenceRefs,
+                        validRefs,
+                        brief,
+                        "freeDiagnosis.issues.evidenceRefs",
+                        true
+                );
+            }
+            if (!invalidEvidence.isBlank()) {
                 continue;
             }
             String title = cleanupAiText(raw.getTitle());
@@ -705,6 +715,14 @@ public class AiReportService {
             index++;
         }
         return validIssues;
+    }
+
+    private List<String> fallbackFreeDiagnosisEvidenceRefs(FreeDiagnosisOutput.Issue raw, Set<String> validRefs) {
+        if (raw == null || raw.getEvidenceRefs() == null || raw.getEvidenceRefs().isEmpty()
+                || validRefs == null || !validRefs.contains("judge:first_failed_case")) {
+            return raw == null || raw.getEvidenceRefs() == null ? List.of() : raw.getEvidenceRefs();
+        }
+        return List.of("judge:first_failed_case");
     }
 
     private List<FreeDiagnosisOutput.Issue> issuesFromHypotheses(FreeDiagnosisOutput output) {
