@@ -215,14 +215,14 @@ public class StudentAiFeedbackObservabilityService {
                            long viewedCount,
                            List<StudentAiFeedbackObservabilityResponse.ImpactStat> impactStats) {
         if (failedSubmissionCount == 0) {
-            return "当前作业暂时没有失败提交，学生 AI 快反馈还没有形成课堂样本。";
+            return "当前作业暂时没有失败提交，学生 AI 反馈还没有形成课堂样本。";
         }
         if (modelReadyCount == 0) {
             return "已有失败提交，但暂时没有可用的模型反馈。";
         }
         long improved = countImpact(impactStats, "IMPROVED_AFTER_AI");
         if (improved > 0) {
-            return "学生 AI 快反馈已有查看和后续改善证据。";
+            return "学生 AI 反馈已有查看和后续改善证据。";
         }
         if (feedbackFailedCount > 0 && modelReadyCount < failedSubmissionCount) {
             return "部分失败提交没有拿到可用模型反馈，需要关注生成稳定性。";
@@ -230,7 +230,7 @@ public class StudentAiFeedbackObservabilityService {
         if (viewedCount == 0) {
             return "模型反馈已生成，但学生查看样本不足。";
         }
-        return "学生 AI 快反馈已生成，正在等待更多后续提交验证效果。";
+        return "学生 AI 反馈已生成，正在等待更多后续提交验证效果。";
     }
 
     private String recommendedAction(long failedSubmissionCount,

@@ -194,15 +194,15 @@ public class StudentAiFeedbackImpactAnalyzer {
                            String afterIssue,
                            String afterFine) {
         return switch (status) {
-            case "IMPROVED_AFTER_AI" -> "学生查看 AI 快反馈后，同题下一次提交已通过，可作为提示有效的观察证据。";
-            case "SHIFTED_AFTER_AI" -> "学生查看 AI 快反馈后，错因从“" + tagLabel(firstNonBlank(beforeFine, beforeIssue))
+            case "IMPROVED_AFTER_AI" -> "学生查看 AI 反馈后，同题下一次提交已通过，可作为提示有效的观察证据。";
+            case "SHIFTED_AFTER_AI" -> "学生查看 AI 反馈后，错因从“" + tagLabel(firstNonBlank(beforeFine, beforeIssue))
                     + "”变化为“" + tagLabel(firstNonBlank(afterFine, afterIssue)) + "”，说明问题可能进入新阶段。";
-            case "SAME_ISSUE_AFTER_AI" -> "学生查看 AI 快反馈后，后续仍命中“" + tagLabel(firstNonBlank(beforeFine, beforeIssue))
+            case "SAME_ISSUE_AFTER_AI" -> "学生查看 AI 反馈后，后续仍命中“" + tagLabel(firstNonBlank(beforeFine, beforeIssue))
                     + "”，建议教师降低任务粒度或要求学生先手推最小样例。";
-            case "REGRESSED_AFTER_AI" -> "学生查看 AI 快反馈后，后续评测阶段回退，需要检查是否误读提示或改动范围过大。";
-            case "VERDICT_CHANGED_AFTER_AI" -> "学生查看 AI 快反馈后，评测阶段发生变化；需要结合新失败点判断是推进还是暴露新问题。";
-            case "NO_CLEAR_CHANGE_AFTER_AI" -> "学生查看 AI 快反馈后已有同题提交，但目前没有明确改善证据。";
-            default -> "学生已经查看 AI 快反馈，但还没有同题后续提交，暂不能判断提示效果。";
+            case "REGRESSED_AFTER_AI" -> "学生查看 AI 反馈后，后续评测阶段回退，需要检查是否误读提示或改动范围过大。";
+            case "VERDICT_CHANGED_AFTER_AI" -> "学生查看 AI 反馈后，评测阶段发生变化；需要结合新失败点判断是推进还是暴露新问题。";
+            case "NO_CLEAR_CHANGE_AFTER_AI" -> "学生查看 AI 反馈后已有同题提交，但目前没有明确改善证据。";
+            default -> "学生已经查看 AI 反馈，但还没有同题后续提交，暂不能判断提示效果。";
         };
     }
 

@@ -8,6 +8,7 @@ import com.onlinejudge.submission.domain.StudentAiFeedback;
 import com.onlinejudge.submission.domain.StudentAiFeedbackEvent;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
+import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackLookupResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
@@ -20,7 +21,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -29,14 +35,15 @@ public class StudentAiFeedbackService {
 
     private static final String SOURCE_MODEL = "MODEL";
     private static final String SOURCE_AI_UNAVAILABLE = "AI_UNAVAILABLE";
+    private static final Pattern CODE_LINE_REF = Pattern.compile("^code:line:(\\d+)$");
+    private static final Pattern CODE_RANGE_REF = Pattern.compile("^code:range:(\\d+)-(\\d+)$");
 
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
     private final SubmissionCaseResultRepository submissionCaseResultRepository;
     private final StudentAiFeedbackRepository studentAiFeedbackRepository;
     private final StudentAiFeedbackEventRepository studentAiFeedbackEventRepository;
-    private final AiReportService aiReportService;
-    private final DiagnosisEvidencePackageBuilder evidencePackageBuilder;
+    private final SubmissionAnalysisService submissionAnalysisService;
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
@@ -123,13 +130,306 @@ public class StudentAiFeedbackService {
         Problem problem = problemRepository.findById(submission.getProblemId())
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + submission.getProblemId()));
         List<SubmissionCaseResult> caseResults = submissionCaseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(submissionId);
-        DiagnosisEvidencePackage evidencePackage = evidencePackageBuilder.build(problem, submission, caseResults, null, null);
-        StudentAiFeedbackResponse feedback = aiReportService.generateStudentAiFeedback(
-                problem,
-                submission,
-                evidencePackage
+        SubmissionAnalysisResponse analysis = submissionAnalysisService.generateAndStoreAnalysis(problem, submission, caseResults);
+        StudentAiFeedbackResponse feedback = toStudentAiFeedback(submission, analysis);
+        return saveFeedback(submission, feedback);
+    }
+
+    private StudentAiFeedbackResponse toStudentAiFeedback(Submission submission, SubmissionAnalysisResponse analysis) {
+        if (analysis == null || modelFailed(analysis)) {
+            return failedFeedback(submission.getId(), "FULL_CHAIN_FAILED");
+        }
+        List<StudentAiFeedbackResponse.FeedbackItem> repairItems = repairItems(submission, analysis);
+        List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = improvementItems(submission, analysis);
+        StudentAiFeedbackResponse.StudentReport report = studentReport(analysis, repairItems, improvementItems);
+        if (!hasStudentReport(report) && repairItems.isEmpty() && improvementItems.isEmpty()) {
+            return failedFeedback(submission.getId(), "FULL_CHAIN_FEEDBACK_EMPTY");
+        }
+        return StudentAiFeedbackResponse.builder()
+                .submissionId(submission.getId())
+                .status("READY")
+                .source(SOURCE_MODEL)
+                .generatedAt(LocalDateTime.now())
+                .repairItems(repairItems)
+                .improvementItems(improvementItems)
+                .studentReport(report)
+                .nextQuestion(nextQuestion(analysis))
+                .safety(StudentAiFeedbackResponse.Safety.builder()
+                        .answerLeakRisk(firstNonBlank(analysis.getAnswerLeakRisk(), nextActionRisk(analysis), "LOW"))
+                        .blockedReasons(List.of())
+                        .build())
+                .evidenceRefs(evidenceRefs(analysis, repairItems, improvementItems))
+                .build();
+    }
+
+    private boolean modelFailed(SubmissionAnalysisResponse analysis) {
+        SubmissionAnalysisResponse.AiInvocation invocation = analysis.getAiInvocation();
+        return invocation != null && "MODEL_FAILED".equalsIgnoreCase(invocation.getStatus());
+    }
+
+    private List<StudentAiFeedbackResponse.FeedbackItem> repairItems(Submission submission, SubmissionAnalysisResponse analysis) {
+        List<StudentAiFeedbackResponse.FeedbackItem> items = new ArrayList<>();
+        for (SubmissionAnalysisResponse.BasicLayerAdvice advice : safe(analysis.getBasicLayerAdvice())) {
+            if (advice == null) {
+                continue;
+            }
+            addItem(items, StudentAiFeedbackResponse.FeedbackItem.builder()
+                    .title(clean(advice.getTitle()))
+                    .body(joinNonBlank(advice.getWhatHappened(), advice.getWhyItMatters(), advice.getStudentAction()))
+                    .kind("REPAIR")
+                    .skillUnitId(cleanId(advice.getSkillUnitId()))
+                    .mistakePointId(cleanId(advice.getMistakePointId()))
+                    .evidenceRefs(safe(advice.getEvidenceRefs()))
+                    .evidenceSnippets(evidenceSnippets(safe(advice.getEvidenceRefs()), submission))
+                    .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
+                    .build());
+        }
+        if (!items.isEmpty() || analysis.getStudentFeedback() == null) {
+            return items;
+        }
+        for (SubmissionAnalysisResponse.FeedbackIssue issue : safe(analysis.getStudentFeedback().getBlockingIssues())) {
+            if (issue == null) {
+                continue;
+            }
+            addItem(items, StudentAiFeedbackResponse.FeedbackItem.builder()
+                    .title(clean(issue.getTitle()))
+                    .body(joinNonBlank(issue.getStudentMessage(), issue.getNextAction()))
+                    .kind("REPAIR")
+                    .skillUnitId(cleanId(issue.getIssueTag()))
+                    .mistakePointId(cleanId(issue.getFineGrainedTag()))
+                    .evidenceRefs(safe(issue.getEvidenceRefs()))
+                    .evidenceSnippets(evidenceSnippets(safe(issue.getEvidenceRefs()), submission))
+                    .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
+                    .build());
+        }
+        return items;
+    }
+
+    private List<StudentAiFeedbackResponse.FeedbackItem> improvementItems(Submission submission, SubmissionAnalysisResponse analysis) {
+        List<StudentAiFeedbackResponse.FeedbackItem> items = new ArrayList<>();
+        for (SubmissionAnalysisResponse.ImprovementLayerAdvice advice : safe(analysis.getImprovementLayerAdvice())) {
+            if (advice == null) {
+                continue;
+            }
+            addItem(items, StudentAiFeedbackResponse.FeedbackItem.builder()
+                    .title(clean(advice.getTitle()))
+                    .body(joinNonBlank(advice.getCurrentLimit(), advice.getSuggestion(), advice.getStudentBenefit()))
+                    .kind("IMPROVEMENT")
+                    .skillUnitId(cleanId(advice.getSkillUnitId()))
+                    .improvementPointId(cleanId(advice.getImprovementPointId()))
+                    .evidenceRefs(safe(advice.getEvidenceRefs()))
+                    .evidenceSnippets(evidenceSnippets(safe(advice.getEvidenceRefs()), submission))
+                    .qualitySignals(List.of("transfer"))
+                    .build());
+        }
+        if (!items.isEmpty() || analysis.getStudentFeedback() == null) {
+            return items;
+        }
+        for (SubmissionAnalysisResponse.ImprovementOpportunity item : safe(analysis.getStudentFeedback().getImprovementOpportunities())) {
+            if (item == null) {
+                continue;
+            }
+            addItem(items, StudentAiFeedbackResponse.FeedbackItem.builder()
+                    .title(clean(item.getTitle()))
+                    .body(joinNonBlank(item.getStudentMessage(), item.getBenefit()))
+                    .kind("IMPROVEMENT")
+                    .improvementPointId(cleanId(item.getCategory()))
+                    .evidenceRefs(safe(item.getEvidenceRefs()))
+                    .evidenceSnippets(evidenceSnippets(safe(item.getEvidenceRefs()), submission))
+                    .qualitySignals(List.of("transfer"))
+                    .build());
+        }
+        return items;
+    }
+
+    private StudentAiFeedbackResponse.StudentReport studentReport(
+            SubmissionAnalysisResponse analysis,
+            List<StudentAiFeedbackResponse.FeedbackItem> repairItems,
+            List<StudentAiFeedbackResponse.FeedbackItem> improvementItems
+    ) {
+        SubmissionAnalysisResponse.StudentFeedback feedback = analysis.getStudentFeedback();
+        String basic = firstNonBlank(
+                feedback == null ? "" : feedback.getSummary(),
+                analysis.getSummary(),
+                repairItems.isEmpty() ? "" : "下面是本次完整诊断给出的修正重点。"
         );
-        return saveFeedback(submission, feedback == null ? failedFeedback(submissionId, "STUDENT_FEEDBACK_EMPTY") : feedback);
+        String improvement = improvementItems.isEmpty() ? "" : "修完基础问题后，再按下面的提升建议做迁移检查。";
+        String nextAction = firstNonBlank(nextActionTask(analysis), nextQuestion(analysis), analysis.getStudentHint());
+        if (basic.isBlank() && improvement.isBlank() && nextAction.isBlank()) {
+            return null;
+        }
+        return StudentAiFeedbackResponse.StudentReport.builder()
+                .basicLayerText(blankToNull(basic))
+                .improvementLayerText(blankToNull(improvement))
+                .nextActionText(blankToNull(nextAction))
+                .build();
+    }
+
+    private String nextQuestion(SubmissionAnalysisResponse analysis) {
+        SubmissionAnalysisResponse.NextLearningAction action = nextAction(analysis);
+        return firstNonBlank(action == null ? "" : action.getCheckQuestion(), action == null ? "" : action.getTask());
+    }
+
+    private String nextActionTask(SubmissionAnalysisResponse analysis) {
+        SubmissionAnalysisResponse.NextLearningAction action = nextAction(analysis);
+        return action == null ? "" : clean(action.getTask());
+    }
+
+    private String nextActionRisk(SubmissionAnalysisResponse analysis) {
+        SubmissionAnalysisResponse.NextLearningAction action = nextAction(analysis);
+        return action == null ? "" : clean(action.getAnswerLeakRisk());
+    }
+
+    private SubmissionAnalysisResponse.NextLearningAction nextAction(SubmissionAnalysisResponse analysis) {
+        SubmissionAnalysisResponse.StudentFeedback feedback = analysis == null ? null : analysis.getStudentFeedback();
+        return feedback == null ? null : feedback.getNextLearningAction();
+    }
+
+    private List<String> evidenceRefs(SubmissionAnalysisResponse analysis,
+                                      List<StudentAiFeedbackResponse.FeedbackItem> repairItems,
+                                      List<StudentAiFeedbackResponse.FeedbackItem> improvementItems) {
+        Set<String> refs = new LinkedHashSet<>(safe(analysis.getEvidenceRefs()));
+        for (StudentAiFeedbackResponse.FeedbackItem item : safe(repairItems)) {
+            refs.addAll(safe(item.getEvidenceRefs()));
+        }
+        for (StudentAiFeedbackResponse.FeedbackItem item : safe(improvementItems)) {
+            refs.addAll(safe(item.getEvidenceRefs()));
+        }
+        return refs.stream().filter(value -> value != null && !value.isBlank()).toList();
+    }
+
+    private List<StudentAiFeedbackResponse.EvidenceSnippet> evidenceSnippets(List<String> refs, Submission submission) {
+        if (submission == null || submission.getSourceCode() == null || refs == null || refs.isEmpty()) {
+            return List.of();
+        }
+        List<StudentAiFeedbackResponse.EvidenceSnippet> snippets = new ArrayList<>();
+        for (String ref : refs) {
+            if (snippets.size() >= 3) {
+                break;
+            }
+            StudentAiFeedbackResponse.EvidenceSnippet snippet = evidenceSnippet(ref, submission.getSourceCode());
+            if (snippet != null) {
+                snippets.add(snippet);
+            }
+        }
+        return snippets;
+    }
+
+    private StudentAiFeedbackResponse.EvidenceSnippet evidenceSnippet(String evidenceRef, String sourceCode) {
+        String ref = clean(evidenceRef);
+        Matcher lineMatcher = CODE_LINE_REF.matcher(ref);
+        if (lineMatcher.find()) {
+            int line = parsePositiveInt(lineMatcher.group(1));
+            String code = sourceLine(sourceCode, line);
+            return code.isBlank() ? null : StudentAiFeedbackResponse.EvidenceSnippet.builder()
+                    .evidenceRef(ref)
+                    .lineNumber(line)
+                    .lineEnd(line)
+                    .code(code)
+                    .build();
+        }
+        Matcher rangeMatcher = CODE_RANGE_REF.matcher(ref);
+        if (rangeMatcher.find()) {
+            int start = parsePositiveInt(rangeMatcher.group(1));
+            int end = Math.min(start + 4, parsePositiveInt(rangeMatcher.group(2)));
+            String code = sourceLines(sourceCode, start, end);
+            return code.isBlank() ? null : StudentAiFeedbackResponse.EvidenceSnippet.builder()
+                    .evidenceRef(ref)
+                    .lineNumber(start)
+                    .lineEnd(end)
+                    .code(code)
+                    .build();
+        }
+        return null;
+    }
+
+    private String sourceLine(String sourceCode, int lineNumber) {
+        return sourceLines(sourceCode, lineNumber, lineNumber).replaceFirst("^\\d+:\\s*", "");
+    }
+
+    private String sourceLines(String sourceCode, int startLine, int endLine) {
+        if (sourceCode == null || startLine <= 0 || endLine < startLine) {
+            return "";
+        }
+        String[] lines = sourceCode.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
+        if (startLine > lines.length) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int line = startLine; line <= Math.min(endLine, lines.length); line++) {
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(line).append(": ").append(lines[line - 1]);
+        }
+        return clean(builder.toString());
+    }
+
+    private int parsePositiveInt(String value) {
+        try {
+            return Math.max(0, Integer.parseInt(value));
+        } catch (NumberFormatException exception) {
+            return 0;
+        }
+    }
+
+    private void addItem(List<StudentAiFeedbackResponse.FeedbackItem> items, StudentAiFeedbackResponse.FeedbackItem item) {
+        if (item == null || (clean(item.getTitle()).isBlank() && clean(item.getBody()).isBlank())) {
+            return;
+        }
+        String key = (clean(item.getTitle()) + "|" + clean(item.getBody())).replaceAll("\\s+", "");
+        boolean duplicate = items.stream()
+                .anyMatch(existing -> (clean(existing.getTitle()) + "|" + clean(existing.getBody()))
+                        .replaceAll("\\s+", "")
+                        .equals(key));
+        if (!duplicate) {
+            items.add(item);
+        }
+    }
+
+    private boolean hasStudentReport(StudentAiFeedbackResponse.StudentReport report) {
+        return report != null && (!clean(report.getBasicLayerText()).isBlank()
+                || !clean(report.getImprovementLayerText()).isBlank()
+                || !clean(report.getNextActionText()).isBlank());
+    }
+
+    private String joinNonBlank(String... values) {
+        List<String> parts = new ArrayList<>();
+        for (String value : values) {
+            String cleaned = clean(value);
+            if (!cleaned.isBlank()) {
+                parts.add(cleaned);
+            }
+        }
+        return String.join(" ", parts);
+    }
+
+    private <T> List<T> safe(List<T> values) {
+        return values == null ? List.of() : values;
+    }
+
+    private String cleanId(String value) {
+        String cleaned = clean(value);
+        return cleaned.isBlank() ? null : cleaned;
+    }
+
+    private String blankToNull(String value) {
+        String cleaned = clean(value);
+        return cleaned.isBlank() ? null : cleaned;
+    }
+
+    private String clean(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            String cleaned = clean(value);
+            if (!cleaned.isBlank()) {
+                return cleaned;
+            }
+        }
+        return "";
     }
 
     private StudentAiFeedbackResponse saveFeedback(Submission submission, StudentAiFeedbackResponse feedback) {

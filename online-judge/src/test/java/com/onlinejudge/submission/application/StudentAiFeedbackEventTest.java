@@ -7,6 +7,7 @@ import com.onlinejudge.submission.domain.StudentAiFeedback;
 import com.onlinejudge.submission.domain.StudentAiFeedbackEvent;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
+import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackRepository;
@@ -34,16 +35,14 @@ class StudentAiFeedbackEventTest {
     private final SubmissionCaseResultRepository caseResultRepository = mock(SubmissionCaseResultRepository.class);
     private final StudentAiFeedbackRepository feedbackRepository = mock(StudentAiFeedbackRepository.class);
     private final StudentAiFeedbackEventRepository eventRepository = mock(StudentAiFeedbackEventRepository.class);
-    private final AiReportService aiReportService = mock(AiReportService.class);
-    private final DiagnosisEvidencePackageBuilder evidencePackageBuilder = new DiagnosisEvidencePackageBuilder();
+    private final SubmissionAnalysisService submissionAnalysisService = mock(SubmissionAnalysisService.class);
     private final StudentAiFeedbackService service = new StudentAiFeedbackService(
             submissionRepository,
             problemRepository,
             caseResultRepository,
             feedbackRepository,
             eventRepository,
-            aiReportService,
-            evidencePackageBuilder,
+            submissionAnalysisService,
             objectMapper
     );
 
@@ -89,15 +88,15 @@ class StudentAiFeedbackEventTest {
     }
 
     @Test
-    void generateAndStoreUsesFastStudentFeedbackModel() {
+    void generateAndStoreUsesFullSubmissionAnalysisAdvice() {
         when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
         when(problemRepository.findById(101L)).thenReturn(Optional.of(problem()));
         when(caseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(7L)).thenReturn(caseResults());
-        when(aiReportService.generateStudentAiFeedback(
+        when(submissionAnalysisService.generateAndStoreAnalysis(
                 any(Problem.class),
                 any(Submission.class),
-                any(DiagnosisEvidencePackage.class)
-        )).thenReturn(fastReadyFeedback());
+                any()
+        )).thenReturn(fullAnalysis());
         when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
         when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_READY)))
@@ -107,26 +106,30 @@ class StudentAiFeedbackEventTest {
 
         assertThat(response.getStatus()).isEqualTo("READY");
         assertThat(response.getSource()).isEqualTo("MODEL");
-        assertThat(response.getStudentReport().getBasicLayerText()).contains("输入读取");
-        assertThat(response.getStudentReport().getImprovementLayerText()).contains("边界样例");
+        assertThat(response.getRepairItems()).hasSize(2);
+        assertThat(response.getImprovementItems()).hasSize(2);
+        assertThat(response.getRepairItems().get(0).getTitle()).contains("输入读取");
+        assertThat(response.getRepairItems().get(0).getEvidenceSnippets()).singleElement()
+                .satisfies(snippet -> assertThat(snippet.getCode()).contains("a = int(input())"));
+        assertThat(response.getStudentReport().getBasicLayerText()).contains("完整链路");
         assertThat(response.getStudentReport().getNextActionText()).contains("手推");
-        verify(aiReportService).generateStudentAiFeedback(
+        verify(submissionAnalysisService).generateAndStoreAnalysis(
                 any(Problem.class),
                 any(Submission.class),
-                any(DiagnosisEvidencePackage.class)
+                any()
         );
     }
 
     @Test
-    void generateAndStoreStoresFastFeedbackFailureClearly() {
+    void generateAndStoreStoresFullChainFailureClearly() {
         when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
         when(problemRepository.findById(101L)).thenReturn(Optional.of(problem()));
         when(caseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(7L)).thenReturn(caseResults());
-        when(aiReportService.generateStudentAiFeedback(
+        when(submissionAnalysisService.generateAndStoreAnalysis(
                 any(Problem.class),
                 any(Submission.class),
-                any(DiagnosisEvidencePackage.class)
-        )).thenReturn(failedFastFeedback("AI_UNAVAILABLE"));
+                any()
+        )).thenReturn(modelFailedAnalysis());
         when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
         when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_FAILED)))
@@ -136,19 +139,19 @@ class StudentAiFeedbackEventTest {
 
         assertThat(response.getStatus()).isEqualTo("FAILED");
         assertThat(response.getSource()).isEqualTo("AI_UNAVAILABLE");
-        assertThat(response.getSafety().getBlockedReasons()).contains("AI_UNAVAILABLE");
+        assertThat(response.getSafety().getBlockedReasons()).contains("FULL_CHAIN_FAILED");
     }
 
     @Test
-    void generateAndStoreFailsClearlyWhenFastFeedbackIsEmpty() {
+    void generateAndStoreFailsClearlyWhenFullChainFeedbackIsEmpty() {
         when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
         when(problemRepository.findById(101L)).thenReturn(Optional.of(problem()));
         when(caseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(7L)).thenReturn(caseResults());
-        when(aiReportService.generateStudentAiFeedback(
+        when(submissionAnalysisService.generateAndStoreAnalysis(
                 any(Problem.class),
                 any(Submission.class),
-                any(DiagnosisEvidencePackage.class)
-        )).thenReturn(null);
+                any()
+        )).thenReturn(emptyCompletedAnalysis());
         when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
         when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_FAILED)))
@@ -157,7 +160,7 @@ class StudentAiFeedbackEventTest {
         StudentAiFeedbackResponse response = service.generateAndStore(7L);
 
         assertThat(response.getStatus()).isEqualTo("FAILED");
-        assertThat(response.getSafety().getBlockedReasons()).contains("STUDENT_FEEDBACK_EMPTY");
+        assertThat(response.getSafety().getBlockedReasons()).contains("FULL_CHAIN_FEEDBACK_EMPTY");
     }
 
     private Submission submission() {
@@ -167,7 +170,7 @@ class StudentAiFeedbackEventTest {
                 .studentProfileId(41L)
                 .problemId(101L)
                 .languageId(71)
-                .sourceCode("print(1)")
+                .sourceCode("a = int(input())\nprint(a)")
                 .verdict(Submission.Verdict.WRONG_ANSWER)
                 .build();
     }
@@ -213,39 +216,71 @@ class StudentAiFeedbackEventTest {
                 .build();
     }
 
-    private StudentAiFeedbackResponse fastReadyFeedback() {
-        return StudentAiFeedbackResponse.builder()
+    private SubmissionAnalysisResponse fullAnalysis() {
+        return SubmissionAnalysisResponse.builder()
                 .submissionId(7L)
-                .status("READY")
-                .source("MODEL")
-                .studentReport(StudentAiFeedbackResponse.StudentReport.builder()
-                        .basicLayerText("基础层：这里主要是输入读取和题面结构没对齐。")
-                        .improvementLayerText("提高层：修完后补测边界样例，确认不是只适配样例。")
-                        .nextActionText("先手推第一行输入每个数分别被哪句代码读走。")
+                .summary("完整链路：这次主要是输入读取和计算目标没有对齐。")
+                .answerLeakRisk("LOW")
+                .evidenceRefs(List.of("code:line:1", "judge:first_failed_case:1"))
+                .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                        .status("MODEL_COMPLETED")
                         .build())
-                .repairItems(List.of())
-                .improvementItems(List.of())
-                .nextQuestion("第一行输入里第二个数在哪里被读取？")
-                .safety(StudentAiFeedbackResponse.Safety.builder()
-                        .answerLeakRisk("LOW")
-                        .blockedReasons(List.of())
+                .studentFeedback(SubmissionAnalysisResponse.StudentFeedback.builder()
+                        .summary("完整链路：这次主要是输入读取和计算目标没有对齐。")
+                        .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                                .task("先手推第一行输入每个数分别被哪句代码读走。")
+                                .checkQuestion("第一行输入里第二个数在哪里被读取？")
+                                .answerLeakRisk("LOW")
+                                .evidenceRefs(List.of("code:line:1"))
+                                .build())
                         .build())
-                .evidenceRefs(List.of("judge:first_failed_case:1"))
+                .basicLayerAdvice(List.of(
+                        SubmissionAnalysisResponse.BasicLayerAdvice.builder()
+                                .title("输入读取只取了一个数")
+                                .whatHappened("程序只读取了 a，没有读取 b。")
+                                .whyItMatters("题目要求输出两个数的和，少读一个数会让结果偏小。")
+                                .studentAction("手推输入 3 5 时每个变量的值。")
+                                .evidenceRefs(List.of("code:line:1"))
+                                .build(),
+                        SubmissionAnalysisResponse.BasicLayerAdvice.builder()
+                                .title("输出没有体现求和目标")
+                                .whatHappened("当前输出只打印 a。")
+                                .studentAction("对照首个失败点核对实际输出和期望输出。")
+                                .evidenceRefs(List.of("judge:first_failed_case:1"))
+                                .build()
+                ))
+                .improvementLayerAdvice(List.of(
+                        SubmissionAnalysisResponse.ImprovementLayerAdvice.builder()
+                                .title("边界样例覆盖")
+                                .suggestion("修完后补测 0、负数和较大数。")
+                                .studentBenefit("避免只适配样例。")
+                                .evidenceRefs(List.of("judge:first_failed_case:1"))
+                                .build(),
+                        SubmissionAnalysisResponse.ImprovementLayerAdvice.builder()
+                                .title("输入格式复核")
+                                .suggestion("先把题面输入格式拆成变量表。")
+                                .studentBenefit("减少漏读变量。")
+                                .evidenceRefs(List.of("code:line:1"))
+                                .build()
+                ))
                 .build();
     }
 
-    private StudentAiFeedbackResponse failedFastFeedback(String reason) {
-        return StudentAiFeedbackResponse.builder()
+    private SubmissionAnalysisResponse modelFailedAnalysis() {
+        return SubmissionAnalysisResponse.builder()
                 .submissionId(7L)
-                .status("FAILED")
-                .source("AI_UNAVAILABLE")
-                .repairItems(List.of())
-                .improvementItems(List.of())
-                .safety(StudentAiFeedbackResponse.Safety.builder()
-                        .answerLeakRisk("LOW")
-                        .blockedReasons(List.of(reason))
+                .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                        .status("MODEL_FAILED")
                         .build())
-                .evidenceRefs(List.of())
+                .build();
+    }
+
+    private SubmissionAnalysisResponse emptyCompletedAnalysis() {
+        return SubmissionAnalysisResponse.builder()
+                .submissionId(7L)
+                .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                        .status("MODEL_COMPLETED")
+                        .build())
                 .build();
     }
 }
