@@ -144,18 +144,11 @@ public class StudentAiFeedbackService {
         if (feedback == null) {
             return true;
         }
-        if (feedback.getLatencyMs() == null) {
-            return true;
-        }
         List<StudentAiFeedbackResponse.FeedbackItem> items = new ArrayList<>();
         items.addAll(safe(feedback.getRepairItems()));
         items.addAll(safe(feedback.getImprovementItems()));
-        if (items.isEmpty()) {
-            return true;
-        }
         return items.stream()
-                .filter(item -> item != null && (!clean(item.getTitle()).isBlank() || !clean(item.getBody()).isBlank()))
-                .anyMatch(item -> safe(item.getKnowledgePath()).isEmpty());
+                .noneMatch(item -> item != null && (!clean(item.getTitle()).isBlank() || !clean(item.getBody()).isBlank()));
     }
 
     @Transactional
@@ -954,11 +947,40 @@ public class StudentAiFeedbackService {
         if (feedback.getGeneratedAt() == null) {
             feedback.setGeneratedAt(entity.getGeneratedAt());
         }
+        hydrateDisplayContract(feedback);
         return StudentAiFeedbackLookupResponse.builder()
                 .status(statusOrFailed(entity.getStatus()))
                 .failureReason(entity.getFailureReason())
                 .feedback(feedback)
                 .build();
+    }
+
+    private void hydrateDisplayContract(StudentAiFeedbackResponse feedback) {
+        if (feedback == null) {
+            return;
+        }
+        hydrateKnowledgePaths(feedback.getRepairItems(), true);
+        hydrateKnowledgePaths(feedback.getImprovementItems(), false);
+    }
+
+    private void hydrateKnowledgePaths(List<StudentAiFeedbackResponse.FeedbackItem> items, boolean repairLayer) {
+        for (StudentAiFeedbackResponse.FeedbackItem item : safe(items)) {
+            if (item == null || !safe(item.getKnowledgePath()).isEmpty()) {
+                continue;
+            }
+            String title = clean(item.getTitle());
+            String body = clean(item.getBody());
+            if (title.isBlank() && body.isBlank()) {
+                continue;
+            }
+            boolean improvement = !repairLayer
+                    || "IMPROVEMENT".equalsIgnoreCase(clean(item.getKind()))
+                    || !clean(item.getImprovementPointId()).isBlank();
+            List<String> path = improvement
+                    ? knowledgePathForImprovement(item.getSkillUnitId(), item.getImprovementPointId(), title, body, null)
+                    : knowledgePathForRepair(item.getSkillUnitId(), item.getMistakePointId(), title, body, null);
+            item.setKnowledgePath(path);
+        }
     }
 
     private StudentAiFeedbackResponse deserialize(StudentAiFeedback entity) {

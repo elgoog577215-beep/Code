@@ -307,17 +307,15 @@ class StudentAiFeedbackEventTest {
     }
 
     @Test
-    void markGeneratingRefreshesReadyRecordMissingKnowledgePath() throws Exception {
+    void getLookupHydratesReadyRecordMissingKnowledgePathWithoutRestarting() throws Exception {
         StudentAiFeedbackResponse oldReadyFeedback = StudentAiFeedbackResponse.builder()
                 .submissionId(7L)
                 .status("READY")
                 .source("MODEL")
-                .latencyMs(420L)
                 .repairItems(List.of(StudentAiFeedbackResponse.FeedbackItem.builder()
                         .title("使用平均数代替中位数")
                         .body("当前建议有代码证据，但旧记录没有知识路径。")
                         .evidenceRefs(List.of("code:line:1"))
-                        .knowledgePath(List.of())
                         .build()))
                 .improvementItems(List.of())
                 .evidenceRefs(List.of("code:line:1"))
@@ -330,14 +328,25 @@ class StudentAiFeedbackEventTest {
                 .build();
         when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
         when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.of(existing));
-        when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(knowledgeRepository.findByEnabledTrueOrderByPathAscSortOrderAscCodeAsc()).thenReturn(List.of(
+                InformaticsKnowledgeNode.builder()
+                        .code("ALGO.SELECT.MEDIAN")
+                        .type(InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
+                        .name("中位数")
+                        .path("算法设计 / 排序与选择 / 中位数")
+                        .aliases("中位数")
+                        .enabled(true)
+                        .build()
+        ));
 
-        var lookup = service.markGenerating(7L);
+        var lookup = service.getLookup(7L);
 
-        assertThat(lookup.getStatus()).isEqualTo("GENERATING");
-        ArgumentCaptor<StudentAiFeedback> captor = ArgumentCaptor.forClass(StudentAiFeedback.class);
-        verify(feedbackRepository).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo("GENERATING");
+        assertThat(lookup.getStatus()).isEqualTo("READY");
+        assertThat(lookup.getFeedback().getRepairItems()).singleElement()
+                .satisfies(item -> assertThat(item.getKnowledgePath())
+                        .containsExactly("算法设计", "排序与选择", "中位数"));
+        assertThat(service.needsContractRefresh(7L)).isFalse();
+        verify(feedbackRepository, never()).save(any(StudentAiFeedback.class));
     }
 
     @Test
