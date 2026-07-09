@@ -18867,6 +18867,843 @@ button.standard-library-governance-path {
   }
 }
 
+/* Problem editor workbench: flatten nested containers into a focused editing surface. */
+.teacher-console-shell .teacher-manage-page.teacher-manage-page--problems {
+  --problem-workbench-height: calc(100dvh - 88px);
+  gap: 0.78rem;
+}
+
+.teacher-console-shell .teacher-manage-page.teacher-manage-page--problems > .teacher-manage-header {
+  display: none;
+}
+
+.teacher-console-shell .teacher-manage-page.teacher-manage-page--problems .teacher-management-embed,
+.teacher-console-shell .teacher-manage-page.teacher-manage-page--problems .management-console {
+  width: 100%;
+}
+
+.teacher-console-shell .teacher-manage-page.teacher-manage-page--problems .management-console {
+  max-width: none;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.teacher-console-shell .teacher-manage-page.teacher-manage-page--problems .management-workspace {
+  padding: 0;
+  background: transparent;
+}
+
+.management-object-workbench--problems {
+  height: var(--problem-workbench-height);
+  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+  gap: clamp(0.78rem, 1.6vw, 1.15rem);
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.management-object-workbench--problems .management-object-list,
+.management-object-workbench--problems .management-object-main {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.management-object-workbench--problems .management-object-list {
+  --problem-list-row-height: 85px;
+  gap: 0;
+  height: 100%;
+  max-height: none;
+  overflow: auto;
+  padding: 0.18rem 0.86rem 0.18rem 0;
+  border-right: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.management-object-workbench--problems .management-object-list__head {
+  padding: 0.18rem 0.18rem 0.54rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 74%, transparent);
+}
+
+.management-problem-tools {
+  display: grid;
+  gap: 0.54rem;
+  padding: 0.66rem 0.12rem 0.54rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 66%, transparent);
+}
+
+.management-problem-tool-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.48rem;
+  align-items: center;
+}
+
+.management-problem-tool-row .ui-button {
+  min-height: 38px;
+  width: 100%;
+  padding-block: 0.45rem;
+}
+
+.management-problem-filter-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  padding: 0.42rem 0.54rem;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 7px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+  font-size: 0.74rem;
+  font-weight: 860;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.management-problem-filter-button:hover {
+  border-color: color-mix(in srgb, var(--brand) 32%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 28%, transparent);
+}
+
+.management-problem-search {
+  position: relative;
+  display: block;
+}
+
+.management-problem-search > svg {
+  position: absolute;
+  z-index: 1;
+  left: 0.58rem;
+  top: 50%;
+  color: var(--ink-faint);
+  transform: translateY(-50%);
+}
+
+.management-problem-search .control {
+  padding-left: 2rem;
+}
+
+.management-problem-list {
+  display: grid;
+  align-content: start;
+}
+
+.management-object-workbench--problems .management-object-row {
+  min-height: var(--problem-list-row-height);
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.46rem;
+  padding: 0.58rem 0.46rem 0.58rem 0.62rem;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.management-object-workbench--problems .management-object-row--placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.management-object-workbench--problems .management-object-row + .management-object-row {
+  border-top: 1px solid color-mix(in srgb, var(--line) 58%, transparent);
+}
+
+.management-object-workbench--problems .management-object-row:hover,
+.management-object-workbench--problems .management-object-row.is-active {
+  border-left-color: color-mix(in srgb, var(--brand) 78%, var(--blue));
+  background: color-mix(in srgb, var(--brand-soft) 42%, transparent);
+}
+
+.management-object-workbench--problems .management-object-row__number {
+  color: var(--brand-strong);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 820;
+}
+
+.management-object-workbench--problems .management-object-row__content {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.management-object-workbench--problems .management-object-row__content strong,
+.management-object-workbench--problems .management-object-row__content small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.management-object-workbench--problems .management-object-row__content small {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 720;
+}
+
+.management-object-workbench--problems .management-object-row__state {
+  display: grid;
+  gap: 0.08rem;
+  justify-items: end;
+  white-space: nowrap;
+}
+
+.management-object-workbench--problems .management-object-row__state span {
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 820;
+}
+
+.management-object-workbench--problems .management-object-row__state strong {
+  color: color-mix(in srgb, var(--success) 72%, var(--ink));
+  font-size: 0.72rem;
+  font-weight: 880;
+}
+
+.management-problem-pagination {
+  display: grid;
+  gap: 0.46rem;
+  padding: 0.62rem 0.12rem 0.46rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 66%, transparent);
+}
+
+.management-problem-pagination > span {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 820;
+}
+
+.management-problem-pagination > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.26rem;
+}
+
+.management-problem-pagination button,
+.management-problem-pagination__gap {
+  min-width: 30px;
+  min-height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 6px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  font-size: 0.76rem;
+  font-weight: 820;
+}
+
+.management-problem-pagination button {
+  cursor: pointer;
+}
+
+.management-problem-pagination button:hover,
+.management-problem-pagination button.is-active {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 34%, transparent);
+}
+
+.management-problem-pagination button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.management-problem-pagination__gap {
+  border-color: transparent;
+  background: transparent;
+}
+
+.management-object-workbench--problems .management-object-main {
+  gap: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+
+.management-object-workbench--problems .task-editor-page--embedded {
+  gap: 0.68rem;
+}
+
+.task-editor-page--embedded .editor-command {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.04rem 0 0.58rem;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.task-editor-page--embedded .editor-command::before {
+  display: none;
+}
+
+.task-editor-page--embedded .editor-command .eyebrow {
+  width: fit-content;
+  margin: 0 0 0.28rem;
+  padding: 0.16rem 0.44rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 34%, transparent);
+}
+
+.task-editor-page--embedded .editor-command h1 {
+  margin: 0;
+  font-size: clamp(1.34rem, 2.2vw, 2rem);
+  line-height: 1.08;
+}
+
+.task-editor-page--embedded .editor-command__actions {
+  justify-content: flex-end;
+}
+
+.task-editor-page--embedded .editor-command__actions .ui-button--primary {
+  min-height: 40px;
+  padding-inline: 0.72rem;
+}
+
+.task-editor-page--embedded .editor-primary-stack {
+  gap: 0.72rem;
+}
+
+.task-editor-page--embedded .editor-problem-panel,
+.task-editor-page--embedded .editor-tests-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  backdrop-filter: none;
+}
+
+.task-editor-page--embedded .editor-problem-panel .panel__header,
+.task-editor-page--embedded .editor-tests-panel .panel__header {
+  min-height: 0;
+  align-items: center;
+  padding: 0 0 0.44rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: transparent;
+}
+
+.task-editor-page--embedded .editor-problem-panel .panel__header h2,
+.task-editor-page--embedded .editor-tests-panel .panel__header h2 {
+  margin: 0;
+  font-size: 1.04rem;
+  line-height: 1.2;
+}
+
+.task-editor-page--embedded .editor-problem-panel .panel__body,
+.task-editor-page--embedded .editor-tests-panel .panel__body {
+  padding: 0.56rem 0 0;
+}
+
+.task-editor-page--embedded .editor-problem-panel .stack {
+  gap: 0.62rem;
+}
+
+.task-editor-page--embedded .editor-problem-panel .form-grid {
+  grid-template-columns: minmax(240px, 1.35fr) minmax(160px, 0.72fr) minmax(160px, 0.72fr);
+  gap: 0.52rem;
+}
+
+.task-editor-page--embedded .field {
+  gap: 0.3rem;
+}
+
+.task-editor-page--embedded .field > span:first-child {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 860;
+}
+
+.task-editor-page--embedded .control {
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+  box-shadow: none;
+}
+
+.task-editor-page--embedded .editor-field {
+  gap: 0.34rem;
+}
+
+.editor-markdown-shell,
+.editor-starter-code-shell {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line) 84%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+}
+
+.editor-inline-toolbar {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.58rem;
+  padding: 0.3rem 0.42rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.editor-inline-toolbar__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.24rem;
+}
+
+.editor-tool-button {
+  min-width: 29px;
+  min-height: 29px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  padding: 0.28rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--ink-soft);
+  background: transparent;
+  font-weight: 840;
+  cursor: pointer;
+}
+
+.editor-tool-button:hover,
+.editor-tool-button.is-active {
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 30%, transparent);
+}
+
+.editor-tool-button--text {
+  padding-inline: 0.46rem;
+}
+
+.editor-tool-button--text span {
+  font-size: 0.76rem;
+}
+
+.editor-tool-button--danger {
+  color: var(--danger);
+}
+
+.editor-tool-button--danger:hover {
+  border-color: color-mix(in srgb, var(--danger) 26%, transparent);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.editor-markdown-shell textarea.editor-statement-textarea {
+  min-height: clamp(168px, 20vh, 240px);
+  max-height: min(30vh, 280px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  resize: vertical;
+}
+
+.editor-markdown-shell textarea.editor-statement-textarea:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand) 26%, transparent);
+}
+
+.editor-markdown-preview {
+  min-height: clamp(168px, 20vh, 240px);
+  max-height: min(30vh, 280px);
+  overflow: auto;
+  padding: 0.78rem 0.88rem;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.52;
+}
+
+.editor-markdown-preview h2,
+.editor-markdown-preview h3,
+.editor-markdown-preview h4,
+.editor-markdown-preview p,
+.editor-markdown-preview blockquote,
+.editor-markdown-preview pre {
+  margin: 0;
+}
+
+.editor-markdown-preview h2,
+.editor-markdown-preview h3,
+.editor-markdown-preview h4 {
+  margin-top: 0.74rem;
+  font-size: 1rem;
+}
+
+.editor-markdown-preview p + p,
+.editor-markdown-preview p + blockquote,
+.editor-markdown-preview blockquote + p {
+  margin-top: 0.5rem;
+}
+
+.editor-markdown-preview blockquote {
+  padding: 0.42rem 0.62rem;
+  border-left: 3px solid color-mix(in srgb, var(--brand) 48%, var(--line));
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--brand-soft) 22%, transparent);
+}
+
+.editor-markdown-preview strong {
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.editor-markdown-preview em {
+  color: var(--ink-soft);
+}
+
+.editor-markdown-preview a {
+  color: var(--brand-strong);
+  font-weight: 850;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.editor-markdown-preview p code,
+.editor-markdown-preview h2 code,
+.editor-markdown-preview h3 code,
+.editor-markdown-preview h4 code,
+.editor-markdown-preview blockquote code {
+  padding: 0.08rem 0.28rem;
+  border-radius: 4px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 72%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+}
+
+.editor-markdown-preview pre {
+  margin-top: 0.5rem;
+  padding: 0.62rem 0.68rem;
+  border-radius: 6px;
+  color: #e2e8f0;
+  background: #0f172a;
+  overflow: auto;
+}
+
+.editor-markdown-preview__list {
+  display: flex;
+  gap: 0.38rem;
+}
+
+.editor-markdown-preview__space {
+  display: block;
+  height: 0.45rem;
+}
+
+.editor-markdown-preview__empty {
+  color: var(--ink-faint);
+  font-weight: 760;
+}
+
+.editor-field-foot {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.28rem 0.54rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+  font-weight: 780;
+}
+
+.editor-field-foot strong {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-inline-toolbar--code {
+  justify-content: space-between;
+}
+
+.editor-inline-toolbar--code .control {
+  min-height: 32px;
+  max-width: 150px;
+  padding-block: 0.24rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+
+.editor-starter-code-shell .editor-code-editor .cm-editor {
+  min-height: 112px;
+  background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
+}
+
+.editor-starter-code-shell .editor-code-editor .cm-scroller {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.86rem;
+}
+
+.task-editor-page--embedded textarea.editor-statement-textarea {
+  min-height: clamp(168px, 20vh, 240px);
+  max-height: min(30vh, 280px);
+  padding: 0.78rem 0.86rem;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.task-editor-page--embedded textarea.editor-code-textarea {
+  min-height: 142px;
+  max-height: min(40vh, 360px);
+  padding: 0.78rem 0.86rem;
+}
+
+.task-editor-page--embedded .editor-compact-details {
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.task-editor-page--embedded .editor-compact-details > summary {
+  min-height: 42px;
+  padding: 0.68rem 0;
+}
+
+.task-editor-page--embedded .editor-compact-details > summary:hover {
+  background: transparent;
+}
+
+.task-editor-page--embedded .editor-compact-details__body {
+  padding: 0 0 0.82rem;
+  border-top: 0;
+}
+
+.task-editor-page--embedded .editor-tests-panel .panel__action .actions {
+  justify-content: flex-end;
+}
+
+.task-editor-page--embedded .editor-tests-panel .panel__action .actions .ui-button {
+  min-height: 34px;
+  padding: 0.38rem 0.58rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+}
+
+.editor-test-table-wrap {
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 74%, transparent);
+}
+
+.editor-test-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.editor-test-table th,
+.editor-test-table td {
+  padding: 0.46rem 0.48rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+
+.editor-test-table th {
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  font-size: 0.72rem;
+  font-weight: 880;
+}
+
+.editor-test-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.editor-test-table th:nth-child(1),
+.editor-test-table td:nth-child(1) {
+  width: 54px;
+}
+
+.editor-test-table th:nth-child(2),
+.editor-test-table td:nth-child(2) {
+  width: 78px;
+}
+
+.editor-test-table th:nth-child(5),
+.editor-test-table td:nth-child(5),
+.editor-test-table th:nth-child(6),
+.editor-test-table td:nth-child(6),
+.editor-test-table th:nth-child(7),
+.editor-test-table td:nth-child(7) {
+  width: 68px;
+  text-align: center;
+}
+
+.editor-test-table__index,
+.editor-test-table__score {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  font-weight: 860;
+}
+
+.editor-test-table textarea.editor-test-textarea {
+  min-height: 54px;
+  max-height: 122px;
+  padding: 0.5rem 0.54rem;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  line-height: 1.42;
+  resize: vertical;
+}
+
+.editor-switch {
+  width: 36px;
+  height: 20px;
+  position: relative;
+  display: inline-block;
+}
+
+.editor-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.editor-switch span {
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.editor-switch span::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  border-radius: 999px;
+  background: var(--ink-faint);
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.editor-switch input:checked + span {
+  border-color: color-mix(in srgb, var(--warning) 38%, var(--line));
+  background: color-mix(in srgb, var(--warning-soft) 58%, transparent);
+}
+
+.editor-switch input:checked + span::after {
+  background: var(--warning);
+  transform: translateX(16px);
+}
+
+.editor-switch input:focus-visible + span {
+  box-shadow: var(--focus);
+}
+
+.task-editor-page--embedded .editor-tests-panel .panel__body > .stack {
+  gap: 0;
+}
+
+.task-editor-page--embedded .editor-test-row {
+  display: grid;
+  grid-template-columns: minmax(132px, 0.18fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 0.56rem;
+  padding: 0.74rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.task-editor-page--embedded .editor-test-row + .editor-test-row {
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.task-editor-page--embedded .editor-test-row > .actions {
+  grid-template-columns: 1fr;
+  align-content: start;
+}
+
+.task-editor-page--embedded .editor-test-toggle {
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 58%, transparent);
+}
+
+.task-editor-page--embedded .editor-test-row .two-column {
+  gap: 0.62rem;
+}
+
+@media (max-width: 1080px) {
+  .management-object-workbench--problems {
+    height: auto;
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .management-object-workbench--problems .management-object-list {
+    position: static;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 0 0 0.72rem;
+    border-right: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  }
+
+  .management-object-workbench--problems .management-object-main {
+    height: auto;
+    overflow: visible;
+  }
+
+  .management-problem-tools {
+    grid-template-columns: minmax(160px, auto) minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .management-problem-tools .ui-button {
+    width: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .task-editor-page--embedded .editor-command,
+  .task-editor-page--embedded .editor-problem-panel .form-grid,
+  .task-editor-page--embedded .editor-test-row,
+  .task-editor-page--embedded .editor-test-row > .actions,
+  .management-problem-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .task-editor-page--embedded .editor-command__actions,
+  .task-editor-page--embedded .editor-tests-panel .panel__action .actions {
+    justify-content: flex-start;
+  }
+
+  .task-editor-page--embedded textarea.editor-statement-textarea {
+    min-height: 240px;
+    max-height: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

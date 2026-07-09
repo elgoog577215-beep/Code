@@ -13,6 +13,8 @@ type CodeEditorProps = {
   onChange: (value: string) => void;
   highlightLine?: number | null;
   highlightNonce?: number;
+  minHeight?: string;
+  className?: string;
 };
 
 function lineHighlightExtension(line?: number | null) {
@@ -40,7 +42,7 @@ function lineHighlightExtension(line?: number | null) {
   ];
 }
 
-export default function CodeEditor({ languageId, sourceCode, onChange, highlightLine, highlightNonce = 0 }: CodeEditorProps) {
+export default function CodeEditor({ languageId, sourceCode, onChange, highlightLine, highlightNonce = 0, minHeight = "300px", className }: CodeEditorProps) {
   const viewRef = useRef<EditorView | null>(null);
   const extensions = useMemo(
     () => [
@@ -63,9 +65,10 @@ export default function CodeEditor({ languageId, sourceCode, onChange, highlight
 
   return (
     <CodeMirror
+      className={className}
       value={sourceCode}
       height="100%"
-      minHeight="300px"
+      minHeight={minHeight}
       extensions={extensions}
       theme={theme}
       onChange={onChange}

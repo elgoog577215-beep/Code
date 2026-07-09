@@ -1,6 +1,28 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Database, GitMerge, ListChecks, Plus, Power, PowerOff, RefreshCw, Save, Search, ShieldCheck, UploadCloud, UsersRound, X, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Database,
+  GitMerge,
+  ListChecks,
+  Plus,
+  Power,
+  PowerOff,
+  RefreshCw,
+  Save,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  UploadCloud,
+  UsersRound,
+  X,
+  XCircle
+} from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   AiStandardLibraryGrowthCandidate,
@@ -17,7 +39,7 @@ import type {
   ProblemCatalogItem,
   Readiness
 } from "../../shared/api/types";
-import { displayText } from "../../shared/format";
+import { difficultyLabel, displayText } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
 import { Button } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -75,6 +97,15 @@ type TeacherManagementToolsProps = {
   section?: ManagementSection;
 };
 type ManagementSection = "home" | "classes" | "problems" | "ai-library" | "system";
+type ProblemSortMode = "id" | "difficulty" | "timeLimit";
+
+const PROBLEM_PAGE_SIZE = 10;
+const PROBLEM_SORT_LABELS: Record<ProblemSortMode, string> = {
+  id: "按编号",
+  difficulty: "按难度",
+  timeLimit: "按时限"
+};
+const PROBLEM_DIFFICULTY_ORDER: Record<string, number> = { EASY: 1, MEDIUM: 2, HARD: 3 };
 
 const MANAGEMENT_SECTION_META = {
   home: {
@@ -108,7 +139,7 @@ export default function TeacherManagementPage({ section = "home" }: { section?: 
   const { t } = useTranslation();
   const meta = MANAGEMENT_SECTION_META[section];
   return (
-    <div className="teacher-page teacher-workflow teacher-manage-page">
+    <div className={`teacher-page teacher-workflow teacher-manage-page teacher-manage-page--${section}`}>
       <section className="teacher-workflow-header teacher-workflow-header--simple teacher-manage-header">
         <div>
           {section === "home" || section === "classes" ? (
@@ -748,6 +779,51 @@ function ClassManageSection({
   );
 }
 
+function filterProblemCatalogItems(problems: ProblemCatalogItem[], query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return problems;
+  }
+  return problems.filter(item => {
+    const haystack = `${item.title} ${item.summary || ""} ${item.difficulty}`.toLowerCase();
+    return haystack.includes(normalizedQuery);
+  });
+}
+
+function sortProblemCatalogItems(problems: ProblemCatalogItem[], mode: ProblemSortMode) {
+  const items = [...problems];
+  items.sort((first, second) => {
+    if (mode === "difficulty") {
+      const difficultyDelta =
+        (PROBLEM_DIFFICULTY_ORDER[String(first.difficulty || "").toUpperCase()] || 0) -
+        (PROBLEM_DIFFICULTY_ORDER[String(second.difficulty || "").toUpperCase()] || 0);
+      return difficultyDelta || first.id - second.id;
+    }
+    if (mode === "timeLimit") {
+      return (first.timeLimit || 0) - (second.timeLimit || 0) || first.id - second.id;
+    }
+    return first.id - second.id;
+  });
+  return items;
+}
+
+function createVisibleProblemPages(current: number, total: number): Array<number | "gap"> {
+  if (total <= 5) {
+    return Array.from({ length: total }, (_, index) => index + 1);
+  }
+  const pages = new Set([1, total, current - 1, current, current + 1]);
+  const normalized = [...pages].filter(page => page >= 1 && page <= total).sort((first, second) => first - second);
+  const result: Array<number | "gap"> = [];
+  normalized.forEach(page => {
+    const previous = result[result.length - 1];
+    if (typeof previous === "number" && page - previous > 1) {
+      result.push("gap");
+    }
+    result.push(page);
+  });
+  return result;
+}
+
 function ProblemManageSection({
   problems,
   selectedProblemId,
@@ -775,30 +851,179 @@ function ProblemManageSection({
   onRunImport: (mode: "preview" | "commit") => void;
   onProblemSaved: (problem: import("../../shared/api/types").Problem) => void;
 }) {
-  const selectedProblem = problems.find(item => item.id === selectedProblemId) || problems[0] || null;
+  const [problemQuery, setProblemQuery] = useState("");
+  const [creatingProblem, setCreatingProblem] = useState(false);
+  const [createDraftSignal, setCreateDraftSignal] = useState(0);
+  const [problemSortMode, setProblemSortMode] = useState<ProblemSortMode>("id");
+  const [problemPage, setProblemPage] = useState(1);
+  const filteredProblems = useMemo(() => filterProblemCatalogItems(problems, problemQuery), [problemQuery, problems]);
+  const sortedProblems = useMemo(() => sortProblemCatalogItems(filteredProblems, problemSortMode), [filteredProblems, problemSortMode]);
+  const problemPageCount = Math.max(1, Math.ceil(sortedProblems.length / PROBLEM_PAGE_SIZE));
+  const currentProblemPage = Math.min(problemPage, problemPageCount);
+  const pagedProblems = useMemo(() => {
+    const offset = (currentProblemPage - 1) * PROBLEM_PAGE_SIZE;
+    return sortedProblems.slice(offset, offset + PROBLEM_PAGE_SIZE);
+  }, [currentProblemPage, sortedProblems]);
+  const problemPages = useMemo(() => createVisibleProblemPages(currentProblemPage, problemPageCount), [currentProblemPage, problemPageCount]);
+  const firstProblemIndex = sortedProblems.length ? (currentProblemPage - 1) * PROBLEM_PAGE_SIZE + 1 : 0;
+  const lastProblemIndex = Math.min(currentProblemPage * PROBLEM_PAGE_SIZE, sortedProblems.length);
+  const problemPlaceholderCount = Math.max(0, PROBLEM_PAGE_SIZE - pagedProblems.length);
+  const selectedProblem = creatingProblem ? null : problems.find(item => item.id === selectedProblemId) || problems[0] || null;
+
+  useEffect(() => {
+    setProblemPage(page => Math.min(page, problemPageCount));
+  }, [problemPageCount]);
+
+  useEffect(() => {
+    if (creatingProblem || !sortedProblems.length) {
+      return;
+    }
+    if (selectedProblemId && sortedProblems.some(item => item.id === selectedProblemId)) {
+      return;
+    }
+    onSelectProblem(sortedProblems[0].id);
+  }, [creatingProblem, onSelectProblem, selectedProblemId, sortedProblems]);
+
+  function startNewProblem() {
+    setCreatingProblem(true);
+    setCreateDraftSignal(value => value + 1);
+    onSelectProblem(null);
+  }
+
+  function selectProblem(id: number) {
+    setCreatingProblem(false);
+    onSelectProblem(id);
+  }
+
+  function updateProblemQuery(value: string) {
+    const nextItems = sortProblemCatalogItems(filterProblemCatalogItems(problems, value), problemSortMode);
+    setProblemQuery(value);
+    setProblemPage(1);
+    if (!creatingProblem && nextItems[0]) {
+      onSelectProblem(nextItems[0].id);
+    }
+  }
+
+  function cycleProblemSort() {
+    const nextMode: ProblemSortMode = problemSortMode === "id" ? "difficulty" : problemSortMode === "difficulty" ? "timeLimit" : "id";
+    const nextItems = sortProblemCatalogItems(filteredProblems, nextMode);
+    setProblemSortMode(nextMode);
+    setProblemPage(1);
+    if (!creatingProblem && nextItems[0]) {
+      onSelectProblem(nextItems[0].id);
+    }
+  }
+
+  function goToProblemPage(page: number) {
+    const targetPage = Math.min(problemPageCount, Math.max(1, page));
+    const firstItem = sortedProblems[(targetPage - 1) * PROBLEM_PAGE_SIZE];
+    setProblemPage(targetPage);
+    if (firstItem) {
+      setCreatingProblem(false);
+      onSelectProblem(firstItem.id);
+    }
+  }
 
   return (
     <section className="management-object-workbench management-object-workbench--problems">
       <aside className="management-object-list" aria-label="题目列表">
         <div className="management-object-list__head">
-          <strong>题目</strong>
+          <span>
+            <strong>题库编辑</strong>
+            <small>
+              {filteredProblems.length} / {problems.length} 个题目
+            </small>
+          </span>
           {dataSummary || <StatusPill tone="neutral">{problems.length} 个</StatusPill>}
         </div>
-        {problems.length ? (
-          problems.map(item => (
+        <div className="management-problem-tools">
+          <div className="management-problem-tool-row">
+            <Button type="button" variant={creatingProblem ? "primary" : "secondary"} onClick={startNewProblem} icon={<Plus size={16} />}>
+              新建题目
+            </Button>
             <button
               type="button"
-              className={`management-object-row ${item.id === selectedProblem?.id ? "is-active" : ""}`}
-              key={item.id}
-              onClick={() => onSelectProblem(item.id)}
+              className="management-problem-filter-button"
+              onClick={cycleProblemSort}
+              title={`当前排序：${PROBLEM_SORT_LABELS[problemSortMode]}`}
+              aria-label={`切换排序，当前${PROBLEM_SORT_LABELS[problemSortMode]}`}
             >
-              <strong>{item.title}</strong>
-              <small>{displayText(item.summary || "", `${item.difficulty} · ${item.timeLimit} ms`)}</small>
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              <span>{PROBLEM_SORT_LABELS[problemSortMode]}</span>
             </button>
-          ))
-        ) : (
-          <EmptyState title="暂无题目" description="导入题目或新建题目。" />
-        )}
+          </div>
+          <label className="management-problem-search">
+            <Search size={15} aria-hidden="true" />
+            <TextInput value={problemQuery} onChange={event => updateProblemQuery(event.target.value)} placeholder="搜索题目标题" />
+          </label>
+        </div>
+        <div className="management-problem-list">
+          {pagedProblems.length ? (
+            <>
+              {pagedProblems.map(item => (
+                <button
+                  type="button"
+                  className={`management-object-row ${item.id === selectedProblem?.id ? "is-active" : ""}`}
+                  key={item.id}
+                  onClick={() => selectProblem(item.id)}
+                >
+                  <span className="management-object-row__number">{String(item.id).padStart(4, "0")}</span>
+                  <span className="management-object-row__content">
+                    <strong>{item.title}</strong>
+                    <small>{displayText(item.summary || "", "题目描述待完善")}</small>
+                  </span>
+                  <span className="management-object-row__state">
+                    <span>{difficultyLabel(item.difficulty)}</span>
+                    <strong>{item.timeLimit} ms</strong>
+                  </span>
+                </button>
+              ))}
+              {Array.from({ length: problemPlaceholderCount }, (_, index) => (
+                <div className="management-object-row management-object-row--placeholder" aria-hidden="true" key={`placeholder-${currentProblemPage}-${index}`} />
+              ))}
+            </>
+          ) : (
+            <EmptyState title={problems.length ? "没有匹配题目" : "暂无题目"} description="导入题目或新建题目。" />
+          )}
+        </div>
+        {sortedProblems.length ? (
+          <div className="management-problem-pagination" aria-label="题目分页">
+            <span>
+              {firstProblemIndex}-{lastProblemIndex} / {sortedProblems.length}
+            </span>
+            <div>
+              <button type="button" onClick={() => goToProblemPage(currentProblemPage - 1)} disabled={currentProblemPage === 1} aria-label="上一页">
+                <ChevronLeft size={15} />
+              </button>
+              {problemPages.map((page, index) =>
+                page === "gap" ? (
+                  <span className="management-problem-pagination__gap" key={`gap-${index}`}>
+                    ...
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className={page === currentProblemPage ? "is-active" : ""}
+                    key={page}
+                    onClick={() => goToProblemPage(page)}
+                    aria-label={`第 ${page} 页`}
+                    aria-current={page === currentProblemPage ? "page" : undefined}
+                  >
+                    {page}
+                  </button>
+                )
+              )}
+              <button
+                type="button"
+                onClick={() => goToProblemPage(currentProblemPage + 1)}
+                disabled={currentProblemPage === problemPageCount}
+                aria-label="下一页"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
+        ) : null}
         <details className="management-import-drawer">
           <summary>
             <UploadCloud size={15} />
@@ -837,8 +1062,12 @@ function ProblemManageSection({
         <TaskEditorPage
           embedded
           selectedProblemId={selectedProblem?.id || null}
+          createDraftSignal={createDraftSignal}
           showCatalogDrawer={false}
-          onSaved={onProblemSaved}
+          onSaved={problem => {
+            setCreatingProblem(false);
+            onProblemSaved(problem);
+          }}
         />
       </section>
     </section>

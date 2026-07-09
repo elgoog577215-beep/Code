@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Save } from "lucide-react";
+import { Bold, Code2, Eye, EyeOff, Italic, Link2, List, ListOrdered, Quote, RotateCcw, Save, Trash2 } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { Problem, ProblemCatalogItem, ProblemManage } from "../../shared/api/types";
 import { difficultyLabel } from "../../shared/format";
@@ -9,6 +9,8 @@ import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea, TextInput } from "../../shared/ui/Field";
 import { Panel } from "../../shared/ui/Panel";
 import { DifficultyPill, StatusPill } from "../../shared/ui/StatusPill";
+import CodeEditor from "../problem/CodeEditor";
+import { CPP17_LANGUAGE_ID, PYTHON3_LANGUAGE_ID } from "../problem/languages";
 
 type TestCaseDraft = {
   input: string;
@@ -32,16 +34,142 @@ const initialProblem = {
   testCases: [{ input: "", expectedOutput: "", hidden: false }] as TestCaseDraft[]
 };
 
+function createInitialProblem() {
+  return {
+    ...initialProblem,
+    testCases: initialProblem.testCases.map(item => ({ ...item }))
+  };
+}
+
 function adaptiveRows(value: string, minRows: number, maxRows: number, charsPerRow: number) {
   const lines = value ? value.split("\n") : [""];
   const estimatedRows = lines.reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerRow)), 0);
   return Math.min(maxRows, Math.max(minRows, estimatedRows));
 }
 
+function renderInlineMarkdown(value: string, keyPrefix: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const pattern = /`([^`]+)`|\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|\[([^\]\n]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let tokenIndex = 0;
+
+  while ((match = pattern.exec(value))) {
+    if (match.index > lastIndex) {
+      nodes.push(value.slice(lastIndex, match.index));
+    }
+
+    const key = `${keyPrefix}-${tokenIndex}`;
+    if (match[1]) {
+      nodes.push(<code key={key}>{match[1]}</code>);
+    } else if (match[2]) {
+      nodes.push(<strong key={key}>{match[2]}</strong>);
+    } else if (match[3]) {
+      nodes.push(<em key={key}>{match[3]}</em>);
+    } else if (match[4] && match[5]) {
+      nodes.push(
+        <a href={match[5]} key={key} rel="noreferrer" target="_blank">
+          {match[4]}
+        </a>
+      );
+    }
+
+    tokenIndex += 1;
+    lastIndex = pattern.lastIndex;
+  }
+
+  if (lastIndex < value.length) {
+    nodes.push(value.slice(lastIndex));
+  }
+
+  return nodes.length ? nodes : [value];
+}
+
+function renderMarkdownPreview(value: string): ReactNode[] {
+  if (!value.trim()) {
+    return [
+      <p className="editor-markdown-preview__empty" key="empty">
+        暂无题面内容
+      </p>
+    ];
+  }
+
+  const nodes: ReactNode[] = [];
+  const codeLines: string[] = [];
+  let inCode = false;
+
+  function flushCode(key: string) {
+    if (codeLines.length) {
+      nodes.push(
+        <pre key={key}>
+          <code>{codeLines.join("\n")}</code>
+        </pre>
+      );
+      codeLines.length = 0;
+    }
+  }
+
+  value.split("\n").forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```")) {
+      if (inCode) {
+        flushCode(`code-${index}`);
+      }
+      inCode = !inCode;
+      return;
+    }
+    if (inCode) {
+      codeLines.push(line);
+      return;
+    }
+    if (!trimmed) {
+      nodes.push(<span className="editor-markdown-preview__space" key={`space-${index}`} />);
+      return;
+    }
+    if (trimmed.startsWith("### ")) {
+      nodes.push(<h4 key={`h4-${index}`}>{renderInlineMarkdown(trimmed.slice(4), `h4-${index}`)}</h4>);
+      return;
+    }
+    if (trimmed.startsWith("## ")) {
+      nodes.push(<h3 key={`h3-${index}`}>{renderInlineMarkdown(trimmed.slice(3), `h3-${index}`)}</h3>);
+      return;
+    }
+    if (trimmed.startsWith("# ")) {
+      nodes.push(<h2 key={`h2-${index}`}>{renderInlineMarkdown(trimmed.slice(2), `h2-${index}`)}</h2>);
+      return;
+    }
+    if (trimmed.startsWith(">")) {
+      nodes.push(<blockquote key={`quote-${index}`}>{renderInlineMarkdown(trimmed.replace(/^>\s?/, ""), `quote-${index}`)}</blockquote>);
+      return;
+    }
+    if (/^[-*]\s+/.test(trimmed)) {
+      nodes.push(
+        <p className="editor-markdown-preview__list" key={`list-${index}`}>
+          <span aria-hidden="true">•</span>
+          <span>{renderInlineMarkdown(trimmed.replace(/^[-*]\s+/, ""), `list-${index}`)}</span>
+        </p>
+      );
+      return;
+    }
+    if (/^\d+\.\s+/.test(trimmed)) {
+      nodes.push(<p key={`ordered-${index}`}>{renderInlineMarkdown(trimmed, `ordered-${index}`)}</p>);
+      return;
+    }
+    nodes.push(<p key={`p-${index}`}>{renderInlineMarkdown(line, `p-${index}`)}</p>);
+  });
+  flushCode("code-tail");
+  return nodes;
+}
+
+function inferStarterLanguage(source: string) {
+  return /#include|using namespace|int\s+main\s*\(/.test(source) ? CPP17_LANGUAGE_ID : PYTHON3_LANGUAGE_ID;
+}
+
 type TaskEditorPageProps = {
   embedded?: boolean;
   selectedProblemId?: number | null;
   showCatalogDrawer?: boolean;
+  createDraftSignal?: number;
   onSaved?: (problem: Problem) => void;
 };
 
@@ -49,16 +177,24 @@ export default function TaskEditorPage({
   embedded = false,
   selectedProblemId,
   showCatalogDrawer = true,
+  createDraftSignal = 0,
   onSaved
 }: TaskEditorPageProps) {
   const [searchParams] = useSearchParams();
   const [catalog, setCatalog] = useState<ProblemCatalogItem[]>([]);
-  const [form, setForm] = useState(initialProblem);
+  const [form, setForm] = useState(createInitialProblem);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [statementPreview, setStatementPreview] = useState(false);
+  const [starterLanguageId, setStarterLanguageId] = useState(PYTHON3_LANGUAGE_ID);
+  const statementRef = useRef<HTMLTextAreaElement | null>(null);
+  const statementPreviewRef = useRef<HTMLDivElement | null>(null);
+  const initialStarterCodeRef = useRef(initialProblem.starterCode);
+  const loadProblemRequestRef = useRef(0);
 
   const visibleCount = useMemo(() => form.testCases.filter(item => !item.hidden).length, [form.testCases]);
   const hiddenCount = useMemo(() => form.testCases.filter(item => item.hidden).length, [form.testCases]);
+  const statementPreviewBlocks = useMemo(() => renderMarkdownPreview(form.description), [form.description]);
   const qualityItems = useMemo(
     () => [
       { label: "题目标题", ready: Boolean(form.title.trim()), note: form.title.trim() ? "已填写" : "未填写" },
@@ -95,6 +231,26 @@ export default function TaskEditorPage({
     }
   }, [selectedProblemId]);
 
+  useEffect(() => {
+    if (!statementPreview) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      statementPreviewRef.current?.scrollTo({ top: 0 });
+    });
+  }, [statementPreview]);
+
+  useEffect(() => {
+    if (createDraftSignal > 0 && selectedProblemId == null) {
+      loadProblemRequestRef.current += 1;
+      const draft = createInitialProblem();
+      initialStarterCodeRef.current = draft.starterCode;
+      setStarterLanguageId(PYTHON3_LANGUAGE_ID);
+      setForm(draft);
+      setAlert(null);
+    }
+  }, [createDraftSignal, selectedProblemId]);
+
   async function loadCatalog() {
     try {
       setCatalog(await api.problemCatalog());
@@ -104,15 +260,26 @@ export default function TaskEditorPage({
   }
 
   async function loadProblem(id: number) {
+    const requestId = loadProblemRequestRef.current + 1;
+    loadProblemRequestRef.current = requestId;
     try {
       const problem = await api.problemManage(id);
+      if (requestId !== loadProblemRequestRef.current) {
+        return;
+      }
       populate(problem);
     } catch (error) {
+      if (requestId !== loadProblemRequestRef.current) {
+        return;
+      }
       setAlert({ type: "error", message: error instanceof Error ? error.message : "题目加载失败。" });
     }
   }
 
   function populate(problem: ProblemManage) {
+    const starterCode = problem.starterCode || "";
+    initialStarterCodeRef.current = starterCode;
+    setStarterLanguageId(inferStarterLanguage(starterCode));
     setForm({
       id: String(problem.id),
       title: problem.title || "",
@@ -121,7 +288,7 @@ export default function TaskEditorPage({
       timeLimit: problem.timeLimit || 1000,
       memoryLimit: problem.memoryLimit || 131072,
       aiPromptDirection: problem.aiPromptDirection || "",
-      starterCode: problem.starterCode || "",
+      starterCode,
       knowledgePointsText: joinList(problem.knowledgePoints),
       algorithmStrategiesText: joinList(problem.algorithmStrategies),
       commonMistakesText: joinList(problem.commonMistakes),
@@ -157,6 +324,48 @@ export default function TaskEditorPage({
     }));
   }
 
+  function insertStatementInline(prefix: string, suffix = prefix, fallback = "文本") {
+    const textarea = statementRef.current;
+    const value = form.description;
+    const start = textarea?.selectionStart ?? value.length;
+    const end = textarea?.selectionEnd ?? value.length;
+    const selected = value.slice(start, end) || fallback;
+    const nextValue = `${value.slice(0, start)}${prefix}${selected}${suffix}${value.slice(end)}`;
+    const nextStart = start + prefix.length;
+    const nextEnd = nextStart + selected.length;
+    setForm({ ...form, description: nextValue });
+    window.requestAnimationFrame(() => {
+      statementRef.current?.focus();
+      statementRef.current?.setSelectionRange(nextStart, nextEnd);
+    });
+  }
+
+  function insertStatementBlock(marker: string, fallback = "文本") {
+    const textarea = statementRef.current;
+    const value = form.description;
+    const start = textarea?.selectionStart ?? value.length;
+    const end = textarea?.selectionEnd ?? value.length;
+    const selected = value.slice(start, end) || fallback;
+    const needsLeadBreak = start > 0 && value[start - 1] !== "\n";
+    const block = selected
+      .split("\n")
+      .map(line => `${marker}${line || fallback}`)
+      .join("\n");
+    const nextValue = `${value.slice(0, start)}${needsLeadBreak ? "\n" : ""}${block}${value.slice(end)}`;
+    const offset = needsLeadBreak ? 1 : 0;
+    const nextStart = start + offset + marker.length;
+    const nextEnd = nextStart + selected.length;
+    setForm({ ...form, description: nextValue });
+    window.requestAnimationFrame(() => {
+      statementRef.current?.focus();
+      statementRef.current?.setSelectionRange(nextStart, nextEnd);
+    });
+  }
+
+  function resetStarterCode() {
+    setForm(current => ({ ...current, starterCode: initialStarterCodeRef.current }));
+  }
+
   async function save() {
     if (!form.title.trim() || !form.description.trim()) {
       setAlert({ type: "error", message: "请填写标题和题面。" });
@@ -188,6 +397,7 @@ export default function TaskEditorPage({
     try {
       const result = form.id ? await api.updateProblem(Number(form.id), payload) : await api.createProblem(payload);
       setAlert({ type: "success", message: "题目已保存，可在教师工作台绑定到作业。" });
+      initialStarterCodeRef.current = form.starterCode;
       setForm(current => ({ ...current, id: String(result.id) }));
       if (showCatalogDrawer) {
         await loadCatalog();
@@ -252,56 +462,84 @@ export default function TaskEditorPage({
                   <TextInput type="number" value={form.timeLimit} onChange={event => setForm({ ...form, timeLimit: Number(event.target.value) })} />
                 </Field>
               </div>
-              <Field label="题面">
-                <TextArea
-                  className="editor-statement-textarea"
-                  value={form.description}
-                  onChange={event => setForm({ ...form, description: event.target.value })}
-                  rows={adaptiveRows(form.description, 8, 16, 72)}
-                />
-              </Field>
-              <Field label="默认代码">
-                <TextArea
-                  className="editor-code-textarea"
-                  value={form.starterCode}
-                  onChange={event => setForm({ ...form, starterCode: event.target.value })}
-                  rows={adaptiveRows(form.starterCode, 6, 14, 84)}
-                />
-              </Field>
-              <details className="editor-compact-details">
-                <summary>
-                  <span>教学增强信息</span>
-                  <StatusPill tone={qualityItems[4].ready ? "success" : "neutral"}>{qualityItems[4].ready ? "已填写" : "选填"}</StatusPill>
-                </summary>
-                <div className="editor-compact-details__body">
-                  <div className="form-grid">
-                    <Field label="内存 KB">
-                      <TextInput type="number" value={form.memoryLimit} onChange={event => setForm({ ...form, memoryLimit: Number(event.target.value) })} />
-                    </Field>
-                    <Field label="反馈范围">
-                      <TextInput
-                        value={form.aiPromptDirection}
-                        onChange={event => setForm({ ...form, aiPromptDirection: event.target.value })}
-                        placeholder="空输入、循环边界、复杂度"
-                      />
-                    </Field>
+              <div className="field editor-field">
+                <span>题面</span>
+                <div className="editor-markdown-shell">
+                  <div className="editor-inline-toolbar" aria-label="题面 Markdown 工具栏">
+                    <div className="editor-inline-toolbar__group">
+                      <button type="button" className="editor-tool-button" onClick={() => insertStatementInline("**", "**", "加粗文本")} aria-label="加粗" title="加粗">
+                        <Bold size={15} />
+                      </button>
+                      <button type="button" className="editor-tool-button" onClick={() => insertStatementInline("*", "*", "斜体文本")} aria-label="斜体" title="斜体">
+                        <Italic size={15} />
+                      </button>
+                      <button type="button" className="editor-tool-button" onClick={() => insertStatementInline("`", "`", "code")} aria-label="行内代码" title="行内代码">
+                        <Code2 size={15} />
+                      </button>
+                      <button type="button" className="editor-tool-button" onClick={() => insertStatementBlock("> ", "提示")} aria-label="引用" title="引用">
+                        <Quote size={15} />
+                      </button>
+                      <button type="button" className="editor-tool-button" onClick={() => insertStatementBlock("- ", "列表项")} aria-label="无序列表" title="无序列表">
+                        <List size={15} />
+                      </button>
+                      <button type="button" className="editor-tool-button" onClick={() => insertStatementBlock("1. ", "列表项")} aria-label="有序列表" title="有序列表">
+                        <ListOrdered size={15} />
+                      </button>
+                      <button type="button" className="editor-tool-button" onClick={() => insertStatementInline("[", "](https://)", "链接文字")} aria-label="链接" title="链接">
+                        <Link2 size={15} />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className={`editor-tool-button editor-tool-button--text ${statementPreview ? "is-active" : ""}`}
+                      onClick={() => setStatementPreview(value => !value)}
+                      aria-pressed={statementPreview}
+                    >
+                      {statementPreview ? <EyeOff size={15} /> : <Eye size={15} />}
+                      <span>{statementPreview ? "编辑" : "预览"}</span>
+                    </button>
                   </div>
-                  <div className="knowledge-grid">
-                    <Field label="知识点">
-                      <TextArea value={form.knowledgePointsText} onChange={event => setForm({ ...form, knowledgePointsText: event.target.value })} rows={3} />
-                    </Field>
-                    <Field label="算法策略">
-                      <TextArea value={form.algorithmStrategiesText} onChange={event => setForm({ ...form, algorithmStrategiesText: event.target.value })} rows={3} />
-                    </Field>
-                    <Field label="常见误区">
-                      <TextArea value={form.commonMistakesText} onChange={event => setForm({ ...form, commonMistakesText: event.target.value })} rows={3} />
-                    </Field>
-                    <Field label="边界类型">
-                      <TextArea value={form.boundaryTypesText} onChange={event => setForm({ ...form, boundaryTypesText: event.target.value })} rows={3} />
-                    </Field>
+                  {statementPreview ? (
+                    <div className="editor-markdown-preview" ref={statementPreviewRef}>
+                      {statementPreviewBlocks}
+                    </div>
+                  ) : (
+                    <TextArea
+                      ref={statementRef}
+                      className="editor-statement-textarea"
+                      value={form.description}
+                      onChange={event => setForm({ ...form, description: event.target.value })}
+                      rows={adaptiveRows(form.description, 7, 7, 88)}
+                    />
+                  )}
+                  <div className="editor-field-foot">
+                    <span>Markdown</span>
+                    <strong>{form.description.length.toLocaleString()} / 20000</strong>
                   </div>
                 </div>
-              </details>
+              </div>
+              <div className="field editor-field">
+                <span>默认代码</span>
+                <div className="editor-starter-code-shell">
+                  <div className="editor-inline-toolbar editor-inline-toolbar--code" aria-label="默认代码工具栏">
+                    <Select value={starterLanguageId} onChange={event => setStarterLanguageId(Number(event.target.value))} aria-label="默认代码语言">
+                      <option value={PYTHON3_LANGUAGE_ID}>Python 3</option>
+                      <option value={CPP17_LANGUAGE_ID}>C++17</option>
+                    </Select>
+                    <button type="button" className="editor-tool-button editor-tool-button--text" onClick={resetStarterCode}>
+                      <RotateCcw size={15} />
+                      <span>重置</span>
+                    </button>
+                  </div>
+                  <CodeEditor
+                    className="editor-code-editor"
+                    languageId={starterLanguageId}
+                    sourceCode={form.starterCode}
+                    onChange={value => setForm(current => ({ ...current, starterCode: value }))}
+                    minHeight="112px"
+                  />
+                </div>
+              </div>
             </div>
           </Panel>
 
@@ -321,41 +559,134 @@ export default function TaskEditorPage({
               </div>
             }
           >
-            <div className="stack">
-              {form.testCases.map((item, index) => (
-                <div className="list-row editor-test-row" key={index}>
-                  <div className="actions">
-                    <StatusPill tone={item.hidden ? "warning" : "success"}>{item.hidden ? "隐藏测试点" : "公开测试点"}</StatusPill>
-                    <label className="actions editor-test-toggle">
-                      <input type="checkbox" checked={item.hidden} onChange={event => updateTestCase(index, { hidden: event.target.checked })} />
-                      隐藏
-                    </label>
-                    <Button type="button" variant="danger" onClick={() => removeTestCase(index)}>
-                      删除
-                    </Button>
+            {embedded ? (
+              <div className="editor-test-table-wrap">
+                <table className="editor-test-table">
+                  <thead>
+                    <tr>
+                      <th>编号</th>
+                      <th>状态</th>
+                      <th>输入</th>
+                      <th>期望输出</th>
+                      <th>分数</th>
+                      <th>隐藏</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.testCases.map((item, index) => (
+                      <tr key={index}>
+                        <td className="editor-test-table__index">{String(index + 1).padStart(2, "0")}</td>
+                        <td>
+                          <StatusPill tone={item.hidden ? "warning" : "success"}>{item.hidden ? "隐藏" : "公开"}</StatusPill>
+                        </td>
+                        <td>
+                          <TextArea
+                            aria-label={`测试点 ${index + 1} 输入`}
+                            className="editor-test-textarea"
+                            value={item.input}
+                            onChange={event => updateTestCase(index, { input: event.target.value })}
+                            rows={adaptiveRows(item.input, 2, 4, 36)}
+                          />
+                        </td>
+                        <td>
+                          <TextArea
+                            aria-label={`测试点 ${index + 1} 期望输出`}
+                            className="editor-test-textarea"
+                            value={item.expectedOutput}
+                            onChange={event => updateTestCase(index, { expectedOutput: event.target.value })}
+                            rows={adaptiveRows(item.expectedOutput, 2, 4, 36)}
+                          />
+                        </td>
+                        <td className="editor-test-table__score">100</td>
+                        <td>
+                          <label className="editor-switch">
+                            <input type="checkbox" checked={item.hidden} onChange={event => updateTestCase(index, { hidden: event.target.checked })} aria-label={`隐藏测试点 ${index + 1}`} />
+                            <span aria-hidden="true" />
+                          </label>
+                        </td>
+                        <td>
+                          <button type="button" className="editor-tool-button editor-tool-button--danger" onClick={() => removeTestCase(index)} aria-label={`删除测试点 ${index + 1}`}>
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="stack">
+                {form.testCases.map((item, index) => (
+                  <div className="list-row editor-test-row" key={index}>
+                    <div className="actions">
+                      <StatusPill tone={item.hidden ? "warning" : "success"}>{item.hidden ? "隐藏测试点" : "公开测试点"}</StatusPill>
+                      <label className="actions editor-test-toggle">
+                        <input type="checkbox" checked={item.hidden} onChange={event => updateTestCase(index, { hidden: event.target.checked })} />
+                        隐藏
+                      </label>
+                      <Button type="button" variant="danger" onClick={() => removeTestCase(index)}>
+                        删除
+                      </Button>
+                    </div>
+                    <div className="two-column">
+                      <Field label="输入">
+                        <TextArea
+                          className="editor-test-textarea"
+                          value={item.input}
+                          onChange={event => updateTestCase(index, { input: event.target.value })}
+                          rows={adaptiveRows(item.input, 2, 6, 48)}
+                        />
+                      </Field>
+                      <Field label="期望输出">
+                        <TextArea
+                          className="editor-test-textarea"
+                          value={item.expectedOutput}
+                          onChange={event => updateTestCase(index, { expectedOutput: event.target.value })}
+                          rows={adaptiveRows(item.expectedOutput, 2, 6, 48)}
+                        />
+                      </Field>
+                    </div>
                   </div>
-                  <div className="two-column">
-                    <Field label="输入">
-                      <TextArea
-                        className="editor-test-textarea"
-                        value={item.input}
-                        onChange={event => updateTestCase(index, { input: event.target.value })}
-                        rows={adaptiveRows(item.input, 2, 6, 48)}
-                      />
-                    </Field>
-                    <Field label="期望输出">
-                      <TextArea
-                        className="editor-test-textarea"
-                        value={item.expectedOutput}
-                        onChange={event => updateTestCase(index, { expectedOutput: event.target.value })}
-                        rows={adaptiveRows(item.expectedOutput, 2, 6, 48)}
-                      />
-                    </Field>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Panel>
+
+          <details className="editor-compact-details editor-compact-details--teaching">
+            <summary>
+              <span>教学增强信息</span>
+              <StatusPill tone={qualityItems[4].ready ? "success" : "neutral"}>{qualityItems[4].ready ? "已填写" : "选填"}</StatusPill>
+            </summary>
+            <div className="editor-compact-details__body">
+              <div className="form-grid">
+                <Field label="内存 KB">
+                  <TextInput type="number" value={form.memoryLimit} onChange={event => setForm({ ...form, memoryLimit: Number(event.target.value) })} />
+                </Field>
+                <Field label="反馈范围">
+                  <TextInput
+                    value={form.aiPromptDirection}
+                    onChange={event => setForm({ ...form, aiPromptDirection: event.target.value })}
+                    placeholder="空输入、循环边界、复杂度"
+                  />
+                </Field>
+              </div>
+              <div className="knowledge-grid">
+                <Field label="知识点">
+                  <TextArea value={form.knowledgePointsText} onChange={event => setForm({ ...form, knowledgePointsText: event.target.value })} rows={3} />
+                </Field>
+                <Field label="算法策略">
+                  <TextArea value={form.algorithmStrategiesText} onChange={event => setForm({ ...form, algorithmStrategiesText: event.target.value })} rows={3} />
+                </Field>
+                <Field label="常见误区">
+                  <TextArea value={form.commonMistakesText} onChange={event => setForm({ ...form, commonMistakesText: event.target.value })} rows={3} />
+                </Field>
+                <Field label="边界类型">
+                  <TextArea value={form.boundaryTypesText} onChange={event => setForm({ ...form, boundaryTypesText: event.target.value })} rows={3} />
+                </Field>
+              </div>
+            </div>
+          </details>
         </div>
 
       </section>
