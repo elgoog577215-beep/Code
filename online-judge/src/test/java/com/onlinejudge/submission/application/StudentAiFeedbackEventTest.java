@@ -147,6 +147,47 @@ class StudentAiFeedbackEventTest {
     }
 
     @Test
+    void generateAndStoreInfersKnowledgePathWhenAdviceHasNoStandardIds() {
+        when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
+        when(problemRepository.findById(101L)).thenReturn(Optional.of(problem()));
+        when(caseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(7L)).thenReturn(caseResults());
+        when(submissionAnalysisService.generateAndStoreAnalysis(
+                any(Problem.class),
+                any(Submission.class),
+                any()
+        )).thenReturn(noStandardIdAnalysis());
+        when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
+        when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_READY)))
+                .thenReturn(Optional.empty());
+        when(knowledgeRepository.findByEnabledTrueOrderByPathAscSortOrderAscCodeAsc()).thenReturn(List.of(
+                InformaticsKnowledgeNode.builder()
+                        .code("ALGO.SELECT.MEDIAN")
+                        .type(InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
+                        .name("中位数")
+                        .path("算法设计 / 排序与选择 / 中位数")
+                        .aliases("中位数,median")
+                        .enabled(true)
+                        .build(),
+                InformaticsKnowledgeNode.builder()
+                        .code("ALGO.WINDOW.SLIDING")
+                        .type(InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
+                        .name("滑动窗口")
+                        .path("算法设计 / 双指针 / 滑动窗口")
+                        .aliases("滑窗")
+                        .enabled(true)
+                        .build()
+        ));
+
+        StudentAiFeedbackResponse response = service.generateAndStore(7L);
+
+        assertThat(response.getRepairItems().get(0).getKnowledgePath())
+                .containsExactly("算法设计", "排序与选择", "中位数");
+        assertThat(response.getImprovementItems().get(0).getKnowledgePath())
+                .containsExactly("算法设计", "双指针", "滑动窗口");
+    }
+
+    @Test
     void generateAndStoreInfersCodeEvidenceWhenModelOnlyReturnsJudgeEvidence() {
         when(submissionRepository.findById(7L)).thenReturn(Optional.of(diffSubmission()));
         when(problemRepository.findById(101L)).thenReturn(Optional.of(problem()));
@@ -263,6 +304,40 @@ class StudentAiFeedbackEventTest {
 
         assertThat(lookup.getStatus()).isEqualTo("GENERATING");
         verify(feedbackRepository, never()).save(any(StudentAiFeedback.class));
+    }
+
+    @Test
+    void markGeneratingRefreshesReadyRecordMissingKnowledgePath() throws Exception {
+        StudentAiFeedbackResponse oldReadyFeedback = StudentAiFeedbackResponse.builder()
+                .submissionId(7L)
+                .status("READY")
+                .source("MODEL")
+                .latencyMs(420L)
+                .repairItems(List.of(StudentAiFeedbackResponse.FeedbackItem.builder()
+                        .title("使用平均数代替中位数")
+                        .body("当前建议有代码证据，但旧记录没有知识路径。")
+                        .evidenceRefs(List.of("code:line:1"))
+                        .knowledgePath(List.of())
+                        .build()))
+                .improvementItems(List.of())
+                .evidenceRefs(List.of("code:line:1"))
+                .build();
+        StudentAiFeedback existing = StudentAiFeedback.builder()
+                .submissionId(7L)
+                .status("READY")
+                .source("MODEL")
+                .feedbackJson(objectMapper.writeValueAsString(oldReadyFeedback))
+                .build();
+        when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
+        when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.of(existing));
+        when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var lookup = service.markGenerating(7L);
+
+        assertThat(lookup.getStatus()).isEqualTo("GENERATING");
+        ArgumentCaptor<StudentAiFeedback> captor = ArgumentCaptor.forClass(StudentAiFeedback.class);
+        verify(feedbackRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo("GENERATING");
     }
 
     @Test
@@ -409,6 +484,46 @@ class StudentAiFeedbackEventTest {
                                 .improvementPointId("IP_INPUT_FORMAT_REVIEW")
                                 .suggestion("先把题面输入格式拆成变量表。")
                                 .studentBenefit("减少漏读变量。")
+                                .evidenceRefs(List.of("code:line:1"))
+                                .build()
+                ))
+                .build();
+    }
+
+    private SubmissionAnalysisResponse noStandardIdAnalysis() {
+        return SubmissionAnalysisResponse.builder()
+                .submissionId(7L)
+                .summary("这次主要是中位数计算和窗口维护没有对齐。")
+                .answerLeakRisk("LOW")
+                .evidenceRefs(List.of("code:line:1", "judge:first_failed_case:1"))
+                .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                        .status("MODEL_COMPLETED")
+                        .diagnosisLibraryFit("PARTIAL")
+                        .build())
+                .studentFeedback(SubmissionAnalysisResponse.StudentFeedback.builder()
+                        .summary("这次主要是中位数计算和窗口维护没有对齐。")
+                        .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                                .task("先手推窗口内元素和目标中位数。")
+                                .checkQuestion("当前 target 真的是窗口中位数吗？")
+                                .answerLeakRisk("LOW")
+                                .evidenceRefs(List.of("code:line:1"))
+                                .build())
+                        .build())
+                .basicLayerAdvice(List.of(
+                        SubmissionAnalysisResponse.BasicLayerAdvice.builder()
+                                .title("使用平均数代替中位数")
+                                .whatHappened("代码用窗口平均数判断目标，但题目要求窗口中位数。")
+                                .whyItMatters("平均数和中位数不是同一个统计量。")
+                                .studentAction("手推窗口排序后中间位置。")
+                                .evidenceRefs(List.of("code:line:1"))
+                                .build()
+                ))
+                .improvementLayerAdvice(List.of(
+                        SubmissionAnalysisResponse.ImprovementLayerAdvice.builder()
+                                .title("滑动窗口优化技巧")
+                                .currentLimit("当前每次重新处理整个窗口。")
+                                .suggestion("理解滑动窗口状态如何随左右端点更新。")
+                                .studentBenefit("减少重复计算。")
                                 .evidenceRefs(List.of("code:line:1"))
                                 .build()
                 ))

@@ -82,7 +82,7 @@ public class StudentAiFeedbackService {
                         .submissionId(submissionId)
                         .source(SOURCE_MODEL)
                         .build());
-        if ("READY".equals(entity.getStatus())) {
+        if ("READY".equals(entity.getStatus()) && !needsContractRefresh(entity)) {
             return toLookup(entity);
         }
         if ("GENERATING".equals(entity.getStatus()) && !isGeneratingExpired(entity)) {
@@ -119,11 +119,43 @@ public class StudentAiFeedbackService {
                 .orElse(false);
     }
 
+    @Transactional(readOnly = true)
+    public boolean needsContractRefresh(Long submissionId) {
+        if (submissionId == null) {
+            return false;
+        }
+        return studentAiFeedbackRepository.findBySubmissionId(submissionId)
+                .map(this::needsContractRefresh)
+                .orElse(false);
+    }
+
     private boolean isGeneratingExpired(StudentAiFeedback entity) {
         if (entity == null || entity.getGeneratedAt() == null) {
             return true;
         }
         return entity.getGeneratedAt().isBefore(LocalDateTime.now().minus(GENERATING_EXPIRES_AFTER));
+    }
+
+    private boolean needsContractRefresh(StudentAiFeedback entity) {
+        if (entity == null || !"READY".equals(entity.getStatus()) || !SOURCE_MODEL.equals(entity.getSource())) {
+            return false;
+        }
+        StudentAiFeedbackResponse feedback = deserialize(entity);
+        if (feedback == null) {
+            return true;
+        }
+        if (feedback.getLatencyMs() == null) {
+            return true;
+        }
+        List<StudentAiFeedbackResponse.FeedbackItem> items = new ArrayList<>();
+        items.addAll(safe(feedback.getRepairItems()));
+        items.addAll(safe(feedback.getImprovementItems()));
+        if (items.isEmpty()) {
+            return true;
+        }
+        return items.stream()
+                .filter(item -> item != null && (!clean(item.getTitle()).isBlank() || !clean(item.getBody()).isBlank()))
+                .anyMatch(item -> safe(item.getKnowledgePath()).isEmpty());
     }
 
     @Transactional
@@ -230,7 +262,7 @@ public class StudentAiFeedbackService {
                     .skillUnitId(cleanId(advice.getSkillUnitId()))
                     .mistakePointId(cleanId(advice.getMistakePointId()))
                     .libraryFit(libraryFit(analysis))
-                    .knowledgePath(knowledgePathForRepair(advice.getSkillUnitId(), advice.getMistakePointId()))
+                    .knowledgePath(knowledgePathForRepair(advice.getSkillUnitId(), advice.getMistakePointId(), title, body, analysis))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
@@ -253,7 +285,7 @@ public class StudentAiFeedbackService {
                     .skillUnitId(cleanId(issue.getIssueTag()))
                     .mistakePointId(cleanId(issue.getFineGrainedTag()))
                     .libraryFit(libraryFit(analysis))
-                    .knowledgePath(knowledgePathFallback(issue.getIssueTag(), issue.getFineGrainedTag()))
+                    .knowledgePath(knowledgePathFallback(issue.getIssueTag(), issue.getFineGrainedTag(), title))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
@@ -278,7 +310,7 @@ public class StudentAiFeedbackService {
                     .skillUnitId(cleanId(advice.getSkillUnitId()))
                     .improvementPointId(cleanId(advice.getImprovementPointId()))
                     .libraryFit(libraryFit(analysis))
-                    .knowledgePath(knowledgePathForImprovement(advice.getSkillUnitId(), advice.getImprovementPointId()))
+                    .knowledgePath(knowledgePathForImprovement(advice.getSkillUnitId(), advice.getImprovementPointId(), title, body, analysis))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("transfer"))
@@ -300,7 +332,7 @@ public class StudentAiFeedbackService {
                     .kind("IMPROVEMENT")
                     .improvementPointId(cleanId(item.getCategory()))
                     .libraryFit(libraryFit(analysis))
-                    .knowledgePath(knowledgePathFallback(item.getCategory()))
+                    .knowledgePath(knowledgePathFallback(item.getCategory(), title))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("transfer"))
@@ -376,7 +408,11 @@ public class StudentAiFeedbackService {
         return refs.stream().filter(value -> value != null && !value.isBlank()).toList();
     }
 
-    private List<String> knowledgePathForRepair(String skillUnitId, String mistakePointId) {
+    private List<String> knowledgePathForRepair(String skillUnitId,
+                                                String mistakePointId,
+                                                String title,
+                                                String body,
+                                                SubmissionAnalysisResponse analysis) {
         String skillCode = clean(skillUnitId);
         String mistakeCode = clean(mistakePointId);
         LinkedHashSet<String> path = new LinkedHashSet<>();
@@ -395,10 +431,14 @@ public class StudentAiFeedbackService {
             addIfNotBlank(path, item.getName());
             return path.isEmpty() ? knowledgePathFallback(skillCode, mistakeCode) : List.copyOf(path);
         }
-        return knowledgePathFallback(skillCode, mistakeCode);
+        return knowledgePathFallback(skillCode, mistakeCode, inferredKnowledgeTitle(title, body, analysis));
     }
 
-    private List<String> knowledgePathForImprovement(String skillUnitId, String improvementPointId) {
+    private List<String> knowledgePathForImprovement(String skillUnitId,
+                                                     String improvementPointId,
+                                                     String title,
+                                                     String body,
+                                                     SubmissionAnalysisResponse analysis) {
         String skillCode = clean(skillUnitId);
         String improvementCode = clean(improvementPointId);
         LinkedHashSet<String> path = new LinkedHashSet<>();
@@ -417,7 +457,7 @@ public class StudentAiFeedbackService {
             addIfNotBlank(path, item.getName());
             return path.isEmpty() ? knowledgePathFallback(skillCode, improvementCode) : List.copyOf(path);
         }
-        return knowledgePathFallback(skillCode, improvementCode);
+        return knowledgePathFallback(skillCode, improvementCode, inferredKnowledgeTitle(title, body, analysis));
     }
 
     private void addSkillName(LinkedHashSet<String> path, String skillCode) {
@@ -453,9 +493,82 @@ public class StudentAiFeedbackService {
     private List<String> knowledgePathFallback(String... values) {
         LinkedHashSet<String> path = new LinkedHashSet<>();
         for (String value : values) {
-            addIfNotBlank(path, value);
+            List<String> segments = splitKnowledgePath(value);
+            if (segments.isEmpty()) {
+                addIfNotBlank(path, value);
+            } else {
+                segments.forEach(segment -> addIfNotBlank(path, segment));
+            }
+        }
+        if (path.isEmpty()) {
+            path.add("未归类");
         }
         return List.copyOf(path);
+    }
+
+    private String inferredKnowledgeTitle(String title, String body, SubmissionAnalysisResponse analysis) {
+        String text = joinNonBlank(
+                title,
+                body,
+                analysis == null ? "" : analysis.getSummary(),
+                analysis == null ? "" : analysis.getStudentHint()
+        );
+        Optional<InformaticsKnowledgeNode> node = bestKnowledgeNodeForText(text);
+        if (node.isPresent()) {
+            return firstNonBlank(node.get().getPath(), node.get().getName());
+        }
+        return firstNonBlank(title, body, "未归类");
+    }
+
+    private Optional<InformaticsKnowledgeNode> bestKnowledgeNodeForText(String text) {
+        String haystack = compactText(text);
+        if (haystack.isBlank()) {
+            return Optional.empty();
+        }
+        InformaticsKnowledgeNode best = null;
+        int bestScore = 0;
+        List<InformaticsKnowledgeNode> nodes = knowledgeRepository.findByEnabledTrueOrderByPathAscSortOrderAscCodeAsc();
+        for (InformaticsKnowledgeNode node : nodes == null ? List.<InformaticsKnowledgeNode>of() : nodes) {
+            int score = knowledgeMatchScore(node, haystack);
+            if (score > bestScore) {
+                bestScore = score;
+                best = node;
+            }
+        }
+        return best == null ? Optional.empty() : Optional.of(best);
+    }
+
+    private int knowledgeMatchScore(InformaticsKnowledgeNode node, String haystack) {
+        if (node == null) {
+            return 0;
+        }
+        int score = 0;
+        String name = compactText(node.getName());
+        if (!name.isBlank() && haystack.contains(name)) {
+            score = Math.max(score, 100 + name.length());
+        }
+        for (String alias : splitLooseList(node.getAliases())) {
+            String compact = compactText(alias);
+            if (!compact.isBlank() && haystack.contains(compact)) {
+                score = Math.max(score, 80 + compact.length());
+            }
+        }
+        return score;
+    }
+
+    private List<String> splitLooseList(String value) {
+        String cleaned = clean(value);
+        if (cleaned.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(cleaned.split("[,，;；\\n]+"))
+                .map(this::clean)
+                .filter(item -> !item.isBlank())
+                .toList();
+    }
+
+    private String compactText(String value) {
+        return clean(value).replaceAll("\\s+", "").toLowerCase();
     }
 
     private void addIfNotBlank(LinkedHashSet<String> target, String value) {

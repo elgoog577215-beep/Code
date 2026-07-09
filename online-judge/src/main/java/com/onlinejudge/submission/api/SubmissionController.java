@@ -87,7 +87,9 @@ public class SubmissionController {
                                                                                 HttpServletRequest request) {
         requireSubmissionAccess(request, id);
         StudentAiFeedbackLookupResponse lookup = studentAiFeedbackService.getLookup(id);
-        if ("NOT_REQUESTED".equals(lookup.getStatus()) || studentAiFeedbackService.isGeneratingExpired(id)) {
+        if ("NOT_REQUESTED".equals(lookup.getStatus())
+                || studentAiFeedbackService.isGeneratingExpired(id)
+                || studentAiFeedbackService.needsContractRefresh(id)) {
             studentAiFeedbackAsyncService.enqueue(id);
             return ResponseEntity.accepted().body(studentAiFeedbackService.getLookup(id));
         }
@@ -99,7 +101,7 @@ public class SubmissionController {
                                                                                     HttpServletRequest request) {
         requireSubmissionAccess(request, id);
         StudentAiFeedbackLookupResponse lookup = studentAiFeedbackService.getLookup(id);
-        if (!"READY".equals(lookup.getStatus())) {
+        if (!"READY".equals(lookup.getStatus()) || studentAiFeedbackService.needsContractRefresh(id)) {
             studentAiFeedbackAsyncService.enqueue(id);
             return ResponseEntity.accepted().body(studentAiFeedbackService.getLookup(id));
         }
