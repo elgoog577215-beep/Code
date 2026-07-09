@@ -125,11 +125,14 @@ class StudentAiFeedbackEventTest {
 
         assertThat(response.getStatus()).isEqualTo("READY");
         assertThat(response.getSource()).isEqualTo("MODEL");
+        assertThat(response.getLatencyMs()).isNotNull().isGreaterThanOrEqualTo(0L);
         assertThat(response.getRepairItems()).hasSize(2);
         assertThat(response.getImprovementItems()).hasSize(2);
         assertThat(response.getRepairItems().get(0).getTitle()).contains("输入读取");
+        assertThat(response.getRepairItems().get(0).getLibraryFit()).isEqualTo("PARTIAL");
         assertThat(response.getRepairItems().get(0).getKnowledgePath())
                 .containsExactly("信息学基础", "输入输出", "输入格式", "输入读取", "漏读变量");
+        assertThat(response.getImprovementItems().get(0).getLibraryFit()).isEqualTo("PARTIAL");
         assertThat(response.getImprovementItems().get(0).getKnowledgePath())
                 .containsExactly("信息学基础", "输入输出", "输入格式", "输入读取", "边界样例覆盖");
         assertThat(response.getRepairItems().get(0).getEvidenceSnippets()).singleElement()
@@ -363,6 +366,7 @@ class StudentAiFeedbackEventTest {
                 .evidenceRefs(List.of("code:line:1", "judge:first_failed_case:1"))
                 .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
                         .status("MODEL_COMPLETED")
+                        .diagnosisLibraryFit("PARTIAL")
                         .build())
                 .studentFeedback(SubmissionAnalysisResponse.StudentFeedback.builder()
                         .summary("完整链路：这次主要是输入读取和计算目标没有对齐。")

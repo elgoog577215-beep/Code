@@ -162,6 +162,7 @@ public class StudentAiFeedbackService {
     }
 
     public StudentAiFeedbackResponse generateAndStore(Long submissionId) {
+        long startedAt = System.nanoTime();
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + submissionId));
         Problem problem = problemRepository.findById(submission.getProblemId())
@@ -169,6 +170,7 @@ public class StudentAiFeedbackService {
         List<SubmissionCaseResult> caseResults = submissionCaseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(submissionId);
         SubmissionAnalysisResponse analysis = submissionAnalysisService.generateAndStoreAnalysis(problem, submission, caseResults);
         StudentAiFeedbackResponse feedback = toStudentAiFeedback(submission, analysis);
+        feedback.setLatencyMs(elapsedMs(startedAt));
         return saveFeedback(submission, feedback);
     }
 
@@ -227,6 +229,7 @@ public class StudentAiFeedbackService {
                     .kind("REPAIR")
                     .skillUnitId(cleanId(advice.getSkillUnitId()))
                     .mistakePointId(cleanId(advice.getMistakePointId()))
+                    .libraryFit(libraryFit(analysis))
                     .knowledgePath(knowledgePathForRepair(advice.getSkillUnitId(), advice.getMistakePointId()))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
@@ -249,6 +252,7 @@ public class StudentAiFeedbackService {
                     .kind("REPAIR")
                     .skillUnitId(cleanId(issue.getIssueTag()))
                     .mistakePointId(cleanId(issue.getFineGrainedTag()))
+                    .libraryFit(libraryFit(analysis))
                     .knowledgePath(knowledgePathFallback(issue.getIssueTag(), issue.getFineGrainedTag()))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
@@ -273,6 +277,7 @@ public class StudentAiFeedbackService {
                     .kind("IMPROVEMENT")
                     .skillUnitId(cleanId(advice.getSkillUnitId()))
                     .improvementPointId(cleanId(advice.getImprovementPointId()))
+                    .libraryFit(libraryFit(analysis))
                     .knowledgePath(knowledgePathForImprovement(advice.getSkillUnitId(), advice.getImprovementPointId()))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
@@ -294,6 +299,7 @@ public class StudentAiFeedbackService {
                     .body(body)
                     .kind("IMPROVEMENT")
                     .improvementPointId(cleanId(item.getCategory()))
+                    .libraryFit(libraryFit(analysis))
                     .knowledgePath(knowledgePathFallback(item.getCategory()))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
@@ -344,6 +350,17 @@ public class StudentAiFeedbackService {
     private SubmissionAnalysisResponse.NextLearningAction nextAction(SubmissionAnalysisResponse analysis) {
         SubmissionAnalysisResponse.StudentFeedback feedback = analysis == null ? null : analysis.getStudentFeedback();
         return feedback == null ? null : feedback.getNextLearningAction();
+    }
+
+    private String libraryFit(SubmissionAnalysisResponse analysis) {
+        if (analysis == null || analysis.getAiInvocation() == null) {
+            return null;
+        }
+        String value = firstNonBlank(
+                analysis.getAiInvocation().getDiagnosisLibraryFit(),
+                analysis.getAiInvocation().getLibraryFit()
+        ).toUpperCase();
+        return value.isBlank() ? null : value;
     }
 
     private List<String> evidenceRefs(SubmissionAnalysisResponse analysis,
@@ -736,6 +753,10 @@ public class StudentAiFeedbackService {
             }
         }
         return "";
+    }
+
+    private long elapsedMs(long startedAt) {
+        return Math.max(0L, (System.nanoTime() - startedAt) / 1_000_000);
     }
 
     private StudentAiFeedbackResponse saveFeedback(Submission submission, StudentAiFeedbackResponse feedback) {
