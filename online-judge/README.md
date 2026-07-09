@@ -95,6 +95,8 @@ cp .env.example .env
 - `AI_ENABLED`: 是否启用模型反馈。
 - `OJ_MODELSCOPE_API_KEY`: 模型 API Key，推荐用于学校 Docker 部署；旧名 `MODELSCOPE_API_KEY` 仍兼容。
 - `AI_READINESS_BLOCKING`: 是否要求 AI smoke 通过才允许 readiness 为 `READY`。
+- `AI_BUDGET_GUARD_ENABLED`: 是否启用模型预算保护，默认关闭；只有批量评测需要主动避免连续失败消耗调用时再打开。
+- `AI_BUDGET_GUARD_COOLDOWN_SECONDS`: 预算保护打开后的冷却秒数，默认 `60`。
 
 更多投用要求见 [高中单校内网投用清单](docs/school-readiness-checklist.md)。
 
