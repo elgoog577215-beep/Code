@@ -220,6 +220,87 @@ function inFlightFeedbackStatus(status?: string | null) {
   return ["GENERATING", "NOT_REQUESTED"].includes(String(status || "").toUpperCase());
 }
 
+function normalizeFailureReason(reason?: string | null) {
+  const text = String(reason || "").trim();
+  if (!text) {
+    return "";
+  }
+  return text
+    .split(",")
+    .map(item => item.trim())
+    .filter(Boolean)[0] || text;
+}
+
+function feedbackFailureReason(feedback?: StudentAiFeedback | null) {
+  return normalizeFailureReason(feedback?.failureReason || feedback?.safety?.blockedReasons?.find(Boolean));
+}
+
+function withLookupFailureReason(feedback: StudentAiFeedback | null, failureReason?: string | null) {
+  if (!feedback || feedback.failureReason || !failureReason) {
+    return feedback;
+  }
+  return { ...feedback, failureReason };
+}
+
+function modelFailureTitle(reason?: string | null) {
+  const normalized = normalizeFailureReason(reason).toUpperCase();
+  switch (normalized) {
+    case "INSUFFICIENT_QUOTA":
+      return "AI API 额度已耗尽";
+    case "RATE_LIMITED":
+      return "AI API 请求被限流";
+    case "AUTHENTICATION_FAILED":
+      return "AI API 认证失败";
+    case "MODEL_UNSUPPORTED":
+      return "当前模型不可用";
+    case "TIMEOUT":
+      return "AI 响应超时";
+    case "OUTPUT_TRUNCATED":
+      return "AI 输出被截断";
+    case "INVALID_JSON":
+      return "AI 返回格式异常";
+    case "BUDGET_GUARD_OPEN":
+      return "AI 调用保护已开启";
+    case "SAFETY_RISK":
+    case "SAFETY_REJECTED":
+      return "AI 反馈被安全策略拦截";
+    case "FULL_CHAIN_FEEDBACK_EMPTY":
+      return "AI 没有返回可展示建议";
+    case "FULL_CHAIN_FAILED":
+    case "API_ERROR":
+    case "UNKNOWN_ERROR":
+      return "AI 生成失败";
+    default:
+      return normalized ? `AI 生成失败：${normalized}` : "AI 生成失败";
+  }
+}
+
+function modelFailureMessage(reason?: string | null) {
+  const normalized = normalizeFailureReason(reason).toUpperCase();
+  switch (normalized) {
+    case "INSUFFICIENT_QUOTA":
+      return "当前 ModelScope 账号额度不足，需要充值、换 key 或切到有额度的模型后重试。";
+    case "RATE_LIMITED":
+      return "模型服务返回限流，稍等一会儿再重试，或降低连续请求频率。";
+    case "AUTHENTICATION_FAILED":
+      return "后端 API key 无效或未生效，请检查 OJ_MODELSCOPE_API_KEY / MODELSCOPE_API_KEY。";
+    case "MODEL_UNSUPPORTED":
+      return "当前模型 ID 在供应商侧不可用，请切换到已通过 smoke 的模型。";
+    case "TIMEOUT":
+      return "模型响应超过等待时间，稍后重试或换更快的模型。";
+    case "OUTPUT_TRUNCATED":
+      return "模型返回内容不完整，需要提高输出 token 或压缩上下文。";
+    case "INVALID_JSON":
+      return "模型返回没有满足结构化格式，可以重试一次。";
+    case "BUDGET_GUARD_OPEN":
+      return "系统检测到连续失败，暂时停止继续消耗 API 调用。";
+    case "FULL_CHAIN_FEEDBACK_EMPTY":
+      return "模型调用完成，但没有产出可展示的修正或提升建议。";
+    default:
+      return "请稍后重试；如果连续失败，去教师端 readiness 运行 AI smoke 查看 key、额度、限流和模型状态。";
+  }
+}
+
 function feedbackPollingDelay(elapsedMs: number) {
   if (elapsedMs < 12_000) {
     return 1_200;
@@ -720,7 +801,7 @@ export default function ProblemPage() {
       if (result.id) {
         void api
           .triggerStudentAiFeedback(result.id)
-          .then(lookup => handleFeedbackLookup(lookup.feedback || null, feedbackToken))
+          .then(lookup => handleFeedbackLookup(withLookupFailureReason(lookup.feedback || null, lookup.failureReason), feedbackToken))
           .catch(() => undefined);
         pollStudentAiFeedback(result.id, feedbackToken);
       }
@@ -771,7 +852,7 @@ export default function ProblemPage() {
       }
       try {
         const lookup = await api.studentAiFeedback(id);
-        const feedback = lookup.feedback || null;
+        const feedback = withLookupFailureReason(lookup.feedback || null, lookup.failureReason);
         if (handleFeedbackLookup(feedback, token)) {
           return;
         }
@@ -806,7 +887,7 @@ export default function ProblemPage() {
     setFeedbackPollState("refreshing");
     try {
       const lookup = shouldRetry ? await api.triggerStudentAiFeedback(latest.id) : await api.studentAiFeedback(latest.id);
-      const feedback = lookup.feedback || null;
+      const feedback = withLookupFailureReason(lookup.feedback || null, lookup.failureReason);
       if (handleFeedbackLookup(feedback, feedbackToken)) {
         return;
       }
@@ -866,6 +947,7 @@ export default function ProblemPage() {
   const firstFailedCase = latest?.testCaseResults?.find(item => !item.passed) || null;
   const feedbackStatus = String(studentAiFeedback?.status || "").toUpperCase();
   const feedbackSource = String(studentAiFeedback?.source || "").toUpperCase();
+  const feedbackFailure = feedbackFailureReason(studentAiFeedback);
   const modelFeedbackReady = feedbackStatus === "READY" && feedbackSource === "MODEL";
   const repairViewItems = modelFeedbackReady ? studentAiFeedback?.repairItems?.filter(item => item.body || item.title) || [] : [];
   const improvementViewItems = modelFeedbackReady ? studentAiFeedback?.improvementItems?.filter(item => item.body || item.title) || [] : [];
@@ -894,7 +976,8 @@ export default function ProblemPage() {
     ? "AI 生成超时，请稍后重试。"
     : studentAiFeedback?.source === "RULE_FALLBACK"
     ? "AI 暂不可用，请稍后重试。"
-    : "AI 暂无反馈";
+    : modelFailureMessage(feedbackFailure);
+  const feedbackFailureTitle = feedbackPollState === "stalled" ? "AI 响应超时" : modelFailureTitle(feedbackFailure);
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
   const feedbackReady = Boolean(latest);
   const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;
@@ -1170,6 +1253,7 @@ export default function ProblemPage() {
                 {(isFeedbackWaiting || isFeedbackBackground) && (
                   <StatusPill tone="neutral">{isFeedbackBackground ? "后台生成中" : feedbackPollState === "slow" ? "AI 较慢" : "AI 分析中"}</StatusPill>
                 )}
+                {feedbackFailed && <StatusPill tone="danger">{feedbackFailureTitle}</StatusPill>}
                 <button type="button" aria-label="关闭结果" onClick={closeResult}>
                   <X size={18} />
                 </button>
@@ -1254,7 +1338,10 @@ export default function ProblemPage() {
                         ) : null}
                       </article>
                     ) : feedbackFailed ? (
-                      <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
+                      <div className="student-feedback-empty">
+                        <strong>{feedbackFailureTitle}</strong>
+                        <p>{feedbackFallbackMessage}</p>
+                      </div>
                     ) : repairViewItems.length ? (
                       <div className="student-feedback-list">
                         {repairViewItems.map((item, index) => (
@@ -1305,7 +1392,10 @@ export default function ProblemPage() {
                         ) : null}
                       </article>
                     ) : feedbackFailed ? (
-                      <div className="student-feedback-empty">{feedbackFallbackMessage}</div>
+                      <div className="student-feedback-empty">
+                        <strong>{feedbackFailureTitle}</strong>
+                        <p>{feedbackFallbackMessage}</p>
+                      </div>
                     ) : improvementViewItems.length ? (
                       <div className="student-feedback-list">
                         {improvementViewItems.map((item, index) => (

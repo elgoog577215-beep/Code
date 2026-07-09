@@ -159,7 +159,7 @@ public class StudentAiFeedbackService {
 
     private StudentAiFeedbackResponse toStudentAiFeedback(Submission submission, SubmissionAnalysisResponse analysis) {
         if (analysis == null || modelFailed(analysis)) {
-            return failedFeedback(submission.getId(), "FULL_CHAIN_FAILED");
+            return failedFeedback(submission.getId(), modelFailureReason(analysis));
         }
         List<StudentAiFeedbackResponse.FeedbackItem> repairItems = repairItems(submission, analysis);
         List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = improvementItems(submission, analysis);
@@ -187,6 +187,14 @@ public class StudentAiFeedbackService {
     private boolean modelFailed(SubmissionAnalysisResponse analysis) {
         SubmissionAnalysisResponse.AiInvocation invocation = analysis.getAiInvocation();
         return invocation != null && "MODEL_FAILED".equalsIgnoreCase(invocation.getStatus());
+    }
+
+    private String modelFailureReason(SubmissionAnalysisResponse analysis) {
+        if (analysis == null || analysis.getAiInvocation() == null) {
+            return "FULL_CHAIN_FAILED";
+        }
+        String reason = analysis.getAiInvocation().getFailureReason();
+        return reason == null || reason.isBlank() ? "FULL_CHAIN_FAILED" : reason;
     }
 
     private List<StudentAiFeedbackResponse.FeedbackItem> repairItems(Submission submission, SubmissionAnalysisResponse analysis) {
@@ -532,6 +540,7 @@ public class StudentAiFeedbackService {
         }
         return StudentAiFeedbackLookupResponse.builder()
                 .status(statusOrFailed(entity.getStatus()))
+                .failureReason(entity.getFailureReason())
                 .feedback(feedback)
                 .build();
     }

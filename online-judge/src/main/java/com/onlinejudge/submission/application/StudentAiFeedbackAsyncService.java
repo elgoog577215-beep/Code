@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class StudentAiFeedbackAsyncService {
 
     private final StudentAiFeedbackService studentAiFeedbackService;
+    private final ExternalModelFailureClassifier failureClassifier;
     private final ObjectProvider<StudentAiFeedbackAsyncService> selfProvider;
     private final Set<Long> runningSubmissionIds = ConcurrentHashMap.newKeySet();
 
@@ -38,7 +39,7 @@ public class StudentAiFeedbackAsyncService {
             studentAiFeedbackService.generateAndStore(submissionId);
         } catch (Exception exception) {
             log.error("Student AI feedback generation failed. submissionId={}", submissionId, exception);
-            studentAiFeedbackService.markFailed(submissionId, exception.getMessage());
+            studentAiFeedbackService.markFailed(submissionId, failureClassifier.classify(exception).name());
         } finally {
             runningSubmissionIds.remove(submissionId);
         }

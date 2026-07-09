@@ -11,5 +11,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class StudentAiFeedbackLookupResponse {
     private String status;
+    private String failureReason;
     private StudentAiFeedbackResponse feedback;
 }

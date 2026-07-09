@@ -584,6 +584,7 @@ export interface StudentAiFeedback {
   submissionId?: number | null;
   status: StudentAiFeedbackStatus;
   source?: "MODEL" | "RULE_FALLBACK" | string;
+  failureReason?: string | null;
   generatedAt?: string | null;
   latencyMs?: number | null;
   repairItems?: StudentAiFeedbackItem[];
@@ -599,6 +600,7 @@ export interface StudentAiFeedback {
 
 export interface StudentAiFeedbackLookup {
   status: StudentAiFeedbackStatus;
+  failureReason?: string | null;
   feedback?: StudentAiFeedback | null;
 }
 

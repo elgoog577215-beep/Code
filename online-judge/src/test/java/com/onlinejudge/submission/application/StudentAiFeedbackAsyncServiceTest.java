@@ -17,7 +17,11 @@ class StudentAiFeedbackAsyncServiceTest {
         StudentAiFeedbackAsyncService self = mock(StudentAiFeedbackAsyncService.class);
         @SuppressWarnings("unchecked")
         ObjectProvider<StudentAiFeedbackAsyncService> selfProvider = mock(ObjectProvider.class);
-        StudentAiFeedbackAsyncService service = new StudentAiFeedbackAsyncService(feedbackService, selfProvider);
+        StudentAiFeedbackAsyncService service = new StudentAiFeedbackAsyncService(
+                feedbackService,
+                new ExternalModelFailureClassifier(),
+                selfProvider
+        );
         when(feedbackService.markGenerating(7L)).thenReturn(StudentAiFeedbackLookupResponse.builder()
                 .status("GENERATING")
                 .build());
