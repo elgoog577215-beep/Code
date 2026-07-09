@@ -459,6 +459,127 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         submittedRatio: "提交人数"
       }
     },
+    taskEditor: {
+      eyebrow: "题库编辑",
+      newProblem: "新建题目",
+      status: {
+        checked: "检查完成",
+        basic: "基本完整",
+        incomplete: "未完成"
+      },
+      actions: {
+        saveProblem: "保存题目",
+        save: "保存",
+        reset: "重置",
+        addPublic: "添加公开点",
+        addHidden: "添加隐藏点",
+        delete: "删除"
+      },
+      badges: {
+        publicTests: "{{count}} 个公开测试点",
+        publicCompact: "{{count}} 个公开",
+        hiddenCompact: "{{count}} 个隐藏",
+        checks: "{{count}}/5 检查完成",
+        problemCount: "{{count}} 个"
+      },
+      sections: {
+        problemInfo: "题目信息",
+        tests: "测试点",
+        teaching: "教学增强信息",
+        saveChecks: "保存检查",
+        problemList: "题目列表"
+      },
+      fields: {
+        title: "题目标题",
+        difficulty: "难度",
+        timeLimit: "时限 ms",
+        statement: "题面",
+        starterCode: "默认代码",
+        memoryLimit: "内存 KB",
+        feedbackScope: "反馈范围",
+        knowledge: "知识点",
+        strategy: "算法策略",
+        mistakes: "常见误区",
+        boundaries: "边界类型"
+      },
+      placeholders: {
+        title: "两数求和",
+        feedbackScope: "空输入、循环边界、复杂度"
+      },
+      quality: {
+        title: "题目标题",
+        statement: "题面",
+        publicTests: "公开测试点",
+        hiddenTests: "隐藏测试点",
+        knowledge: "知识点",
+        filled: "已填写",
+        empty: "未填写",
+        incomplete: "未完成",
+        visibleCount: "{{count}} 个可见",
+        hiddenCount: "{{count}} 个隐藏",
+        needPublic: "至少保留 1 个样例",
+        notSet: "未设置",
+        optional: "选填"
+      },
+      difficulty: {
+        easy: "基础",
+        medium: "提高",
+        hard: "挑战"
+      },
+      statement: {
+        emptyPreview: "暂无题面内容",
+        fallbackText: "文本",
+        toolbarAria: "题面 Markdown 工具栏",
+        bold: "加粗",
+        boldFallback: "加粗文本",
+        italic: "斜体",
+        italicFallback: "斜体文本",
+        inlineCode: "行内代码",
+        quote: "引用",
+        quoteFallback: "提示",
+        unorderedList: "无序列表",
+        orderedList: "有序列表",
+        listFallback: "列表项",
+        link: "链接",
+        linkFallback: "链接文字",
+        edit: "编辑",
+        preview: "预览"
+      },
+      code: {
+        toolbarAria: "默认代码工具栏",
+        languageAria: "默认代码语言"
+      },
+      tests: {
+        index: "编号",
+        status: "状态",
+        input: "输入",
+        expected: "期望输出",
+        score: "分数",
+        hidden: "隐藏",
+        actions: "操作",
+        publicShort: "公开",
+        hiddenShort: "隐藏",
+        publicTest: "公开测试点",
+        hiddenTest: "隐藏测试点",
+        inputAria: "测试点 {{index}} 输入",
+        expectedAria: "测试点 {{index}} 期望输出",
+        hiddenAria: "隐藏测试点 {{index}}",
+        deleteAria: "删除测试点 {{index}}"
+      },
+      empty: {
+        noProblems: "暂无题目"
+      },
+      errors: {
+        catalog: "题目列表加载失败。",
+        load: "题目加载失败。",
+        required: "请填写标题和题面。",
+        needPublic: "至少需要 1 个公开测试点。",
+        save: "保存失败。"
+      },
+      success: {
+        saved: "题目已保存，可在教师工作台绑定到作业。"
+      }
+    },
     teacherManagement: {
       sections: {
         home: {
@@ -549,7 +670,43 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         }
       },
       problemManage: {
-        problemCount: "{{count}} 个题目"
+        problemCount: "{{count}} 个题目",
+        listAria: "题目列表",
+        editorTitle: "题库编辑",
+        visibleCount: "{{visible}} / {{total}} 个题目",
+        newProblem: "新建题目",
+        currentSort: "当前排序：{{sort}}",
+        switchSort: "切换排序，当前{{sort}}",
+        searchPlaceholder: "搜索题目标题",
+        noSummary: "题目描述待完善",
+        emptyTitle: "暂无题目",
+        emptyFilteredTitle: "没有匹配题目",
+        emptyDescription: "导入题目或新建题目。",
+        emptyEditorDescription: "先从左侧导入或新建一道题。",
+        emptyEditorFilteredDescription: "调整搜索条件，或点击新建题目。",
+        paginationAria: "题目分页",
+        previousPage: "上一页",
+        nextPage: "下一页",
+        pageAria: "第 {{page}} 页",
+        sort: {
+          id: "按编号",
+          difficulty: "按难度",
+          timeLimit: "按时限"
+        },
+        difficulty: {
+          easy: "基础",
+          medium: "提高",
+          hard: "挑战"
+        },
+        import: {
+          title: "导入题目",
+          fileLabel: "题目文件",
+          fileNote: "Markdown、JSON、CSV 或 XLSX",
+          pasteLabel: "粘贴题目",
+          pastePlaceholder: "# 两数求和\n\n## 题目描述\n...\n\n## 样例输入\n1 2\n\n## 样例输出\n3",
+          preview: "预览",
+          commit: "导入"
+        }
       },
       readiness: {
         aria: "系统状态",
@@ -762,6 +919,127 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         medium: "Intermediate",
         hard: "Challenge",
         unknown: "Unrated"
+      }
+    },
+    taskEditor: {
+      eyebrow: "Problem editor",
+      newProblem: "New problem",
+      status: {
+        checked: "Checked",
+        basic: "Mostly ready",
+        incomplete: "Incomplete"
+      },
+      actions: {
+        saveProblem: "Save problem",
+        save: "Save",
+        reset: "Reset",
+        addPublic: "Add public case",
+        addHidden: "Add hidden case",
+        delete: "Delete"
+      },
+      badges: {
+        publicTests: "{{count}} public cases",
+        publicCompact: "{{count}} public",
+        hiddenCompact: "{{count}} hidden",
+        checks: "{{count}}/5 checks done",
+        problemCount: "{{count}} items"
+      },
+      sections: {
+        problemInfo: "Problem info",
+        tests: "Test cases",
+        teaching: "Teaching notes",
+        saveChecks: "Save checks",
+        problemList: "Problem list"
+      },
+      fields: {
+        title: "Problem title",
+        difficulty: "Difficulty",
+        timeLimit: "Time limit ms",
+        statement: "Statement",
+        starterCode: "Starter code",
+        memoryLimit: "Memory KB",
+        feedbackScope: "Feedback scope",
+        knowledge: "Knowledge points",
+        strategy: "Algorithm strategies",
+        mistakes: "Common mistakes",
+        boundaries: "Boundary types"
+      },
+      placeholders: {
+        title: "Two Sum",
+        feedbackScope: "empty input, loop boundary, complexity"
+      },
+      quality: {
+        title: "Problem title",
+        statement: "Statement",
+        publicTests: "Public cases",
+        hiddenTests: "Hidden cases",
+        knowledge: "Knowledge",
+        filled: "Filled",
+        empty: "Empty",
+        incomplete: "Incomplete",
+        visibleCount: "{{count}} visible",
+        hiddenCount: "{{count}} hidden",
+        needPublic: "Keep at least 1 sample",
+        notSet: "Not set",
+        optional: "Optional"
+      },
+      difficulty: {
+        easy: "Basic",
+        medium: "Intermediate",
+        hard: "Challenge"
+      },
+      statement: {
+        emptyPreview: "No statement content",
+        fallbackText: "text",
+        toolbarAria: "Statement Markdown toolbar",
+        bold: "Bold",
+        boldFallback: "bold text",
+        italic: "Italic",
+        italicFallback: "italic text",
+        inlineCode: "Inline code",
+        quote: "Quote",
+        quoteFallback: "hint",
+        unorderedList: "Bulleted list",
+        orderedList: "Numbered list",
+        listFallback: "list item",
+        link: "Link",
+        linkFallback: "link text",
+        edit: "Edit",
+        preview: "Preview"
+      },
+      code: {
+        toolbarAria: "Starter code toolbar",
+        languageAria: "Starter code language"
+      },
+      tests: {
+        index: "No.",
+        status: "Status",
+        input: "Input",
+        expected: "Expected output",
+        score: "Score",
+        hidden: "Hidden",
+        actions: "Actions",
+        publicShort: "Public",
+        hiddenShort: "Hidden",
+        publicTest: "Public case",
+        hiddenTest: "Hidden case",
+        inputAria: "Test case {{index}} input",
+        expectedAria: "Test case {{index}} expected output",
+        hiddenAria: "Hide test case {{index}}",
+        deleteAria: "Delete test case {{index}}"
+      },
+      empty: {
+        noProblems: "No problems yet"
+      },
+      errors: {
+        catalog: "Failed to load problem list.",
+        load: "Failed to load problem.",
+        required: "Fill in the title and statement.",
+        needPublic: "At least 1 public test case is required.",
+        save: "Save failed."
+      },
+      success: {
+        saved: "Problem saved. You can attach it to an assignment in the teacher workbench."
       }
     },
     teacherShell: {
@@ -1183,7 +1461,43 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         }
       },
       problemManage: {
-        problemCount: "{{count}} problems"
+        problemCount: "{{count}} problems",
+        listAria: "Problem list",
+        editorTitle: "Problem editor",
+        visibleCount: "{{visible}} / {{total}} problems",
+        newProblem: "New problem",
+        currentSort: "Current sort: {{sort}}",
+        switchSort: "Switch sort, current {{sort}}",
+        searchPlaceholder: "Search problem title",
+        noSummary: "Problem description not completed",
+        emptyTitle: "No problems yet",
+        emptyFilteredTitle: "No matching problems",
+        emptyDescription: "Import or create a problem.",
+        emptyEditorDescription: "Import or create a problem from the left panel first.",
+        emptyEditorFilteredDescription: "Adjust the search, or create a new problem.",
+        paginationAria: "Problem pagination",
+        previousPage: "Previous page",
+        nextPage: "Next page",
+        pageAria: "Page {{page}}",
+        sort: {
+          id: "By ID",
+          difficulty: "By difficulty",
+          timeLimit: "By time limit"
+        },
+        difficulty: {
+          easy: "Basic",
+          medium: "Intermediate",
+          hard: "Challenge"
+        },
+        import: {
+          title: "Import problems",
+          fileLabel: "Problem file",
+          fileNote: "Markdown, JSON, CSV, or XLSX",
+          pasteLabel: "Paste problem",
+          pastePlaceholder: "# Two Sum\n\n## Statement\n...\n\n## Sample Input\n1 2\n\n## Sample Output\n3",
+          preview: "Preview",
+          commit: "Import"
+        }
       },
       readiness: {
         aria: "System status",
