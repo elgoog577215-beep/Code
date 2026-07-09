@@ -87,7 +87,7 @@ public class SubmissionController {
                                                                                 HttpServletRequest request) {
         requireSubmissionAccess(request, id);
         StudentAiFeedbackLookupResponse lookup = studentAiFeedbackService.getLookup(id);
-        if ("NOT_REQUESTED".equals(lookup.getStatus())) {
+        if ("NOT_REQUESTED".equals(lookup.getStatus()) || studentAiFeedbackService.isGeneratingExpired(id)) {
             studentAiFeedbackAsyncService.enqueue(id);
             return ResponseEntity.accepted().body(studentAiFeedbackService.getLookup(id));
         }

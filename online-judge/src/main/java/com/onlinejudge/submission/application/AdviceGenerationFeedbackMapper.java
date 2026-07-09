@@ -54,35 +54,12 @@ public class AdviceGenerationFeedbackMapper {
         List<String> evidenceRefs = anchor == null || anchor.getEvidenceRefs() == null
                 ? List.of()
                 : anchor.getEvidenceRefs();
-        String anchorId = anchor == null ? "" : anchor.getId();
         String nextAction = defaultIfBlank(report.getNextActionText(), "先复核模型指出的证据。");
 
         List<SubmissionAnalysisResponse.FeedbackIssue> blockingIssues = toBlockingIssues(output);
-        if (blockingIssues.isEmpty() && !blank(report.getBasicLayerText())) {
-            List<String> basicEvidenceRefs = evidenceRefs.isEmpty() ? firstBasicEvidenceRefs(output) : evidenceRefs;
-            blockingIssues = List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
-                        .priority(1)
-                        .title("基础层")
-                        .studentMessage(report.getBasicLayerText())
-                        .evidence(firstOrDefault(basicEvidenceRefs, "模型引用了当前提交证据。"))
-                        .nextAction(nextAction)
-                        .issueTag(defaultIfBlank(anchorId, "BASIC_LAYER"))
-                        .fineGrainedTag(anchorId)
-                        .evidenceRefs(basicEvidenceRefs)
-                        .build());
-        }
 
         List<SubmissionAnalysisResponse.ImprovementOpportunity> improvementOpportunities =
                 toImprovementOpportunities(output, standardLibraryPack);
-        if (improvementOpportunities.isEmpty() && !blank(report.getImprovementLayerText())) {
-            improvementOpportunities = List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
-                                .title("提高层")
-                                .category(firstImprovementCategory(standardLibraryPack))
-                                .studentMessage(report.getImprovementLayerText())
-                                .benefit(report.getImprovementLayerText())
-                                .evidenceRefs(List.of())
-                                .build());
-        }
 
         List<String> nextEvidenceRefs = evidenceRefs.isEmpty() ? firstBasicEvidenceRefs(output) : evidenceRefs;
 

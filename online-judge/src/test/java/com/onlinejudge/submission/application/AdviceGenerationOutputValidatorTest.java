@@ -49,6 +49,8 @@ class AdviceGenerationOutputValidatorTest {
                         .improvementLayerText("提高层：修好后用最小值和端点值做边界自测。")
                         .nextActionText("下一步：手推 n=1、n=2 时循环变量实际出现过哪些值。")
                         .build())
+                .basicLayerAdvice(validOutput().getBasicLayerAdvice())
+                .improvementLayerAdvice(validOutput().getImprovementLayerAdvice())
                 .studentSummary("这次重点是边界和状态含义。")
                 .build();
 
@@ -59,6 +61,28 @@ class AdviceGenerationOutputValidatorTest {
         );
 
         assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
+    void rejectsDiagnosisReportV2WhenStudentReportReplacesAdviceArrays() {
+        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText("基础层：循环范围和题目边界要求没有完全对齐。")
+                        .improvementLayerText("提高层：修好后补充端点附近的自测。")
+                        .nextActionText("下一步：手推一个最小样例，确认循环变量是否覆盖端点。")
+                        .build())
+                .studentSummary("这次重点是循环边界。")
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getMessage()).contains("studentReport is summary only");
     }
 
     @Test
@@ -577,6 +601,8 @@ class AdviceGenerationOutputValidatorTest {
                         .improvementLayerText("提高层：修好后补充最小值和端点值自测。")
                         .nextActionText("下一步：手推 n=1、n=2 时循环变量实际出现过哪些值。")
                         .build())
+                .basicLayerAdvice(validOutput().getBasicLayerAdvice())
+                .improvementLayerAdvice(validOutput().getImprovementLayerAdvice())
                 .studentSummary("这次重点是循环边界。")
                 .build();
 
@@ -922,6 +948,8 @@ class AdviceGenerationOutputValidatorTest {
                         .improvementLayerText("提高层：描述相邻大数这类反例形态即可。")
                         .nextActionText("下一步：手推可见输入中的状态变化。")
                         .build())
+                .basicLayerAdvice(validOutput().getBasicLayerAdvice())
+                .improvementLayerAdvice(validOutput().getImprovementLayerAdvice())
                 .studentSummary("这次重点是状态定义。")
                 .build();
 
@@ -972,6 +1000,8 @@ class AdviceGenerationOutputValidatorTest {
                         .improvementLayerText("提高层：修好后做边界测试。")
                         .nextActionText("下一步：手推一个最小样例。")
                         .build())
+                .basicLayerAdvice(validOutput().getBasicLayerAdvice())
+                .improvementLayerAdvice(validOutput().getImprovementLayerAdvice())
                 .studentSummary("报告过长。")
                 .build();
 
@@ -1045,6 +1075,8 @@ class AdviceGenerationOutputValidatorTest {
                         .improvementLayerText("提高层：修好后补充端点附近的自测。")
                         .nextActionText("下一步：手推一个最小样例，确认循环变量是否覆盖端点。")
                         .build())
+                .basicLayerAdvice(validOutput().getBasicLayerAdvice())
+                .improvementLayerAdvice(validOutput().getImprovementLayerAdvice())
                 .studentSummary("这次重点是循环边界。")
                 .build();
     }

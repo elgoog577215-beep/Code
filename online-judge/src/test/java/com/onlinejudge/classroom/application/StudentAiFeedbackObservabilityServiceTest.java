@@ -90,6 +90,29 @@ class StudentAiFeedbackObservabilityServiceTest {
         assertThat(response.getRecommendedAction()).contains("持续比较");
     }
 
+    @Test
+    void expandsFullChainFailureReasonFromStoredAiInvocation() throws Exception {
+        when(assignmentRepository.existsById(7L)).thenReturn(true);
+        List<Submission> submissions = List.of(
+                submission(21L, 101L, Submission.Verdict.WRONG_ANSWER, 0)
+        );
+        when(submissionRepository.findByAssignmentIdOrderBySubmittedAtDesc(7L)).thenReturn(submissions);
+        when(feedbackRepository.findBySubmissionIdIn(List.of(21L))).thenReturn(List.of(
+                feedback(21L, "FAILED", "AI_UNAVAILABLE", null, "FULL_CHAIN_FAILED")
+        ));
+        when(eventRepository.findBySubmissionIdIn(List.of(21L))).thenReturn(List.of());
+        when(analysisRepository.findBySubmissionIdIn(List.of(21L))).thenReturn(List.of(
+                failedAnalysis(21L, "FREE_DIAGNOSIS", "OUTPUT_TRUNCATED")
+        ));
+
+        StudentAiFeedbackObservabilityResponse response = service.buildForAssignment(7L);
+
+        assertThat(response.getFailureReasons()).singleElement().satisfies(reason -> {
+            assertThat(reason.getReason()).isEqualTo("FREE_DIAGNOSIS:OUTPUT_TRUNCATED");
+            assertThat(reason.getCount()).isEqualTo(1);
+        });
+    }
+
     private StudentAiFeedback feedback(Long submissionId, String status, String source, Long latencyMs, String failureReason) throws Exception {
         StudentAiFeedbackResponse response = StudentAiFeedbackResponse.builder()
                 .submissionId(submissionId)
@@ -163,6 +186,26 @@ class StudentAiFeedbackObservabilityServiceTest {
                           "fineGrainedTags": %s
                         }
                         """.formatted(issueTags, fineTags))
+                .build();
+    }
+
+    private SubmissionAnalysis failedAnalysis(Long submissionId, String stage, String reason) {
+        return SubmissionAnalysis.builder()
+                .submissionId(submissionId)
+                .analysisSource("TEST")
+                .scenario("WA")
+                .headline("diagnosis")
+                .summary("summary")
+                .reportMarkdown("markdown")
+                .reportJson("""
+                        {
+                          "aiInvocation": {
+                            "status": "MODEL_FAILED",
+                            "failureStage": "%s",
+                            "failureReason": "%s"
+                          }
+                        }
+                        """.formatted(stage, reason))
                 .build();
     }
 }

@@ -209,14 +209,14 @@ public class PromptTemplateRegistry {
                 }
 
                 Rules:
-                1. studentReport 必须是对象，不能是字符串；basicLayerText、improvementLayerText、nextActionText 必须分开写。
+                1. studentReport 必须是对象，不能是字符串；它只做摘要，不能代替 basicLayerAdvice 或 improvementLayerAdvice 数组。
                 2. diagnosisDecision 和 diagnosisCandidates 可以使用 libraryAnchors 中被证据支持的标准库路径，但不能覆盖 issues 的真实诊断。
                 3. 如果 navigationResult 标记 OUT_OF_LIBRARY 或 unresolvedGaps，libraryGrowth.candidates 只能进入待审核候选，状态必须是 NEEDS_REVIEW。
                 4. standardLibrary 仍是教学参考规范包，不是强制答案表；最终判断以当前提交证据为准。
                 5. 不要给完整代码、替换表达式、最终答案、隐藏测试猜测或可复制改法。
                 6. 每个学生可见判断都要有证据引用；标准库命中字段必须叫 libraryFit，不能叫 status。
                 7. caseUnderstanding.primaryEvidenceRef、anchors.evidenceRefs、diagnosisCandidates.evidenceRefs 必须使用 brief.evidenceRefs 或 code:line:N。
-                8. basicLayerAdvice 应覆盖多个独立 issues；不要因为只有一个标准库 anchor 就删掉其他有证据 issue。
+                8. basicLayerAdvice 应覆盖多个独立 issues；如果 issues 有多个有效问题，basicLayerAdvice 和 improvementLayerAdvice 至少各返回 min(2, issueCount) 条。
                 9. standardLibrary 为空、libraryAnchors 为 LIBRARY_EMPTY、NO_MATCH 或 ATTACHMENT_FAILED 时，仍然基于 issues 生成建议，标准库 id 可以留空。
                 10. basicLayerAdvice 的 title 只写问题名，whatHappened 和 studentAction 不要重复标题；studentAction 必须是“检查什么现象 + 怎么手推验证”，不要写“直接修改某函数”。
                 11. improvementLayerAdvice 必须绑定当前 issue、标准库 anchor 或当前算法机制；不要泛泛写“培养调试习惯”，除非同时说明本题要观察的具体状态、区间、边集合或 lazy 标记。

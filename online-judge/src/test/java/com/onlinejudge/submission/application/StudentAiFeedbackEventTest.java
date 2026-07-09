@@ -16,6 +16,7 @@ import com.onlinejudge.submission.persistence.SubmissionRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -163,6 +164,74 @@ class StudentAiFeedbackEventTest {
         assertThat(response.getSafety().getBlockedReasons()).contains("FULL_CHAIN_FEEDBACK_EMPTY");
     }
 
+    @Test
+    void generateAndStoreDoesNotConvertStudentReportOnlyIntoSingleCard() {
+        when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
+        when(problemRepository.findById(101L)).thenReturn(Optional.of(problem()));
+        when(caseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(7L)).thenReturn(caseResults());
+        when(submissionAnalysisService.generateAndStoreAnalysis(
+                any(Problem.class),
+                any(Submission.class),
+                any()
+        )).thenReturn(studentReportOnlyAnalysis());
+        when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
+        when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_FAILED)))
+                .thenReturn(Optional.empty());
+
+        StudentAiFeedbackResponse response = service.generateAndStore(7L);
+
+        assertThat(response.getStatus()).isEqualTo("FAILED");
+        assertThat(response.getRepairItems()).isEmpty();
+        assertThat(response.getImprovementItems()).isEmpty();
+        assertThat(response.getSafety().getBlockedReasons()).contains("FULL_CHAIN_FEEDBACK_EMPTY");
+    }
+
+    @Test
+    void markGeneratingKeepsFreshGeneratingRecordWithoutRestarting() throws Exception {
+        StudentAiFeedback existing = StudentAiFeedback.builder()
+                .submissionId(7L)
+                .status("GENERATING")
+                .source("AI_UNAVAILABLE")
+                .generatedAt(LocalDateTime.now())
+                .feedbackJson(objectMapper.writeValueAsString(StudentAiFeedbackResponse.builder()
+                        .submissionId(7L)
+                        .status("GENERATING")
+                        .source("AI_UNAVAILABLE")
+                        .repairItems(List.of())
+                        .improvementItems(List.of())
+                        .build()))
+                .build();
+        when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
+        when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.of(existing));
+
+        var lookup = service.markGenerating(7L);
+
+        assertThat(lookup.getStatus()).isEqualTo("GENERATING");
+        verify(feedbackRepository, never()).save(any(StudentAiFeedback.class));
+    }
+
+    @Test
+    void markGeneratingRefreshesExpiredGeneratingRecord() {
+        StudentAiFeedback existing = StudentAiFeedback.builder()
+                .submissionId(7L)
+                .status("GENERATING")
+                .source("AI_UNAVAILABLE")
+                .generatedAt(LocalDateTime.now().minusMinutes(6))
+                .build();
+        when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
+        when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.of(existing));
+        when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var lookup = service.markGenerating(7L);
+
+        assertThat(lookup.getStatus()).isEqualTo("GENERATING");
+        ArgumentCaptor<StudentAiFeedback> captor = ArgumentCaptor.forClass(StudentAiFeedback.class);
+        verify(feedbackRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo("GENERATING");
+        assertThat(captor.getValue().getFeedbackJson()).contains("\"status\":\"GENERATING\"");
+    }
+
     private Submission submission() {
         return Submission.builder()
                 .id(7L)
@@ -280,6 +349,27 @@ class StudentAiFeedbackEventTest {
                 .submissionId(7L)
                 .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
                         .status("MODEL_COMPLETED")
+                        .build())
+                .build();
+    }
+
+    private SubmissionAnalysisResponse studentReportOnlyAnalysis() {
+        return SubmissionAnalysisResponse.builder()
+                .submissionId(7L)
+                .summary("这次重点是循环边界。")
+                .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                        .status("MODEL_COMPLETED")
+                        .build())
+                .studentFeedback(SubmissionAnalysisResponse.StudentFeedback.builder()
+                        .summary("基础层：循环范围和题目边界要求没有完全对齐。")
+                        .blockingIssues(List.of())
+                        .improvementOpportunities(List.of())
+                        .nextLearningAction(SubmissionAnalysisResponse.NextLearningAction.builder()
+                                .task("先手推一个最小样例。")
+                                .checkQuestion("端点有没有进入循环？")
+                                .answerLeakRisk("LOW")
+                                .evidenceRefs(List.of("code:line:1"))
+                                .build())
                         .build())
                 .build();
     }

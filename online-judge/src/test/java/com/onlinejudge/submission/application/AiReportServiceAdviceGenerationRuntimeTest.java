@@ -222,7 +222,8 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 .contains("### 基础层", "循环范围和题目边界要求没有完全对齐")
                 .contains("### 提高层", "固定自测清单")
                 .contains("### 下一步行动", "写出循环变量序列")
-                .doesNotContain("发生了什么", "为什么重要");
+                .contains("### 基础层明细", "循环右边界漏取")
+                .contains("### 提高层明细", "补充边界样例意识");
     }
 
     @Test
@@ -320,7 +321,10 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
     @Test
     void repairsLiveAdviceShapeWhenStudentReportIsReturnedAsString() {
-        StubAiReportService service = newService(liveAdviceResponseWithStringStudentReport());
+        StubAiReportService service = newService(
+                liveAdviceResponseWithStringStudentReport(),
+                validAdviceResponse()
+        );
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -329,13 +333,14 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 evidencePackage()
         );
 
+        assertThat(service.callCount()).isEqualTo(5);
+        assertThat(service.systemPrompt(4)).contains("数量修复重试");
+        assertThat(service.userPrompt(4)).contains("previousOutput", "ADVICE_INSUFFICIENT_ITEMS");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
-        assertThat(analysis.getStudentFeedback().getSummary()).contains("循环范围");
+        assertThat(analysis.getStudentFeedback().getSummary()).contains("循环边界");
         assertThat(analysis.getStudentFeedback().getNextLearningAction().getTask()).contains("手推");
         assertThat(analysis.getStudentFeedback().getNextLearningAction().getEvidenceRefs())
-                .contains("code:line:3");
-        assertThat(analysis.getAiInvocation().getDiagnosisSoftFixes())
-                .anySatisfy(item -> assertThat(item).contains("diagnosisDecision.libraryFit normalized"));
+                .contains("code:range_excludes_n");
     }
 
     @Test
@@ -418,6 +423,140 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
+    void multiIssueAdviceUnderproductionRetriesOnceAndKeepsMultipleAdviceItems() {
+        StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
+                emptyStandardLibraryService(),
+                multiIssueFreeDiagnosisResponse(),
+                List.of(),
+                validAdviceResponse(),
+                multiIssueAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(service.systemPrompt(2)).contains("数量修复重试");
+        assertThat(service.userPrompt(2)).contains("previousOutput", "ADVICE_INSUFFICIENT_ITEMS");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
+        assertThat(analysis.getBasicLayerAdvice()).hasSize(3);
+        assertThat(analysis.getImprovementLayerAdvice()).hasSize(2);
+        assertThat(analysis.getStudentFeedback().getBlockingIssues()).hasSize(3);
+        assertThat(analysis.getStudentFeedback().getImprovementOpportunities()).hasSize(2);
+    }
+
+    @Test
+    void multiIssueAdviceUnderproductionFailsClearlyAfterSingleCountRetry() {
+        StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
+                emptyStandardLibraryService(),
+                multiIssueFreeDiagnosisResponse(),
+                List.of(),
+                validAdviceResponse(),
+                validAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("FAILED");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationFailureReason())
+                .contains("ADVICE_INSUFFICIENT_ITEMS");
+        assertThat(analysis.getStudentFeedback()).isNull();
+        assertThat(analysis.getBasicLayerAdvice()).isEmpty();
+    }
+
+    @Test
+    void truncatedFreeDiagnosisPayloadRetriesWithStructuredOutputBudget() {
+        StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
+                emptyStandardLibraryService(),
+                truncatedFreeDiagnosisResponse(),
+                List.of(),
+                multiIssueFreeDiagnosisResponse(),
+                multiIssueAdviceResponse()
+        );
+        ReflectionTestUtils.setField(service, "structuredRetryEnabled", true);
+        ReflectionTestUtils.setField(service, "structuredRetryOutputTokens", 4200);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(service.outputTokens(1)).isEqualTo(4200);
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEmpty();
+        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
+        assertThat(analysis.getBasicLayerAdvice()).hasSize(3);
+    }
+
+    @Test
+    void randomFreeDiagnosisTextDoesNotStructuredRetry() {
+        StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
+                emptyStandardLibraryService(),
+                "not json at all",
+                List.of(),
+                multiIssueAdviceResponse()
+        );
+        ReflectionTestUtils.setField(service, "structuredRetryEnabled", true);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(1);
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("FREE_DIAGNOSIS");
+    }
+
+    @Test
+    void truncatedLayeredAttachmentPayloadRetriesWithStructuredOutputBudget() {
+        StubAiReportService service = newServiceWithNavigationSequence(
+                standardLibraryService(),
+                List.of(
+                        truncatedLayeredAttachmentResponse(),
+                        attachmentSelectResponse("BASIC"),
+                        attachmentSelectResponse("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                ),
+                validAdviceResponse()
+        );
+        ReflectionTestUtils.setField(service, "structuredRetryEnabled", true);
+        ReflectionTestUtils.setField(service, "structuredRetryOutputTokens", 4200);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(5);
+        assertThat(service.outputTokens(2)).isEqualTo(4200);
+        assertThat(service.userPrompt(2)).isEqualTo(service.userPrompt(1));
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
+        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
+    }
+
+    @Test
     void navigationValidationFailureStopsBeforeFinalDiagnosisWithoutLocalRecall() {
         StubAiReportService service = newServiceWithNavigationResponse(
                 """
@@ -492,7 +631,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 .noneSatisfy(item -> assertThat(item).contains("unknown anchor id"));
         assertThat(analysis.getAiInvocation().getDiagnosisHardFailures()).isEmpty();
         assertThat(analysis.getStudentFeedback().getBlockingIssues()).singleElement()
-                .satisfies(item -> assertThat(item.getStudentMessage()).contains("基础层：循环范围"));
+                .satisfies(item -> assertThat(item.getStudentMessage()).contains("当前循环范围"));
     }
 
     @Test
@@ -660,6 +799,25 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                   },
                   "basicLayerAdvice": [{
                     "title": "循环右边界漏取"
+                """;
+    }
+
+    private String truncatedFreeDiagnosisResponse() {
+        return """
+                {
+                  "problemUnderstanding": "题目要求输出 1 到 n 的整数和。",
+                  "codeIntent": "学生想用循环累加 total。",
+                  "issues": [{
+                    "issueId": "I1",
+                    "title": "循环右边界漏取"
+                """;
+    }
+
+    private String truncatedLayeredAttachmentResponse() {
+        return """
+                {
+                  "action": "SELECT",
+                  "codes": ["BASIC"
                 """;
     }
 
@@ -1036,6 +1194,27 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "improvementLayerText": "提高层：补充边界自测清单。",
                     "nextActionText": "下一步：手推 n=1 和 n=2。"
                   },
+                  "basicLayerAdvice": [{
+                    "mistakePointId": null,
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "循环右边界漏取",
+                    "whatHappened": "当前循环范围没有覆盖题目要求的最后一个数。",
+                    "whyItMatters": "端点漏处理会让求和结果偏小。",
+                    "studentAction": "先手推 n=1 和 n=2 时循环变量实际出现过哪些值。",
+                    "checkQuestion": "最后一个应该被处理的数有没有进入循环？",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.88
+                  }],
+                  "improvementLayerAdvice": [{
+                    "improvementPointId": null,
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "补充边界样例意识",
+                    "currentLimit": "这次更需要把端点纳入自测。",
+                    "suggestion": "修复后补测最小值和端点附近样例。",
+                    "studentBenefit": "能更早发现类似边界问题。",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.74
+                  }],
                   "libraryGrowth": {
                     "candidates": [{
                       "name": "可见失败样例定位端点漏取",
@@ -1151,6 +1330,27 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "improvementLayerText": "提高层：修好后把最小值、端点值、最大值附近样例加入固定自测清单。",
                     "nextActionText": "下一步：用 n=1 和 n=2 写出循环变量序列，再和题目要求逐项对照。"
                   },
+                  "basicLayerAdvice": [{
+                    "mistakePointId": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "循环右边界漏取",
+                    "whatHappened": "当前循环范围没有覆盖题目要求的最后一个数。",
+                    "whyItMatters": "端点漏处理会让求和结果偏小。",
+                    "studentAction": "先手推最小样例里循环变量实际出现过哪些值。",
+                    "checkQuestion": "最后一个应该被处理的数有没有进入循环？",
+                    "evidenceRefs": ["code:range_excludes_n:line3"],
+                    "confidence": 0.9
+                  }],
+                  "improvementLayerAdvice": [{
+                    "improvementPointId": "TESTING_HABIT",
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "补充边界样例意识",
+                    "currentLimit": "这次暴露的是端点验证不足。",
+                    "suggestion": "修复后把最小值和端点值加入自测清单。",
+                    "studentBenefit": "能更早发现开闭区间类问题。",
+                    "evidenceRefs": ["judge:first_failed_case:case1"],
+                    "confidence": 0.76
+                  }],
                   "studentSummary": "这次重点是循环边界和边界自测。"
                 }
                 """;

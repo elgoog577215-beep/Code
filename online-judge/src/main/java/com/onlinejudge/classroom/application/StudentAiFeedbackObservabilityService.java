@@ -8,6 +8,7 @@ import com.onlinejudge.submission.domain.StudentAiFeedback;
 import com.onlinejudge.submission.domain.StudentAiFeedbackEvent;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
+import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackRepository;
@@ -81,7 +82,7 @@ public class StudentAiFeedbackObservabilityService {
                 .filter(value -> value >= 0)
                 .sorted()
                 .toList();
-        List<StudentAiFeedbackObservabilityResponse.FailureReasonStat> failureReasons = failureReasons(feedbacks, events);
+        List<StudentAiFeedbackObservabilityResponse.FailureReasonStat> failureReasons = failureReasons(feedbacks, events, analyses);
         List<StudentAiFeedbackObservabilityResponse.ImpactStat> impactStats = impactStats(submissions, analyses, events);
 
         return StudentAiFeedbackObservabilityResponse.builder()
@@ -108,7 +109,8 @@ public class StudentAiFeedbackObservabilityService {
 
     private List<StudentAiFeedbackObservabilityResponse.FailureReasonStat> failureReasons(
             List<StudentAiFeedback> feedbacks,
-            List<StudentAiFeedbackEvent> events) {
+            List<StudentAiFeedbackEvent> events,
+            Map<Long, SubmissionAnalysis> analyses) {
         Map<String, Long> counts = new LinkedHashMap<>();
         Map<Long, StudentAiFeedback> feedbackBySubmission = feedbacks.stream()
                 .filter(feedback -> feedback.getSubmissionId() != null)
@@ -120,7 +122,7 @@ public class StudentAiFeedbackObservabilityService {
                 ));
         feedbacks.stream()
                 .filter(this::isFailureStatus)
-                .map(feedback -> firstNonBlank(feedback.getFailureReason(), feedback.getStatus(), "UNKNOWN"))
+                .map(feedback -> feedbackFailureReason(feedback, analyses))
                 .map(this::normalizeReason)
                 .forEach(reason -> counts.merge(reason, 1L, Long::sum));
         events.stream()
@@ -136,6 +138,50 @@ public class StudentAiFeedbackObservabilityService {
                         .count(entry.getValue())
                         .build())
                 .toList();
+    }
+
+    private String feedbackFailureReason(StudentAiFeedback feedback, Map<Long, SubmissionAnalysis> analyses) {
+        String reason = firstNonBlank(feedback == null ? null : feedback.getFailureReason(),
+                feedback == null ? null : feedback.getStatus(),
+                "UNKNOWN");
+        if (!"FULL_CHAIN_FAILED".equalsIgnoreCase(reason)) {
+            return reason;
+        }
+        SubmissionAnalysis analysis = analyses == null || feedback == null
+                ? null
+                : analyses.get(feedback.getSubmissionId());
+        String invocationReason = aiInvocationFailureReason(analysis);
+        return firstNonBlank(invocationReason, reason);
+    }
+
+    private String aiInvocationFailureReason(SubmissionAnalysis analysis) {
+        if (analysis == null || !hasText(analysis.getReportJson())) {
+            return "";
+        }
+        try {
+            SubmissionAnalysisResponse response =
+                    objectMapper.readValue(analysis.getReportJson(), SubmissionAnalysisResponse.class);
+            SubmissionAnalysisResponse.AiInvocation invocation =
+                    response == null ? null : response.getAiInvocation();
+            if (invocation == null) {
+                return "";
+            }
+            String stage = firstNonBlank(
+                    invocation.getFailureStage(),
+                    "FAILED".equalsIgnoreCase(invocation.getAdviceGenerationStatus()) ? "DIAGNOSIS_AND_ADVICE" : null,
+                    "FAILED".equalsIgnoreCase(invocation.getStandardLibraryNavigationStatus()) ? "STANDARD_LIBRARY_NAVIGATION" : null,
+                    "MODEL"
+            );
+            String reason = firstNonBlank(
+                    invocation.getFailureReason(),
+                    invocation.getAdviceGenerationFailureReason(),
+                    invocation.getStandardLibraryNavigationFailureReason(),
+                    invocation.getStatus()
+            );
+            return reason.isBlank() ? stage : stage + ":" + reason;
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     private List<StudentAiFeedbackObservabilityResponse.ImpactStat> impactStats(

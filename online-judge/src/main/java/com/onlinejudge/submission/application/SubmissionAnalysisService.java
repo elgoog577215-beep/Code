@@ -167,7 +167,7 @@ public class SubmissionAnalysisService {
                     submissionId,
                     existing.getSourceType());
             submissionAnalysisRepository.findBySubmissionId(submissionId)
-                    .ifPresent(analysis -> recommendationEventService.backfillSubmissionAnalysis(submission, analysis));
+                    .ifPresent(analysis -> backfillSubmissionAnalysisSafely(submission, analysis));
             return existing;
         }
 
@@ -219,9 +219,19 @@ public class SubmissionAnalysisService {
                 submission.getId(),
                 analysis.getSourceType(),
                 savedAnalysis.getGeneratedAt());
-        recommendationEventService.backfillSubmissionAnalysis(submission, savedAnalysis);
+        backfillSubmissionAnalysisSafely(submission, savedAnalysis);
         analysis.setGeneratedAt(savedAnalysis.getGeneratedAt());
         return analysis;
+    }
+
+    private void backfillSubmissionAnalysisSafely(Submission submission, SubmissionAnalysis analysis) {
+        try {
+            recommendationEventService.backfillSubmissionAnalysis(submission, analysis);
+        } catch (Exception exception) {
+            log.warn("Recommendation event backfill failed but analysis is kept. submissionId={}, reason={}",
+                    submission == null ? null : submission.getId(),
+                    exception.getMessage());
+        }
     }
 
     public SubmissionResponse buildSubmissionResponse(Submission submission,

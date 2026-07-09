@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -37,6 +38,7 @@ public class StudentAiFeedbackService {
     private static final String SOURCE_AI_UNAVAILABLE = "AI_UNAVAILABLE";
     private static final Pattern CODE_LINE_REF = Pattern.compile("^code:line:(\\d+)$");
     private static final Pattern CODE_RANGE_REF = Pattern.compile("^code:range:(\\d+)-(\\d+)$");
+    private static final Duration GENERATING_EXPIRES_AFTER = Duration.ofMinutes(5);
 
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
@@ -65,7 +67,10 @@ public class StudentAiFeedbackService {
                         .submissionId(submissionId)
                         .source(SOURCE_MODEL)
                         .build());
-        if ("READY".equals(entity.getStatus()) || "GENERATING".equals(entity.getStatus())) {
+        if ("READY".equals(entity.getStatus())) {
+            return toLookup(entity);
+        }
+        if ("GENERATING".equals(entity.getStatus()) && !isGeneratingExpired(entity)) {
             return toLookup(entity);
         }
         StudentAiFeedbackResponse feedback = StudentAiFeedbackResponse.builder()
@@ -86,6 +91,24 @@ public class StudentAiFeedbackService {
         entity.setFailureReason(null);
         entity.setFeedbackJson(serialize(feedback));
         return toLookup(studentAiFeedbackRepository.save(entity));
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isGeneratingExpired(Long submissionId) {
+        if (submissionId == null) {
+            return false;
+        }
+        return studentAiFeedbackRepository.findBySubmissionId(submissionId)
+                .filter(entity -> "GENERATING".equals(entity.getStatus()))
+                .map(this::isGeneratingExpired)
+                .orElse(false);
+    }
+
+    private boolean isGeneratingExpired(StudentAiFeedback entity) {
+        if (entity == null || entity.getGeneratedAt() == null) {
+            return true;
+        }
+        return entity.getGeneratedAt().isBefore(LocalDateTime.now().minus(GENERATING_EXPIRES_AFTER));
     }
 
     @Transactional
@@ -141,7 +164,7 @@ public class StudentAiFeedbackService {
         List<StudentAiFeedbackResponse.FeedbackItem> repairItems = repairItems(submission, analysis);
         List<StudentAiFeedbackResponse.FeedbackItem> improvementItems = improvementItems(submission, analysis);
         StudentAiFeedbackResponse.StudentReport report = studentReport(analysis, repairItems, improvementItems);
-        if (!hasStudentReport(report) && repairItems.isEmpty() && improvementItems.isEmpty()) {
+        if (repairItems.isEmpty() && improvementItems.isEmpty()) {
             return failedFeedback(submission.getId(), "FULL_CHAIN_FEEDBACK_EMPTY");
         }
         return StudentAiFeedbackResponse.builder()
@@ -384,12 +407,6 @@ public class StudentAiFeedbackService {
         if (!duplicate) {
             items.add(item);
         }
-    }
-
-    private boolean hasStudentReport(StudentAiFeedbackResponse.StudentReport report) {
-        return report != null && (!clean(report.getBasicLayerText()).isBlank()
-                || !clean(report.getImprovementLayerText()).isBlank()
-                || !clean(report.getNextActionText()).isBlank());
     }
 
     private String joinNonBlank(String... values) {

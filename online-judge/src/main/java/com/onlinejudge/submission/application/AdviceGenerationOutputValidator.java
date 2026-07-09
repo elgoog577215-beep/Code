@@ -292,6 +292,10 @@ public class AdviceGenerationOutputValidator {
                 decision.setOutOfLibraryFindings(validFindings);
             }
         }
+        if (!isAccepted(brief) && safe(output.getBasicLayerAdvice()).isEmpty()) {
+            return invalid(ModelStageFailureReason.INVALID_JSON,
+                    "Non-accepted submission requires basicLayerAdvice; studentReport is summary only.");
+        }
         attachValidationTrace(output, softFixes, List.of());
         return ExternalModelStagePayloads.StageValidationResult.builder()
                 .valid(true)

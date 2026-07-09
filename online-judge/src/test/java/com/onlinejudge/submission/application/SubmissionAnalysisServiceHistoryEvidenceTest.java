@@ -1,6 +1,7 @@
 package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.submission.domain.Submission;
@@ -13,9 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SubmissionAnalysisServiceHistoryEvidenceTest {
@@ -98,6 +103,53 @@ class SubmissionAnalysisServiceHistoryEvidenceTest {
                 .contains("eval:intervention", "followup:submission:22", "action:CONTRADICTED");
         assertThat(history.getPreviousLearningActionSummary()).contains("WRONG_ANSWER");
         assertThat(history.getPreviousLearningActionNextAdjustment()).contains("降低提示粒度");
+    }
+
+    @Test
+    void existingAnalysisBackfillFailureDoesNotBlockReuse() {
+        SubmissionRepository submissionRepository = mock(SubmissionRepository.class);
+        SubmissionAnalysisRepository analysisRepository = mock(SubmissionAnalysisRepository.class);
+        StudentRecommendationEventService recommendationEventService = mock(StudentRecommendationEventService.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        SubmissionAnalysisService service = new SubmissionAnalysisService(
+                submissionRepository,
+                null,
+                null,
+                analysisRepository,
+                objectMapper,
+                null,
+                null,
+                new DiagnosisTaxonomy(),
+                null,
+                new DiagnosisReportReader(objectMapper, new DiagnosisTaxonomy()),
+                null,
+                recommendationEventService,
+                null,
+                null
+        );
+        Submission submission = submission(22L, Submission.Verdict.WRONG_ANSWER, 10);
+        SubmissionAnalysis analysis = SubmissionAnalysis.builder()
+                .submissionId(22L)
+                .analysisSource("TEST")
+                .scenario("WA")
+                .headline("diagnosis")
+                .summary("summary")
+                .reportMarkdown("markdown")
+                .reportJson("""
+                        {
+                          "sourceType": "TEST",
+                          "summary": "summary"
+                        }
+                        """)
+                .build();
+        when(submissionRepository.findById(22L)).thenReturn(Optional.of(submission));
+        when(analysisRepository.findBySubmissionId(22L)).thenReturn(Optional.of(analysis));
+        doThrow(new IllegalStateException("backfill down"))
+                .when(recommendationEventService).backfillSubmissionAnalysis(submission, analysis);
+
+        assertThatCode(() -> service.generateAndStoreAnalysisForSubmission(22L))
+                .doesNotThrowAnyException();
+        verify(recommendationEventService).backfillSubmissionAnalysis(submission, analysis);
     }
 
     private Submission submission(Long id, Submission.Verdict verdict, int minutesAfter) {

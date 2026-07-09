@@ -61,6 +61,7 @@ public class AiReportService {
     private final ThreadLocal<ExternalModelCallTelemetry> lastCallTelemetry = ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
     private final ThreadLocal<ExternalModelCallTelemetry> lastStructuredRetrySourceTelemetry =
             ThreadLocal.withInitial(ExternalModelCallTelemetry::empty);
+    private final ThreadLocal<Boolean> structuredRetryUsedInInvocation = ThreadLocal.withInitial(() -> false);
     private final ThreadLocal<ExternalModelRequestContext> nextRequestContext =
             ThreadLocal.withInitial(ExternalModelRequestContext::standard);
     private final ThreadLocal<String> lastModelStageRawContent = ThreadLocal.withInitial(() -> "");
@@ -204,6 +205,7 @@ public class AiReportService {
         }
 
         try {
+            structuredRetryUsedInInvocation.set(false);
             log.info("AI submission analysis started. submissionId={}, problemId={}, language={}",
                     submission.getId(),
                     submission.getProblemId(),
@@ -432,8 +434,26 @@ public class AiReportService {
         adviceOutput = externalModelAgentRuntime.normalizeAdviceGeneration(adviceOutput, runtimePlan);
 
         ExternalModelStagePayloads.StageValidationResult adviceValidation =
-                withStage("DIAGNOSIS_AND_ADVICE",
-                        externalModelAgentRuntime.validateAdviceGeneration(adviceOutput, runtimePlan));
+                validateAdviceGenerationWithCountContract(adviceOutput, runtimePlan);
+        if (!adviceValidation.isValid() && isAdviceCountFailure(adviceValidation)) {
+            try {
+                AdviceGenerationOutput rewrittenOutput =
+                        retryAdviceGenerationForCount(runtimePlan, adviceOutput, adviceValidation);
+                if (rewrittenOutput != null) {
+                    rewrittenOutput = externalModelAgentRuntime.normalizeAdviceGeneration(rewrittenOutput, runtimePlan);
+                    ExternalModelStagePayloads.StageValidationResult rewrittenValidation =
+                            validateAdviceGenerationWithCountContract(rewrittenOutput, runtimePlan);
+                    if (rewrittenValidation.isValid()) {
+                        adviceOutput = rewrittenOutput;
+                        adviceValidation = rewrittenValidation;
+                    } else {
+                        adviceValidation = rewrittenValidation;
+                    }
+                }
+            } catch (Exception exception) {
+                adviceValidation = stageFailureFromException("DIAGNOSIS_AND_ADVICE", exception);
+            }
+        }
         if (!adviceValidation.isValid()
                 && adviceValidation.getFailureReason() == ModelStageFailureReason.SAFETY_RISK) {
             try {
@@ -441,8 +461,7 @@ public class AiReportService {
                         retryAdviceGenerationForSafety(runtimePlan, adviceOutput, adviceValidation);
                 rewrittenOutput = externalModelAgentRuntime.normalizeAdviceGeneration(rewrittenOutput, runtimePlan);
                 ExternalModelStagePayloads.StageValidationResult rewrittenValidation =
-                        withStage("DIAGNOSIS_AND_ADVICE",
-                                externalModelAgentRuntime.validateAdviceGeneration(rewrittenOutput, runtimePlan));
+                        validateAdviceGenerationWithCountContract(rewrittenOutput, runtimePlan);
                 if (rewrittenValidation.isValid()) {
                     adviceOutput = rewrittenOutput;
                     adviceValidation = rewrittenValidation;
@@ -466,9 +485,6 @@ public class AiReportService {
             return runtimeFailure(baseline, runtimePlan, adviceValidation);
         }
 
-        persistStandardLibraryGrowthCandidates(adviceOutput, submission);
-        runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.success(adviceOutput, promptVersion));
-
         SubmissionAnalysisResponse.StudentFeedback studentFeedback =
                 externalModelAgentRuntime.mapAdviceStudentFeedback(adviceOutput, runtimePlan);
         studentFeedback = externalModelAgentRuntime.normalizeStudentFeedback(studentFeedback, runtimePlan);
@@ -483,6 +499,9 @@ public class AiReportService {
             ));
             return runtimeFailure(baseline, runtimePlan, feedbackValidation);
         }
+
+        persistStandardLibraryGrowthCandidates(adviceOutput, submission);
+        runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.success(adviceOutput, promptVersion));
 
         SubmissionAnalysisResponse response = buildAdviceRuntimeAnalysisResponse(
                 baseline,
@@ -531,6 +550,8 @@ public class AiReportService {
                 "basicLayerAdvice 应尽量一条对应一个主要 issue；多个 issue 不要压缩成一条笼统建议。",
                 "improvementLayerAdvice 可以围绕复盘、自测、迁移和调试习惯给出多条方向，但不能重复基础层建议。",
                 "如果某个 issue 没有标准库 anchor，相关标准库 id 可以留空，不要因此删除该 issue 的建议。",
+                "studentReport 只能做摘要，不能替代 basicLayerAdvice 或 improvementLayerAdvice 数组。",
+                "当自由诊断有多个有效 issue 时，basicLayerAdvice 和 improvementLayerAdvice 至少各覆盖两个独立问题，除非 issue 本身不足两个。",
                 "学生可见反馈要自然、具体、可行动，但不能给完整答案或逐行改法。"
         ));
         request.put("brief", runtimePlan.getBrief());
@@ -1476,6 +1497,133 @@ public class AiReportService {
                 .build();
     }
 
+    private ExternalModelStagePayloads.StageValidationResult validStage(String stage) {
+        return ExternalModelStagePayloads.StageValidationResult.builder()
+                .valid(true)
+                .stage(stage)
+                .failureReason(ModelStageFailureReason.NONE)
+                .message("")
+                .softFixes(List.of())
+                .hardFailures(List.of())
+                .build();
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult validateAdviceGenerationWithCountContract(
+            AdviceGenerationOutput adviceOutput,
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        ExternalModelStagePayloads.StageValidationResult countValidation =
+                validateAdviceCountContract(adviceOutput, runtimePlan);
+        if (!countValidation.isValid()) {
+            return countValidation;
+        }
+        ExternalModelStagePayloads.StageValidationResult schemaValidation =
+                withStage("DIAGNOSIS_AND_ADVICE",
+                        externalModelAgentRuntime.validateAdviceGeneration(adviceOutput, runtimePlan));
+        if (!schemaValidation.isValid()) {
+            return schemaValidation;
+        }
+        return schemaValidation;
+    }
+
+    private ExternalModelStagePayloads.StageValidationResult validateAdviceCountContract(
+            AdviceGenerationOutput adviceOutput,
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        int issueCount = effectiveFreeDiagnosisIssueCount(runtimePlan);
+        if (adviceOutput == null) {
+            return validStage("DIAGNOSIS_AND_ADVICE");
+        }
+        if (isAccepted(runtimePlan == null ? null : runtimePlan.getBrief())) {
+            return validStage("DIAGNOSIS_AND_ADVICE");
+        }
+        int requiredBasic = issueCount >= 2 ? Math.min(2, issueCount) : 1;
+        int requiredImprovement = issueCount >= 2 ? Math.min(2, issueCount) : 0;
+        int basicCount = size(adviceOutput == null ? null : adviceOutput.getBasicLayerAdvice());
+        int improvementCount = size(adviceOutput == null ? null : adviceOutput.getImprovementLayerAdvice());
+        if (basicCount >= requiredBasic && improvementCount >= requiredImprovement) {
+            return validStage("DIAGNOSIS_AND_ADVICE");
+        }
+        return invalidStage(
+                "DIAGNOSIS_AND_ADVICE",
+                ModelStageFailureReason.INVALID_JSON,
+                "ADVICE_INSUFFICIENT_ITEMS: issueCount=" + issueCount
+                        + ", requiredBasic=" + requiredBasic
+                        + ", requiredImprovement=" + requiredImprovement
+                        + ", basicLayerAdvice=" + basicCount
+                        + ", improvementLayerAdvice=" + improvementCount
+        );
+    }
+
+    private boolean isAdviceCountFailure(ExternalModelStagePayloads.StageValidationResult failure) {
+        return failure != null
+                && cleanupAiText(failure.getMessage()).startsWith("ADVICE_INSUFFICIENT_ITEMS:");
+    }
+
+    private int effectiveFreeDiagnosisIssueCount(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (runtimePlan == null || runtimePlan.getFreeDiagnosisOutput() == null) {
+            return 0;
+        }
+        return safeList(runtimePlan.getFreeDiagnosisOutput().getIssues()).stream()
+                .filter(item -> item != null)
+                .filter(item -> !defaultIfBlank(item.getTitle(), "").isBlank()
+                        || !defaultIfBlank(item.getWhatHappened(), "").isBlank())
+                .toList()
+                .size();
+    }
+
+    private boolean isAccepted(ModelDiagnosisBrief brief) {
+        String verdict = brief == null || brief.getVerdict() == null
+                ? ""
+                : brief.getVerdict().trim().toUpperCase();
+        return "AC".equals(verdict) || "ACCEPTED".equals(verdict);
+    }
+
+    private AdviceGenerationOutput retryAdviceGenerationForCount(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            AdviceGenerationOutput underProducedOutput,
+            ExternalModelStagePayloads.StageValidationResult failure)
+            throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        int issueCount = effectiveFreeDiagnosisIssueCount(runtimePlan);
+        int requiredBasic = issueCount >= 2 ? Math.min(2, issueCount) : 1;
+        int requiredImprovement = issueCount >= 2 ? Math.min(2, issueCount) : 0;
+        request.put("task", "上一轮学生建议数量不足。请保留正确诊断，补齐结构化建议数组。");
+        request.put("contextPolicy", List.of(
+                "studentReport 只是摘要，不能替代 basicLayerAdvice 或 improvementLayerAdvice。",
+                "basicLayerAdvice 至少返回 " + requiredBasic + " 条，每条对应一个独立 issue。",
+                "improvementLayerAdvice 至少返回 " + requiredImprovement + " 条，必须绑定当前 issue 或算法机制；如果要求为 0 可以为空。",
+                "不要为了凑数量拆分同一句话；每条建议必须有独立 title、行动和 evidenceRefs。",
+                "不要给完整答案、替换代码或逐行改法。"
+        ));
+        request.put("brief", runtimePlan.getBrief());
+        request.put("freeDiagnosis", runtimePlan.getFreeDiagnosisOutput());
+        request.put("issues", runtimePlan.getFreeDiagnosisOutput() == null
+                ? List.of()
+                : safeList(runtimePlan.getFreeDiagnosisOutput().getIssues()));
+        request.put("libraryAnchors", safeList(runtimePlan.getIssueLibraryAnchors()));
+        request.put("standardLibrary", runtimePlan.getStandardLibraryPack());
+        request.put("previousOutput", underProducedOutput);
+        request.put("validationFailure", Map.of(
+                "stage", failure == null ? "DIAGNOSIS_AND_ADVICE" : defaultIfBlank(failure.getStage(), "DIAGNOSIS_AND_ADVICE"),
+                "reason", failure == null || failure.getFailureReason() == null
+                        ? ModelStageFailureReason.INVALID_JSON.name()
+                        : failure.getFailureReason().name(),
+                "message", failure == null ? "" : cleanupAiText(failure.getMessage())
+        ));
+        String systemPrompt = runtimePlan.getAdvicePrompt().getSystemPrompt()
+                + "\n\n数量修复重试:\n"
+                + "上一轮 JSON 的基础/提高建议数量不足，不能用 studentReport 摘要代替卡片数组。\n"
+                + "请返回同一个输出 schema，并补齐 basicLayerAdvice 与 improvementLayerAdvice。\n";
+        activateRuntimePlan(runtimePlan);
+        String content = chatCompletionWithOverrides(
+                systemPrompt,
+                objectMapper.writeValueAsString(request),
+                false,
+                adviceGenerationOutputTokens()
+        );
+        lastCallTelemetry.set(lastCallTelemetry.get().withFallbackRetryUsed(true));
+        return parseModelStagePayload(content, AdviceGenerationOutput.class);
+    }
+
     private AdviceGenerationOutput retryAdviceGenerationForSafety(
             ExternalModelAgentRuntime.RuntimePlan runtimePlan,
             AdviceGenerationOutput unsafeOutput,
@@ -1552,6 +1700,7 @@ public class AiReportService {
             if (retryOutput != null) {
                 lastCallTelemetry.set(lastCallTelemetry.get().withFallbackRetryUsed(true));
                 lastStructuredRetrySourceTelemetry.set(firstTelemetry);
+                structuredRetryUsedInInvocation.set(true);
                 return retryOutput;
             }
             lastCallTelemetry.set(firstTelemetry);
@@ -1575,9 +1724,6 @@ public class AiReportService {
     private boolean shouldRetryStructuredPayload(Class<?> payloadType,
                                                  ExternalModelCallTelemetry telemetry,
                                                  String rawContent) {
-        if (payloadType != AdviceGenerationOutput.class) {
-            return false;
-        }
         if (!structuredRetryEnabled) {
             return false;
         }
@@ -1586,9 +1732,29 @@ public class AiReportService {
         if ("length".equalsIgnoreCase(finishReason)) {
             return true;
         }
-        return cleaned.contains("\"caseUnderstanding\"")
-                || cleaned.contains("\"basicLayerAdvice\"")
-                || cleaned.contains("\"nextStepPlan\"");
+        if (cleaned.isBlank()) {
+            return true;
+        }
+        if (payloadType == AdviceGenerationOutput.class) {
+            return cleaned.contains("\"caseUnderstanding\"")
+                    || cleaned.contains("\"basicLayerAdvice\"")
+                    || cleaned.contains("\"improvementLayerAdvice\"")
+                    || cleaned.contains("\"nextStepPlan\"")
+                    || cleaned.contains("\"studentReport\"");
+        }
+        if (payloadType == FreeDiagnosisOutput.class) {
+            return cleaned.contains("\"problemUnderstanding\"")
+                    || cleaned.contains("\"codeIntent\"")
+                    || cleaned.contains("\"behaviorGap\"")
+                    || cleaned.contains("\"issues\"")
+                    || cleaned.contains("\"navigationIntent\"");
+        }
+        if (payloadType == LayeredAttachmentAction.class) {
+            return cleaned.contains("\"action\"")
+                    || cleaned.contains("\"codes\"")
+                    || cleaned.contains("\"confidence\"");
+        }
+        return false;
     }
 
     private String adviceFailureReason(ExternalModelStagePayloads.StageValidationResult failure) {
@@ -3065,7 +3231,8 @@ public class AiReportService {
                 .streamReasoningChunkCount(telemetry.streamReasoningChunkCount())
                 .streamInvalidChunkCount(telemetry.streamInvalidChunkCount())
                 .streamFinishReason(telemetry.streamFinishReason())
-                .streamFallbackRetryUsed(telemetry.streamFallbackRetryUsed())
+                .streamFallbackRetryUsed(Boolean.TRUE.equals(telemetry.streamFallbackRetryUsed())
+                        || Boolean.TRUE.equals(structuredRetryUsedInInvocation.get()))
                 .standardLibraryNavigationEnabled(standardLibraryNavigation(runtimePlan).enabled())
                 .standardLibraryNavigationStatus(standardLibraryNavigation(runtimePlan).status())
                 .standardLibraryNavigationSelectedCount(standardLibraryNavigation(runtimePlan).selectedCount())
