@@ -15,6 +15,8 @@ import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -47,6 +49,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(service.systemPrompt(0)).contains("free-diagnosis-v1");
         assertThat(service.systemPrompt(1)).contains("standard-library-navigation-v1");
         assertThat(service.systemPrompt(3)).contains("diagnosis-report-v3");
+        assertThat(service.outputTokens(3)).isEqualTo(4200);
         assertThat(service.userPrompt(1))
                 .contains("currentLayer", "allowedActions", "maxRounds");
         assertThat(service.userPrompt(3))
@@ -389,6 +392,32 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
+    void truncatedAdvicePayloadRetriesWithStructuredOutputBudget() {
+        StubAiReportService service = newService(
+                truncatedAdviceResponse(),
+                validAdviceResponse()
+        );
+        ReflectionTestUtils.setField(service, "structuredRetryEnabled", true);
+        ReflectionTestUtils.setField(service, "maxOutputTokens", 1200);
+        ReflectionTestUtils.setField(service, "structuredRetryOutputTokens", 4200);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(5);
+        assertThat(service.outputTokens(3)).isEqualTo(4200);
+        assertThat(service.outputTokens(4)).isEqualTo(4200);
+        assertThat(service.userPrompt(4)).isEqualTo(service.userPrompt(3));
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
+    }
+
+    @Test
     void navigationValidationFailureStopsBeforeFinalDiagnosisWithoutLocalRecall() {
         StubAiReportService service = newServiceWithNavigationResponse(
                 """
@@ -492,6 +521,16 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 org.mockito.ArgumentMatchers.eq(11L),
                 org.mockito.ArgumentMatchers.isNull()
         );
+    }
+
+    @Test
+    void growthCandidatePersistenceUsesIndependentTransaction() throws NoSuchMethodException {
+        Transactional transactional = AiStandardLibraryGrowthAgentService.class
+                .getMethod("proposeFromDiagnosisOutput", AdviceGenerationOutput.class, Long.class, Long.class, List.class)
+                .getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
     }
 
     private StubAiReportService newService(AiStandardLibraryGrowthAgentService growthAgentService, String... responses) {
@@ -611,6 +650,17 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         responses.addAll(navigationResponses);
         responses.addAll(List.of(adviceResponses));
         return responses.toArray(String[]::new);
+    }
+
+    private String truncatedAdviceResponse() {
+        return """
+                {
+                  "caseUnderstanding": {
+                    "problemGoal": "输出 1 到 n 的整数和。"
+                  },
+                  "basicLayerAdvice": [{
+                    "title": "循环右边界漏取"
+                """;
     }
 
     private AiStandardLibraryService standardLibraryService() {
@@ -1286,6 +1336,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         private final Queue<String> responses = new ArrayDeque<>();
         private final List<String> systemPrompts = new ArrayList<>();
         private final List<String> userPrompts = new ArrayList<>();
+        private final List<Integer> outputTokens = new ArrayList<>();
         private int callCount;
 
         StubAiReportService(ObjectMapper objectMapper,
@@ -1312,6 +1363,23 @@ class AiReportServiceAdviceGenerationRuntimeTest {
             callCount++;
             systemPrompts.add(systemPrompt);
             userPrompts.add(userPrompt);
+            outputTokens.add(null);
+            String response = responses.poll();
+            if (response == null) {
+                throw new IOException("No stub response configured.");
+            }
+            return response;
+        }
+
+        @Override
+        protected String chatCompletionWithOverrides(String systemPrompt,
+                                                     String userPrompt,
+                                                     boolean stream,
+                                                     int outputTokens) throws IOException {
+            callCount++;
+            systemPrompts.add(systemPrompt);
+            userPrompts.add(userPrompt);
+            this.outputTokens.add(outputTokens);
             String response = responses.poll();
             if (response == null) {
                 throw new IOException("No stub response configured.");
@@ -1329,6 +1397,10 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
         String systemPrompt(int index) {
             return systemPrompts.get(index);
+        }
+
+        Integer outputTokens(int index) {
+            return outputTokens.get(index);
         }
 
     }

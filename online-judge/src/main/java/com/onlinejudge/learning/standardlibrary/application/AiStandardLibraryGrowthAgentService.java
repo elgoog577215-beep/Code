@@ -9,6 +9,7 @@ import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryGro
 import com.onlinejudge.submission.application.AdviceGenerationOutput;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -74,12 +75,12 @@ public class AiStandardLibraryGrowthAgentService {
         return candidateRepository.save(candidate);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<AiStandardLibraryGrowthCandidate> proposeFromDiagnosisOutput(AdviceGenerationOutput output) {
         return proposeFromDiagnosisOutput(output, null, null, diagnosisEvidenceRefs(output));
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<AiStandardLibraryGrowthCandidate> proposeFromDiagnosisOutput(AdviceGenerationOutput output,
                                                                              Long sourceProblemId,
                                                                              Long sourceSubmissionId,

@@ -123,7 +123,6 @@ public class StudentAiFeedbackService {
         return feedback;
     }
 
-    @Transactional
     public StudentAiFeedbackResponse generateAndStore(Long submissionId) {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + submissionId));

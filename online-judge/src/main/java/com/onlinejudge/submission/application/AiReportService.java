@@ -161,11 +161,11 @@ public class AiReportService {
     @Value("${ai.external-runtime-profile:standard}")
     private String externalRuntimeProfile = ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD;
 
-    @Value("${ai.max-output-tokens:1800}")
-    private int maxOutputTokens = 1800;
+    @Value("${ai.max-output-tokens:3200}")
+    private int maxOutputTokens = 3200;
 
-    @Value("${ai.structured-retry-output-tokens:2600}")
-    private int structuredRetryOutputTokens = 2600;
+    @Value("${ai.structured-retry-output-tokens:4200}")
+    private int structuredRetryOutputTokens = 4200;
 
     @Value("${ai.stream-enabled:true}")
     private boolean streamEnabled;
@@ -173,8 +173,8 @@ public class AiReportService {
     @Value("${ai.stream-fallback-enabled:false}")
     private boolean streamFallbackEnabled = false;
 
-    @Value("${ai.structured-retry-enabled:false}")
-    private boolean structuredRetryEnabled = false;
+    @Value("${ai.structured-retry-enabled:true}")
+    private boolean structuredRetryEnabled = true;
 
     @Value("${ai.retry.max-attempts:1}")
     private int retryMaxAttempts;
@@ -544,7 +544,7 @@ public class AiReportService {
         activateRuntimePlan(runtimePlan);
         String systemPrompt = runtimePlan.getAdvicePrompt().getSystemPrompt();
         String userPrompt = objectMapper.writeValueAsString(request);
-        String content = chatCompletion(systemPrompt, userPrompt);
+        String content = chatCompletionWithOverrides(systemPrompt, userPrompt, streamEnabled, adviceGenerationOutputTokens());
         lastStructuredRetrySourceTelemetry.set(ExternalModelCallTelemetry.empty());
         AdviceGenerationOutput output = parseModelStagePayload(content, AdviceGenerationOutput.class);
         if (output != null) {
@@ -1511,7 +1511,12 @@ public class AiReportService {
                 + "DP 或状态设计问题只能提示学生重述状态含义、核对转移来源、手推可见失败样例；不要写前驱状态、具体下标组合、dp[i-1]、skip_current、take_current、两状态、多一维、空间压缩。\n"
                 + "不要写出替换表达式或精确循环头。\n";
         activateRuntimePlan(runtimePlan);
-        String content = chatCompletion(systemPrompt, objectMapper.writeValueAsString(request));
+        String content = chatCompletionWithOverrides(
+                systemPrompt,
+                objectMapper.writeValueAsString(request),
+                streamEnabled,
+                adviceGenerationOutputTokens()
+        );
         lastCallTelemetry.set(lastCallTelemetry.get().withFallbackRetryUsed(true));
         AdviceGenerationOutput output = parseModelStagePayload(content, AdviceGenerationOutput.class);
         if (output != null) {
@@ -1561,6 +1566,10 @@ public class AiReportService {
 
     private int size(List<?> values) {
         return values == null ? 0 : values.size();
+    }
+
+    private int adviceGenerationOutputTokens() {
+        return Math.max(Math.max(512, maxOutputTokens), Math.max(512, structuredRetryOutputTokens));
     }
 
     private boolean shouldRetryStructuredPayload(Class<?> payloadType,
@@ -2315,10 +2324,10 @@ public class AiReportService {
         }
     }
 
-    private String chatCompletionWithOverrides(String systemPrompt,
-                                               String userPrompt,
-                                               boolean stream,
-                                               int outputTokens) throws IOException, InterruptedException {
+    protected String chatCompletionWithOverrides(String systemPrompt,
+                                                 String userPrompt,
+                                                 boolean stream,
+                                                 int outputTokens) throws IOException, InterruptedException {
         ExternalModelRequestContext requestContext = nextRequestContext.get();
         nextRequestContext.set(ExternalModelRequestContext.standard());
         lastCallTelemetry.set(ExternalModelCallTelemetry.request(

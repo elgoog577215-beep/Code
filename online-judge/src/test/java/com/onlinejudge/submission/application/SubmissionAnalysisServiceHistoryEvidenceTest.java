@@ -8,6 +8,8 @@ import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,6 +19,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class SubmissionAnalysisServiceHistoryEvidenceTest {
+
+    @Test
+    void analysisGenerationDoesNotWrapExternalModelCallsInDatabaseTransaction() throws NoSuchMethodException {
+        Transactional transactional = SubmissionAnalysisService.class
+                .getMethod("generateAndStoreAnalysis", com.onlinejudge.problem.domain.Problem.class, Submission.class, List.class)
+                .getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.NOT_SUPPORTED);
+    }
 
     @Test
     void historyEvidenceCarriesPreviousLearningActionFeedback() {

@@ -28,6 +28,7 @@ import com.onlinejudge.submission.persistence.SubmissionRepository;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -154,7 +155,7 @@ public class SubmissionAnalysisService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public SubmissionAnalysisResponse generateAndStoreAnalysisForSubmission(Long submissionId) {
         log.info("Generating submission analysis from stored submission. submissionId={}", submissionId);
         Submission submission = submissionRepository.findById(submissionId)
@@ -178,7 +179,7 @@ public class SubmissionAnalysisService {
         return generateAndStoreAnalysis(problem, submission, caseResults);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public SubmissionAnalysisResponse generateAndStoreAnalysis(Problem problem, Submission submission, List<SubmissionCaseResult> caseResults) {
         log.info("Building submission analysis payload. submissionId={}, problemId={}, verdict={}, caseCount={}",
                 submission.getId(),
