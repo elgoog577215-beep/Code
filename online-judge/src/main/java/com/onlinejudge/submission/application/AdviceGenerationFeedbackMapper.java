@@ -57,9 +57,15 @@ public class AdviceGenerationFeedbackMapper {
         String nextAction = defaultIfBlank(report.getNextActionText(), "先复核模型指出的证据。");
 
         List<SubmissionAnalysisResponse.FeedbackIssue> blockingIssues = toBlockingIssues(output);
+        if (blockingIssues.isEmpty()) {
+            blockingIssues = toBlockingIssuesFromReport(output, anchor, evidenceRefs);
+        }
 
         List<SubmissionAnalysisResponse.ImprovementOpportunity> improvementOpportunities =
                 toImprovementOpportunities(output, standardLibraryPack);
+        if (improvementOpportunities.isEmpty()) {
+            improvementOpportunities = toImprovementOpportunitiesFromReport(output);
+        }
 
         List<String> nextEvidenceRefs = evidenceRefs.isEmpty() ? firstBasicEvidenceRefs(output) : evidenceRefs;
 
@@ -77,6 +83,44 @@ public class AdviceGenerationFeedbackMapper {
                         .answerLeakRisk("LOW")
                         .build())
                 .build();
+    }
+
+    private List<SubmissionAnalysisResponse.FeedbackIssue> toBlockingIssuesFromReport(
+            AdviceGenerationOutput output,
+            AdviceGenerationOutput.DiagnosisAnchor anchor,
+            List<String> evidenceRefs
+    ) {
+        if (output == null || output.getStudentReport() == null
+                || blank(output.getStudentReport().getBasicLayerText())) {
+            return List.of();
+        }
+        return List.of(SubmissionAnalysisResponse.FeedbackIssue.builder()
+                .priority(1)
+                .title(defaultIfBlank(anchor == null ? "" : anchor.getReason(), "基础层问题"))
+                .studentMessage(output.getStudentReport().getBasicLayerText())
+                .evidence(firstOrDefault(evidenceRefs, "模型引用了当前提交证据。"))
+                .nextAction(output.getStudentReport().getNextActionText())
+                .issueTag(anchor == null ? "" : defaultIfBlank(anchor.getType(), anchor.getId()))
+                .fineGrainedTag(anchor == null ? "" : anchor.getId())
+                .evidenceRefs(evidenceRefs == null ? List.of() : evidenceRefs)
+                .build());
+    }
+
+    private List<SubmissionAnalysisResponse.ImprovementOpportunity> toImprovementOpportunitiesFromReport(
+            AdviceGenerationOutput output
+    ) {
+        if (output == null || output.getStudentReport() == null
+                || blank(output.getStudentReport().getImprovementLayerText())) {
+            return List.of();
+        }
+        String text = output.getStudentReport().getImprovementLayerText();
+        return List.of(SubmissionAnalysisResponse.ImprovementOpportunity.builder()
+                .title("提高层")
+                .category("AI_FEEDBACK")
+                .studentMessage(text)
+                .benefit(text)
+                .evidenceRefs(List.of())
+                .build());
     }
 
     private List<SubmissionAnalysisResponse.FeedbackIssue> toBlockingIssues(AdviceGenerationOutput output) {

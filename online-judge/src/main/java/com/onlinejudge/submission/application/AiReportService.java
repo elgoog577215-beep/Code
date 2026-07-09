@@ -599,6 +599,8 @@ public class AiReportService {
                 runtimePlan.getBrief()
         );
         if (issues.isEmpty()) {
+            log.warn("Free diagnosis output contains no valid issues. rawPreview={}",
+                    previewBody(lastModelStageRawContent.get()));
             return invalidStage("FREE_DIAGNOSIS", ModelStageFailureReason.INVALID_EVIDENCE_REF,
                     "free diagnosis output contains no valid issues.");
         }
@@ -682,7 +684,7 @@ public class AiReportService {
                     true
             );
             if (!invalidEvidence.isBlank()) {
-                evidenceRefs = fallbackFreeDiagnosisEvidenceRefs(raw, validRefs);
+                evidenceRefs = fallbackFreeDiagnosisEvidenceRefs(raw, validRefs, orderedRefs);
                 invalidEvidence = EvidenceRefSupport.invalidEvidenceRefs(
                         evidenceRefs,
                         validRefs,
@@ -717,12 +719,41 @@ public class AiReportService {
         return validIssues;
     }
 
-    private List<String> fallbackFreeDiagnosisEvidenceRefs(FreeDiagnosisOutput.Issue raw, Set<String> validRefs) {
-        if (raw == null || raw.getEvidenceRefs() == null || raw.getEvidenceRefs().isEmpty()
-                || validRefs == null || !validRefs.contains("judge:first_failed_case")) {
+    private List<String> fallbackFreeDiagnosisEvidenceRefs(FreeDiagnosisOutput.Issue raw,
+                                                           Set<String> validRefs,
+                                                           List<String> orderedRefs) {
+        if (raw == null) {
             return raw == null || raw.getEvidenceRefs() == null ? List.of() : raw.getEvidenceRefs();
         }
-        return List.of("judge:first_failed_case");
+        String fallback = firstUsableFreeDiagnosisEvidenceRef(validRefs, orderedRefs);
+        if (fallback.isBlank()) {
+            return raw.getEvidenceRefs() == null ? List.of() : raw.getEvidenceRefs();
+        }
+        return List.of(fallback);
+    }
+
+    private String firstUsableFreeDiagnosisEvidenceRef(Set<String> validRefs, List<String> orderedRefs) {
+        if (orderedRefs == null || orderedRefs.isEmpty() || validRefs == null || validRefs.isEmpty()) {
+            return "";
+        }
+        for (String ref : orderedRefs) {
+            String cleaned = cleanupAiText(ref);
+            if (!cleaned.isBlank() && validRefs.contains(cleaned)
+                    && cleaned.startsWith("judge:first_failed_case")) {
+                return cleaned;
+            }
+        }
+        for (String ref : orderedRefs) {
+            String cleaned = cleanupAiText(ref);
+            if (!cleaned.isBlank() && validRefs.contains(cleaned)
+                    && (cleaned.startsWith("code:")
+                    || cleaned.startsWith("source:")
+                    || cleaned.startsWith("submission:")
+                    || cleaned.startsWith("verdict:"))) {
+                return cleaned;
+            }
+        }
+        return "";
     }
 
     private List<FreeDiagnosisOutput.Issue> issuesFromHypotheses(FreeDiagnosisOutput output) {
@@ -2864,10 +2895,14 @@ public class AiReportService {
     private <T> T parseModelStagePayload(String rawContent, Class<T> payloadType) {
         String normalized = cleanupAiText(rawContent);
         lastModelStageRawContent.set(normalized);
+        T repairedOutput = parseRepairedModelStagePayload(normalized, payloadType);
+        if (repairedOutput != null) {
+            return repairedOutput;
+        }
         try {
             return objectMapper.readValue(normalized, payloadType);
         } catch (JsonProcessingException firstError) {
-            T repairedOutput = parseRepairedModelStagePayload(normalized, payloadType);
+            repairedOutput = parseRepairedModelStagePayload(normalized, payloadType);
             if (repairedOutput != null) {
                 return repairedOutput;
             }
@@ -2893,7 +2928,8 @@ public class AiReportService {
     }
 
     private <T> T parseRepairedModelStagePayload(String rawJson, Class<T> payloadType) {
-        if (payloadType != AdviceGenerationOutput.class || rawJson == null || rawJson.isBlank()) {
+        if ((payloadType != AdviceGenerationOutput.class && payloadType != FreeDiagnosisOutput.class)
+                || rawJson == null || rawJson.isBlank()) {
             return null;
         }
         try {
@@ -2901,7 +2937,9 @@ public class AiReportService {
             if (!(root instanceof ObjectNode objectNode)) {
                 return null;
             }
-            boolean changed = repairAdviceGenerationObjectNode(objectNode);
+            boolean changed = payloadType == AdviceGenerationOutput.class
+                    ? repairAdviceGenerationObjectNode(objectNode)
+                    : repairFreeDiagnosisObjectNode(objectNode);
             if (!changed) {
                 return null;
             }
@@ -2914,11 +2952,74 @@ public class AiReportService {
         }
     }
 
+    private boolean repairFreeDiagnosisObjectNode(ObjectNode root) {
+        boolean changed = false;
+        changed |= renameFirstExisting(root, "issues", "diagnosisIssues", "findings", "rootCauses", "problems");
+        changed |= wrapObjectFieldAsArray(root, "issues");
+        changed |= repairFreeDiagnosisIssues(root, "issues");
+        changed |= repairFreeDiagnosisIssues(root, "hypotheses");
+        return changed;
+    }
+
+    private boolean repairFreeDiagnosisIssues(ObjectNode root, String arrayField) {
+        JsonNode values = root.get(arrayField);
+        if (values == null || !values.isArray()) {
+            return false;
+        }
+        boolean changed = false;
+        int index = 1;
+        for (JsonNode value : values) {
+            if (!(value instanceof ObjectNode issue)) {
+                continue;
+            }
+            changed |= renameFirstExisting(issue, "title", "name", "issue", "problem", "rootCause");
+            changed |= renameFirstExisting(issue, "whatHappened", "description", "currentIssue", "behaviorGap", "reason");
+            changed |= renameFirstExisting(issue, "whyItMatters", "impact", "why", "whyImportant");
+            changed |= repairSingleEvidenceRef(issue);
+            if ("issues".equals(arrayField) && !issue.hasNonNull("issueId")) {
+                issue.put("issueId", "I" + index);
+                changed = true;
+            }
+            index++;
+        }
+        return changed;
+    }
+
+    private boolean renameFirstExisting(ObjectNode node, String targetField, String... aliasFields) {
+        if (node == null || node.hasNonNull(targetField) || aliasFields == null) {
+            return false;
+        }
+        for (String aliasField : aliasFields) {
+            JsonNode value = node.get(aliasField);
+            if (value != null && !value.isNull()) {
+                node.set(targetField, value);
+                if (!aliasField.equals(targetField)) {
+                    node.remove(aliasField);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean wrapObjectFieldAsArray(ObjectNode root, String fieldName) {
+        JsonNode value = root.get(fieldName);
+        if (!(value instanceof ObjectNode)) {
+            return false;
+        }
+        ArrayNode array = objectMapper.createArrayNode();
+        array.add(value);
+        root.set(fieldName, array);
+        return true;
+    }
+
     private boolean repairAdviceGenerationObjectNode(ObjectNode root) {
         boolean changed = false;
         changed |= repairAdviceStudentReport(root);
         changed |= repairAdviceDiagnosisDecision(root);
         changed |= repairAdviceDiagnosisCandidates(root);
+        changed |= repairAdviceEvidenceRefs(root);
+        changed |= repairAdviceNextStepPlan(root);
         changed |= repairAdviceLibraryGrowth(root);
         return changed;
     }
@@ -3025,6 +3126,92 @@ public class AiReportService {
             }
         }
         return changed;
+    }
+
+    private boolean repairAdviceEvidenceRefs(ObjectNode root) {
+        boolean changed = false;
+        changed |= repairEvidenceRefs(root, "basicLayerAdvice");
+        changed |= repairEvidenceRefs(root, "improvementLayerAdvice");
+        changed |= repairEvidenceRefs(root, "diagnosisCandidates");
+        JsonNode decisionNode = root.get("diagnosisDecision");
+        if (decisionNode instanceof ObjectNode decision) {
+            changed |= repairEvidenceRefs(decision, "anchors");
+        }
+        JsonNode growthNode = root.get("libraryGrowth");
+        if (growthNode instanceof ObjectNode growth) {
+            changed |= repairEvidenceRefs(growth, "candidates");
+        }
+        return changed;
+    }
+
+    private boolean repairEvidenceRefs(ObjectNode root, String arrayField) {
+        JsonNode values = root.get(arrayField);
+        if (values == null || !values.isArray()) {
+            return false;
+        }
+        boolean changed = false;
+        for (JsonNode value : values) {
+            if (value instanceof ObjectNode objectNode) {
+                changed |= repairSingleEvidenceRef(objectNode);
+            }
+        }
+        return changed;
+    }
+
+    private boolean repairSingleEvidenceRef(ObjectNode node) {
+        if (!node.has("evidenceRef")) {
+            return false;
+        }
+        JsonNode evidenceRef = node.get("evidenceRef");
+        if (!node.has("evidenceRefs")) {
+            node.set("evidenceRefs", ensureTextArray(evidenceRef));
+        }
+        node.remove("evidenceRef");
+        return true;
+    }
+
+    private boolean repairAdviceNextStepPlan(ObjectNode root) {
+        JsonNode nextStepPlan = root.get("nextStepPlan");
+        if (nextStepPlan == null || !nextStepPlan.isArray()) {
+            return false;
+        }
+        boolean changed = false;
+        int step = 1;
+        for (JsonNode node : nextStepPlan) {
+            if (!(node instanceof ObjectNode item)) {
+                continue;
+            }
+            if (!item.hasNonNull("target")) {
+                JsonNode action = firstExisting(item, "action", "task", "studentAction", "nextAction");
+                if (action != null) {
+                    item.set("target", action);
+                    changed = true;
+                }
+            }
+            if (!item.hasNonNull("step")) {
+                item.put("step", step);
+                changed = true;
+            }
+            if (item.has("action") || item.has("task") || item.has("studentAction") || item.has("nextAction")) {
+                item.remove(List.of("action", "task", "studentAction", "nextAction"));
+                changed = true;
+            }
+            step++;
+        }
+        return changed;
+    }
+
+    private JsonNode firstExisting(ObjectNode node, String... fieldNames) {
+        if (node == null || fieldNames == null) {
+            return null;
+        }
+        for (String fieldName : fieldNames) {
+            JsonNode value = node.get(fieldName);
+            if (value != null && !value.isNull()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private boolean repairAdviceLibraryGrowth(ObjectNode root) {

@@ -2,6 +2,7 @@ package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,6 +16,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AdviceGenerationOutput {
     private ExecutionGate executionGate;
     private DiagnosisDecision diagnosisDecision;
@@ -33,6 +35,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ExecutionGate {
         private String state;
         private String priority;
@@ -44,6 +47,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class DiagnosisDecision {
         private String libraryFit;
         private List<DiagnosisAnchor> anchors;
@@ -56,6 +60,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class DiagnosisAnchor {
         private String id;
         private String type;
@@ -70,6 +75,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class OutOfLibraryFinding {
         private String name;
         private List<String> suggestedPath;
@@ -91,6 +97,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class DiagnosisCandidate {
         private String name;
         private String layer;
@@ -109,6 +116,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class StudentReport {
         private String hintLevel;
         private String basicLayerText;
@@ -121,6 +129,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class TeacherTrace {
         private String reasoningSummary;
         private String uncertainty;
@@ -134,6 +143,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class LibraryGrowth {
         private List<LibraryGrowthCandidate> candidates;
     }
@@ -143,6 +153,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class LibraryGrowthCandidate {
         private String name;
         private List<String> suggestedPath;
@@ -164,6 +175,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class CaseUnderstanding {
         private String problemGoal;
         private String codeIntent;
@@ -176,6 +188,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class BasicLayerAdvice {
         private String mistakePointId;
         private String skillUnitId;
@@ -204,6 +217,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ImprovementLayerAdvice {
         private String improvementPointId;
         private String skillUnitId;
@@ -231,6 +245,7 @@ public class AdviceGenerationOutput {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class NextStepAdvice {
         private Integer step;
         private String target;

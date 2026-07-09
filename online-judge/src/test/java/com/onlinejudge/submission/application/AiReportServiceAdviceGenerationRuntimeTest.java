@@ -311,6 +311,30 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
+    void freeDiagnosisRepairsCommonIssueAliasesAndMissingEvidenceRefs() {
+        StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
+                emptyStandardLibraryService(),
+                freeDiagnosisResponseWithCommonAliases(),
+                List.of(),
+                validAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getFailureStage()).isEmpty();
+        assertThat(service.userPrompt(1))
+                .contains("\"issues\"")
+                .contains("\"title\":\"输出范围没有按题意覆盖\"")
+                .contains("\"evidenceRefs\":[\"judge:first_failed_case\"]");
+    }
+
+    @Test
     void libraryAttachmentCapsIssueNavigationWithoutDroppingAdviceIssues() {
         StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
                 standardLibraryService(),
@@ -364,6 +388,32 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getStudentFeedback().getNextLearningAction().getTask()).contains("手推");
         assertThat(analysis.getStudentFeedback().getNextLearningAction().getEvidenceRefs())
                 .contains("code:range_excludes_n");
+    }
+
+    @Test
+    void repairsQwenAdviceAliasesBeforeDeserializationWithoutDroppingModelContent() {
+        StubAiReportService service = newService(qwenAdviceResponseWithCommonAliases());
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(4);
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isFalse();
+        assertThat(analysis.getBasicLayerAdvice()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getTitle()).contains("循环右边界");
+                    assertThat(item.getEvidenceRefs()).contains("code:range_excludes_n");
+                });
+        assertThat(analysis.getFixDirections()).anySatisfy(item ->
+                assertThat(item).contains("画出 n=3 时循环变量 i 的取值序列"));
+        assertThat(analysis.getStudentFeedback().getBlockingIssues()).singleElement()
+                .satisfies(item -> assertThat(item.getStudentMessage()).contains("没有包含数字 n 本身"));
     }
 
     @Test
@@ -1206,6 +1256,22 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 """;
     }
 
+    private String freeDiagnosisResponseWithCommonAliases() {
+        return """
+                {
+                  "problemUnderstanding": "题目要求按指定范围统计并输出结果。",
+                  "codeIntent": "学生想通过循环完成统计。",
+                  "diagnosisIssues": [{
+                    "name": "输出范围没有按题意覆盖",
+                    "reason": "代码统计范围和题目要求不一致，导致可见样例输出错误。",
+                    "impact": "如果范围不对，后续格式或算法优化都不能解决当前错误。",
+                    "confidence": 0.83
+                  }],
+                  "uncertainty": "可见失败样例支持该诊断。"
+                }
+                """;
+    }
+
     private String attachmentSelectResponse(String code) {
         return """
                 {
@@ -1308,6 +1374,64 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                   },
                   "libraryGrowth": {"candidates": []},
                   "studentSummary": "循环范围没有覆盖题目要求的右端点。"
+                }
+                """;
+    }
+
+    private String qwenAdviceResponseWithCommonAliases() {
+        return """
+                {
+                  "studentReport": {
+                    "hintLevel": "L2",
+                    "basicLayerText": "你的代码在累加时没有包含数字 n 本身，导致结果偏小。",
+                    "improvementLayerText": "建议你复习 range 函数的半开区间含义，并用小规模数据手推边界行为。",
+                    "nextActionText": "画出 n=3 时循环变量 i 的取值序列。"
+                  },
+                  "caseUnderstanding": {
+                    "problemGoal": "计算从 1 到 n 的所有整数之和。",
+                    "codeIntent": "通过 for 循环遍历每个整数并累加。",
+                    "behaviorGap": "循环范围错误地使用了 range(1, n)，导致未包含 n。",
+                    "primaryEvidenceRef": "code:range_excludes_n"
+                  },
+                  "diagnosisDecision": {
+                    "libraryFit": "HIT",
+                    "anchors": [{
+                      "id": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                      "type": "MISTAKE_POINT",
+                      "role": "PRIMARY",
+                      "confidence": 0.9,
+                      "evidenceRefs": ["code:range_excludes_n"],
+                      "reason": "循环右端点未覆盖。"
+                    }]
+                  },
+                  "basicLayerAdvice": [{
+                    "mistakePointId": "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "循环右边界漏取",
+                    "whatHappened": "你的代码在累加时没有包含数字 n 本身，导致结果偏小。",
+                    "whyItMatters": "端点漏取会让每个测试结果都少加最后一项。",
+                    "studentAction": "先手推 n=3 时循环变量 i 的实际取值。",
+                    "checkQuestion": "循环变量 i 是否出现过 n？",
+                    "evidenceRef": "code:range_excludes_n",
+                    "confidence": 0.9,
+                    "extraNote": "模型可能附加解释字段。"
+                  }],
+                  "improvementLayerAdvice": [{
+                    "improvementPointId": "TESTING_HABIT",
+                    "skillUnitId": "SK_RANGE_BOUNDARY",
+                    "title": "补充边界样例意识",
+                    "currentLimit": "当前缺少对最小值和端点值的自测。",
+                    "suggestion": "修复后补测 n=1、n=2、n=3。",
+                    "studentBenefit": "能更早发现 range 右端不包含的问题。",
+                    "evidenceRef": "code:range_excludes_n",
+                    "confidence": 0.78
+                  }],
+                  "nextStepPlan": [{
+                    "action": "画出 n=3 时循环变量 i 的取值序列。",
+                    "reason": "这是确认边界是否覆盖的最小动作。",
+                    "evidenceRef": "code:range_excludes_n"
+                  }],
+                  "studentSummary": "这次主要卡在循环范围和题目闭区间要求没有对齐。"
                 }
                 """;
     }
