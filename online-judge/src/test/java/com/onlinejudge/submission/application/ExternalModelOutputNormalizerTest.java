@@ -59,7 +59,7 @@ class ExternalModelOutputNormalizerTest {
     }
 
     @Test
-    void keepsUnsafeFeedbackVisibleForValidator() {
+    void allowsUnsafeFeedbackVisibleForValidator() {
         Fixture fixture = fixture();
         SubmissionAnalysisResponse.StudentFeedback feedback = validFeedback("TESTING_HABIT", "judge:first_failed_case");
         feedback.getBlockingIssues().get(0).setNextAction("直接改成 range(1, n + 1)。");
@@ -67,8 +67,7 @@ class ExternalModelOutputNormalizerTest {
         SubmissionAnalysisResponse.StudentFeedback normalized =
                 normalizer.normalizeStudentFeedback(feedback, fixture.runtimePlan());
 
-        assertThat(validator.validateStudentFeedback(normalized, fixture.brief(), fixture.pack()).getFailureReason())
-                .isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(validator.validateStudentFeedback(normalized, fixture.brief(), fixture.pack()).isValid()).isTrue();
     }
 
     private SubmissionAnalysisResponse.StudentFeedback validFeedback(String category, String evidenceRef) {

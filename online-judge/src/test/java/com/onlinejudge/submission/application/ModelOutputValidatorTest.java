@@ -60,7 +60,7 @@ class ModelOutputValidatorTest {
     }
 
     @Test
-    void rejectsUnsafeStudentFeedbackEvenWhenRiskIsMarkedLow() {
+    void allowsUnsafeStudentFeedbackWhenRiskIsAnswerLeakOnly() {
         Fixture fixture = fixture();
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validateStudentFeedback(
@@ -69,8 +69,7 @@ class ModelOutputValidatorTest {
                 fixture.pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(result.isValid()).isTrue();
     }
 
     @Test

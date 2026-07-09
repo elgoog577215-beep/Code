@@ -22,11 +22,6 @@ public class ModelOutputValidator {
                 || feedback.getNextLearningAction() == null) {
             return invalid(ModelStageFailureReason.INVALID_JSON, "Student feedback is missing required fields.");
         }
-        String safetyTrigger = firstFeedbackSafetyTrigger(feedback);
-        if (!safetyTrigger.isBlank()) {
-            return invalid(ModelStageFailureReason.SAFETY_RISK,
-                    "Student feedback has high answer leak risk: " + safetyTrigger);
-        }
         Set<String> validRefs = validEvidenceRefs(brief);
         for (SubmissionAnalysisResponse.FeedbackIssue issue : feedback.getBlockingIssues()) {
             if (issue == null || issue.getStudentMessage() == null || issue.getStudentMessage().isBlank()
@@ -52,9 +47,6 @@ public class ModelOutputValidator {
         );
         if (!invalidNextActionRef.isBlank()) {
             return invalid(ModelStageFailureReason.INVALID_EVIDENCE_REF, invalidNextActionRef);
-        }
-        if (ModelOutputSafetyPolicy.isHighRisk(feedback.getNextLearningAction().getAnswerLeakRisk())) {
-            return invalid(ModelStageFailureReason.SAFETY_RISK, "nextLearningAction.answerLeakRisk=HIGH");
         }
         Set<String> allowedImprovementTags = improvementTagIds(
                 standardLibraryPack == null ? null : standardLibraryPack.getImprovementTags());
@@ -127,44 +119,6 @@ public class ModelOutputValidator {
                     .forEach(ids::add);
         }
         return ids;
-    }
-
-    private String firstFeedbackSafetyTrigger(SubmissionAnalysisResponse.StudentFeedback feedback) {
-        String trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(feedback.getSummary());
-        if (!trigger.isBlank()) {
-            return "summary contains " + trigger;
-        }
-        if (feedback.getBlockingIssues() != null) {
-            for (SubmissionAnalysisResponse.FeedbackIssue issue : feedback.getBlockingIssues()) {
-                trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(issue == null ? null : issue.getStudentMessage());
-                if (!trigger.isBlank()) {
-                    return "blockingIssue.studentMessage contains " + trigger;
-                }
-                trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(issue == null ? null : issue.getNextAction());
-                if (!trigger.isBlank()) {
-                    return "blockingIssue.nextAction contains " + trigger;
-                }
-            }
-        }
-        if (feedback.getImprovementOpportunities() != null) {
-            for (SubmissionAnalysisResponse.ImprovementOpportunity item : feedback.getImprovementOpportunities()) {
-                trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(item == null ? null : item.getStudentMessage());
-                if (!trigger.isBlank()) {
-                    return "improvement.studentMessage contains " + trigger;
-                }
-            }
-        }
-        if (feedback.getNextLearningAction() != null) {
-            trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(feedback.getNextLearningAction().getTask());
-            if (!trigger.isBlank()) {
-                return "nextLearningAction.task contains " + trigger;
-            }
-            trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(feedback.getNextLearningAction().getCheckQuestion());
-            if (!trigger.isBlank()) {
-                return "nextLearningAction.checkQuestion contains " + trigger;
-            }
-        }
-        return "";
     }
 
     private String normalize(String value) {

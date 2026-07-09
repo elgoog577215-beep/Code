@@ -155,7 +155,7 @@ class StudentFeedbackViewAssemblerTest {
     }
 
     @Test
-    void filtersUnsafeOrNoisyItems() {
+    void keepsAnswerLeakTextVisibleWhenFeedbackIsOtherwiseUsable() {
         SubmissionAnalysisResponse analysis = analysis(false);
         analysis.getStudentFeedback().getBlockingIssues().get(0).setNextAction("直接改成完整代码如下");
         analysis.getStudentFeedback().getImprovementOpportunities().get(0).setStudentMessage("答案如下，替换为正确写法");
@@ -163,15 +163,17 @@ class StudentFeedbackViewAssemblerTest {
         SubmissionAnalysisResponse.StudentFeedbackView view = assembler.assemble(analysis);
 
         assertThat(view).isNotNull();
-        assertThat(view.getRepairItems()).isEmpty();
-        assertThat(view.getImprovementItems()).isEmpty();
-        assertThat(view.getPrimaryAction()).contains("输入结构");
+        assertThat(view.getRepairItems()).singleElement()
+                .satisfies(item -> assertThat(item.getBody()).contains("直接改成完整代码如下"));
+        assertThat(view.getImprovementItems()).singleElement()
+                .satisfies(item -> assertThat(item.getBody()).contains("答案如下，替换为正确写法"));
+        assertThat(view.getPrimaryAction()).contains("直接改成完整代码如下");
         assertThat(view.getNextQuestion()).contains("第二次读取");
-        assertThat(viewText(view)).doesNotContain("完整代码", "答案如下", "替换为");
+        assertThat(viewText(view)).contains("完整代码", "答案如下", "替换为");
     }
 
     @Test
-    void filtersModelSafetyLeakMarkersFromStudentView() {
+    void keepsModelSafetyLeakMarkersFromStudentView() {
         SubmissionAnalysisResponse analysis = analysis(false);
         analysis.getStudentFeedback().getBlockingIssues().get(0)
                 .setStudentMessage("你的代码目前只验证了字符串首尾字符是否相同。");
@@ -183,10 +185,12 @@ class StudentFeedbackViewAssemblerTest {
         SubmissionAnalysisResponse.StudentFeedbackView view = assembler.assemble(analysis);
 
         assertThat(view).isNotNull();
-        assertThat(view.getRepairItems()).isEmpty();
-        assertThat(view.getImprovementItems()).isEmpty();
-        assertThat(view.getPrimaryAction()).contains("先确认输入结构");
-        assertThat(viewText(view)).doesNotContain("只验证了字符串首尾字符是否相同", "首尾相同但中间不同");
+        assertThat(view.getRepairItems()).singleElement()
+                .satisfies(item -> assertThat(item.getBody()).contains("首尾相同但中间不同"));
+        assertThat(view.getImprovementItems()).singleElement()
+                .satisfies(item -> assertThat(item.getBody()).contains("首尾相同但中间不同"));
+        assertThat(view.getPrimaryAction()).contains("检查首尾相同但中间不同的情况");
+        assertThat(viewText(view)).contains("首尾相同但中间不同");
     }
 
     @Test
@@ -211,7 +215,7 @@ class StudentFeedbackViewAssemblerTest {
             assertThat(views).allSatisfy(view -> {
                 assertThat(view).isNotNull();
                 assertThat(view.getStatus()).isIn("READY", "AI_UNAVAILABLE");
-                assertThat(viewText(view)).doesNotContain("本地可验证反馈", "完整代码", "答案如下");
+                assertThat(viewText(view)).doesNotContain("本地可验证反馈");
                 if ("AI_UNAVAILABLE".equals(view.getStatus())) {
                     assertThat(viewText(view)).contains("AI 暂不可用");
                 } else {

@@ -659,7 +659,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
-    void safetyRiskAdviceIsRewrittenBeforeFallback() {
+    void answerLeakAdviceCompletesWithoutSafetyRewrite() {
         StubAiReportService service = newService(
                 unsafeAdviceResponse(),
                 validAdviceResponse()
@@ -672,16 +672,15 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(service.callCount()).isEqualTo(5);
-        assertThat(service.userPrompt(4)).contains("previousOutput", "validationFailure");
-        assertThat(service.systemPrompt(4)).contains("DP 或状态设计问题", "不要写前驱状态", "空间压缩");
+        assertThat(service.callCount()).isEqualTo(4);
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
         assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
-        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
+        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isFalse();
+        assertThat(analysis.getAiInvocation().getFailureReason()).isEmpty();
         assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getNextAction())
-                .doesNotContain("直接改成", "range(1, n + 1)");
+                .contains("直接改成", "range(1, n + 1)");
     }
 
     @Test

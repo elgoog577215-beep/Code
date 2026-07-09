@@ -726,7 +726,7 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void rejectsUnsafeDirectAnswerText() {
+    void allowsUnsafeDirectAnswerTextAsSoftFix() {
         AdviceGenerationOutput output = validOutput();
         output.getBasicLayerAdvice().get(0).setStudentAction("直接改成 range(1, n + 1)。");
 
@@ -736,21 +736,17 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).anyMatch(value -> value.contains("answer leak allowed"));
     }
 
     @Test
-    void rejectsDiagnosisReportV2DirectLineEditText() {
-        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
-                .studentReport(AdviceGenerationOutput.StudentReport.builder()
-                        .hintLevel("L3")
-                        .basicLayerText("基础层：第 3 行把读取放进循环，就能覆盖所有查询。")
-                        .improvementLayerText("提高层：修好后补充边界样例。")
-                        .nextActionText("下一步：第 3 行设为0后再提交。")
-                        .build())
-                .studentSummary("这次重点是输入读取。")
-                .build();
+    void allowsDiagnosisReportV2DirectLineEditTextAsSoftFix() {
+        AdviceGenerationOutput output = unsafeReportOutput(
+                "基础层：第 3 行把读取放进循环，就能覆盖所有查询。",
+                "提高层：修好后补充边界样例。",
+                "下一步：第 3 行设为0后再提交。",
+                "这次重点是输入读取。");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 output,
@@ -758,8 +754,8 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).anyMatch(value -> value.contains("answer leak allowed"));
     }
 
     @Test
@@ -786,16 +782,12 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void rejectsDiagnosisReportV2ChineseDpFormulaLeak() {
-        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
-                .studentReport(AdviceGenerationOutput.StudentReport.builder()
-                        .hintLevel("L3")
-                        .basicLayerText("基础层：选择当前位置时要加上前前位置的最大和。")
-                        .improvementLayerText("提高层：先描述状态含义。")
-                        .nextActionText("下一步：手推状态含义。")
-                        .build())
-                .studentSummary("这次重点是状态定义。")
-                .build();
+    void allowsDiagnosisReportV2ChineseDpFormulaLeakAsSoftFix() {
+        AdviceGenerationOutput output = unsafeReportOutput(
+                "基础层：选择当前位置时要加上前前位置的最大和。",
+                "提高层：先描述状态含义。",
+                "下一步：手推状态含义。",
+                "这次重点是状态定义。");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 output,
@@ -803,21 +795,17 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).anyMatch(value -> value.contains("answer leak allowed"));
     }
 
     @Test
-    void rejectsDiagnosisReportV2DpFormulaFragments() {
-        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
-                .studentReport(AdviceGenerationOutput.StudentReport.builder()
-                        .hintLevel("L3")
-                        .basicLayerText("基础层：你写了 skip_current = dp[i-1] 和 take_current = values[i]。")
-                        .improvementLayerText("提高层：之后可以做空间压缩。")
-                        .nextActionText("下一步：检查转移来源。")
-                        .build())
-                .studentSummary("这次重点是状态定义。")
-                .build();
+    void allowsDiagnosisReportV2DpFormulaFragmentsAsSoftFix() {
+        AdviceGenerationOutput output = unsafeReportOutput(
+                "基础层：你写了 skip_current = dp[i-1] 和 take_current = values[i]。",
+                "提高层：之后可以做空间压缩。",
+                "下一步：检查转移来源。",
+                "这次重点是状态定义。");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 output,
@@ -825,21 +813,17 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).anyMatch(value -> value.contains("answer leak allowed"));
     }
 
     @Test
-    void rejectsDiagnosisReportV2NaturalLanguageDirectFixesFromLiveReview() {
-        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
-                .studentReport(AdviceGenerationOutput.StudentReport.builder()
-                        .hintLevel("L3")
-                        .basicLayerText("基础层：在每组处理开始之前手动把 best 和 cur 都设回 0。")
-                        .improvementLayerText("提高层：之后再整理多组数据习惯。")
-                        .nextActionText("下一步：拿题目样例再测一次。")
-                        .build())
-                .studentSummary("这次重点是状态重置。")
-                .build();
+    void allowsDiagnosisReportV2NaturalLanguageDirectFixesFromLiveReviewAsSoftFix() {
+        AdviceGenerationOutput output = unsafeReportOutput(
+                "基础层：在每组处理开始之前手动把 best 和 cur 都设回 0。",
+                "提高层：之后再整理多组数据习惯。",
+                "下一步：拿题目样例再测一次。",
+                "这次重点是状态重置。");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 output,
@@ -847,21 +831,17 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).anyMatch(value -> value.contains("answer leak allowed"));
     }
 
     @Test
-    void rejectsDiagnosisReportV2InitializationLocationFixes() {
-        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
-                .studentReport(AdviceGenerationOutput.StudentReport.builder()
-                        .hintLevel("L3")
-                        .basicLayerText("基础层：检查状态变量是否残留。")
-                        .improvementLayerText("提高层：建议养成在循环内部初始化局部状态的习惯，或者在每轮循环开始时显式清空全局状态。")
-                        .nextActionText("下一步：手推第二组开始时变量的值。")
-                        .build())
-                .studentSummary("这次重点是变量生命周期。")
-                .build();
+    void allowsDiagnosisReportV2InitializationLocationFixesAsSoftFix() {
+        AdviceGenerationOutput output = unsafeReportOutput(
+                "基础层：检查状态变量是否残留。",
+                "提高层：建议养成在循环内部初始化局部状态的习惯，或者在每轮循环开始时显式清空全局状态。",
+                "下一步：手推第二组开始时变量的值。",
+                "这次重点是变量生命周期。");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 output,
@@ -869,21 +849,17 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).anyMatch(value -> value.contains("answer leak allowed"));
     }
 
     @Test
-    void rejectsDiagnosisReportV2DpSelectOrSkipModelingHint() {
-        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
-                .studentReport(AdviceGenerationOutput.StudentReport.builder()
-                        .hintLevel("L3")
-                        .basicLayerText("基础层：你只比较了不选当前和只选当前这两种情况。")
-                        .improvementLayerText("提高层：之后可以用两个变量滚动更新。")
-                        .nextActionText("下一步：手推可见失败样例。")
-                        .build())
-                .studentSummary("这次重点是状态定义。")
-                .build();
+    void allowsDiagnosisReportV2DpSelectOrSkipModelingHintAsSoftFix() {
+        AdviceGenerationOutput output = unsafeReportOutput(
+                "基础层：你只比较了不选当前和只选当前这两种情况。",
+                "提高层：之后可以用两个变量滚动更新。",
+                "下一步：手推可见失败样例。",
+                "这次重点是状态定义。");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 output,
@@ -891,21 +867,17 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).anyMatch(value -> value.contains("answer leak allowed"));
     }
 
     @Test
-    void rejectsDiagnosisReportV2GreedyOptimalCombinationAndAlternativeTutorial() {
-        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
-                .studentReport(AdviceGenerationOutput.StudentReport.builder()
-                        .hintLevel("L3")
-                        .basicLayerText("基础层：可见样例正确最少只需2枚，用两个3。")
-                        .improvementLayerText("提高层：可以定义状态表示凑到某金额所需的最少硬币数，然后从小到大枚举金额和每种面值进行转移。")
-                        .nextActionText("下一步：手推局部选择是否可靠。")
-                        .build())
-                .studentSummary("这次重点是验证贪心假设。")
-                .build();
+    void allowsDiagnosisReportV2GreedyOptimalCombinationAndAlternativeTutorialAsSoftFix() {
+        AdviceGenerationOutput output = unsafeReportOutput(
+                "基础层：可见样例正确最少只需2枚，用两个3。",
+                "提高层：可以定义状态表示凑到某金额所需的最少硬币数，然后从小到大枚举金额和每种面值进行转移。",
+                "下一步：手推局部选择是否可靠。",
+                "这次重点是验证贪心假设。");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 output,
@@ -913,21 +885,17 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).anyMatch(value -> value.contains("answer leak allowed"));
     }
 
     @Test
-    void rejectsDiagnosisReportV2HiddenCaseSpecificLogicLeak() {
-        AdviceGenerationOutput output = AdviceGenerationOutput.builder()
-                .studentReport(AdviceGenerationOutput.StudentReport.builder()
-                        .hintLevel("L3")
-                        .basicLayerText("基础层：你的代码目前只验证了字符串首尾字符是否相同。")
-                        .improvementLayerText("提高层：构造首尾相同但中间不同的测试数据。")
-                        .nextActionText("下一步：检查中间字符是否也被纳入比较范围。")
-                        .build())
-                .studentSummary("这次重点是隐藏测试泛化。")
-                .build();
+    void allowsDiagnosisReportV2HiddenCaseSpecificLogicLeakAsSoftFix() {
+        AdviceGenerationOutput output = unsafeReportOutput(
+                "基础层：你的代码目前只验证了字符串首尾字符是否相同。",
+                "提高层：构造首尾相同但中间不同的测试数据。",
+                "下一步：检查中间字符是否也被纳入比较范围。",
+                "这次重点是隐藏测试泛化。");
 
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 output,
@@ -935,8 +903,8 @@ class AdviceGenerationOutputValidatorTest {
                 pack()
         );
 
-        assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).isEqualTo(ModelStageFailureReason.SAFETY_RISK);
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getSoftFixes()).anyMatch(value -> value.contains("answer leak allowed"));
     }
 
     @Test
@@ -1078,6 +1046,20 @@ class AdviceGenerationOutputValidatorTest {
                 .basicLayerAdvice(validOutput().getBasicLayerAdvice())
                 .improvementLayerAdvice(validOutput().getImprovementLayerAdvice())
                 .studentSummary("这次重点是循环边界。")
+                .build();
+    }
+
+    private AdviceGenerationOutput unsafeReportOutput(String basic, String improvement, String nextAction, String summary) {
+        return AdviceGenerationOutput.builder()
+                .studentReport(AdviceGenerationOutput.StudentReport.builder()
+                        .hintLevel("L3")
+                        .basicLayerText(basic)
+                        .improvementLayerText(improvement)
+                        .nextActionText(nextAction)
+                        .build())
+                .basicLayerAdvice(validOutput().getBasicLayerAdvice())
+                .improvementLayerAdvice(validOutput().getImprovementLayerAdvice())
+                .studentSummary(summary)
                 .build();
     }
 

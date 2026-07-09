@@ -72,10 +72,8 @@ public class AdviceGenerationOutputValidator {
             if (invalidConfidence(item.getConfidence())) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "basicLayerAdvice confidence is invalid.");
             }
-            if (unsafe(item.getTitle(), item.getWhatHappened(), item.getWhyItMatters(),
-                    item.getStudentAction(), item.getCheckQuestion())) {
-                return invalid(ModelStageFailureReason.SAFETY_RISK, "basicLayerAdvice contains answer leak.");
-            }
+            recordAnswerLeakRisk(softFixes, "basicLayerAdvice", item.getTitle(), item.getWhatHappened(), item.getWhyItMatters(),
+                    item.getStudentAction(), item.getCheckQuestion());
         }
 
         for (AdviceGenerationOutput.ImprovementLayerAdvice item : safe(output.getImprovementLayerAdvice())) {
@@ -97,9 +95,8 @@ public class AdviceGenerationOutputValidator {
             if (invalidConfidence(item.getConfidence())) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "improvementLayerAdvice confidence is invalid.");
             }
-            if (unsafe(item.getTitle(), item.getCurrentLimit(), item.getSuggestion(), item.getStudentBenefit())) {
-                return invalid(ModelStageFailureReason.SAFETY_RISK, "improvementLayerAdvice contains answer leak.");
-            }
+            recordAnswerLeakRisk(softFixes, "improvementLayerAdvice", item.getTitle(), item.getCurrentLimit(),
+                    item.getSuggestion(), item.getStudentBenefit());
         }
 
         for (AdviceGenerationOutput.NextStepAdvice item : safe(output.getNextStepPlan())) {
@@ -114,16 +111,12 @@ public class AdviceGenerationOutputValidator {
             if (!blank(normalizedEvidenceRef)) {
                 item.setEvidenceRef(normalizedEvidenceRef);
             }
-            if (unsafe(item.getTarget(), item.getReason())) {
-                return invalid(ModelStageFailureReason.SAFETY_RISK, "nextStepPlan contains answer leak.");
-            }
+            recordAnswerLeakRisk(softFixes, "nextStepPlan", item.getTarget(), item.getReason());
         }
-        if (unsafe(output.getStudentSummary(),
+        recordAnswerLeakRisk(softFixes, "caseUnderstanding/studentSummary", output.getStudentSummary(),
                 output.getCaseUnderstanding().getProblemGoal(),
                 output.getCaseUnderstanding().getCodeIntent(),
-                output.getCaseUnderstanding().getBehaviorGap())) {
-            return invalid(ModelStageFailureReason.SAFETY_RISK, "caseUnderstanding or studentSummary contains answer leak.");
-        }
+                output.getCaseUnderstanding().getBehaviorGap());
         return ExternalModelStagePayloads.StageValidationResult.builder()
                 .valid(true)
                 .stage("DIAGNOSIS_AND_ADVICE")
@@ -152,9 +145,8 @@ public class AdviceGenerationOutputValidator {
         if (!blank(hintLevel) && !List.of("L1", "L2", "L3", "L4").contains(hintLevel.trim().toUpperCase(Locale.ROOT))) {
             return invalid(ModelStageFailureReason.INVALID_JSON, "studentReport.hintLevel is invalid.");
         }
-        if (unsafe(report.getBasicLayerText(), report.getImprovementLayerText(), report.getNextActionText(), output.getStudentSummary())) {
-            return invalid(ModelStageFailureReason.SAFETY_RISK, "studentReport contains answer leak.");
-        }
+        recordAnswerLeakRisk(softFixes, "studentReport", report.getBasicLayerText(),
+                report.getImprovementLayerText(), report.getNextActionText(), output.getStudentSummary());
         if (containsUnsupportedNumericArray(brief,
                 report.getBasicLayerText(),
                 report.getImprovementLayerText(),
@@ -256,9 +248,7 @@ public class AdviceGenerationOutputValidator {
                 if (invalidConfidence(anchor.getConfidence())) {
                     return invalid(ModelStageFailureReason.INVALID_JSON, "diagnosisDecision anchor confidence is invalid.");
                 }
-                if (unsafe(anchor.getReason())) {
-                    return invalid(ModelStageFailureReason.SAFETY_RISK, "diagnosisDecision anchor contains answer leak.");
-                }
+                recordAnswerLeakRisk(softFixes, "diagnosisDecision anchor", anchor.getReason());
             }
             if ("HIT".equals(fit) && !hasKnownAnchor) {
                 fit = "PARTIAL";
@@ -282,10 +272,7 @@ public class AdviceGenerationOutputValidator {
                     softFixes.add("diagnosisDecision.outOfLibraryFinding dropped: invalid confidence");
                     continue;
                 }
-                if (unsafe(finding.getName(), finding.getReason())) {
-                    softFixes.add("diagnosisDecision.outOfLibraryFinding dropped: safety risk");
-                    continue;
-                }
+                recordAnswerLeakRisk(softFixes, "diagnosisDecision.outOfLibraryFinding", finding.getName(), finding.getReason());
                 validFindings.add(finding);
             }
             if (decision.getOutOfLibraryFindings() != null) {
@@ -335,10 +322,8 @@ public class AdviceGenerationOutputValidator {
             if (invalidConfidence(item.getConfidence())) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "basicLayerAdvice confidence is invalid.");
             }
-            if (unsafe(item.getTitle(), item.getWhatHappened(), item.getWhyItMatters(),
-                    item.getStudentAction(), item.getCheckQuestion())) {
-                return invalid(ModelStageFailureReason.SAFETY_RISK, "basicLayerAdvice contains answer leak.");
-            }
+            recordAnswerLeakRisk(softFixes, "basicLayerAdvice", item.getTitle(), item.getWhatHappened(), item.getWhyItMatters(),
+                    item.getStudentAction(), item.getCheckQuestion());
         }
         for (AdviceGenerationOutput.ImprovementLayerAdvice item : safe(output.getImprovementLayerAdvice())) {
             if (item == null) {
@@ -359,9 +344,8 @@ public class AdviceGenerationOutputValidator {
             if (invalidConfidence(item.getConfidence())) {
                 return invalid(ModelStageFailureReason.INVALID_JSON, "improvementLayerAdvice confidence is invalid.");
             }
-            if (unsafe(item.getTitle(), item.getCurrentLimit(), item.getSuggestion(), item.getStudentBenefit())) {
-                return invalid(ModelStageFailureReason.SAFETY_RISK, "improvementLayerAdvice contains answer leak.");
-            }
+            recordAnswerLeakRisk(softFixes, "improvementLayerAdvice", item.getTitle(), item.getCurrentLimit(),
+                    item.getSuggestion(), item.getStudentBenefit());
         }
         return null;
     }
@@ -460,10 +444,8 @@ public class AdviceGenerationOutputValidator {
                 softFixes.add("diagnosisCandidate dropped: invalid confidence");
                 continue;
             }
-            if (unsafe(candidate.getName(), candidate.getReason())) {
-                softFixes.add("diagnosisCandidate dropped: safety risk");
-                continue;
-            }
+            recordAnswerLeakRisk(softFixes, "diagnosisCandidate",
+                    candidate.getName(), candidate.getReason());
             validCandidates.add(candidate);
         }
         if (output.getDiagnosisCandidates() != null) {
@@ -502,11 +484,9 @@ public class AdviceGenerationOutputValidator {
                 softFixes.add("libraryGrowth candidate dropped: invalid confidence");
                 continue;
             }
-            if (unsafe(candidate.getName(), candidate.getReason(), candidate.getErrorSymptom(),
-                    candidate.getTypicalCodePattern(), candidate.getStudentExplanation())) {
-                softFixes.add("libraryGrowth candidate dropped: safety risk");
-                continue;
-            }
+            recordAnswerLeakRisk(softFixes, "libraryGrowth candidate",
+                    candidate.getName(), candidate.getReason(), candidate.getErrorSymptom(),
+                    candidate.getTypicalCodePattern(), candidate.getStudentExplanation());
             candidate.setEvidenceRefs(normalizeEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs,
                     orderedEvidenceRefs, brief, softFixes));
             String invalidEvidence = invalidEvidenceRefs(candidate.getEvidenceRefs(), evidenceRefs, brief,
@@ -849,8 +829,24 @@ public class AdviceGenerationOutputValidator {
         return values == null || values.stream().noneMatch(value -> value != null && !value.isBlank());
     }
 
-    private boolean unsafe(String... values) {
-        return ModelOutputSafetyPolicy.containsUnsafeLeak(values);
+    private void recordAnswerLeakRisk(List<String> softFixes, String field, String... values) {
+        String trigger = firstUnsafeTrigger(values);
+        if (!trigger.isBlank() && softFixes != null) {
+            softFixes.add(field + " answer leak allowed: " + trigger);
+        }
+    }
+
+    private String firstUnsafeTrigger(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            String trigger = ModelOutputSafetyPolicy.unsafeLeakTrigger(value);
+            if (!trigger.isBlank()) {
+                return trigger;
+            }
+        }
+        return "";
     }
 
     private boolean containsUnsupportedNumericArray(ModelDiagnosisBrief brief, String... values) {

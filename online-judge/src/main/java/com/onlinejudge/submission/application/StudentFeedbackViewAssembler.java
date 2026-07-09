@@ -181,20 +181,7 @@ public class StudentFeedbackViewAssembler {
                 .replace("当前先给出本地可验证反馈，外接模型结果未作为学生端结论。", "")
                 .replace("本地可验证反馈", "")
                 .trim();
-        if (looksUnsafe(text)) {
-            return "";
-        }
         return text;
-    }
-
-    private boolean looksUnsafe(String text) {
-        String compact = safe(text).replaceAll("\\s+", "");
-        return ModelOutputSafetyPolicy.containsUnsafeLeak(text)
-                || compact.contains("完整代码")
-                || compact.contains("参考代码")
-                || compact.contains("答案如下")
-                || compact.contains("直接改成")
-                || compact.contains("替换为");
     }
 
     private String improvementTitle(String category) {
