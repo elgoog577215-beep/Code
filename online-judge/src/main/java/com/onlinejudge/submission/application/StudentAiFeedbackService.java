@@ -38,6 +38,7 @@ public class StudentAiFeedbackService {
     private static final String SOURCE_AI_UNAVAILABLE = "AI_UNAVAILABLE";
     private static final Pattern CODE_LINE_REF = Pattern.compile("^code:line:(\\d+)$");
     private static final Pattern CODE_RANGE_REF = Pattern.compile("^code:range:(\\d+)-(\\d+)$");
+    private static final Pattern CODE_TOKEN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]{2,}");
     private static final Duration GENERATING_EXPIRES_AFTER = Duration.ofMinutes(5);
 
     private final SubmissionRepository submissionRepository;
@@ -203,14 +204,17 @@ public class StudentAiFeedbackService {
             if (advice == null) {
                 continue;
             }
+            String title = clean(advice.getTitle());
+            String body = joinNonBlank(advice.getWhatHappened(), advice.getWhyItMatters(), advice.getStudentAction());
+            List<String> refs = evidenceRefsForItem(safe(advice.getEvidenceRefs()), title, body, submission, analysis);
             addItem(items, StudentAiFeedbackResponse.FeedbackItem.builder()
-                    .title(clean(advice.getTitle()))
-                    .body(joinNonBlank(advice.getWhatHappened(), advice.getWhyItMatters(), advice.getStudentAction()))
+                    .title(title)
+                    .body(body)
                     .kind("REPAIR")
                     .skillUnitId(cleanId(advice.getSkillUnitId()))
                     .mistakePointId(cleanId(advice.getMistakePointId()))
-                    .evidenceRefs(safe(advice.getEvidenceRefs()))
-                    .evidenceSnippets(evidenceSnippets(safe(advice.getEvidenceRefs()), submission))
+                    .evidenceRefs(refs)
+                    .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
                     .build());
         }
@@ -221,14 +225,17 @@ public class StudentAiFeedbackService {
             if (issue == null) {
                 continue;
             }
+            String title = clean(issue.getTitle());
+            String body = joinNonBlank(issue.getStudentMessage(), issue.getNextAction());
+            List<String> refs = evidenceRefsForItem(safe(issue.getEvidenceRefs()), title, body, submission, analysis);
             addItem(items, StudentAiFeedbackResponse.FeedbackItem.builder()
-                    .title(clean(issue.getTitle()))
-                    .body(joinNonBlank(issue.getStudentMessage(), issue.getNextAction()))
+                    .title(title)
+                    .body(body)
                     .kind("REPAIR")
                     .skillUnitId(cleanId(issue.getIssueTag()))
                     .mistakePointId(cleanId(issue.getFineGrainedTag()))
-                    .evidenceRefs(safe(issue.getEvidenceRefs()))
-                    .evidenceSnippets(evidenceSnippets(safe(issue.getEvidenceRefs()), submission))
+                    .evidenceRefs(refs)
+                    .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
                     .build());
         }
@@ -241,14 +248,17 @@ public class StudentAiFeedbackService {
             if (advice == null) {
                 continue;
             }
+            String title = clean(advice.getTitle());
+            String body = joinNonBlank(advice.getCurrentLimit(), advice.getSuggestion(), advice.getStudentBenefit());
+            List<String> refs = evidenceRefsForItem(safe(advice.getEvidenceRefs()), title, body, submission, analysis);
             addItem(items, StudentAiFeedbackResponse.FeedbackItem.builder()
-                    .title(clean(advice.getTitle()))
-                    .body(joinNonBlank(advice.getCurrentLimit(), advice.getSuggestion(), advice.getStudentBenefit()))
+                    .title(title)
+                    .body(body)
                     .kind("IMPROVEMENT")
                     .skillUnitId(cleanId(advice.getSkillUnitId()))
                     .improvementPointId(cleanId(advice.getImprovementPointId()))
-                    .evidenceRefs(safe(advice.getEvidenceRefs()))
-                    .evidenceSnippets(evidenceSnippets(safe(advice.getEvidenceRefs()), submission))
+                    .evidenceRefs(refs)
+                    .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("transfer"))
                     .build());
         }
@@ -259,13 +269,16 @@ public class StudentAiFeedbackService {
             if (item == null) {
                 continue;
             }
+            String title = clean(item.getTitle());
+            String body = joinNonBlank(item.getStudentMessage(), item.getBenefit());
+            List<String> refs = evidenceRefsForItem(safe(item.getEvidenceRefs()), title, body, submission, analysis);
             addItem(items, StudentAiFeedbackResponse.FeedbackItem.builder()
-                    .title(clean(item.getTitle()))
-                    .body(joinNonBlank(item.getStudentMessage(), item.getBenefit()))
+                    .title(title)
+                    .body(body)
                     .kind("IMPROVEMENT")
                     .improvementPointId(cleanId(item.getCategory()))
-                    .evidenceRefs(safe(item.getEvidenceRefs()))
-                    .evidenceSnippets(evidenceSnippets(safe(item.getEvidenceRefs()), submission))
+                    .evidenceRefs(refs)
+                    .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("transfer"))
                     .build());
         }
@@ -343,6 +356,132 @@ public class StudentAiFeedbackService {
             }
         }
         return snippets;
+    }
+
+    private List<String> evidenceRefsForItem(List<String> refs,
+                                             String title,
+                                             String body,
+                                             Submission submission,
+                                             SubmissionAnalysisResponse analysis) {
+        LinkedHashSet<String> merged = new LinkedHashSet<>(safe(refs));
+        if (hasCodeEvidence(merged)) {
+            return cleanedRefs(merged);
+        }
+        for (String ref : analysisCodeEvidenceRefs(analysis)) {
+            merged.add(ref);
+            if (hasCodeEvidence(merged)) {
+                return cleanedRefs(merged);
+            }
+        }
+        String inferred = inferCodeEvidenceRefFromText(title + " " + body, submission);
+        if (!inferred.isBlank()) {
+            merged.add(inferred);
+        }
+        return cleanedRefs(merged);
+    }
+
+    private List<String> analysisCodeEvidenceRefs(SubmissionAnalysisResponse analysis) {
+        if (analysis == null) {
+            return List.of();
+        }
+        LinkedHashSet<String> refs = new LinkedHashSet<>();
+        if (analysis.getCaseUnderstanding() != null) {
+            addCodeRef(refs, analysis.getCaseUnderstanding().getPrimaryEvidenceRef());
+        }
+        addCodeRefs(refs, analysis.getEvidenceRefs());
+        if (analysis.getStudentFeedback() != null && analysis.getStudentFeedback().getNextLearningAction() != null) {
+            addCodeRefs(refs, analysis.getStudentFeedback().getNextLearningAction().getEvidenceRefs());
+        }
+        if (analysis.getModelEducationTrace() != null) {
+            addCodeRefs(refs, analysis.getModelEducationTrace().getEvidenceRefs());
+            addCodeRefs(refs, analysis.getModelEducationTrace().getNextLearningActionEvidenceRefs());
+        }
+        if (analysis.getLearningInterventionPlan() != null) {
+            addCodeRefs(refs, analysis.getLearningInterventionPlan().getEvidenceRefs());
+        }
+        for (SubmissionAnalysisResponse.LineIssue issue : safe(analysis.getLineIssues())) {
+            if (issue != null && issue.getLineNumber() != null && issue.getLineNumber() > 0) {
+                refs.add("code:line:" + issue.getLineNumber());
+            }
+        }
+        return List.copyOf(refs);
+    }
+
+    private String inferCodeEvidenceRefFromText(String text, Submission submission) {
+        if (submission == null || submission.getSourceCode() == null || clean(text).isBlank()) {
+            return "";
+        }
+        List<String> tokens = codeTokens(text);
+        if (tokens.isEmpty()) {
+            return "";
+        }
+        String[] lines = submission.getSourceCode().replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
+        int bestLine = -1;
+        int bestScore = 0;
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            int score = 0;
+            for (String token : tokens) {
+                if (line.contains(token)) {
+                    score += Math.max(1, token.length());
+                }
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                bestLine = i + 1;
+            }
+        }
+        return bestLine > 0 ? "code:line:" + bestLine : "";
+    }
+
+    private List<String> codeTokens(String text) {
+        List<String> tokens = new ArrayList<>();
+        Matcher matcher = CODE_TOKEN.matcher(clean(text));
+        while (matcher.find() && tokens.size() < 12) {
+            String token = matcher.group();
+            if (!isIgnoredToken(token) && !tokens.contains(token)) {
+                tokens.add(token);
+            }
+        }
+        return tokens;
+    }
+
+    private boolean isIgnoredToken(String token) {
+        String normalized = token == null ? "" : token.toLowerCase();
+        return Set.of("the", "and", "for", "while", "return", "true", "false", "none",
+                "null", "int", "long", "double", "float", "string", "list", "dict").contains(normalized);
+    }
+
+    private boolean hasCodeEvidence(Set<String> refs) {
+        return refs != null && refs.stream().anyMatch(this::isCodeEvidenceRef);
+    }
+
+    private void addCodeRefs(Set<String> target, List<String> refs) {
+        for (String ref : safe(refs)) {
+            addCodeRef(target, ref);
+        }
+    }
+
+    private void addCodeRef(Set<String> target, String ref) {
+        String cleaned = clean(ref);
+        if (isCodeEvidenceRef(cleaned)) {
+            target.add(cleaned);
+        }
+    }
+
+    private boolean isCodeEvidenceRef(String ref) {
+        String cleaned = clean(ref);
+        return CODE_LINE_REF.matcher(cleaned).matches() || CODE_RANGE_REF.matcher(cleaned).matches();
+    }
+
+    private List<String> cleanedRefs(Set<String> refs) {
+        if (refs == null || refs.isEmpty()) {
+            return List.of();
+        }
+        return refs.stream()
+                .map(this::clean)
+                .filter(value -> !value.isBlank())
+                .toList();
     }
 
     private StudentAiFeedbackResponse.EvidenceSnippet evidenceSnippet(String evidenceRef, String sourceCode) {

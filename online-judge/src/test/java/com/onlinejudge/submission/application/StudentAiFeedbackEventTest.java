@@ -122,6 +122,35 @@ class StudentAiFeedbackEventTest {
     }
 
     @Test
+    void generateAndStoreInfersCodeEvidenceWhenModelOnlyReturnsJudgeEvidence() {
+        when(submissionRepository.findById(7L)).thenReturn(Optional.of(diffSubmission()));
+        when(problemRepository.findById(101L)).thenReturn(Optional.of(problem()));
+        when(caseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(7L)).thenReturn(caseResults());
+        when(submissionAnalysisService.generateAndStoreAnalysis(
+                any(Problem.class),
+                any(Submission.class),
+                any()
+        )).thenReturn(judgeOnlyCodeNamedAnalysis());
+        when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
+        when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_READY)))
+                .thenReturn(Optional.empty());
+
+        StudentAiFeedbackResponse response = service.generateAndStore(7L);
+
+        assertThat(response.getStatus()).isEqualTo("READY");
+        assertThat(response.getRepairItems()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getEvidenceRefs()).contains("judge:first_failed_case:1", "code:line:4");
+                    assertThat(item.getEvidenceSnippets()).singleElement()
+                            .satisfies(snippet -> {
+                                assertThat(snippet.getLineNumber()).isEqualTo(4);
+                                assertThat(snippet.getCode()).contains("def apply_operations");
+                            });
+                });
+    }
+
+    @Test
     void generateAndStoreStoresFullChainFailureClearly() {
         when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
         when(problemRepository.findById(101L)).thenReturn(Optional.of(problem()));
@@ -244,6 +273,25 @@ class StudentAiFeedbackEventTest {
                 .build();
     }
 
+    private Submission diffSubmission() {
+        return Submission.builder()
+                .id(7L)
+                .assignmentId(9L)
+                .studentProfileId(41L)
+                .problemId(101L)
+                .languageId(71)
+                .sourceCode("""
+                        n, m = map(int, input().split())
+                        diff = [[0] * (m + 2) for _ in range(n + 2)]
+
+                        def apply_operations(x1, y1, x2, y2):
+                            diff[x1][y1] += 1
+                            diff[x2 + 1][y1] -= 1
+                        """)
+                .verdict(Submission.Verdict.WRONG_ANSWER)
+                .build();
+    }
+
     private Problem problem() {
         return Problem.builder()
                 .id(101L)
@@ -330,6 +378,27 @@ class StudentAiFeedbackEventTest {
                                 .suggestion("先把题面输入格式拆成变量表。")
                                 .studentBenefit("减少漏读变量。")
                                 .evidenceRefs(List.of("code:line:1"))
+                                .build()
+                ))
+                .build();
+    }
+
+    private SubmissionAnalysisResponse judgeOnlyCodeNamedAnalysis() {
+        return SubmissionAnalysisResponse.builder()
+                .submissionId(7L)
+                .summary("二维差分边界处理需要修正。")
+                .answerLeakRisk("LOW")
+                .evidenceRefs(List.of("judge:first_failed_case:1"))
+                .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                        .status("MODEL_COMPLETED")
+                        .build())
+                .basicLayerAdvice(List.of(
+                        SubmissionAnalysisResponse.BasicLayerAdvice.builder()
+                                .title("二维差分边界条件错误")
+                                .whatHappened("在 apply_operations 函数中，边界检查条件不完整。")
+                                .whyItMatters("当 x2 == n 或 y2 == m 时，diff 的反向操作容易遗漏。")
+                                .studentAction("先定位 apply_operations 并手推一个右边界样例。")
+                                .evidenceRefs(List.of("judge:first_failed_case:1"))
                                 .build()
                 ))
                 .build();
