@@ -54,9 +54,6 @@ ai:
   retry:
     max-attempts: ${AI_RETRY_MAX_ATTEMPTS:1}
     backoff-ms: ${AI_RETRY_BACKOFF_MS:700}
-  budget-guard:
-    enabled: ${AI_BUDGET_GUARD_ENABLED:false}
-    cooldown-seconds: ${AI_BUDGET_GUARD_COOLDOWN_SECONDS:60}
   student-feedback:
     min-request-interval-ms: ${AI_STUDENT_FEEDBACK_MIN_REQUEST_INTERVAL_MS:2000}
   standard-library-growth:

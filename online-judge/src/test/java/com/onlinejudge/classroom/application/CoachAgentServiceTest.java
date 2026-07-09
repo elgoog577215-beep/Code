@@ -3,7 +3,6 @@ package com.onlinejudge.classroom.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
-import com.onlinejudge.submission.application.ExternalModelBudgetGuard;
 import com.onlinejudge.submission.application.ExternalModelFailureClassifier;
 import com.onlinejudge.submission.application.ModelStageFailureReason;
 import com.onlinejudge.submission.domain.Submission;
@@ -272,22 +271,11 @@ class CoachAgentServiceTest {
     }
 
     @Test
-    void budgetGuardShortCircuitsCoachAfterProviderLimitFailure() {
-        ExternalModelBudgetGuard budgetGuard = new ExternalModelBudgetGuard();
-        budgetGuard.recordFailure("ModelScope", "test-model", ModelStageFailureReason.RATE_LIMITED);
+    void providerLimitFailureDoesNotShortCircuitLaterCoachCall() {
         StubCoachAgentService service = new StubCoachAgentService(
                 objectMapper,
                 taxonomy,
-                budgetGuard,
-                """
-                {
-                  "question": "这条响应不应该被调用。",
-                  "rationale": "guard open",
-                  "evidenceRefs": ["submission:11"],
-                  "confidence": 0.7,
-                  "answerLeakRisk": "LOW"
-                }
-                """
+                new IOException("AI API returned status 429: {\"error\":{\"message\":\"rate limit\"}}")
         );
         enableAi(service);
         ReflectionTestUtils.setField(service, "model", "test-model");
@@ -302,8 +290,36 @@ class CoachAgentServiceTest {
         );
 
         assertThat(draft.getSource()).isEqualTo("AI_UNAVAILABLE");
-        assertThat(draft.getFailureReason()).isEqualTo("BUDGET_GUARD_OPEN");
-        assertThat(service.callCount()).isZero();
+        assertThat(draft.getFailureReason()).isEqualTo("RATE_LIMITED");
+        assertThat(service.callCount()).isEqualTo(1);
+
+        StubCoachAgentService nextService = new StubCoachAgentService(
+                objectMapper,
+                taxonomy,
+                """
+                        {
+                          "question": "看第 11 行边界。",
+                          "rationale": "继续请求不应被本地限流状态拦截。",
+                          "evidenceRefs": ["submission:11"],
+                          "confidence": 0.7,
+                          "answerLeakRisk": "LOW"
+                        }
+                        """
+        );
+        enableAi(nextService);
+        ReflectionTestUtils.setField(nextService, "model", "test-model");
+
+        CoachAgentService.CoachDraft nextDraft = nextService.generateInitialQuestion(
+                submission(),
+                analysis(),
+                "OFF_BY_ONE",
+                Assignment.HintPolicy.L2,
+                "上下文",
+                List.of("submission:11")
+        );
+
+        assertThat(nextDraft.getSource()).isEqualTo("MODEL");
+        assertThat(nextService.callCount()).isEqualTo(1);
     }
 
     @Test
@@ -496,15 +512,6 @@ class CoachAgentServiceTest {
 
         private StubCoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy taxonomy, String response) {
             super(objectMapper, taxonomy);
-            this.response = response;
-            this.exception = null;
-        }
-
-        private StubCoachAgentService(ObjectMapper objectMapper,
-                                      DiagnosisTaxonomy taxonomy,
-                                      ExternalModelBudgetGuard budgetGuard,
-                                      String response) {
-            super(objectMapper, taxonomy, new ExternalModelFailureClassifier(), budgetGuard);
             this.response = response;
             this.exception = null;
         }

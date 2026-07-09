@@ -52,7 +52,6 @@ public class AiReportService {
     private final AiCodeAssistSupport aiCodeAssistSupport;
     private final ExternalModelAgentRuntime externalModelAgentRuntime;
     private final ExternalModelFailureClassifier failureClassifier;
-    private final ExternalModelBudgetGuard budgetGuard;
     private final ExternalModelChatRequestFactory chatRequestFactory;
     private final AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService;
     private final AiStandardLibraryService standardLibraryService;
@@ -71,21 +70,20 @@ public class AiReportService {
             .build();
 
     public AiReportService(ObjectMapper objectMapper, AiCodeAssistSupport aiCodeAssistSupport) {
-        this(objectMapper, aiCodeAssistSupport, null, new ExternalModelFailureClassifier(), new ExternalModelBudgetGuard());
+        this(objectMapper, aiCodeAssistSupport, null, new ExternalModelFailureClassifier());
     }
 
     public AiReportService(ObjectMapper objectMapper,
                            AiCodeAssistSupport aiCodeAssistSupport,
                            ExternalModelAgentRuntime externalModelAgentRuntime) {
-        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, new ExternalModelFailureClassifier(), new ExternalModelBudgetGuard());
+        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, new ExternalModelFailureClassifier());
     }
 
     public AiReportService(ObjectMapper objectMapper,
                            AiCodeAssistSupport aiCodeAssistSupport,
                            ExternalModelAgentRuntime externalModelAgentRuntime,
-                           ExternalModelFailureClassifier failureClassifier,
-                           ExternalModelBudgetGuard budgetGuard) {
-        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
+                           ExternalModelFailureClassifier failureClassifier) {
+        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier,
                 (ExternalModelChatRequestFactory) null, null, null, null, null);
     }
 
@@ -93,9 +91,8 @@ public class AiReportService {
                            AiCodeAssistSupport aiCodeAssistSupport,
                            ExternalModelAgentRuntime externalModelAgentRuntime,
                            ExternalModelFailureClassifier failureClassifier,
-                           ExternalModelBudgetGuard budgetGuard,
                            ExternalModelChatRequestFactory chatRequestFactory) {
-        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
+        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier,
                 chatRequestFactory, null, null, null, null);
     }
 
@@ -104,12 +101,11 @@ public class AiReportService {
                            AiCodeAssistSupport aiCodeAssistSupport,
                            ExternalModelAgentRuntime externalModelAgentRuntime,
                            ExternalModelFailureClassifier failureClassifier,
-                           ExternalModelBudgetGuard budgetGuard,
                            AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService,
                            AiStandardLibraryService standardLibraryService,
                            StandardLibraryNavigationOutputValidator standardLibraryNavigationOutputValidator,
                            StandardLibraryNavigationPackBuilder standardLibraryNavigationPackBuilder) {
-        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier, budgetGuard,
+        this(objectMapper, aiCodeAssistSupport, externalModelAgentRuntime, failureClassifier,
                 new ExternalModelChatRequestFactory(), standardLibraryGrowthAgentService, standardLibraryService,
                 standardLibraryNavigationOutputValidator, standardLibraryNavigationPackBuilder);
     }
@@ -118,7 +114,6 @@ public class AiReportService {
                            AiCodeAssistSupport aiCodeAssistSupport,
                            ExternalModelAgentRuntime externalModelAgentRuntime,
                            ExternalModelFailureClassifier failureClassifier,
-                           ExternalModelBudgetGuard budgetGuard,
                            ExternalModelChatRequestFactory chatRequestFactory,
                            AiStandardLibraryGrowthAgentService standardLibraryGrowthAgentService,
                            AiStandardLibraryService standardLibraryService,
@@ -128,7 +123,6 @@ public class AiReportService {
         this.aiCodeAssistSupport = aiCodeAssistSupport;
         this.externalModelAgentRuntime = externalModelAgentRuntime;
         this.failureClassifier = failureClassifier == null ? new ExternalModelFailureClassifier() : failureClassifier;
-        this.budgetGuard = budgetGuard == null ? new ExternalModelBudgetGuard() : budgetGuard;
         this.chatRequestFactory = chatRequestFactory == null ? new ExternalModelChatRequestFactory() : chatRequestFactory;
         this.standardLibraryGrowthAgentService = standardLibraryGrowthAgentService;
         this.standardLibraryService = standardLibraryService;
@@ -2411,16 +2405,6 @@ public class AiReportService {
             log.info("AI growth report unavailable because AI access is unavailable. problemId={}", problem.getId());
             return growthReportUnavailableMarkdown(problem, aiUnavailableFailure("GROWTH_REPORT"));
         }
-        ExternalModelBudgetGuard.Decision decision = budgetGuard.check(PROVIDER, model);
-        if (!decision.allowed()) {
-            return growthReportUnavailableMarkdown(problem, ExternalModelStagePayloads.StageValidationResult.builder()
-                    .valid(false)
-                    .stage("GROWTH_REPORT")
-                    .failureReason(ModelStageFailureReason.BUDGET_GUARD_OPEN)
-                    .message(decision.message())
-                    .build());
-        }
-
         try {
             Map<String, Object> context = new LinkedHashMap<>();
             context.put("problemTitle", problem.getTitle());
@@ -2518,23 +2502,16 @@ public class AiReportService {
                 requestContext.requestCompact(),
                 0
         ));
-        ExternalModelBudgetGuard.Decision decision = budgetGuard.check(PROVIDER, model);
-        if (!decision.allowed()) {
-            throw new IOException(decision.message());
-        }
         try {
             String content = doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled, requestContext);
-            budgetGuard.recordSuccess(PROVIDER, model);
             return content;
         } catch (IOException exception) {
             if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
                 log.warn("Retrying AI chat completion with stream=true after non-stream response was unusable. model={}", model);
                 String content = doChatCompletionWithRetry(systemPrompt, userPrompt, true, requestContext);
                 lastCallTelemetry.set(lastCallTelemetry.get().withFallbackRetryUsed(true));
-                budgetGuard.recordSuccess(PROVIDER, model);
                 return content;
             }
-            recordBudgetFailure(exception);
             throw exception;
         }
     }
@@ -2550,23 +2527,16 @@ public class AiReportService {
                 requestContext.requestCompact(),
                 0
         ));
-        ExternalModelBudgetGuard.Decision decision = budgetGuard.check(PROVIDER, model);
-        if (!decision.allowed()) {
-            throw new IOException(decision.message());
-        }
         try {
             String content = doChatCompletionWithRetry(systemPrompt, userPrompt, stream, requestContext, outputTokens);
-            budgetGuard.recordSuccess(PROVIDER, model);
             return content;
         } catch (IOException exception) {
             if (!stream && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
                 log.warn("Retrying AI chat completion with stream=true after non-stream response was unusable. model={}", model);
                 String content = doChatCompletionWithRetry(systemPrompt, userPrompt, true, requestContext, outputTokens);
                 lastCallTelemetry.set(lastCallTelemetry.get().withFallbackRetryUsed(true));
-                budgetGuard.recordSuccess(PROVIDER, model);
                 return content;
             }
-            recordBudgetFailure(exception);
             throw exception;
         }
     }
@@ -2746,17 +2716,6 @@ public class AiReportService {
     private boolean isRetryableCallFailure(IOException exception) {
         String text = exception == null ? "" : exception.getMessage();
         return failureClassifier.isRetryable(failureClassifier.classify(exception), text);
-    }
-
-    protected void recordBudgetFailureForTest(Exception exception) {
-        recordBudgetFailure(exception);
-    }
-
-    private void recordBudgetFailure(Exception exception) {
-        ModelStageFailureReason reason = failureClassifier.classify(exception);
-        if (failureClassifier.shouldOpenBudgetGuard(reason)) {
-            budgetGuard.recordFailure(PROVIDER, model, reason);
-        }
     }
 
     private void sleepBeforeRetry(long waitMs) throws InterruptedException {

@@ -117,12 +117,11 @@ class AiReportServiceExternalRuntimeTest {
     }
 
     @Test
-    void budgetGuardShortCircuitsAfterQuotaFailureAcrossSubmissionAndGrowthReport() {
-        ExternalModelBudgetGuard budgetGuard = new ExternalModelBudgetGuard();
+    void providerFailureDoesNotShortCircuitLaterGrowthReport() {
         StubAiReportService service = new StubAiReportService(
                 objectMapper,
                 runtime(),
-                budgetGuard,
+                new IOException("AI API returned status 429: {\"error\":{\"code\":\"insufficient_quota\"}}"),
                 new IOException("AI API returned status 429: {\"error\":{\"code\":\"insufficient_quota\"}}")
         );
         configure(service);
@@ -146,8 +145,8 @@ class AiReportServiceExternalRuntimeTest {
 
         String markdown = service.enhanceGrowthReportMarkdown(problem(), List.of());
 
-        assertThat(markdown).contains("AI 成长报告", "暂不可用", "BUDGET_GUARD_OPEN", "未使用本地报告兜底");
-        assertThat(service.callCount()).isEqualTo(1);
+        assertThat(markdown).contains("AI 成长报告", "暂不可用", "INSUFFICIENT_QUOTA", "未使用本地报告兜底");
+        assertThat(service.callCount()).isEqualTo(2);
     }
 
     @Test
@@ -411,26 +410,17 @@ class AiReportServiceExternalRuntimeTest {
         StubAiReportService(ObjectMapper objectMapper,
                             ExternalModelAgentRuntime runtime,
                             Object... responses) {
-            this(objectMapper, runtime, new ExternalModelBudgetGuard(), responses);
+            this(objectMapper, runtime, navigationDeps(), responses);
         }
 
         StubAiReportService(ObjectMapper objectMapper,
                             ExternalModelAgentRuntime runtime,
-                            ExternalModelBudgetGuard budgetGuard,
+                            NavigationDeps navigationDeps,
                             Object... responses) {
-            this(objectMapper, runtime, budgetGuard, navigationDeps(), responses);
-        }
-
-        private StubAiReportService(ObjectMapper objectMapper,
-                                    ExternalModelAgentRuntime runtime,
-                                    ExternalModelBudgetGuard budgetGuard,
-                                    NavigationDeps navigationDeps,
-                                    Object... responses) {
             super(objectMapper,
                     new AiCodeAssistSupport(),
                     runtime,
                     new ExternalModelFailureClassifier(),
-                    budgetGuard,
                     new ExternalModelChatRequestFactory(),
                     null,
                     navigationDeps.standardLibraryService(),
@@ -446,9 +436,23 @@ class AiReportServiceExternalRuntimeTest {
             callCount++;
             systemPrompts.add(systemPrompt);
             userPrompts.add(userPrompt);
+            return pollResponse();
+        }
+
+        @Override
+        protected String chatCompletionWithOverrides(String systemPrompt,
+                                                     String userPrompt,
+                                                     boolean stream,
+                                                     int outputTokens) throws IOException {
+            callCount++;
+            systemPrompts.add(systemPrompt);
+            userPrompts.add(userPrompt);
+            return pollResponse();
+        }
+
+        private String pollResponse() throws IOException {
             Object response = responses.poll();
             if (response instanceof IOException exception) {
-                recordBudgetFailureForTest(exception);
                 throw exception;
             }
             if (response == null) {
@@ -490,7 +494,6 @@ class AiReportServiceExternalRuntimeTest {
                             new ModelOutputValidator()
                     ),
                     new ExternalModelFailureClassifier(),
-                    new ExternalModelBudgetGuard(),
                     new ExternalModelChatRequestFactory(),
                     null,
                     navigationDeps.standardLibraryService(),

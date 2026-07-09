@@ -1773,7 +1773,7 @@ class ClassroomServiceCorrectionTest {
                 true,
                 "single-call",
                 "DIAGNOSIS_AND_ADVICE",
-                "BUDGET_GUARD_OPEN"));
+                "RATE_LIMITED"));
         submissionAnalysisRepository.save(runtimeAnalysis(
                 704L,
                 "MODEL_RUNTIME_FALLBACK",
@@ -1801,7 +1801,7 @@ class ClassroomServiceCorrectionTest {
         assertThat(response.getRuntimeFixtureCount()).isEqualTo(4);
         assertThat(response.getSummary()).contains("模型运行 fixture 草稿");
         assertThat(response.getRuntimeFixtures()).extracting("failureType")
-                .containsExactly("QUOTA_LIMIT", "BUDGET_GUARD", "OUTPUT_TRUNCATED", "PARTIAL_COMPLETION");
+                .containsExactly("QUOTA_LIMIT", "QUOTA_LIMIT", "OUTPUT_TRUNCATED", "PARTIAL_COMPLETION");
         assertThat(response.getRuntimeFixtures()).first()
                 .satisfies(draft -> {
                     assertThat(draft.getName()).contains("external-runtime-135-701-quota-limit");
@@ -1851,7 +1851,7 @@ class ClassroomServiceCorrectionTest {
                 });
         assertThat(response.getRuntimeFixtures().get(1))
                 .satisfies(draft -> {
-                    assertThat(draft.getFailureType()).isEqualTo("BUDGET_GUARD");
+                    assertThat(draft.getFailureType()).isEqualTo("QUOTA_LIMIT");
                     assertThat(draft.getTransportMode()).isEmpty();
                     assertThat(draft.getStreamChunkCount()).isZero();
                     assertThat(draft.getStreamContentChunkCount()).isZero();

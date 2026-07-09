@@ -1364,9 +1364,6 @@ public class AiQualityOverviewService {
         if (reason.contains("INSUFFICIENT_QUOTA") || reason.contains("QUOTA") || reason.contains("RATE_LIMIT")) {
             return "QUOTA_LIMIT";
         }
-        if (reason.contains("BUDGET_GUARD")) {
-            return "BUDGET_GUARD";
-        }
         if (reason.contains("SAFETY")) {
             return "SAFETY_REJECTED";
         }
@@ -1388,12 +1385,11 @@ public class AiQualityOverviewService {
     private int runtimeFailureTypeRank(String type) {
         return switch (type == null ? "" : type) {
             case "QUOTA_LIMIT" -> 1;
-            case "BUDGET_GUARD" -> 2;
-            case "SAFETY_REJECTED" -> 3;
-            case "VALIDATION_FAILED" -> 4;
-            case "OUTPUT_TRUNCATED" -> 5;
-            case "TIMEOUT" -> 6;
-            case "PROVIDER_ERROR" -> 7;
+            case "SAFETY_REJECTED" -> 2;
+            case "VALIDATION_FAILED" -> 3;
+            case "OUTPUT_TRUNCATED" -> 4;
+            case "TIMEOUT" -> 5;
+            case "PROVIDER_ERROR" -> 6;
             case "PARTIAL_COMPLETION" -> 8;
             default -> 8;
         };
@@ -1402,7 +1398,6 @@ public class AiQualityOverviewService {
     private String runtimeAttributionSummary(String type, long count, AiQualityMetrics metrics) {
         return switch (type == null ? "" : type) {
             case "QUOTA_LIMIT" -> "主导模型运行问题是额度不足，共 " + count + " 条；当前作业真实外部模型参与率受限。";
-            case "BUDGET_GUARD" -> "主导模型运行问题是预算保护打开，共 " + count + " 条；系统正在避免连续失败继续消耗调用。";
             case "SAFETY_REJECTED" -> "主导模型运行问题是安全拒绝或安全校验失败，共 " + count + " 条；需要复核提示安全边界。";
             case "VALIDATION_FAILED" -> "主导模型运行问题是输出契约或结构校验失败，共 " + count + " 条；需要复核 prompt 契约和解析校验。";
             case "OUTPUT_TRUNCATED" -> "主导模型运行问题是输出被 token 预算截断，共 " + count + " 条；需要复核 max tokens、schema 体积和单次调用策略。";
@@ -1433,16 +1428,12 @@ public class AiQualityOverviewService {
             return base + " 其中 " + primary.streamFallbackRetryCount
                     + " 条从 non-stream 回退到 stream 后恢复。";
         }
-        if ("BUDGET_GUARD".equals(primary.type) && primary.transportMode.isBlank()) {
-            return base + " 本类样本通常未发出 HTTP 请求。";
-        }
         return base;
     }
 
     private String runtimeAttributionAction(String type) {
         return switch (type == null ? "" : type) {
             case "QUOTA_LIMIT" -> "先检查 ModelScope 额度和计费状态；在恢复前降低 live eval 调用规模或继续使用 single-call 低预算路径。";
-            case "BUDGET_GUARD" -> "检查近期连续失败记录，确认额度或 provider 恢复后再解除预算保护并重跑小样本 live eval。";
             case "SAFETY_REJECTED" -> "把对应样本沉淀为提示安全 fixture，复核 prompt 是否诱导直接给答案或越过教学边界。";
             case "VALIDATION_FAILED" -> "收窄输出 schema 和 prompt 契约，补充校验失败 fixture，优先修复结构化解析。";
             case "OUTPUT_TRUNCATED" -> "提高输出 token 预算或收缩 JSON schema/上下文；必要时切换 结构化重试 避免单次输出截断。";
@@ -1459,9 +1450,6 @@ public class AiQualityOverviewService {
         }
         if ("QUOTA_LIMIT".equals(primary.type) && primary.streamNoContentCount > 0) {
             return "先检查 ModelScope 额度和计费状态；恢复前用单条 smoke 验证 stream 是否能返回 content chunk。";
-        }
-        if ("BUDGET_GUARD".equals(primary.type) && primary.transportMode.isBlank()) {
-            return "确认 provider 或额度恢复后解除预算保护，再重跑小样本 live eval，避免把本地短路误判为 provider 响应。";
         }
         if (primary.streamInvalidChunkCount > 0) {
             return "保留该样本作为 stream 解析 fixture，复核 SSE chunk 兼容性与 JSON 提取逻辑。";

@@ -230,32 +230,32 @@ class AiQualityOverviewServiceTest {
 	    }
 
     @Test
-    void runtimeAttributionSignalClassifiesBudgetGuardFailures() {
-        assignmentRepository.items.put(19L, Assignment.builder().id(19L).title("预算保护作业").build());
+    void runtimeAttributionSignalClassifiesRateLimitFailures() {
+        assignmentRepository.items.put(19L, Assignment.builder().id(19L).title("限流作业").build());
         submissionRepository.items.add(submission(191L, 19L));
         submissionRepository.items.add(submission(192L, 19L));
         analysisRepository.save(analysis(191L, 0.78, "LOW", "[\"BOUNDARY_CONDITION\"]", "[\"OFF_BY_ONE\"]",
-                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_ADVICE", "BUDGET_GUARD_OPEN"));
+                "MODEL_RUNTIME_FALLBACK", true, null, "single-call", "DIAGNOSIS_AND_ADVICE", "RATE_LIMITED"));
         analysisRepository.save(analysis(192L, 0.81, "LOW", "[\"IO_FORMAT\"]", "[\"INPUT_PARSING\"]",
                 "MODEL_COMPLETED", false));
 
         var overview = service.buildOverview(19L);
 
         assertThat(overview.getRuntimeAttributionSignal()).satisfies(signal -> {
-            assertThat(signal.getPrimaryFailureType()).isEqualTo("BUDGET_GUARD");
-            assertThat(signal.getPrimaryFailureReason()).isEqualTo("BUDGET_GUARD_OPEN");
+            assertThat(signal.getPrimaryFailureType()).isEqualTo("QUOTA_LIMIT");
+            assertThat(signal.getPrimaryFailureReason()).isEqualTo("RATE_LIMITED");
             assertThat(signal.getPrimaryTransportMode()).isEmpty();
             assertThat(signal.getStreamNoContentCount()).isZero();
             assertThat(signal.getStreamInvalidChunkCount()).isZero();
             assertThat(signal.getStreamFallbackRetryCount()).isZero();
-            assertThat(signal.getSummary()).contains("预算保护打开", "未发出 HTTP 请求");
-            assertThat(signal.getRecommendedAction()).contains("解除预算保护", "小样本 live eval", "本地短路");
+            assertThat(signal.getSummary()).contains("额度不足", "真实外部模型参与率受限");
+            assertThat(signal.getRecommendedAction()).contains("ModelScope 额度", "计费状态");
             assertThat(signal.getEvidenceRefs()).contains("eval:submission:191");
         });
         assertThat(overview.getImprovementPriorities()).first()
                 .satisfies(priority -> {
                     assertThat(priority.getDimension()).isEqualTo("MODEL_RUNTIME");
-                    assertThat(priority.getRecommendedAction()).contains("预算保护");
+                    assertThat(priority.getRecommendedAction()).contains("ModelScope 额度");
                 });
     }
 

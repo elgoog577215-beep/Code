@@ -282,9 +282,9 @@ class LiveModelEvalComparisonReportFactoryTest {
         LiveModelEvalReport.Entry quotaFallback = entry("complex-live-01", "MODEL_RUNTIME_FALLBACK", true,
                 0.0, 0.0, 0.0, List.of(), List.of());
         quotaFallback.setFailureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_ADVICE:INSUFFICIENT_QUOTA");
-        LiveModelEvalReport.Entry budgetGuardFallback = entry("complex-live-02", "MODEL_RUNTIME_FALLBACK", true,
+        LiveModelEvalReport.Entry rateLimitFallback = entry("complex-live-02", "MODEL_RUNTIME_FALLBACK", true,
                 0.0, 0.0, 0.0, List.of(), List.of());
-        budgetGuardFallback.setFailureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_ADVICE:BUDGET_GUARD_OPEN");
+        rateLimitFallback.setFailureReason("MODEL_RUNTIME_FALLBACK:DIAGNOSIS_AND_ADVICE:RATE_LIMITED");
         LiveModelEvalReport candidate = LiveModelEvalReport.builder()
                 .model("deepseek-ai/DeepSeek-V4-Pro")
                 .promptVersion("diagnosis-and-advice-v1")
@@ -306,7 +306,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .studentFeedbackCompletedCount(0)
                 .studentFeedbackQualityPassedCount(0)
                 .studentFeedbackQualityAverageScore(0.0)
-                .entries(List.of(quotaFallback, budgetGuardFallback))
+                .entries(List.of(quotaFallback, rateLimitFallback))
                 .build();
 
         LiveModelEvalComparisonReport report = factory.compare(baseline, candidate);
@@ -314,7 +314,7 @@ class LiveModelEvalComparisonReportFactoryTest {
         assertThat(report.getRecommendation()).isEqualTo("KEEP_BASELINE");
         assertThat(report.getRegressionSignals()).contains(
                 "complex-live-01: external runtime blocked: failureReason=INSUFFICIENT_QUOTA",
-                "complex-live-02: external runtime blocked: failureReason=BUDGET_GUARD_OPEN"
+                "complex-live-02: external runtime blocked: failureReason=RATE_LIMIT"
         );
         assertThat(report.getIterationAdvice().getBlockedPromotionReasons())
                 .contains("candidate external runtime blocked; rerun after quota or budget guard is cleared");
@@ -325,7 +325,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .flatExtracting(LiveModelEvalComparisonReport.IterationAction::getEvidenceSignals)
                 .contains(
                         "complex-live-01: external runtime blocked: failureReason=INSUFFICIENT_QUOTA",
-                        "complex-live-02: external runtime blocked: failureReason=BUDGET_GUARD_OPEN"
+                        "complex-live-02: external runtime blocked: failureReason=RATE_LIMIT"
                 );
         assertThat(report.getIterationAdvice().getEvalDataActions())
                 .extracting(LiveModelEvalComparisonReport.IterationAction::getTitle)
@@ -334,7 +334,7 @@ class LiveModelEvalComparisonReportFactoryTest {
                 .flatExtracting(LiveModelEvalComparisonReport.IterationAction::getEvidenceSignals)
                 .contains(
                         "complex-live-01: external runtime blocked: failureReason=INSUFFICIENT_QUOTA",
-                        "complex-live-02: external runtime blocked: failureReason=BUDGET_GUARD_OPEN"
+                        "complex-live-02: external runtime blocked: failureReason=RATE_LIMIT"
                 );
     }
 

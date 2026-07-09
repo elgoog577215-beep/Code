@@ -403,11 +403,11 @@ class AssistantLiveEvalQualityGateTest {
                 .expectedSignalHit(false)
                 .evidenceValid(false)
                 .safetyPassed(true)
-                .failureReason("MODEL_RUNTIME_FALLBACK:BUDGET_GUARD_OPEN:RATE_LIMITED")
+                .failureReason("MODEL_RUNTIME_FALLBACK:RATE_LIMITED")
                 .build();
 
         assertThat(entry.getCompletedOutput()).isFalse();
-        assertThat(entry.getFailureReason()).contains("BUDGET_GUARD_OPEN");
+        assertThat(entry.getFailureReason()).contains("RATE_LIMITED");
     }
 
     @Test
@@ -422,11 +422,11 @@ class AssistantLiveEvalQualityGateTest {
                         .fallbackUsed(true)
                         .completedOutput(false)
                         .failureStage("COACH_QUESTION")
-                        .failureReason("MODEL_RUNTIME_FALLBACK:BUDGET_GUARD_OPEN token=ms-secret-token-should-not-leak")
+                        .failureReason("MODEL_RUNTIME_FALLBACK:RATE_LIMITED token=ms-secret-token-should-not-leak")
                         .actualEvidenceRefs(List.of("coach:case:1"))
                         .teacherExpectation("追问最小样例")
                         .outputSummary("provider said api_key=ms-secret-token-should-not-leak")
-                        .iterationSuggestion("优先处理预算保护")
+                        .iterationSuggestion("优先处理限流")
                         .build(),
                 AssistantLiveEvalReport.Entry.builder()
                         .caseId("diagnosis-partial")
@@ -476,14 +476,14 @@ class AssistantLiveEvalQualityGateTest {
 
         assertThat(drafts).hasSize(4);
         assertThat(drafts).extracting(LiveEvalRuntimeFixtureDraft::getFailureType)
-                .containsExactly("BUDGET_GUARD", "PARTIAL_COMPLETION", "QUALITY_MISS", "QUALITY_MISS");
+                .containsExactly("QUOTA_LIMIT", "PARTIAL_COMPLETION", "QUALITY_MISS", "QUALITY_MISS");
         assertThat(drafts.get(0))
                 .satisfies(draft -> {
-                    assertThat(draft.getName()).contains("assistant-live-eval-coach-budget-limited-budget-guard");
+                    assertThat(draft.getName()).contains("assistant-live-eval-coach-budget-limited-quota-limit");
                     assertThat(draft.getSourceReportType()).isEqualTo("assistant-live-eval");
-                    assertThat(draft.getExpectedRuntimeAction()).contains("解除预算保护", "重跑小样本 live eval");
+                    assertThat(draft.getExpectedRuntimeAction()).contains("ModelScope 额度", "rate limit");
                     assertThat(draft.getEvidenceRefs()).contains("live_eval_case:coach-budget-limited", "coach:case:1");
-                    assertThat(draft.getFailureReason()).contains("BUDGET_GUARD_OPEN", "[redacted]");
+                    assertThat(draft.getFailureReason()).contains("RATE_LIMITED", "[redacted]");
                     assertThat(draft.getFailureReason()).doesNotContain("ms-secret-token-should-not-leak");
                     assertThat(draft.getOutputSummary()).contains("[redacted]");
                     assertThat(draft.getOutputSummary()).doesNotContain("ms-secret-token-should-not-leak");
@@ -518,7 +518,7 @@ class AssistantLiveEvalQualityGateTest {
                         .outputSummary("fallback")
                         .build(),
                 com.onlinejudge.submission.application.LiveModelEvalReport.Entry.builder()
-                        .caseId("budget-guard-smoke")
+                        .caseId("rate-limit-smoke")
                         .model("deepseek-ai/DeepSeek-V4-Pro")
                         .promptVersion("diagnosis-and-advice-v1")
                         .stage("DIAGNOSIS_AGENT")
@@ -528,8 +528,8 @@ class AssistantLiveEvalQualityGateTest {
                         .latencyBudgetMs(35_000L)
                         .latencyBudgetExceeded(false)
                         .fallbackUsed(true)
-                        .failureReason("MODEL_RUNTIME_FALLBACK:BUDGET_GUARD_OPEN:RATE_LIMITED")
-                        .outputSummary("budget guard")
+                        .failureReason("MODEL_RUNTIME_FALLBACK:RATE_LIMITED")
+                        .outputSummary("rate limited")
                         .build(),
                 com.onlinejudge.submission.application.LiveModelEvalReport.Entry.builder()
                         .caseId("output-truncated-smoke")
@@ -671,16 +671,16 @@ class AssistantLiveEvalQualityGateTest {
                 .doesNotContain("ms-");
         assertThat(drafts.get(1))
                 .satisfies(draft -> {
-                    assertThat(draft.getFailureType()).isEqualTo("BUDGET_GUARD");
+                    assertThat(draft.getFailureType()).isEqualTo("QUOTA_LIMIT");
                     assertThat(draft.getTransportMode()).isEmpty();
                     assertThat(draft.getOfflineProfileEvalRecommended()).isFalse();
                     assertThat(draft.getOfflineProfileReportPattern()).isEmpty();
                     assertThat(draft.getOfflineProfileCaseId()).isEmpty();
                     assertThat(draft.getOfflineProfileRequiredChecks()).isEmpty();
                     assertThat(draft.getRecoverySmokeRecommended()).isTrue();
-                    assertThat(draft.getRecoverySmokeCaseId()).isEqualTo("budget-guard-smoke");
+                    assertThat(draft.getRecoverySmokeCaseId()).isEqualTo("rate-limit-smoke");
                     assertThat(draft.getRecoverySmokeRequiredChecks()).contains("status=MODEL_COMPLETED", "fallbackUsed=false");
-                    assertThat(draft.getExpectedRuntimeAction()).contains("解除预算保护", "重跑小样本 live eval");
+                    assertThat(draft.getExpectedRuntimeAction()).contains("ModelScope 额度", "rate limit");
                     assertThat(draft.getExpectedRuntimeAction()).doesNotContain("content chunk", "SSE/JSON", "fallback retry");
                 });
         assertThat(drafts.get(2))
@@ -697,12 +697,12 @@ class AssistantLiveEvalQualityGateTest {
         assertThat(drafts.get(3))
                 .satisfies(draft -> {
                     assertThat(draft.getFailureType()).isEqualTo("QUOTA_LIMIT");
-                    assertThat(draft.getOfflineProfileEvalRecommended()).isTrue();
-                    assertThat(draft.getOfflineProfileCaseId()).isEqualTo("rate-limited-smoke");
+                    assertThat(draft.getOfflineProfileEvalRecommended()).isFalse();
+                    assertThat(draft.getOfflineProfileCaseId()).isEmpty();
                     assertThat(draft.getRecoverySmokeRecommended()).isTrue();
                     assertThat(draft.getRecoverySmokeRequiredChecks()).contains("streamContentChunkCount>0");
-                    assertThat(draft.getExpectedRuntimeAction()).contains("rate limit",
-                            "offline runtime profile eval", "offline-runtime-profile-eval-*.json");
+                    assertThat(draft.getExpectedRuntimeAction()).contains("rate limit", "stream smoke", "content chunk")
+                            .doesNotContain("offline runtime profile eval", "offline-runtime-profile-eval-*.json");
                 });
         assertThat(drafts.get(4))
                 .satisfies(draft -> {

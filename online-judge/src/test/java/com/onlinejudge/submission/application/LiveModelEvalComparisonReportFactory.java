@@ -670,26 +670,24 @@ public class LiveModelEvalComparisonReportFactory {
         }
         if (containsSignal(regressionSignals, "external runtime blocked")
                 || containsSignal(regressionSignals, "INSUFFICIENT_QUOTA")
-                || containsSignal(regressionSignals, "BUDGET_GUARD_OPEN")
                 || containsSignal(regressionSignals, "RATE_LIMIT")) {
             List<String> runtimeBlockerEvidence = matchingSignals(
                     regressionSignals,
                     "external runtime blocked",
                     "INSUFFICIENT_QUOTA",
-                    "BUDGET_GUARD_OPEN",
                     "RATE_LIMIT"
             );
             runtimeActions.add(action(
                     "RUNTIME_PROFILE",
                     "P0",
                     "先解除外接模型运行条件阻塞",
-                    "配额不足、限流或预算保护会让 candidate 无法产生真实模型判断；这类报告不能证明 prompt 变差或变强。",
+                    "配额不足或限流会让 candidate 无法产生真实模型判断；这类报告不能证明 prompt 变差或变强。",
                     runtimeBlockerEvidence,
                     List.of(
                             "online-judge/src/test/java/com/onlinejudge/submission/application/ModelDiagnosisEvalTest.java",
                             "target/ai-eval-reports/live-model-eval-*.json"
                     ),
-                    "补足配额或放宽预算保护后重跑同一批 case，确认 failureReason 不再包含 INSUFFICIENT_QUOTA、RATE_LIMIT 或 BUDGET_GUARD_OPEN。"
+                    "补足配额或降低调用频率后重跑同一批 case，确认 failureReason 不再包含 INSUFFICIENT_QUOTA 或 RATE_LIMIT。"
             ));
             evalDataActions.add(action(
                     "EVAL_DATA",
@@ -1616,9 +1614,6 @@ public class LiveModelEvalComparisonReportFactory {
     private void addRuntimeBlockerEvidence(List<String> evidence, String field, String value) {
         if (value.contains("INSUFFICIENT_QUOTA")) {
             evidence.add(field + "=INSUFFICIENT_QUOTA");
-        }
-        if (value.contains("BUDGET_GUARD_OPEN")) {
-            evidence.add(field + "=BUDGET_GUARD_OPEN");
         }
         if (value.contains("RATE_LIMIT")) {
             evidence.add(field + "=RATE_LIMIT");

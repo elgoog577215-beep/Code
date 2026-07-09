@@ -24,18 +24,10 @@ public class ExternalModelFailureClassifier {
         return classify(text, false);
     }
 
-    public boolean shouldOpenBudgetGuard(ModelStageFailureReason reason) {
-        return reason == ModelStageFailureReason.INSUFFICIENT_QUOTA
-                || reason == ModelStageFailureReason.RATE_LIMITED
-                || reason == ModelStageFailureReason.AUTHENTICATION_FAILED
-                || reason == ModelStageFailureReason.MODEL_UNSUPPORTED;
-    }
-
     public boolean isRetryable(ModelStageFailureReason reason, String text) {
         if (reason == ModelStageFailureReason.INSUFFICIENT_QUOTA
                 || reason == ModelStageFailureReason.AUTHENTICATION_FAILED
-                || reason == ModelStageFailureReason.MODEL_UNSUPPORTED
-                || reason == ModelStageFailureReason.BUDGET_GUARD_OPEN) {
+                || reason == ModelStageFailureReason.MODEL_UNSUPPORTED) {
             return false;
         }
         String normalized = normalize(text);
@@ -46,9 +38,6 @@ public class ExternalModelFailureClassifier {
 
     private ModelStageFailureReason classify(String text, boolean ioFailure) {
         String normalized = normalize(text);
-        if (normalized.contains("budget_guard_open")) {
-            return ModelStageFailureReason.BUDGET_GUARD_OPEN;
-        }
         if (normalized.contains("timeout") || normalized.contains("timed out")) {
             return ModelStageFailureReason.TIMEOUT;
         }

@@ -1715,7 +1715,6 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     new AiCodeAssistSupport(),
                     runtime,
                     new ExternalModelFailureClassifier(),
-                    new ExternalModelBudgetGuard(),
                     new ExternalModelChatRequestFactory(),
                     growthAgentService,
                     standardLibraryService,

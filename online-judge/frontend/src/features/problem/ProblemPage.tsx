@@ -259,8 +259,6 @@ function modelFailureTitle(reason?: string | null) {
       return "AI 输出被截断";
     case "INVALID_JSON":
       return "AI 返回格式异常";
-    case "BUDGET_GUARD_OPEN":
-      return "AI 调用保护已开启";
     case "SAFETY_RISK":
     case "SAFETY_REJECTED":
       return "AI 反馈被安全策略拦截";
@@ -292,8 +290,6 @@ function modelFailureMessage(reason?: string | null) {
       return "模型返回内容不完整，需要提高输出 token 或压缩上下文。";
     case "INVALID_JSON":
       return "模型返回没有满足结构化格式，可以重试一次。";
-    case "BUDGET_GUARD_OPEN":
-      return "系统检测到连续失败，暂时停止继续消耗 API 调用。";
     case "FULL_CHAIN_FEEDBACK_EMPTY":
       return "模型调用完成，但没有产出可展示的修正或提升建议。";
     default:

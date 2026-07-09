@@ -850,7 +850,6 @@ class AssistantLiveEvalTest {
         List<String> knownReasons = List.of(
                 "INSUFFICIENT_QUOTA",
                 "RATE_LIMITED",
-                "BUDGET_GUARD_OPEN",
                 "TIMEOUT",
                 "MODEL_UNSUPPORTED",
                 "EMPTY_RESPONSE",
@@ -986,8 +985,7 @@ class AssistantLiveEvalTest {
     private boolean isBudgetLimitedFailure(String failureReason) {
         String text = safe(failureReason);
         return text.contains("INSUFFICIENT_QUOTA")
-                || text.contains("RATE_LIMITED")
-                || text.contains("BUDGET_GUARD_OPEN");
+                || text.contains("RATE_LIMITED");
     }
 
     private Assignment.HintPolicy parseHintPolicy(String value) {

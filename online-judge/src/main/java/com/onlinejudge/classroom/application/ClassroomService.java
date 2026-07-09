@@ -2597,9 +2597,6 @@ public class ClassroomService {
                 || reason.contains("\"429\"")) {
             return "QUOTA_LIMIT";
         }
-        if (reason.contains("BUDGET_GUARD")) {
-            return "BUDGET_GUARD";
-        }
         if (reason.contains("SAFETY")) {
             return "SAFETY_REJECTED";
         }
@@ -2621,12 +2618,11 @@ public class ClassroomService {
     private int runtimeFailureTypeRank(String type) {
         return switch (type == null ? "" : type) {
             case "QUOTA_LIMIT" -> 1;
-            case "BUDGET_GUARD" -> 2;
-            case "SAFETY_REJECTED" -> 3;
-            case "VALIDATION_FAILED" -> 4;
-            case "OUTPUT_TRUNCATED" -> 5;
-            case "TIMEOUT" -> 6;
-            case "PROVIDER_ERROR" -> 7;
+            case "SAFETY_REJECTED" -> 2;
+            case "VALIDATION_FAILED" -> 3;
+            case "OUTPUT_TRUNCATED" -> 4;
+            case "TIMEOUT" -> 5;
+            case "PROVIDER_ERROR" -> 6;
             case "PARTIAL_COMPLETION" -> 8;
             default -> 8;
         };
@@ -2635,7 +2631,6 @@ public class ClassroomService {
     private String runtimeAttributionAction(String type) {
         return switch (type == null ? "" : type) {
             case "QUOTA_LIMIT" -> "先检查 ModelScope 额度和计费状态；在恢复前降低 live eval 调用规模或继续使用 single-call 低预算路径。";
-            case "BUDGET_GUARD" -> "检查近期连续失败记录，确认额度或 provider 恢复后再解除预算保护并重跑小样本 live eval。";
             case "SAFETY_REJECTED" -> "把对应样本沉淀为提示安全 fixture，复核 prompt 是否诱导直接给答案或越过教学边界。";
             case "VALIDATION_FAILED" -> "收窄输出 schema 和 prompt 契约，补充校验失败 fixture，优先修复结构化解析。";
             case "OUTPUT_TRUNCATED" -> "提高输出 token 预算或收缩 JSON schema/上下文；必要时切换 结构化重试 避免单次输出截断。";
@@ -2667,7 +2662,7 @@ public class ClassroomService {
 
     private boolean runtimeRecoverySmokeRecommended(String failureType,
                                                     DiagnosisReportReader.AiInvocationSnapshot invocation) {
-        if (List.of("QUOTA_LIMIT", "BUDGET_GUARD", "PROVIDER_ERROR", "TIMEOUT")
+        if (List.of("QUOTA_LIMIT", "PROVIDER_ERROR", "TIMEOUT")
                 .contains(firstNonBlank(failureType, ""))) {
             return true;
         }
@@ -2725,7 +2720,6 @@ public class ClassroomService {
     private String runtimeFailureTypeLabel(String type) {
         return switch (type == null ? "" : type) {
             case "QUOTA_LIMIT" -> "额度不足";
-            case "BUDGET_GUARD" -> "预算保护";
             case "SAFETY_REJECTED" -> "安全拒绝";
             case "VALIDATION_FAILED" -> "结构校验失败";
             case "OUTPUT_TRUNCATED" -> "输出截断";
@@ -2738,7 +2732,7 @@ public class ClassroomService {
 
     private String runtimeMisconception(String failureType, String failureReason) {
         return switch (failureType == null ? "" : failureType) {
-            case "QUOTA_LIMIT", "BUDGET_GUARD" -> "外部模型没有真实完成时，需要先处理运行约束，不能把规则兜底误判为模型质量稳定。";
+            case "QUOTA_LIMIT" -> "外部模型没有真实完成时，需要先处理运行约束，不能把规则兜底误判为模型质量稳定。";
             case "OUTPUT_TRUNCATED" -> "模型已经开始输出结构化内容，但输出预算不足会截断 JSON，导致真实诊断无法稳定进入系统。";
             case "VALIDATION_FAILED" -> "模型文本看似有内容，但结构契约失败会破坏错因、证据和教学动作的可验证性。";
             case "PARTIAL_COMPLETION" -> "部分完成样本需要保留可用诊断，同时单独复核未完成阶段。";
@@ -2749,7 +2743,6 @@ public class ClassroomService {
     private String runtimeExpectedMove(String failureType) {
         return switch (failureType == null ? "" : failureType) {
             case "QUOTA_LIMIT" -> "维护者恢复额度或降低调用规模后，用小样本 live eval 验证真实模型完成率。";
-            case "BUDGET_GUARD" -> "维护者确认 provider 恢复后解除预算保护，并保留本样本回归检查。";
             case "OUTPUT_TRUNCATED" -> "维护者调整 max tokens、收缩 schema 或改用 结构化重试 后，用小样本 live eval 验证不再 length 截断。";
             case "VALIDATION_FAILED" -> "维护者补充结构化输出 fixture，验证错因、证据和教学动作字段完整。";
             case "PARTIAL_COMPLETION" -> "教师保留可用诊断，复核教学提示阶段是否需要安全或结构修正。";

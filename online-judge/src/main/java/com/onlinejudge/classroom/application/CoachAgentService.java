@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
-import com.onlinejudge.submission.application.ExternalModelBudgetGuard;
 import com.onlinejudge.submission.application.ExternalModelChatRequestFactory;
 import com.onlinejudge.submission.application.ExternalModelFailureClassifier;
 import com.onlinejudge.submission.application.ModelDiagnosisBrief;
@@ -43,33 +42,29 @@ public class CoachAgentService {
     private final ObjectMapper objectMapper;
     private final DiagnosisTaxonomy diagnosisTaxonomy;
     private final ExternalModelFailureClassifier failureClassifier;
-    private final ExternalModelBudgetGuard budgetGuard;
     private final ExternalModelChatRequestFactory chatRequestFactory;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
     public CoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy diagnosisTaxonomy) {
-        this(objectMapper, diagnosisTaxonomy, new ExternalModelFailureClassifier(), new ExternalModelBudgetGuard());
+        this(objectMapper, diagnosisTaxonomy, new ExternalModelFailureClassifier());
     }
 
     @Autowired
     public CoachAgentService(ObjectMapper objectMapper,
                              DiagnosisTaxonomy diagnosisTaxonomy,
-                             ExternalModelFailureClassifier failureClassifier,
-                             ExternalModelBudgetGuard budgetGuard) {
-        this(objectMapper, diagnosisTaxonomy, failureClassifier, budgetGuard, new ExternalModelChatRequestFactory());
+                             ExternalModelFailureClassifier failureClassifier) {
+        this(objectMapper, diagnosisTaxonomy, failureClassifier, new ExternalModelChatRequestFactory());
     }
 
     public CoachAgentService(ObjectMapper objectMapper,
                              DiagnosisTaxonomy diagnosisTaxonomy,
                              ExternalModelFailureClassifier failureClassifier,
-                             ExternalModelBudgetGuard budgetGuard,
                              ExternalModelChatRequestFactory chatRequestFactory) {
         this.objectMapper = objectMapper;
         this.diagnosisTaxonomy = diagnosisTaxonomy;
         this.failureClassifier = failureClassifier == null ? new ExternalModelFailureClassifier() : failureClassifier;
-        this.budgetGuard = budgetGuard == null ? new ExternalModelBudgetGuard() : budgetGuard;
         this.chatRequestFactory = chatRequestFactory == null ? new ExternalModelChatRequestFactory() : chatRequestFactory;
     }
 
@@ -134,10 +129,6 @@ public class CoachAgentService {
                                 List<String> allowedEvidenceRefs) {
         if (!canCallAi()) {
             return CoachDraft.unavailable("AI_UNAVAILABLE");
-        }
-        ExternalModelBudgetGuard.Decision decision = budgetGuard.check("ModelScope", model);
-        if (!decision.allowed()) {
-            return CoachDraft.unavailable(ModelStageFailureReason.BUDGET_GUARD_OPEN.name());
         }
         try {
             String raw = chatCompletion(systemPrompt(), "请基于以下上下文生成 JSON：" + objectMapper.writeValueAsString(context));
@@ -239,16 +230,13 @@ public class CoachAgentService {
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
         try {
             String content = doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled);
-            budgetGuard.recordSuccess("ModelScope", model);
             return content;
         } catch (IOException exception) {
             if (!streamEnabled && streamFallbackEnabled && shouldRetryWithStreaming(exception)) {
                 log.warn("Retrying coach chat completion with stream=true after non-stream response was unusable. model={}", model);
                 String content = doChatCompletionWithRetry(systemPrompt, userPrompt, true);
-                budgetGuard.recordSuccess("ModelScope", model);
                 return content;
             }
-            recordBudgetFailure(exception);
             throw exception;
         }
     }
@@ -323,13 +311,6 @@ public class CoachAgentService {
     private boolean isRetryableCallFailure(IOException exception) {
         String text = exception == null ? "" : exception.getMessage();
         return failureClassifier.isRetryable(failureClassifier.classify(exception), text);
-    }
-
-    private void recordBudgetFailure(Exception exception) {
-        ModelStageFailureReason reason = failureClassifier.classify(exception);
-        if (failureClassifier.shouldOpenBudgetGuard(reason)) {
-            budgetGuard.recordFailure("ModelScope", model, reason);
-        }
     }
 
     private void sleepBeforeRetry(long waitMs) throws InterruptedException {

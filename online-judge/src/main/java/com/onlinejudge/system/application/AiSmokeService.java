@@ -74,7 +74,6 @@ public class AiSmokeService {
             case AUTHENTICATION_FAILED -> "模型认证失败，请检查 API key。";
             case INVALID_JSON -> "模型返回格式异常。";
             case MODEL_UNSUPPORTED -> "模型不可用，请检查配置。";
-            case BUDGET_GUARD_OPEN -> "预算保护已开启。";
             default -> "模型调用失败。";
         };
     }

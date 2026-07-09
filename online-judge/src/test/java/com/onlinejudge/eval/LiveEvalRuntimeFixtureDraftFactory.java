@@ -140,7 +140,8 @@ public class LiveEvalRuntimeFixtureDraftFactory {
         }
         String failureReason = sanitize(entry.getFailureReason(), 180);
         String failureStage = firstNonBlank(entry.getFailureStage(), entry.getStage(), "UNKNOWN_STAGE");
-        boolean offlineProfileRecommended = "QUOTA_LIMIT".equals(failureType);
+        boolean offlineProfileRecommended = "QUOTA_LIMIT".equals(failureType)
+                && isInsufficientQuotaFailure(failureReason);
         boolean recoverySmokeRecommended = recoverySmokeRecommended(failureType, entry);
         String recoverySmokeProfile = recoverySmokeRecommended
                 ? firstNonBlank(entry.getRuntimeProfile(), "low-latency")
@@ -204,9 +205,6 @@ public class LiveEvalRuntimeFixtureDraftFactory {
         }
         String reason = (firstNonBlank(failureReason, status, "") + " " + firstNonBlank(failureStage, ""))
                 .toUpperCase(Locale.ROOT);
-        if (reason.contains("BUDGET_GUARD")) {
-            return "BUDGET_GUARD";
-        }
         if (reason.contains("INSUFFICIENT_QUOTA")
                 || reason.contains("QUOTA")
                 || reason.contains("RATE_LIMITED")
@@ -248,7 +246,6 @@ public class LiveEvalRuntimeFixtureDraftFactory {
     private String expectedRuntimeAction(String type) {
         return switch (type == null ? "" : type) {
             case "QUOTA_LIMIT" -> "先检查 ModelScope 额度、计费状态或 rate limit；恢复前降低 live eval 调用规模。";
-            case "BUDGET_GUARD" -> "确认 provider 或额度恢复后解除预算保护，并重跑小样本 live eval。";
             case "SAFETY_REJECTED" -> "把该样本沉淀为提示安全 fixture，复核 prompt 是否诱导直接给答案。";
             case "VALIDATION_FAILED" -> "补充结构化输出 fixture，优先修复 JSON/schema/证据引用校验。";
             case "TIMEOUT" -> "降低上下文体积或调整超时阈值，再用小批量 live eval 验证时延。";
@@ -268,7 +265,7 @@ public class LiveEvalRuntimeFixtureDraftFactory {
             return defaultAction;
         }
         List<String> guidance = new ArrayList<>();
-        if ("QUOTA_LIMIT".equals(type)) {
+        if ("QUOTA_LIMIT".equals(type) && isInsufficientQuotaFailure(entry.getFailureReason())) {
             guidance.add("额度恢复前先运行 offline runtime profile eval，并查看 "
                     + OFFLINE_PROFILE_REPORT_PATTERN
                     + "，确认 low-latency request bytes 更小、requestCompact=true、compressionRatio<1 且结构锚点保留。");
@@ -305,13 +302,18 @@ public class LiveEvalRuntimeFixtureDraftFactory {
     }
 
     private boolean recoverySmokeRecommended(String failureType, LiveModelEvalReport.Entry entry) {
-        if (List.of("QUOTA_LIMIT", "BUDGET_GUARD", "PROVIDER_ERROR", "TIMEOUT")
+        if (List.of("QUOTA_LIMIT", "PROVIDER_ERROR", "TIMEOUT")
                 .contains(firstNonBlank(failureType, ""))) {
             return true;
         }
         return entry != null
                 && "stream".equalsIgnoreCase(firstNonBlank(entry.getTransportMode(), ""))
                 && intOrZero(entry.getStreamContentChunkCount()) == 0;
+    }
+
+    private boolean isInsufficientQuotaFailure(String failureReason) {
+        String reason = firstNonBlank(failureReason, "").toUpperCase(Locale.ROOT);
+        return reason.contains("INSUFFICIENT_QUOTA");
     }
 
     private String recoverySmokeCommandHint(String caseId, String runtimeProfile) {
@@ -406,7 +408,6 @@ public class LiveEvalRuntimeFixtureDraftFactory {
     private String label(String type) {
         return switch (type == null ? "" : type) {
             case "QUOTA_LIMIT" -> "额度不足";
-            case "BUDGET_GUARD" -> "预算保护";
             case "SAFETY_REJECTED" -> "安全拒绝";
             case "VALIDATION_FAILED" -> "结构校验失败";
             case "TIMEOUT" -> "调用超时";

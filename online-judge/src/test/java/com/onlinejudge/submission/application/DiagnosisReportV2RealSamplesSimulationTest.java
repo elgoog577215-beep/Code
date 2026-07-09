@@ -43,7 +43,6 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.structured-retry-output-tokens=${AI_EVAL_STRUCTURED_RETRY_OUTPUT_TOKENS:2600}",
         "ai.retry.max-attempts=${AI_EVAL_RETRY_MAX_ATTEMPTS:1}",
         "ai.retry.backoff-ms=${AI_EVAL_RETRY_BACKOFF_MS:700}",
-        "ai.budget-guard.enabled=${AI_EVAL_BUDGET_GUARD_ENABLED:false}",
         "ai.standard-library-navigation.max-rounds=${AI_EVAL_STANDARD_LIBRARY_NAVIGATION_MAX_ROUNDS:1}",
         "ai.standard-library-navigation.max-issues=${AI_EVAL_STANDARD_LIBRARY_NAVIGATION_MAX_ISSUES:1}",
         "ai.standard-library-growth.enabled=false",

@@ -22,9 +22,7 @@ class ExternalModelFailureClassifierTest {
     }
 
     @Test
-    void classifiesBudgetGuardAndUnsupportedModel() {
-        assertThat(classifier.classify(new IOException("BUDGET_GUARD_OPEN:RATE_LIMITED")))
-                .isEqualTo(ModelStageFailureReason.BUDGET_GUARD_OPEN);
+    void classifiesUnsupportedModelAndAuthenticationFailure() {
         assertThat(classifier.classify(new IOException("model unsupported by provider")))
                 .isEqualTo(ModelStageFailureReason.MODEL_UNSUPPORTED);
         assertThat(classifier.classify(new IOException("AI API returned status 401: Authentication failed, invalid token")))
@@ -32,13 +30,7 @@ class ExternalModelFailureClassifierTest {
     }
 
     @Test
-    void exposesGuardAndRetryPolicies() {
-        assertThat(classifier.shouldOpenBudgetGuard(ModelStageFailureReason.INSUFFICIENT_QUOTA)).isTrue();
-        assertThat(classifier.shouldOpenBudgetGuard(ModelStageFailureReason.RATE_LIMITED)).isTrue();
-        assertThat(classifier.shouldOpenBudgetGuard(ModelStageFailureReason.AUTHENTICATION_FAILED)).isTrue();
-        assertThat(classifier.shouldOpenBudgetGuard(ModelStageFailureReason.MODEL_UNSUPPORTED)).isTrue();
-        assertThat(classifier.shouldOpenBudgetGuard(ModelStageFailureReason.TIMEOUT)).isFalse();
-
+    void exposesRetryPolicies() {
         assertThat(classifier.isRetryable(ModelStageFailureReason.INSUFFICIENT_QUOTA, "")).isFalse();
         assertThat(classifier.isRetryable(ModelStageFailureReason.AUTHENTICATION_FAILED, "")).isFalse();
         assertThat(classifier.isRetryable(ModelStageFailureReason.RATE_LIMITED, "status 429")).isTrue();
