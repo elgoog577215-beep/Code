@@ -102,7 +102,7 @@ ai:
   enabled: true
   base-url: https://api-inference.modelscope.cn/v1
   api-key: ${OJ_MODELSCOPE_API_KEY:${MODELSCOPE_API_KEY:}}
-  model: ${OJ_AI_MODEL:${AI_MODEL:deepseek-ai/DeepSeek-V4-Flash}}
+  model: ${OJ_AI_MODEL:${AI_MODEL:Qwen/Qwen3-235B-A22B-Instruct-2507}}
   external-runtime-mode: single-call
   stream-enabled: true
 ```
