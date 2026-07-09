@@ -240,6 +240,13 @@ public class AdviceGenerationOutputValidator {
                     decision.setLibraryFit(fit);
                     softFixes.add("diagnosisDecision.libraryFit normalized: MISS -> PARTIAL because known anchor exists");
                 }
+                if (safe(anchor.getEvidenceRefs()).isEmpty()) {
+                    List<String> fallbackEvidenceRefs = fallbackEvidenceRefs(output, evidenceRefs, orderedEvidenceRefs, brief, softFixes);
+                    if (!fallbackEvidenceRefs.isEmpty()) {
+                        anchor.setEvidenceRefs(fallbackEvidenceRefs);
+                        softFixes.add("diagnosisDecision anchor evidenceRefs filled from primary evidence");
+                    }
+                }
                 anchor.setEvidenceRefs(normalizeEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs, orderedEvidenceRefs, brief, softFixes));
                 String invalidEvidence = invalidEvidenceRefs(anchor.getEvidenceRefs(), evidenceRefs, brief,
                         "diagnosisDecision.anchors.evidenceRefs");
@@ -769,6 +776,31 @@ public class AdviceGenerationOutputValidator {
                                                ModelDiagnosisBrief brief,
                                                List<String> softFixes) {
         return EvidenceRefSupport.normalizeEvidenceRefs(refs, validRefs, orderedValidRefs, brief, softFixes);
+    }
+
+    private List<String> fallbackEvidenceRefs(AdviceGenerationOutput output,
+                                              Set<String> validRefs,
+                                              List<String> orderedValidRefs,
+                                              ModelDiagnosisBrief brief,
+                                              List<String> softFixes) {
+        String primaryRef = output == null || output.getCaseUnderstanding() == null
+                ? ""
+                : output.getCaseUnderstanding().getPrimaryEvidenceRef();
+        String normalizedPrimaryRef = EvidenceRefSupport.normalizeEvidenceRef(primaryRef, validRefs, orderedValidRefs, brief);
+        if (!blank(normalizedPrimaryRef) && EvidenceRefSupport.isValidEvidenceRef(normalizedPrimaryRef, brief)) {
+            if (!normalizedPrimaryRef.equals(primaryRef) && softFixes != null) {
+                softFixes.add("caseUnderstanding.primaryEvidenceRef alias " + primaryRef + " -> " + normalizedPrimaryRef);
+            }
+            return List.of(normalizedPrimaryRef);
+        }
+        for (AdviceGenerationOutput.DiagnosisCandidate candidate : safe(output == null ? null : output.getDiagnosisCandidates())) {
+            List<String> refs = normalizeEvidenceRefs(candidate == null ? null : candidate.getEvidenceRefs(),
+                    validRefs, orderedValidRefs, brief, softFixes);
+            if (invalidEvidenceRefs(refs, validRefs, brief, "diagnosisCandidates.evidenceRefs").isBlank()) {
+                return refs;
+            }
+        }
+        return List.of();
     }
 
     private boolean invalidConfidence(Double confidence) {

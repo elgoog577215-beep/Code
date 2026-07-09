@@ -144,6 +144,34 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
+    void fillsDiagnosisReportV2AnchorEvidenceFromPrimaryEvidence() {
+        AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL",
+                "MP_RANGE_RIGHT_ENDPOINT_MISSING",
+                "MISTAKE_POINT");
+        output.setCaseUnderstanding(AdviceGenerationOutput.CaseUnderstanding.builder()
+                .problemGoal("计算加权距离和。")
+                .codeIntent("使用换根 DP。")
+                .behaviorGap("公式中的权值方向不一致。")
+                .primaryEvidenceRef("code:line:3-5")
+                .build());
+        output.getDiagnosisDecision().getAnchors().get(0).setEvidenceRefs(List.of());
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(
+                output,
+                brief("WRONG_ANSWER"),
+                pack()
+        );
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getDiagnosisDecision().getAnchors()).singleElement()
+                .satisfies(anchor -> assertThat(anchor.getEvidenceRefs())
+                        .containsExactly("code:range:3-5"));
+        assertThat(result.getSoftFixes())
+                .contains("caseUnderstanding.primaryEvidenceRef alias code:line:3-5 -> code:range:3-5")
+                .contains("diagnosisDecision anchor evidenceRefs filled from primary evidence");
+    }
+
+    @Test
     void softDowngradesDiagnosisReportV2HitWithoutKnownAnchorId() {
         AdviceGenerationOutput output = validDiagnosisReportV2("HIT", null, "OUT_OF_LIBRARY");
 
@@ -235,7 +263,7 @@ class AdviceGenerationOutputValidatorTest {
                 AdviceGenerationOutput.OutOfLibraryFinding.builder()
                         .name("模型发现的库外错因")
                         .reason("这个发现本身可以保留给候选池，但证据引用写坏了。")
-                        .evidenceRefs(List.of("keyCodeExcerpt"))
+                        .evidenceRefs(List.of("sourceCode"))
                         .confidence(0.7)
                         .build()
         ));
@@ -249,7 +277,7 @@ class AdviceGenerationOutputValidatorTest {
         assertThat(result.isValid()).isTrue();
         assertThat(output.getDiagnosisDecision().getOutOfLibraryFindings()).isEmpty();
         assertThat(result.getSoftFixes()).contains(
-                "diagnosisDecision.outOfLibraryFinding dropped: diagnosisDecision.outOfLibraryFindings.evidenceRefs contains invalid evidenceRef=keyCodeExcerpt");
+                "diagnosisDecision.outOfLibraryFinding dropped: diagnosisDecision.outOfLibraryFindings.evidenceRefs contains invalid evidenceRef=sourceCode");
     }
 
     @Test
@@ -400,10 +428,10 @@ class AdviceGenerationOutputValidatorTest {
     }
 
     @Test
-    void softDropsDiagnosisCandidateWithInvalidEvidenceWithoutFailingStudentReport() {
+    void softRepairsDiagnosisCandidateWholeCodeEvidenceAlias() {
         AdviceGenerationOutput output = validDiagnosisReportV2("PARTIAL", "MP_RANGE_RIGHT_ENDPOINT_MISSING", "MISTAKE_POINT");
         output.setDiagnosisCandidates(List.of(AdviceGenerationOutput.DiagnosisCandidate.builder()
-                .name("候选证据引用不合法")
+                .name("候选证据引用整体代码")
                 .layer("BASIC")
                 .libraryFit("HIT")
                 .anchorId("MP_RANGE_RIGHT_ENDPOINT_MISSING")
@@ -422,9 +450,10 @@ class AdviceGenerationOutputValidatorTest {
         );
 
         assertThat(result.isValid()).isTrue();
-        assertThat(result.getSoftFixes()).contains(
-                "diagnosisCandidate dropped: diagnosisCandidates.evidenceRefs contains invalid evidenceRef=keyCodeExcerpt");
-        assertThat(output.getDiagnosisCandidates()).isEmpty();
+        assertThat(result.getSoftFixes()).contains("evidenceRef alias keyCodeExcerpt -> code:range:1-20");
+        assertThat(output.getDiagnosisCandidates()).singleElement()
+                .satisfies(candidate -> assertThat(candidate.getEvidenceRefs())
+                        .containsExactly("code:range:1-20"));
     }
 
     @Test

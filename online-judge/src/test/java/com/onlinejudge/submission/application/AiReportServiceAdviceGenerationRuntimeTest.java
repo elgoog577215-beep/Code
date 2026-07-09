@@ -103,6 +103,31 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
+    void navigationRoundLimitKeepsPartialDirectoryAnchorForAdvice() {
+        StubAiReportService service = newServiceWithNavigationSequence(
+                standardLibraryService(),
+                List.of(attachmentSelectResponse("BASIC")),
+                validAdviceResponse()
+        );
+        ReflectionTestUtils.setField(service, "standardLibraryNavigationMaxRounds", 1);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(3);
+        assertThat(service.userPrompt(2))
+                .contains("\"anchorStatus\":\"PARTIAL\"")
+                .contains("AI_NAVIGATION_ROUND_LIMIT_REACHED");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+    }
+
+    @Test
     void invalidNavigationBranchGetsOneRepairAttemptBeforeContinuing() {
         AiStandardLibraryService libraryService = deepNavigationLibraryService();
         StubAiReportService service = newServiceWithNavigationSequence(
@@ -256,6 +281,38 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getBasicLayerAdvice()).hasSize(3);
         assertThat(analysis.getImprovementLayerAdvice()).hasSize(2);
         assertThat(analysis.getStudentFeedback().getBlockingIssues()).hasSize(3);
+    }
+
+    @Test
+    void libraryAttachmentCapsIssueNavigationWithoutDroppingAdviceIssues() {
+        StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
+                standardLibraryService(),
+                multiIssueFreeDiagnosisResponse(),
+                List.of(
+                        attachmentSelectResponse("BASIC"),
+                        attachmentSelectResponse("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                ),
+                multiIssueAdviceResponse()
+        );
+        ReflectionTestUtils.setField(service, "standardLibraryNavigationMaxIssues", 1);
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(4);
+        assertThat(service.userPrompt(3))
+                .contains("\"issueId\":\"I1\"", "\"issueId\":\"I2\"", "\"issueId\":\"I3\"")
+                .contains("\"status\":\"LAYERED_ATTACHMENT\"")
+                .contains("standard library attachment skipped by max issue limit.");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getBasicLayerAdvice()).hasSize(3);
+        assertThat(analysis.getImprovementLayerAdvice()).hasSize(2);
     }
 
     @Test

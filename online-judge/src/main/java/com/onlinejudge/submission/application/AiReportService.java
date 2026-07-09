@@ -49,6 +49,7 @@ public class AiReportService {
     private static final String STUDENT_FAST_FEEDBACK_PROMPT_VERSION = "student-fast-feedback-v2";
     private static final Pattern RUNTIME_LINE_PATTERN = Pattern.compile("\\bline\\s+(\\d+)\\b");
     private static final int STANDARD_LIBRARY_NAVIGATION_DEFAULT_MAX_ROUNDS = 6;
+    private static final int STANDARD_LIBRARY_NAVIGATION_DEFAULT_MAX_ISSUES = 1;
     private static final int STANDARD_LIBRARY_NAVIGATION_MAX_BRANCHES = 3;
 
     private final ObjectMapper objectMapper;
@@ -190,6 +191,9 @@ public class AiReportService {
 
     @Value("${ai.standard-library-navigation.max-rounds:6}")
     private int standardLibraryNavigationMaxRounds = STANDARD_LIBRARY_NAVIGATION_DEFAULT_MAX_ROUNDS;
+
+    @Value("${ai.standard-library-navigation.max-issues:1}")
+    private int standardLibraryNavigationMaxIssues = STANDARD_LIBRARY_NAVIGATION_DEFAULT_MAX_ISSUES;
 
     private final Object studentFeedbackThrottle = new Object();
     private long lastStudentFeedbackRequestAtMs = 0L;
@@ -776,7 +780,14 @@ public class AiReportService {
             return;
         }
         List<IssueLibraryAnchor> anchors = new ArrayList<>();
-        for (FreeDiagnosisOutput.Issue issue : issues) {
+        int maxIssues = navigationMaxIssues();
+        for (int index = 0; index < safeList(issues).size(); index++) {
+            FreeDiagnosisOutput.Issue issue = issues.get(index);
+            if (index >= maxIssues) {
+                anchors.add(anchorWithStatus(issue, "NO_MATCH", List.of(),
+                        "standard library attachment skipped by max issue limit.", null));
+                continue;
+            }
             anchors.add(attachIssueToStandardLibrary(runtimePlan, issue, roots));
         }
         setLayeredAttachmentArtifacts(runtimePlan, anchors, aggregateAnchorStatus(anchors), "");
@@ -934,6 +945,9 @@ public class AiReportService {
                 return anchorWithStatus(issue, "ATTACHMENT_FAILED", breadcrumb, exception.getMessage(),
                         action.getConfidence());
             }
+        }
+        if (!breadcrumb.isEmpty()) {
+            return anchorWithStatus(issue, "PARTIAL", breadcrumb, "AI_NAVIGATION_ROUND_LIMIT_REACHED", null);
         }
         return anchorWithStatus(issue, "ATTACHMENT_FAILED", breadcrumb, "AI_NAVIGATION_ROUND_LIMIT_REACHED", null);
     }
@@ -1549,7 +1563,11 @@ public class AiReportService {
     }
 
     private int navigationMaxRounds() {
-        return Math.max(3, Math.min(Math.max(standardLibraryNavigationMaxRounds, 0), 10));
+        return Math.max(1, Math.min(Math.max(standardLibraryNavigationMaxRounds, 0), 10));
+    }
+
+    private int navigationMaxIssues() {
+        return Math.max(1, Math.min(Math.max(standardLibraryNavigationMaxIssues, 0), 5));
     }
 
     private <T> T firstOrNull(List<T> values) {

@@ -180,6 +180,55 @@ class StandardLibraryNavigationOutputValidatorTest {
     }
 
     @Test
+    void acceptsLiveModelShorthandCodeAndSourceAliases() {
+        StandardLibraryNavigationOutput output = StandardLibraryNavigationOutput.builder()
+                .status("NO_MATCH")
+                .unresolvedGaps(List.of(StandardLibraryNavigationOutput.UnresolvedGap.builder()
+                        .name("真实模型行号缩写")
+                        .reason("模型使用 code:L 和 source:N 形式引用长代码。")
+                        .evidenceRefs(List.of("code:L118", "code:L113-L120", "source:49", "source:98-105"))
+                        .confidence(0.64)
+                        .build()))
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(output, longCodeBrief(), pack());
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getUnresolvedGaps()).singleElement()
+                .satisfies(gap -> assertThat(gap.getEvidenceRefs())
+                        .containsExactly("code:line:118", "code:range:113-120",
+                                "code:line:49", "code:range:98-105"));
+        assertThat(result.getSoftFixes())
+                .contains("evidenceRef alias code:L118 -> code:line:118")
+                .contains("evidenceRef alias code:L113-L120 -> code:range:113-120")
+                .contains("evidenceRef alias source:49 -> code:line:49")
+                .contains("evidenceRef alias source:98-105 -> code:range:98-105");
+    }
+
+    @Test
+    void acceptsLiveModelWholeCodeAndVisibleCaseAliases() {
+        StandardLibraryNavigationOutput output = StandardLibraryNavigationOutput.builder()
+                .status("NO_MATCH")
+                .unresolvedGaps(List.of(StandardLibraryNavigationOutput.UnresolvedGap.builder()
+                        .name("真实模型整体证据别名")
+                        .reason("模型使用 keyCodeExcerpt 和 visibleCaseFacts 引用整体代码与可见样例。")
+                        .evidenceRefs(List.of("keyCodeExcerpt", "visibleCaseFacts"))
+                        .confidence(0.64)
+                        .build()))
+                .build();
+
+        ExternalModelStagePayloads.StageValidationResult result = validator.validate(output, longCodeBrief(), pack());
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(output.getUnresolvedGaps()).singleElement()
+                .satisfies(gap -> assertThat(gap.getEvidenceRefs())
+                        .containsExactly("code:range:1-226", "judge:first_failed_case"));
+        assertThat(result.getSoftFixes())
+                .contains("evidenceRef alias keyCodeExcerpt -> code:range:1-226")
+                .contains("evidenceRef alias visibleCaseFacts -> judge:first_failed_case");
+    }
+
+    @Test
     void ignoresStaleSelectedBranchesAfterDoneNavigation() {
         ExternalModelStagePayloads.StageValidationResult result = validator.validate(
                 StandardLibraryNavigationOutput.builder()

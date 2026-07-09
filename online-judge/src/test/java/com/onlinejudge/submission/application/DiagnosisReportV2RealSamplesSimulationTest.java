@@ -44,7 +44,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.retry.max-attempts=${AI_EVAL_RETRY_MAX_ATTEMPTS:1}",
         "ai.retry.backoff-ms=${AI_EVAL_RETRY_BACKOFF_MS:700}",
         "ai.budget-guard.enabled=${AI_EVAL_BUDGET_GUARD_ENABLED:true}",
-        "ai.standard-library-growth.enabled=false"
+        "ai.standard-library-navigation.max-rounds=${AI_EVAL_STANDARD_LIBRARY_NAVIGATION_MAX_ROUNDS:1}",
+        "ai.standard-library-navigation.max-issues=${AI_EVAL_STANDARD_LIBRARY_NAVIGATION_MAX_ISSUES:1}",
+        "ai.standard-library-growth.enabled=false",
+        "app.content-seed.enabled=${AI_REAL_SAMPLE_CONTENT_SEED_ENABLED:true}"
 })
 class DiagnosisReportV2RealSamplesSimulationTest {
 
@@ -92,6 +95,11 @@ class DiagnosisReportV2RealSamplesSimulationTest {
         System.out.println("Real sample website-vs-codex simulation report saved to: " + reportPath.toAbsolutePath());
         assertThat(reportPath).exists();
         assertThat(entries).hasSize(selected.size());
+        if (Boolean.parseBoolean(env("AI_REAL_SAMPLE_REQUIRE_LIBRARY", "true"))) {
+            assertThat(entries)
+                    .extracting(ReportEntry::standardLibraryNavigationStatus)
+                    .doesNotContain("LIBRARY_EMPTY");
+        }
     }
 
     @Test
