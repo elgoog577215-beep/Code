@@ -851,21 +851,26 @@ const scenarios = [
     name: "student",
     path: "/app/student",
     afterChecks: async (page, viewport) => {
-      await page.locator(".student-entry-list").first().waitFor({ state: "visible", timeout: 10000 });
+      await page.locator(".student-assignment-board").first().waitFor({ state: "visible", timeout: 10000 });
       const navCount = await page.locator(".top-nav__link").count();
       const inviteFormCount = await page.locator("text=输入邀请码").count();
       const homeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
-      const entryCount = await page.locator(".student-entry-link").count();
+      const assignmentRowCount = await page.locator(".student-assignment-row").count();
+      const primaryActionCount = await page.locator(".student-assignment-row__action").count();
       const headerLoginCount = await page.locator(".header-login-link, .header-student-chip").count();
       const studentWidth = await page.locator(".student-home").first().evaluate(element => element.getBoundingClientRect().width);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      const assignmentBottom = await page.locator(".student-assignment-board").first().evaluate(element => element.getBoundingClientRect().bottom);
+      const practiceTop = await page.locator(".student-self-practice").first().evaluate(element => element.getBoundingClientRect().top);
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       record("student home keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("student identity lives in header", headerLoginCount >= 1, `header identity count ${headerLoginCount}`);
       record("student home shows public catalog entry", homeText.includes("公共题库"), homeText);
       record("student home shows assignment details", homeText.includes("课堂编程作业") && homeText.includes("高一1班") && homeText.includes("2题"), homeText);
       record("student home keeps entry copy direct", homeText.includes("选择今天要继续的练习") && !homeText.includes("输入邀请码"), homeText);
-      record("student home uses clickable entry rows", entryCount >= 1, `entry count ${entryCount}`);
+      record("student home uses a classroom assignment board", assignmentRowCount >= 1, `assignment rows ${assignmentRowCount}`);
+      record("student home keeps one primary assignment action", primaryActionCount === 1, `primary actions ${primaryActionCount}`);
+      record("student home separates public practice below assignments", practiceTop >= assignmentBottom, `assignment bottom ${assignmentBottom}; practice top ${practiceTop}`);
       if (viewport.name !== "mobile") {
         record("student home uses bounded width on wider screens", studentWidth <= 1024, `student width ${studentWidth}`);
       }
@@ -888,8 +893,9 @@ const scenarios = [
     },
     selectors: [
       [".header-login-link, .header-student-chip", "student header identity"],
-      [".student-entry-list", "student entry list"],
-      [".student-entry-link", "student entry row"]
+      [".student-assignment-board", "student assignment board"],
+      [".student-self-practice", "student self practice"],
+      [".student-review-strip", "student review strip"]
     ]
   },
   {
