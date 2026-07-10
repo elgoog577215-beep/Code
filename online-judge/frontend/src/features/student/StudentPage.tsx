@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, CircleCheck, ClipboardList, Clock3, LogIn, Play, RotateCcw } from "lucide-react";
+import { ArrowRight, BookOpen, CircleCheck, ClipboardList, Clock3, LogIn, Play, RefreshCw, RotateCcw } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { Assignment, ClassGroup, ReviewCard, StudentAbilityProfile, StudentProfile } from "../../shared/api/types";
+import type { Assignment, ReviewCard, StudentAbilityProfile, StudentProfile } from "../../shared/api/types";
 import { verdictLabel } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
 import { loadStudent, onActiveStudentChange } from "../../shared/storage";
@@ -35,11 +35,16 @@ function formatAssignmentDate(value?: string | null) {
   }).format(parsed);
 }
 
+interface AssignmentProgress {
+  completedTasks: number;
+  totalTasks: number;
+}
+
 export default function StudentPage() {
   const { t } = useTranslation();
   const [student, setStudent] = useState<StudentProfile | null>(() => loadStudent());
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [progressByAssignmentId, setProgressByAssignmentId] = useState<Record<number, AssignmentProgress | null>>({});
   const [abilityProfile, setAbilityProfile] = useState<StudentAbilityProfile | null>(null);
   const [problemCount, setProblemCount] = useState<number | null>(null);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
@@ -63,20 +68,9 @@ export default function StudentPage() {
   }, [t]);
 
   useEffect(() => {
-    let ignore = false;
-    api.studentClasses()
-      .then(result => {
-        if (!ignore) setClasses(result);
-      })
-      .catch(() => undefined);
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  useEffect(() => {
     if (!student) {
       setAssignments([]);
+      setProgressByAssignmentId({});
       setAbilityProfile(null);
       setAssignmentLoading(false);
       setProfileLoading(false);
@@ -86,8 +80,25 @@ export default function StudentPage() {
     setAssignmentLoading(true);
     setProfileLoading(true);
     api.studentAssignments(student.id)
-      .then(result => {
-        if (!ignore) setAssignments(result);
+      .then(async result => {
+        if (ignore) return;
+        setAssignments(result);
+        const progressEntries = await Promise.all(
+          latestTeacherAssignments(result).map(async assignment => {
+            try {
+              const trajectory = await api.studentTrajectory(assignment.id, student.id);
+              return [assignment.id, {
+                completedTasks: trajectory.completedTasks,
+                totalTasks: trajectory.totalTasks
+              }] as const;
+            } catch {
+              return [assignment.id, null] as const;
+            }
+          })
+        );
+        if (!ignore) {
+          setProgressByAssignmentId(Object.fromEntries(progressEntries));
+        }
       })
       .catch(() => {
         if (!ignore) setFailed(t("studentHome.errors.assignments"));
@@ -111,27 +122,42 @@ export default function StudentPage() {
   }, [student, t]);
 
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
+  const progressFor = (assignment: Assignment) => progressByAssignmentId[assignment.id] ?? null;
   const featuredAssignmentId = useMemo(
-    () => visibleAssignments.find(assignment => assignment.status === "ACTIVE")?.id ?? visibleAssignments[0]?.id,
-    [visibleAssignments]
+    () => visibleAssignments.find(assignment => {
+      const progress = progressByAssignmentId[assignment.id];
+      return assignment.status === "ACTIVE" && progress && progress.completedTasks > 0 && progress.completedTasks < progress.totalTasks;
+    })?.id ?? visibleAssignments.find(assignment => assignment.status === "ACTIVE")?.id ?? visibleAssignments[0]?.id,
+    [progressByAssignmentId, visibleAssignments]
   );
-  const activeAssignmentCount = visibleAssignments.filter(assignment => assignment.status === "ACTIVE").length;
-  const closedAssignmentCount = visibleAssignments.filter(assignment => assignment.status === "CLOSED").length;
+  const inProgressAssignmentCount = visibleAssignments.filter(assignment => {
+    const progress = progressByAssignmentId[assignment.id];
+    return assignment.status === "ACTIVE" && progress && progress.completedTasks > 0 && progress.completedTasks < progress.totalTasks;
+  }).length;
+  const notStartedAssignmentCount = visibleAssignments.filter(assignment => {
+    const progress = progressByAssignmentId[assignment.id];
+    return assignment.status === "ACTIVE" && progress?.completedTasks === 0;
+  }).length;
+  const completedAssignmentCount = visibleAssignments.filter(assignment => {
+    const progress = progressByAssignmentId[assignment.id];
+    return Boolean(progress && progress.totalTasks > 0 && progress.completedTasks >= progress.totalTasks);
+  }).length;
   const reviewCard = abilityProfile?.reviewCards?.[0] || null;
   const fineFocus = abilityProfile?.fineGrainedProfile?.fineGrainedTagFocus?.[0]?.label || null;
   const abilityFocus = abilityProfile?.fineGrainedProfile?.abilityPointFocus?.[0]?.label || abilityProfile?.primaryAbilityFocus || null;
-  const teacherByClassId = useMemo(() => {
-    const lookup = new Map<number, string>();
-    classes.forEach(item => {
-      if (item.teacherName) lookup.set(item.id, item.teacherName);
-    });
-    return lookup;
-  }, [classes]);
 
-  function assignmentStatus(assignment: Assignment) {
-    return assignment.status === "CLOSED"
-      ? t("studentHome.dashboard.closed")
-      : t("studentHome.dashboard.active");
+  function assignmentState(assignment: Assignment) {
+    const progress = progressFor(assignment);
+    if (progress && progress.totalTasks > 0 && progress.completedTasks >= progress.totalTasks) {
+      return { key: "completed", label: t("studentHome.dashboard.completed") };
+    }
+    if (assignment.status === "CLOSED") {
+      return { key: "closed", label: t("studentHome.dashboard.closed") };
+    }
+    if (progress?.completedTasks === 0) {
+      return { key: "not-started", label: t("studentHome.dashboard.notStarted") };
+    }
+    return { key: "active", label: t("studentHome.dashboard.active") };
   }
 
   return (
@@ -139,15 +165,20 @@ export default function StudentPage() {
       {failed && <div className="alert alert--error">{failed}</div>}
 
       <section className="student-home-command student-home-command--compact student-home-command--entry">
-        <div>
-          <p className="eyebrow">{t("studentHome.eyebrow")}</p>
+        <div className="student-home-command__identity">
+          <BookOpen size={20} aria-hidden="true" />
           <h1>{t("studentHome.title")}</h1>
-          <p>{student ? t("studentHome.dashboard.greeting", { name: student.displayName }) : t("studentHome.subtitleGuest")}</p>
+        </div>
+        <div className="student-home-command__message">
+          <strong>{student ? t("studentHome.dashboard.greeting", { name: student.displayName }) : t("studentHome.subtitleGuest")}</strong>
+          {student ? <span>{t("studentHome.dashboard.headerSummary", {
+            total: visibleAssignments.length,
+            active: inProgressAssignmentCount
+          })}</span> : null}
         </div>
         <span className="student-home-command__note">
-          {student
-            ? t("studentHome.dashboard.headerSummary", { total: visibleAssignments.length, active: activeAssignmentCount })
-            : t("studentHome.noteGuest")}
+          <RefreshCw size={14} aria-hidden="true" />
+          {student ? t("studentHome.noteSignedIn") : t("studentHome.noteGuest")}
         </span>
       </section>
 
@@ -183,8 +214,9 @@ export default function StudentPage() {
                 <h2 id="student-assignment-heading">{t("studentHome.dashboard.classroom")}</h2>
                 <p>{t("studentHome.dashboard.assignmentSummary", {
                   total: visibleAssignments.length,
-                  active: activeAssignmentCount,
-                  closed: closedAssignmentCount
+                  active: inProgressAssignmentCount,
+                  notStarted: notStartedAssignmentCount,
+                  completed: completedAssignmentCount
                 })}</p>
               </div>
             </header>
@@ -200,12 +232,16 @@ export default function StudentPage() {
                   <span>{t("studentHome.dashboard.className")}</span>
                   <span>{t("studentHome.dashboard.status")}</span>
                   <span>{t("studentHome.dashboard.problemCount")}</span>
+                  <span>{t("studentHome.dashboard.progress")}</span>
                   <span />
                 </div>
                 {visibleAssignments.map(assignment => {
                   const featured = assignment.id === featuredAssignmentId;
                   const deadline = formatAssignmentDate(assignment.endsAt);
-                  const teacher = assignment.classGroupId ? teacherByClassId.get(assignment.classGroupId) : null;
+                  const progress = progressFor(assignment);
+                  const state = assignmentState(assignment);
+                  const totalTasks = progress?.totalTasks ?? assignment.tasks?.length ?? 0;
+                  const completedTasks = progress?.completedTasks ?? 0;
                   return (
                     <Link
                       className={`student-entry-link student-assignment-row${featured ? " student-assignment-row--featured" : ""}`}
@@ -216,18 +252,25 @@ export default function StudentPage() {
                       <span className="student-assignment-row__icon" aria-hidden="true">
                         {featured
                           ? <Play size={17} fill="currentColor" />
-                          : assignment.status === "CLOSED" ? <CircleCheck size={19} /> : <ClipboardList size={19} />}
+                          : state.key === "completed" ? <CircleCheck size={19} /> : <ClipboardList size={19} />}
                       </span>
                       <span className="student-assignment-row__main">
                         <strong>{visibleAssignmentTitle(assignment)}</strong>
-                        <small>{teacher || t("studentHome.assignment.description")}</small>
+                        <small>{t("studentHome.dashboard.assignmentMeta", {
+                          count: assignment.tasks?.length || 0,
+                          description: assignment.description || t("studentHome.assignment.description")
+                        })}</small>
                       </span>
                       <span className="student-assignment-row__class">{assignment.className || t("studentHome.dashboard.unassignedClass")}</span>
                       <span className="student-assignment-row__status">
-                        <span><i className={`student-assignment-row__dot student-assignment-row__dot--${assignment.status.toLowerCase()}`} />{assignmentStatus(assignment)}</span>
+                        <span><i className={`student-assignment-row__dot student-assignment-row__dot--${state.key}`} />{state.label}</span>
                         {deadline ? <small><Clock3 size={13} aria-hidden="true" />{t("studentHome.dashboard.deadline", { value: deadline })}</small> : null}
                       </span>
-                      <span className="student-assignment-row__count">{t("studentHome.taskCount", { count: assignment.tasks?.length || 0 })}</span>
+                      <span className="student-assignment-row__count">{t("studentHome.taskCount", { count: totalTasks })}</span>
+                      <span className="student-assignment-row__progress" aria-label={t("studentHome.dashboard.progressAria", { completed: completedTasks, total: totalTasks })}>
+                        <progress value={completedTasks} max={Math.max(totalTasks, 1)} />
+                        <strong>{progress ? `${completedTasks}/${totalTasks}` : `-/${totalTasks}`}</strong>
+                      </span>
                       {featured
                         ? <span className="student-assignment-row__action">{t("studentHome.dashboard.continue")}</span>
                         : <span aria-hidden="true" />}
@@ -272,7 +315,7 @@ export default function StudentPage() {
             </Link>
           ) : (
             <div className="student-review-strip__empty">
-              {profileLoading ? t("studentHome.review.organizing") : t("studentHome.review.empty")}
+              {profileLoading ? t("studentHome.review.organizing") : t("studentHome.dashboard.emptyReview")}
             </div>
           )}
         </section>
