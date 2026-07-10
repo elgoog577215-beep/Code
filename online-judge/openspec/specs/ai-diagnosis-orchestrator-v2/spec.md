@@ -78,6 +78,20 @@ TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Pur
 - **WHEN** 部署环境显式配置 `OJ_AI_MODEL` 或 `AI_MODEL`
 - **THEN** 系统 SHALL 使用环境变量指定的模型
 
+### Requirement: 外部模型调用应支持模型池故障转移
+系统 SHALL 支持按配置顺序尝试多个外部模型；当当前模型因为额度不足、限流、模型不支持、超时或 provider API 错误无法完成时，系统 SHALL 自动尝试下一个候选模型，并 SHALL 在调用记录中保留实际使用的模型。
+
+#### Scenario: 主模型被限流
+- **WHEN** 当前模型返回 `RATE_LIMITED`、`INSUFFICIENT_QUOTA` 或等价 provider 错误
+- **THEN** 系统 SHALL 在同一次 AI 调用中尝试模型池中的下一个候选模型
+- **AND** 如果备用模型完成，最终结果 SHALL 标记为模型完成而不是本地兜底
+- **AND** `aiInvocation.model` SHALL 记录实际成功的备用模型
+
+#### Scenario: 没有备用模型可用
+- **WHEN** 当前模型失败且模型池中没有后续候选模型
+- **THEN** 系统 SHALL 保留原始失败原因
+- **AND** 系统 SHALL NOT 把失败改写成不明确的本地保护状态
+
 ### Requirement: 正式诊断上下文必须优先保障当前提交事实
 系统 SHALL 在正式诊断上下文中优先保留题目、学生代码、判题事实、失败样例、运行错误和标准库参考；标准库参考包 SHALL 只作为命名、颗粒度和成长线索，不得替代当前提交证据。
 

@@ -65,6 +65,7 @@ public class AiReportService {
     private final ThreadLocal<ExternalModelRequestContext> nextRequestContext =
             ThreadLocal.withInitial(ExternalModelRequestContext::standard);
     private final ThreadLocal<String> lastModelStageRawContent = ThreadLocal.withInitial(() -> "");
+    private final ThreadLocal<String> activeModel = ThreadLocal.withInitial(() -> "");
     private static final ThreadLocal<Consumer<ModelCallTraceEvent>> MODEL_CALL_TRACE_SINK = new ThreadLocal<>();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -144,6 +145,9 @@ public class AiReportService {
 
     @Value("${ai.model:Qwen/Qwen3-235B-A22B-Instruct-2507}")
     private String model;
+
+    @Value("${ai.model-pool:}")
+    private String modelPool;
 
     @Value("${ai.modelscope-compatible-request:auto}")
     private String modelScopeCompatibleRequest = "auto";
@@ -2831,7 +2835,7 @@ public class AiReportService {
     }
 
     public String modelName() {
-        return model;
+        return defaultIfBlank(activeModel.get(), model);
     }
 
     public static AutoCloseable captureModelCallTrace(Consumer<ModelCallTraceEvent> sink) {
@@ -2875,6 +2879,7 @@ public class AiReportService {
                 requestContext.requestCompact(),
                 0
         ));
+        activeModel.set(defaultIfBlank(model, ""));
         try {
             String content = doChatCompletionWithRetry(systemPrompt, userPrompt, streamEnabled, requestContext);
             return content;
@@ -2900,6 +2905,7 @@ public class AiReportService {
                 requestContext.requestCompact(),
                 0
         ));
+        activeModel.set(defaultIfBlank(model, ""));
         try {
             String content = doChatCompletionWithRetry(systemPrompt, userPrompt, stream, requestContext, outputTokens);
             return content;
@@ -2928,22 +2934,37 @@ public class AiReportService {
                                              int outputTokens) throws IOException, InterruptedException {
         int attempts = Math.max(1, retryMaxAttempts);
         IOException lastException = null;
-        for (int attempt = 1; attempt <= attempts; attempt++) {
-            try {
-                return doChatCompletion(systemPrompt, userPrompt, stream, requestContext, outputTokens);
-            } catch (IOException exception) {
-                lastException = exception;
-                if (attempt >= attempts || !isRetryableCallFailure(exception)) {
-                    throw exception;
+        List<String> modelCandidates = ExternalModelPool.candidates(model, modelPool);
+        for (int modelIndex = 0; modelIndex < modelCandidates.size(); modelIndex++) {
+            String candidateModel = modelCandidates.get(modelIndex);
+            for (int attempt = 1; attempt <= attempts; attempt++) {
+                try {
+                    return doChatCompletion(candidateModel, systemPrompt, userPrompt, stream, requestContext, outputTokens);
+                } catch (IOException exception) {
+                    lastException = exception;
+                    String reasonText = exception.getMessage();
+                    ModelStageFailureReason reason = failureClassifier.classify(exception);
+                    if (modelIndex + 1 < modelCandidates.size()
+                            && ExternalModelPool.shouldFallback(reason, reasonText)) {
+                        String nextModel = modelCandidates.get(modelIndex + 1);
+                        log.warn("Switching AI chat completion model after provider failure. fromModel={}, toModel={}, reason={}",
+                                candidateModel,
+                                nextModel,
+                                previewBody(reasonText));
+                        break;
+                    }
+                    if (attempt >= attempts || !isRetryableCallFailure(exception)) {
+                        throw exception;
+                    }
+                    long backoff = Math.max(0, retryBackoffMs) * attempt;
+                    log.warn("Retrying AI chat completion after transient failure. model={}, attempt={}/{}, waitMs={}, reason={}",
+                            candidateModel,
+                            attempt + 1,
+                            attempts,
+                            backoff,
+                            previewBody(reasonText));
+                    sleepBeforeRetry(backoff);
                 }
-                long backoff = Math.max(0, retryBackoffMs) * attempt;
-                log.warn("Retrying AI chat completion after transient failure. model={}, attempt={}/{}, waitMs={}, reason={}",
-                        model,
-                        attempt + 1,
-                        attempts,
-                        backoff,
-                        previewBody(exception.getMessage()));
-                sleepBeforeRetry(backoff);
             }
         }
         throw lastException == null ? new IOException("AI API call failed") : lastException;
@@ -2961,10 +2982,21 @@ public class AiReportService {
                                     boolean stream,
                                     ExternalModelRequestContext requestContext,
                                     int outputTokens) throws IOException, InterruptedException {
+        return doChatCompletion(model, systemPrompt, userPrompt, stream, requestContext, outputTokens);
+    }
+
+    private String doChatCompletion(String selectedModel,
+                                    String systemPrompt,
+                                    String userPrompt,
+                                    boolean stream,
+                                    ExternalModelRequestContext requestContext,
+                                    int outputTokens) throws IOException, InterruptedException {
+        String effectiveModel = defaultIfBlank(selectedModel, model);
+        activeModel.set(effectiveModel);
         Map<String, Object> requestBody = chatRequestFactory.build(
                 baseUrl,
                 modelScopeCompatibleRequest,
-                model,
+                effectiveModel,
                 systemPrompt,
                 userPrompt,
                 stream,
@@ -2972,7 +3004,7 @@ public class AiReportService {
         );
         String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
         log.info("Calling AI chat completion. model={}, timeoutSeconds={}, stream={}, endpoint={}",
-                model,
+                effectiveModel,
                 Math.max(timeoutSeconds, 5),
                 stream,
                 endpoint);
@@ -3740,10 +3772,11 @@ public class AiReportService {
                                                                     ExternalModelStagePayloads.StageValidationResult failure) {
         ExternalModelCallTelemetry telemetry = lastCallTelemetry.get();
         int requestBytes = telemetry.requestBytes() == null ? 0 : telemetry.requestBytes();
+        String invocationModel = defaultIfBlank(activeModel.get(), model);
         return SubmissionAnalysisResponse.AiInvocation.builder()
                 .provider(PROVIDER)
-                .model(model)
-                .modelVersion(model)
+                .model(invocationModel)
+                .modelVersion(invocationModel)
                 .promptVersion(promptVersion)
                 .agentVersion(baseline == null || baseline.getAiInvocation() == null
                         ? null

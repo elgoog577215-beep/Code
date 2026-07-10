@@ -8,6 +8,7 @@ import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.submission.application.ExternalModelChatRequestFactory;
 import com.onlinejudge.submission.application.ExternalModelFailureClassifier;
+import com.onlinejudge.submission.application.ExternalModelPool;
 import com.onlinejudge.submission.application.ModelDiagnosisBrief;
 import com.onlinejudge.submission.application.ModelStageFailureReason;
 import com.onlinejudge.submission.application.StandardLibraryPack;
@@ -79,6 +80,9 @@ public class CoachAgentService {
 
     @Value("${ai.model:Qwen/Qwen3-235B-A22B-Instruct-2507}")
     private String model;
+
+    @Value("${ai.model-pool:}")
+    private String modelPool;
 
     @Value("${ai.modelscope-compatible-request:auto}")
     private String modelScopeCompatibleRequest = "auto";
@@ -245,22 +249,37 @@ public class CoachAgentService {
             throws IOException, InterruptedException {
         int attempts = Math.max(1, retryMaxAttempts);
         IOException lastException = null;
-        for (int attempt = 1; attempt <= attempts; attempt++) {
-            try {
-                return doChatCompletion(systemPrompt, userPrompt, stream);
-            } catch (IOException exception) {
-                lastException = exception;
-                if (attempt >= attempts || !isRetryableCallFailure(exception)) {
-                    throw exception;
+        List<String> modelCandidates = ExternalModelPool.candidates(model, modelPool);
+        for (int modelIndex = 0; modelIndex < modelCandidates.size(); modelIndex++) {
+            String candidateModel = modelCandidates.get(modelIndex);
+            for (int attempt = 1; attempt <= attempts; attempt++) {
+                try {
+                    return doChatCompletion(candidateModel, systemPrompt, userPrompt, stream);
+                } catch (IOException exception) {
+                    lastException = exception;
+                    String reasonText = exception.getMessage();
+                    ModelStageFailureReason reason = failureClassifier.classify(exception);
+                    if (modelIndex + 1 < modelCandidates.size()
+                            && ExternalModelPool.shouldFallback(reason, reasonText)) {
+                        String nextModel = modelCandidates.get(modelIndex + 1);
+                        log.warn("Switching coach model after provider failure. fromModel={}, toModel={}, reason={}",
+                                candidateModel,
+                                nextModel,
+                                preview(reasonText));
+                        break;
+                    }
+                    if (attempt >= attempts || !isRetryableCallFailure(exception)) {
+                        throw exception;
+                    }
+                    long backoff = Math.max(0, retryBackoffMs) * attempt;
+                    log.warn("Retrying coach chat completion after transient failure. model={}, attempt={}/{}, waitMs={}, reason={}",
+                            candidateModel,
+                            attempt + 1,
+                            attempts,
+                            backoff,
+                            preview(reasonText));
+                    sleepBeforeRetry(backoff);
                 }
-                long backoff = Math.max(0, retryBackoffMs) * attempt;
-                log.warn("Retrying coach chat completion after transient failure. model={}, attempt={}/{}, waitMs={}, reason={}",
-                        model,
-                        attempt + 1,
-                        attempts,
-                        backoff,
-                        preview(exception.getMessage()));
-                sleepBeforeRetry(backoff);
             }
         }
         throw lastException == null ? new IOException("AI API call failed") : lastException;
@@ -268,10 +287,16 @@ public class CoachAgentService {
 
     private String doChatCompletion(String systemPrompt, String userPrompt, boolean stream)
             throws IOException, InterruptedException {
+        return doChatCompletion(model, systemPrompt, userPrompt, stream);
+    }
+
+    private String doChatCompletion(String selectedModel, String systemPrompt, String userPrompt, boolean stream)
+            throws IOException, InterruptedException {
+        String effectiveModel = selectedModel == null || selectedModel.isBlank() ? model : selectedModel.trim();
         Map<String, Object> requestBody = chatRequestFactory.build(
                 baseUrl,
                 modelScopeCompatibleRequest,
-                model,
+                effectiveModel,
                 systemPrompt,
                 userPrompt,
                 stream,

@@ -348,6 +348,32 @@ class CoachAgentServiceTest {
     }
 
     @Test
+    void chatCompletionFallsBackToBackupModelAfterProviderLimit() throws Exception {
+        RetryingCoachAgentService service = new RetryingCoachAgentService(
+                objectMapper,
+                taxonomy,
+                new IOException("AI API returned status 429: {\"error\":{\"message\":\"rate limit\"}}"),
+                """
+                {"choices":[{"message":{"content":"{\\"question\\":\\"先看备用模型是否能追问。\\",\\"rationale\\":\\"模型池切换\\",\\"evidenceRefs\\":[\\"submission:11\\"],\\"confidence\\":0.7,\\"answerLeakRisk\\":\\"LOW\\"}"}}]}
+                """
+        );
+        ReflectionTestUtils.setField(service, "enabled", true);
+        ReflectionTestUtils.setField(service, "apiKey", "test-key");
+        ReflectionTestUtils.setField(service, "baseUrl", "https://example.test/v1");
+        ReflectionTestUtils.setField(service, "model", "primary-model");
+        ReflectionTestUtils.setField(service, "modelPool", "primary-model,backup-model");
+        ReflectionTestUtils.setField(service, "streamEnabled", false);
+        ReflectionTestUtils.setField(service, "streamFallbackEnabled", false);
+        ReflectionTestUtils.setField(service, "retryMaxAttempts", 1);
+        ReflectionTestUtils.setField(service, "retryBackoffMs", 0L);
+
+        String content = service.chatCompletion("system", "user");
+
+        assertThat(content).contains("question");
+        assertThat(service.callCount()).isEqualTo(2);
+    }
+
+    @Test
     void liveModelCoachQuestionsStaySafeWhenEnabled() throws IOException {
         String apiKey = System.getenv("AI_EVAL_API_KEY");
         Assumptions.assumeTrue(Boolean.parseBoolean(valueOrDefault(System.getenv("AI_EVAL_LIVE_ENABLED"), "false")),

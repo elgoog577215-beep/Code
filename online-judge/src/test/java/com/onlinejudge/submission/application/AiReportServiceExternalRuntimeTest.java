@@ -175,6 +175,28 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(service.lastRequestBody()).doesNotContain("\"role\":\"system\"");
     }
 
+    @Test
+    void smokeFallsBackToNextModelAfterProviderLimit() throws Exception {
+        CapturingAiReportService service = new CapturingAiReportService(
+                objectMapper,
+                new IOException("AI API returned status 429: {\"error\":{\"message\":\"rate limit\"}}"),
+                apiResponse("OK")
+        );
+        configure(service);
+        ReflectionTestUtils.setField(service, "model", "primary-model");
+        ReflectionTestUtils.setField(service, "modelPool", "primary-model,backup-model");
+        ReflectionTestUtils.setField(service, "streamEnabled", false);
+        ReflectionTestUtils.setField(service, "retryMaxAttempts", 1);
+
+        String result = service.smokeChatCompletion();
+
+        assertThat(result).isEqualTo("OK");
+        assertThat(service.requestBodies()).hasSize(2);
+        assertThat(service.requestBodies().get(0)).contains("\"model\":\"primary-model\"");
+        assertThat(service.requestBodies().get(1)).contains("\"model\":\"backup-model\"");
+        assertThat(service.modelName()).isEqualTo("backup-model");
+    }
+
     private StubAiReportService newService(Object... responses) {
         StubAiReportService service = new StubAiReportService(objectMapper, runtime(), withNavigationResponses(responses));
         configure(service);
@@ -475,16 +497,16 @@ class AiReportServiceExternalRuntimeTest {
     }
 
     private static class CapturingAiReportService extends AiReportService {
-        private final Queue<String> responses = new ArrayDeque<>();
+        private final Queue<Object> responses = new ArrayDeque<>();
         private final List<String> requestBodies = new ArrayList<>();
 
-        CapturingAiReportService(ObjectMapper objectMapper, String... responses) {
+        CapturingAiReportService(ObjectMapper objectMapper, Object... responses) {
             this(objectMapper, navigationDeps(), responses);
         }
 
         private CapturingAiReportService(ObjectMapper objectMapper,
                                          NavigationDeps navigationDeps,
-                                         String... responses) {
+                                         Object... responses) {
             super(objectMapper,
                     new AiCodeAssistSupport(),
                     new ExternalModelAgentRuntime(
@@ -507,15 +529,22 @@ class AiReportServiceExternalRuntimeTest {
         @Override
         protected String sendChatCompletionRequest(String requestBody, boolean stream) throws IOException {
             requestBodies.add(requestBody);
-            String response = responses.poll();
+            Object response = responses.poll();
+            if (response instanceof IOException exception) {
+                throw exception;
+            }
             if (response == null) {
                 throw new IOException("No stub response configured.");
             }
-            return response;
+            return response.toString();
         }
 
         String lastRequestBody() {
             return requestBodies.isEmpty() ? "" : requestBodies.get(requestBodies.size() - 1);
+        }
+
+        List<String> requestBodies() {
+            return requestBodies;
         }
     }
 
