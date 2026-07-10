@@ -5969,8 +5969,8 @@ button.list-row:hover {
 
 .student-feedback-knowledge {
   display: grid;
-  gap: 0.48rem;
-  padding: 0.62rem 0.68rem;
+  gap: 0.32rem;
+  padding: 0.46rem 0.52rem;
   border: 1px solid color-mix(in srgb, var(--blue) 24%, var(--line));
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--blue-soft) 44%, var(--surface-strong));
@@ -5978,11 +5978,11 @@ button.list-row:hover {
 
 .student-feedback-knowledge__status {
   flex: 0 0 auto;
-  padding: 0.16rem 0.4rem;
+  padding: 0.1rem 0.32rem;
   border: 1px solid currentColor;
   border-radius: 999px;
   color: var(--ink-faint);
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   font-weight: 850;
   line-height: 1.2;
 }
@@ -6007,26 +6007,26 @@ button.list-row:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.24rem;
+  gap: 0.16rem 0.12rem;
   color: var(--ink-soft);
-  font-size: 0.78rem;
-  line-height: 1.45;
+  font-size: 0.73rem;
+  line-height: 1.3;
 }
 
 .student-feedback-knowledge__path span {
   display: inline-flex;
   align-items: center;
-  gap: 0.14rem;
+  gap: 0.08rem;
   min-height: 0;
 }
 
 .student-feedback-knowledge__path b {
   display: inline-flex;
   align-items: center;
-  min-height: 1.62rem;
-  padding: 0.18rem 0.48rem;
+  min-height: 1.4rem;
+  padding: 0.12rem 0.36rem;
   border: 1px solid color-mix(in srgb, var(--blue) 20%, var(--line));
-  border-radius: 0.42rem;
+  border-radius: 0.36rem;
   color: var(--ink);
   background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
   font-size: inherit;
@@ -6042,7 +6042,7 @@ button.list-row:hover {
 .student-feedback-knowledge__empty {
   margin: 0;
   color: var(--ink-faint);
-  font-size: 0.78rem;
+  font-size: 0.73rem;
 }
 
 .student-feedback-evidence {
