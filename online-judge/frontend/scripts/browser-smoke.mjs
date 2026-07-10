@@ -1018,18 +1018,28 @@ const scenarios = [
     path: "/app/",
     selectors: [
       [".route-hub-page", "route hub page"],
-      [".route-hub-card", "route hub cards"]
+      [".route-hub-hero-copy", "route hub hero copy"],
+      [".route-hub-code-stage", "route hub code experience"],
+      [".route-hub-learning-loop", "route hub learning loop"]
     ],
-    afterChecks: async page => {
+    afterChecks: async (page, viewport) => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      const canonicalHrefs = await page.locator('a[href="/app/student"], a[href="/app/teacher"]').evaluateAll(elements =>
+      const roleActions = page.locator('.route-hub-role-actions a[href="/app/student"], .route-hub-role-actions a[href="/app/teacher"]');
+      const canonicalHrefs = await roleActions.evaluateAll(elements =>
         elements.map(element => element.getAttribute("href"))
       );
       const hubText = ((await page.locator(".route-hub-page").first().textContent()) || "").replace(/\s+/g, "");
+      const codeStageText = ((await page.locator(".route-hub-code-stage").first().textContent()) || "").replace(/\s+/g, "");
+      const learningSteps = await page.locator(".route-hub-loop-step").count();
+      const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       record("app root is explicit route hub", page.url().endsWith("/app") || page.url().endsWith("/app/"), page.url());
-      record("app root lists clear workspaces", hubText.includes("学生学习") && hubText.includes("教师工作台"), hubText.slice(0, 700));
+      record("app root leads with the selected concept message", hubText.includes("从一道题开始") && hubText.includes("看见真正的进步"), hubText.slice(0, 700));
+      record("app root demonstrates real code feedback", codeStageText.includes("两数之和") && codeStageText.includes("全部通过") && codeStageText.includes("12/12"), codeStageText.slice(0, 700));
+      record("app root explains the learning loop", learningSteps === 3 && hubText.includes("练习") && hubText.includes("评测") && hubText.includes("复盘"), `steps ${learningSteps}; ${hubText.slice(0, 500)}`);
       record("app root exposes canonical paths", canonicalHrefs.includes("/app/student") && canonicalHrefs.includes("/app/teacher"), canonicalHrefs.join("|"));
+      record("app root keeps one action per role", await roleActions.count() === 2, `role actions ${await roleActions.count()}`);
       record("app root keeps top nav simple", navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
+      record("app root fits the viewport", documentWidth <= viewport.width, `document ${documentWidth}; viewport ${viewport.width}`);
     }
   },
   {
