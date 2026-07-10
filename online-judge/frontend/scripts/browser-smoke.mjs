@@ -886,6 +886,8 @@ const scenarios = [
       const homeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
       const assignmentRowCount = await page.locator(".student-assignment-row").count();
       const primaryActionCount = await page.locator(".student-assignment-row__action").count();
+      const assignmentSelector = page.locator('input[name="student-assignment-selection"]');
+      const assignmentSelectorCount = await assignmentSelector.count();
       const progressCount = await page.locator(".student-assignment-row__progress").count();
       const headerLoginCount = await page.locator(".header-login-link, .header-student-chip").count();
       const studentWidth = await page.locator(".student-home").first().evaluate(element => element.getBoundingClientRect().width);
@@ -904,6 +906,17 @@ const scenarios = [
       record("student home keeps entry copy direct", homeText.includes("今天先完成课堂任务") && !homeText.includes("输入邀请码"), homeText);
       record("student home uses a classroom assignment board", assignmentRowCount >= 1, `assignment rows ${assignmentRowCount}`);
       record("student home keeps one primary assignment action", primaryActionCount === 1, `primary actions ${primaryActionCount}`);
+      record("student home exposes one native selector per assignment", assignmentSelectorCount === assignmentRowCount, `selectors ${assignmentSelectorCount}; rows ${assignmentRowCount}`);
+      if (assignmentSelectorCount >= 3) {
+        const urlBeforeSelection = page.url();
+        await assignmentSelector.nth(1).check();
+        const selectedSecondHref = await page.locator('.student-assignment-row[data-selected="true"] .student-assignment-row__action').getAttribute("href");
+        record("student assignment selection moves highlight and action without navigation", page.url() === urlBeforeSelection && selectedSecondHref === "/app/student/assignments/8", `url ${page.url()}; href ${selectedSecondHref}`);
+        await assignmentSelector.nth(1).press("ArrowDown");
+        const thirdSelected = await assignmentSelector.nth(2).isChecked();
+        const selectedThirdHref = await page.locator('.student-assignment-row[data-selected="true"] .student-assignment-row__action').getAttribute("href");
+        record("student assignment selection supports arrow keys", thirdSelected && selectedThirdHref === "/app/student/assignments/9", `third selected ${thirdSelected}; href ${selectedThirdHref}`);
+      }
       record("student home shows truthful progress for every assignment", progressCount === assignmentRowCount && homeText.includes("1/2") && homeText.includes("3/3"), `progress rows ${progressCount}; ${homeText}`);
       record("student home distinguishes learning states", homeText.includes("待开始") && homeText.includes("进行中") && homeText.includes("已完成") && !homeText.includes("信息技术老师"), homeText);
       record("student home separates public practice below assignments", practiceTop >= assignmentBottom, `assignment bottom ${assignmentBottom}; practice top ${practiceTop}`);
