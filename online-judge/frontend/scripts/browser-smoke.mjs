@@ -890,6 +890,9 @@ const scenarios = [
       const headerLoginCount = await page.locator(".header-login-link, .header-student-chip").count();
       const studentWidth = await page.locator(".student-home").first().evaluate(element => element.getBoundingClientRect().width);
       const commandHeight = await page.locator(".student-home-command").first().evaluate(element => element.getBoundingClientRect().height);
+      const assignmentRowHeights = await page.locator(".student-assignment-row").evaluateAll(elements =>
+        elements.map(element => element.getBoundingClientRect().height)
+      );
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       const assignmentBottom = await page.locator(".student-assignment-board").first().evaluate(element => element.getBoundingClientRect().bottom);
       const practiceTop = await page.locator(".student-self-practice").first().evaluate(element => element.getBoundingClientRect().top);
@@ -907,6 +910,7 @@ const scenarios = [
       if (viewport.name !== "mobile") {
         record("student home uses concept-scale width", studentWidth >= 1280 && studentWidth <= 1360, `student width ${studentWidth}`);
         record("student home uses a compact command bar", commandHeight <= 82, `command height ${commandHeight}`);
+        record("student home keeps concept-scale row rhythm", Math.min(...assignmentRowHeights) >= 104, `row heights ${assignmentRowHeights.join(",")}`);
       }
       record("student home has no horizontal overflow", overflow <= 1, `overflow ${overflow}`);
       record("student no longer starts with invite", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
