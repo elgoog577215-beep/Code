@@ -72,7 +72,7 @@ TBD - created by archiving change simplify-ai-diagnosis-single-agent. Update Pur
 
 #### Scenario: 未配置模型环境变量
 - **WHEN** `OJ_AI_MODEL` 和 `AI_MODEL` 均未配置
-- **THEN** 系统 SHALL 默认使用 `Qwen/Qwen3-235B-A22B-Instruct-2507`
+- **THEN** 系统 SHALL 默认使用 `Qwen/Qwen3.5-122B-A10B`
 
 #### Scenario: 环境变量覆盖模型
 - **WHEN** 部署环境显式配置 `OJ_AI_MODEL` 或 `AI_MODEL`
