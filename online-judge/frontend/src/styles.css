@@ -289,6 +289,34 @@
 .student-assignment-row__action {
   color: #fff;
   background: var(--brand-strong);
+  text-decoration: none;
+}
+
+.student-assignment-row__selector {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.student-assignment-row > :not(.student-assignment-row__selector) {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.student-assignment-row > .student-assignment-row__action {
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.student-assignment-row:has(.student-assignment-row__selector:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--brand) 64%, transparent);
+  outline-offset: -3px;
 }
 
 .student-assignment-board__empty {

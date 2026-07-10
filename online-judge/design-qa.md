@@ -15,6 +15,7 @@
 - Colors and visual tokens: the main surface is neutral white with muted teal reserved for the featured row, progress, status, and primary action. This restores the foreground/background balance shown in the concept.
 - Image and icon fidelity: the source contains no raster imagery. Existing Lucide line icons are used consistently; no placeholder or custom-drawn assets were introduced.
 - Copy and content: classroom work is primary, public problems are secondary self-practice, and only the featured assignment exposes a primary action. Repeated teacher labels were removed in favor of task count and assignment description.
+- Selection behavior: every assignment row is now a native radio target. Pointer selection moves the highlighted row, play icon, and sole primary action without navigating; arrow keys move the same selection for keyboard users.
 - Progress and state semantics: every assignment loads real `completedTasks / totalTasks` data. Zero progress is "待开始", partial progress is "进行中", complete progress is "已完成", and a closed incomplete assignment remains "已结束".
 
 **Open Questions**
@@ -36,6 +37,7 @@
 3. The first post-fix capture exposed a legacy cascade conflict that returned the width to 1180px and displaced the featured action. A final scoped cascade guard restored the seven-column layout.
 4. The second post-fix comparison found desktop rows still materially tighter than the concept. Desktop row rhythm was increased to 108-120px while mobile stayed compact.
 5. Final evidence shows no remaining P0/P1/P2 mismatch and all desktop/mobile browser checks pass.
+6. The formerly static featured row was converted into a switchable single-selection group; desktop and mobile interaction regression checks pass.
 
 **Implementation Checklist**
 
@@ -44,6 +46,7 @@
 - [x] Every assignment shows truthful completion progress.
 - [x] Learning state wording reflects progress rather than publication state alone.
 - [x] Only one primary assignment action is visible.
+- [x] Assignment selection works by pointer and keyboard without accidental navigation.
 - [x] Desktop and mobile layouts have no horizontal overflow.
 - [x] Public problem-bank navigation works in the local app.
 - [x] Browser console has no errors.

@@ -50,8 +50,11 @@ export default function StudentPage() {
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<number | null>(null);
 
   useEffect(() => onActiveStudentChange(() => setStudent(loadStudent())), []);
+
+  useEffect(() => setSelectedAssignmentId(null), [student?.id]);
 
   useEffect(() => {
     let ignore = false;
@@ -123,13 +126,16 @@ export default function StudentPage() {
 
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
   const progressFor = (assignment: Assignment) => progressByAssignmentId[assignment.id] ?? null;
-  const featuredAssignmentId = useMemo(
+  const recommendedAssignmentId = useMemo(
     () => visibleAssignments.find(assignment => {
       const progress = progressByAssignmentId[assignment.id];
       return assignment.status === "ACTIVE" && progress && progress.completedTasks > 0 && progress.completedTasks < progress.totalTasks;
     })?.id ?? visibleAssignments.find(assignment => assignment.status === "ACTIVE")?.id ?? visibleAssignments[0]?.id,
     [progressByAssignmentId, visibleAssignments]
   );
+  const featuredAssignmentId = visibleAssignments.some(assignment => assignment.id === selectedAssignmentId)
+    ? selectedAssignmentId
+    : recommendedAssignmentId;
   const inProgressAssignmentCount = visibleAssignments.filter(assignment => {
     const progress = progressByAssignmentId[assignment.id];
     return assignment.status === "ACTIVE" && progress && progress.completedTasks > 0 && progress.completedTasks < progress.totalTasks;
@@ -243,12 +249,22 @@ export default function StudentPage() {
                   const totalTasks = progress?.totalTasks ?? assignment.tasks?.length ?? 0;
                   const completedTasks = progress?.completedTasks ?? 0;
                   return (
-                    <Link
+                    <div
                       className={`student-entry-link student-assignment-row${featured ? " student-assignment-row--featured" : ""}`}
-                      to={`/app/student/assignments/${assignment.id}`}
                       key={assignment.id}
                       role="listitem"
+                      data-selected={featured ? "true" : "false"}
                     >
+                      <input
+                        className="student-assignment-row__selector"
+                        type="radio"
+                        name="student-assignment-selection"
+                        id={`student-assignment-${assignment.id}`}
+                        value={assignment.id}
+                        checked={featured}
+                        onChange={() => setSelectedAssignmentId(assignment.id)}
+                        aria-label={t("studentHome.dashboard.selectAssignment", { title: visibleAssignmentTitle(assignment) })}
+                      />
                       <span className="student-assignment-row__icon" aria-hidden="true">
                         {featured
                           ? <Play size={17} fill="currentColor" />
@@ -272,9 +288,15 @@ export default function StudentPage() {
                         <strong>{progress ? `${completedTasks}/${totalTasks}` : `-/${totalTasks}`}</strong>
                       </span>
                       {featured
-                        ? <span className="student-assignment-row__action">{t("studentHome.dashboard.continue")}</span>
+                        ? <Link
+                            className="student-assignment-row__action"
+                            to={`/app/student/assignments/${assignment.id}`}
+                            aria-label={t("studentHome.dashboard.continueAssignment", { title: visibleAssignmentTitle(assignment) })}
+                          >
+                            {t("studentHome.dashboard.continue")}
+                          </Link>
                         : <span aria-hidden="true" />}
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
