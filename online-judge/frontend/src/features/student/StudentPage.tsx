@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, ClipboardList, LogIn, RotateCcw } from "lucide-react";
+import { ArrowRight, BookOpen, CircleCheck, ClipboardList, Clock3, LogIn, Play, RotateCcw } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { Assignment, ClassGroup, ReviewCard, StudentAbilityProfile, StudentProfile } from "../../shared/api/types";
 import { verdictLabel } from "../../shared/format";
@@ -19,6 +19,22 @@ function reviewCardLink(card: ReviewCard, studentId: number) {
   return `/app/student/assignments/public/problems/${card.problemId}?studentProfileId=${studentId}`;
 }
 
+function formatAssignmentDate(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(parsed);
+}
+
 export default function StudentPage() {
   const { t } = useTranslation();
   const [student, setStudent] = useState<StudentProfile | null>(() => loadStudent());
@@ -30,35 +46,27 @@ export default function StudentPage() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
-  useEffect(() => {
-    return onActiveStudentChange(() => setStudent(loadStudent()));
-  }, [t]);
+  useEffect(() => onActiveStudentChange(() => setStudent(loadStudent())), []);
 
   useEffect(() => {
     let ignore = false;
     api.problemCatalog()
       .then(result => {
-        if (!ignore) {
-          setProblemCount(result.length);
-        }
+        if (!ignore) setProblemCount(result.length);
       })
       .catch(() => {
-        if (!ignore) {
-          setFailed(t("studentHome.errors.publicBank"));
-        }
+        if (!ignore) setFailed(t("studentHome.errors.publicBank"));
       });
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let ignore = false;
     api.studentClasses()
       .then(result => {
-        if (!ignore) {
-          setClasses(result);
-        }
+        if (!ignore) setClasses(result);
       })
       .catch(() => undefined);
     return () => {
@@ -79,35 +87,23 @@ export default function StudentPage() {
     setProfileLoading(true);
     api.studentAssignments(student.id)
       .then(result => {
-        if (!ignore) {
-          setAssignments(result);
-        }
+        if (!ignore) setAssignments(result);
       })
       .catch(() => {
-        if (!ignore) {
-          setFailed(t("studentHome.errors.assignments"));
-        }
+        if (!ignore) setFailed(t("studentHome.errors.assignments"));
       })
       .finally(() => {
-        if (!ignore) {
-          setAssignmentLoading(false);
-        }
+        if (!ignore) setAssignmentLoading(false);
       });
     api.studentAbilityProfile(student.id)
       .then(result => {
-        if (!ignore) {
-          setAbilityProfile(result);
-        }
+        if (!ignore) setAbilityProfile(result);
       })
       .catch(() => {
-        if (!ignore) {
-          setAbilityProfile(null);
-        }
+        if (!ignore) setAbilityProfile(null);
       })
       .finally(() => {
-        if (!ignore) {
-          setProfileLoading(false);
-        }
+        if (!ignore) setProfileLoading(false);
       });
     return () => {
       ignore = true;
@@ -115,62 +111,60 @@ export default function StudentPage() {
   }, [student, t]);
 
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
-  const reviewCards = useMemo(() => (abilityProfile?.reviewCards || []).slice(0, 3), [abilityProfile]);
+  const featuredAssignmentId = useMemo(
+    () => visibleAssignments.find(assignment => assignment.status === "ACTIVE")?.id ?? visibleAssignments[0]?.id,
+    [visibleAssignments]
+  );
+  const activeAssignmentCount = visibleAssignments.filter(assignment => assignment.status === "ACTIVE").length;
+  const closedAssignmentCount = visibleAssignments.filter(assignment => assignment.status === "CLOSED").length;
+  const reviewCard = abilityProfile?.reviewCards?.[0] || null;
   const fineFocus = abilityProfile?.fineGrainedProfile?.fineGrainedTagFocus?.[0]?.label || null;
   const abilityFocus = abilityProfile?.fineGrainedProfile?.abilityPointFocus?.[0]?.label || abilityProfile?.primaryAbilityFocus || null;
   const teacherByClassId = useMemo(() => {
     const lookup = new Map<number, string>();
     classes.forEach(item => {
-      if (item.teacherName) {
-        lookup.set(item.id, item.teacherName);
-      }
+      if (item.teacherName) lookup.set(item.id, item.teacherName);
     });
     return lookup;
   }, [classes]);
 
-  function assignmentDetails(assignment: Assignment) {
-    const taskCount = assignment.tasks?.length || 0;
-    return [
-      assignment.className,
-      t("studentHome.taskCount", { count: taskCount }),
-      assignment.classGroupId ? teacherByClassId.get(assignment.classGroupId) : null
-    ].filter(Boolean);
+  function assignmentStatus(assignment: Assignment) {
+    return assignment.status === "CLOSED"
+      ? t("studentHome.dashboard.closed")
+      : t("studentHome.dashboard.active");
   }
 
   return (
-    <div className="student-page student-home student-home--assignments">
+    <div className="student-page student-home student-home--assignments student-task-home">
       {failed && <div className="alert alert--error">{failed}</div>}
 
       <section className="student-home-command student-home-command--compact student-home-command--entry">
         <div>
           <p className="eyebrow">{t("studentHome.eyebrow")}</p>
           <h1>{t("studentHome.title")}</h1>
-          <p>{student ? t("studentHome.subtitleSignedIn", { name: student.displayName }) : t("studentHome.subtitleGuest")}</p>
+          <p>{student ? t("studentHome.dashboard.greeting", { name: student.displayName }) : t("studentHome.subtitleGuest")}</p>
         </div>
         <span className="student-home-command__note">
-          {student ? t("studentHome.noteSignedIn") : t("studentHome.noteGuest")}
+          {student
+            ? t("studentHome.dashboard.headerSummary", { total: visibleAssignments.length, active: activeAssignmentCount })
+            : t("studentHome.noteGuest")}
         </span>
       </section>
 
-      <nav id="assignments" className="student-entry-list" aria-label="学生入口">
-        <Link className="student-entry-link student-entry-link--primary" to="/app/student/assignments/public">
-          <span className="student-entry-link__icon" aria-hidden="true">
-            <BookOpen size={20} />
-          </span>
-          <span className="student-entry-link__main">
-            <strong>{t("studentHome.public.title")}</strong>
-            <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
-            <span>{t("studentHome.public.description")}</span>
-          </span>
-          <span className="student-entry-link__cta">{t("studentHome.public.cta")}</span>
-          <ArrowRight size={18} aria-hidden="true" />
-        </Link>
-
-        {!student ? (
-          <Link className="student-entry-link student-entry-link--secondary" to="/app/student/login">
-            <span className="student-entry-link__icon" aria-hidden="true">
-              <LogIn size={20} />
+      {!student ? (
+        <nav id="assignments" className="student-entry-list student-guest-entry" aria-label={t("studentHome.dashboard.entryAria")}>
+          <Link className="student-entry-link student-entry-link--primary" to="/app/student/assignments/public">
+            <span className="student-entry-link__icon" aria-hidden="true"><BookOpen size={20} /></span>
+            <span className="student-entry-link__main">
+              <strong>{t("studentHome.public.title")}</strong>
+              <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
+              <span>{t("studentHome.public.description")}</span>
             </span>
+            <span className="student-entry-link__cta">{t("studentHome.public.cta")}</span>
+            <ArrowRight size={18} aria-hidden="true" />
+          </Link>
+          <Link className="student-entry-link student-entry-link--secondary" to="/app/student/login">
+            <span className="student-entry-link__icon" aria-hidden="true"><LogIn size={20} /></span>
             <span className="student-entry-link__main">
               <strong>{t("studentHome.login.title")}</strong>
               <small>{t("studentHome.login.meta")}</small>
@@ -179,89 +173,105 @@ export default function StudentPage() {
             <span className="student-entry-link__cta">{t("studentHome.login.cta")}</span>
             <ArrowRight size={18} aria-hidden="true" />
           </Link>
-        ) : assignmentLoading ? (
-          <div className="student-entry-link student-entry-link--muted" role="status" aria-live="polite">
-            <span className="student-entry-link__icon" aria-hidden="true">
-              <ClipboardList size={20} />
-            </span>
-            <span className="student-entry-link__main">
-              <strong>{t("studentHome.loading.assignments")}</strong>
-              <small>{t("studentHome.loading.assignmentHint")}</small>
-            </span>
-          </div>
-        ) : visibleAssignments.length ? (
-          visibleAssignments.map(assignment => (
-            <Link className="student-entry-link student-entry-link--secondary" to={`/app/student/assignments/${assignment.id}`} key={assignment.id}>
-              <span className="student-entry-link__icon" aria-hidden="true">
-                <ClipboardList size={20} />
-              </span>
-              <span className="student-entry-link__main">
-                <strong>{visibleAssignmentTitle(assignment)}</strong>
-                <small>{assignmentDetails(assignment).join(" · ")}</small>
-                <span>{t("studentHome.assignment.description")}</span>
-              </span>
-              <span className="student-entry-link__cta">{t("studentHome.assignment.cta")}</span>
-              <ArrowRight size={18} aria-hidden="true" />
+        </nav>
+      ) : (
+        <>
+          <section id="assignments" className="student-assignment-board" aria-labelledby="student-assignment-heading">
+            <header className="student-assignment-board__head">
+              <span className="student-assignment-board__icon" aria-hidden="true"><ClipboardList size={20} /></span>
+              <div>
+                <h2 id="student-assignment-heading">{t("studentHome.dashboard.classroom")}</h2>
+                <p>{t("studentHome.dashboard.assignmentSummary", {
+                  total: visibleAssignments.length,
+                  active: activeAssignmentCount,
+                  closed: closedAssignmentCount
+                })}</p>
+              </div>
+            </header>
+
+            {assignmentLoading ? (
+              <div className="student-assignment-board__empty" role="status" aria-live="polite">
+                {t("studentHome.loading.assignments")}
+              </div>
+            ) : visibleAssignments.length ? (
+              <div className="student-assignment-table" role="list">
+                <div className="student-assignment-table__header" aria-hidden="true">
+                  <span>{t("studentHome.dashboard.assignmentName")}</span>
+                  <span>{t("studentHome.dashboard.className")}</span>
+                  <span>{t("studentHome.dashboard.status")}</span>
+                  <span>{t("studentHome.dashboard.problemCount")}</span>
+                  <span />
+                </div>
+                {visibleAssignments.map(assignment => {
+                  const featured = assignment.id === featuredAssignmentId;
+                  const deadline = formatAssignmentDate(assignment.endsAt);
+                  const teacher = assignment.classGroupId ? teacherByClassId.get(assignment.classGroupId) : null;
+                  return (
+                    <Link
+                      className={`student-entry-link student-assignment-row${featured ? " student-assignment-row--featured" : ""}`}
+                      to={`/app/student/assignments/${assignment.id}`}
+                      key={assignment.id}
+                      role="listitem"
+                    >
+                      <span className="student-assignment-row__icon" aria-hidden="true">
+                        {featured
+                          ? <Play size={17} fill="currentColor" />
+                          : assignment.status === "CLOSED" ? <CircleCheck size={19} /> : <ClipboardList size={19} />}
+                      </span>
+                      <span className="student-assignment-row__main">
+                        <strong>{visibleAssignmentTitle(assignment)}</strong>
+                        <small>{teacher || t("studentHome.assignment.description")}</small>
+                      </span>
+                      <span className="student-assignment-row__class">{assignment.className || t("studentHome.dashboard.unassignedClass")}</span>
+                      <span className="student-assignment-row__status">
+                        <span><i className={`student-assignment-row__dot student-assignment-row__dot--${assignment.status.toLowerCase()}`} />{assignmentStatus(assignment)}</span>
+                        {deadline ? <small><Clock3 size={13} aria-hidden="true" />{t("studentHome.dashboard.deadline", { value: deadline })}</small> : null}
+                      </span>
+                      <span className="student-assignment-row__count">{t("studentHome.taskCount", { count: assignment.tasks?.length || 0 })}</span>
+                      {featured
+                        ? <span className="student-assignment-row__action">{t("studentHome.dashboard.continue")}</span>
+                        : <span aria-hidden="true" />}
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="student-assignment-board__empty">
+                <strong>{t("studentHome.emptyAssignments.title")}</strong>
+                <span>{t("studentHome.emptyAssignments.meta")}</span>
+              </div>
+            )}
+          </section>
+
+          <section className="student-self-practice" aria-labelledby="student-practice-heading">
+            <header>
+              <span className="student-self-practice__icon" aria-hidden="true"><BookOpen size={19} /></span>
+              <h2 id="student-practice-heading">{t("studentHome.dashboard.selfPractice")}</h2>
+            </header>
+            <Link className="student-self-practice__row" to="/app/student/assignments/public">
+              <strong>{t("studentHome.public.title")}</strong>
+              <span>{problemCount !== null ? t("studentHome.dashboard.publicCount", { count: problemCount }) : t("studentHome.loading.publicBank")}</span>
+              <small>{t("studentHome.dashboard.publicHint")}</small>
+              <span className="student-self-practice__action">{t("studentHome.dashboard.browsePublic")}</span>
             </Link>
-          ))
-        ) : (
-          <div className="student-entry-link student-entry-link--muted">
-            <span className="student-entry-link__icon" aria-hidden="true">
-              <ClipboardList size={20} />
-            </span>
-            <span className="student-entry-link__main">
-              <strong>{t("studentHome.emptyAssignments.title")}</strong>
-              <small>{t("studentHome.emptyAssignments.meta")}</small>
-            </span>
-          </div>
-        )}
-      </nav>
+          </section>
+        </>
+      )}
 
       {student ? (
-        <section className="student-review-panel" aria-label={t("studentHome.review.aria")}>
-          <div className="student-review-panel__head">
-            <div>
-              <p className="eyebrow">{t("studentHome.review.eyebrow")}</p>
-              <h2>{t("studentHome.review.title")}</h2>
-            </div>
-            <span>
-              {profileLoading
-                ? t("studentHome.review.loading")
-                : abilityProfile?.failedSubmissionCount
-                  ? t("studentHome.review.failedCount", { count: abilityProfile.failedSubmissionCount })
-                  : t("studentHome.review.waiting")}
-            </span>
-          </div>
-
-          {abilityProfile?.fineGrainedProfile?.aiContextSummary || abilityFocus || fineFocus ? (
-            <div className="student-review-summary">
-              <strong>{abilityFocus || t("studentHome.review.profileBuilding")}</strong>
-              <p>{abilityProfile?.fineGrainedProfile?.aiContextSummary || t("studentHome.review.focusHint", { focus: fineFocus || abilityFocus || t("studentHome.review.profileBuilding") })}</p>
-            </div>
-          ) : null}
-
-          {reviewCards.length ? (
-            <div className="student-review-cards">
-              {reviewCards.map(card => (
-                <Link className="student-review-card" to={reviewCardLink(card, student.id)} key={card.submissionId}>
-                  <span className="student-review-card__icon">
-                    <RotateCcw size={17} aria-hidden="true" />
-                  </span>
-                  <span className="student-review-card__body">
-                    <strong>{card.problemTitle || `题目 #${card.problemId}`}</strong>
-                    <small>
-                      {[card.verdict ? verdictLabel(card.verdict) : null, card.primaryFineGrainedTag, card.abilityPoint]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </small>
-                    {card.nextAction ? <p>{card.nextAction}</p> : null}
-                  </span>
-                  <ArrowRight size={17} aria-hidden="true" />
-                </Link>
-              ))}
-            </div>
+        <section className="student-review-strip" aria-label={t("studentHome.review.aria")}>
+          <span className="student-review-strip__label"><RotateCcw size={16} aria-hidden="true" />{t("studentHome.dashboard.recentReview")}</span>
+          {reviewCard ? (
+            <Link to={reviewCardLink(reviewCard, student.id)}>
+              <strong>{reviewCard.problemTitle || `题目 #${reviewCard.problemId}`}</strong>
+              <small>{[
+                reviewCard.verdict ? verdictLabel(reviewCard.verdict) : null,
+                reviewCard.primaryFineGrainedTag || abilityFocus || fineFocus
+              ].filter(Boolean).join(" · ")}</small>
+              <span>{t("studentHome.dashboard.viewReview")}<ArrowRight size={15} aria-hidden="true" /></span>
+            </Link>
           ) : (
-            <div className="student-review-empty">
+            <div className="student-review-strip__empty">
               {profileLoading ? t("studentHome.review.organizing") : t("studentHome.review.empty")}
             </div>
           )}
