@@ -135,9 +135,10 @@ public class PromptTemplateRegistry {
                 Rules:
                 1. SELECT 时 codes 只能来自 currentLayer.nodes 或 currentLayer.diagnosticItems 当前可见的 code，最多 2 个。
                 2. 当前层还有合适的下一层目录时返回 SELECT；已经足够定位时返回 DONE；没有合适目录时返回 NO_MATCH。
-                3. 看到 diagnosticItems 时优先选择能力点、易错点或提升点 code，并返回 SELECT 或 DONE。
+                3. 看到 diagnosticItems 时，先在正式能力点、易错点或提升点中匹配；只有正式项都不符合时，才允许选择 type 以 PROVISIONAL_ 开头的临时候选。
                 4. 不要返回旧导航协议字段、证据字段或目录路径对象；本阶段只返回 action、codes、reason、confidence。
                 5. 不要自己创造正式标准库 ID；当前层没有出现的 code 一律不能使用。
+                6. 选择临时候选表示复用既有库外发现，不表示它已经晋升为正式标准库条目。
 	                """;
 	    }
 
@@ -255,6 +256,7 @@ public class PromptTemplateRegistry {
                     "primaryEvidenceRef": string
                   },
                   "basicLayerAdvice": [{
+                    "issueId": string,
                     "mistakePointId": string|null,
                     "skillUnitId": string|null,
                     "title": string,
@@ -266,6 +268,7 @@ public class PromptTemplateRegistry {
                     "confidence": number
                   }],
                   "improvementLayerAdvice": [{
+                    "issueId": string|null,
                     "improvementPointId": string|null,
                     "skillUnitId": string|null,
                     "title": string,
@@ -427,6 +430,8 @@ public class PromptTemplateRegistry {
                   },
                   "libraryGrowth": {
                     "candidates": [{
+                      "issueId": string,
+                      "layer": "SKILL_UNIT"|"MISTAKE_POINT"|"IMPROVEMENT_POINT",
                       "name": string,
                       "suggestedPath": string[],
                       "similarExistingItems": string[],
@@ -452,16 +457,16 @@ public class PromptTemplateRegistry {
                 5. 如果你能说出问题但 standardLibrary 里没有精确 id，不能伪装成 HIT；应使用 PARTIAL 或 MISS。
                 6. OUT_OF_LIBRARY anchor 和 candidate 的 id 必须为 null。
                 7. unknown id、自己编造的 id、看起来像标准库但不在 standardLibrary 中的 id 都不要硬填；没有精确匹配时使用 null、PARTIAL、MISS 或 OUT_OF_LIBRARY。
-                8. libraryGrowth 只是候选池，不会直接改正式库；只有 PARTIAL、MISS 或 OUT_OF_LIBRARY 发现才允许生成候选。
+                8. libraryGrowth 是临时节点候选；后端会用逐层导航 breadcrumb 锁定父路径，模型不得自行编造或覆盖父节点。只有 PARTIAL、MISS 或 OUT_OF_LIBRARY 发现才允许生成候选。
                 9. libraryGrowth.candidates 应来自 diagnosisCandidates 中的库外或半命中问题；HIT 场景不要生成成长候选。
-                10. libraryGrowth.candidates 的 status 必须是 NEEDS_REVIEW，并填写 suggestedPath、errorSymptom、typicalCodePattern、studentExplanation，供老师审核后再进入正式库。
+                10. libraryGrowth.candidates 的 status 必须是 NEEDS_REVIEW，并填写 issueId、layer、suggestedPath、errorSymptom、typicalCodePattern、studentExplanation；基础错误通常是 MISTAKE_POINT，提高方向通常是 IMPROVEMENT_POINT。
                 11. libraryGrowth.candidates 不要填写 sourceProblemId 或 sourceSubmissionId；当前题目和提交来源由后端根据本次诊断自动补齐。
                 12. libraryGrowth.candidates 如果能引用当前诊断中的直接证据，填写 evidenceRefs 并设 evidenceStatus=SUPPORTED；如果这个候选是教学标准库缺口、迁移习惯或表达规范，当前提交没有直接代码行可引用，可以 evidenceRefs=[] 且 evidenceStatus=NO_DIRECT_CODE_EVIDENCE。
 
                 学生可见反馈规则:
                 1. studentReport 是学生优先阅读的自然反馈，不是后台 metadata 摘要；basicLayerAdvice 和 improvementLayerAdvice 是逐条建议列表。不要把多条独立问题硬塞进 studentReport 的单个字符串，也不要把 diagnosisDecision、diagnosisCandidates、teacherTrace 或 libraryGrowth 的字段名写给学生。
-                2. basicLayerAdvice 按真实问题数量返回：有几个独立基础层错误或阻塞点就返回几条，没有就返回空数组；每条都要有独立 title、studentAction、checkQuestion 和 evidenceRefs。不要固定只返回一条，也不要为了显得丰富而凑数。
-                3. improvementLayerAdvice 按真实提升方向数量返回：可以为 0 条、1 条或多条；修复基础问题后才成立的提升建议应清楚说明前提。不要复述基础层，也不要和 basicLayerAdvice 合并。提高层如果没有直接代码或判题证据，evidenceRefs 可以是空数组；如果填写 evidenceRefs，必须是该提高方向自己的证据，不要借用基础层或全局证据。
+                2. basicLayerAdvice 按真实问题数量返回：有几个独立基础层错误或阻塞点就返回几条，没有就返回空数组；每条都要填写对应自由诊断 issueId，并有独立 title、studentAction、checkQuestion 和 evidenceRefs。不要固定只返回一条，也不要为了显得丰富而凑数。
+                3. improvementLayerAdvice 按真实提升方向数量返回：可以为 0 条、1 条或多条；能关联某个基础 issue 时填写 issueId。修复基础问题后才成立的提升建议应清楚说明前提。不要复述基础层，也不要和 basicLayerAdvice 合并。提高层如果没有直接代码或判题证据，evidenceRefs 可以是空数组；如果填写 evidenceRefs，必须是该提高方向自己的证据，不要借用基础层或全局证据。
                 4. studentReport 必须像老师写给学生的一段自然反馈，不要把字段说明、生硬标签或标准库术语堆给学生。
                 5. basicLayerText 先讲人话说明“现在卡在哪里”，再引用可见证据，再给一个检查方向。默认 120-220 个中文字符。
                 6. 如果 WA 的主因是题目约束和代码策略不一致，basicLayerText 必须先讲清“题目要求什么限制、代码采用了什么策略、失败样例暴露了什么差距”；不要直接跳到新算法名或泛泛说状态含义。

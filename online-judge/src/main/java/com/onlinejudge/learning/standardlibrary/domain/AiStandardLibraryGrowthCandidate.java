@@ -43,6 +43,9 @@ public class AiStandardLibraryGrowthCandidate {
     @Column(length = 800)
     private String suggestedPath;
 
+    @Column(length = 120)
+    private String parentKnowledgeNodeCode;
+
     private Long sourceProblemId;
 
     private Long sourceSubmissionId;

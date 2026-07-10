@@ -106,6 +106,7 @@ public class AiStandardLibraryGrowthCandidateController {
                 .suggestedName(request == null ? "" : request.getSuggestedName())
                 .layer(parseLayer(request == null ? null : request.getLayer()))
                 .suggestedPath(request == null ? List.of() : request.getSuggestedPath())
+                .parentKnowledgeNodeCode(request == null ? "" : request.getParentKnowledgeNodeCode())
                 .sourceProblemId(request == null ? null : request.getSourceProblemId())
                 .sourceSubmissionId(request == null ? null : request.getSourceSubmissionId())
                 .similarExistingItemCodes(request == null ? List.of() : request.getSimilarExistingItems())

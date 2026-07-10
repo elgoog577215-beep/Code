@@ -1,5 +1,8 @@
 package com.onlinejudge.learning.standardlibrary.application;
 
+import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
+import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
+
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidate;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidateStatus;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
@@ -31,6 +34,7 @@ public class AiStandardLibraryGrowthAgentService {
 
     private final AiStandardLibraryGrowthCandidateRepository candidateRepository;
     private final AiStandardLibraryService standardLibraryService;
+    private final InformaticsKnowledgeNodeRepository knowledgeNodeRepository;
     private final AiStandardLibraryGrowthProperties properties;
 
     @Transactional
@@ -43,9 +47,9 @@ public class AiStandardLibraryGrowthAgentService {
         );
         Optional<AiStandardLibraryGrowthCandidate> duplicateCandidate = layer == null || code.isBlank()
                 ? Optional.empty()
-                : candidateRepository.findByLayerAndSuggestedCode(layer, code);
+                : findDuplicate(layer, parentKnowledgeNodeCode(proposal), code);
         if (duplicateCandidate.isPresent()) {
-            return aggregateDuplicate(duplicateCandidate.get(), proposal);
+            return maybeAutoPromote(aggregateDuplicate(duplicateCandidate.get(), proposal));
         }
         List<String> precheckErrors = precheck(proposal, layer, code);
         AiStandardLibraryGrowthCandidateStatus status = precheckErrors.isEmpty()
@@ -57,6 +61,7 @@ public class AiStandardLibraryGrowthAgentService {
                 .suggestedCode(code.isBlank() ? "UNSPECIFIED_GROWTH_CANDIDATE" : code)
                 .suggestedName(requiredText(proposal == null ? "" : proposal.getSuggestedName(), "未命名标准库候选"))
                 .suggestedPath(joinPath(proposal == null ? null : proposal.getSuggestedPath()))
+                .parentKnowledgeNodeCode(parentKnowledgeNodeCode(proposal))
                 .sourceProblemId(proposal == null ? null : proposal.getSourceProblemId())
                 .sourceSubmissionId(proposal == null ? null : proposal.getSourceSubmissionId())
                 .similarExistingItems(joinLines(proposal == null ? null : proposal.getSimilarExistingItemCodes()))
@@ -72,7 +77,7 @@ public class AiStandardLibraryGrowthAgentService {
                 .diffSummary(diffSummary(proposal, status))
                 .rollbackInfo(rollbackInfo(status))
                 .build();
-        return candidateRepository.save(candidate);
+        return maybeAutoPromote(candidateRepository.save(candidate));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -114,8 +119,9 @@ public class AiStandardLibraryGrowthAgentService {
         AiStandardLibraryGrowthCandidate saved = propose(StandardLibraryGrowthProposal.builder()
                 .suggestedCode(suggestedCode(candidate))
                 .suggestedName(candidate.getName())
-                .layer(AiStandardLibraryLayer.MISTAKE_POINT)
+                .layer(growthLayer(candidate.getLayer()))
                 .suggestedPath(candidate.getSuggestedPath())
+                .parentKnowledgeNodeCode(candidate.getParentKnowledgeNodeCode())
                 .sourceProblemId(sourceProblemId == null ? candidate.getSourceProblemId() : sourceProblemId)
                 .sourceSubmissionId(sourceSubmissionId == null ? candidate.getSourceSubmissionId() : sourceSubmissionId)
                 .similarExistingItemCodes(candidate.getSimilarExistingItems())
@@ -132,6 +138,13 @@ public class AiStandardLibraryGrowthAgentService {
     }
 
     private boolean diagnosisAllowsGrowth(AdviceGenerationOutput output) {
+        if (output != null && output.getLibraryGrowth() != null
+                && output.getLibraryGrowth().getCandidates() != null
+                && output.getLibraryGrowth().getCandidates().stream()
+                .anyMatch(candidate -> candidate != null
+                        && !normalizeText(candidate.getParentKnowledgeNodeCode()).isBlank())) {
+            return true;
+        }
         AdviceGenerationOutput.DiagnosisDecision decision = output.getDiagnosisDecision();
         if (decision == null || decision.getLibraryFit() == null) {
             return true;
@@ -201,6 +214,10 @@ public class AiStandardLibraryGrowthAgentService {
         candidate.setSuggestedCode(code.isBlank() ? candidate.getSuggestedCode() : code);
         candidate.setSuggestedName(requiredText(proposal == null ? candidate.getSuggestedName() : proposal.getSuggestedName(), candidate.getSuggestedName()));
         candidate.setSuggestedPath(joinPath(proposal == null ? splitPath(candidate.getSuggestedPath()) : proposal.getSuggestedPath()));
+        String resolvedParentCode = proposal == null ? "" : parentKnowledgeNodeCode(proposal);
+        candidate.setParentKnowledgeNodeCode(resolvedParentCode.isBlank()
+                ? candidate.getParentKnowledgeNodeCode()
+                : resolvedParentCode);
         candidate.setSourceProblemId(proposal == null ? candidate.getSourceProblemId() : proposal.getSourceProblemId());
         candidate.setSourceSubmissionId(proposal == null ? candidate.getSourceSubmissionId() : proposal.getSourceSubmissionId());
         candidate.setSimilarExistingItems(joinLines(proposal == null ? lines(candidate.getSimilarExistingItems()) : proposal.getSimilarExistingItemCodes()));
@@ -267,6 +284,16 @@ public class AiStandardLibraryGrowthAgentService {
         if (candidate.getConfidence() == null || candidate.getConfidence() < properties.getAutoMergeMinConfidence()) {
             return markNeedsReview(candidate, "自动入库置信度不足。");
         }
+        if (!"SUPPORTED".equalsIgnoreCase(candidate.getEvidenceStatus())) {
+            return markNeedsReview(candidate, "自动入库缺少直接代码证据。");
+        }
+        if (candidate.getOccurrenceCount() == null
+                || candidate.getOccurrenceCount() < properties.getAutoMergeMinOccurrences()) {
+            return markNeedsReview(candidate, "自动入库出现次数不足。");
+        }
+        if (!hasValidKnowledgePointParent(candidate.getParentKnowledgeNodeCode())) {
+            return markNeedsReview(candidate, "自动入库缺少有效的正式知识点父节点。");
+        }
         return mergeToFormalLibrary(id, overrideProposal);
     }
 
@@ -318,6 +345,9 @@ public class AiStandardLibraryGrowthAgentService {
             }
             if (proposal.getSourceSubmissionId() != null) {
                 existing.setSourceSubmissionId(proposal.getSourceSubmissionId());
+            }
+            if (!normalizeText(proposal.getParentKnowledgeNodeCode()).isBlank()) {
+                existing.setParentKnowledgeNodeCode(normalizeText(proposal.getParentKnowledgeNodeCode()));
             }
         }
         existing.setEvidenceRefs(joinLines(mergeLines(lines(existing.getEvidenceRefs()),
@@ -438,7 +468,7 @@ public class AiStandardLibraryGrowthAgentService {
         }
         Optional<AiStandardLibraryGrowthCandidate> duplicateCandidate = layer == null || code.isBlank()
                 ? Optional.empty()
-                : candidateRepository.findByLayerAndSuggestedCode(layer, code);
+                : findDuplicate(layer, parentKnowledgeNodeCode(proposal), code);
         if (duplicateCandidate.isPresent()
                 && (currentCandidateId == null || !duplicateCandidate.get().getId().equals(currentCandidateId))) {
             errors.add("候选池已存在: " + layer + "/" + code);
@@ -500,6 +530,7 @@ public class AiStandardLibraryGrowthAgentService {
                 .suggestedName(candidate.getSuggestedName())
                 .layer(candidate.getLayer())
                 .suggestedPath(splitPath(candidate.getSuggestedPath()))
+                .parentKnowledgeNodeCode(candidate.getParentKnowledgeNodeCode())
                 .sourceProblemId(candidate.getSourceProblemId())
                 .sourceSubmissionId(candidate.getSourceSubmissionId())
                 .similarExistingItemCodes(lines(candidate.getSimilarExistingItems()))
@@ -515,7 +546,10 @@ public class AiStandardLibraryGrowthAgentService {
         String path = joinPath(proposal.getSuggestedPath());
         List<String> evidence = proposal.getEvidenceRefs() == null ? List.of() : proposal.getEvidenceRefs();
         GrowthDraft draft = growthDraft(proposal.getChangeReason());
-        List<String> knowledgeCodes = knowledgeNodeCodes(proposal.getSuggestedPath(), proposal.getSimilarExistingItemCodes());
+        List<String> knowledgeCodes = knowledgeNodeCodes(
+                proposal.getParentKnowledgeNodeCode(),
+                proposal.getSuggestedPath(),
+                proposal.getSimilarExistingItemCodes());
         String primaryKnowledgeCode = knowledgeCodes.stream().findFirst().orElse("");
         String description = requiredText(draft.errorSymptom(),
                 requiredText(proposal.getChangeReason(), "由 AI 诊断发现并经门禁写入的细颗粒标准库条目。"));
@@ -587,7 +621,13 @@ public class AiStandardLibraryGrowthAgentService {
         return "SK_AI_GROWTH_REVIEW";
     }
 
-    private List<String> knowledgeNodeCodes(List<String> path, List<String> similarItems) {
+    private List<String> knowledgeNodeCodes(String parentKnowledgeNodeCode,
+                                            List<String> path,
+                                            List<String> similarItems) {
+        String parentCode = normalizeText(parentKnowledgeNodeCode);
+        if (hasValidKnowledgePointParent(parentCode)) {
+            return List.of(parentCode);
+        }
         Optional<AiStandardLibraryItem> similar = findSimilarFormalItem(similarItems);
         if (similar.isPresent()) {
             List<String> inherited = lines(similar.get().getKnowledgeNodeCodes());
@@ -786,17 +826,92 @@ public class AiStandardLibraryGrowthAgentService {
     }
 
     private String suggestedCode(AdviceGenerationOutput.LibraryGrowthCandidate candidate) {
-        String pathCode = candidate.getSuggestedPath() == null || candidate.getSuggestedPath().isEmpty()
+        AiStandardLibraryLayer layer = growthLayer(candidate.getLayer());
+        String prefix = layer == AiStandardLibraryLayer.IMPROVEMENT_POINT ? "IP_" : "MP_";
+        String readablePath = candidate.getSuggestedPath() == null
                 ? ""
-                : String.join("_", candidate.getSuggestedPath());
-        String normalized = normalizeCode(pathCode);
+                : String.join("_", candidate.getSuggestedPath()).toUpperCase(Locale.ROOT);
+        if (readablePath.matches("[A-Z0-9_]+") && readablePath.length() <= 108) {
+            return readablePath.startsWith(prefix) ? readablePath : prefix + readablePath;
+        }
+        String stableSource = normalizeText(candidate.getParentKnowledgeNodeCode())
+                + "|" + normalizeText(candidate.getName())
+                + "|" + joinPath(candidate.getSuggestedPath());
+        return prefix + "AI_"
+                + Integer.toUnsignedString(stableSource.hashCode(), 36).toUpperCase(Locale.ROOT);
+    }
+
+    private AiStandardLibraryLayer growthLayer(String value) {
+        String normalized = normalizeText(value).toUpperCase(Locale.ROOT);
+        if ("IMPROVEMENT_POINT".equals(normalized)) {
+            return AiStandardLibraryLayer.IMPROVEMENT_POINT;
+        }
+        if ("SKILL_UNIT".equals(normalized)) {
+            return AiStandardLibraryLayer.SKILL_UNIT;
+        }
+        return AiStandardLibraryLayer.MISTAKE_POINT;
+    }
+
+    private String parentKnowledgeNodeCode(StandardLibraryGrowthProposal proposal) {
+        String explicit = normalizeText(proposal == null ? null : proposal.getParentKnowledgeNodeCode());
+        if (!explicit.isBlank()) {
+            return explicit;
+        }
+        List<String> path = proposal == null || proposal.getSuggestedPath() == null
+                ? List.of()
+                : proposal.getSuggestedPath().stream()
+                .map(this::normalizeText)
+                .filter(value -> !value.isBlank())
+                .toList();
+        for (int end = path.size(); end > 0; end--) {
+            String candidateCode = String.join(".", path.subList(0, end)).toUpperCase(Locale.ROOT);
+            if (hasValidKnowledgePointParent(candidateCode)) {
+                return candidateCode;
+            }
+        }
+        return "";
+    }
+
+    private Optional<AiStandardLibraryGrowthCandidate> findDuplicate(AiStandardLibraryLayer layer,
+                                                                      String parentKnowledgeNodeCode,
+                                                                      String code) {
+        String parentCode = normalizeText(parentKnowledgeNodeCode);
+        Optional<AiStandardLibraryGrowthCandidate> scoped = candidateRepository
+                .findByLayerAndParentKnowledgeNodeCodeAndSuggestedCode(
+                layer,
+                parentCode,
+                code);
+        if (scoped.isPresent() || !parentCode.isBlank()) {
+            return scoped;
+        }
+        return candidateRepository.findByLayerAndSuggestedCode(layer, code);
+    }
+
+    private boolean hasValidKnowledgePointParent(String code) {
+        String normalized = normalizeText(code);
         if (normalized.isBlank()) {
-            normalized = normalizeCode(candidate.getName());
+            return false;
         }
-        if (normalized.startsWith("MP_")) {
-            return normalized;
+        return knowledgeNodeRepository.findByCode(normalized)
+                .filter(node -> node.isEnabled() && node.getType() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
+                .isPresent();
+    }
+
+    private AiStandardLibraryGrowthCandidate maybeAutoPromote(AiStandardLibraryGrowthCandidate candidate) {
+        if (candidate == null
+                || !properties.isEnabled()
+                || !properties.isAutoMergeEnabled()
+                || candidate.getStatus() == AiStandardLibraryGrowthCandidateStatus.MERGED
+                || candidate.getStatus() == AiStandardLibraryGrowthCandidateStatus.TEACHER_APPROVED
+                || candidate.getConfidence() == null
+                || candidate.getConfidence() < properties.getAutoMergeMinConfidence()
+                || candidate.getOccurrenceCount() == null
+                || candidate.getOccurrenceCount() < properties.getAutoMergeMinOccurrences()
+                || !"SUPPORTED".equalsIgnoreCase(candidate.getEvidenceStatus())
+                || !hasValidKnowledgePointParent(candidate.getParentKnowledgeNodeCode())) {
+            return candidate;
         }
-        return "MP_" + normalized;
+        return mergeToFormalLibrary(candidate.getId(), null);
     }
 
     private String growthChangeReason(AdviceGenerationOutput.LibraryGrowthCandidate candidate) {

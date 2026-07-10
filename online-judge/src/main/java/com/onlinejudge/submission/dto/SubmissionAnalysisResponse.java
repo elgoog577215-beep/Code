@@ -287,6 +287,7 @@ public class SubmissionAnalysisResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class BasicLayerAdvice {
+        private String issueId;
         private String mistakePointId;
         private String skillUnitId;
         private String title;
@@ -296,6 +297,9 @@ public class SubmissionAnalysisResponse {
         private String checkQuestion;
         private List<String> evidenceRefs;
         private Double confidence;
+        private List<String> knowledgePath;
+        private String knowledgePathStatus;
+        private String provisionalNodeCode;
     }
 
     @Data
@@ -303,6 +307,7 @@ public class SubmissionAnalysisResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ImprovementLayerAdvice {
+        private String issueId;
         private String improvementPointId;
         private String skillUnitId;
         private String title;
@@ -311,6 +316,9 @@ public class SubmissionAnalysisResponse {
         private String studentBenefit;
         private List<String> evidenceRefs;
         private Double confidence;
+        private List<String> knowledgePath;
+        private String knowledgePathStatus;
+        private String provisionalNodeCode;
     }
 
     @Data

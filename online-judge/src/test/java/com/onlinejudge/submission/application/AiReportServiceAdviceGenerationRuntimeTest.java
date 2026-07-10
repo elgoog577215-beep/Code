@@ -103,6 +103,17 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
         assertThat(analysis.getAiInvocation().getStandardLibraryNavigationSelectedCount()).isGreaterThan(0);
+        assertThat(analysis.getBasicLayerAdvice()).singleElement().satisfies(advice -> {
+            assertThat(advice.getKnowledgePathStatus()).isEqualTo("FORMAL");
+            assertThat(advice.getKnowledgePath())
+                    .containsExactly(
+                            "基础语法",
+                            "循环结构",
+                            "循环边界",
+                            "闭区间循环边界",
+                            "闭区间与 range 边界对应",
+                            "右端点漏取");
+        });
     }
 
     @Test
@@ -656,6 +667,47 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("NO_MATCH");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
         assertThat(analysis.getBasicLayerAdvice()).hasSize(1);
+    }
+
+    @Test
+    void noDiagnosticMatchCreatesProvisionalAdviceUnderLastKnowledgePoint() {
+        StubAiReportService service = newServiceWithNavigationSequence(
+                deepNavigationLibraryService(),
+                List.of(
+                        attachmentSelectResponse("BASIC"),
+                        attachmentSelectResponse("BASIC.LOOP"),
+                        attachmentSelectResponse("BASIC.LOOP.BOUNDARY"),
+                        attachmentSelectResponse("BASIC.LOOP.BOUNDARY.CLOSED_INTERVAL"),
+                        """
+                        {
+                          "action": "NO_MATCH",
+                          "codes": [],
+                          "reason": "正式诊断层没有匹配这个细颗粒问题。",
+                          "confidence": 0.82
+                        }
+                        """
+                ),
+                validAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(analysis.getBasicLayerAdvice()).singleElement().satisfies(advice -> {
+            assertThat(advice.getKnowledgePathStatus()).isEqualTo("PROVISIONAL");
+            assertThat(advice.getProvisionalNodeCode()).startsWith("MP_AI_");
+            assertThat(advice.getKnowledgePath())
+                    .containsExactly("基础语法", "循环结构", "循环边界", "闭区间循环边界", "循环右边界漏取");
+        });
+        assertThat(analysis.getImprovementLayerAdvice()).singleElement().satisfies(advice -> {
+            assertThat(advice.getKnowledgePathStatus()).isEqualTo("PROVISIONAL");
+            assertThat(advice.getProvisionalNodeCode()).startsWith("IP_AI_");
+            assertThat(advice.getKnowledgePath()).endsWith("补充边界样例意识");
+        });
     }
 
     @Test

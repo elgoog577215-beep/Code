@@ -15,6 +15,7 @@ import type {
   SubmissionResult
 } from "../../shared/api/types";
 import { difficultyLabel, verdictLabel } from "../../shared/format";
+import { useTranslation } from "../../shared/i18n";
 import { clearDraft, loadDraft, loadStudent, saveDraft, saveLastPublicProblem } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -320,20 +321,20 @@ function evidenceLineFromItem(item?: StudentAiFeedbackItem | null) {
   return ref ? Number(ref.split(":").pop()) : null;
 }
 
-function evidenceRefKindLabel(ref: string) {
+function evidenceRefKindKey(ref: string) {
   if (ref.startsWith("judge:")) {
-    return "评测结果";
+    return "feedbackMeta.evidenceKinds.judge";
   }
   if (ref.startsWith("problem:")) {
-    return "题面信息";
+    return "feedbackMeta.evidenceKinds.problem";
   }
   if (ref.startsWith("verdict:")) {
-    return "运行结果";
+    return "feedbackMeta.evidenceKinds.verdict";
   }
   if (ref.startsWith("source:")) {
-    return "提交代码";
+    return "feedbackMeta.evidenceKinds.source";
   }
-  return "分析证据";
+  return "feedbackMeta.evidenceKinds.analysis";
 }
 
 function splitFeedbackSentence(text: string, maxChars = 74) {
@@ -407,7 +408,12 @@ function FeedbackEvidenceMeta({
   onJumpToLine: (line: number) => void;
   showEmptyEvidence?: boolean;
 }) {
+  const { t } = useTranslation();
   const knowledgePath = item?.knowledgePath?.filter(Boolean).slice(0, 5) || [];
+  const pathStatus = (item?.knowledgePathStatus || (knowledgePath.length ? "INFERRED" : "UNCLASSIFIED")).toUpperCase();
+  const pathStatusKey = ["FORMAL", "PROVISIONAL", "INFERRED", "UNCLASSIFIED"].includes(pathStatus)
+    ? pathStatus.toLowerCase()
+    : "unclassified";
   const snippets = item?.evidenceSnippets?.filter(snippet => snippet.code && snippet.lineNumber).slice(0, 3) || [];
   const evidenceRefs = item?.evidenceRefs?.filter(Boolean).slice(0, 4) || [];
   const fallbackLine = evidenceLineFromItem(item);
@@ -416,51 +422,60 @@ function FeedbackEvidenceMeta({
   }
   return (
     <div className="student-feedback-meta">
-      {knowledgePath.length ? (
-        <div className="student-feedback-knowledge" aria-label="知识点路径">
-          <span className="student-feedback-meta__label">知识路径</span>
-          <div className="student-feedback-knowledge__path">
+      <div className={`student-feedback-knowledge student-feedback-knowledge--${pathStatusKey}`} aria-label={t("feedbackMeta.knowledgePathAria")}>
+        <div className="student-feedback-meta__head">
+          <span className="student-feedback-meta__label">{t("feedbackMeta.knowledgePath")}</span>
+          <span className="student-feedback-knowledge__status">{t(`feedbackMeta.pathStatus.${pathStatusKey}`)}</span>
+        </div>
+        {knowledgePath.length ? (
+          <nav className="student-feedback-knowledge__path" aria-label={t("feedbackMeta.knowledgePathAria")}>
             {knowledgePath.map((segment, index) => (
               <span key={`${segment}-${index}`}>
                 {index > 0 ? <i aria-hidden="true">›</i> : null}
                 <b>{segment}</b>
               </span>
             ))}
-          </div>
-        </div>
-      ) : null}
+          </nav>
+        ) : (
+          <p className="student-feedback-knowledge__empty">{t("feedbackMeta.noKnowledgePath")}</p>
+        )}
+      </div>
       {snippets.length ? (
-        <div className="student-feedback-evidence" aria-label="错误证据">
-          <span className="student-feedback-meta__label">代码证据</span>
+        <div className="student-feedback-evidence" aria-label={t("feedbackMeta.codeEvidenceAria")}>
+          <span className="student-feedback-meta__label">{t("feedbackMeta.codeEvidence")}</span>
           {snippets.map(snippet => (
             <button
               type="button"
               key={snippet.evidenceRef || `${snippet.lineNumber}-${snippet.code}`}
-              title="点击后回到编辑器并高亮这行代码"
+              title={t("feedbackMeta.jumpToCode")}
               onClick={() => snippet.lineNumber && onJumpToLine(snippet.lineNumber)}
             >
-              <span>{snippet.lineEnd && snippet.lineEnd !== snippet.lineNumber ? `第 ${snippet.lineNumber}-${snippet.lineEnd} 行` : `第 ${snippet.lineNumber} 行`}</span>
+              <span>{snippet.lineEnd && snippet.lineEnd !== snippet.lineNumber
+                ? t("feedbackMeta.lineRange", { start: snippet.lineNumber || "", end: snippet.lineEnd })
+                : t("feedbackMeta.line", { line: snippet.lineNumber || "" })}</span>
               <code>{snippet.code}</code>
             </button>
           ))}
         </div>
       ) : fallbackLine ? (
-        <div className="student-feedback-evidence" aria-label="错误证据">
-          <span className="student-feedback-meta__label">代码证据</span>
-          <button type="button" title="点击后回到编辑器并高亮这行代码" onClick={() => onJumpToLine(fallbackLine)}>
-            <span>第 {fallbackLine} 行</span>
-            <code>查看对应代码位置</code>
+        <div className="student-feedback-evidence" aria-label={t("feedbackMeta.codeEvidenceAria")}>
+          <span className="student-feedback-meta__label">{t("feedbackMeta.codeEvidence")}</span>
+          <button type="button" title={t("feedbackMeta.jumpToCode")} onClick={() => onJumpToLine(fallbackLine)}>
+            <span>{t("feedbackMeta.line", { line: fallbackLine })}</span>
+            <code>{t("feedbackMeta.viewCode")}</code>
           </button>
         </div>
       ) : evidenceRefs.length ? (
-        <div className="student-feedback-evidence student-feedback-evidence--empty" aria-label="证据依据">
-          <span className="student-feedback-meta__label">证据依据</span>
-          <em>{Array.from(new Set(evidenceRefs.map(evidenceRefKindLabel))).join("、")}，暂无可跳转代码行。</em>
+        <div className="student-feedback-evidence student-feedback-evidence--empty" aria-label={t("feedbackMeta.evidenceBasis")}>
+          <span className="student-feedback-meta__label">{t("feedbackMeta.evidenceBasis")}</span>
+          <em>{t("feedbackMeta.noJumpableLine", {
+            evidence: Array.from(new Set(evidenceRefs.map(ref => t(evidenceRefKindKey(ref))))).join(t("feedbackMeta.listSeparator"))
+          })}</em>
         </div>
       ) : (
-        <div className="student-feedback-evidence student-feedback-evidence--empty" aria-label="错误证据">
-          <span className="student-feedback-meta__label">代码证据</span>
-          <em>本条建议暂无可定位代码证据。</em>
+        <div className="student-feedback-evidence student-feedback-evidence--empty" aria-label={t("feedbackMeta.codeEvidenceAria")}>
+          <span className="student-feedback-meta__label">{t("feedbackMeta.codeEvidence")}</span>
+          <em>{t("feedbackMeta.noCodeEvidence")}</em>
         </div>
       )}
     </div>
@@ -1324,7 +1339,7 @@ export default function ProblemPage() {
                           <div className="student-feedback-secondary-list" aria-label="逐条检查">
                             <span>逐条检查</span>
                             {repairViewItems.map((item, index) => (
-                              <article key={`${item.kind || "repair-extra"}-${index}`}>
+                              <article className={`student-feedback-item${index === 0 ? " student-feedback-item--primary" : ""}`} key={`${item.kind || "repair-extra"}-${index}`}>
                                 {item.title && <strong>{item.title}</strong>}
                                 <FeedbackTextBlock text={item.body} maxLines={2} />
                                 <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} showEmptyEvidence />
@@ -1378,7 +1393,7 @@ export default function ProblemPage() {
                           <div className="student-feedback-secondary-list" aria-label="逐条提升">
                             <span>逐条提升</span>
                             {improvementViewItems.map((item, index) => (
-                              <article key={`${item.kind || "growth-extra"}-${index}`}>
+                              <article className="student-feedback-item student-feedback-item--growth" key={`${item.kind || "growth-extra"}-${index}`}>
                                 {item.title && <strong>{item.title}</strong>}
                                 <FeedbackTextBlock text={item.body} maxLines={2} />
                                 <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} showEmptyEvidence />
@@ -1396,7 +1411,7 @@ export default function ProblemPage() {
                       <div className="student-feedback-list">
                         {improvementViewItems.map((item, index) => (
                           <article className="student-feedback-item student-feedback-item--growth" key={`${item.kind || "improvement"}-${index}`}>
-                            {item.title && <span>{item.title}</span>}
+                            {item.title && <strong>{item.title}</strong>}
                             <FeedbackTextBlock text={item.body} maxLines={2} />
                             <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} showEmptyEvidence />
                           </article>

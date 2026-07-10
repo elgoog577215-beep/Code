@@ -10,6 +10,7 @@ public class AiStandardLibraryGrowthCandidateRequest {
     private String suggestedCode;
     private String suggestedName;
     private List<String> suggestedPath;
+    private String parentKnowledgeNodeCode;
     private Long sourceProblemId;
     private Long sourceSubmissionId;
     private List<String> evidenceRefs;

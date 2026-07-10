@@ -33,6 +33,34 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         dark: "夜间"
       }
     },
+    feedbackMeta: {
+      knowledgePath: "知识路径",
+      knowledgePathAria: "建议对应的知识路径",
+      noKnowledgePath: "标准库暂未找到可归属的知识路径。",
+      codeEvidence: "代码证据",
+      codeEvidenceAria: "建议对应的代码证据",
+      evidenceBasis: "证据依据",
+      jumpToCode: "回到编辑器并高亮对应代码行",
+      viewCode: "查看对应代码位置",
+      line: "第 {{line}} 行",
+      lineRange: "第 {{start}}-{{end}} 行",
+      noJumpableLine: "{{evidence}}，暂无可跳转代码行。",
+      noCodeEvidence: "本条建议暂无可定位代码证据。",
+      listSeparator: "、",
+      pathStatus: {
+        formal: "正式标准库",
+        provisional: "临时知识点",
+        inferred: "历史推断",
+        unclassified: "暂未归类"
+      },
+      evidenceKinds: {
+        judge: "评测结果",
+        problem: "题面信息",
+        verdict: "运行结果",
+        source: "提交代码",
+        analysis: "分析证据"
+      }
+    },
     routeHub: {
       eyebrow: "入口",
       title: "学习平台",
@@ -715,7 +743,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         governance: {
           eyebrow: "标准库人工治理",
           title: "候选审核工作台",
-          description: "AI 只提出候选；老师在这里确认、修正、合并或拒绝，正式库不会被自动污染。",
+          description: "新候选先以临时节点参与诊断；满足父路径、证据、置信度和重复次数门禁后自动晋升，老师仍可审核、修正或拒绝。",
           pendingCount: "待处理 {{count}}",
           refresh: "刷新候选",
           summaryAria: "人工治理摘要",
@@ -787,6 +815,34 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         toDark: "Switch to dark mode",
         light: "Light",
         dark: "Dark"
+      }
+    },
+    feedbackMeta: {
+      knowledgePath: "Knowledge path",
+      knowledgePathAria: "Knowledge path for this suggestion",
+      noKnowledgePath: "No suitable standard-library path has been found yet.",
+      codeEvidence: "Code evidence",
+      codeEvidenceAria: "Code evidence for this suggestion",
+      evidenceBasis: "Evidence basis",
+      jumpToCode: "Return to the editor and highlight this code line",
+      viewCode: "View the related code",
+      line: "Line {{line}}",
+      lineRange: "Lines {{start}}-{{end}}",
+      noJumpableLine: "{{evidence}}; no jumpable code line is available.",
+      noCodeEvidence: "This suggestion has no locatable code evidence yet.",
+      listSeparator: ", ",
+      pathStatus: {
+        formal: "Formal library",
+        provisional: "Provisional node",
+        inferred: "Legacy inference",
+        unclassified: "Unclassified"
+      },
+      evidenceKinds: {
+        judge: "Judge result",
+        problem: "Problem statement",
+        verdict: "Run result",
+        source: "Submitted code",
+        analysis: "Analysis evidence"
       }
     },
     routeHub: {
@@ -1471,7 +1527,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         governance: {
           eyebrow: "Standard Library Governance",
           title: "Candidate Review Workbench",
-          description: "AI only proposes candidates; teachers confirm, revise, merge, or reject them before the formal library changes.",
+          description: "New candidates begin as provisional nodes. They promote automatically only after parent-path, evidence, confidence, and repetition gates pass; teachers can still review, edit, or reject them.",
           pendingCount: "Pending {{count}}",
           refresh: "Refresh candidates",
           summaryAria: "Governance summary",

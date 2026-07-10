@@ -14,6 +14,21 @@ public class AiStandardLibraryDiagnosticLayerResponse {
     private AiStandardLibraryNavigationNodeResponse knowledgePoint;
     private List<SkillUnit> skillUnits;
     private List<ImprovementPoint> directImprovementPoints;
+    private List<ProvisionalCandidate> provisionalCandidates;
+
+    @Data
+    @Builder
+    public static class ProvisionalCandidate {
+        private String code;
+        private String name;
+        private String layer;
+        private String parentKnowledgeNodeCode;
+        private List<String> suggestedPath;
+        private String description;
+        private Double confidence;
+        private Integer occurrenceCount;
+        private boolean provisional;
+    }
 
     @Data
     @Builder

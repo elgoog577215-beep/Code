@@ -255,7 +255,12 @@ public class StudentAiFeedbackService {
                     .skillUnitId(cleanId(advice.getSkillUnitId()))
                     .mistakePointId(cleanId(advice.getMistakePointId()))
                     .libraryFit(libraryFit(analysis))
-                    .knowledgePath(knowledgePathForRepair(advice.getSkillUnitId(), advice.getMistakePointId(), title, body, analysis))
+                    .knowledgePath(repairKnowledgePath(advice, title, body, analysis))
+                    .knowledgePathStatus(pathStatus(
+                            advice.getKnowledgePathStatus(),
+                            advice.getSkillUnitId(),
+                            advice.getMistakePointId()))
+                    .provisionalNodeCode(cleanId(advice.getProvisionalNodeCode()))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
@@ -279,6 +284,7 @@ public class StudentAiFeedbackService {
                     .mistakePointId(cleanId(issue.getFineGrainedTag()))
                     .libraryFit(libraryFit(analysis))
                     .knowledgePath(knowledgePathFallback(issue.getIssueTag(), issue.getFineGrainedTag(), title))
+                    .knowledgePathStatus("INFERRED")
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("evidence_grounded", "actionable", "no_answer_leak"))
@@ -303,7 +309,12 @@ public class StudentAiFeedbackService {
                     .skillUnitId(cleanId(advice.getSkillUnitId()))
                     .improvementPointId(cleanId(advice.getImprovementPointId()))
                     .libraryFit(libraryFit(analysis))
-                    .knowledgePath(knowledgePathForImprovement(advice.getSkillUnitId(), advice.getImprovementPointId(), title, body, analysis))
+                    .knowledgePath(improvementKnowledgePath(advice, title, body, analysis))
+                    .knowledgePathStatus(pathStatus(
+                            advice.getKnowledgePathStatus(),
+                            advice.getSkillUnitId(),
+                            advice.getImprovementPointId()))
+                    .provisionalNodeCode(cleanId(advice.getProvisionalNodeCode()))
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("transfer"))
@@ -326,6 +337,7 @@ public class StudentAiFeedbackService {
                     .improvementPointId(cleanId(item.getCategory()))
                     .libraryFit(libraryFit(analysis))
                     .knowledgePath(knowledgePathFallback(item.getCategory(), title))
+                    .knowledgePathStatus("INFERRED")
                     .evidenceRefs(refs)
                     .evidenceSnippets(evidenceSnippets(refs, submission))
                     .qualitySignals(List.of("transfer"))
@@ -427,6 +439,25 @@ public class StudentAiFeedbackService {
         return knowledgePathFallback(skillCode, mistakeCode, inferredKnowledgeTitle(title, body, analysis));
     }
 
+    private List<String> repairKnowledgePath(SubmissionAnalysisResponse.BasicLayerAdvice advice,
+                                             String title,
+                                             String body,
+                                             SubmissionAnalysisResponse analysis) {
+        String status = clean(advice == null ? null : advice.getKnowledgePathStatus()).toUpperCase();
+        if ("PROVISIONAL".equals(status)) {
+            return cleanPath(advice.getKnowledgePath());
+        }
+        if ("UNCLASSIFIED".equals(status)) {
+            return List.of();
+        }
+        return knowledgePathForRepair(
+                advice == null ? null : advice.getSkillUnitId(),
+                advice == null ? null : advice.getMistakePointId(),
+                title,
+                body,
+                analysis);
+    }
+
     private List<String> knowledgePathForImprovement(String skillUnitId,
                                                      String improvementPointId,
                                                      String title,
@@ -451,6 +482,47 @@ public class StudentAiFeedbackService {
             return path.isEmpty() ? knowledgePathFallback(skillCode, improvementCode) : List.copyOf(path);
         }
         return knowledgePathFallback(skillCode, improvementCode, inferredKnowledgeTitle(title, body, analysis));
+    }
+
+    private List<String> improvementKnowledgePath(SubmissionAnalysisResponse.ImprovementLayerAdvice advice,
+                                                  String title,
+                                                  String body,
+                                                  SubmissionAnalysisResponse analysis) {
+        String status = clean(advice == null ? null : advice.getKnowledgePathStatus()).toUpperCase();
+        if ("PROVISIONAL".equals(status)) {
+            return cleanPath(advice.getKnowledgePath());
+        }
+        if ("UNCLASSIFIED".equals(status)) {
+            return List.of();
+        }
+        return knowledgePathForImprovement(
+                advice == null ? null : advice.getSkillUnitId(),
+                advice == null ? null : advice.getImprovementPointId(),
+                title,
+                body,
+                analysis);
+    }
+
+    private String pathStatus(String explicitStatus, String... formalIds) {
+        String normalized = clean(explicitStatus).toUpperCase();
+        if (Set.of("FORMAL", "PROVISIONAL", "INFERRED", "UNCLASSIFIED").contains(normalized)) {
+            return normalized;
+        }
+        return Arrays.stream(formalIds == null ? new String[0] : formalIds)
+                .map(this::clean)
+                .anyMatch(value -> !value.isBlank())
+                ? "FORMAL"
+                : "INFERRED";
+    }
+
+    private List<String> cleanPath(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+                .map(this::clean)
+                .filter(value -> !value.isBlank())
+                .toList();
     }
 
     private void addSkillName(LinkedHashSet<String> path, String skillCode) {
@@ -965,7 +1037,17 @@ public class StudentAiFeedbackService {
 
     private void hydrateKnowledgePaths(List<StudentAiFeedbackResponse.FeedbackItem> items, boolean repairLayer) {
         for (StudentAiFeedbackResponse.FeedbackItem item : safe(items)) {
-            if (item == null || !safe(item.getKnowledgePath()).isEmpty()) {
+            if (item == null) {
+                continue;
+            }
+            if (!clean(item.getKnowledgePathStatus()).isBlank()) {
+                continue;
+            }
+            if (!safe(item.getKnowledgePath()).isEmpty()) {
+                item.setKnowledgePathStatus(pathStatus(
+                        null,
+                        item.getSkillUnitId(),
+                        repairLayer ? item.getMistakePointId() : item.getImprovementPointId()));
                 continue;
             }
             String title = clean(item.getTitle());
@@ -980,6 +1062,10 @@ public class StudentAiFeedbackService {
                     ? knowledgePathForImprovement(item.getSkillUnitId(), item.getImprovementPointId(), title, body, null)
                     : knowledgePathForRepair(item.getSkillUnitId(), item.getMistakePointId(), title, body, null);
             item.setKnowledgePath(path);
+            item.setKnowledgePathStatus(pathStatus(
+                    null,
+                    item.getSkillUnitId(),
+                    improvement ? item.getImprovementPointId() : item.getMistakePointId()));
         }
     }
 

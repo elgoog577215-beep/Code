@@ -155,8 +155,11 @@ public class AdviceGenerationOutput {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class LibraryGrowthCandidate {
+        private String issueId;
+        private String layer;
         private String name;
         private List<String> suggestedPath;
+        private String parentKnowledgeNodeCode;
         private Long sourceProblemId;
         private Long sourceSubmissionId;
         private List<String> similarExistingItems;
@@ -190,6 +193,7 @@ public class AdviceGenerationOutput {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class BasicLayerAdvice {
+        private String issueId;
         private String mistakePointId;
         private String skillUnitId;
         private String text;
@@ -203,6 +207,9 @@ public class AdviceGenerationOutput {
         private String checkQuestion;
         private List<String> evidenceRefs;
         private Double confidence;
+        private List<String> knowledgePath;
+        private String knowledgePathStatus;
+        private String provisionalNodeCode;
 
         @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
         public static BasicLayerAdvice fromString(String value) {
@@ -219,6 +226,7 @@ public class AdviceGenerationOutput {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ImprovementLayerAdvice {
+        private String issueId;
         private String improvementPointId;
         private String skillUnitId;
         private String text;
@@ -231,6 +239,9 @@ public class AdviceGenerationOutput {
         private String studentBenefit;
         private List<String> evidenceRefs;
         private Double confidence;
+        private List<String> knowledgePath;
+        private String knowledgePathStatus;
+        private String provisionalNodeCode;
 
         @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
         public static ImprovementLayerAdvice fromString(String value) {

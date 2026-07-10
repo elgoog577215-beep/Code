@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "ai.standard-library-growth")
 public class AiStandardLibraryGrowthProperties {
     private boolean enabled = true;
-    private boolean autoMergeEnabled = false;
+    private boolean autoMergeEnabled = true;
     private double autoMergeMinConfidence = 0.9;
+    private int autoMergeMinOccurrences = 2;
 }

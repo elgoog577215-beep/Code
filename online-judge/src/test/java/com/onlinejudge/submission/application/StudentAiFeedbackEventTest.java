@@ -188,6 +188,60 @@ class StudentAiFeedbackEventTest {
     }
 
     @Test
+    void generateAndStorePreservesProvisionalAndUnclassifiedPathStatuses() {
+        when(submissionRepository.findById(7L)).thenReturn(Optional.of(submission()));
+        when(problemRepository.findById(101L)).thenReturn(Optional.of(problem()));
+        when(caseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(7L)).thenReturn(caseResults());
+        when(submissionAnalysisService.generateAndStoreAnalysis(
+                any(Problem.class),
+                any(Submission.class),
+                any()
+        )).thenReturn(SubmissionAnalysisResponse.builder()
+                .submissionId(7L)
+                .answerLeakRisk("LOW")
+                .aiInvocation(SubmissionAnalysisResponse.AiInvocation.builder()
+                        .status("MODEL_COMPLETED")
+                        .diagnosisLibraryFit("PARTIAL")
+                        .build())
+                .basicLayerAdvice(List.of(SubmissionAnalysisResponse.BasicLayerAdvice.builder()
+                        .issueId("I1")
+                        .title("输出位置与累计目标脱节")
+                        .whatHappened("模型发现了正式诊断层之外的细颗粒问题。")
+                        .studentAction("先手推累计变量和输出变量的对应关系。")
+                        .knowledgePath(List.of("信息学基础", "循环结构", "循环边界", "输出位置与累计目标脱节"))
+                        .knowledgePathStatus("PROVISIONAL")
+                        .provisionalNodeCode("MP_AI_ABC123")
+                        .evidenceRefs(List.of("code:line:1"))
+                        .build()))
+                .improvementLayerAdvice(List.of(SubmissionAnalysisResponse.ImprovementLayerAdvice.builder()
+                        .issueId("I1")
+                        .title("补充迁移练习")
+                        .suggestion("尝试构造一个更小的输入检查状态变化。")
+                        .knowledgePath(List.of())
+                        .knowledgePathStatus("UNCLASSIFIED")
+                        .evidenceRefs(List.of("judge:first_failed_case:1"))
+                        .build()))
+                .build());
+        when(feedbackRepository.findBySubmissionId(7L)).thenReturn(Optional.empty());
+        when(feedbackRepository.save(any(StudentAiFeedback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.findTopBySubmissionIdAndEventTypeOrderByCreatedAtDesc(eq(7L), eq(StudentAiFeedbackEvent.EVENT_READY)))
+                .thenReturn(Optional.empty());
+
+        StudentAiFeedbackResponse response = service.generateAndStore(7L);
+
+        assertThat(response.getRepairItems()).singleElement().satisfies(item -> {
+            assertThat(item.getKnowledgePathStatus()).isEqualTo("PROVISIONAL");
+            assertThat(item.getProvisionalNodeCode()).isEqualTo("MP_AI_ABC123");
+            assertThat(item.getKnowledgePath())
+                    .containsExactly("信息学基础", "循环结构", "循环边界", "输出位置与累计目标脱节");
+        });
+        assertThat(response.getImprovementItems()).singleElement().satisfies(item -> {
+            assertThat(item.getKnowledgePathStatus()).isEqualTo("UNCLASSIFIED");
+            assertThat(item.getKnowledgePath()).isEmpty();
+        });
+    }
+
+    @Test
     void generateAndStoreInfersCodeEvidenceWhenModelOnlyReturnsJudgeEvidence() {
         when(submissionRepository.findById(7L)).thenReturn(Optional.of(diffSubmission()));
         when(problemRepository.findById(101L)).thenReturn(Optional.of(problem()));

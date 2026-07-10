@@ -15,5 +15,11 @@ public interface AiStandardLibraryGrowthCandidateRepository
             String suggestedCode
     );
 
+    Optional<AiStandardLibraryGrowthCandidate> findByLayerAndParentKnowledgeNodeCodeAndSuggestedCode(
+            AiStandardLibraryLayer layer,
+            String parentKnowledgeNodeCode,
+            String suggestedCode
+    );
+
     List<AiStandardLibraryGrowthCandidate> findAllByOrderByCreatedAtDesc();
 }

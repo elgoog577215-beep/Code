@@ -15,6 +15,7 @@ public class AiStandardLibraryGrowthCandidateResponse {
     private String suggestedCode;
     private String suggestedName;
     private List<String> suggestedPath;
+    private String parentKnowledgeNodeCode;
     private Long sourceProblemId;
     private Long sourceSubmissionId;
     private List<String> evidenceRefs;
@@ -40,6 +41,7 @@ public class AiStandardLibraryGrowthCandidateResponse {
                 .suggestedCode(candidate.getSuggestedCode())
                 .suggestedName(candidate.getSuggestedName())
                 .suggestedPath(path(candidate.getSuggestedPath()))
+                .parentKnowledgeNodeCode(candidate.getParentKnowledgeNodeCode())
                 .sourceProblemId(candidate.getSourceProblemId())
                 .sourceSubmissionId(candidate.getSourceSubmissionId())
                 .evidenceRefs(lines(candidate.getEvidenceRefs()))

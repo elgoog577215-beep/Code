@@ -280,7 +280,20 @@ const studentAiFeedbackReady = {
         title: "输入没有完整读取",
         body: "先把公开样例的每一行 input 手推清楚。",
         kind: "INPUT_FORMAT",
-        evidenceRefs: ["public-case-1"],
+        knowledgePath: ["信息学基础", "输入输出", "输入格式", "输入读取", "漏读变量"],
+        knowledgePathStatus: "FORMAL",
+        evidenceSnippets: [{ evidenceRef: "code:line:2", lineNumber: 2, lineEnd: 2, code: "numbers = list(map(int, input().split()))" }],
+        evidenceRefs: ["code:line:2", "public-case-1"],
+        qualitySignals: ["evidence_grounded", "actionable"]
+      },
+      {
+        title: "累计结果输出时机不稳定",
+        body: "先逐轮记录累计值，再确认输出发生在所有元素都处理完之后。",
+        kind: "REPAIR",
+        knowledgePath: ["信息学基础", "循环结构", "循环状态", "累计结果输出时机不稳定"],
+        knowledgePathStatus: "PROVISIONAL",
+        provisionalNodeCode: "MP_AI_OUTPUT_TIMING",
+        evidenceRefs: ["judge:first_failed_case:1"],
         qualitySignals: ["evidence_grounded", "actionable"]
       }
     ],
@@ -289,7 +302,18 @@ const studentAiFeedbackReady = {
         title: "测试习惯",
         body: "提交前先跑最小公开样例。能更早发现输入格式问题。",
         kind: "TESTING_HABIT",
+        knowledgePath: ["竞赛过程", "提交检查", "边界复测"],
+        knowledgePathStatus: "INFERRED",
         evidenceRefs: ["public-case-1"],
+        qualitySignals: ["transfer"]
+      },
+      {
+        title: "迁移到多组输入",
+        body: "基础问题修正后，再检查多组输入时每轮状态是否重新初始化。",
+        kind: "IMPROVEMENT",
+        knowledgePath: [],
+        knowledgePathStatus: "UNCLASSIFIED",
+        evidenceRefs: [],
         qualitySignals: ["transfer"]
       }
     ],
@@ -968,9 +992,56 @@ const scenarios = [
         readyRepairText
       );
       record("problem modal maps growth fields structurally", readyGrowthText.includes("提升建议") && readyGrowthText.includes("测试习惯") && readyGrowthText.includes("能更早发现输入格式问题"), readyGrowthText);
+      const suggestionCardCount = await page.locator(".student-feedback-item").count();
+      const knowledgeCardCount = await page.locator(".student-feedback-knowledge").count();
+      const pathStatusText = (await page.locator(".student-feedback-knowledge__status").allTextContents()).join("|");
+      record("problem modal renders one frame per suggestion", suggestionCardCount === 4, `suggestion cards ${suggestionCardCount}`);
+      record("problem modal renders one knowledge sub-card per suggestion", knowledgeCardCount === 4, `knowledge cards ${knowledgeCardCount}`);
+      record(
+        "problem modal distinguishes knowledge path provenance",
+        ["正式标准库", "临时知识点", "历史推断", "暂未归类"].every(label => pathStatusText.includes(label)),
+        pathStatusText
+      );
+      await page.locator(".problem-result-modal").screenshot({
+        path: join(artifactDir, `student-feedback-cards-${viewport.name}-light.png`)
+      });
+      await page.evaluate(() => {
+        document.documentElement.dataset.theme = "dark";
+        window.localStorage.setItem("wzai:theme", "dark");
+      });
+      await page.waitForTimeout(120);
+      await page.locator(".problem-result-modal").screenshot({
+        path: join(artifactDir, `student-feedback-cards-${viewport.name}-dark.png`)
+      });
+      await page.evaluate(() => {
+        document.documentElement.dataset.theme = "light";
+        window.localStorage.setItem("wzai:theme", "light");
+      });
+      await page.waitForTimeout(80);
+      await page.locator(".language-toggle").dispatchEvent("click");
+      await page.waitForTimeout(80);
+      const englishMetaText = ((await page.locator(".student-feedback-meta").allTextContents()) || []).join("|");
+      record(
+        "problem feedback metadata renders complete English copy",
+        ["Knowledge path", "Formal library", "Provisional node", "Legacy inference", "Unclassified", "Code evidence"]
+          .every(label => englishMetaText.includes(label)) && !englishMetaText.includes("feedbackMeta."),
+        englishMetaText
+      );
+      await page.locator(".problem-result-modal").screenshot({
+        path: join(artifactDir, `student-feedback-cards-${viewport.name}-english.png`)
+      });
+      await page.locator(".language-toggle").dispatchEvent("click");
+      await page.waitForTimeout(80);
       record("problem modal uses student AI feedback endpoint", studentFeedbackLookupCount >= 2, `student feedback lookup count ${studentFeedbackLookupCount}`);
       record("problem modal records model feedback view", studentFeedbackViewCount === 1, `student feedback view count ${studentFeedbackViewCount}`);
-      await page.locator(".problem-result-modal__footer button").filter({ hasText: "继续修改" }).click();
+      await page.locator(".student-feedback-evidence button").first().click();
+      await page.locator(".problem-result-modal").waitFor({ state: "hidden", timeout: 5000 });
+      await page.locator(".cm-line-evidence-highlight").first().waitFor({ state: "visible", timeout: 5000 });
+      record("problem evidence click highlights the matching editor line", await page.locator(".cm-line-evidence-highlight").count() === 1);
+      await page.screenshot({
+        path: join(artifactDir, `student-feedback-line-highlight-${viewport.name}.png`),
+        fullPage: true
+      });
       await checkVisible(page, ".problem-last-result", "problem last result entry after modal close");
       if (viewport.name === "mobile") {
         await checkVisible(page, ".problem-mobile-jump", "problem mobile code jump");
@@ -1564,8 +1635,25 @@ async function main() {
       throw new Error(`Chromium could not launch. Run "npx playwright install chromium" in frontend. ${error.message}`);
     }
 
-    for (const viewport of viewports) {
-      for (const scenario of scenarios) {
+    const requestedScenarios = new Set((process.env.BROWSER_SMOKE_SCENARIOS || "")
+      .split(",")
+      .map(value => value.trim())
+      .filter(Boolean));
+    const requestedViewports = new Set((process.env.BROWSER_SMOKE_VIEWPORTS || "")
+      .split(",")
+      .map(value => value.trim())
+      .filter(Boolean));
+    const activeScenarios = requestedScenarios.size
+      ? scenarios.filter(scenario => requestedScenarios.has(scenario.name))
+      : scenarios;
+    const activeViewports = requestedViewports.size
+      ? viewports.filter(viewport => requestedViewports.has(viewport.name))
+      : viewports;
+    if (!activeScenarios.length || !activeViewports.length) {
+      throw new Error("No browser smoke scenario or viewport matched the requested filter.");
+    }
+    for (const viewport of activeViewports) {
+      for (const scenario of activeScenarios) {
         await runScenario(baseUrl, browser, viewport, scenario);
       }
     }

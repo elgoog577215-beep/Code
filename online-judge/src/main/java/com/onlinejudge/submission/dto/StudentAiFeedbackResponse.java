@@ -39,6 +39,8 @@ public class StudentAiFeedbackResponse {
         private String improvementPointId;
         private String libraryFit;
         private List<String> knowledgePath;
+        private String knowledgePathStatus;
+        private String provisionalNodeCode;
         private List<EvidenceSnippet> evidenceSnippets;
         private List<String> evidenceRefs;
         private List<String> qualitySignals;

@@ -562,6 +562,8 @@ export interface StudentAiFeedbackItem {
   improvementPointId?: string | null;
   libraryFit?: string | null;
   knowledgePath?: string[];
+  knowledgePathStatus?: "FORMAL" | "PROVISIONAL" | "INFERRED" | "UNCLASSIFIED" | string | null;
+  provisionalNodeCode?: string | null;
   evidenceSnippets?: StudentAiFeedbackEvidenceSnippet[];
   evidenceRefs?: string[];
   qualitySignals?: string[];

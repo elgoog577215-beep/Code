@@ -20,6 +20,9 @@ public class IssueLibraryAnchor {
     private String skillUnitCode;
     private String mistakePointCode;
     private String improvementPointCode;
+    private String provisionalCandidateCode;
+    private String provisionalCandidateName;
+    private String provisionalCandidateLayer;
     private String reason;
     private Double confidence;
 

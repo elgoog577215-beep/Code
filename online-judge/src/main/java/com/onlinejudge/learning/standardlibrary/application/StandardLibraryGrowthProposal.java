@@ -13,6 +13,7 @@ public class StandardLibraryGrowthProposal {
     private String suggestedName;
     private AiStandardLibraryLayer layer;
     private List<String> suggestedPath;
+    private String parentKnowledgeNodeCode;
     private Long sourceProblemId;
     private Long sourceSubmissionId;
     private List<String> similarExistingItemCodes;

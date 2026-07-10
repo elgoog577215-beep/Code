@@ -58,8 +58,9 @@ ai:
     min-request-interval-ms: ${AI_STUDENT_FEEDBACK_MIN_REQUEST_INTERVAL_MS:2000}
   standard-library-growth:
     enabled: ${AI_STANDARD_LIBRARY_GROWTH_ENABLED:true}
-    auto-merge-enabled: ${AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED:false}
+    auto-merge-enabled: ${AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED:true}
     auto-merge-min-confidence: ${AI_STANDARD_LIBRARY_AUTO_MERGE_MIN_CONFIDENCE:0.90}
+    auto-merge-min-occurrences: ${AI_STANDARD_LIBRARY_AUTO_MERGE_MIN_OCCURRENCES:2}
 
 ---
 spring:

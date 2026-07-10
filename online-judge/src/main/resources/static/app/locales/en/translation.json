@@ -24,6 +24,34 @@
       "dark": "Dark"
     }
   },
+  "feedbackMeta": {
+    "knowledgePath": "Knowledge path",
+    "knowledgePathAria": "Knowledge path for this suggestion",
+    "noKnowledgePath": "No suitable standard-library path has been found yet.",
+    "codeEvidence": "Code evidence",
+    "codeEvidenceAria": "Code evidence for this suggestion",
+    "evidenceBasis": "Evidence basis",
+    "jumpToCode": "Return to the editor and highlight this code line",
+    "viewCode": "View the related code",
+    "line": "Line {{line}}",
+    "lineRange": "Lines {{start}}-{{end}}",
+    "noJumpableLine": "{{evidence}}; no jumpable code line is available.",
+    "noCodeEvidence": "This suggestion has no locatable code evidence yet.",
+    "listSeparator": ", ",
+    "pathStatus": {
+      "formal": "Formal library",
+      "provisional": "Provisional node",
+      "inferred": "Legacy inference",
+      "unclassified": "Unclassified"
+    },
+    "evidenceKinds": {
+      "judge": "Judge result",
+      "problem": "Problem statement",
+      "verdict": "Run result",
+      "source": "Submitted code",
+      "analysis": "Analysis evidence"
+    }
+  },
   "routeHub": {
     "eyebrow": "Entry",
     "title": "Learning Platform",
@@ -511,7 +539,7 @@
       "governance": {
         "eyebrow": "Standard Library Governance",
         "title": "Candidate Review Workbench",
-        "description": "AI only proposes candidates; teachers confirm, revise, merge, or reject them before the formal library changes.",
+        "description": "New candidates begin as provisional nodes. They promote automatically only after parent-path, evidence, confidence, and repetition gates pass; teachers can still review, edit, or reject them.",
         "pendingCount": "Pending {{count}}",
         "refresh": "Refresh candidates",
         "summaryAria": "Governance summary",

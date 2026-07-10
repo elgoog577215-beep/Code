@@ -479,6 +479,8 @@ public class AiReportService {
             return runtimeFailure(baseline, runtimePlan, adviceValidation);
         }
 
+        reconcileAdviceKnowledgePaths(adviceOutput, runtimePlan);
+
         SubmissionAnalysisResponse.StudentFeedback studentFeedback =
                 externalModelAgentRuntime.mapAdviceStudentFeedback(adviceOutput, runtimePlan);
         studentFeedback = externalModelAgentRuntime.normalizeStudentFeedback(studentFeedback, runtimePlan);
@@ -524,6 +526,230 @@ public class AiReportService {
         } catch (Exception exception) {
             log.warn("Failed to persist AI standard library growth candidates. reason={}", exception.getMessage());
         }
+    }
+
+    private void reconcileAdviceKnowledgePaths(AdviceGenerationOutput output,
+                                               ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (output == null) {
+            return;
+        }
+        List<IssueLibraryAnchor> anchors = safeList(
+                runtimePlan == null ? null : runtimePlan.getIssueLibraryAnchors());
+        List<AdviceGenerationOutput.LibraryGrowthCandidate> candidates = new ArrayList<>();
+        int index = 0;
+        for (AdviceGenerationOutput.BasicLayerAdvice advice : safeList(output.getBasicLayerAdvice())) {
+            IssueLibraryAnchor anchor = adviceAnchor(anchors, advice == null ? null : advice.getIssueId(), index++);
+            reconcileBasicAdvice(advice, anchor, candidates);
+        }
+        index = 0;
+        for (AdviceGenerationOutput.ImprovementLayerAdvice advice : safeList(output.getImprovementLayerAdvice())) {
+            IssueLibraryAnchor anchor = adviceAnchor(anchors, advice == null ? null : advice.getIssueId(), index++);
+            reconcileImprovementAdvice(advice, anchor, candidates);
+        }
+        output.setLibraryGrowth(AdviceGenerationOutput.LibraryGrowth.builder()
+                .candidates(candidates)
+                .build());
+    }
+
+    private void reconcileBasicAdvice(AdviceGenerationOutput.BasicLayerAdvice advice,
+                                      IssueLibraryAnchor anchor,
+                                      List<AdviceGenerationOutput.LibraryGrowthCandidate> candidates) {
+        if (advice == null) {
+            return;
+        }
+        if (anchor != null && !defaultIfBlank(anchor.getMistakePointCode(), "").isBlank()) {
+            advice.setMistakePointId(anchor.getMistakePointCode());
+            advice.setSkillUnitId(anchor.getSkillUnitCode());
+            advice.setKnowledgePath(pathNames(anchor.getPath()));
+            advice.setKnowledgePathStatus("FORMAL");
+            return;
+        }
+        if (applySelectedProvisional(
+                anchor,
+                "MISTAKE_POINT",
+                advice::setKnowledgePath,
+                advice::setKnowledgePathStatus,
+                advice::setProvisionalNodeCode)) {
+            return;
+        }
+        AdviceGenerationOutput.LibraryGrowthCandidate candidate = provisionalCandidate(
+                advice.getIssueId(),
+                "MISTAKE_POINT",
+                advice.getTitle(),
+                advice.getWhatHappened(),
+                advice.getStudentAction(),
+                advice.getEvidenceRefs(),
+                advice.getConfidence(),
+                anchor);
+        if (candidate == null) {
+            markUnclassified(advice::setKnowledgePath, advice::setKnowledgePathStatus);
+            return;
+        }
+        advice.setKnowledgePath(candidate.getSuggestedPath());
+        advice.setKnowledgePathStatus("PROVISIONAL");
+        advice.setProvisionalNodeCode(provisionalCode(candidate));
+        attachProvisionalToAnchor(anchor, candidate, advice.getProvisionalNodeCode());
+        candidates.add(candidate);
+    }
+
+    private void reconcileImprovementAdvice(AdviceGenerationOutput.ImprovementLayerAdvice advice,
+                                            IssueLibraryAnchor anchor,
+                                            List<AdviceGenerationOutput.LibraryGrowthCandidate> candidates) {
+        if (advice == null) {
+            return;
+        }
+        if (anchor != null && !defaultIfBlank(anchor.getImprovementPointCode(), "").isBlank()) {
+            advice.setImprovementPointId(anchor.getImprovementPointCode());
+            advice.setSkillUnitId(anchor.getSkillUnitCode());
+            advice.setKnowledgePath(pathNames(anchor.getPath()));
+            advice.setKnowledgePathStatus("FORMAL");
+            return;
+        }
+        if (applySelectedProvisional(
+                anchor,
+                "IMPROVEMENT_POINT",
+                advice::setKnowledgePath,
+                advice::setKnowledgePathStatus,
+                advice::setProvisionalNodeCode)) {
+            return;
+        }
+        AdviceGenerationOutput.LibraryGrowthCandidate candidate = provisionalCandidate(
+                advice.getIssueId(),
+                "IMPROVEMENT_POINT",
+                advice.getTitle(),
+                advice.getCurrentLimit(),
+                advice.getSuggestion(),
+                advice.getEvidenceRefs(),
+                advice.getConfidence(),
+                anchor);
+        if (candidate == null) {
+            markUnclassified(advice::setKnowledgePath, advice::setKnowledgePathStatus);
+            return;
+        }
+        advice.setKnowledgePath(candidate.getSuggestedPath());
+        advice.setKnowledgePathStatus("PROVISIONAL");
+        advice.setProvisionalNodeCode(provisionalCode(candidate));
+        attachProvisionalToAnchor(anchor, candidate, advice.getProvisionalNodeCode());
+        candidates.add(candidate);
+    }
+
+    private IssueLibraryAnchor adviceAnchor(List<IssueLibraryAnchor> anchors, String issueId, int index) {
+        String normalizedIssueId = defaultIfBlank(issueId, "").trim();
+        if (!normalizedIssueId.isBlank()) {
+            IssueLibraryAnchor explicit = safeList(anchors).stream()
+                    .filter(anchor -> normalizedIssueId.equals(defaultIfBlank(anchor.getIssueId(), "").trim()))
+                    .findFirst()
+                    .orElse(null);
+            if (explicit != null) {
+                return explicit;
+            }
+        }
+        return index >= 0 && index < safeList(anchors).size() ? safeList(anchors).get(index) : null;
+    }
+
+    private AdviceGenerationOutput.LibraryGrowthCandidate provisionalCandidate(
+            String issueId,
+            String layer,
+            String title,
+            String symptom,
+            String studentAction,
+            List<String> evidenceRefs,
+            Double confidence,
+            IssueLibraryAnchor anchor) {
+        IssueLibraryAnchor.PathNode parent = lastKnowledgePoint(anchor == null ? null : anchor.getPath());
+        String normalizedTitle = cleanupAiText(title);
+        if (parent == null || normalizedTitle.isBlank()) {
+            return null;
+        }
+        List<String> path = new ArrayList<>(formalPathNames(anchor.getPath()));
+        path.add(normalizedTitle);
+        List<String> refs = cleanList(evidenceRefs, List.of());
+        return AdviceGenerationOutput.LibraryGrowthCandidate.builder()
+                .issueId(cleanupAiText(issueId))
+                .layer(layer)
+                .name(normalizedTitle)
+                .suggestedPath(path)
+                .parentKnowledgeNodeCode(parent.getCode())
+                .similarExistingItems(List.of())
+                .evidenceRefs(refs)
+                .evidenceStatus(refs.isEmpty() ? "NO_DIRECT_CODE_EVIDENCE" : "SUPPORTED")
+                .errorSymptom(cleanupAiText(symptom))
+                .studentExplanation(cleanupAiText(studentAction))
+                .reason("自由诊断已定位，但正式诊断层没有匹配项；按最后一个有效知识点归入临时候选。")
+                .status("NEEDS_REVIEW")
+                .confidence(confidence == null ? 0.75 : confidence)
+                .build();
+    }
+
+    private boolean applySelectedProvisional(
+            IssueLibraryAnchor anchor,
+            String expectedLayer,
+            Consumer<List<String>> pathSetter,
+            Consumer<String> statusSetter,
+            Consumer<String> codeSetter) {
+        if (anchor == null
+                || defaultIfBlank(anchor.getProvisionalCandidateCode(), "").isBlank()
+                || !expectedLayer.equals(defaultIfBlank(anchor.getProvisionalCandidateLayer(), ""))) {
+            return false;
+        }
+        pathSetter.accept(pathNames(anchor.getPath()));
+        statusSetter.accept("PROVISIONAL");
+        codeSetter.accept(anchor.getProvisionalCandidateCode());
+        return true;
+    }
+
+    private void attachProvisionalToAnchor(IssueLibraryAnchor anchor,
+                                           AdviceGenerationOutput.LibraryGrowthCandidate candidate,
+                                           String code) {
+        if (anchor == null || candidate == null) {
+            return;
+        }
+        anchor.setAnchorStatus("PROVISIONAL");
+        anchor.setProvisionalCandidateCode(code);
+        anchor.setProvisionalCandidateName(candidate.getName());
+        anchor.setProvisionalCandidateLayer(candidate.getLayer());
+    }
+
+    private void markUnclassified(Consumer<List<String>> pathSetter, Consumer<String> statusSetter) {
+        pathSetter.accept(List.of());
+        statusSetter.accept("UNCLASSIFIED");
+    }
+
+    private IssueLibraryAnchor.PathNode lastKnowledgePoint(List<IssueLibraryAnchor.PathNode> path) {
+        List<IssueLibraryAnchor.PathNode> safePath = safeList(path);
+        for (int index = safePath.size() - 1; index >= 0; index--) {
+            IssueLibraryAnchor.PathNode node = safePath.get(index);
+            if (node != null && "KNOWLEDGE_POINT".equals(defaultIfBlank(node.getType(), ""))) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private List<String> formalPathNames(List<IssueLibraryAnchor.PathNode> path) {
+        return safeList(path).stream()
+                .filter(node -> node != null
+                        && !defaultIfBlank(node.getType(), "").startsWith("PROVISIONAL_"))
+                .map(node -> defaultIfBlank(node.getName(), node.getCode()))
+                .filter(name -> !name.isBlank())
+                .toList();
+    }
+
+    private List<String> pathNames(List<IssueLibraryAnchor.PathNode> path) {
+        return safeList(path).stream()
+                .filter(node -> node != null)
+                .map(node -> defaultIfBlank(node.getName(), node.getCode()))
+                .filter(name -> !name.isBlank())
+                .toList();
+    }
+
+    private String provisionalCode(AdviceGenerationOutput.LibraryGrowthCandidate candidate) {
+        String prefix = "IMPROVEMENT_POINT".equals(candidate.getLayer()) ? "IP_" : "MP_";
+        String stableSource = defaultIfBlank(candidate.getParentKnowledgeNodeCode(), "").trim()
+                + "|" + defaultIfBlank(candidate.getName(), "").trim()
+                + "|" + String.join(".", safeList(candidate.getSuggestedPath()));
+        return prefix + "AI_"
+                + Integer.toUnsignedString(stableSource.hashCode(), 36).toUpperCase();
     }
 
     private String teacherDiagnosisRuntimeProfile() {
@@ -920,6 +1146,14 @@ public class AiReportService {
                 addDiagnosticItem(items, improvement.getCode(), improvement.getName(), "IMPROVEMENT_POINT",
                         improvement.getDescription());
             }
+            for (AiStandardLibraryDiagnosticLayerResponse.ProvisionalCandidate provisional :
+                    safeList(layer.getProvisionalCandidates())) {
+                addDiagnosticItem(items,
+                        provisional.getCode(),
+                        provisional.getName(),
+                        "PROVISIONAL_" + defaultIfBlank(provisional.getLayer(), "MISTAKE_POINT"),
+                        provisional.getDescription());
+            }
         }
         return items;
     }
@@ -960,6 +1194,10 @@ public class AiReportService {
         String skillUnitCode = "";
         String mistakePointCode = "";
         String improvementPointCode = "";
+        AiStandardLibraryDiagnosticLayerResponse.SkillUnit selectedSkill = null;
+        AiStandardLibraryDiagnosticLayerResponse.MistakePoint selectedMistake = null;
+        AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint selectedImprovement = null;
+        AiStandardLibraryDiagnosticLayerResponse.ProvisionalCandidate selectedProvisional = null;
         List<IssueLibraryAnchor.PathNode> path = new ArrayList<>(breadcrumb);
         for (AiStandardLibraryDiagnosticLayerResponse layer : safeDiagnosticLayers(layers)) {
             IssueLibraryAnchor.PathNode knowledgePoint = pathNode(layer.getKnowledgePoint());
@@ -969,11 +1207,14 @@ public class AiReportService {
             for (AiStandardLibraryDiagnosticLayerResponse.SkillUnit skill : safeList(layer.getSkillUnits())) {
                 if (codes.contains(skill.getCode())) {
                     skillUnitCode = skill.getCode();
+                    selectedSkill = skill;
                 }
                 for (AiStandardLibraryDiagnosticLayerResponse.MistakePoint mistake : safeList(skill.getMistakePoints())) {
                     if (codes.contains(mistake.getCode())) {
                         mistakePointCode = mistake.getCode();
                         skillUnitCode = defaultIfBlank(skillUnitCode, skill.getCode());
+                        selectedSkill = skill;
+                        selectedMistake = mistake;
                     }
                 }
                 for (AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint improvement :
@@ -981,6 +1222,8 @@ public class AiReportService {
                     if (codes.contains(improvement.getCode())) {
                         improvementPointCode = improvement.getCode();
                         skillUnitCode = defaultIfBlank(skillUnitCode, skill.getCode());
+                        selectedSkill = skill;
+                        selectedImprovement = improvement;
                     }
                 }
             }
@@ -988,20 +1231,67 @@ public class AiReportService {
                     safeList(layer.getDirectImprovementPoints())) {
                 if (codes.contains(improvement.getCode())) {
                     improvementPointCode = improvement.getCode();
+                    selectedImprovement = improvement;
+                }
+            }
+            for (AiStandardLibraryDiagnosticLayerResponse.ProvisionalCandidate provisional :
+                    safeList(layer.getProvisionalCandidates())) {
+                if (codes.contains(provisional.getCode())) {
+                    selectedProvisional = provisional;
                 }
             }
         }
         boolean hasFormalAnchor = !skillUnitCode.isBlank() || !mistakePointCode.isBlank() || !improvementPointCode.isBlank();
+        addPathNodeIfMissing(path,
+                selectedSkill == null ? null : selectedSkill.getCode(),
+                selectedSkill == null ? null : selectedSkill.getName(),
+                "SKILL_UNIT");
+        addPathNodeIfMissing(path,
+                selectedMistake == null ? null : selectedMistake.getCode(),
+                selectedMistake == null ? null : selectedMistake.getName(),
+                "MISTAKE_POINT");
+        addPathNodeIfMissing(path,
+                selectedImprovement == null ? null : selectedImprovement.getCode(),
+                selectedImprovement == null ? null : selectedImprovement.getName(),
+                "IMPROVEMENT_POINT");
+        AiStandardLibraryDiagnosticLayerResponse.ProvisionalCandidate provisionalSelection = selectedProvisional;
+        if (provisionalSelection != null && path.stream()
+                .noneMatch(item -> provisionalSelection.getCode().equals(item.getCode()))) {
+            path.add(IssueLibraryAnchor.PathNode.builder()
+                    .code(provisionalSelection.getCode())
+                    .name(provisionalSelection.getName())
+                    .type("PROVISIONAL_" + provisionalSelection.getLayer())
+                    .build());
+        }
         return IssueLibraryAnchor.builder()
                 .issueId(issue.getIssueId())
-                .anchorStatus(hasFormalAnchor || selectedDiagnosticCode ? "HIT" : "PARTIAL")
+                .anchorStatus(provisionalSelection != null ? "PROVISIONAL" : hasFormalAnchor ? "HIT" : "PARTIAL")
                 .path(path)
                 .skillUnitCode(blankToNull(skillUnitCode))
                 .mistakePointCode(blankToNull(mistakePointCode))
                 .improvementPointCode(blankToNull(improvementPointCode))
+                .provisionalCandidateCode(provisionalSelection == null ? null : provisionalSelection.getCode())
+                .provisionalCandidateName(provisionalSelection == null ? null : provisionalSelection.getName())
+                .provisionalCandidateLayer(provisionalSelection == null ? null : provisionalSelection.getLayer())
                 .reason(defaultIfBlank(action == null ? "" : action.getReason(), "standard library attachment completed."))
                 .confidence(action == null ? null : action.getConfidence())
                 .build();
+    }
+
+    private void addPathNodeIfMissing(List<IssueLibraryAnchor.PathNode> path,
+                                      String code,
+                                      String name,
+                                      String type) {
+        String normalizedCode = defaultIfBlank(code, "").trim();
+        if (normalizedCode.isBlank() || path.stream()
+                .anyMatch(item -> normalizedCode.equals(defaultIfBlank(item.getCode(), "").trim()))) {
+            return;
+        }
+        path.add(IssueLibraryAnchor.PathNode.builder()
+                .code(normalizedCode)
+                .name(defaultIfBlank(name, normalizedCode))
+                .type(type)
+                .build());
     }
 
     private boolean diagnosticCodeVisible(String code, List<AiStandardLibraryDiagnosticLayerResponse> layers) {
@@ -1067,9 +1357,10 @@ public class AiReportService {
 
     private StandardLibraryNavigationOutput navigationOutputFromAnchors(List<IssueLibraryAnchor> anchors) {
         List<StandardLibraryNavigationOutput.SelectedPath> selectedPaths = safeList(anchors).stream()
-                .filter(anchor -> List.of("HIT", "PARTIAL").contains(defaultIfBlank(anchor.getAnchorStatus(), "")))
+                .filter(anchor -> List.of("HIT", "PARTIAL", "PROVISIONAL")
+                        .contains(defaultIfBlank(anchor.getAnchorStatus(), "")))
                 .map(anchor -> StandardLibraryNavigationOutput.SelectedPath.builder()
-                        .knowledgeNodeCode(lastPathCode(anchor.getPath()))
+                        .knowledgeNodeCode(lastKnowledgePointCode(anchor.getPath()))
                         .skillUnitCode(anchor.getSkillUnitCode())
                         .mistakePointCode(anchor.getMistakePointCode())
                         .improvementPointCode(anchor.getImprovementPointCode())
@@ -1080,7 +1371,8 @@ public class AiReportService {
                         .build())
                 .toList();
         List<StandardLibraryNavigationOutput.UnresolvedGap> gaps = safeList(anchors).stream()
-                .filter(anchor -> !List.of("HIT", "PARTIAL").contains(defaultIfBlank(anchor.getAnchorStatus(), "")))
+                .filter(anchor -> !List.of("HIT", "PARTIAL", "PROVISIONAL")
+                        .contains(defaultIfBlank(anchor.getAnchorStatus(), "")))
                 .map(anchor -> StandardLibraryNavigationOutput.UnresolvedGap.builder()
                         .name(defaultIfBlank(anchor.getIssueId(), "ISSUE"))
                         .reason(anchor.getAnchorStatus() + ":" + defaultIfBlank(anchor.getReason(), ""))
@@ -1096,6 +1388,11 @@ public class AiReportService {
                 .unresolvedGaps(gaps)
                 .uncertainty(anchorSummary(anchors))
                 .build();
+    }
+
+    private String lastKnowledgePointCode(List<IssueLibraryAnchor.PathNode> path) {
+        IssueLibraryAnchor.PathNode knowledgePoint = lastKnowledgePoint(path);
+        return knowledgePoint == null ? lastPathCode(path) : knowledgePoint.getCode();
     }
 
     private StandardLibraryPack packForNavigationOutput(StandardLibraryNavigationOutput output,
@@ -1832,6 +2129,7 @@ public class AiReportService {
         return source.stream()
                 .filter(item -> item != null)
                 .map(item -> SubmissionAnalysisResponse.BasicLayerAdvice.builder()
+                        .issueId(cleanupAiText(item.getIssueId()))
                         .mistakePointId(cleanupAiText(item.getMistakePointId()))
                         .skillUnitId(cleanupAiText(item.getSkillUnitId()))
                         .title(cleanupAiText(item.getTitle()))
@@ -1841,6 +2139,9 @@ public class AiReportService {
                         .checkQuestion(cleanupAiText(item.getCheckQuestion()))
                         .evidenceRefs(cleanList(item.getEvidenceRefs(), List.of()))
                         .confidence(item.getConfidence())
+                        .knowledgePath(cleanList(item.getKnowledgePath(), List.of()))
+                        .knowledgePathStatus(cleanupAiText(item.getKnowledgePathStatus()))
+                        .provisionalNodeCode(cleanupAiText(item.getProvisionalNodeCode()))
                         .build())
                 .toList();
     }
@@ -1853,6 +2154,7 @@ public class AiReportService {
         return source.stream()
                 .filter(item -> item != null)
                 .map(item -> SubmissionAnalysisResponse.ImprovementLayerAdvice.builder()
+                        .issueId(cleanupAiText(item.getIssueId()))
                         .improvementPointId(cleanupAiText(item.getImprovementPointId()))
                         .skillUnitId(cleanupAiText(item.getSkillUnitId()))
                         .title(cleanupAiText(item.getTitle()))
@@ -1861,6 +2163,9 @@ public class AiReportService {
                         .studentBenefit(cleanupAiText(item.getStudentBenefit()))
                         .evidenceRefs(cleanList(item.getEvidenceRefs(), List.of()))
                         .confidence(item.getConfidence())
+                        .knowledgePath(cleanList(item.getKnowledgePath(), List.of()))
+                        .knowledgePathStatus(cleanupAiText(item.getKnowledgePathStatus()))
+                        .provisionalNodeCode(cleanupAiText(item.getProvisionalNodeCode()))
                         .build())
                 .toList();
     }

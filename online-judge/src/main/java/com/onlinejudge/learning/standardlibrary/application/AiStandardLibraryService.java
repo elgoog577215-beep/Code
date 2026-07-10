@@ -4,6 +4,7 @@ import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
 import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
 import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidateStatus;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardImprovementPoint;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardMistakePoint;
@@ -14,6 +15,7 @@ import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRespons
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationExpansionResponse;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryGrowthCandidateRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
@@ -44,6 +46,7 @@ public class AiStandardLibraryService {
     private final AiStandardMistakePointRepository mistakePointRepository;
     private final AiStandardImprovementPointRepository improvementPointRepository;
     private final InformaticsKnowledgeNodeRepository knowledgeRepository;
+    private final AiStandardLibraryGrowthCandidateRepository growthCandidateRepository;
 
     @Transactional(readOnly = true)
     public List<AiStandardLibraryItemResponse> list(String layer, String category, String enabled, String query) {
@@ -254,11 +257,43 @@ public class AiStandardLibraryService {
                         || !skillCodes.contains(normalizeText(item.getSkillUnitCode())))
                 .map(AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint::from)
                 .toList();
+        List<AiStandardLibraryDiagnosticLayerResponse.ProvisionalCandidate> provisionalCandidates =
+                growthCandidateRepository.findAllByOrderByCreatedAtDesc().stream()
+                        .filter(candidate -> code.equals(normalizeText(candidate.getParentKnowledgeNodeCode())))
+                        .filter(candidate -> List.of(
+                                AiStandardLibraryGrowthCandidateStatus.PROPOSED,
+                                AiStandardLibraryGrowthCandidateStatus.NEEDS_REVIEW,
+                                AiStandardLibraryGrowthCandidateStatus.MERGED_SIMILAR
+                        ).contains(candidate.getStatus()))
+                        .limit(8)
+                        .map(candidate -> AiStandardLibraryDiagnosticLayerResponse.ProvisionalCandidate.builder()
+                                .code(candidate.getSuggestedCode())
+                                .name(candidate.getSuggestedName())
+                                .layer(candidate.getLayer().name())
+                                .parentKnowledgeNodeCode(candidate.getParentKnowledgeNodeCode())
+                                .suggestedPath(splitDotPath(candidate.getSuggestedPath()))
+                                .description(candidate.getChangeReason())
+                                .confidence(candidate.getConfidence())
+                                .occurrenceCount(candidate.getOccurrenceCount())
+                                .provisional(true)
+                                .build())
+                        .toList();
         return AiStandardLibraryDiagnosticLayerResponse.builder()
                 .knowledgePoint(toNavigationNode(knowledgePoint))
                 .skillUnits(skillUnits)
                 .directImprovementPoints(directImprovements)
+                .provisionalCandidates(provisionalCandidates)
                 .build();
+    }
+
+    private List<String> splitDotPath(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(value.split("\\."))
+                .map(this::normalizeText)
+                .filter(item -> !item.isBlank())
+                .toList();
     }
 
     @Transactional(readOnly = true)
