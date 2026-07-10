@@ -27,6 +27,35 @@ const assignment = {
   ]
 };
 
+const studentAssignments = [
+  assignment,
+  {
+    ...assignment,
+    id: 8,
+    title: "AI闭环复测作业",
+    endsAt: "2026-07-15T23:59:00",
+    tasks: [{ problemId: 101, title: "求和边界", difficulty: "EASY", orderIndex: 1, required: true }]
+  },
+  {
+    ...assignment,
+    id: 9,
+    title: "AI闭环测试作业",
+    endsAt: "2026-07-18T23:59:00",
+    tasks: [{ problemId: 102, title: "循环边界", difficulty: "MEDIUM", orderIndex: 1, required: true }]
+  },
+  {
+    ...assignment,
+    id: 10,
+    title: "课堂算法练习",
+    status: "CLOSED",
+    tasks: [
+      { problemId: 101, title: "求和边界", difficulty: "EASY", orderIndex: 1, required: true },
+      { problemId: 102, title: "循环边界", difficulty: "MEDIUM", orderIndex: 2, required: true },
+      { problemId: 103, title: "数组统计", difficulty: "MEDIUM", orderIndex: 3, required: true }
+    ]
+  }
+];
+
 const student = {
   id: 41,
   classGroupId: 3,
@@ -867,12 +896,12 @@ const scenarios = [
       record("student identity lives in header", headerLoginCount >= 1, `header identity count ${headerLoginCount}`);
       record("student home shows public catalog entry", homeText.includes("公共题库"), homeText);
       record("student home shows assignment details", homeText.includes("课堂编程作业") && homeText.includes("高一1班") && homeText.includes("2题"), homeText);
-      record("student home keeps entry copy direct", homeText.includes("选择今天要继续的练习") && !homeText.includes("输入邀请码"), homeText);
+      record("student home keeps entry copy direct", homeText.includes("今天先完成课堂任务") && !homeText.includes("输入邀请码"), homeText);
       record("student home uses a classroom assignment board", assignmentRowCount >= 1, `assignment rows ${assignmentRowCount}`);
       record("student home keeps one primary assignment action", primaryActionCount === 1, `primary actions ${primaryActionCount}`);
       record("student home separates public practice below assignments", practiceTop >= assignmentBottom, `assignment bottom ${assignmentBottom}; practice top ${practiceTop}`);
       if (viewport.name !== "mobile") {
-        record("student home uses bounded width on wider screens", studentWidth <= 1024, `student width ${studentWidth}`);
+        record("student home uses bounded width on wider screens", studentWidth <= 1200, `student width ${studentWidth}`);
       }
       record("student home has no horizontal overflow", overflow <= 1, `overflow ${overflow}`);
       record("student no longer starts with invite", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
@@ -1349,7 +1378,7 @@ async function routeApi(route) {
   if (path === "/api/student/identity" && method === "POST") return json(route, student);
   if (path === "/api/student/login" && method === "POST") return json(route, student);
   if (path === "/api/student/classes") return json(route, classes);
-  if (path === "/api/student/profile/41/assignments") return json(route, [assignment]);
+  if (path === "/api/student/profile/41/assignments") return json(route, studentAssignments);
   if (path === "/api/student/assignments/7/profile/41/trajectory") return json(route, trajectory);
   if (path === "/api/student/profile/41/ability-profile") return json(route, abilityProfile);
   if (path === "/api/student/profile/41/recommendations") return json(route, recommendation);
