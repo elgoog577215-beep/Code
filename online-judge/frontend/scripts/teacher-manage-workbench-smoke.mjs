@@ -33,8 +33,8 @@ async function inspect(page, path) {
     const maxWidth = (selector) => Math.max(0, ...widths(selector));
     const doc = document.documentElement;
     return {
+      url: window.location.href,
       h1: text("h1"),
-      statusStrip: has(".teacher-manage-status-strip"),
       objectWorkbench: count(".management-object-workbench"),
       objectList: count(".management-object-list"),
       importDrawer: has(".management-import-drawer"),
@@ -43,12 +43,7 @@ async function inspect(page, path) {
       aiEditorSectionCount: count(".standard-library-editor__section"),
       overflowX: doc.scrollWidth - doc.clientWidth,
       teacherHeader: rect(".teacher-manage-header"),
-      teacherTabs: rect(".teacher-manage-tabs"),
-      statusStripBox: rect(".teacher-manage-status-strip"),
-      statusActions: rect(".teacher-manage-status-strip__actions"),
       shellNav: rect(".teacher-shell-nav"),
-      homeEntryMaxHeight: maxHeight(".management-home-entry"),
-      homeEntryIconMaxWidth: maxWidth(".management-home-entry__icon"),
       workbenchBox: rect(".management-object-workbench"),
       objectListBox: rect(".management-object-list"),
       objectMainBox: rect(".management-object-main"),
@@ -76,17 +71,10 @@ const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
 
-  const home = await inspect(page, "/app/teacher/manage");
-  assert(home.h1 === "管理", "management home should keep 管理 title");
-  assert(home.statusStrip, "management home should use thin status strip");
-  assert(home.objectWorkbench === 0, "management home should not render object workbench");
-  assertMax(home.teacherHeader.height, 76, "desktop management header should stay compact");
-  assertMax(home.teacherTabs.height, 38, "desktop management tabs should be one compact row");
-  assertMax(home.statusStripBox.height, 46, "desktop management status strip should stay thin");
-  assertMax(home.statusActions.height, 34, "desktop status actions should not form a button block");
-  assertMax(home.homeEntryMaxHeight, 56, "management home entries should stay row-like");
-  assertMax(home.homeEntryIconMaxWidth, 30, "management home icons should not read as large cards");
-  assertMax(home.buttonMaxHeight, 36, "desktop management buttons should stay compact");
+  const legacyManagementRoute = await inspect(page, "/app/teacher/manage");
+  assert(legacyManagementRoute.url.includes("/app/teacher/manage/classes"), "management root should redirect to class roster");
+  assert(legacyManagementRoute.h1 === "班级名单", "management root should open class roster");
+  assert(legacyManagementRoute.objectWorkbench === 1, "management root should render the class roster workbench");
 
   const classes = await inspect(page, "/app/teacher/manage/classes");
   assert(classes.objectWorkbench === 1, "classes page should render one object workbench");
@@ -121,8 +109,6 @@ try {
     const result = await inspect(page, path);
     assert(result.overflowX === 0, `${path} should not have page-level horizontal overflow`);
     assertMax(result.teacherHeader.height, 154, `${path} mobile management header should not consume the first screen`);
-    assertMax(result.teacherTabs.height, 44, `${path} mobile management tabs should be a compact segmented row`);
-    assertMax(result.statusStripBox.height, 92, `${path} mobile status strip should stay brief`);
     assertMax(result.shellNav.height, 116, `${path} mobile teacher shell nav should stay compact`);
     if (result.objectWorkbench) {
       assert(result.objectListBox.width >= 320, `${path} mobile object list should not be squeezed into a side column`);

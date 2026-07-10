@@ -144,8 +144,6 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       nav: {
         analytics: "教学分析",
         analyticsDescription: "班级、作业、题目结果",
-        managementHome: "管理概览",
-        managementHomeDescription: "常用维护入口",
         roster: "班级名单",
         rosterDescription: "学生导入与班级维护",
         problemBank: "题库管理",
@@ -582,11 +580,6 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
     },
     teacherManagement: {
       sections: {
-        home: {
-          eyebrow: "管理工具",
-          title: "管理概览",
-          description: "班级、题库、标准库和系统状态集中维护。"
-        },
         classes: {
           eyebrow: "管理 / 班级名单",
           title: "班级名单",
@@ -606,34 +599,6 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
           eyebrow: "管理 / 系统状态",
           title: "系统状态",
           description: "检查 AI 服务、模型配置和关键运行状态。"
-        }
-      },
-      home: {
-        aria: "教师端管理入口",
-        eyebrow: "管理工具",
-        title: "维护入口",
-        description: "这些是低频维护工具，教学结果仍从左侧教学分析进入。",
-        entries: {
-          classes: {
-            title: "班级名单",
-            meta: "{{count}} 个班级",
-            description: "创建班级，导入或更新学生名单。"
-          },
-          problems: {
-            title: "题库管理",
-            meta: "{{count}} 个题目",
-            description: "维护题面、默认代码和测试点。"
-          },
-          aiLibrary: {
-            title: "AI 标准库",
-            meta: "正式库",
-            description: "维护知识点、能力点和易错点。"
-          },
-          system: {
-            title: "系统状态",
-            meta: "诊断",
-            description: "检查 AI 配置和运行依赖。"
-          }
         }
       },
       classManage: {
@@ -1056,8 +1021,6 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       nav: {
         analytics: "Teaching Analytics",
         analyticsDescription: "Class, assignment, and problem results",
-        managementHome: "Management Overview",
-        managementHomeDescription: "Common maintenance entry",
         roster: "Class Roster",
         rosterDescription: "Student import and class setup",
         problemBank: "Problem Bank",
@@ -1373,11 +1336,6 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
     },
     teacherManagement: {
       sections: {
-        home: {
-          eyebrow: "Management tools",
-          title: "Management Overview",
-          description: "Maintain classes, problems, the standard library, and system status in one place."
-        },
         classes: {
           eyebrow: "Management / Class Roster",
           title: "Class Roster",
@@ -1397,34 +1355,6 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
           eyebrow: "Management / System Status",
           title: "System Status",
           description: "Check AI service, model configuration, and key runtime status."
-        }
-      },
-      home: {
-        aria: "Teacher management entry",
-        eyebrow: "Management tools",
-        title: "Maintenance entry",
-        description: "These are lower-frequency maintenance tools. Teaching results still start from Teaching Analytics.",
-        entries: {
-          classes: {
-            title: "Class Roster",
-            meta: "{{count}} classes",
-            description: "Create classes, and import or update student rosters."
-          },
-          problems: {
-            title: "Problem Bank",
-            meta: "{{count}} problems",
-            description: "Maintain statements, starter code, and test cases."
-          },
-          aiLibrary: {
-            title: "AI Library",
-            meta: "Approved",
-            description: "Maintain knowledge points, skills, and mistake points."
-          },
-          system: {
-            title: "System Status",
-            meta: "Diagnostics",
-            description: "Check AI configuration and runtime dependencies."
-          }
         }
       },
       classManage: {

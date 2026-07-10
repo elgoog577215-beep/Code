@@ -135,8 +135,6 @@
     "nav": {
       "analytics": "Teaching Analytics",
       "analyticsDescription": "Class, assignment, and problem results",
-      "managementHome": "Management Overview",
-      "managementHomeDescription": "Common maintenance entry",
       "roster": "Class Roster",
       "rosterDescription": "Student import and class setup",
       "problemBank": "Problem Bank",
@@ -414,11 +412,6 @@
   },
   "teacherManagement": {
     "sections": {
-      "home": {
-        "eyebrow": "Management Tools",
-        "title": "Management Overview",
-        "description": "Maintain rosters, problems, the standard library, and system status in one place."
-      },
       "classes": {
         "eyebrow": "Management / Class Roster",
         "title": "Class Roster",
@@ -438,34 +431,6 @@
         "eyebrow": "Management / System Status",
         "title": "System Status",
         "description": "Check AI service, model configuration, and key runtime status."
-      }
-    },
-    "home": {
-      "aria": "Teacher management entry",
-      "eyebrow": "Management tools",
-      "title": "Maintenance entry",
-      "description": "These are lower-frequency maintenance tools. Teaching results still start from Teaching Analytics.",
-      "entries": {
-        "classes": {
-          "title": "Class Roster",
-          "meta": "{{count}} classes",
-          "description": "Create classes, and import or update student rosters."
-        },
-        "problems": {
-          "title": "Problem Bank",
-          "meta": "{{count}} problems",
-          "description": "Maintain statements, starter code, and test cases."
-        },
-        "aiLibrary": {
-          "title": "AI Library",
-          "meta": "Approved",
-          "description": "Maintain knowledge points, skills, and mistake points."
-        },
-        "system": {
-          "title": "System Status",
-          "meta": "Diagnostics",
-          "description": "Check AI configuration and runtime dependencies."
-        }
       }
     },
     "classManage": {

@@ -1,13 +1,9 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import {
-  ArrowLeft,
-  ArrowRight,
   BookOpen,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Database,
   GitMerge,
   ListChecks,
   Plus,
@@ -19,7 +15,6 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   UploadCloud,
-  UsersRound,
   X,
   XCircle
 } from "lucide-react";
@@ -96,18 +91,13 @@ const DEFAULT_LIBRARY_FILTERS: LibraryFilters = { query: "", layer: "", category
 type TeacherManagementToolsProps = {
   section?: ManagementSection;
 };
-type ManagementSection = "home" | "classes" | "problems" | "ai-library" | "system";
+type ManagementSection = "classes" | "problems" | "ai-library" | "system";
 type ProblemSortMode = "id" | "difficulty" | "timeLimit";
 
 const PROBLEM_PAGE_SIZE = 10;
 const PROBLEM_DIFFICULTY_ORDER: Record<string, number> = { EASY: 1, MEDIUM: 2, HARD: 3 };
 
 const MANAGEMENT_SECTION_META = {
-  home: {
-    eyebrow: "teacherManagement.sections.home.eyebrow",
-    title: "teacherManagement.sections.home.title",
-    description: "teacherManagement.sections.home.description"
-  },
   classes: {
     eyebrow: "teacherManagement.sections.classes.eyebrow",
     title: "teacherManagement.sections.classes.title",
@@ -130,20 +120,14 @@ const MANAGEMENT_SECTION_META = {
   }
 } satisfies Record<ManagementSection, { eyebrow: string; title: string; description: string }>;
 
-export default function TeacherManagementPage({ section = "home" }: { section?: ManagementSection }) {
+export default function TeacherManagementPage({ section = "classes" }: { section?: ManagementSection }) {
   const { t } = useTranslation();
   const meta = MANAGEMENT_SECTION_META[section];
   return (
     <div className={`teacher-page teacher-workflow teacher-manage-page teacher-manage-page--${section}`}>
       <section className="teacher-workflow-header teacher-workflow-header--simple teacher-manage-header">
         <div>
-          {section === "home" || section === "classes" ? (
-            <p className="eyebrow">{t(meta.eyebrow)}</p>
-          ) : (
-            <Link to="/app/teacher/manage" className="teacher-manage-breadcrumb">
-              <ArrowLeft size={15} /> {t("teacherManagement.sections.home.title")}
-            </Link>
-          )}
+          <p className="eyebrow">{t(meta.eyebrow)}</p>
           <h1>{t(meta.title)}</h1>
           <p>{t(meta.description)}</p>
         </div>
@@ -153,7 +137,7 @@ export default function TeacherManagementPage({ section = "home" }: { section?: 
   );
 }
 
-export function TeacherManagementTools({ section = "home" }: TeacherManagementToolsProps) {
+export function TeacherManagementTools({ section = "classes" }: TeacherManagementToolsProps) {
   const { t } = useTranslation();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
@@ -180,10 +164,10 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
   const [selectedProblemId, setSelectedProblemId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (section === "home" || section === "classes") {
+    if (section === "classes") {
       void loadClasses();
     }
-    if (section === "home" || section === "problems") {
+    if (section === "problems") {
       void loadProblems();
     }
     if (section === "system") {
@@ -489,46 +473,6 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
 
       <section className="management-console">
         <main className="management-workspace">
-          {section === "home" ? (
-            <section className="management-home-panel" aria-label={t("teacherManagement.home.aria")}>
-              <div className="management-home-panel__head">
-                <span>{t("teacherManagement.home.eyebrow")}</span>
-                <h2>{t("teacherManagement.home.title")}</h2>
-                <p>{t("teacherManagement.home.description")}</p>
-              </div>
-              <div className="management-home-grid">
-                <ManagementEntry
-                  to="/app/teacher/manage/classes"
-                  icon={<UsersRound size={18} />}
-                  title={t("teacherManagement.home.entries.classes.title")}
-                  meta={t("teacherManagement.home.entries.classes.meta", { count: cleanClasses.length })}
-                  description={t("teacherManagement.home.entries.classes.description")}
-                />
-                <ManagementEntry
-                  to="/app/teacher/manage/problems"
-                  icon={<BookOpen size={18} />}
-                  title={t("teacherManagement.home.entries.problems.title")}
-                  meta={t("teacherManagement.home.entries.problems.meta", { count: problems.length })}
-                  description={t("teacherManagement.home.entries.problems.description")}
-                />
-                <ManagementEntry
-                  to="/app/teacher/manage/ai-library"
-                  icon={<Database size={18} />}
-                  title={t("teacherManagement.home.entries.aiLibrary.title")}
-                  meta={t("teacherManagement.home.entries.aiLibrary.meta")}
-                  description={t("teacherManagement.home.entries.aiLibrary.description")}
-                />
-                <ManagementEntry
-                  to="/app/teacher/manage/system"
-                  icon={<Power size={18} />}
-                  title={t("teacherManagement.home.entries.system.title")}
-                  meta={t("teacherManagement.home.entries.system.meta")}
-                  description={t("teacherManagement.home.entries.system.description")}
-                />
-              </div>
-            </section>
-          ) : null}
-
           {section === "classes" ? (
             <ClassManageSection
               classes={cleanClasses}
@@ -602,20 +546,6 @@ export function TeacherManagementTools({ section = "home" }: TeacherManagementTo
         </main>
       </section>
     </div>
-  );
-}
-
-function ManagementEntry({ to, icon, title, meta, description }: { to: string; icon: ReactNode; title: string; meta: string; description: string }) {
-  return (
-    <Link to={to} className="management-home-entry">
-      <span className="management-home-entry__icon">{icon}</span>
-      <span>
-        <strong>{title}</strong>
-        <small>{description}</small>
-      </span>
-      <StatusPill tone="neutral">{meta}</StatusPill>
-      <ArrowRight size={16} />
-    </Link>
   );
 }
 

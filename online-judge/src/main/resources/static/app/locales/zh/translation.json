@@ -135,8 +135,6 @@
     "nav": {
       "analytics": "教学分析",
       "analyticsDescription": "班级、作业、题目结果",
-      "managementHome": "管理概览",
-      "managementHomeDescription": "常用维护入口",
       "roster": "班级名单",
       "rosterDescription": "学生导入与班级维护",
       "problemBank": "题库管理",
@@ -414,11 +412,6 @@
   },
   "teacherManagement": {
     "sections": {
-      "home": {
-        "eyebrow": "管理工具",
-        "title": "管理概览",
-        "description": "班级、题库、标准库和系统状态集中维护。"
-      },
       "classes": {
         "eyebrow": "管理 / 班级名单",
         "title": "班级名单",
@@ -438,34 +431,6 @@
         "eyebrow": "管理 / 系统状态",
         "title": "系统状态",
         "description": "检查 AI 服务、模型配置和关键运行状态。"
-      }
-    },
-    "home": {
-      "aria": "教师端管理入口",
-      "eyebrow": "管理工具",
-      "title": "维护入口",
-      "description": "这些是低频维护工具，教学结果仍从左侧教学分析进入。",
-      "entries": {
-        "classes": {
-          "title": "班级名单",
-          "meta": "{{count}} 个班级",
-          "description": "创建班级，导入或更新学生名单。"
-        },
-        "problems": {
-          "title": "题库管理",
-          "meta": "{{count}} 个题目",
-          "description": "维护题面、默认代码和测试点。"
-        },
-        "aiLibrary": {
-          "title": "AI 标准库",
-          "meta": "正式库",
-          "description": "维护知识点、能力点和易错点。"
-        },
-        "system": {
-          "title": "系统状态",
-          "meta": "诊断",
-          "description": "检查 AI 配置和运行依赖。"
-        }
       }
     },
     "classManage": {

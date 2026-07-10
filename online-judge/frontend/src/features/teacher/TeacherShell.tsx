@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { BarChart3, BrainCircuit, Database, Power, Settings2, UsersRound } from "lucide-react";
+import { BarChart3, BrainCircuit, Database, Power, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "../../shared/i18n";
 import "./TeacherHomeRefresh.css";
@@ -31,13 +31,6 @@ export function TeacherShell({ children }: { children: ReactNode }) {
     }
   ];
   const managementItems: TeacherNavItem[] = [
-    {
-      to: "/app/teacher/manage",
-      label: t("teacherShell.nav.managementHome"),
-      description: t("teacherShell.nav.managementHomeDescription"),
-      icon: Settings2,
-      activeWhen: current => current === "/app/teacher/manage"
-    },
     {
       to: "/app/teacher/manage/classes",
       label: t("teacherShell.nav.roster"),

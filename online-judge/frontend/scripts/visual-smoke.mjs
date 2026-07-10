@@ -44,7 +44,6 @@ const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, fi
   ".teacher-analytics-granularity",
   ".problem-compact-details",
   ".editor-workbench",
-  ".management-home-grid",
   "@media(max-width:760px)",
   "[data-theme=dark]"
 ].forEach(selector => ok(`css contains ${selector}`, cssText.includes(selector)));
