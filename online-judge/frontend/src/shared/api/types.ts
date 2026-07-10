@@ -567,6 +567,46 @@ export interface StudentAiFeedbackItem {
   evidenceSnippets?: StudentAiFeedbackEvidenceSnippet[];
   evidenceRefs?: string[];
   qualitySignals?: string[];
+  normalizedPointKey?: string | null;
+  pointKeySource?: string | null;
+  changeStatus?: string | null;
+  personalLabels?: string[];
+  rawOccurrenceCount?: number | null;
+  effectiveOccurrenceCount?: number | null;
+  consecutiveEffectiveCount?: number | null;
+  affectedProblemCount?: number | null;
+  previousSubmissionId?: number | null;
+  lifecycleEvidenceSubmissionIds?: number[];
+}
+
+export interface StudentAiFeedbackIssueLifecycleItem {
+  normalizedPointKey: string;
+  pointKeySource?: string | null;
+  title?: string | null;
+  factType?: string | null;
+  displayCategory?: string | null;
+  changeStatus: string;
+  personalLabels?: string[];
+  rawOccurrenceCount: number;
+  effectiveOccurrenceCount: number;
+  consecutiveEffectiveCount: number;
+  affectedProblemCount: number;
+  effectiveAttempt: boolean;
+  previousSubmissionId?: number | null;
+  currentSubmissionId?: number | null;
+  firstSeenSubmissionId?: number | null;
+  lastSeenSubmissionId?: number | null;
+  evidenceSubmissionIds?: number[];
+}
+
+export interface StudentAiFeedbackIssueChangeSummary {
+  persistedCount: number;
+  newCount: number;
+  recurringCount: number;
+  notObservedCount: number;
+  recoveredCount: number;
+  uncomparableCount: number;
+  improvementCount: number;
 }
 
 export interface StudentAiFeedbackEvidenceSnippet {
@@ -591,6 +631,8 @@ export interface StudentAiFeedback {
   latencyMs?: number | null;
   repairItems?: StudentAiFeedbackItem[];
   improvementItems?: StudentAiFeedbackItem[];
+  issueChanges?: StudentAiFeedbackIssueLifecycleItem[];
+  issueChangeSummary?: StudentAiFeedbackIssueChangeSummary | null;
   studentReport?: StudentAiFeedbackReport | null;
   nextQuestion?: string | null;
   safety?: {
@@ -811,8 +853,17 @@ export interface TeacherKnowledgePathStat {
   source?: "AI_PROJECTION" | "TEACHER_OVERRIDE" | string;
   teacherCorrectionId?: number | null;
   errorOccurrenceCount: number;
+  rawOccurrenceCount?: number;
+  effectiveWeightedOccurrenceCount?: number;
   affectedStudentCount: number;
   repeatedStudentCount: number;
+  unresolvedStudentCount?: number;
+  recurringStudentCount?: number;
+  recoveredStudentCount?: number;
+  recoveryNumerator?: number;
+  recoveryDenominator?: number;
+  recoveryRate?: number | null;
+  difficultyClassification?: string | null;
   affectedProblemCount: number;
   affectedStudentIds?: number[];
   repeatedStudentIds?: number[];
@@ -868,6 +919,22 @@ export interface TeacherStudentRecentState {
   repeatedIssueProblemCount: number;
   latestChangeStatus?: string | null;
   evidenceSubmissionIds: number[];
+  issueTrajectories?: Array<{
+    normalizedPointKey: string;
+    label?: string | null;
+    factType?: string | null;
+    currentStatus: string;
+    personalLabels?: string[];
+    rawOccurrenceCount: number;
+    effectiveOccurrenceCount: number;
+    consecutiveEffectiveCount: number;
+    affectedProblemCount: number;
+    recurringCount: number;
+    firstSeenSubmissionId?: number | null;
+    lastSeenSubmissionId?: number | null;
+    affectedProblemIds?: number[];
+    evidenceSubmissionIds?: number[];
+  }>;
 }
 
 export interface AssignmentOverview {

@@ -694,6 +694,7 @@ function StudentProblemView({
 }) {
   const { t } = useTranslation();
   const currentIssue = student.latestFineGrainedIssue || student.latestIssueTag ? issueLabel(student.latestFineGrainedIssue || student.latestIssueTag) : "等待更多证据";
+  const issueTrajectories = student.recentLearningState?.issueTrajectories || [];
   return (
     <>
       <section className="teacher-drill-header">
@@ -725,6 +726,44 @@ function StudentProblemView({
               <Metric label="最近提交" value={student.latestSubmittedAt ? formatDateTime(student.latestSubmittedAt) : "-"} />
             </div>
           </article>
+
+          <section className="teacher-issue-timeline" aria-label={t("teacherIssueTimeline.aria")}>
+            <div className="teacher-section-head">
+              <div>
+                <p className="eyebrow">{t("teacherIssueTimeline.eyebrow")}</p>
+                <h2>{t("teacherIssueTimeline.title")}</h2>
+              </div>
+              <span>{t("teacherIssueTimeline.total", { count: issueTrajectories.length })}</span>
+            </div>
+            {issueTrajectories.length ? (
+              <div className="teacher-issue-timeline__list">
+                {issueTrajectories.map(item => (
+                  <article className={`is-${String(item.currentStatus || "observing").toLowerCase()}`} key={item.normalizedPointKey}>
+                    <div>
+                      <strong>{item.label || t("teacherIssueTimeline.unnamed")}</strong>
+                      <span>{t(`teacherIssueTimeline.status.${teacherIssueStatusKey(item.currentStatus)}`)}</span>
+                    </div>
+                    <p>{t("teacherIssueTimeline.metrics", {
+                      raw: item.rawOccurrenceCount,
+                      effective: item.effectiveOccurrenceCount,
+                      consecutive: item.consecutiveEffectiveCount,
+                      problems: item.affectedProblemCount
+                    })}</p>
+                    <div className="teacher-issue-timeline__labels">
+                      {(item.personalLabels || []).map(label => (
+                        <span key={label}>{t(`teacherIssueTimeline.label.${teacherIssueLabelKey(label)}`)}</span>
+                      ))}
+                    </div>
+                    <small>{t("teacherIssueTimeline.evidence", {
+                      ids: (item.evidenceSubmissionIds || []).map(id => `#${id}`).join("、") || "-"
+                    })}</small>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="teacher-issue-timeline__empty">{t("teacherIssueTimeline.empty")}</p>
+            )}
+          </section>
 
           <div className="teacher-evidence-grid">
             <article className="teacher-evidence-card">
@@ -823,6 +862,34 @@ function StudentProblemView({
       </section>
     </>
   );
+}
+
+function teacherIssueStatusKey(status?: string | null) {
+  switch (String(status || "").toUpperCase()) {
+    case "UNRESOLVED":
+      return "unresolved";
+    case "RECOVERED":
+      return "recovered";
+    default:
+      return "notObserved";
+  }
+}
+
+function teacherIssueLabelKey(label?: string | null) {
+  switch (String(label || "").toUpperCase()) {
+    case "PERSISTENT_DIFFICULTY":
+      return "persistentDifficulty";
+    case "RECURRING_ERROR":
+      return "recurringError";
+    case "CROSS_PROBLEM_WEAKNESS":
+      return "crossProblemWeakness";
+    case "RECOVERED":
+      return "recovered";
+    case "SINGLE_OBSERVATION":
+      return "singleObservation";
+    default:
+      return "observing";
+  }
 }
 
 function Metric({ label, value }: { label: string; value: string | number }) {

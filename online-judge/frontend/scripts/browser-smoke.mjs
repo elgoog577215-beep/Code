@@ -309,6 +309,16 @@ const studentAiFeedbackReady = {
         title: "输入没有完整读取",
         body: "先把公开样例的每一行 input 手推清楚。",
         kind: "INPUT_FORMAT",
+        mistakePointId: "MP_INPUT",
+        normalizedPointKey: "mistake:point-key-v1:mp-input",
+        pointKeySource: "FORMAL_ID",
+        changeStatus: "PERSISTED",
+        personalLabels: ["PERSISTENT_DIFFICULTY"],
+        rawOccurrenceCount: 4,
+        effectiveOccurrenceCount: 3,
+        consecutiveEffectiveCount: 3,
+        affectedProblemCount: 1,
+        lifecycleEvidenceSubmissionIds: [8998, 8999, 9001],
         knowledgePath: ["信息学基础", "输入输出", "输入格式", "输入读取", "漏读变量"],
         knowledgePathStatus: "FORMAL",
         evidenceSnippets: [{ evidenceRef: "code:line:2", lineNumber: 2, lineEnd: 2, code: "numbers = list(map(int, input().split()))" }],
@@ -319,6 +329,14 @@ const studentAiFeedbackReady = {
         title: "累计结果输出时机不稳定",
         body: "先逐轮记录累计值，再确认输出发生在所有元素都处理完之后。",
         kind: "REPAIR",
+        normalizedPointKey: "text:point-key-v1:output-timing",
+        pointKeySource: "TEXT_FINGERPRINT",
+        changeStatus: "NEW",
+        personalLabels: ["SINGLE_OBSERVATION"],
+        rawOccurrenceCount: 1,
+        effectiveOccurrenceCount: 1,
+        consecutiveEffectiveCount: 1,
+        affectedProblemCount: 1,
         knowledgePath: ["信息学基础", "循环结构", "循环状态", "累计结果输出时机不稳定"],
         knowledgePathStatus: "PROVISIONAL",
         provisionalNodeCode: "MP_AI_OUTPUT_TIMING",
@@ -331,6 +349,14 @@ const studentAiFeedbackReady = {
         title: "测试习惯",
         body: "提交前先跑最小公开样例。能更早发现输入格式问题。",
         kind: "TESTING_HABIT",
+        normalizedPointKey: "text:point-key-v1:testing-habit",
+        pointKeySource: "TEXT_FINGERPRINT",
+        changeStatus: "PERSISTED",
+        personalLabels: ["OBSERVING"],
+        rawOccurrenceCount: 2,
+        effectiveOccurrenceCount: 2,
+        consecutiveEffectiveCount: 2,
+        affectedProblemCount: 2,
         knowledgePath: ["竞赛过程", "提交检查", "边界复测"],
         knowledgePathStatus: "INFERRED",
         evidenceRefs: ["public-case-1"],
@@ -340,12 +366,65 @@ const studentAiFeedbackReady = {
         title: "迁移到多组输入",
         body: "基础问题修正后，再检查多组输入时每轮状态是否重新初始化。",
         kind: "IMPROVEMENT",
+        normalizedPointKey: "text:point-key-v1:multi-case",
+        pointKeySource: "TEXT_FINGERPRINT",
+        changeStatus: "NEW",
+        personalLabels: ["SINGLE_OBSERVATION"],
+        rawOccurrenceCount: 1,
+        effectiveOccurrenceCount: 1,
+        consecutiveEffectiveCount: 1,
+        affectedProblemCount: 1,
         knowledgePath: [],
         knowledgePathStatus: "UNCLASSIFIED",
         evidenceRefs: [],
         qualitySignals: ["transfer"]
       }
     ],
+    issueChanges: [
+      {
+        normalizedPointKey: "mistake:point-key-v1:mp-input",
+        pointKeySource: "FORMAL_ID",
+        title: "输入没有完整读取",
+        factType: "REPAIR",
+        displayCategory: "REPAIR",
+        changeStatus: "PERSISTED",
+        personalLabels: ["PERSISTENT_DIFFICULTY"],
+        rawOccurrenceCount: 4,
+        effectiveOccurrenceCount: 3,
+        consecutiveEffectiveCount: 3,
+        affectedProblemCount: 1,
+        effectiveAttempt: true,
+        previousSubmissionId: 8999,
+        currentSubmissionId: 9001,
+        evidenceSubmissionIds: [8998, 8999, 9001]
+      },
+      {
+        normalizedPointKey: "mistake:point-key-v1:mp-boundary",
+        pointKeySource: "FORMAL_ID",
+        title: "循环边界漏掉末项",
+        factType: "REPAIR",
+        displayCategory: "REPAIR",
+        changeStatus: "RECOVERED",
+        personalLabels: ["RECOVERED"],
+        rawOccurrenceCount: 2,
+        effectiveOccurrenceCount: 2,
+        consecutiveEffectiveCount: 0,
+        affectedProblemCount: 1,
+        effectiveAttempt: true,
+        previousSubmissionId: 8999,
+        currentSubmissionId: 9001,
+        evidenceSubmissionIds: [8997, 8999]
+      }
+    ],
+    issueChangeSummary: {
+      persistedCount: 2,
+      newCount: 2,
+      recurringCount: 0,
+      notObservedCount: 0,
+      recoveredCount: 1,
+      uncomparableCount: 0,
+      improvementCount: 2
+    },
     nextQuestion: "第二次读取时应该拿到 1 2 3，还是已经没有读取？",
     safety: { answerLeakRisk: "LOW", blockedReasons: [] },
     evidenceRefs: ["public-case-1"]
@@ -413,8 +492,17 @@ function pathStat(granularity, label, labels, count) {
     libraryFit: "HIT",
     source: "AI_PROJECTION",
     errorOccurrenceCount: count,
+    rawOccurrenceCount: count,
+    effectiveWeightedOccurrenceCount: Math.max(1, count - 2),
     affectedStudentCount: 4,
     repeatedStudentCount: 2,
+    unresolvedStudentCount: 3,
+    recurringStudentCount: 2,
+    recoveredStudentCount: 1,
+    recoveryNumerator: 1,
+    recoveryDenominator: 4,
+    recoveryRate: 0.25,
+    difficultyClassification: "CLASS_DIFFICULTY",
     affectedProblemCount: 1,
     affectedStudentIds: [41, 42, 43, 44],
     repeatedStudentIds: [41, 42],
@@ -1172,6 +1260,15 @@ const scenarios = [
         readyRepairText
       );
       record("problem modal maps growth fields structurally", readyGrowthText.includes("提升建议") && readyGrowthText.includes("测试习惯") && readyGrowthText.includes("能更早发现输入格式问题"), readyGrowthText);
+      record(
+        "problem modal shows complete issue lifecycle",
+        readyModalText.includes("本次问题变化") &&
+          readyModalText.includes("仍存在") &&
+          readyModalText.includes("新出现") &&
+          readyModalText.includes("已有恢复证据") &&
+          readyModalText.includes("完整展示4项"),
+        readyModalText
+      );
       const suggestionCardCount = await page.locator(".student-feedback-item").count();
       const knowledgeCardCount = await page.locator(".student-feedback-knowledge").count();
       const pathStatusText = (await page.locator(".student-feedback-knowledge__status").allTextContents()).join("|");
@@ -1377,6 +1474,11 @@ const scenarios = [
       const classText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
       record("class analytics keeps class assignment problem hierarchy", classText.includes("高一1班") && classText.includes("作业列表") && classText.includes("课堂编程作业"), classText.slice(0, 900));
       record("class analytics shows knowledge attribution", classText.includes("AI知识归因") && classText.includes("知识路径"), classText.slice(0, 900));
+      record(
+        "class analytics exposes distinct and weighted issue metrics",
+        classText.includes("按涉及人数") && classText.includes("按有效次数") && classText.includes("原始8次") && classText.includes("有效6次") && classText.includes("班级重难点"),
+        classText.slice(0, 1100)
+      );
       record("class analytics normalizes percent fields", classText.includes("40%") && classText.includes("83%") && !classText.includes("4000%") && !classText.includes("8330%"), classText.slice(0, 900));
     },
     selectors: [

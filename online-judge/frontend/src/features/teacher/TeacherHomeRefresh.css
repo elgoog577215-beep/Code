@@ -322,6 +322,71 @@
   }
 }
 
+.teacher-console-shell .teacher-issue-timeline {
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.92rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.teacher-console-shell .teacher-issue-timeline__list {
+  display: grid;
+  gap: 0.56rem;
+}
+
+.teacher-console-shell .teacher-issue-timeline__list > article {
+  display: grid;
+  gap: 0.36rem;
+  padding: 0.72rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brand);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.teacher-console-shell .teacher-issue-timeline__list > article.is-recovered {
+  border-left-color: var(--success);
+}
+
+.teacher-console-shell .teacher-issue-timeline__list > article > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.teacher-console-shell .teacher-issue-timeline__list p,
+.teacher-console-shell .teacher-issue-timeline__list small,
+.teacher-console-shell .teacher-issue-timeline__empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.teacher-console-shell .teacher-issue-timeline__labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+}
+
+.teacher-console-shell .teacher-issue-timeline__labels span,
+.teacher-console-shell .teacher-issue-timeline__list > article > div:first-child span {
+  padding: 0.2rem 0.42rem;
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+@media (max-width: 760px) {
+  .teacher-console-shell .teacher-issue-timeline__list > article > div:first-child {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 @media (max-width: 420px) {
   .app-header--teacher-context .top-nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));

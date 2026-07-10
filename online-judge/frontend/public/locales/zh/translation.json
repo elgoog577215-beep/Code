@@ -52,6 +52,62 @@
       "analysis": "分析证据"
     }
   },
+  "issueLifecycle": {
+    "title": "本次问题变化",
+    "completeCount": "完整展示 {{count}} 项",
+    "previousChanges": "上次存在、本次已变化的问题",
+    "unnamedIssue": "未命名问题",
+    "effectiveCount": "有效出现 {{count}} 次",
+    "consecutiveCount": "连续 {{count}} 次",
+    "historyEvidence": "原始 {{raw}} 次 · 有效 {{effective}} 次 · 对比提交 #{{submission}}",
+    "status": {
+      "new": "新出现",
+      "persisted": "仍存在",
+      "not_observed": "本次未观察到",
+      "recovered": "已有恢复证据",
+      "recurred": "修复后复发",
+      "uncomparable": "暂无法比较"
+    },
+    "label": {
+      "persistentDifficulty": "持续难点",
+      "recurringError": "复发易错",
+      "crossProblemWeakness": "跨题薄弱",
+      "recovered": "已恢复",
+      "singleObservation": "单次观察",
+      "observing": "继续观察",
+      "evidenceInsufficient": "证据不足"
+    },
+    "summary": {
+      "persisted": "仍存在 {{count}}",
+      "new": "新出现 {{count}}",
+      "recurring": "复发 {{count}}",
+      "recovered": "已恢复 {{count}}",
+      "improvements": "提升点 {{count}}"
+    }
+  },
+  "teacherIssueTimeline": {
+    "aria": "学生逐问题成长轨迹",
+    "eyebrow": "成长路径",
+    "title": "逐问题提交轨迹",
+    "total": "{{count}} 个问题",
+    "unnamed": "未命名问题",
+    "metrics": "原始 {{raw}} 次 · 有效 {{effective}} 次 · 最长连续 {{consecutive}} 次 · 涉及 {{problems}} 题",
+    "evidence": "证据提交：{{ids}}",
+    "empty": "提交形成稳定诊断后，这里会按问题展示持续、恢复和复发轨迹。",
+    "status": {
+      "unresolved": "当前仍存在",
+      "recovered": "已有恢复证据",
+      "notObserved": "当前未观察到"
+    },
+    "label": {
+      "persistentDifficulty": "持续难点",
+      "recurringError": "复发易错",
+      "crossProblemWeakness": "跨题薄弱",
+      "recovered": "已恢复",
+      "singleObservation": "单次观察",
+      "observing": "继续观察"
+    }
+  },
   "problemHistory": {
     "title": "最近提交",
     "aria": "本题历史提交",
@@ -231,6 +287,11 @@
       "skillUnit": "按能力点",
       "mistakePoint": "按易错点"
     },
+    "metricMode": {
+      "aria": "班级问题统计口径",
+      "distinct": "按涉及人数",
+      "weighted": "按有效次数"
+    },
     "metrics": {
       "assignments": "作业数",
       "students": "学生数",
@@ -261,6 +322,13 @@
     },
     "scopeTitle": "{{scope}}结果分布",
     "pathMeta": "{{count}} 次 · {{students}} 名学生 · {{repeated}} 名重复 · {{problems}} 道题",
+    "pathMetaDual": "原始 {{raw}} 次 · 有效 {{weighted}} 次 · {{students}} 名学生 · {{repeated}} 名重复 · {{unresolved}} 名未解决 · {{recurring}} 名复发 · {{problems}} 道题 · 恢复率 {{recovery}}",
+    "difficulty": {
+      "classDifficulty": "班级重难点",
+      "individualPersistent": "个体持续难点",
+      "commonError": "共性易错点",
+      "occasional": "个别偶发"
+    },
     "pathLabel": "路径",
     "pathStatus": {
       "formal": "正式标准库",
@@ -310,6 +378,8 @@
     },
     "units": {
       "count": "次",
+      "students": "人",
+      "effectiveAttempts": "有效次",
       "problem": "题",
       "passed": "通过"
     },

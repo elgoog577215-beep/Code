@@ -491,6 +491,93 @@
   }
 }
 
+.problem-result-section--lifecycle {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.62rem;
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface-strong));
+}
+
+.student-issue-change-summary,
+.student-feedback-lifecycle-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem;
+}
+
+.student-issue-change-summary span,
+.student-feedback-lifecycle-badges span {
+  padding: 0.22rem 0.46rem;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: var(--surface-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.student-feedback-lifecycle-badges .is-persisted,
+.student-feedback-lifecycle-badges .is-recurred {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.student-feedback-lifecycle-badges .is-new {
+  color: var(--warning-strong, #9a6700);
+  background: color-mix(in srgb, var(--warning, #d99b00) 12%, transparent);
+}
+
+.student-feedback-lifecycle-badges .is-recovered,
+.student-feedback-lifecycle-badges .is-not_observed {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 11%, transparent);
+}
+
+.student-feedback-lifecycle-badges .is-label {
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand) 11%, transparent);
+}
+
+.student-issue-history-changes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.46rem;
+}
+
+.student-issue-history-changes > strong {
+  grid-column: 1 / -1;
+}
+
+.student-issue-history-changes article {
+  display: grid;
+  gap: 0.24rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.student-issue-history-changes article span {
+  color: var(--success);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.student-issue-history-changes article p,
+.student-issue-history-changes article small {
+  margin: 0;
+}
+
+.student-issue-history-changes article small {
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .student-issue-history-changes {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 680px) {
   .student-task-home {
     padding-inline: 0.12rem;

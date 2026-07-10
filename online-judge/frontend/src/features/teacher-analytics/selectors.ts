@@ -321,6 +321,14 @@ function buildBucketsFromStats(
   type Accumulator = {
     stat: TeacherKnowledgePathStat;
     count: number;
+    rawCount: number;
+    effectiveCount: number;
+    unresolvedCount: number;
+    recurringCount: number;
+    recoveredCount: number;
+    recoveryNumerator: number;
+    recoveryDenominator: number;
+    difficultyClassification?: string | null;
     studentIds: Set<number>;
     repeatedStudentIds: Set<number>;
     problemIds: Set<number>;
@@ -340,12 +348,28 @@ function buildBucketsFromStats(
     const current = target.get(stat.id) || {
       stat,
       count: 0,
+      rawCount: 0,
+      effectiveCount: 0,
+      unresolvedCount: 0,
+      recurringCount: 0,
+      recoveredCount: 0,
+      recoveryNumerator: 0,
+      recoveryDenominator: 0,
+      difficultyClassification: null,
       studentIds: new Set<number>(),
       repeatedStudentIds: new Set<number>(),
       problemIds: new Set<number>(),
       evidence: []
     };
     current.count += stat.errorOccurrenceCount || 0;
+    current.rawCount += stat.rawOccurrenceCount ?? stat.errorOccurrenceCount ?? 0;
+    current.effectiveCount += stat.effectiveWeightedOccurrenceCount ?? stat.errorOccurrenceCount ?? 0;
+    current.unresolvedCount += stat.unresolvedStudentCount || 0;
+    current.recurringCount += stat.recurringStudentCount || 0;
+    current.recoveredCount += stat.recoveredStudentCount || 0;
+    current.recoveryNumerator += stat.recoveryNumerator || 0;
+    current.recoveryDenominator += stat.recoveryDenominator || 0;
+    current.difficultyClassification = strongerClassification(current.difficultyClassification, stat.difficultyClassification);
     (stat.affectedStudentIds || []).forEach(id => current.studentIds.add(id));
     (stat.repeatedStudentIds || []).forEach(id => current.repeatedStudentIds.add(id));
     (stat.affectedProblemIds || []).forEach(id => current.problemIds.add(id));
@@ -359,7 +383,22 @@ function buildBucketsFromStats(
   return Object.fromEntries(Object.entries(grouped).map(([granularity, values]) => {
     const total = [...values.values()].reduce((sum, item) => sum + item.count, 0);
     const buckets = [...values.values()]
-      .map(({ stat, count, studentIds, repeatedStudentIds, problemIds, evidence }): InsightBucket => ({
+      .map(({
+        stat,
+        count,
+        rawCount,
+        effectiveCount,
+        unresolvedCount,
+        recurringCount,
+        recoveredCount,
+        recoveryNumerator,
+        recoveryDenominator,
+        difficultyClassification,
+        studentIds,
+        repeatedStudentIds,
+        problemIds,
+        evidence
+      }): InsightBucket => ({
         id: stat.id,
         label: localizedPathLabel(stat.label, stat.pathStatus, t),
         count,
@@ -367,6 +406,13 @@ function buildBucketsFromStats(
         affectedStudentCount: studentIds.size || stat.affectedStudentCount,
         repeatedStudentCount: repeatedStudentIds.size || stat.repeatedStudentCount,
         affectedProblemCount: problemIds.size || stat.affectedProblemCount,
+        rawOccurrenceCount: rawCount,
+        effectiveWeightedOccurrenceCount: effectiveCount,
+        unresolvedStudentCount: unresolvedCount,
+        recurringStudentCount: recurringCount,
+        recoveredStudentCount: recoveredCount,
+        recoveryRate: recoveryDenominator ? recoveryNumerator / recoveryDenominator : stat.recoveryRate,
+        difficultyClassification,
         path: (stat.path || [])
           .filter(node => isAnalyticsGranularity(node.kind))
           .map(node => ({ label: localizedPathLabel(node.label, stat.pathStatus, t), kind: node.kind as AnalyticsGranularity })),
@@ -378,6 +424,16 @@ function buildBucketsFromStats(
       .slice(0, 8);
     return [granularity, buckets];
   })) as Record<AnalyticsGranularity, InsightBucket[]>;
+}
+
+function strongerClassification(left?: string | null, right?: string | null) {
+  const rank: Record<string, number> = {
+    OCCASIONAL_INDIVIDUAL: 1,
+    COMMON_ERROR: 2,
+    INDIVIDUAL_PERSISTENT: 3,
+    CLASS_DIFFICULTY: 4
+  };
+  return (rank[String(right || "")] || 0) > (rank[String(left || "")] || 0) ? right : left;
 }
 
 function statEvidence(stat: TeacherKnowledgePathStat, fallback: AnalyticsEvidenceSample[], t?: AnalyticsTranslator) {

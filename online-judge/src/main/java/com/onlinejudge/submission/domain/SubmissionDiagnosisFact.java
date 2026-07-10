@@ -27,7 +27,8 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_diagnosis_fact_analysis", columnList = "analysis_id"),
                 @Index(name = "idx_diagnosis_fact_path", columnList = "knowledge_path_status,fact_type"),
                 @Index(name = "idx_diagnosis_fact_skill", columnList = "skill_unit_id"),
-                @Index(name = "idx_diagnosis_fact_mistake", columnList = "mistake_point_id")
+                @Index(name = "idx_diagnosis_fact_mistake", columnList = "mistake_point_id"),
+                @Index(name = "idx_diagnosis_fact_normalized_point", columnList = "normalized_point_key,fact_type")
         }
 )
 @Data
@@ -54,6 +55,18 @@ public class SubmissionDiagnosisFact {
 
     @Column(name = "fact_type", nullable = false, length = 32)
     private String factType;
+
+    @Column(name = "display_category", length = 32)
+    private String displayCategory;
+
+    @Column(name = "normalized_point_key", length = 220)
+    private String normalizedPointKey;
+
+    @Column(name = "point_key_source", length = 32)
+    private String pointKeySource;
+
+    @Column(name = "point_key_version", length = 24)
+    private String pointKeyVersion;
 
     @Column(name = "primary_issue", nullable = false)
     private boolean primaryIssue;
@@ -97,6 +110,9 @@ public class SubmissionDiagnosisFact {
         }
         if (projectionStatus == null || projectionStatus.isBlank()) {
             projectionStatus = "READY";
+        }
+        if (displayCategory == null || displayCategory.isBlank()) {
+            displayCategory = "IMPROVEMENT".equalsIgnoreCase(factType) ? "IMPROVEMENT" : "REPAIR";
         }
     }
 }

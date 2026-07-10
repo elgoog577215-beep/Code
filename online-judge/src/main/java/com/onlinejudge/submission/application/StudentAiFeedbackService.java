@@ -29,6 +29,7 @@ import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,6 +70,12 @@ public class StudentAiFeedbackService {
     private final AiStandardImprovementPointRepository improvementPointRepository;
     private final InformaticsKnowledgeNodeRepository knowledgeRepository;
     private final ObjectMapper objectMapper;
+    private StudentIssueLifecycleReadService issueLifecycleReadService;
+
+    @Autowired(required = false)
+    void setIssueLifecycleReadService(StudentIssueLifecycleReadService issueLifecycleReadService) {
+        this.issueLifecycleReadService = issueLifecycleReadService;
+    }
 
     @Transactional(readOnly = true)
     public StudentAiFeedbackLookupResponse getLookup(Long submissionId) {
@@ -1082,6 +1089,9 @@ public class StudentAiFeedbackService {
             feedback.setGeneratedAt(entity.getGeneratedAt());
         }
         hydrateDisplayContract(feedback);
+        if (issueLifecycleReadService != null) {
+            issueLifecycleReadService.hydrate(entity.getSubmissionId(), feedback);
+        }
         return StudentAiFeedbackLookupResponse.builder()
                 .status(statusOrFailed(entity.getStatus()))
                 .failureReason(entity.getFailureReason())

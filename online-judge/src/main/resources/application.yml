@@ -67,6 +67,16 @@ app:
   submission-evidence:
     strict-classroom-context-enabled: ${APP_STRICT_CLASSROOM_SUBMISSION_ENABLED:true}
     analytics-read-enabled: ${APP_SUBMISSION_EVIDENCE_ANALYTICS_ENABLED:true}
+    lifecycle-projection-enabled: ${APP_SUBMISSION_ISSUE_LIFECYCLE_PROJECTION_ENABLED:true}
+    lifecycle-read-enabled: ${APP_SUBMISSION_ISSUE_LIFECYCLE_READ_ENABLED:true}
+    lifecycle-startup-backfill-enabled: ${APP_SUBMISSION_ISSUE_LIFECYCLE_BACKFILL_ENABLED:false}
+    lifecycle-startup-backfill-dry-run: ${APP_SUBMISSION_ISSUE_LIFECYCLE_BACKFILL_DRY_RUN:true}
+    lifecycle-backfill-batch-size: ${APP_SUBMISSION_ISSUE_LIFECYCLE_BACKFILL_BATCH_SIZE:200}
+    persistent-difficulty-threshold: ${APP_SUBMISSION_ISSUE_PERSISTENT_THRESHOLD:3}
+    cross-problem-weakness-threshold: ${APP_SUBMISSION_ISSUE_CROSS_PROBLEM_THRESHOLD:2}
+    class-coverage-threshold: ${APP_SUBMISSION_ISSUE_CLASS_COVERAGE_THRESHOLD:0.4}
+    class-repeat-threshold: ${APP_SUBMISSION_ISSUE_CLASS_REPEAT_THRESHOLD:1.5}
+    class-low-recovery-threshold: ${APP_SUBMISSION_ISSUE_CLASS_LOW_RECOVERY_THRESHOLD:0.6}
 
 ---
 spring:

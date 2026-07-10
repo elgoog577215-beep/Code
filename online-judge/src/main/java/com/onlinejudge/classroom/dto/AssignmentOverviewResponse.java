@@ -200,8 +200,17 @@ public class AssignmentOverviewResponse {
         private String source;
         private Long teacherCorrectionId;
         private long errorOccurrenceCount;
+        private long rawOccurrenceCount;
+        private long effectiveWeightedOccurrenceCount;
         private long affectedStudentCount;
         private long repeatedStudentCount;
+        private long unresolvedStudentCount;
+        private long recurringStudentCount;
+        private long recoveredStudentCount;
+        private long recoveryNumerator;
+        private long recoveryDenominator;
+        private Double recoveryRate;
+        private String difficultyClassification;
         private long affectedProblemCount;
         private List<Long> affectedStudentIds;
         private List<Long> repeatedStudentIds;
@@ -266,6 +275,26 @@ public class AssignmentOverviewResponse {
         private long repeatedIssueCount;
         private long repeatedIssueProblemCount;
         private String latestChangeStatus;
+        private List<Long> evidenceSubmissionIds;
+        private List<StudentIssueTrajectory> issueTrajectories;
+    }
+
+    @Data
+    @Builder
+    public static class StudentIssueTrajectory {
+        private String normalizedPointKey;
+        private String label;
+        private String factType;
+        private String currentStatus;
+        private List<String> personalLabels;
+        private long rawOccurrenceCount;
+        private long effectiveOccurrenceCount;
+        private long consecutiveEffectiveCount;
+        private long affectedProblemCount;
+        private long recurringCount;
+        private Long firstSeenSubmissionId;
+        private Long lastSeenSubmissionId;
+        private List<Long> affectedProblemIds;
         private List<Long> evidenceSubmissionIds;
     }
 

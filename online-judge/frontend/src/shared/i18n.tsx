@@ -1,10 +1,17 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import enLocale from "../../public/locales/en/translation.json";
+import zhLocale from "../../public/locales/zh/translation.json";
 
 type Locale = "zh" | "en";
 type TranslationValue = string | { [key: string]: TranslationValue };
 type TranslationDictionary = Record<string, TranslationValue>;
 
 const STORAGE_KEY = "wzai:locale";
+
+const localeFiles: Record<Locale, TranslationDictionary> = {
+  zh: zhLocale as TranslationDictionary,
+  en: enLocale as TranslationDictionary
+};
 
 const dictionaries: Record<Locale, TranslationDictionary> = {
   zh: {
@@ -1841,7 +1848,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<I18nContextValue>(() => {
     function t(key: string, params?: Record<string, string | number>) {
-      const template = lookup(dictionaries[locale], key) ?? lookup(dictionaries.zh, key) ?? key;
+      const template = lookup(localeFiles[locale], key)
+        ?? lookup(localeFiles.zh, key)
+        ?? lookup(dictionaries[locale], key)
+        ?? lookup(dictionaries.zh, key)
+        ?? key;
       return interpolate(template, params);
     }
 

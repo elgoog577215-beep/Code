@@ -49,6 +49,13 @@ export type InsightBucket = {
   affectedStudentCount?: number;
   repeatedStudentCount?: number;
   affectedProblemCount?: number;
+  rawOccurrenceCount?: number;
+  effectiveWeightedOccurrenceCount?: number;
+  unresolvedStudentCount?: number;
+  recurringStudentCount?: number;
+  recoveredStudentCount?: number;
+  recoveryRate?: number | null;
+  difficultyClassification?: string | null;
   pathStatus?: "FORMAL" | "PROVISIONAL" | "INFERRED" | "UNCLASSIFIED" | string;
   path: KnowledgePathNode[];
   fit: LibraryFit;

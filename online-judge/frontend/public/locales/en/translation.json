@@ -52,6 +52,62 @@
       "analysis": "Analysis evidence"
     }
   },
+  "issueLifecycle": {
+    "title": "Changes in this submission",
+    "completeCount": "{{count}} items shown in full",
+    "previousChanges": "Issues seen previously that changed this time",
+    "unnamedIssue": "Unnamed issue",
+    "effectiveCount": "{{count}} effective appearances",
+    "consecutiveCount": "{{count}} consecutive attempts",
+    "historyEvidence": "{{raw}} raw · {{effective}} effective · compared with submission #{{submission}}",
+    "status": {
+      "new": "New",
+      "persisted": "Still present",
+      "not_observed": "Not observed this time",
+      "recovered": "Recovery evidence",
+      "recurred": "Recurred after recovery",
+      "uncomparable": "Not comparable yet"
+    },
+    "label": {
+      "persistentDifficulty": "Persistent difficulty",
+      "recurringError": "Recurring error",
+      "crossProblemWeakness": "Cross-problem weakness",
+      "recovered": "Recovered",
+      "singleObservation": "Single observation",
+      "observing": "Under observation",
+      "evidenceInsufficient": "Insufficient evidence"
+    },
+    "summary": {
+      "persisted": "Still present {{count}}",
+      "new": "New {{count}}",
+      "recurring": "Recurred {{count}}",
+      "recovered": "Recovered {{count}}",
+      "improvements": "Improvements {{count}}"
+    }
+  },
+  "teacherIssueTimeline": {
+    "aria": "Student issue growth timeline",
+    "eyebrow": "Growth path",
+    "title": "Issue-by-issue submission timeline",
+    "total": "{{count}} issues",
+    "unnamed": "Unnamed issue",
+    "metrics": "{{raw}} raw · {{effective}} effective · {{consecutive}} max consecutive · {{problems}} problems",
+    "evidence": "Evidence submissions: {{ids}}",
+    "empty": "Once submissions have stable diagnoses, persistence, recovery, and recurrence will appear here by issue.",
+    "status": {
+      "unresolved": "Currently unresolved",
+      "recovered": "Recovery evidence",
+      "notObserved": "Not currently observed"
+    },
+    "label": {
+      "persistentDifficulty": "Persistent difficulty",
+      "recurringError": "Recurring error",
+      "crossProblemWeakness": "Cross-problem weakness",
+      "recovered": "Recovered",
+      "singleObservation": "Single observation",
+      "observing": "Under observation"
+    }
+  },
   "problemHistory": {
     "title": "Recent submissions",
     "aria": "Submission history for this problem",
@@ -231,6 +287,11 @@
       "skillUnit": "By skill unit",
       "mistakePoint": "By mistake point"
     },
+    "metricMode": {
+      "aria": "Class issue metric",
+      "distinct": "Affected students",
+      "weighted": "Effective attempts"
+    },
     "metrics": {
       "assignments": "Assignments",
       "students": "Students",
@@ -261,6 +322,13 @@
     },
     "scopeTitle": "{{scope}} result distribution",
     "pathMeta": "{{count}} times · {{students}} students · {{repeated}} repeated · {{problems}} problems",
+    "pathMetaDual": "{{raw}} raw · {{weighted}} effective · {{students}} students · {{repeated}} repeated · {{unresolved}} unresolved · {{recurring}} recurring · {{problems}} problems · {{recovery}} recovery",
+    "difficulty": {
+      "classDifficulty": "Class difficulty",
+      "individualPersistent": "Individual persistent difficulty",
+      "commonError": "Common easy-to-miss issue",
+      "occasional": "Occasional individual issue"
+    },
     "pathLabel": "Path",
     "pathStatus": {
       "formal": "Formal library",
@@ -310,6 +378,8 @@
     },
     "units": {
       "count": "times",
+      "students": "students",
+      "effectiveAttempts": "effective attempts",
       "problem": "problems",
       "passed": "passed"
     },

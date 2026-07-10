@@ -6,8 +6,8 @@ import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.domain.SubmissionDiagnosisFact;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.persistence.SubmissionDiagnosisFactRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,12 +15,30 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class SubmissionDiagnosisFactProjector {
 
     private final SubmissionDiagnosisFactRepository factRepository;
     private final ObjectMapper objectMapper;
+    private final IssuePointKeyFactory pointKeyFactory;
+    private final SubmissionIssueLifecycleService lifecycleService;
+
+    @Autowired
+    public SubmissionDiagnosisFactProjector(
+            SubmissionDiagnosisFactRepository factRepository,
+            ObjectMapper objectMapper,
+            IssuePointKeyFactory pointKeyFactory,
+            SubmissionIssueLifecycleService lifecycleService
+    ) {
+        this.factRepository = factRepository;
+        this.objectMapper = objectMapper;
+        this.pointKeyFactory = pointKeyFactory;
+        this.lifecycleService = lifecycleService;
+    }
+
+    public SubmissionDiagnosisFactProjector(SubmissionDiagnosisFactRepository factRepository, ObjectMapper objectMapper) {
+        this(factRepository, objectMapper, new IssuePointKeyFactory(), null);
+    }
 
     @Transactional
     public ProjectionResult project(SubmissionAnalysis analysis, SubmissionAnalysisResponse response) {
@@ -111,6 +129,9 @@ public class SubmissionDiagnosisFactProjector {
         }
         log.info("Projected submission diagnosis facts. submissionId={}, analysisId={}, inserted={}, total={}",
                 analysis.getSubmissionId(), analysis.getId(), inserted, candidates.size());
+        if (lifecycleService != null) {
+            lifecycleService.rebuildForSubmission(analysis.getSubmissionId());
+        }
         return new ProjectionResult(inserted, candidates.size() - inserted);
     }
 
@@ -132,12 +153,24 @@ public class SubmissionDiagnosisFactProjector {
     ) {
         String stableIssue = firstNonBlank(issueId, mistakePointId, improvementPointId, skillUnitId, title, "item-" + index);
         String factKey = analysis.getId() + ":" + factType + ":" + stableIssue + ":" + index;
+        IssuePointKeyFactory.Identity identity = pointKeyFactory.identity(
+                factType,
+                mistakePointId,
+                improvementPointId,
+                skillUnitId,
+                safe(knowledgePath),
+                title
+        );
         return SubmissionDiagnosisFact.builder()
                 .submissionId(analysis.getSubmissionId())
                 .analysisId(analysis.getId())
                 .factKey(limit(factKey, 180))
                 .issueId(limit(clean(issueId), 120))
                 .factType(factType)
+                .displayCategory("IMPROVEMENT".equals(factType) ? "IMPROVEMENT" : "REPAIR")
+                .normalizedPointKey(limit(identity.key(), 220))
+                .pointKeySource(identity.source())
+                .pointKeyVersion(identity.version())
                 .primaryIssue(primary)
                 .title(limit(clean(title), 500))
                 .skillUnitId(limit(clean(skillUnitId), 160))

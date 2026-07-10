@@ -100,9 +100,15 @@ class SubmissionEvidenceAnalyticsServiceTest {
                 .filter(item -> "mistakePoint".equals(item.getGranularity()))
                 .findFirst()).get().satisfies(item -> {
                     assertThat(item.getErrorOccurrenceCount()).isEqualTo(2);
+                    assertThat(item.getRawOccurrenceCount()).isEqualTo(2);
+                    assertThat(item.getEffectiveWeightedOccurrenceCount()).isEqualTo(1);
                     assertThat(item.getAffectedStudentCount()).isEqualTo(1);
                     assertThat(item.getRepeatedStudentCount()).isEqualTo(1);
                     assertThat(item.getAffectedProblemCount()).isEqualTo(1);
+                    assertThat(item.getRecoveredStudentCount()).isEqualTo(1);
+                    assertThat(item.getUnresolvedStudentCount()).isZero();
+                    assertThat(item.getRecoveryRate()).isEqualTo(1.0);
+                    assertThat(item.getDifficultyClassification()).isEqualTo("OCCASIONAL_INDIVIDUAL");
                 });
         assertThat(summary.recoverySummary().getRecoveryNumerator()).isEqualTo(1);
         assertThat(summary.recoverySummary().getRecoveryDenominator()).isEqualTo(2);

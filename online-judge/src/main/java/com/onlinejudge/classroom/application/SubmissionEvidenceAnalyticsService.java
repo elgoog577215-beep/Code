@@ -94,8 +94,6 @@ public class SubmissionEvidenceAnalyticsService {
                 ? List.of()
                 : feedbackEventRepository.findBySubmissionIdIn(submissionIds);
 
-        Map<Long, Submission> submissionById = submissions.stream()
-                .collect(Collectors.toMap(Submission::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
         Set<Long> legalIds = legal.stream().map(Submission::getId).collect(Collectors.toSet());
         Map<Long, List<EffectiveFact>> effectiveFacts = facts.stream()
                 .filter(fact -> legalIds.contains(fact.getSubmissionId()))
@@ -107,10 +105,15 @@ public class SubmissionEvidenceAnalyticsService {
                         Collectors.toList()
                 ));
 
+        long submittedStudentCount = legal.stream()
+                .map(Submission::getStudentProfileId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .count();
         List<AssignmentOverviewResponse.KnowledgePathStat> pathStats = buildPathStats(
                 legal,
-                submissionById,
-                effectiveFacts
+                effectiveFacts,
+                submittedStudentCount
         );
         RecoveryResult recovery = buildRecovery(legal, effectiveFacts, events);
         Map<Long, AssignmentOverviewResponse.StudentRecentState> recentStates = buildRecentStates(legal, effectiveFacts, recovery.evidence());
@@ -123,11 +126,6 @@ public class SubmissionEvidenceAnalyticsService {
                 events
         );
 
-        long submittedStudentCount = legal.stream()
-                .map(Submission::getStudentProfileId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .count();
         long passedStudentCount = legal.stream()
                 .filter(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED)
                 .map(Submission::getStudentProfileId)
@@ -230,6 +228,12 @@ public class SubmissionEvidenceAnalyticsService {
         List<AssignmentOverviewResponse.KnowledgePathNode> nodes = buildPathNodes(path, issueId, pathStatus);
         return new EffectiveFact(
                 fact.getSubmissionId(),
+                firstNonBlank(
+                        correctionApplies ? correction.getCorrectedFineGrainedTag() : null,
+                        correctionApplies ? correction.getCorrectedIssueTag() : null,
+                        fact.getNormalizedPointKey(),
+                        issueId
+                ),
                 issueId,
                 nodes,
                 pathStatus,
@@ -254,20 +258,24 @@ public class SubmissionEvidenceAnalyticsService {
 
     private List<AssignmentOverviewResponse.KnowledgePathStat> buildPathStats(
             List<Submission> legal,
-            Map<Long, Submission> submissionById,
-            Map<Long, List<EffectiveFact>> effectiveFacts
+            Map<Long, List<EffectiveFact>> effectiveFacts,
+            long submittedStudentCount
     ) {
         Map<String, PathAccumulator> buckets = new LinkedHashMap<>();
+        Map<String, BucketLifecycle> lifecycle = buildBucketLifecycle(legal, effectiveFacts);
         for (Submission submission : legal) {
             for (EffectiveFact fact : effectiveFacts.getOrDefault(submission.getId(), List.of())) {
                 for (int index = 0; index < fact.path().size(); index++) {
                     int nodeIndex = index;
                     AssignmentOverviewResponse.KnowledgePathNode node = fact.path().get(index);
-                    String pathKey = fact.path().subList(0, index + 1).stream()
-                            .map(AssignmentOverviewResponse.KnowledgePathNode::getLabel)
-                            .collect(Collectors.joining("/"));
-                    String key = node.getKind() + ":" + fact.pathStatus() + ":" + pathKey;
-                    PathAccumulator accumulator = buckets.computeIfAbsent(key, ignored -> new PathAccumulator(fact, nodeIndex));
+                    String key = bucketKey(fact, nodeIndex);
+                    PathAccumulator accumulator = buckets.computeIfAbsent(key, ignored -> new PathAccumulator(
+                            fact,
+                            nodeIndex,
+                            lifecycle.getOrDefault(key, new BucketLifecycle()),
+                            submittedStudentCount,
+                            properties
+                    ));
                     accumulator.add(submission);
                 }
             }
@@ -278,6 +286,78 @@ public class SubmissionEvidenceAnalyticsService {
                         .reversed()
                         .thenComparing(AssignmentOverviewResponse.KnowledgePathStat::getLabel, Comparator.nullsLast(String::compareTo)))
                 .toList();
+    }
+
+    private Map<String, BucketLifecycle> buildBucketLifecycle(
+            List<Submission> legal,
+            Map<Long, List<EffectiveFact>> effectiveFacts
+    ) {
+        Map<String, BucketLifecycle> metrics = new LinkedHashMap<>();
+        Map<String, List<Submission>> scopes = legal.stream()
+                .filter(item -> item.getStudentProfileId() != null && item.getProblemId() != null)
+                .collect(Collectors.groupingBy(
+                        item -> item.getStudentProfileId() + ":" + item.getAssignmentId() + ":" + item.getProblemId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+        for (List<Submission> scope : scopes.values()) {
+            List<Submission> ordered = scope.stream()
+                    .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo))
+                            .thenComparing(Submission::getId))
+                    .toList();
+            Set<String> seen = new LinkedHashSet<>();
+            Set<String> previousKeys = Set.of();
+            Submission previous = null;
+            for (Submission current : ordered) {
+                Set<String> currentKeys = bucketKeys(effectiveFacts.getOrDefault(current.getId(), List.of()));
+                boolean effectiveAttempt = previous == null
+                        || !Objects.equals(previous.getSourceCode(), current.getSourceCode())
+                        || !Objects.equals(previous.getVerdict(), current.getVerdict())
+                        || !Objects.equals(previousKeys, currentKeys);
+                for (String key : currentKeys) {
+                    BucketLifecycle metric = metrics.computeIfAbsent(key, ignored -> new BucketLifecycle());
+                    if (effectiveAttempt) {
+                        metric.effectiveOccurrenceCount++;
+                    }
+                    if (seen.contains(key) && !previousKeys.contains(key)) {
+                        metric.recurringStudentIds.add(current.getStudentProfileId());
+                    }
+                    seen.add(key);
+                }
+                previous = current;
+                previousKeys = currentKeys;
+            }
+            if (!ordered.isEmpty()) {
+                Submission latest = ordered.get(ordered.size() - 1);
+                for (String key : seen) {
+                    BucketLifecycle metric = metrics.computeIfAbsent(key, ignored -> new BucketLifecycle());
+                    if (previousKeys.contains(key)) {
+                        metric.unresolvedStudentIds.add(latest.getStudentProfileId());
+                    } else if (latest.getVerdict() == Submission.Verdict.ACCEPTED) {
+                        metric.recoveredStudentIds.add(latest.getStudentProfileId());
+                    }
+                }
+            }
+        }
+        return metrics;
+    }
+
+    private Set<String> bucketKeys(List<EffectiveFact> facts) {
+        Set<String> keys = new LinkedHashSet<>();
+        for (EffectiveFact fact : safe(facts)) {
+            for (int index = 0; index < fact.path().size(); index++) {
+                keys.add(bucketKey(fact, index));
+            }
+        }
+        return keys;
+    }
+
+    private String bucketKey(EffectiveFact fact, int nodeIndex) {
+        String pathKey = fact.path().subList(0, nodeIndex + 1).stream()
+                .map(AssignmentOverviewResponse.KnowledgePathNode::getLabel)
+                .collect(Collectors.joining("/"));
+        AssignmentOverviewResponse.KnowledgePathNode node = fact.path().get(nodeIndex);
+        return node.getKind() + ":" + fact.pathStatus() + ":" + pathKey;
     }
 
     private RecoveryResult buildRecovery(
@@ -437,9 +517,9 @@ public class SubmissionEvidenceAnalyticsService {
             Map<String, Set<Long>> problemIdsByIssue = new LinkedHashMap<>();
             for (Submission submission : ordered) {
                 for (EffectiveFact fact : facts.getOrDefault(submission.getId(), List.of())) {
-                    submissionIdsByIssue.computeIfAbsent(fact.issueId(), ignored -> new LinkedHashSet<>()).add(submission.getId());
+                    submissionIdsByIssue.computeIfAbsent(fact.normalizedPointKey(), ignored -> new LinkedHashSet<>()).add(submission.getId());
                     if (submission.getProblemId() != null) {
-                        problemIdsByIssue.computeIfAbsent(fact.issueId(), ignored -> new LinkedHashSet<>()).add(submission.getProblemId());
+                        problemIdsByIssue.computeIfAbsent(fact.normalizedPointKey(), ignored -> new LinkedHashSet<>()).add(submission.getProblemId());
                     }
                 }
             }
@@ -464,9 +544,87 @@ public class SubmissionEvidenceAnalyticsService {
                     .repeatedIssueProblemCount(repeatedIssue == null ? 0 : problemIdsByIssue.getOrDefault(repeatedIssue, Set.of()).size())
                     .latestChangeStatus(latestChange == null ? "AWAITING_EVIDENCE" : latestChange.getStatus())
                     .evidenceSubmissionIds(ordered.stream().map(Submission::getId).toList())
+                    .issueTrajectories(buildStudentIssueTrajectories(ordered, facts))
                     .build());
         }
         return result;
+    }
+
+    private List<AssignmentOverviewResponse.StudentIssueTrajectory> buildStudentIssueTrajectories(
+            List<Submission> submissions,
+            Map<Long, List<EffectiveFact>> facts
+    ) {
+        Map<String, StudentIssueAccumulator> accumulators = new LinkedHashMap<>();
+        Map<Long, List<Submission>> byProblem = safe(submissions).stream()
+                .filter(item -> item.getProblemId() != null)
+                .collect(Collectors.groupingBy(Submission::getProblemId, LinkedHashMap::new, Collectors.toList()));
+        for (List<Submission> problemSubmissions : byProblem.values()) {
+            List<Submission> ordered = problemSubmissions.stream()
+                    .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo))
+                            .thenComparing(Submission::getId))
+                    .toList();
+            Set<String> seen = new LinkedHashSet<>();
+            Set<String> previousKeys = Set.of();
+            Map<String, Long> consecutive = new LinkedHashMap<>();
+            Submission previous = null;
+            for (Submission current : ordered) {
+                Map<String, EffectiveFact> currentFacts = facts.getOrDefault(current.getId(), List.of()).stream()
+                        .collect(Collectors.toMap(
+                                EffectiveFact::normalizedPointKey,
+                                Function.identity(),
+                                (left, right) -> left,
+                                LinkedHashMap::new
+                        ));
+                Set<String> currentKeys = currentFacts.keySet();
+                boolean effectiveAttempt = previous == null
+                        || !Objects.equals(previous.getSourceCode(), current.getSourceCode())
+                        || !Objects.equals(previous.getVerdict(), current.getVerdict())
+                        || !Objects.equals(previousKeys, currentKeys);
+                for (Map.Entry<String, EffectiveFact> factEntry : currentFacts.entrySet()) {
+                    String key = factEntry.getKey();
+                    EffectiveFact fact = factEntry.getValue();
+                    StudentIssueAccumulator accumulator = accumulators.computeIfAbsent(
+                            key,
+                            ignored -> new StudentIssueAccumulator(key, fact.issueId(), "REPAIR")
+                    );
+                    boolean recurred = seen.contains(key) && !previousKeys.contains(key);
+                    long currentConsecutive = previousKeys.contains(key)
+                            ? consecutive.getOrDefault(key, 0L) + (effectiveAttempt ? 1 : 0)
+                            : effectiveAttempt ? 1 : 0;
+                    consecutive.put(key, currentConsecutive);
+                    accumulator.observe(current, effectiveAttempt, currentConsecutive, recurred);
+                    seen.add(key);
+                }
+                for (String previousKey : previousKeys) {
+                    if (!currentKeys.contains(previousKey)) {
+                        consecutive.put(previousKey, 0L);
+                    }
+                }
+                previous = current;
+                previousKeys = new LinkedHashSet<>(currentKeys);
+            }
+            if (!ordered.isEmpty()) {
+                Submission latest = ordered.get(ordered.size() - 1);
+                for (String key : seen) {
+                    StudentIssueAccumulator accumulator = accumulators.get(key);
+                    if (previousKeys.contains(key)) {
+                        accumulator.active = true;
+                    } else if (latest.getVerdict() == Submission.Verdict.ACCEPTED) {
+                        accumulator.recovered = true;
+                    }
+                }
+            }
+        }
+        return accumulators.values().stream()
+                .map(StudentIssueAccumulator::toResponse)
+                .sorted(Comparator.comparing((AssignmentOverviewResponse.StudentIssueTrajectory item) ->
+                                !"UNRESOLVED".equals(item.getCurrentStatus()))
+                        .thenComparing(AssignmentOverviewResponse.StudentIssueTrajectory::getEffectiveOccurrenceCount,
+                                Comparator.reverseOrder())
+                        .thenComparing(AssignmentOverviewResponse.StudentIssueTrajectory::getLabel,
+                                Comparator.nullsLast(String::compareTo)))
+                .limit(20)
+                .toList();
     }
 
     private String recentStatus(
@@ -605,7 +763,7 @@ public class SubmissionEvidenceAnalyticsService {
 
     private Set<String> issueIds(List<EffectiveFact> facts) {
         return safe(facts).stream()
-                .map(EffectiveFact::issueId)
+                .map(EffectiveFact::normalizedPointKey)
                 .filter(this::hasText)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
@@ -667,6 +825,7 @@ public class SubmissionEvidenceAnalyticsService {
 
     private record EffectiveFact(
             Long submissionId,
+            String normalizedPointKey,
             String issueId,
             List<AssignmentOverviewResponse.KnowledgePathNode> path,
             String pathStatus,
@@ -682,9 +841,95 @@ public class SubmissionEvidenceAnalyticsService {
     ) {
     }
 
+    private static final class BucketLifecycle {
+        private long effectiveOccurrenceCount;
+        private final Set<Long> unresolvedStudentIds = new LinkedHashSet<>();
+        private final Set<Long> recurringStudentIds = new LinkedHashSet<>();
+        private final Set<Long> recoveredStudentIds = new LinkedHashSet<>();
+    }
+
+    private final class StudentIssueAccumulator {
+        private final String normalizedPointKey;
+        private final String label;
+        private final String factType;
+        private long rawOccurrenceCount;
+        private long effectiveOccurrenceCount;
+        private long consecutiveEffectiveCount;
+        private long recurringCount;
+        private Long firstSeenSubmissionId;
+        private Long lastSeenSubmissionId;
+        private boolean active;
+        private boolean recovered;
+        private final Set<Long> problemIds = new LinkedHashSet<>();
+        private final Set<Long> evidenceSubmissionIds = new LinkedHashSet<>();
+
+        private StudentIssueAccumulator(String normalizedPointKey, String label, String factType) {
+            this.normalizedPointKey = normalizedPointKey;
+            this.label = label;
+            this.factType = factType;
+        }
+
+        private void observe(Submission submission, boolean effectiveAttempt, long consecutive, boolean recurred) {
+            rawOccurrenceCount++;
+            if (effectiveAttempt) {
+                effectiveOccurrenceCount++;
+            }
+            consecutiveEffectiveCount = Math.max(consecutiveEffectiveCount, consecutive);
+            if (recurred) {
+                recurringCount++;
+            }
+            if (firstSeenSubmissionId == null) {
+                firstSeenSubmissionId = submission.getId();
+            }
+            lastSeenSubmissionId = submission.getId();
+            evidenceSubmissionIds.add(submission.getId());
+            if (submission.getProblemId() != null) {
+                problemIds.add(submission.getProblemId());
+            }
+        }
+
+        private AssignmentOverviewResponse.StudentIssueTrajectory toResponse() {
+            List<String> labels = new ArrayList<>();
+            if (recurringCount > 0) {
+                labels.add("RECURRING_ERROR");
+            }
+            if (active && consecutiveEffectiveCount >= properties.getPersistentDifficultyThreshold()) {
+                labels.add("PERSISTENT_DIFFICULTY");
+            }
+            if (problemIds.size() >= properties.getCrossProblemWeaknessThreshold()) {
+                labels.add("CROSS_PROBLEM_WEAKNESS");
+            }
+            if (!active && recovered) {
+                labels.add("RECOVERED");
+            }
+            if (labels.isEmpty()) {
+                labels.add(rawOccurrenceCount <= 1 ? "SINGLE_OBSERVATION" : "OBSERVING");
+            }
+            return AssignmentOverviewResponse.StudentIssueTrajectory.builder()
+                    .normalizedPointKey(normalizedPointKey)
+                    .label(label)
+                    .factType(factType)
+                    .currentStatus(active ? "UNRESOLVED" : recovered ? "RECOVERED" : "NOT_OBSERVED")
+                    .personalLabels(labels)
+                    .rawOccurrenceCount(rawOccurrenceCount)
+                    .effectiveOccurrenceCount(effectiveOccurrenceCount)
+                    .consecutiveEffectiveCount(consecutiveEffectiveCount)
+                    .affectedProblemCount(problemIds.size())
+                    .recurringCount(recurringCount)
+                    .firstSeenSubmissionId(firstSeenSubmissionId)
+                    .lastSeenSubmissionId(lastSeenSubmissionId)
+                    .affectedProblemIds(problemIds.stream().toList())
+                    .evidenceSubmissionIds(evidenceSubmissionIds.stream().toList())
+                    .build();
+        }
+    }
+
     private static final class PathAccumulator {
         private final EffectiveFact fact;
         private final int nodeIndex;
+        private final BucketLifecycle lifecycle;
+        private final long submittedStudentCount;
+        private final SubmissionEvidenceProperties properties;
         private long occurrenceCount;
         private final Set<Long> students = new LinkedHashSet<>();
         private final Set<Long> problems = new LinkedHashSet<>();
@@ -692,9 +937,18 @@ public class SubmissionEvidenceAnalyticsService {
         private final Map<Long, Submission> submissionSamples = new LinkedHashMap<>();
         private final Map<Long, Set<Long>> submissionIdsByStudent = new LinkedHashMap<>();
 
-        private PathAccumulator(EffectiveFact fact, int nodeIndex) {
+        private PathAccumulator(
+                EffectiveFact fact,
+                int nodeIndex,
+                BucketLifecycle lifecycle,
+                long submittedStudentCount,
+                SubmissionEvidenceProperties properties
+        ) {
             this.fact = fact;
             this.nodeIndex = nodeIndex;
+            this.lifecycle = lifecycle;
+            this.submittedStudentCount = submittedStudentCount;
+            this.properties = properties;
         }
 
         private void add(Submission submission) {
@@ -720,19 +974,48 @@ public class SubmissionEvidenceAnalyticsService {
             String pathKey = scopedPath.stream().map(AssignmentOverviewResponse.KnowledgePathNode::getLabel)
                     .collect(Collectors.joining("/"));
             AssignmentOverviewResponse.KnowledgePathNode node = fact.path().get(nodeIndex);
+            long recoveryNumerator = lifecycle.recoveredStudentIds.size();
+            long recoveryDenominator = recoveryNumerator + lifecycle.unresolvedStudentIds.size();
+            Double recoveryRate = recoveryDenominator == 0
+                    ? null
+                    : Math.round(recoveryNumerator * 10000.0 / recoveryDenominator) / 10000.0;
+            long effectiveOccurrences = lifecycle.effectiveOccurrenceCount == 0 && occurrenceCount > 0
+                    ? occurrenceCount
+                    : lifecycle.effectiveOccurrenceCount;
+            long manyThreshold = Math.max(2, (long) Math.ceil(submittedStudentCount * properties.getClassCoverageThreshold()));
+            boolean manyStudents = students.size() >= manyThreshold;
+            double repeatRatio = students.isEmpty() ? 0 : effectiveOccurrences * 1.0 / students.size();
+            boolean highRepeat = repeatRatio >= properties.getClassRepeatThreshold();
+            boolean lowRecovery = recoveryRate == null || recoveryRate < properties.getClassLowRecoveryThreshold();
+            String classification = manyStudents && highRepeat && lowRecovery
+                    ? "CLASS_DIFFICULTY"
+                    : manyStudents
+                    ? "COMMON_ERROR"
+                    : highRepeat
+                    ? "INDIVIDUAL_PERSISTENT"
+                    : "OCCASIONAL_INDIVIDUAL";
             return AssignmentOverviewResponse.KnowledgePathStat.builder()
                     .id(node.getKind() + ":" + fact.pathStatus() + ":" + pathKey)
                     .label(node.getLabel())
                     .granularity(node.getKind())
-                    .normalizedIssueId("mistakePoint".equals(node.getKind()) ? fact.issueId() : null)
+                    .normalizedIssueId("mistakePoint".equals(node.getKind()) ? fact.normalizedPointKey() : null)
                     .path(scopedPath)
                     .pathStatus(fact.pathStatus())
                     .libraryFit(fact.libraryFit())
                     .source(fact.source())
                     .teacherCorrectionId(fact.teacherCorrectionId())
                     .errorOccurrenceCount(occurrenceCount)
+                    .rawOccurrenceCount(occurrenceCount)
+                    .effectiveWeightedOccurrenceCount(effectiveOccurrences)
                     .affectedStudentCount(students.size())
                     .repeatedStudentCount(repeatedStudentIds.size())
+                    .unresolvedStudentCount(lifecycle.unresolvedStudentIds.size())
+                    .recurringStudentCount(lifecycle.recurringStudentIds.size())
+                    .recoveredStudentCount(lifecycle.recoveredStudentIds.size())
+                    .recoveryNumerator(recoveryNumerator)
+                    .recoveryDenominator(recoveryDenominator)
+                    .recoveryRate(recoveryRate)
+                    .difficultyClassification(classification)
                     .affectedProblemCount(problems.size())
                     .affectedStudentIds(students.stream().toList())
                     .repeatedStudentIds(repeatedStudentIds)

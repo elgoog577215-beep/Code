@@ -20,6 +20,8 @@ public class StudentAiFeedbackResponse {
     private Long latencyMs;
     private List<FeedbackItem> repairItems;
     private List<FeedbackItem> improvementItems;
+    private List<IssueLifecycleItem> issueChanges;
+    private IssueChangeSummary issueChangeSummary;
     private StudentReport studentReport;
     private String nextQuestion;
     private Safety safety;
@@ -44,6 +46,54 @@ public class StudentAiFeedbackResponse {
         private List<EvidenceSnippet> evidenceSnippets;
         private List<String> evidenceRefs;
         private List<String> qualitySignals;
+        private String normalizedPointKey;
+        private String pointKeySource;
+        private String changeStatus;
+        private List<String> personalLabels;
+        private Long rawOccurrenceCount;
+        private Long effectiveOccurrenceCount;
+        private Long consecutiveEffectiveCount;
+        private Long affectedProblemCount;
+        private Long previousSubmissionId;
+        private List<Long> lifecycleEvidenceSubmissionIds;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class IssueLifecycleItem {
+        private String normalizedPointKey;
+        private String pointKeySource;
+        private String title;
+        private String factType;
+        private String displayCategory;
+        private String changeStatus;
+        private List<String> personalLabels;
+        private long rawOccurrenceCount;
+        private long effectiveOccurrenceCount;
+        private long consecutiveEffectiveCount;
+        private long affectedProblemCount;
+        private boolean effectiveAttempt;
+        private Long previousSubmissionId;
+        private Long currentSubmissionId;
+        private Long firstSeenSubmissionId;
+        private Long lastSeenSubmissionId;
+        private List<Long> evidenceSubmissionIds;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class IssueChangeSummary {
+        private long persistedCount;
+        private long newCount;
+        private long recurringCount;
+        private long notObservedCount;
+        private long recoveredCount;
+        private long uncomparableCount;
+        private long improvementCount;
     }
 
     @Data

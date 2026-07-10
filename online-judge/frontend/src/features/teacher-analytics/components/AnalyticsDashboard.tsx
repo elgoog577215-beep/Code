@@ -32,7 +32,20 @@ type Props = {
 
 export function AnalyticsDashboard({ snapshot, t, correction }: Props) {
   const [granularity, setGranularity] = useState<AnalyticsGranularity>("chapter");
-  const buckets = snapshot.insightBuckets[granularity] || [];
+  const [metricMode, setMetricMode] = useState<"distinct" | "weighted">("distinct");
+  const sourceBuckets = snapshot.insightBuckets[granularity] || [];
+  const buckets = useMemo(() => {
+    const ranked = sourceBuckets.map(item => ({
+      ...item,
+      count: metricMode === "distinct"
+        ? item.affectedStudentCount || 0
+        : item.effectiveWeightedOccurrenceCount ?? item.count
+    }));
+    const total = ranked.reduce((sum, item) => sum + item.count, 0);
+    return ranked
+      .map(item => ({ ...item, rate: total ? item.count / total : null }))
+      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "zh-Hans-CN"));
+  }, [metricMode, sourceBuckets]);
   const selected = useMemo(() => buckets[0] || null, [buckets]);
   const granularityLabels = {
     chapter: t("teacherAnalytics.granularity.chapter"),
@@ -53,7 +66,22 @@ export function AnalyticsDashboard({ snapshot, t, correction }: Props) {
               <span>{t("teacherAnalytics.sections.visualization")}</span>
               <h2>{t("teacherAnalytics.scopeTitle", { scope: t(`teacherAnalytics.scope.${snapshot.scope.type}`) })}</h2>
             </div>
-            <GranularitySelector value={granularity} labels={granularityLabels} onChange={setGranularity} />
+            <div className="teacher-analytics-board__controls">
+              <div className="teacher-analytics-metric-mode" role="group" aria-label={t("teacherAnalytics.metricMode.aria")}>
+                {(["distinct", "weighted"] as const).map(mode => (
+                  <button
+                    type="button"
+                    className={metricMode === mode ? "is-active" : ""}
+                    onClick={() => setMetricMode(mode)}
+                    aria-pressed={metricMode === mode}
+                    key={mode}
+                  >
+                    {t(`teacherAnalytics.metricMode.${mode}`)}
+                  </button>
+                ))}
+              </div>
+              <GranularitySelector value={granularity} labels={granularityLabels} onChange={setGranularity} />
+            </div>
           </div>
 
           <div className="teacher-analytics-chart-grid">
@@ -62,7 +90,11 @@ export function AnalyticsDashboard({ snapshot, t, correction }: Props) {
                 <span>{granularityLabels[granularity]}</span>
                 <h3>{t("teacherAnalytics.sections.ranking")}</h3>
               </div>
-              <AnalyticsBarChart items={buckets} emptyText={t(emptyKey(snapshot.emptyReason))} countLabel={t("teacherAnalytics.units.count")} />
+              <AnalyticsBarChart
+                items={buckets}
+                emptyText={t(emptyKey(snapshot.emptyReason))}
+                countLabel={t(metricMode === "distinct" ? "teacherAnalytics.units.students" : "teacherAnalytics.units.effectiveAttempts")}
+              />
             </section>
             <section className="teacher-analytics-chart-panel">
               <div className="teacher-analytics-section-head">
@@ -79,15 +111,19 @@ export function AnalyticsDashboard({ snapshot, t, correction }: Props) {
             {selected ? (
               <>
                 <p>
-                  {t("teacherAnalytics.pathMeta", {
-                    count: selected.count,
+                  {t("teacherAnalytics.pathMetaDual", {
+                    raw: selected.rawOccurrenceCount ?? selected.count,
+                    weighted: selected.effectiveWeightedOccurrenceCount ?? selected.count,
                     students: selected.affectedStudentCount || 0,
                     repeated: selected.repeatedStudentCount || 0,
-                    problems: selected.affectedProblemCount || 0
+                    unresolved: selected.unresolvedStudentCount || 0,
+                    recurring: selected.recurringStudentCount || 0,
+                    problems: selected.affectedProblemCount || 0,
+                    recovery: formatPercent(selected.recoveryRate)
                   })}
                 </p>
                 <small>
-                  {t(`teacherAnalytics.pathStatus.${pathStatusKey(selected.pathStatus)}`)} · {t(`teacherAnalytics.fit.${selected.fit}`)}
+                  {t(`teacherAnalytics.difficulty.${difficultyKey(selected.difficultyClassification)}`)} · {t(`teacherAnalytics.pathStatus.${pathStatusKey(selected.pathStatus)}`)} · {t(`teacherAnalytics.fit.${selected.fit}`)}
                 </small>
               </>
             ) : (
@@ -218,4 +254,17 @@ function feedbackImpactKey(status?: string | null) {
 function pathStatusKey(status?: string | null) {
   const normalized = String(status || "UNCLASSIFIED").toLowerCase();
   return ["formal", "provisional", "inferred", "unclassified"].includes(normalized) ? normalized : "unclassified";
+}
+
+function difficultyKey(value?: string | null) {
+  switch (value) {
+    case "CLASS_DIFFICULTY":
+      return "classDifficulty";
+    case "INDIVIDUAL_PERSISTENT":
+      return "individualPersistent";
+    case "COMMON_ERROR":
+      return "commonError";
+    default:
+      return "occasional";
+  }
 }

@@ -12,5 +12,6 @@ public interface SubmissionDiagnosisFactRepository extends JpaRepository<Submiss
     List<SubmissionDiagnosisFact> findByAnalysisId(Long analysisId);
     List<SubmissionDiagnosisFact> findBySubmissionId(Long submissionId);
     List<SubmissionDiagnosisFact> findBySubmissionIdIn(Collection<Long> submissionIds);
+    List<SubmissionDiagnosisFact> findByNormalizedPointKey(String normalizedPointKey);
     boolean existsByFactKey(String factKey);
 }

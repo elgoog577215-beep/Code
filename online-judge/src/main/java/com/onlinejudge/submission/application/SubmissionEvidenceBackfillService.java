@@ -17,6 +17,7 @@ import com.onlinejudge.submission.persistence.SubmissionDiagnosisFactRepository;
 import com.onlinejudge.submission.persistence.SubmissionEvidenceBackfillBatchRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -41,6 +42,12 @@ public class SubmissionEvidenceBackfillService {
     private final SubmissionEvidenceBackfillBatchRepository batchRepository;
     private final SubmissionDiagnosisFactProjector factProjector;
     private final ObjectMapper objectMapper;
+    private SubmissionIssueLifecycleService issueLifecycleService;
+
+    @Autowired(required = false)
+    void setIssueLifecycleService(SubmissionIssueLifecycleService issueLifecycleService) {
+        this.issueLifecycleService = issueLifecycleService;
+    }
 
     public SubmissionEvidenceBackfillResponse preview(Long cursor, Integer batchSize) {
         return execute(cursor, batchSize, true);
@@ -97,9 +104,17 @@ public class SubmissionEvidenceBackfillService {
                         changed |= inserted > 0;
                     }
                 } else {
-                    pathUnclassified += factRepository.findByAnalysisId(analysis.getId()).stream()
+                    List<com.onlinejudge.submission.domain.SubmissionDiagnosisFact> existingFacts = factRepository.findByAnalysisId(analysis.getId());
+                    pathUnclassified += existingFacts.stream()
                             .filter(fact -> "UNCLASSIFIED".equalsIgnoreCase(fact.getKnowledgePathStatus()))
                             .count();
+                    if (issueLifecycleService != null) {
+                        int normalizedFacts = issueLifecycleService.normalizeFacts(existingFacts, dryRun);
+                        changed |= normalizedFacts > 0 && !dryRun;
+                        if (!dryRun) {
+                            issueLifecycleService.rebuildForSubmission(submission.getId());
+                        }
+                    }
                 }
 
                 StudentAiFeedback feedback = feedbacks.get(submission.getId());

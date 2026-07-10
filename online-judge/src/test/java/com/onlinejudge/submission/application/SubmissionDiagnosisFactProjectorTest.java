@@ -61,6 +61,9 @@ class SubmissionDiagnosisFactProjectorTest {
             assertThat(fact.getSubmissionId()).isEqualTo(7L);
             assertThat(fact.getAnalysisId()).isEqualTo(8L);
             assertThat(fact.getFactKey()).isNotBlank();
+            assertThat(fact.getNormalizedPointKey()).isNotBlank();
+            assertThat(fact.getPointKeyVersion()).isEqualTo(IssuePointKeyFactory.VERSION);
+            assertThat(fact.getDisplayCategory()).isEqualTo("REPAIR");
         });
     }
 }

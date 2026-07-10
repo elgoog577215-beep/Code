@@ -417,6 +417,55 @@ function FeedbackTextBlock({ text, maxLines = 4 }: { text?: string | null; maxLi
   );
 }
 
+function FeedbackLifecycleBadges({ item }: { item?: StudentAiFeedbackItem | null }) {
+  const { t } = useTranslation();
+  const status = String(item?.changeStatus || "").toUpperCase();
+  const labels = item?.personalLabels || [];
+  if (!status && !labels.length) {
+    return null;
+  }
+  return (
+    <div className="student-feedback-lifecycle-badges">
+      {status ? <span className={`is-${status.toLowerCase()}`}>{t(`issueLifecycle.status.${lifecycleStatusKey(status)}`)}</span> : null}
+      {labels.map(label => (
+        <span className="is-label" key={label}>{t(`issueLifecycle.label.${lifecycleLabelKey(label)}`)}</span>
+      ))}
+      {typeof item?.effectiveOccurrenceCount === "number" ? (
+        <span className="is-count">{t("issueLifecycle.effectiveCount", { count: item.effectiveOccurrenceCount })}</span>
+      ) : null}
+      {typeof item?.consecutiveEffectiveCount === "number" && item.consecutiveEffectiveCount > 1 ? (
+        <span className="is-count">{t("issueLifecycle.consecutiveCount", { count: item.consecutiveEffectiveCount })}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function lifecycleStatusKey(status?: string | null) {
+  const normalized = String(status || "").toUpperCase();
+  return ["NEW", "PERSISTED", "NOT_OBSERVED", "RECOVERED", "RECURRED", "UNCOMPARABLE"].includes(normalized)
+    ? normalized.toLowerCase()
+    : "uncomparable";
+}
+
+function lifecycleLabelKey(label?: string | null) {
+  switch (String(label || "").toUpperCase()) {
+    case "PERSISTENT_DIFFICULTY":
+      return "persistentDifficulty";
+    case "RECURRING_ERROR":
+      return "recurringError";
+    case "CROSS_PROBLEM_WEAKNESS":
+      return "crossProblemWeakness";
+    case "RECOVERED":
+      return "recovered";
+    case "SINGLE_OBSERVATION":
+      return "singleObservation";
+    case "OBSERVING":
+      return "observing";
+    default:
+      return "evidenceInsufficient";
+  }
+}
+
 function FeedbackEvidenceMeta({
   item,
   onJumpToLine,
@@ -1029,8 +1078,17 @@ export default function ProblemPage() {
   const feedbackSource = String(studentAiFeedback?.source || "").toUpperCase();
   const feedbackFailure = feedbackFailureReason(studentAiFeedback);
   const modelFeedbackReady = feedbackStatus === "READY" && feedbackSource === "MODEL";
-  const repairViewItems = modelFeedbackReady ? studentAiFeedback?.repairItems?.filter(item => item.body || item.title) || [] : [];
+  const repairViewItems = modelFeedbackReady
+    ? [...(studentAiFeedback?.repairItems?.filter(item => item.body || item.title) || [])].sort((left, right) => {
+        const order: Record<string, number> = { PERSISTED: 0, RECURRED: 1, NEW: 2, UNCOMPARABLE: 3 };
+        return (order[String(left.changeStatus || "UNCOMPARABLE").toUpperCase()] ?? 4)
+          - (order[String(right.changeStatus || "UNCOMPARABLE").toUpperCase()] ?? 4);
+      })
+    : [];
   const improvementViewItems = modelFeedbackReady ? studentAiFeedback?.improvementItems?.filter(item => item.body || item.title) || [] : [];
+  const lifecycleChanges = modelFeedbackReady ? studentAiFeedback?.issueChanges || [] : [];
+  const historicalLifecycleChanges = lifecycleChanges.filter(item => ["NOT_OBSERVED", "RECOVERED"].includes(String(item.changeStatus).toUpperCase()));
+  const lifecycleSummary = studentAiFeedback?.issueChangeSummary;
   const isFeedbackWaiting = Boolean(
     latest &&
       feedbackPollState !== "idle" &&
@@ -1324,7 +1382,7 @@ export default function ProblemPage() {
       {history.length > 0 && (
         <Panel title={t("problemHistory.title")} className="problem-history-panel">
           <div className="problem-history-list" aria-label={t("problemHistory.aria")}>
-            {history.slice(0, 12).map(item => (
+            {history.map(item => (
               <button
                 type="button"
                 className={latest?.id === item.id ? "problem-history-row is-active" : "problem-history-row"}
@@ -1365,6 +1423,37 @@ export default function ProblemPage() {
 
             <div className="problem-result-modal__body">
               <div className={`problem-result-modal__grid problem-result-modal__grid--${resultLayoutMode}`}>
+                {modelFeedbackReady && lifecycleChanges.length ? (
+                  <section className="problem-result-section problem-result-section--lifecycle">
+                    <div className="problem-result-section__head">
+                      <h3>{t("issueLifecycle.title")}</h3>
+                      <strong>{t("issueLifecycle.completeCount", { count: repairViewItems.length + improvementViewItems.length })}</strong>
+                    </div>
+                    <div className="student-issue-change-summary">
+                      <span>{t("issueLifecycle.summary.persisted", { count: lifecycleSummary?.persistedCount || 0 })}</span>
+                      <span>{t("issueLifecycle.summary.new", { count: lifecycleSummary?.newCount || 0 })}</span>
+                      <span>{t("issueLifecycle.summary.recurring", { count: lifecycleSummary?.recurringCount || 0 })}</span>
+                      <span>{t("issueLifecycle.summary.recovered", { count: lifecycleSummary?.recoveredCount || 0 })}</span>
+                      <span>{t("issueLifecycle.summary.improvements", { count: improvementViewItems.length })}</span>
+                    </div>
+                    {historicalLifecycleChanges.length ? (
+                      <div className="student-issue-history-changes">
+                        <strong>{t("issueLifecycle.previousChanges")}</strong>
+                        {historicalLifecycleChanges.map(item => (
+                          <article key={`${item.normalizedPointKey}-${item.changeStatus}`}>
+                            <span>{t(`issueLifecycle.status.${lifecycleStatusKey(item.changeStatus)}`)}</span>
+                            <p>{item.title || t("issueLifecycle.unnamedIssue")}</p>
+                            <small>{t("issueLifecycle.historyEvidence", {
+                              raw: item.rawOccurrenceCount,
+                              effective: item.effectiveOccurrenceCount,
+                              submission: item.previousSubmissionId || "-"
+                            })}</small>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
                 <section className="problem-result-section problem-result-section--tests">
                   <div className="problem-result-section__head">
                     <h3>评测</h3>
@@ -1439,6 +1528,7 @@ export default function ProblemPage() {
                             {repairViewItems.map((item, index) => (
                               <article className={`student-feedback-item${index === 0 ? " student-feedback-item--primary" : ""}`} key={`${item.kind || "repair-extra"}-${index}`}>
                                 {item.title && <strong>{item.title}</strong>}
+                                <FeedbackLifecycleBadges item={item} />
                                 <FeedbackTextBlock text={item.body} maxLines={2} />
                                 <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} showEmptyEvidence />
                               </article>
@@ -1456,6 +1546,7 @@ export default function ProblemPage() {
                         {repairViewItems.map((item, index) => (
                           <article className={`student-feedback-item${index === 0 ? " student-feedback-item--primary" : ""}`} key={`${item.kind || "repair"}-${index}`}>
                             {item.title && <strong>{item.title}</strong>}
+                            <FeedbackLifecycleBadges item={item} />
                             <FeedbackTextBlock text={item.body} maxLines={2} />
                             <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} showEmptyEvidence />
                           </article>
@@ -1493,6 +1584,7 @@ export default function ProblemPage() {
                             {improvementViewItems.map((item, index) => (
                               <article className="student-feedback-item student-feedback-item--growth" key={`${item.kind || "growth-extra"}-${index}`}>
                                 {item.title && <strong>{item.title}</strong>}
+                                <FeedbackLifecycleBadges item={item} />
                                 <FeedbackTextBlock text={item.body} maxLines={2} />
                                 <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} showEmptyEvidence />
                               </article>
@@ -1510,6 +1602,7 @@ export default function ProblemPage() {
                         {improvementViewItems.map((item, index) => (
                           <article className="student-feedback-item student-feedback-item--growth" key={`${item.kind || "improvement"}-${index}`}>
                             {item.title && <strong>{item.title}</strong>}
+                            <FeedbackLifecycleBadges item={item} />
                             <FeedbackTextBlock text={item.body} maxLines={2} />
                             <FeedbackEvidenceMeta item={item} onJumpToLine={jumpToEvidenceLine} showEmptyEvidence />
                           </article>
