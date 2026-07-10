@@ -886,8 +886,10 @@ const scenarios = [
       const homeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
       const assignmentRowCount = await page.locator(".student-assignment-row").count();
       const primaryActionCount = await page.locator(".student-assignment-row__action").count();
+      const progressCount = await page.locator(".student-assignment-row__progress").count();
       const headerLoginCount = await page.locator(".header-login-link, .header-student-chip").count();
       const studentWidth = await page.locator(".student-home").first().evaluate(element => element.getBoundingClientRect().width);
+      const commandHeight = await page.locator(".student-home-command").first().evaluate(element => element.getBoundingClientRect().height);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       const assignmentBottom = await page.locator(".student-assignment-board").first().evaluate(element => element.getBoundingClientRect().bottom);
       const practiceTop = await page.locator(".student-self-practice").first().evaluate(element => element.getBoundingClientRect().top);
@@ -899,9 +901,12 @@ const scenarios = [
       record("student home keeps entry copy direct", homeText.includes("今天先完成课堂任务") && !homeText.includes("输入邀请码"), homeText);
       record("student home uses a classroom assignment board", assignmentRowCount >= 1, `assignment rows ${assignmentRowCount}`);
       record("student home keeps one primary assignment action", primaryActionCount === 1, `primary actions ${primaryActionCount}`);
+      record("student home shows truthful progress for every assignment", progressCount === assignmentRowCount && homeText.includes("1/2") && homeText.includes("3/3"), `progress rows ${progressCount}; ${homeText}`);
+      record("student home distinguishes learning states", homeText.includes("待开始") && homeText.includes("进行中") && homeText.includes("已完成") && !homeText.includes("信息技术老师"), homeText);
       record("student home separates public practice below assignments", practiceTop >= assignmentBottom, `assignment bottom ${assignmentBottom}; practice top ${practiceTop}`);
       if (viewport.name !== "mobile") {
-        record("student home uses bounded width on wider screens", studentWidth <= 1200, `student width ${studentWidth}`);
+        record("student home uses concept-scale width", studentWidth >= 1280 && studentWidth <= 1360, `student width ${studentWidth}`);
+        record("student home uses a compact command bar", commandHeight <= 82, `command height ${commandHeight}`);
       }
       record("student home has no horizontal overflow", overflow <= 1, `overflow ${overflow}`);
       record("student no longer starts with invite", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
@@ -1380,6 +1385,9 @@ async function routeApi(route) {
   if (path === "/api/student/classes") return json(route, classes);
   if (path === "/api/student/profile/41/assignments") return json(route, studentAssignments);
   if (path === "/api/student/assignments/7/profile/41/trajectory") return json(route, trajectory);
+  if (path === "/api/student/assignments/8/profile/41/trajectory") return json(route, { ...trajectory, assignment: studentAssignments[1], totalTasks: 1, completedTasks: 0 });
+  if (path === "/api/student/assignments/9/profile/41/trajectory") return json(route, { ...trajectory, assignment: studentAssignments[2], totalTasks: 1, completedTasks: 0 });
+  if (path === "/api/student/assignments/10/profile/41/trajectory") return json(route, { ...trajectory, assignment: studentAssignments[3], totalTasks: 3, completedTasks: 3 });
   if (path === "/api/student/profile/41/ability-profile") return json(route, abilityProfile);
   if (path === "/api/student/profile/41/recommendations") return json(route, recommendation);
   if (path === "/api/student/profile/41/recommendation-clicks" && method === "POST") return empty(route);
