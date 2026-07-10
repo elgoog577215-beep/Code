@@ -14,13 +14,17 @@ import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.domain.StudentAiFeedback;
 import com.onlinejudge.submission.domain.StudentAiFeedbackEvent;
+import com.onlinejudge.submission.domain.StudentAiFeedbackRevision;
 import com.onlinejudge.submission.domain.Submission;
+import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackLookupResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackRepository;
+import com.onlinejudge.submission.persistence.StudentAiFeedbackRevisionRepository;
+import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +40,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,6 +61,8 @@ public class StudentAiFeedbackService {
     private final SubmissionCaseResultRepository submissionCaseResultRepository;
     private final StudentAiFeedbackRepository studentAiFeedbackRepository;
     private final StudentAiFeedbackEventRepository studentAiFeedbackEventRepository;
+    private final StudentAiFeedbackRevisionRepository studentAiFeedbackRevisionRepository;
+    private final SubmissionAnalysisRepository submissionAnalysisRepository;
     private final SubmissionAnalysisService submissionAnalysisService;
     private final AiStandardSkillUnitRepository skillUnitRepository;
     private final AiStandardMistakePointRepository mistakePointRepository;
@@ -88,6 +95,7 @@ public class StudentAiFeedbackService {
         if ("GENERATING".equals(entity.getStatus()) && !isGeneratingExpired(entity)) {
             return toLookup(entity);
         }
+        entity.setGenerationKey(UUID.randomUUID().toString());
         StudentAiFeedbackResponse feedback = StudentAiFeedbackResponse.builder()
                 .submissionId(submissionId)
                 .status("GENERATING")
@@ -176,7 +184,11 @@ public class StudentAiFeedbackService {
         entity.setSource(SOURCE_AI_UNAVAILABLE);
         entity.setFailureReason(failureReason(feedback));
         entity.setFeedbackJson(serialize(feedback));
+        ensureGenerationKey(entity);
         StudentAiFeedback saved = studentAiFeedbackRepository.save(entity);
+        StudentAiFeedbackRevision revision = saveRevision(saved, feedback, null);
+        saved.setLatestRevisionId(revision.getId());
+        saved = studentAiFeedbackRepository.save(saved);
         recordGenerationEvent(
                 submissionRepository.findById(submissionId).orElse(null),
                 saved,
@@ -196,7 +208,7 @@ public class StudentAiFeedbackService {
         SubmissionAnalysisResponse analysis = submissionAnalysisService.generateAndStoreAnalysis(problem, submission, caseResults);
         StudentAiFeedbackResponse feedback = toStudentAiFeedback(submission, analysis);
         feedback.setLatencyMs(elapsedMs(startedAt));
-        return saveFeedback(submission, feedback);
+        return saveFeedback(submission, feedback, analysis);
     }
 
     private StudentAiFeedbackResponse toStudentAiFeedback(Submission submission, SubmissionAnalysisResponse analysis) {
@@ -937,7 +949,9 @@ public class StudentAiFeedbackService {
         return Math.max(0L, (System.nanoTime() - startedAt) / 1_000_000);
     }
 
-    private StudentAiFeedbackResponse saveFeedback(Submission submission, StudentAiFeedbackResponse feedback) {
+    private StudentAiFeedbackResponse saveFeedback(Submission submission,
+                                                   StudentAiFeedbackResponse feedback,
+                                                   SubmissionAnalysisResponse analysisResponse) {
         Long submissionId = submission.getId();
         if (feedback.getGeneratedAt() == null) {
             feedback.setGeneratedAt(LocalDateTime.now());
@@ -951,10 +965,58 @@ public class StudentAiFeedbackService {
         entity.setSource(hasText(feedback.getSource()) ? feedback.getSource() : SOURCE_AI_UNAVAILABLE);
         entity.setFeedbackJson(serialize(feedback));
         entity.setFailureReason(failureReason(feedback));
+        ensureGenerationKey(entity);
         StudentAiFeedback saved = studentAiFeedbackRepository.save(entity);
+        StudentAiFeedbackRevision revision = saveRevision(saved, feedback, analysisResponse);
+        saved.setLatestRevisionId(revision.getId());
+        saved = studentAiFeedbackRepository.save(saved);
         recordGenerationEvent(submission, saved, feedback);
         feedback.setGeneratedAt(saved.getGeneratedAt());
         return feedback;
+    }
+
+    private StudentAiFeedbackRevision saveRevision(StudentAiFeedback entity,
+                                                    StudentAiFeedbackResponse feedback,
+                                                    SubmissionAnalysisResponse analysisResponse) {
+        ensureGenerationKey(entity);
+        return studentAiFeedbackRevisionRepository
+                .findBySubmissionIdAndGenerationKey(entity.getSubmissionId(), entity.getGenerationKey())
+                .orElseGet(() -> {
+                    int version = studentAiFeedbackRevisionRepository
+                            .findTopBySubmissionIdOrderByVersionNumberDesc(entity.getSubmissionId())
+                            .map(current -> current.getVersionNumber() + 1)
+                            .orElse(1);
+                    SubmissionAnalysis analysis = submissionAnalysisRepository
+                            .findBySubmissionId(entity.getSubmissionId())
+                            .orElse(null);
+                    SubmissionAnalysisResponse.AiInvocation invocation = analysisResponse == null
+                            ? null
+                            : analysisResponse.getAiInvocation();
+                    return studentAiFeedbackRevisionRepository.save(StudentAiFeedbackRevision.builder()
+                            .submissionId(entity.getSubmissionId())
+                            .feedbackId(entity.getId())
+                            .analysisId(analysis == null ? null : analysis.getId())
+                            .versionNumber(version)
+                            .generationKey(entity.getGenerationKey())
+                            .status(statusOrFailed(entity.getStatus()))
+                            .source(hasText(entity.getSource()) ? entity.getSource() : SOURCE_AI_UNAVAILABLE)
+                            .feedbackJson(entity.getFeedbackJson())
+                            .failureReason(entity.getFailureReason())
+                            .provider(invocation == null ? null : invocation.getProvider())
+                            .model(invocation == null ? null : invocation.getModel())
+                            .promptVersion(invocation == null ? null : firstNonBlank(
+                                    invocation.getAdvicePromptVersion(),
+                                    invocation.getPromptVersion()))
+                            .schemaVersion(analysisResponse == null ? null : analysisResponse.getAnalysisSchemaVersion())
+                            .generatedAt(feedback == null ? LocalDateTime.now() : feedback.getGeneratedAt())
+                            .build());
+                });
+    }
+
+    private void ensureGenerationKey(StudentAiFeedback entity) {
+        if (entity.getGenerationKey() == null || entity.getGenerationKey().isBlank()) {
+            entity.setGenerationKey(UUID.randomUUID().toString());
+        }
     }
 
     private StudentAiFeedbackResponse failedFeedback(Long submissionId, String reason) {
@@ -1151,6 +1213,7 @@ public class StudentAiFeedbackService {
                                             String eventType) {
         return StudentAiFeedbackEvent.builder()
                 .submissionId(submission.getId())
+                .feedbackRevisionId(entity == null ? null : entity.getLatestRevisionId())
                 .studentProfileId(submission.getStudentProfileId())
                 .assignmentId(submission.getAssignmentId())
                 .problemId(submission.getProblemId())

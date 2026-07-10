@@ -760,6 +760,8 @@ export interface SubmissionAnalysisLookup {
 export interface SubmissionHistorySummary {
   id: number;
   problemId: number;
+  assignmentId?: number | null;
+  studentProfileId?: number | null;
   problemTitle?: string;
   languageId?: number;
   languageName?: string;
@@ -773,13 +775,114 @@ export interface SubmissionHistorySummary {
   analysisSourceType?: string | null;
   analysisHeadline?: string | null;
   analysisSummary?: string | null;
+  feedbackStatus?: StudentAiFeedbackStatus | null;
+  feedbackSource?: string | null;
+  feedbackFailureReason?: string | null;
+  feedbackRevisionId?: number | null;
+  dataCompletenessStatus?: "COMPLETE" | "IDENTITY_MISSING" | "ANALYSIS_MISSING" | "FEEDBACK_MISSING" | string | null;
+}
+
+export interface TeacherDataCompleteness {
+  totalSubmissionCount: number;
+  legalIdentityCount: number;
+  identityMissingCount: number;
+  invalidContextCount: number;
+  analysisReadyCount: number;
+  analysisMissingCount: number;
+  diagnosisFactCount: number;
+  diagnosedSubmissionCount: number;
+  unclassifiedFactCount: number;
+  feedbackEventSubmissionCount: number;
+  completeSubmissionCount: number;
+  completeRate?: number | null;
+}
+
+export interface TeacherKnowledgePathStat {
+  id: string;
+  label: string;
+  granularity: "chapter" | "knowledgePoint" | "skillUnit" | "mistakePoint" | string;
+  normalizedIssueId?: string | null;
+  path: Array<{
+    label: string;
+    kind: "chapter" | "knowledgePoint" | "skillUnit" | "mistakePoint" | string;
+  }>;
+  pathStatus: "FORMAL" | "PROVISIONAL" | "INFERRED" | "UNCLASSIFIED" | string;
+  libraryFit: "HIT" | "PARTIAL" | "MISS" | "UNKNOWN" | string;
+  source?: "AI_PROJECTION" | "TEACHER_OVERRIDE" | string;
+  teacherCorrectionId?: number | null;
+  errorOccurrenceCount: number;
+  affectedStudentCount: number;
+  repeatedStudentCount: number;
+  affectedProblemCount: number;
+  affectedStudentIds?: number[];
+  repeatedStudentIds?: number[];
+  affectedProblemIds?: number[];
+  evidenceSubmissionIds: number[];
+  evidenceSamples?: Array<{
+    submissionId: number;
+    studentProfileId?: number | null;
+    problemId?: number | null;
+    verdict?: string | null;
+    submittedAt?: string | null;
+  }>;
+}
+
+export interface TeacherSubmissionChange {
+  studentProfileId?: number | null;
+  problemId?: number | null;
+  beforeSubmissionId: number;
+  afterSubmissionId?: number | null;
+  beforeVerdict?: string | null;
+  afterVerdict?: string | null;
+  beforeIssueIds: string[];
+  afterIssueIds: string[];
+  status: string;
+  feedbackViewed: boolean;
+}
+
+export interface TeacherRecoverySummary {
+  recoveryNumerator: number;
+  recoveryDenominator: number;
+  comparableSampleCount: number;
+  recoveredCount: number;
+  sameIssueCount: number;
+  shiftedCount: number;
+  regressedCount: number;
+  verdictChangedCount: number;
+  noClearChangeCount: number;
+  awaitingFollowupCount: number;
+  feedbackViewedComparableCount: number;
+  feedbackViewedRecoveredCount: number;
+  recoveryRate?: number | null;
+  feedbackViewedRecoveryRate?: number | null;
+  evidence: TeacherSubmissionChange[];
+}
+
+export interface TeacherStudentRecentState {
+  status: string;
+  evidenceStatus: string;
+  independentSubmissionCount: number;
+  problemCount: number;
+  repeatedIssueId?: string | null;
+  repeatedIssueCount: number;
+  repeatedIssueProblemCount: number;
+  latestChangeStatus?: string | null;
+  evidenceSubmissionIds: number[];
 }
 
 export interface AssignmentOverview {
   assignment: Assignment;
+  rosterStudentCount: number;
   participantCount: number;
+  submittedStudentCount: number;
+  unsubmittedStudentCount: number;
   attemptCount: number;
   passedAttemptCount: number;
+  studentPassRate?: number | null;
+  attemptPassRate?: number | null;
+  dataCompleteness?: TeacherDataCompleteness | null;
+  knowledgePathStats?: TeacherKnowledgePathStat[];
+  recoverySummary?: TeacherRecoverySummary | null;
   strugglingStudentCount: number;
   postAcTransferPendingCount?: number;
   postAcTransferSummary?: string | null;
@@ -880,9 +983,14 @@ export interface AssignmentOverview {
     passedAttemptCount: number;
     submissionRate?: number | null;
     passRate?: number | null;
+    studentPassRate?: number | null;
+    attemptPassRate?: number | null;
     averageAttempts?: number | null;
     attentionStudentCount: number;
     statusLabel?: string | null;
+    dataCompleteness?: TeacherDataCompleteness | null;
+    knowledgePathStats?: TeacherKnowledgePathStat[];
+    recoverySummary?: TeacherRecoverySummary | null;
     topIssues?: Array<{
       label: string;
       count: number;
@@ -915,6 +1023,7 @@ export interface AssignmentOverview {
       latestProgressSignal?: string | null;
       latestConfidence?: number | null;
       latestAiFeedbackImpact?: AiFeedbackImpact | null;
+      recentLearningState?: TeacherStudentRecentState | null;
       needsAttention: boolean;
     }>;
   }>;
@@ -1008,6 +1117,7 @@ export interface AssignmentOverview {
       headline?: string | null;
       reason?: string | null;
     }>;
+    recentLearningState?: TeacherStudentRecentState | null;
     needsAttention: boolean;
   }>;
 }

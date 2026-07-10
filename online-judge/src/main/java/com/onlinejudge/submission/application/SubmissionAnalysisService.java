@@ -15,11 +15,13 @@ import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.SubmissionHistorySummaryResponse;
 import com.onlinejudge.submission.dto.SubmissionResponse;
 import com.onlinejudge.problem.domain.Problem;
+import com.onlinejudge.submission.domain.StudentAiFeedback;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
+import com.onlinejudge.submission.persistence.StudentAiFeedbackRepository;
 import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultStatsProjection;
@@ -61,6 +63,7 @@ public class SubmissionAnalysisService {
     private final ProblemRepository problemRepository;
     private final SubmissionCaseResultRepository submissionCaseResultRepository;
     private final SubmissionAnalysisRepository submissionAnalysisRepository;
+    private final StudentAiFeedbackRepository studentAiFeedbackRepository;
     private final ObjectMapper objectMapper;
     private final AiCodeAssistSupport aiCodeAssistSupport;
     private final AssignmentRepository assignmentRepository;
@@ -71,6 +74,7 @@ public class SubmissionAnalysisService {
     private final StudentRecommendationEventService recommendationEventService;
     private final AbilitySignalAnalyzer abilitySignalAnalyzer;
     private final TeacherDiagnosisCorrectionRepository teacherDiagnosisCorrectionRepository;
+    private final SubmissionDiagnosisFactProjector submissionDiagnosisFactProjector;
 
     @Transactional
     public SubmissionResponse finalizeSubmission(Problem problem, Submission submission, List<SubmissionCaseResult> caseResults) {
@@ -106,6 +110,12 @@ public class SubmissionAnalysisService {
     }
 
     public List<SubmissionHistorySummaryResponse> getSubmissionHistorySummaries(Long problemId, Long studentProfileId) {
+        return getSubmissionHistorySummaries(problemId, null, studentProfileId);
+    }
+
+    public List<SubmissionHistorySummaryResponse> getSubmissionHistorySummaries(Long problemId,
+                                                                                Long assignmentId,
+                                                                                Long studentProfileId) {
         String problemTitle = problemRepository.findTitleById(problemId)
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + problemId));
 
@@ -113,9 +123,21 @@ public class SubmissionAnalysisService {
                 .title(problemTitle)
                 .build();
 
-        List<SubmissionHistoryProjection> submissions = studentProfileId == null
-                ? submissionRepository.findAnonymousHistorySummariesByProblemId(problemId)
-                : submissionRepository.findHistorySummariesByProblemIdAndStudentProfileId(problemId, studentProfileId);
+        List<SubmissionHistoryProjection> submissions;
+        if (studentProfileId == null) {
+            submissions = List.of();
+        } else if (assignmentId == null) {
+            submissions = submissionRepository.findPublicHistorySummariesByProblemIdAndStudentProfileId(
+                    problemId,
+                    studentProfileId
+            );
+        } else {
+            submissions = submissionRepository.findHistorySummariesByAssignmentIdAndProblemIdAndStudentProfileId(
+                    assignmentId,
+                    problemId,
+                    studentProfileId
+            );
+        }
         if (submissions.isEmpty()) {
             return List.of();
         }
@@ -128,6 +150,10 @@ public class SubmissionAnalysisService {
         submissionAnalysisRepository.findBySubmissionIdIn(submissionIds)
                 .forEach(analysis -> analysisBySubmissionId.put(analysis.getSubmissionId(), analysis));
 
+        Map<Long, StudentAiFeedback> feedbackBySubmissionId = new HashMap<>();
+        studentAiFeedbackRepository.findBySubmissionIdIn(submissionIds)
+                .forEach(feedback -> feedbackBySubmissionId.put(feedback.getSubmissionId(), feedback));
+
         Map<Long, SubmissionCaseResultStatsProjection> caseResultStatsBySubmissionId = submissionCaseResultRepository
                 .summarizeBySubmissionIdIn(submissionIds)
                 .stream()
@@ -138,7 +164,8 @@ public class SubmissionAnalysisService {
                         submission,
                         problem,
                         analysisBySubmissionId.get(submission.getId()),
-                        caseResultStatsBySubmissionId.get(submission.getId())
+                        caseResultStatsBySubmissionId.get(submission.getId()),
+                        feedbackBySubmissionId.get(submission.getId())
                 ))
                 .toList();
     }
@@ -167,7 +194,10 @@ public class SubmissionAnalysisService {
                     submissionId,
                     existing.getSourceType());
             submissionAnalysisRepository.findBySubmissionId(submissionId)
-                    .ifPresent(analysis -> backfillSubmissionAnalysisSafely(submission, analysis));
+                    .ifPresent(analysis -> {
+                        projectDiagnosisFactsSafely(analysis, existing);
+                        backfillSubmissionAnalysisSafely(submission, analysis);
+                    });
             return existing;
         }
 
@@ -219,6 +249,7 @@ public class SubmissionAnalysisService {
                 submission.getId(),
                 analysis.getSourceType(),
                 savedAnalysis.getGeneratedAt());
+        projectDiagnosisFactsSafely(savedAnalysis, analysis);
         backfillSubmissionAnalysisSafely(submission, savedAnalysis);
         analysis.setGeneratedAt(savedAnalysis.getGeneratedAt());
         return analysis;
@@ -230,6 +261,19 @@ public class SubmissionAnalysisService {
         } catch (Exception exception) {
             log.warn("Recommendation event backfill failed but analysis is kept. submissionId={}, reason={}",
                     submission == null ? null : submission.getId(),
+                    exception.getMessage());
+        }
+    }
+
+    private void projectDiagnosisFactsSafely(SubmissionAnalysis analysis, SubmissionAnalysisResponse response) {
+        try {
+            if (submissionDiagnosisFactProjector != null) {
+                submissionDiagnosisFactProjector.project(analysis, response);
+            }
+        } catch (Exception exception) {
+            log.warn("Diagnosis fact projection failed and will be retried on reuse or backfill. submissionId={}, analysisId={}, reason={}",
+                    analysis == null ? null : analysis.getSubmissionId(),
+                    analysis == null ? null : analysis.getId(),
                     exception.getMessage());
         }
     }
@@ -1536,7 +1580,8 @@ public class SubmissionAnalysisService {
     private SubmissionHistorySummaryResponse toHistorySummary(SubmissionHistoryProjection submission,
                                                               Problem problem,
                                                               SubmissionAnalysis analysis,
-                                                              SubmissionCaseResultStatsProjection caseResultStats) {
+                                                              SubmissionCaseResultStatsProjection caseResultStats,
+                                                              StudentAiFeedback feedback) {
         int totalTestCases = caseResultStats == null || caseResultStats.getTotalTestCases() == null
                 ? 0
                 : caseResultStats.getTotalTestCases().intValue();
@@ -1546,6 +1591,8 @@ public class SubmissionAnalysisService {
         return SubmissionHistorySummaryResponse.builder()
                 .id(submission.getId())
                 .problemId(submission.getProblemId())
+                .assignmentId(submission.getAssignmentId())
+                .studentProfileId(submission.getStudentProfileId())
                 .problemTitle(problem == null ? "未知题目" : problem.getTitle())
                 .languageId(submission.getLanguageId())
                 .languageName(submission.getLanguageName())
@@ -1559,7 +1606,27 @@ public class SubmissionAnalysisService {
                 .analysisSourceType(analysis == null ? null : analysis.getAnalysisSource())
                 .analysisHeadline(analysis == null ? null : analysis.getHeadline())
                 .analysisSummary(analysis == null ? null : analysis.getSummary())
+                .feedbackStatus(feedback == null ? "NOT_REQUESTED" : feedback.getStatus())
+                .feedbackSource(feedback == null ? null : feedback.getSource())
+                .feedbackFailureReason(feedback == null ? null : feedback.getFailureReason())
+                .feedbackRevisionId(feedback == null ? null : feedback.getLatestRevisionId())
+                .dataCompletenessStatus(historyCompleteness(submission, analysis, feedback))
                 .build();
+    }
+
+    private String historyCompleteness(SubmissionHistoryProjection submission,
+                                       SubmissionAnalysis analysis,
+                                       StudentAiFeedback feedback) {
+        if (submission.getAssignmentId() != null && submission.getStudentProfileId() == null) {
+            return "IDENTITY_MISSING";
+        }
+        if (analysis == null) {
+            return "ANALYSIS_MISSING";
+        }
+        if (feedback == null) {
+            return "FEEDBACK_MISSING";
+        }
+        return "COMPLETE";
     }
 
     private String resolveAnalysisStatus(SubmissionAnalysis analysis) {

@@ -15,6 +15,7 @@ import com.onlinejudge.submission.application.SubmissionAnalysisAsyncService;
 import com.onlinejudge.submission.application.SubmissionComparisonService;
 import com.onlinejudge.submission.application.StudentAiFeedbackAsyncService;
 import com.onlinejudge.submission.application.StudentAiFeedbackService;
+import com.onlinejudge.submission.application.ClassroomSubmissionContextService;
 import com.onlinejudge.shared.security.AccessDeniedException;
 import com.onlinejudge.shared.security.StudentAccessTokenService;
 import com.onlinejudge.submission.domain.Submission;
@@ -41,14 +42,13 @@ public class SubmissionController {
     private final CoachPromptService coachPromptService;
     private final StudentAccessTokenService studentAccessTokenService;
     private final SubmissionRepository submissionRepository;
+    private final ClassroomSubmissionContextService classroomSubmissionContextService;
 
     @PostMapping
     public ResponseEntity<SubmissionResponse> submitCode(@Valid @RequestBody SubmissionRequest request,
                                                          HttpServletRequest httpRequest) {
-        if (request.getStudentProfileId() != null) {
-            studentAccessTokenService.requireStudent(httpRequest, request.getStudentProfileId());
-        }
-        return ResponseEntity.ok(judgeService.submitCode(request));
+        SubmissionRequest resolved = classroomSubmissionContextService.resolve(request, httpRequest);
+        return ResponseEntity.ok(judgeService.submitCode(resolved));
     }
 
     @GetMapping("/{id}")
@@ -144,9 +144,13 @@ public class SubmissionController {
 
     @GetMapping("/problem/{problemId}/history-summary")
     public ResponseEntity<List<SubmissionHistorySummaryResponse>> getSubmissionHistorySummary(@PathVariable Long problemId,
+                                                                                              @RequestParam(required = false) Long assignmentId,
                                                                                               HttpServletRequest request) {
         Long studentProfileId = studentAccessTokenService.currentStudentId(request);
-        return ResponseEntity.ok(submissionAnalysisService.getSubmissionHistorySummaries(problemId, studentProfileId));
+        if (assignmentId != null && studentProfileId == null) {
+            studentAccessTokenService.requireAnyOf(request);
+        }
+        return ResponseEntity.ok(submissionAnalysisService.getSubmissionHistorySummaries(problemId, assignmentId, studentProfileId));
     }
 
     @GetMapping("/compare")

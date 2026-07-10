@@ -12,6 +12,8 @@ import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.classroom.application.StudentRecommendationService;
 import com.onlinejudge.classroom.application.StudentAiFeedbackObservabilityService;
 import com.onlinejudge.classroom.application.StudentTrajectoryService;
+import com.onlinejudge.submission.application.SubmissionEvidenceBackfillService;
+import com.onlinejudge.submission.dto.SubmissionEvidenceBackfillResponse;
 import com.onlinejudge.classroom.dto.*;
 import com.onlinejudge.classroom.importing.ClassroomImportService;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
@@ -43,6 +45,7 @@ public class ClassroomController {
     private final StudentRecommendationEventService studentRecommendationEventService;
     private final DiagnosisTaxonomy diagnosisTaxonomy;
     private final StudentAccessTokenService studentAccessTokenService;
+    private final SubmissionEvidenceBackfillService submissionEvidenceBackfillService;
 
     @GetMapping("/api/teacher/classes")
     public ResponseEntity<List<ClassGroupResponse>> getClasses() {
@@ -125,6 +128,20 @@ public class ClassroomController {
     @GetMapping("/api/teacher/assignments/{assignmentId}/overview")
     public ResponseEntity<AssignmentOverviewResponse> getAssignmentOverview(@PathVariable Long assignmentId) {
         return ResponseEntity.ok(classroomService.getAssignmentOverview(assignmentId));
+    }
+
+    @GetMapping("/api/teacher/submission-evidence/backfill-preview")
+    public ResponseEntity<SubmissionEvidenceBackfillResponse> previewSubmissionEvidenceBackfill(
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) Integer batchSize) {
+        return ResponseEntity.ok(submissionEvidenceBackfillService.preview(cursor, batchSize));
+    }
+
+    @PostMapping("/api/teacher/submission-evidence/backfill")
+    public ResponseEntity<SubmissionEvidenceBackfillResponse> backfillSubmissionEvidence(
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) Integer batchSize) {
+        return ResponseEntity.ok(submissionEvidenceBackfillService.backfill(cursor, batchSize));
     }
 
     /*

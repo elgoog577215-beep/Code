@@ -42,6 +42,12 @@ public class StudentAiFeedback {
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 
+    @Column(name = "generation_key", length = 64)
+    private String generationKey;
+
+    @Column(name = "latest_revision_id")
+    private Long latestRevisionId;
+
     @Column(name = "generated_at")
     private LocalDateTime generatedAt;
 

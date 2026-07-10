@@ -20,6 +20,8 @@ import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackResponse;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackRepository;
+import com.onlinejudge.submission.persistence.StudentAiFeedbackRevisionRepository;
+import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,8 @@ class StudentAiFeedbackEventTest {
     private final SubmissionCaseResultRepository caseResultRepository = mock(SubmissionCaseResultRepository.class);
     private final StudentAiFeedbackRepository feedbackRepository = mock(StudentAiFeedbackRepository.class);
     private final StudentAiFeedbackEventRepository eventRepository = mock(StudentAiFeedbackEventRepository.class);
+    private final StudentAiFeedbackRevisionRepository revisionRepository = mock(StudentAiFeedbackRevisionRepository.class);
+    private final SubmissionAnalysisRepository analysisRepository = mock(SubmissionAnalysisRepository.class);
     private final SubmissionAnalysisService submissionAnalysisService = mock(SubmissionAnalysisService.class);
     private final AiStandardSkillUnitRepository skillUnitRepository = mock(AiStandardSkillUnitRepository.class);
     private final AiStandardMistakePointRepository mistakePointRepository = mock(AiStandardMistakePointRepository.class);
@@ -56,6 +60,8 @@ class StudentAiFeedbackEventTest {
             caseResultRepository,
             feedbackRepository,
             eventRepository,
+            revisionRepository,
+            analysisRepository,
             submissionAnalysisService,
             skillUnitRepository,
             mistakePointRepository,
@@ -63,6 +69,14 @@ class StudentAiFeedbackEventTest {
             knowledgeRepository,
             objectMapper
     );
+
+    StudentAiFeedbackEventTest() {
+        when(revisionRepository.save(any())).thenAnswer(invocation -> {
+            var revision = invocation.<com.onlinejudge.submission.domain.StudentAiFeedbackRevision>getArgument(0);
+            revision.setId(501L);
+            return revision;
+        });
+    }
 
     @Test
     void recordsViewedEventWithSubmissionContext() throws Exception {

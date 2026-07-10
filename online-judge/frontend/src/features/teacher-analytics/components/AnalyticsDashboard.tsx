@@ -77,13 +77,19 @@ export function AnalyticsDashboard({ snapshot, t, correction }: Props) {
             <span>{t("teacherAnalytics.sections.currentPath")}</span>
             <strong>{activePath}</strong>
             {selected ? (
-              <p>
-                {t("teacherAnalytics.pathMeta", {
-                  count: selected.count,
-                  students: selected.affectedStudentCount || 0,
-                  problems: selected.affectedProblemCount || 0
-                })}
-              </p>
+              <>
+                <p>
+                  {t("teacherAnalytics.pathMeta", {
+                    count: selected.count,
+                    students: selected.affectedStudentCount || 0,
+                    repeated: selected.repeatedStudentCount || 0,
+                    problems: selected.affectedProblemCount || 0
+                  })}
+                </p>
+                <small>
+                  {t(`teacherAnalytics.pathStatus.${pathStatusKey(selected.pathStatus)}`)} · {t(`teacherAnalytics.fit.${selected.fit}`)}
+                </small>
+              </>
             ) : (
               <p>{t("teacherAnalytics.empty.noKnowledgePath")}</p>
             )}
@@ -207,4 +213,9 @@ function feedbackImpactKey(status?: string | null) {
     default:
       return "awaiting";
   }
+}
+
+function pathStatusKey(status?: string | null) {
+  const normalized = String(status || "UNCLASSIFIED").toLowerCase();
+  return ["formal", "provisional", "inferred", "unclassified"].includes(normalized) ? normalized : "unclassified";
 }

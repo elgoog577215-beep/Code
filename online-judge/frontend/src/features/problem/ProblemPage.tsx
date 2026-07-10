@@ -221,6 +221,24 @@ function inFlightFeedbackStatus(status?: string | null) {
   return ["GENERATING", "NOT_REQUESTED"].includes(String(status || "").toUpperCase());
 }
 
+function historyFeedbackLabel(
+  status: string | null | undefined,
+  t: (key: string, params?: Record<string, string | number>) => string
+) {
+  switch (String(status || "NOT_REQUESTED").toUpperCase()) {
+    case "READY":
+      return t("problemHistory.feedback.ready");
+    case "GENERATING":
+      return t("problemHistory.feedback.generating");
+    case "FAILED":
+    case "TIMEOUT":
+    case "SAFETY_REJECTED":
+      return t("problemHistory.feedback.failed");
+    default:
+      return t("problemHistory.feedback.pending");
+  }
+}
+
 function normalizeFailureReason(reason?: string | null) {
   const text = String(reason || "").trim();
   if (!text) {
@@ -518,6 +536,7 @@ function FeedbackLoadingPanel({ mode, state }: { mode: "repair" | "growth"; stat
 }
 
 export default function ProblemPage() {
+  const { t } = useTranslation();
   const params = useParams();
   const [searchParams] = useSearchParams();
   const problemId = Number(params.problemId);
@@ -589,6 +608,7 @@ export default function ProblemPage() {
   }, [isPublicWorkbench, problemId]);
 
   useEffect(() => {
+    let ignore = false;
     async function load() {
       try {
         setLatest(null);
@@ -600,19 +620,43 @@ export default function ProblemPage() {
         clearFeedbackTimer();
         setFeedbackPollState("idle");
         setStudentAiFeedback(null);
-        const [problemResult, historyResult] = await Promise.all([api.problem(problemId), api.history(problemId)]);
+        const [problemResult, historyResult] = await Promise.all([api.problem(problemId), api.history(problemId, assignmentId)]);
+        if (ignore) {
+          return;
+        }
         setProblem(problemResult);
         setHistory(historyResult);
         setSourceCode(initialSourceFor(problemResult, problemId, languageId));
+        const recent = historyResult[0];
+        if (recent) {
+          const [submissionResult, feedbackLookup] = await Promise.all([
+            api.submission(recent.id),
+            api.studentAiFeedback(recent.id)
+          ]);
+          if (!ignore) {
+            setLatest(submissionResult);
+            const feedback = withLookupFailureReason(feedbackLookup.feedback || null, feedbackLookup.failureReason);
+            setStudentAiFeedback(feedback);
+            if (inFlightFeedbackStatus(feedback?.status)) {
+              const token = startFeedbackPollingState(true);
+              pollStudentAiFeedback(recent.id, token);
+            }
+          }
+        }
       } catch (error) {
-        setAlert({ type: "error", message: error instanceof Error ? error.message : "题目加载失败。" });
+        if (!ignore) {
+          setAlert({ type: "error", message: error instanceof Error ? error.message : "题目加载失败。" });
+        }
       }
     }
     if (Number.isFinite(problemId)) {
       void load();
     }
+    return () => {
+      ignore = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [problemId]);
+  }, [assignmentId, problemId]);
 
   useEffect(() => {
     setSourceCode(initialSourceFor(problem, problemId, languageId));
@@ -803,7 +847,7 @@ export default function ProblemPage() {
       setCoachPrompt(null);
       setStudentAiFeedback(null);
       const feedbackToken = startFeedbackPollingState(Boolean(result.id));
-      setHistory(await api.history(problem.id));
+      setHistory(await api.history(problem.id, assignmentId));
       setAlert(
         result.verdict === "INTERNAL_ERROR"
           ? { type: "error", message: result.errorMessage || "执行环境未就绪。" }
@@ -908,6 +952,31 @@ export default function ProblemPage() {
       if (feedbackToken === feedbackPollTokenRef.current) {
         setFeedbackPollState("background");
       }
+    }
+  }
+
+  async function openHistorySubmission(summary: SubmissionHistorySummary) {
+    const token = startFeedbackPollingState(false);
+    setCoachPrompt(null);
+    setCoachAnswer("");
+    try {
+      const [submissionResult, feedbackLookup] = await Promise.all([
+        api.submission(summary.id),
+        api.studentAiFeedback(summary.id)
+      ]);
+      if (token !== feedbackPollTokenRef.current) {
+        return;
+      }
+      setLatest(submissionResult);
+      const feedback = withLookupFailureReason(feedbackLookup.feedback || null, feedbackLookup.failureReason);
+      setStudentAiFeedback(feedback);
+      setResultOpen(true);
+      if (inFlightFeedbackStatus(feedback?.status)) {
+        const pollingToken = startFeedbackPollingState(true);
+        pollStudentAiFeedback(summary.id, pollingToken);
+      }
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : t("problemHistory.loadFailed") });
     }
   }
 
@@ -1252,6 +1321,29 @@ export default function ProblemPage() {
         </Panel>
       </section>
 
+      {history.length > 0 && (
+        <Panel title={t("problemHistory.title")} className="problem-history-panel">
+          <div className="problem-history-list" aria-label={t("problemHistory.aria")}>
+            {history.slice(0, 12).map(item => (
+              <button
+                type="button"
+                className={latest?.id === item.id ? "problem-history-row is-active" : "problem-history-row"}
+                onClick={() => void openHistorySubmission(item)}
+                key={item.id}
+              >
+                <span>
+                  <VerdictPill verdict={item.verdict} />
+                  <strong>{t("problemHistory.submission", { id: item.id })}</strong>
+                </span>
+                <span>{item.passedTestCases ?? 0}/{item.totalTestCases ?? 0}</span>
+                <span>{historyFeedbackLabel(item.feedbackStatus, t)}</span>
+                <small>{item.submittedAt ? new Date(item.submittedAt).toLocaleString() : "-"}</small>
+              </button>
+            ))}
+          </div>
+        </Panel>
+      )}
+
       {feedbackReady && resultOpen && latest && (
         <div className="problem-result-modal-backdrop" role="presentation" onClick={closeResult}>
           <section className="problem-result-modal" role="dialog" aria-modal="true" aria-labelledby="problem-result-title" onClick={event => event.stopPropagation()}>
@@ -1323,6 +1415,12 @@ export default function ProblemPage() {
                       </div>
                     </details>
                   )}
+                  <details className="problem-compact-details problem-submitted-code-drawer">
+                    <summary>
+                      <span>{t("problemHistory.submittedCode")}</span>
+                    </summary>
+                    <pre className="code-block">{latest.sourceCode || ""}</pre>
+                  </details>
                 </section>
 
                 {showRepairSection ? (

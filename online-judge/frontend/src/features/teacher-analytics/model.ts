@@ -47,7 +47,9 @@ export type InsightBucket = {
   count: number;
   rate?: number | null;
   affectedStudentCount?: number;
+  repeatedStudentCount?: number;
   affectedProblemCount?: number;
+  pathStatus?: "FORMAL" | "PROVISIONAL" | "INFERRED" | "UNCLASSIFIED" | string;
   path: KnowledgePathNode[];
   fit: LibraryFit;
   evidence: AnalyticsEvidenceSample[];

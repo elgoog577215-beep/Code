@@ -52,6 +52,19 @@
       "analysis": "Analysis evidence"
     }
   },
+  "problemHistory": {
+    "title": "Recent submissions",
+    "aria": "Submission history for this problem",
+    "submission": "Submission #{{id}}",
+    "submittedCode": "Submitted code",
+    "loadFailed": "Failed to load this submission.",
+    "feedback": {
+      "ready": "AI suggestions ready",
+      "generating": "Generating AI suggestions",
+      "failed": "AI suggestions unavailable",
+      "pending": "Waiting for AI suggestions"
+    }
+  },
   "routeHub": {
     "eyebrow": "Entry",
     "title": "Learning Platform",
@@ -221,8 +234,13 @@
     "metrics": {
       "assignments": "Assignments",
       "students": "Students",
+      "rosterStudents": "Roster students",
       "submissions": "Submissions",
       "accuracy": "Accuracy",
+      "studentAccuracy": "Student pass rate",
+      "attemptAccuracy": "Attempt pass rate",
+      "dataCompleteness": "Data completeness",
+      "recoveryEvidence": "Recovery samples",
       "errorCount": "Errors",
       "affectedStudents": "Students affected",
       "submittedStudents": "Submitted",
@@ -242,8 +260,20 @@
       "problems": "Problems"
     },
     "scopeTitle": "{{scope}} result distribution",
-    "pathMeta": "{{count}} times · {{students}} students · {{problems}} problems",
+    "pathMeta": "{{count}} times · {{students}} students · {{repeated}} repeated · {{problems}} problems",
     "pathLabel": "Path",
+    "pathStatus": {
+      "formal": "Formal library",
+      "provisional": "Teacher-corrected or provisional",
+      "inferred": "Historical inference",
+      "unclassified": "Unclassified"
+    },
+    "completeness": {
+      "note": "{{identityMissing}} identity missing · {{analysisMissing}} undiagnosed"
+    },
+    "recovery": {
+      "note": "{{denominator}} comparable follow-up samples"
+    },
     "status": {
       "active": "Active",
       "draft": "Draft",
@@ -296,7 +326,18 @@
       "UNKNOWN": "Unconfirmed attribution"
     },
     "evidence": {
-      "title": "Evidence samples"
+      "title": "Evidence samples",
+      "submissionWithId": "Submission #{{id}}"
+    },
+    "recentState": {
+      "summary": "{{status}} · {{submissions}} submissions across {{problems}} problems in 30 days",
+      "status": {
+        "recovered": "Recent recovery evidence",
+        "repeated": "Recently repeated",
+        "changing": "Issue recently changed",
+        "single": "Single observation; insufficient evidence",
+        "observing": "Under recent observation"
+      }
     },
     "aiLoop": {
       "title": "Performance after viewing feedback",
@@ -314,10 +355,10 @@
       },
       "summary": {
         "improved": "The next submission for the same problem passed. This is correlated evidence of improvement, not proof that the feedback caused it.",
-        "shifted": "The follow-up submission moved to a new issue stage; review the new evidence before deciding what changed.",
-        "sameIssue": "The same issue remains in the follow-up submission; check whether the student understood and acted on the feedback.",
-        "regressed": "The follow-up moved backward in the evaluation stages; check for a misread or an overly broad change.",
-        "verdictChanged": "The evaluation stage changed; use the new failure evidence to judge whether this represents progress.",
+        "shifted": "The follow-up submission moved to a new issue stage; current evidence shows that the original issue changed.",
+        "sameIssue": "The same issue remains in the follow-up submission; current evidence does not show that it disappeared.",
+        "regressed": "The follow-up moved backward in the evaluation stages, but current data does not explain the cause.",
+        "verdictChanged": "The evaluation stage changed; more evidence is needed to determine whether this is progress.",
         "noClearChange": "A follow-up submission exists, but no clear change is observable yet.",
         "awaiting": "The student viewed the feedback but has not submitted the same problem again, so impact cannot be judged yet."
       }

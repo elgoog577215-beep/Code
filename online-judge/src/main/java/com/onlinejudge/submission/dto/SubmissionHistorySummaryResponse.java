@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 public class SubmissionHistorySummaryResponse {
     private Long id;
     private Long problemId;
+    private Long assignmentId;
+    private Long studentProfileId;
     private String problemTitle;
     private Integer languageId;
     private String languageName;
@@ -24,5 +26,9 @@ public class SubmissionHistorySummaryResponse {
     private String analysisSourceType;
     private String analysisHeadline;
     private String analysisSummary;
+    private String feedbackStatus;
+    private String feedbackSource;
+    private String feedbackFailureReason;
+    private Long feedbackRevisionId;
+    private String dataCompletenessStatus;
 }
-

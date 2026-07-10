@@ -70,6 +70,7 @@ public class ClassroomService {
     private final StudentAccessTokenService studentAccessTokenService;
     private final StudentAiFeedbackEventRepository studentAiFeedbackEventRepository;
     private final StudentAiFeedbackImpactAnalyzer studentAiFeedbackImpactAnalyzer;
+    private final SubmissionEvidenceAnalyticsService submissionEvidenceAnalyticsService;
 
     public List<ClassGroupResponse> getClassGroups() {
         return classGroupRepository.findAllByOrderByCreatedAtDesc()
@@ -264,6 +265,13 @@ public class ClassroomService {
     public AssignmentOverviewResponse getAssignmentOverview(Long assignmentId) {
         Assignment assignment = findAssignment(assignmentId);
         AssignmentResponse assignmentResponse = toAssignmentResponse(assignment);
+        List<StudentProfile> classStudents = assignment.getClassGroupId() == null
+                ? List.of()
+                : studentProfileRepository.findByClassGroupIdOrderByStudentNoAscDisplayNameAsc(assignment.getClassGroupId());
+        Set<Long> classStudentIds = classStudents.stream()
+                .map(StudentProfile::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
         List<Submission> submissions = submissionRepository.findByAssignmentIdOrderBySubmittedAtDesc(assignmentId);
         List<Long> submissionIds = submissions.stream().map(Submission::getId).toList();
         Map<Long, SubmissionAnalysis> analyses = submissionIds.isEmpty()
@@ -323,6 +331,7 @@ public class ClassroomService {
 
         Map<Long, List<Submission>> byStudent = submissions.stream()
                 .filter(submission -> submission.getStudentProfileId() != null)
+                .filter(submission -> classStudentIds.isEmpty() || classStudentIds.contains(submission.getStudentProfileId()))
                 .collect(Collectors.groupingBy(Submission::getStudentProfileId));
         Map<Long, StudentProfile> students = studentProfileRepository.findAllById(byStudent.keySet())
                 .stream()
@@ -473,19 +482,29 @@ public class ClassroomService {
                         classReviewSuggestions
                 );
         attachClassTeachingStrategyImpact(classTeachingStrategySignal, feedbackByKey, submissions, analyses);
-        List<StudentProfile> classStudents = assignment.getClassGroupId() == null
-                ? List.of()
-                : studentProfileRepository.findByClassGroupIdOrderByStudentNoAscDisplayNameAsc(assignment.getClassGroupId());
         long classStudentCount = classStudents.size();
+        SubmissionEvidenceAnalyticsService.EvidenceSummary evidenceSummary =
+                submissionEvidenceAnalyticsService.summarize(submissions, classStudents, analyses);
+        studentSummaries.forEach(student -> student.setRecentLearningState(
+                evidenceSummary.recentStates().get(student.getStudentProfileId())
+        ));
         List<AssignmentOverviewResponse.ProblemSummary> problemSummaries =
                 buildProblemSummaries(assignmentResponse, assignmentProblems, submissions, analyses,
                         aiFeedbackImpacts, classStudents, classStudentCount);
 
         return AssignmentOverviewResponse.builder()
                 .assignment(assignmentResponse)
-                .participantCount(byStudent.keySet().size())
-                .attemptCount(submissions.size())
-                .passedAttemptCount(submissions.stream().filter(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED).count())
+                .rosterStudentCount(evidenceSummary.rosterStudentCount())
+                .participantCount(evidenceSummary.submittedStudentCount())
+                .submittedStudentCount(evidenceSummary.submittedStudentCount())
+                .unsubmittedStudentCount(evidenceSummary.unsubmittedStudentCount())
+                .attemptCount(evidenceSummary.attemptCount())
+                .passedAttemptCount(evidenceSummary.passedAttemptCount())
+                .studentPassRate(evidenceSummary.studentPassRate())
+                .attemptPassRate(evidenceSummary.attemptPassRate())
+                .dataCompleteness(evidenceSummary.dataCompleteness())
+                .knowledgePathStats(evidenceSummary.knowledgePathStats())
+                .recoverySummary(evidenceSummary.recoverySummary())
                 .strugglingStudentCount(studentSummaries.stream().filter(AssignmentOverviewResponse.StudentProgressSummary::isNeedsAttention).count())
                 .postAcTransferPendingCount(postAcTransferPendingCount)
                 .postAcTransferSummary(buildPostAcTransferSummary(studentSummaries, postAcTransferPendingCount))
@@ -1137,7 +1156,12 @@ public class ClassroomService {
                         analyses,
                         aiFeedbackImpacts,
                         classStudentById,
-                        classStudentCount
+                        classStudentCount,
+                        submissionEvidenceAnalyticsService.summarize(
+                                submissionsByProblem.getOrDefault(task.getProblemId(), List.of()),
+                                classStudents,
+                                analyses
+                        )
                 ))
                 .toList();
     }
@@ -1149,13 +1173,15 @@ public class ClassroomService {
             Map<Long, SubmissionAnalysis> analyses,
             Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts,
             Map<Long, StudentProfile> classStudentById,
-            long classStudentCount) {
+            long classStudentCount,
+            SubmissionEvidenceAnalyticsService.EvidenceSummary evidenceSummary) {
         List<Submission> ordered = safeList(problemSubmissions).stream()
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
                 .toList();
         Map<Long, List<Submission>> byStudent = ordered.stream()
                 .filter(submission -> submission.getStudentProfileId() != null)
+                .filter(submission -> classStudentById.isEmpty() || classStudentById.containsKey(submission.getStudentProfileId()))
                 .collect(Collectors.groupingBy(
                         Submission::getStudentProfileId,
                         LinkedHashMap::new,
@@ -1168,7 +1194,8 @@ public class ClassroomService {
                 .count();
         List<AssignmentOverviewResponse.ProblemStudentSummary> students = byStudent.entrySet().stream()
                 .map(entry -> buildProblemStudentSummary(entry.getKey(), classStudentById.get(entry.getKey()),
-                        entry.getValue(), analyses, aiFeedbackImpacts))
+                        entry.getValue(), analyses, aiFeedbackImpacts,
+                        evidenceSummary.recentStates().get(entry.getKey())))
                 .sorted(Comparator.comparing(AssignmentOverviewResponse.ProblemStudentSummary::isNeedsAttention).reversed()
                         .thenComparing(AssignmentOverviewResponse.ProblemStudentSummary::getDisplayName, Comparator.nullsLast(String::compareTo)))
                 .toList();
@@ -1186,9 +1213,14 @@ public class ClassroomService {
                 .passedAttemptCount(passedAttemptCount)
                 .submissionRate(classStudentCount > 0 ? roundOneDecimal(submittedStudentCount * 100.0 / classStudentCount) : null)
                 .passRate(submittedStudentCount > 0 ? roundOneDecimal(passedStudentCount * 100.0 / submittedStudentCount) : null)
+                .studentPassRate(evidenceSummary.studentPassRate())
+                .attemptPassRate(evidenceSummary.attemptPassRate())
                 .averageAttempts(submittedStudentCount > 0 ? roundOneDecimal(ordered.size() * 1.0 / submittedStudentCount) : null)
                 .attentionStudentCount(attentionCount)
                 .statusLabel(resolveProblemStatusLabel(submittedStudentCount, passedStudentCount, attentionCount))
+                .dataCompleteness(evidenceSummary.dataCompleteness())
+                .knowledgePathStats(evidenceSummary.knowledgePathStats())
+                .recoverySummary(evidenceSummary.recoverySummary())
                 .topIssues(buildProblemIssueStats(ordered, analyses))
                 .abilityWeaknesses(buildProblemAbilityStats(ordered, analyses))
                 .hintLevelDistribution(buildHintLevelStats(ordered, analyses))
@@ -1201,7 +1233,8 @@ public class ClassroomService {
             StudentProfile student,
             List<Submission> submissions,
             Map<Long, SubmissionAnalysis> analyses,
-            Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts) {
+            Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts,
+            AssignmentOverviewResponse.StudentRecentState recentLearningState) {
         List<Submission> ordered = safeList(submissions).stream()
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
@@ -1239,6 +1272,7 @@ public class ClassroomService {
                 .latestProgressSignal(resolveProgressSignal(latestAnalysis, resolveRepeatedIssue(ordered, analyses), resolveRepeatedFineIssue(ordered, analyses)))
                 .latestConfidence(diagnosisReportReader.confidence(latestAnalysis))
                 .latestAiFeedbackImpact(latestAiFeedbackImpact)
+                .recentLearningState(recentLearningState)
                 .needsAttention(needsAttention)
                 .build();
     }

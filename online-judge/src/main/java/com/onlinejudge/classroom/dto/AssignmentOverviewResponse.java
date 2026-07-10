@@ -10,9 +10,17 @@ import java.util.List;
 @Builder
 public class AssignmentOverviewResponse {
     private AssignmentResponse assignment;
+    private long rosterStudentCount;
     private long participantCount;
+    private long submittedStudentCount;
+    private long unsubmittedStudentCount;
     private long attemptCount;
     private long passedAttemptCount;
+    private Double studentPassRate;
+    private Double attemptPassRate;
+    private DataCompleteness dataCompleteness;
+    private List<KnowledgePathStat> knowledgePathStats;
+    private RecoverySummary recoverySummary;
     private long strugglingStudentCount;
     private long postAcTransferPendingCount;
     private String postAcTransferSummary;
@@ -89,6 +97,7 @@ public class AssignmentOverviewResponse {
         private long repeatedIssueCount;
         private String attentionReason;
         private List<AttentionEvidence> attentionEvidence;
+        private StudentRecentState recentLearningState;
         private boolean needsAttention;
     }
 
@@ -116,9 +125,14 @@ public class AssignmentOverviewResponse {
         private long passedAttemptCount;
         private Double submissionRate;
         private Double passRate;
+        private Double studentPassRate;
+        private Double attemptPassRate;
         private Double averageAttempts;
         private long attentionStudentCount;
         private String statusLabel;
+        private DataCompleteness dataCompleteness;
+        private List<KnowledgePathStat> knowledgePathStats;
+        private RecoverySummary recoverySummary;
         private List<IssueStat> topIssues;
         private List<AbilityStat> abilityWeaknesses;
         private List<HintLevelStat> hintLevelDistribution;
@@ -145,7 +159,114 @@ public class AssignmentOverviewResponse {
         private String latestProgressSignal;
         private Double latestConfidence;
         private StudentTrajectoryResponse.AiFeedbackImpact latestAiFeedbackImpact;
+        private StudentRecentState recentLearningState;
         private boolean needsAttention;
+    }
+
+    @Data
+    @Builder
+    public static class DataCompleteness {
+        private long totalSubmissionCount;
+        private long legalIdentityCount;
+        private long identityMissingCount;
+        private long invalidContextCount;
+        private long analysisReadyCount;
+        private long analysisMissingCount;
+        private long diagnosisFactCount;
+        private long diagnosedSubmissionCount;
+        private long unclassifiedFactCount;
+        private long feedbackEventSubmissionCount;
+        private long completeSubmissionCount;
+        private Double completeRate;
+    }
+
+    @Data
+    @Builder
+    public static class KnowledgePathNode {
+        private String label;
+        private String kind;
+    }
+
+    @Data
+    @Builder
+    public static class KnowledgePathStat {
+        private String id;
+        private String label;
+        private String granularity;
+        private String normalizedIssueId;
+        private List<KnowledgePathNode> path;
+        private String pathStatus;
+        private String libraryFit;
+        private String source;
+        private Long teacherCorrectionId;
+        private long errorOccurrenceCount;
+        private long affectedStudentCount;
+        private long repeatedStudentCount;
+        private long affectedProblemCount;
+        private List<Long> affectedStudentIds;
+        private List<Long> repeatedStudentIds;
+        private List<Long> affectedProblemIds;
+        private List<Long> evidenceSubmissionIds;
+        private List<SubmissionEvidenceRef> evidenceSamples;
+    }
+
+    @Data
+    @Builder
+    public static class SubmissionEvidenceRef {
+        private Long submissionId;
+        private Long studentProfileId;
+        private Long problemId;
+        private String verdict;
+        private LocalDateTime submittedAt;
+    }
+
+    @Data
+    @Builder
+    public static class RecoverySummary {
+        private long recoveryNumerator;
+        private long recoveryDenominator;
+        private long comparableSampleCount;
+        private long recoveredCount;
+        private long sameIssueCount;
+        private long shiftedCount;
+        private long regressedCount;
+        private long verdictChangedCount;
+        private long noClearChangeCount;
+        private long awaitingFollowupCount;
+        private long feedbackViewedComparableCount;
+        private long feedbackViewedRecoveredCount;
+        private Double recoveryRate;
+        private Double feedbackViewedRecoveryRate;
+        private List<SubmissionChange> evidence;
+    }
+
+    @Data
+    @Builder
+    public static class SubmissionChange {
+        private Long studentProfileId;
+        private Long problemId;
+        private Long beforeSubmissionId;
+        private Long afterSubmissionId;
+        private String beforeVerdict;
+        private String afterVerdict;
+        private List<String> beforeIssueIds;
+        private List<String> afterIssueIds;
+        private String status;
+        private boolean feedbackViewed;
+    }
+
+    @Data
+    @Builder
+    public static class StudentRecentState {
+        private String status;
+        private String evidenceStatus;
+        private long independentSubmissionCount;
+        private long problemCount;
+        private String repeatedIssueId;
+        private long repeatedIssueCount;
+        private long repeatedIssueProblemCount;
+        private String latestChangeStatus;
+        private List<Long> evidenceSubmissionIds;
     }
 
     @Data

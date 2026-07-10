@@ -189,8 +189,10 @@ export const api = {
       method: "POST",
       body: jsonBody({ answer })
     }),
-  history: (problemId: number) =>
-    request<SubmissionHistorySummary[]>(`/api/submissions/problem/${problemId}/history-summary`),
+  history: (problemId: number, assignmentId?: number | null) =>
+    request<SubmissionHistorySummary[]>(
+      `/api/submissions/problem/${problemId}/history-summary${queryString({ assignmentId })}`
+    ),
 
   classes: () => request<ClassGroup[]>("/api/teacher/classes"),
   createClass: (payload: { name: string; grade?: string; teacherName?: string }) =>

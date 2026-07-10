@@ -1,4 +1,4 @@
-import type { AbilityStat, Assignment, AssignmentOverview, ClassGroup } from "../../shared/api/types";
+import type { Assignment, AssignmentOverview, ClassGroup, TeacherKnowledgePathStat } from "../../shared/api/types";
 import { assignmentStatusLabel, displayText, issueLabel } from "../../shared/format";
 import type {
   AnalyticsEvidenceSample,
@@ -8,13 +8,11 @@ import type {
   AssignmentAnalyticsRecord,
   AssignmentOverviewMap,
   InsightBucket,
-  KnowledgePathNode,
   ProblemRow
 } from "./model";
 
 type ProblemSummary = NonNullable<AssignmentOverview["problemSummaries"]>[number];
 type ProblemStudent = NonNullable<ProblemSummary["students"]>[number];
-type TopIssue = AssignmentOverview["topIssues"][number] | NonNullable<ProblemSummary["topIssues"]>[number];
 type AnalyticsTranslator = (key: string, params?: Record<string, string | number>) => string;
 
 export function cleanAnalyticsAssignment(assignment: Assignment, t?: AnalyticsTranslator): AssignmentAnalyticsRecord {
@@ -52,15 +50,19 @@ export function findAssignment(assignments: Assignment[], assignmentId: number, 
 }
 
 export function latestSubmittedStudentCount(overview?: AssignmentOverview | null) {
+  if (typeof overview?.submittedStudentCount === "number") {
+    return overview.submittedStudentCount;
+  }
   const trend = overview?.progressTrend || [];
   return trend[trend.length - 1]?.submittedStudentCount ?? countSubmittedStudents(overview);
 }
 
 export function assignmentPassRate(overview?: AssignmentOverview | null) {
-  if (!overview?.attemptCount) {
-    return null;
-  }
-  return overview.passedAttemptCount / overview.attemptCount;
+  return typeof overview?.attemptPassRate === "number"
+    ? overview.attemptPassRate
+    : overview?.attemptCount
+      ? overview.passedAttemptCount / overview.attemptCount
+      : null;
 }
 
 export function formatPercent(value?: number | null) {
@@ -83,18 +85,36 @@ export function buildClassAnalyticsSnapshot(input: {
 }): AnalyticsSnapshot {
   const assignments = classAssignments(input.assignments, input.classGroup.id, input.classGroup.name, input.t);
   const overviews = assignments.map(assignment => input.overviewByAssignment[assignment.id]).filter(Boolean) as AssignmentOverview[];
-  const participantCount = overviews.length ? Math.max(...overviews.map(overview => overview.participantCount || 0)) : 0;
-  const submitted = overviews.reduce((sum, overview) => sum + latestSubmittedStudentCount(overview), 0);
+  const rosterStudentCount = overviews.length
+    ? Math.max(...overviews.map(overview => overview.rosterStudentCount || overview.participantCount || 0))
+    : 0;
+  const submittedStudentIds = new Set<number>();
+  const passedStudentIds = new Set<number>();
+  overviews.forEach(overview => overview.students.forEach(student => {
+    if (student.attemptCount > 0) {
+      submittedStudentIds.add(student.studentProfileId);
+    }
+    if (student.passedCount > 0) {
+      passedStudentIds.add(student.studentProfileId);
+    }
+  }));
   const attempts = overviews.reduce((sum, overview) => sum + overview.attemptCount, 0);
   const passed = overviews.reduce((sum, overview) => sum + overview.passedAttemptCount, 0);
-  const issueCount = overviews.reduce((sum, overview) => sum + overview.topIssues.reduce((inner, issue) => inner + Math.max(1, issue.count || 0), 0), 0);
+  const completenessLegal = overviews.reduce((sum, overview) => sum + (overview.dataCompleteness?.legalIdentityCount || 0), 0);
+  const completenessReady = overviews.reduce((sum, overview) => sum + (overview.dataCompleteness?.completeSubmissionCount || 0), 0);
+  const identityMissing = overviews.reduce((sum, overview) => sum + (overview.dataCompleteness?.identityMissingCount || 0), 0);
+  const analysisMissing = overviews.reduce((sum, overview) => sum + (overview.dataCompleteness?.analysisMissingCount || 0), 0);
+  const recoveryNumerator = overviews.reduce((sum, overview) => sum + (overview.recoverySummary?.recoveryNumerator || 0), 0);
+  const recoveryDenominator = overviews.reduce((sum, overview) => sum + (overview.recoverySummary?.recoveryDenominator || 0), 0);
+  const issueCount = overviews.reduce(
+    (sum, overview) => sum + (overview.knowledgePathStats || [])
+      .filter(item => item.granularity === "mistakePoint")
+      .reduce((inner, item) => inner + item.errorOccurrenceCount, 0),
+    0
+  );
   const affectedStudentIds = new Set<number>();
   overviews.forEach(overview => {
-    overview.students.forEach(student => {
-      if (student.latestIssueTag || student.latestFineGrainedIssue || student.needsAttention) {
-        affectedStudentIds.add(student.studentProfileId);
-      }
-    });
+    overview.knowledgePathStats?.forEach(stat => stat.affectedStudentIds?.forEach(id => affectedStudentIds.add(id)));
   });
   const rows = assignments.map(assignment => assignmentRow(assignment, input.overviewByAssignment[assignment.id], input.classGroup.id, input.t));
   const allProblems = overviews.flatMap(overview => problemRows(overview, input.classGroup.id));
@@ -104,9 +124,13 @@ export function buildClassAnalyticsSnapshot(input: {
     classGroup: input.classGroup,
     metrics: [
       metric("assignments", assignments.length),
-      metric("students", participantCount || "-"),
-      metric("submissions", submitted || "-"),
-      metric("accuracy", attempts ? formatPercent(passed / attempts) : "-"),
+      metric("rosterStudents", rosterStudentCount || "-"),
+      metric("submittedStudents", submittedStudentIds.size || "-"),
+      metric("unsubmittedStudents", Math.max(0, rosterStudentCount - submittedStudentIds.size)),
+      metric("studentAccuracy", submittedStudentIds.size ? formatPercent(passedStudentIds.size / submittedStudentIds.size) : "-"),
+      metric("attemptAccuracy", attempts ? formatPercent(passed / attempts) : "-"),
+      metric("dataCompleteness", completenessLegal ? formatPercent(completenessReady / completenessLegal) : "-", completenessNote(input.t, identityMissing, analysisMissing)),
+      metric("recoveryEvidence", recoveryDenominator ? `${recoveryNumerator}/${recoveryDenominator}` : "-", recoveryNote(input.t, recoveryDenominator)),
       metric("errorCount", issueCount || "-"),
       metric("affectedStudents", affectedStudentIds.size || "-")
     ],
@@ -125,7 +149,6 @@ export function buildAssignmentAnalyticsSnapshot(input: {
   t?: AnalyticsTranslator;
 }): AnalyticsSnapshot {
   const problemList = problemRows(input.overview, input.classGroup.id, input.assignment.id);
-  const lowPassProblems = problemList.filter(problem => typeof problem.passRate === "number" && problem.passRate < 0.6).length;
   const evidence = collectAssignmentEvidence(input.overview, input.classGroup.id, input.assignment.id, undefined, input.t);
   return {
     scope: {
@@ -140,11 +163,18 @@ export function buildAssignmentAnalyticsSnapshot(input: {
     overview: input.overview,
     metrics: [
       metric("submittedStudents", latestSubmittedStudentCount(input.overview)),
-      metric("unsubmittedStudents", Math.max(0, input.overview.participantCount - latestSubmittedStudentCount(input.overview))),
-      metric("accuracy", formatPercent(assignmentPassRate(input.overview))),
+      metric("unsubmittedStudents", input.overview.unsubmittedStudentCount ?? Math.max(0, input.overview.participantCount - latestSubmittedStudentCount(input.overview))),
+      metric("studentAccuracy", formatPercent(input.overview.studentPassRate)),
+      metric("attemptAccuracy", formatPercent(assignmentPassRate(input.overview))),
       metric("averageAttempts", averageAttempts(input.overview)),
-      metric("lowPassProblems", lowPassProblems),
-      metric("errorCount", input.overview.topIssues.reduce((sum, item) => sum + Math.max(1, item.count || 0), 0) || "-")
+      metric("dataCompleteness", formatPercent(input.overview.dataCompleteness?.completeRate), completenessNote(
+        input.t,
+        input.overview.dataCompleteness?.identityMissingCount || 0,
+        input.overview.dataCompleteness?.analysisMissingCount || 0
+      )),
+      metric("recoveryEvidence", input.overview.recoverySummary?.recoveryDenominator
+        ? `${input.overview.recoverySummary.recoveryNumerator}/${input.overview.recoverySummary.recoveryDenominator}`
+        : "-", recoveryNote(input.t, input.overview.recoverySummary?.recoveryDenominator || 0))
     ],
     insightBuckets: buildBucketsFromOverviews([input.overview], evidence, input.t),
     assignmentRows: [assignmentRow(input.assignment, input.overview, input.classGroup.id, input.t)],
@@ -187,8 +217,16 @@ export function buildProblemAnalyticsSnapshot(input: {
       metric("submittedStudents", submitted || "-"),
       metric("passedStudents", passed || "-"),
       metric("failedStudents", failed || "-"),
-      metric("accuracy", formatPercent(rateToRatio(problem.passRate))),
-      metric("averageAttempts", typeof problem.averageAttempts === "number" ? problem.averageAttempts.toFixed(1).replace(/\\.0$/, "") : "-")
+      metric("studentAccuracy", formatPercent(problem.studentPassRate ?? rateToRatio(problem.passRate))),
+      metric("attemptAccuracy", formatPercent(problem.attemptPassRate)),
+      metric("dataCompleteness", formatPercent(problem.dataCompleteness?.completeRate), completenessNote(
+        input.t,
+        problem.dataCompleteness?.identityMissingCount || 0,
+        problem.dataCompleteness?.analysisMissingCount || 0
+      )),
+      metric("recoveryEvidence", problem.recoverySummary?.recoveryDenominator
+        ? `${problem.recoverySummary.recoveryNumerator}/${problem.recoverySummary.recoveryDenominator}`
+        : "-", recoveryNote(input.t, problem.recoverySummary?.recoveryDenominator || 0))
     ],
     insightBuckets: buildBucketsFromProblem(problem, evidence, input.t),
     assignmentRows: [assignmentRow(input.assignment, input.overview, input.classGroup.id, input.t)],
@@ -208,7 +246,7 @@ export function problemRows(overview: AssignmentOverview, classId: number, assig
       difficulty: problem.difficulty,
       submittedStudentCount: problem.submittedStudentCount,
       passedStudentCount: problem.passedStudentCount,
-      participantCount: problem.classStudentCount || overview.participantCount,
+      participantCount: problem.classStudentCount || overview.rosterStudentCount || overview.participantCount,
       passRate: rateToRatio(problem.passRate),
       topIssue: problem.topIssues?.[0]?.label || null
     }));
@@ -222,7 +260,7 @@ function assignmentRow(assignment: AssignmentAnalyticsRecord, overview: Assignme
     href: `/app/teacher/classes/${classId}/assignments/${assignment.id}`,
     problemCount: assignment.tasks?.length || overview?.problemSummaries?.length || 0,
     submittedStudentCount: latestSubmittedStudentCount(overview),
-    participantCount: overview?.participantCount || 0,
+    participantCount: overview?.rosterStudentCount || overview?.participantCount || 0,
     passRate: assignmentPassRate(overview),
     topIssue: overview?.topIssues?.[0]?.label || overview?.problemSummaries?.find(problem => problem.topIssues?.[0])?.topIssues?.[0]?.label || null
   };
@@ -246,6 +284,15 @@ function metric(key: string, value: string | number, note?: string | number): An
   return { key, labelKey: `teacherAnalytics.metrics.${key}`, value, note };
 }
 
+function completenessNote(t: AnalyticsTranslator | undefined, identityMissing: number, analysisMissing: number) {
+  return t?.("teacherAnalytics.completeness.note", { identityMissing, analysisMissing })
+    || `${identityMissing} identity missing · ${analysisMissing} diagnosis missing`;
+}
+
+function recoveryNote(t: AnalyticsTranslator | undefined, denominator: number) {
+  return t?.("teacherAnalytics.recovery.note", { denominator }) || `${denominator} comparable samples`;
+}
+
 function countSubmittedStudents(overview?: AssignmentOverview | null) {
   return overview?.students.filter(student => student.attemptCount > 0).length || 0;
 }
@@ -259,146 +306,119 @@ function averageAttempts(overview: AssignmentOverview) {
 }
 
 function buildBucketsFromOverviews(overviews: AssignmentOverview[], fallbackEvidence: AnalyticsEvidenceSample[], t?: AnalyticsTranslator) {
-  const buckets: Record<AnalyticsGranularity, Map<string, InsightBucket>> = {
-    chapter: new Map(),
-    knowledgePoint: new Map(),
-    skillUnit: new Map(),
-    mistakePoint: new Map()
-  };
-  overviews.forEach(overview => {
-    overview.topIssues.forEach(issue => addIssueBucket(buckets, issue, fallbackEvidence, undefined, undefined, t));
-    overview.classAbilityWeaknesses?.forEach(ability => addAbilityBucket(buckets, ability, fallbackEvidence, undefined, t));
-    overview.problemSummaries?.forEach(problem => {
-      problem.topIssues?.forEach(issue => addIssueBucket(buckets, issue, fallbackEvidence, problem, undefined, t));
-      problem.abilityWeaknesses?.forEach(ability => addAbilityBucket(buckets, ability, fallbackEvidence, problem, t));
-    });
-  });
-  return mapBuckets(buckets);
+  return buildBucketsFromStats(overviews.flatMap(overview => overview.knowledgePathStats || []), fallbackEvidence, t);
 }
 
 function buildBucketsFromProblem(problem: ProblemSummary, fallbackEvidence: AnalyticsEvidenceSample[], t?: AnalyticsTranslator) {
-  const buckets: Record<AnalyticsGranularity, Map<string, InsightBucket>> = {
+  return buildBucketsFromStats(problem.knowledgePathStats || [], fallbackEvidence, t);
+}
+
+function buildBucketsFromStats(
+  stats: TeacherKnowledgePathStat[],
+  fallbackEvidence: AnalyticsEvidenceSample[],
+  t?: AnalyticsTranslator
+): Record<AnalyticsGranularity, InsightBucket[]> {
+  type Accumulator = {
+    stat: TeacherKnowledgePathStat;
+    count: number;
+    studentIds: Set<number>;
+    repeatedStudentIds: Set<number>;
+    problemIds: Set<number>;
+    evidence: AnalyticsEvidenceSample[];
+  };
+  const grouped: Record<AnalyticsGranularity, Map<string, Accumulator>> = {
     chapter: new Map(),
     knowledgePoint: new Map(),
     skillUnit: new Map(),
     mistakePoint: new Map()
   };
-  problem.topIssues?.forEach(issue => addIssueBucket(buckets, issue, fallbackEvidence, problem, undefined, t));
-  problem.abilityWeaknesses?.forEach(ability => addAbilityBucket(buckets, ability, fallbackEvidence, problem, t));
-  problem.students?.forEach(student => {
-    const label = student.latestFineGrainedIssue || student.latestIssueTag || student.latestIssue || "";
-    if (label) {
-      addIssueBucket(
-        buckets,
-        { label, count: 1, abilityPoint: student.abilityPoint, affectedStudentCount: 1 },
-        fallbackEvidence,
-        problem,
-        student,
-        t
-      );
+  stats.forEach(stat => {
+    if (!isAnalyticsGranularity(stat.granularity)) {
+      return;
     }
-  });
-  return mapBuckets(buckets);
-}
-
-function addIssueBucket(
-  target: Record<AnalyticsGranularity, Map<string, InsightBucket>>,
-  issue: TopIssue,
-  fallbackEvidence: AnalyticsEvidenceSample[],
-  problem?: ProblemSummary,
-  student?: ProblemStudent,
-  t?: AnalyticsTranslator
-) {
-  const rawLabel = displayText(issue.label, "");
-  if (!rawLabel) {
-    return;
-  }
-  const label = issueLabel(rawLabel);
-  const path = inferPath(label, issue.abilityPoint, problem?.title, t);
-  const count = Math.max(1, issue.count || 0);
-  const evidence = student ? [studentEvidence(problem, student, undefined, undefined, undefined, t)] : fallbackEvidenceForProblem(fallbackEvidence, problem);
-  const affected = issue.affectedStudentCount || (student ? 1 : countEvidenceStudents(evidence));
-  addPath(target.chapter, path[0], count, affected, problem ? 1 : undefined, path, evidence);
-  addPath(target.knowledgePoint, path[1], count, affected, problem ? 1 : undefined, path, evidence);
-  addPath(target.skillUnit, path[2], count, affected, problem ? 1 : undefined, path, evidence);
-  addPath(target.mistakePoint, path[3], count, affected, problem ? 1 : undefined, path, evidence);
-}
-
-function addAbilityBucket(
-  target: Record<AnalyticsGranularity, Map<string, InsightBucket>>,
-  ability: AbilityStat,
-  fallbackEvidence: AnalyticsEvidenceSample[],
-  problem?: ProblemSummary,
-  t?: AnalyticsTranslator
-) {
-  const label = displayText(ability.abilityPoint, "");
-  if (!label) {
-    return;
-  }
-  const path = inferPath(label, label, problem?.title, t);
-  const count = Math.max(1, ability.submissionCount || ability.taskCount || 0);
-  const evidence = fallbackEvidenceForProblem(fallbackEvidence, problem);
-  const affected = countEvidenceStudents(evidence);
-  addPath(target.chapter, path[0], count, affected, problem ? 1 : undefined, path, evidence);
-  addPath(target.knowledgePoint, path[1], count, affected, problem ? 1 : undefined, path, evidence);
-  addPath(target.skillUnit, path[2], count, affected, problem ? 1 : undefined, path, evidence);
-}
-
-function addPath(
-  target: Map<string, InsightBucket>,
-  node: KnowledgePathNode,
-  count: number,
-  affectedStudentCount = 0,
-  affectedProblemCount = 0,
-  path: KnowledgePathNode[],
-  evidence: AnalyticsEvidenceSample[]
-) {
-  const existing =
-    target.get(node.label) ||
-    {
-      id: `${node.kind}:${node.label}`,
-      label: node.label,
+    const target = grouped[stat.granularity];
+    const current = target.get(stat.id) || {
+      stat,
       count: 0,
-      affectedStudentCount: 0,
-      affectedProblemCount: 0,
-      path,
-      fit: "PARTIAL" as const,
-      evidence: [] as AnalyticsEvidenceSample[]
+      studentIds: new Set<number>(),
+      repeatedStudentIds: new Set<number>(),
+      problemIds: new Set<number>(),
+      evidence: []
     };
-  existing.count += count;
-  existing.affectedStudentCount = (existing.affectedStudentCount || 0) + affectedStudentCount;
-  existing.affectedProblemCount = (existing.affectedProblemCount || 0) + affectedProblemCount;
-  evidence.forEach(item => {
-    if (!existing.evidence.some(current => current.id === item.id)) {
-      existing.evidence.push(item);
-    }
+    current.count += stat.errorOccurrenceCount || 0;
+    (stat.affectedStudentIds || []).forEach(id => current.studentIds.add(id));
+    (stat.repeatedStudentIds || []).forEach(id => current.repeatedStudentIds.add(id));
+    (stat.affectedProblemIds || []).forEach(id => current.problemIds.add(id));
+    statEvidence(stat, fallbackEvidence, t).forEach(item => {
+      if (!current.evidence.some(existing => existing.id === item.id)) {
+        current.evidence.push(item);
+      }
+    });
+    target.set(stat.id, current);
   });
-  target.set(node.label, existing);
+  return Object.fromEntries(Object.entries(grouped).map(([granularity, values]) => {
+    const total = [...values.values()].reduce((sum, item) => sum + item.count, 0);
+    const buckets = [...values.values()]
+      .map(({ stat, count, studentIds, repeatedStudentIds, problemIds, evidence }): InsightBucket => ({
+        id: stat.id,
+        label: localizedPathLabel(stat.label, stat.pathStatus, t),
+        count,
+        rate: total ? count / total : null,
+        affectedStudentCount: studentIds.size || stat.affectedStudentCount,
+        repeatedStudentCount: repeatedStudentIds.size || stat.repeatedStudentCount,
+        affectedProblemCount: problemIds.size || stat.affectedProblemCount,
+        path: (stat.path || [])
+          .filter(node => isAnalyticsGranularity(node.kind))
+          .map(node => ({ label: localizedPathLabel(node.label, stat.pathStatus, t), kind: node.kind as AnalyticsGranularity })),
+        fit: normalizeLibraryFit(stat.libraryFit),
+        pathStatus: stat.pathStatus,
+        evidence: evidence.slice(0, 4)
+      }))
+      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "zh-Hans-CN"))
+      .slice(0, 8);
+    return [granularity, buckets];
+  })) as Record<AnalyticsGranularity, InsightBucket[]>;
 }
 
-function mapBuckets(buckets: Record<AnalyticsGranularity, Map<string, InsightBucket>>) {
-  return {
-    chapter: finalizeBuckets(buckets.chapter),
-    knowledgePoint: finalizeBuckets(buckets.knowledgePoint),
-    skillUnit: finalizeBuckets(buckets.skillUnit),
-    mistakePoint: finalizeBuckets(buckets.mistakePoint)
-  };
+function statEvidence(stat: TeacherKnowledgePathStat, fallback: AnalyticsEvidenceSample[], t?: AnalyticsTranslator) {
+  const fallbackBySubmission = new Map(fallback
+    .filter(item => typeof item.submissionId === "number")
+    .map(item => [item.submissionId as number, item]));
+  return (stat.evidenceSamples || []).slice(0, 8).map(sample => {
+    const exact = fallbackBySubmission.get(sample.submissionId);
+    if (exact) {
+      return exact;
+    }
+    const related = fallback.find(item => item.studentProfileId === sample.studentProfileId && item.problemId === sample.problemId);
+    return {
+      id: `submission:${sample.submissionId}`,
+      title: t?.("teacherAnalytics.evidence.submissionWithId", { id: sample.submissionId }) || `Submission #${sample.submissionId}`,
+      subtitle: stat.label,
+      meta: sample.verdict || undefined,
+      assignmentId: related?.assignmentId,
+      submissionId: sample.submissionId,
+      studentProfileId: sample.studentProfileId || undefined,
+      problemId: sample.problemId || undefined,
+      href: related?.href
+    } satisfies AnalyticsEvidenceSample;
+  });
 }
 
-function finalizeBuckets(map: Map<string, InsightBucket>) {
-  const total = [...map.values()].reduce((sum, item) => sum + item.count, 0);
-  return [...map.values()]
-    .map(item => {
-      const evidence = item.evidence.slice(0, 4);
-      return {
-        ...item,
-        affectedStudentCount: countEvidenceStudents(evidence) || item.affectedStudentCount,
-        rate: total ? item.count / total : null,
-        evidence
-      };
-    })
-    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "zh-Hans-CN"))
-    .slice(0, 8);
+function isAnalyticsGranularity(value: string): value is AnalyticsGranularity {
+  return ["chapter", "knowledgePoint", "skillUnit", "mistakePoint"].includes(value);
+}
+
+function normalizeLibraryFit(value?: string | null): InsightBucket["fit"] {
+  return ["HIT", "PARTIAL", "MISS"].includes(String(value || "").toUpperCase())
+    ? String(value).toUpperCase() as InsightBucket["fit"]
+    : "UNKNOWN";
+}
+
+function localizedPathLabel(label: string, pathStatus?: string | null, t?: AnalyticsTranslator) {
+  if (String(label || "").toUpperCase() === "UNCLASSIFIED" || String(pathStatus || "").toUpperCase() === "UNCLASSIFIED" && !label) {
+    return t?.("teacherAnalytics.pathStatus.unclassified") || "Unclassified";
+  }
+  return displayText(label, t?.("teacherAnalytics.pathStatus.unclassified") || "Unclassified");
 }
 
 function rateToRatio(value?: number | null) {
@@ -408,54 +428,6 @@ function rateToRatio(value?: number | null) {
   return Math.abs(value) > 1 ? value / 100 : value;
 }
 
-function countEvidenceStudents(evidence: AnalyticsEvidenceSample[]) {
-  return new Set(evidence.map(item => item.studentProfileId).filter((id): id is number => typeof id === "number")).size;
-}
-
-function inferPath(label: string, ability?: string | null, title?: string | null, t?: AnalyticsTranslator): KnowledgePathNode[] {
-  const text = `${label} ${ability || ""} ${title || ""}`;
-  const chapter = classifyChapter(text, t);
-  const knowledge = displayText(ability, label);
-  const skill = classifySkill(text, knowledge, t);
-  return [
-    { label: chapter, kind: "chapter" },
-    { label: knowledge, kind: "knowledgePoint" },
-    { label: skill, kind: "skillUnit" },
-    { label, kind: "mistakePoint" }
-  ];
-}
-
-function classifyChapter(text: string, t?: AnalyticsTranslator) {
-  if (/数组|下标|窗口|前缀|区间/.test(text)) {
-    return t?.("teacherAnalytics.defaultLabels.arraySequence") || "Arrays and sequences";
-  }
-  if (/字符串|回文|字符|编码|输出|输入/.test(text)) {
-    return t?.("teacherAnalytics.defaultLabels.ioString") || "Input, output, and strings";
-  }
-  if (/循环|递归|分治/.test(text)) {
-    return t?.("teacherAnalytics.defaultLabels.loopRecursion") || "Loops and recursion";
-  }
-  if (/树|二叉|链表|队列|栈/.test(text)) {
-    return t?.("teacherAnalytics.defaultLabels.dataStructure") || "Data structures";
-  }
-  if (/DP|动态规划|状态|收益/.test(text)) {
-    return t?.("teacherAnalytics.defaultLabels.dynamicProgramming") || "Dynamic programming";
-  }
-  return t?.("teacherAnalytics.defaultLabels.general") || "General application";
-}
-
-function classifySkill(text: string, fallback: string, t?: AnalyticsTranslator) {
-  if (/边界|越界|l-1|右端|左端/.test(text)) {
-    return t?.("teacherAnalytics.defaultLabels.boundary") || "Boundary handling";
-  }
-  if (/格式|输出|输入/.test(text)) {
-    return t?.("teacherAnalytics.defaultLabels.ioFormat") || "Input/output format";
-  }
-  if (/状态|转移/.test(text)) {
-    return t?.("teacherAnalytics.defaultLabels.stateMaintenance") || "State maintenance";
-  }
-  return fallback;
-}
 
 function collectClassEvidence(assignments: AssignmentAnalyticsRecord[], overviews: AssignmentOverviewMap, classId: number, t?: AnalyticsTranslator) {
   return assignments
@@ -498,11 +470,19 @@ function studentEvidence(
 ): AnalyticsEvidenceSample {
   const problemTitle = problem?.title || t?.("teacherAnalytics.defaultLabels.problem") || "Problem";
   const issue = issueLabel(student.latestFineGrainedIssue || student.latestIssueTag || student.latestIssue || t?.("teacherAnalytics.defaultLabels.submissionRecord") || "Submission record");
+  const recentState = student.recentLearningState;
+  const recentMeta = recentState
+    ? t?.("teacherAnalytics.recentState.summary", {
+        status: t(`teacherAnalytics.recentState.status.${recentStateKey(recentState.status)}`),
+        submissions: recentState.independentSubmissionCount,
+        problems: recentState.problemCount
+      })
+    : undefined;
   return {
     id: `${student.studentProfileId}:${student.latestSubmissionId || problem?.problemId || problemTitle}:${issue}`,
     title: displayText(student.displayName, t?.("teacherAnalytics.defaultLabels.studentWithId", { id: student.studentProfileId }) || `Student #${student.studentProfileId}`),
     subtitle: `${problemTitle} · ${issue}`,
-    meta: assignmentTitle,
+    meta: [assignmentTitle, recentMeta].filter(Boolean).join(" · ") || undefined,
     assignmentId,
     submissionId: student.latestSubmissionId,
     studentProfileId: student.studentProfileId,
@@ -517,9 +497,17 @@ function studentEvidence(
   };
 }
 
-function fallbackEvidenceForProblem(fallbackEvidence: AnalyticsEvidenceSample[], problem?: ProblemSummary) {
-  if (!problem) {
-    return fallbackEvidence.slice(0, 2);
+function recentStateKey(status?: string | null) {
+  switch (status) {
+    case "RECENTLY_RECOVERED":
+      return "recovered";
+    case "REPEATED_ISSUE":
+      return "repeated";
+    case "ISSUE_CHANGING":
+      return "changing";
+    case "SINGLE_OBSERVATION":
+      return "single";
+    default:
+      return "observing";
   }
-  return fallbackEvidence.filter(item => item.subtitle.includes(problem.title)).slice(0, 2);
 }

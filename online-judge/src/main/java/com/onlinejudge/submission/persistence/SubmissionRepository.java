@@ -24,6 +24,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     @Query("""
             select s.id as id,
                    s.problemId as problemId,
+                   s.assignmentId as assignmentId,
+                   s.studentProfileId as studentProfileId,
                    s.languageId as languageId,
                    s.languageName as languageName,
                    s.verdict as verdict,
@@ -39,6 +41,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     @Query("""
             select s.id as id,
                    s.problemId as problemId,
+                   s.assignmentId as assignmentId,
+                   s.studentProfileId as studentProfileId,
                    s.languageId as languageId,
                    s.languageName as languageName,
                    s.verdict as verdict,
@@ -56,6 +60,51 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     @Query("""
             select s.id as id,
                    s.problemId as problemId,
+                   s.assignmentId as assignmentId,
+                   s.studentProfileId as studentProfileId,
+                   s.languageId as languageId,
+                   s.languageName as languageName,
+                   s.verdict as verdict,
+                   s.executionTime as executionTime,
+                   s.memoryUsed as memoryUsed,
+                   s.submittedAt as submittedAt
+            from Submission s
+            where s.assignmentId = :assignmentId
+              and s.problemId = :problemId
+              and s.studentProfileId = :studentProfileId
+            order by s.submittedAt desc
+            """)
+    List<SubmissionHistoryProjection> findHistorySummariesByAssignmentIdAndProblemIdAndStudentProfileId(
+            @Param("assignmentId") Long assignmentId,
+            @Param("problemId") Long problemId,
+            @Param("studentProfileId") Long studentProfileId);
+
+    @Query("""
+            select s.id as id,
+                   s.problemId as problemId,
+                   s.assignmentId as assignmentId,
+                   s.studentProfileId as studentProfileId,
+                   s.languageId as languageId,
+                   s.languageName as languageName,
+                   s.verdict as verdict,
+                   s.executionTime as executionTime,
+                   s.memoryUsed as memoryUsed,
+                   s.submittedAt as submittedAt
+            from Submission s
+            where s.assignmentId is null
+              and s.problemId = :problemId
+              and s.studentProfileId = :studentProfileId
+            order by s.submittedAt desc
+            """)
+    List<SubmissionHistoryProjection> findPublicHistorySummariesByProblemIdAndStudentProfileId(
+            @Param("problemId") Long problemId,
+            @Param("studentProfileId") Long studentProfileId);
+
+    @Query("""
+            select s.id as id,
+                   s.problemId as problemId,
+                   s.assignmentId as assignmentId,
+                   s.studentProfileId as studentProfileId,
                    s.languageId as languageId,
                    s.languageName as languageName,
                    s.verdict as verdict,

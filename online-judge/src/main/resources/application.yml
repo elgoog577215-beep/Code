@@ -63,6 +63,11 @@ ai:
     auto-merge-min-confidence: ${AI_STANDARD_LIBRARY_AUTO_MERGE_MIN_CONFIDENCE:0.90}
     auto-merge-min-occurrences: ${AI_STANDARD_LIBRARY_AUTO_MERGE_MIN_OCCURRENCES:2}
 
+app:
+  submission-evidence:
+    strict-classroom-context-enabled: ${APP_STRICT_CLASSROOM_SUBMISSION_ENABLED:true}
+    analytics-read-enabled: ${APP_SUBMISSION_EVIDENCE_ANALYTICS_ENABLED:true}
+
 ---
 spring:
   config:

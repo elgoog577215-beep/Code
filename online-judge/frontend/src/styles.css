@@ -6839,6 +6839,77 @@ button.list-row:hover {
   color: var(--brand-strong);
 }
 
+.problem-history-panel {
+  min-width: 0;
+}
+
+.problem-history-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.problem-history-row {
+  width: 100%;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(210px, 1.25fr) minmax(72px, 0.35fr) minmax(150px, 0.7fr) minmax(165px, 0.65fr);
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  background: var(--surface);
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.problem-history-row:hover,
+.problem-history-row:focus-visible,
+.problem-history-row.is-active {
+  border-color: color-mix(in srgb, var(--brand) 44%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 34%, var(--surface));
+}
+
+.problem-history-row:hover {
+  transform: translateY(-1px);
+}
+
+.problem-history-row > span:first-child {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.problem-history-row strong,
+.problem-history-row small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.problem-history-row > span:not(:first-child),
+.problem-history-row small {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+@media (max-width: 760px) {
+  .problem-history-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.45rem 0.65rem;
+  }
+
+  .problem-history-row > span:nth-child(3),
+  .problem-history-row small {
+    text-align: right;
+  }
+}
+
 .problem-result-modal-backdrop {
   position: fixed;
   inset: 0;

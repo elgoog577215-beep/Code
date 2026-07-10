@@ -1293,6 +1293,16 @@ class AiQualityOverviewServiceTest {
         }
 
         @Override
+        public List<SubmissionHistoryProjection> findHistorySummariesByAssignmentIdAndProblemIdAndStudentProfileId(Long assignmentId, Long problemId, Long studentProfileId) {
+            return List.of();
+        }
+
+        @Override
+        public List<SubmissionHistoryProjection> findPublicHistorySummariesByProblemIdAndStudentProfileId(Long problemId, Long studentProfileId) {
+            return List.of();
+        }
+
+        @Override
         public List<SubmissionHistoryProjection> findAnonymousHistorySummariesByProblemId(Long problemId) {
             return List.of();
         }

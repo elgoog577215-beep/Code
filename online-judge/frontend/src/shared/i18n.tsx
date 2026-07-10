@@ -61,6 +61,19 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         analysis: "分析证据"
       }
     },
+    problemHistory: {
+      title: "最近提交",
+      aria: "本题历史提交",
+      submission: "提交 #{{id}}",
+      submittedCode: "本次提交代码",
+      loadFailed: "历史提交加载失败。",
+      feedback: {
+        ready: "AI 建议已生成",
+        generating: "AI 建议生成中",
+        failed: "AI 建议未完成",
+        pending: "等待 AI 建议"
+      }
+    },
     routeHub: {
       eyebrow: "入口",
       title: "学习平台",
@@ -266,8 +279,13 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       metrics: {
         assignments: "作业数",
         students: "学生数",
+        rosterStudents: "在册人数",
         submissions: "提交数",
         accuracy: "正确率",
+        studentAccuracy: "学生通过率",
+        attemptAccuracy: "尝试通过率",
+        dataCompleteness: "数据完整率",
+        recoveryEvidence: "恢复样本",
         errorCount: "错误次数",
         affectedStudents: "涉及学生",
         submittedStudents: "提交人数",
@@ -287,8 +305,20 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         problems: "题目"
       },
       scopeTitle: "{{scope}}结果分布",
-      pathMeta: "{{count}} 次 · {{students}} 名学生 · {{problems}} 道题",
+      pathMeta: "{{count}} 次 · {{students}} 名学生 · {{repeated}} 名重复 · {{problems}} 道题",
       pathLabel: "路径",
+      pathStatus: {
+        formal: "正式标准库",
+        provisional: "教师校正或临时路径",
+        inferred: "历史推断",
+        unclassified: "未归类"
+      },
+      completeness: {
+        note: "身份缺失 {{identityMissing}} · 未诊断 {{analysisMissing}}"
+      },
+      recovery: {
+        note: "可比较后续样本 {{denominator}}"
+      },
       status: {
         active: "进行中",
         draft: "草稿",
@@ -341,7 +371,18 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         UNKNOWN: "归属未确认"
       },
       evidence: {
-        title: "证据样本"
+        title: "证据样本",
+        submissionWithId: "提交 #{{id}}"
+      },
+      recentState: {
+        summary: "{{status}} · 近 30 天 {{submissions}} 次提交 / {{problems}} 道题",
+        status: {
+          recovered: "近期有恢复证据",
+          repeated: "近期重复出现",
+          changing: "近期问题发生变化",
+          single: "单次观察，证据不足",
+          observing: "近期观察中"
+        }
       },
       aiLoop: {
         title: "查看反馈后的表现",
@@ -359,10 +400,10 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         },
         summary: {
           improved: "同题下一次提交已通过；这是观察到改善的相关证据，但不能单独证明由反馈造成。",
-          shifted: "同题后续提交进入了新的问题阶段，需要结合新证据继续判断。",
-          sameIssue: "同题后续提交仍出现同类问题，建议教师检查学生是否真正理解并执行了反馈。",
-          regressed: "同题后续提交的评测阶段回退，需要检查是否误读反馈或改动范围过大。",
-          verdictChanged: "同题后续提交的评测阶段发生变化，需要结合新失败点判断是否推进。",
+          shifted: "同题后续提交进入了新的问题阶段，当前证据显示原问题已变化。",
+          sameIssue: "同题后续提交仍出现同类问题，当前证据尚未显示该问题消失。",
+          regressed: "同题后续提交的评测阶段出现回退，但现有数据不能单独解释原因。",
+          verdictChanged: "同题后续提交的评测阶段发生变化，是否属于推进仍需更多证据。",
           noClearChange: "已有同题后续提交，但目前没有观察到明确变化。",
           awaiting: "学生已查看反馈，但还没有同题后续提交，暂不能判断效果。"
         }
@@ -910,6 +951,19 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         analysis: "Analysis evidence"
       }
     },
+    problemHistory: {
+      title: "Recent submissions",
+      aria: "Submission history for this problem",
+      submission: "Submission #{{id}}",
+      submittedCode: "Submitted code",
+      loadFailed: "Failed to load this submission.",
+      feedback: {
+        ready: "AI suggestions ready",
+        generating: "Generating AI suggestions",
+        failed: "AI suggestions unavailable",
+        pending: "Waiting for AI suggestions"
+      }
+    },
     routeHub: {
       eyebrow: "Entry",
       title: "Learning Platform",
@@ -1236,8 +1290,13 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       metrics: {
         assignments: "Assignments",
         students: "Students",
+        rosterStudents: "Roster students",
         submissions: "Submissions",
         accuracy: "Accuracy",
+        studentAccuracy: "Student pass rate",
+        attemptAccuracy: "Attempt pass rate",
+        dataCompleteness: "Data completeness",
+        recoveryEvidence: "Recovery samples",
         errorCount: "Errors",
         affectedStudents: "Students affected",
         submittedStudents: "Submitted",
@@ -1257,8 +1316,20 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         problems: "Problems"
       },
       scopeTitle: "{{scope}} result distribution",
-      pathMeta: "{{count}} times · {{students}} students · {{problems}} problems",
+      pathMeta: "{{count}} times · {{students}} students · {{repeated}} repeated · {{problems}} problems",
       pathLabel: "Path",
+      pathStatus: {
+        formal: "Formal library",
+        provisional: "Teacher-corrected or provisional",
+        inferred: "Historical inference",
+        unclassified: "Unclassified"
+      },
+      completeness: {
+        note: "{{identityMissing}} identity missing · {{analysisMissing}} undiagnosed"
+      },
+      recovery: {
+        note: "{{denominator}} comparable follow-up samples"
+      },
       status: {
         active: "Active",
         draft: "Draft",
@@ -1311,7 +1382,18 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         UNKNOWN: "Unconfirmed attribution"
       },
       evidence: {
-        title: "Evidence samples"
+        title: "Evidence samples",
+        submissionWithId: "Submission #{{id}}"
+      },
+      recentState: {
+        summary: "{{status}} · {{submissions}} submissions across {{problems}} problems in 30 days",
+        status: {
+          recovered: "Recent recovery evidence",
+          repeated: "Recently repeated",
+          changing: "Issue recently changed",
+          single: "Single observation; insufficient evidence",
+          observing: "Under recent observation"
+        }
       },
       aiLoop: {
         title: "Performance after viewing feedback",
@@ -1329,10 +1411,10 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         },
         summary: {
           improved: "The next submission for the same problem passed. This is correlated evidence of improvement, not proof that the feedback caused it.",
-          shifted: "The follow-up submission moved to a new issue stage; review the new evidence before deciding what changed.",
-          sameIssue: "The same issue remains in the follow-up submission; check whether the student understood and acted on the feedback.",
-          regressed: "The follow-up moved backward in the evaluation stages; check for a misread or an overly broad change.",
-          verdictChanged: "The evaluation stage changed; use the new failure evidence to judge whether this represents progress.",
+          shifted: "The follow-up submission moved to a new issue stage; current evidence shows that the original issue changed.",
+          sameIssue: "The same issue remains in the follow-up submission; current evidence does not show that it disappeared.",
+          regressed: "The follow-up moved backward in the evaluation stages, but current data does not explain the cause.",
+          verdictChanged: "The evaluation stage changed; more evidence is needed to determine whether this is progress.",
           noClearChange: "A follow-up submission exists, but no clear change is observable yet.",
           awaiting: "The student viewed the feedback but has not submitted the same problem again, so impact cannot be judged yet."
         }

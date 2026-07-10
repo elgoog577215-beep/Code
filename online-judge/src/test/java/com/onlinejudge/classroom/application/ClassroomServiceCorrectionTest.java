@@ -15,6 +15,7 @@ import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
 import com.onlinejudge.submission.domain.StudentAiFeedbackEvent;
 import com.onlinejudge.submission.persistence.SubmissionHistoryProjection;
+import com.onlinejudge.submission.persistence.SubmissionDiagnosisFactRepository;
 import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultStatsProjection;
@@ -51,6 +52,9 @@ class ClassroomServiceCorrectionTest {
     private final StudentAiFeedbackEventRepository aiFeedbackEventRepository = mock(StudentAiFeedbackEventRepository.class);
     private final DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final SubmissionEvidenceAnalyticsService evidenceAnalyticsService = new SubmissionEvidenceAnalyticsService(
+            mock(SubmissionDiagnosisFactRepository.class), correctionRepository, aiFeedbackEventRepository, objectMapper
+    );
 
     private final ClassroomService service = new ClassroomService(
             new EmptyClassGroupRepository(),
@@ -92,7 +96,8 @@ class ClassroomServiceCorrectionTest {
             coachPromptRepository,
             new StudentAccessTokenService(new TestSchoolSecurityProperties()),
             aiFeedbackEventRepository,
-            new StudentAiFeedbackImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
+            new StudentAiFeedbackImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+            evidenceAnalyticsService
     );
 
     @Test
@@ -1404,7 +1409,8 @@ class ClassroomServiceCorrectionTest {
                 coachPromptRepository,
                 new StudentAccessTokenService(new TestSchoolSecurityProperties()),
                 aiFeedbackEventRepository,
-                new StudentAiFeedbackImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
+                new StudentAiFeedbackImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy),
+                evidenceAnalyticsService
         );
     }
 
@@ -2282,6 +2288,16 @@ class ClassroomServiceCorrectionTest {
 
         @Override
         public List<SubmissionHistoryProjection> findHistorySummariesByProblemIdAndStudentProfileId(Long problemId, Long studentProfileId) {
+            return List.of();
+        }
+
+        @Override
+        public List<SubmissionHistoryProjection> findHistorySummariesByAssignmentIdAndProblemIdAndStudentProfileId(Long assignmentId, Long problemId, Long studentProfileId) {
+            return List.of();
+        }
+
+        @Override
+        public List<SubmissionHistoryProjection> findPublicHistorySummariesByProblemIdAndStudentProfileId(Long problemId, Long studentProfileId) {
             return List.of();
         }
 

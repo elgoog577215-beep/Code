@@ -41,6 +41,9 @@ public class StudentAiFeedbackEvent {
     @Column(name = "submission_id", nullable = false)
     private Long submissionId;
 
+    @Column(name = "feedback_revision_id")
+    private Long feedbackRevisionId;
+
     @Column(name = "student_profile_id")
     private Long studentProfileId;
 

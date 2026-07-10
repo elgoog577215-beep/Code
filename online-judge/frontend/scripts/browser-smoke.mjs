@@ -372,6 +372,8 @@ const history = [
   {
     id: 9001,
     problemId: 101,
+    assignmentId: 7,
+    studentProfileId: 41,
     problemTitle: "求和边界",
     languageId: 54,
     languageName: "C++17",
@@ -384,7 +386,11 @@ const history = [
     analysisStatus: "READY",
     analysisSourceType: "AI",
     analysisHeadline: "边界情况还未覆盖",
-    analysisSummary: "代码只读取了数量，没有读取数值。"
+    analysisSummary: "代码只读取了数量，没有读取数值。",
+    feedbackStatus: "READY",
+    feedbackSource: "MODEL",
+    feedbackRevisionId: 5001,
+    dataCompletenessStatus: "COMPLETE"
   }
 ];
 
@@ -395,11 +401,76 @@ const problemCatalog = [
   { id: 102, title: "循环边界", summary: "练习循环端点。", difficulty: "MEDIUM", timeLimit: 1000, memoryLimit: 65536 }
 ];
 
+function pathStat(granularity, label, labels, count) {
+  const kinds = ["chapter", "knowledgePoint", "skillUnit", "mistakePoint"];
+  return {
+    id: `${granularity}:FORMAL:${labels.join("/")}`,
+    label,
+    granularity,
+    normalizedIssueId: granularity === "mistakePoint" ? "OFF_BY_ONE" : null,
+    path: labels.map((item, index) => ({ label: item, kind: kinds[index] })),
+    pathStatus: "FORMAL",
+    libraryFit: "HIT",
+    source: "AI_PROJECTION",
+    errorOccurrenceCount: count,
+    affectedStudentCount: 4,
+    repeatedStudentCount: 2,
+    affectedProblemCount: 1,
+    affectedStudentIds: [41, 42, 43, 44],
+    repeatedStudentIds: [41, 42],
+    affectedProblemIds: [101],
+    evidenceSubmissionIds: [9001],
+    evidenceSamples: [{ submissionId: 9001, studentProfileId: 41, problemId: 101, verdict: "WRONG_ANSWER", submittedAt: "2026-05-19T09:03:00" }]
+  };
+}
+
 const assignmentOverview = {
   assignment,
+  rosterStudentCount: 18,
   participantCount: 18,
+  submittedStudentCount: 18,
+  unsubmittedStudentCount: 0,
   attemptCount: 32,
   passedAttemptCount: 15,
+  studentPassRate: 0.61,
+  attemptPassRate: 0.4688,
+  dataCompleteness: {
+    totalSubmissionCount: 32,
+    legalIdentityCount: 32,
+    identityMissingCount: 0,
+    invalidContextCount: 0,
+    analysisReadyCount: 30,
+    analysisMissingCount: 2,
+    diagnosisFactCount: 24,
+    diagnosedSubmissionCount: 24,
+    unclassifiedFactCount: 2,
+    feedbackEventSubmissionCount: 22,
+    completeSubmissionCount: 20,
+    completeRate: 0.625
+  },
+  knowledgePathStats: [
+    pathStat("chapter", "基础语法", ["基础语法"], 8),
+    pathStat("knowledgePoint", "循环结构", ["基础语法", "循环结构"], 8),
+    pathStat("skillUnit", "边界处理", ["基础语法", "循环结构", "边界处理"], 8),
+    pathStat("mistakePoint", "差一位错误", ["基础语法", "循环结构", "边界处理", "差一位错误"], 8)
+  ],
+  recoverySummary: {
+    recoveryNumerator: 2,
+    recoveryDenominator: 4,
+    comparableSampleCount: 4,
+    recoveredCount: 2,
+    sameIssueCount: 1,
+    shiftedCount: 0,
+    regressedCount: 0,
+    verdictChangedCount: 1,
+    noClearChangeCount: 0,
+    awaitingFollowupCount: 2,
+    feedbackViewedComparableCount: 2,
+    feedbackViewedRecoveredCount: 1,
+    recoveryRate: 0.5,
+    feedbackViewedRecoveryRate: 0.5,
+    evidence: []
+  },
   strugglingStudentCount: 4,
   topIssues: [
     {
@@ -465,9 +536,19 @@ const assignmentOverview = {
       passedAttemptCount: 8,
       submissionRate: 66.7,
       passRate: 40,
+      studentPassRate: 0.4167,
+      attemptPassRate: 0.4,
       averageAttempts: 1.7,
       attentionStudentCount: 2,
       statusLabel: "需讲评",
+      dataCompleteness: { totalSubmissionCount: 20, legalIdentityCount: 20, completeSubmissionCount: 14, completeRate: 0.7 },
+      knowledgePathStats: [
+        pathStat("chapter", "基础语法", ["基础语法"], 5),
+        pathStat("knowledgePoint", "循环结构", ["基础语法", "循环结构"], 5),
+        pathStat("skillUnit", "边界处理", ["基础语法", "循环结构", "边界处理"], 5),
+        pathStat("mistakePoint", "差一位错误", ["基础语法", "循环结构", "边界处理", "差一位错误"], 5)
+      ],
+      recoverySummary: { recoveryNumerator: 1, recoveryDenominator: 2, comparableSampleCount: 2, recoveryRate: 0.5 },
       topIssues: [{ label: "BOUNDARY", count: 5, explanation: "端点处理错误。", abilityPoint: "循环与边界" }],
       abilityWeaknesses: [{ abilityPoint: "循环与边界", taskCount: 1, submissionCount: 20, evidenceTags: ["OFF_BY_ONE"] }],
       students: [
@@ -484,6 +565,17 @@ const assignmentOverview = {
           latestFineGrainedIssue: "OFF_BY_ONE",
           latestProgressSignal: "已定位边界问题",
           latestConfidence: 0.68,
+          recentLearningState: {
+            status: "RECENTLY_RECOVERED",
+            evidenceStatus: "OBSERVED",
+            independentSubmissionCount: 3,
+            problemCount: 1,
+            repeatedIssueId: "OFF_BY_ONE",
+            repeatedIssueCount: 2,
+            repeatedIssueProblemCount: 1,
+            latestChangeStatus: "RECOVERED",
+            evidenceSubmissionIds: [9001, 9002]
+          },
           latestAiFeedbackImpact: {
             feedbackSubmissionId: 9001,
             followupSubmissionId: 9002,
@@ -512,9 +604,14 @@ const assignmentOverview = {
       passedAttemptCount: 7,
       submissionRate: 55.6,
       passRate: 83.3,
+      studentPassRate: 1,
+      attemptPassRate: 0.5833,
       averageAttempts: 1.2,
       attentionStudentCount: 0,
       statusLabel: "已掌握",
+      dataCompleteness: { totalSubmissionCount: 12, legalIdentityCount: 12, completeSubmissionCount: 6, completeRate: 0.5 },
+      knowledgePathStats: [],
+      recoverySummary: { recoveryNumerator: 0, recoveryDenominator: 0, comparableSampleCount: 0, recoveryRate: null },
       topIssues: [],
       abilityWeaknesses: [],
       students: [
@@ -572,6 +669,17 @@ const assignmentOverview = {
           reason: "公开样例未通过。"
         }
       ],
+      recentLearningState: {
+        status: "RECENTLY_RECOVERED",
+        evidenceStatus: "OBSERVED",
+        independentSubmissionCount: 4,
+        problemCount: 2,
+        repeatedIssueId: "OFF_BY_ONE",
+        repeatedIssueCount: 2,
+        repeatedIssueProblemCount: 1,
+        latestChangeStatus: "RECOVERED",
+        evidenceSubmissionIds: [9001, 9002]
+      },
       needsAttention: true
     }
   ]
@@ -840,7 +948,7 @@ const scenarios = [
     name: "student-default",
     path: "/app/student",
     selectors: [
-      [".student-entry-list", "student default entry"],
+      [".student-home", "student default entry"],
       [".app-header", "application header"]
     ],
     afterChecks: async page => {
@@ -920,8 +1028,10 @@ const scenarios = [
       record("student home shows truthful progress for every assignment", progressCount === assignmentRowCount && homeText.includes("1/2") && homeText.includes("3/3"), `progress rows ${progressCount}; ${homeText}`);
       record("student home distinguishes learning states", homeText.includes("待开始") && homeText.includes("进行中") && homeText.includes("已完成") && !homeText.includes("信息技术老师"), homeText);
       record("student home separates public practice below assignments", practiceTop >= assignmentBottom, `assignment bottom ${assignmentBottom}; practice top ${practiceTop}`);
-      if (viewport.name !== "mobile") {
+      if (viewport.name === "desktop") {
         record("student home uses concept-scale width", studentWidth >= 1280 && studentWidth <= 1360, `student width ${studentWidth}`);
+      }
+      if (viewport.name !== "mobile") {
         record("student home uses a compact command bar", commandHeight <= 82, `command height ${commandHeight}`);
         record("student home keeps concept-scale row rhythm", Math.min(...assignmentRowHeights) >= 104, `row heights ${assignmentRowHeights.join(",")}`);
       }
@@ -1113,6 +1223,7 @@ const scenarios = [
         fullPage: true
       });
       await checkVisible(page, ".problem-last-result", "problem last result entry after modal close");
+      await checkVisible(page, ".problem-history-panel", "problem submission history");
       if (viewport.name === "mobile") {
         await checkVisible(page, ".problem-mobile-jump", "problem mobile code jump");
       }

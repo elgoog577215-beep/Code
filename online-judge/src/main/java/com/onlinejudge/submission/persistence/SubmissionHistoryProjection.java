@@ -9,6 +9,10 @@ public interface SubmissionHistoryProjection {
 
     Long getProblemId();
 
+    Long getAssignmentId();
+
+    Long getStudentProfileId();
+
     Integer getLanguageId();
 
     String getLanguageName();

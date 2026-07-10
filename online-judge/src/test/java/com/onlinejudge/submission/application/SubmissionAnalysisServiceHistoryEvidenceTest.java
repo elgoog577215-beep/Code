@@ -49,12 +49,14 @@ class SubmissionAnalysisServiceHistoryEvidenceTest {
                 null,
                 null,
                 analysisRepository,
+                null,
                 new ObjectMapper(),
                 null,
                 null,
                 taxonomy,
                 null,
                 reportReader,
+                null,
                 null,
                 null,
                 null,
@@ -121,6 +123,7 @@ class SubmissionAnalysisServiceHistoryEvidenceTest {
                 null,
                 null,
                 analysisRepository,
+                null,
                 objectMapper,
                 null,
                 null,
@@ -130,7 +133,8 @@ class SubmissionAnalysisServiceHistoryEvidenceTest {
                 null,
                 null,
                 new AbilitySignalAnalyzer(reportReader, taxonomy),
-                correctionRepository
+                correctionRepository,
+                null
         );
         Submission current = submission(22L, Submission.Verdict.WRONG_ANSWER, 10);
         Submission previous = submission(21L, Submission.Verdict.WRONG_ANSWER, 0);
@@ -190,6 +194,7 @@ class SubmissionAnalysisServiceHistoryEvidenceTest {
                 null,
                 null,
                 analysisRepository,
+                null,
                 objectMapper,
                 null,
                 null,
@@ -198,6 +203,7 @@ class SubmissionAnalysisServiceHistoryEvidenceTest {
                 new DiagnosisReportReader(objectMapper, new DiagnosisTaxonomy()),
                 null,
                 recommendationEventService,
+                null,
                 null,
                 null
         );
