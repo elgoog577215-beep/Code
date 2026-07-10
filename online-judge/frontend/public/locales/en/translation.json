@@ -298,10 +298,45 @@
     "evidence": {
       "title": "Evidence samples"
     },
+    "aiLoop": {
+      "title": "Performance after viewing feedback",
+      "noObservation": "No comparable sample yet",
+      "noObservationDescription": "Changes appear after the student views the feedback and submits the same problem again. This is observational evidence, not proof of causation.",
+      "followupEvidence": "Follow-up submission #{{id}}",
+      "status": {
+        "improved": "Improved after viewing feedback",
+        "shifted": "Issue shifted after viewing feedback",
+        "sameIssue": "Same issue after viewing feedback",
+        "regressed": "Regressed after viewing feedback",
+        "verdictChanged": "Evaluation stage changed",
+        "noClearChange": "No clear change yet",
+        "awaiting": "Waiting for a follow-up submission"
+      },
+      "summary": {
+        "improved": "The next submission for the same problem passed. This is correlated evidence of improvement, not proof that the feedback caused it.",
+        "shifted": "The follow-up submission moved to a new issue stage; review the new evidence before deciding what changed.",
+        "sameIssue": "The same issue remains in the follow-up submission; check whether the student understood and acted on the feedback.",
+        "regressed": "The follow-up moved backward in the evaluation stages; check for a misread or an overly broad change.",
+        "verdictChanged": "The evaluation stage changed; use the new failure evidence to judge whether this represents progress.",
+        "noClearChange": "A follow-up submission exists, but no clear change is observable yet.",
+        "awaiting": "The student viewed the feedback but has not submitted the same problem again, so impact cannot be judged yet."
+      }
+    },
     "correction": {
       "title": "Correct attribution",
       "issue": "Issue",
       "fineIssue": "Detailed issue",
+      "type": "Correction type",
+      "types": {
+        "diagnosis": "Issue diagnosis",
+        "knowledgePath": "Knowledge path",
+        "evidence": "Evidence reference",
+        "advice": "Feedback content"
+      },
+      "knowledgePath": "Corrected knowledge path",
+      "knowledgePathPlaceholder": "For example Basics / Input and output / Multiple cases",
+      "evidenceRef": "Expected evidence reference",
+      "evidenceRefPlaceholder": "For example code line 4 or the first failed case",
       "note": "Note",
       "submit": "Save correction",
       "unavailable": "No correctable submission yet."

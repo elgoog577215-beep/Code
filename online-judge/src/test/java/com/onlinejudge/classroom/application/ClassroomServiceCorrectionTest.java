@@ -13,11 +13,13 @@ import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
+import com.onlinejudge.submission.domain.StudentAiFeedbackEvent;
 import com.onlinejudge.submission.persistence.SubmissionHistoryProjection;
 import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultStatsProjection;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
+import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import com.onlinejudge.shared.security.SchoolSecurityProperties;
 import com.onlinejudge.shared.security.StudentAccessTokenService;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,8 @@ import java.util.function.Function;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ClassroomServiceCorrectionTest {
 
@@ -44,6 +48,7 @@ class ClassroomServiceCorrectionTest {
     private final FakeStudentRecommendationEventRepository recommendationEventRepository = new FakeStudentRecommendationEventRepository();
     private final FakeHintSafetyCheckRepository hintSafetyCheckRepository = new FakeHintSafetyCheckRepository();
     private final FakeProblemRepository problemRepository = new FakeProblemRepository();
+    private final StudentAiFeedbackEventRepository aiFeedbackEventRepository = mock(StudentAiFeedbackEventRepository.class);
     private final DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -85,7 +90,9 @@ class ClassroomServiceCorrectionTest {
             new ClassTeachingStrategyImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy)),
             hintSafetyCheckRepository,
             coachPromptRepository,
-            new StudentAccessTokenService(new TestSchoolSecurityProperties())
+            new StudentAccessTokenService(new TestSchoolSecurityProperties()),
+            aiFeedbackEventRepository,
+            new StudentAiFeedbackImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
     );
 
     @Test
@@ -132,6 +139,17 @@ class ClassroomServiceCorrectionTest {
         analyses.save(analysis(1L, "BOUNDARY_CONDITION", "OFF_BY_ONE"));
         analyses.save(analysis(3L, "IO_FORMAT", "INPUT_PARSING"));
         analyses.save(analysis(4L, "ALGORITHM_STRATEGY", "DP_STATE_DESIGN"));
+        when(aiFeedbackEventRepository.findByAssignmentIdOrderByCreatedAtDesc(assignment.getId()))
+                .thenReturn(List.of(StudentAiFeedbackEvent.builder()
+                        .id(901L)
+                        .submissionId(1L)
+                        .studentProfileId(1L)
+                        .assignmentId(assignment.getId())
+                        .problemId(101L)
+                        .eventType(StudentAiFeedbackEvent.EVENT_VIEWED)
+                        .feedbackStatus("READY")
+                        .createdAt(LocalDateTime.of(2026, 5, 18, 10, 2))
+                        .build()));
 
         var overview = localService.getAssignmentOverview(assignment.getId());
 
@@ -157,6 +175,13 @@ class ClassroomServiceCorrectionTest {
                     assertThat(problem.getAbilityWeaknesses()).extracting("abilityPoint")
                             .containsExactlyInAnyOrder("循环与边界", "题意读取");
                     assertThat(problem.getStudents()).extracting("studentProfileId").containsExactlyInAnyOrder(1L, 2L);
+                    assertThat(problem.getStudents()).filteredOn(student -> student.getStudentProfileId().equals(1L))
+                            .singleElement()
+                            .satisfies(student -> {
+                                assertThat(student.getLatestAiFeedbackImpact()).isNotNull();
+                                assertThat(student.getLatestAiFeedbackImpact().getStatus()).isEqualTo("IMPROVED_AFTER_AI");
+                                assertThat(student.getLatestAiFeedbackImpact().getStatusLabel()).contains("查看建议后");
+                            });
                 });
         assertThat(overview.getProblemSummaries().get(1))
                 .satisfies(problem -> {
@@ -1377,7 +1402,9 @@ class ClassroomServiceCorrectionTest {
                 new ClassTeachingStrategyImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy)),
                 hintSafetyCheckRepository,
                 coachPromptRepository,
-                new StudentAccessTokenService(new TestSchoolSecurityProperties())
+                new StudentAccessTokenService(new TestSchoolSecurityProperties()),
+                aiFeedbackEventRepository,
+                new StudentAiFeedbackImpactAnalyzer(new DiagnosisReportReader(objectMapper, taxonomy), taxonomy)
         );
     }
 
@@ -2084,6 +2111,10 @@ class ClassroomServiceCorrectionTest {
         request.setCorrectedIssueTag("IO_FORMAT");
         request.setCorrectedFineGrainedTag("INPUT_PARSING");
         request.setTeacherNote("实际问题是输入读取结构理解错。");
+        request.setCorrectionType("KNOWLEDGE_PATH");
+        request.setTargetIssueId("I2");
+        request.setCorrectedKnowledgePath("基础语法 / 输入输出 / 多组数据读取");
+        request.setTargetEvidenceRef("code:line:4");
 
         var response = service.correctDiagnosis(fixture.assignment().getId(), request);
 
@@ -2091,6 +2122,10 @@ class ClassroomServiceCorrectionTest {
         assertThat(response.getOriginalFineGrainedTag()).isEqualTo("OFF_BY_ONE");
         assertThat(response.getCorrectedIssueTag()).isEqualTo("IO_FORMAT");
         assertThat(response.getCorrectedFineGrainedTag()).isEqualTo("INPUT_PARSING");
+        assertThat(response.getCorrectionType()).isEqualTo("KNOWLEDGE_PATH");
+        assertThat(response.getTargetIssueId()).isEqualTo("I2");
+        assertThat(response.getCorrectedKnowledgePath()).contains("多组数据读取");
+        assertThat(response.getTargetEvidenceRef()).isEqualTo("code:line:4");
         assertThat(response.isEvalCandidate()).isTrue();
         assertThat(correctionRepository.saved).hasSize(1);
     }

@@ -68,3 +68,27 @@ TBD - created by archiving change redesign-teacher-console-ui. Update Purpose af
 - **THEN** 这些元素 SHALL 使用与新教师端一致的圆角、边界、按钮高度和清晰焦点状态
 - **AND** 学生端做题、提交和 AI 反馈主体流程 SHALL 不被重排
 
+### Requirement: 教师题目分析的学生证据详情必须呈现建议后续效果
+教师端 SHALL 在题目分析的学生证据详情中展示学生查看 AI 建议后的同题后续结果，并 SHALL 使用观察性而非因果性措辞。
+
+#### Scenario: 学生查看建议后再次提交
+- **WHEN** 系统存在 AI 建议查看记录和同题后续提交
+- **THEN** 教师详情 SHALL 展示已改善、仍卡同类问题、问题转移、回退或评测阶段变化
+- **AND** 展示 SHALL 包含前后提交依据和教师关注状态
+
+#### Scenario: 学生尚未再次提交
+- **WHEN** 学生已查看建议但没有同题后续提交
+- **THEN** 教师详情 SHALL 显示等待后续提交
+- **AND** 系统 MUST NOT 宣称建议有效或无效
+
+### Requirement: 教师校正入口必须区分问题类型
+教师端 SHALL 允许教师说明本次校正针对诊断判断、知识路径、证据位置或建议表达，并 SHALL 只在相关类型下展示对应补充字段。
+
+#### Scenario: 教师校正知识路径
+- **WHEN** 教师选择知识路径有误
+- **THEN** 表单 SHALL 允许填写修正后的知识路径和校正说明
+
+#### Scenario: 教师校正证据位置
+- **WHEN** 教师选择证据位置有误
+- **THEN** 表单 SHALL 允许填写目标证据引用和校正说明
+

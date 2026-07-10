@@ -1,7 +1,10 @@
 package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onlinejudge.classroom.application.AbilitySignalAnalyzer;
 import com.onlinejudge.classroom.application.StudentRecommendationEventService;
+import com.onlinejudge.classroom.domain.TeacherDiagnosisCorrection;
+import com.onlinejudge.classroom.persistence.TeacherDiagnosisCorrectionRepository;
 import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.submission.domain.Submission;
@@ -103,6 +106,77 @@ class SubmissionAnalysisServiceHistoryEvidenceTest {
                 .contains("eval:intervention", "followup:submission:22", "action:CONTRADICTED");
         assertThat(history.getPreviousLearningActionSummary()).contains("WRONG_ANSWER");
         assertThat(history.getPreviousLearningActionNextAdjustment()).contains("降低提示粒度");
+    }
+
+    @Test
+    void learningMemoryCarriesTeacherCorrectionTargetAndKnowledgePath() {
+        SubmissionRepository submissionRepository = mock(SubmissionRepository.class);
+        SubmissionAnalysisRepository analysisRepository = mock(SubmissionAnalysisRepository.class);
+        TeacherDiagnosisCorrectionRepository correctionRepository = mock(TeacherDiagnosisCorrectionRepository.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        DiagnosisTaxonomy taxonomy = new DiagnosisTaxonomy();
+        DiagnosisReportReader reportReader = new DiagnosisReportReader(objectMapper, taxonomy);
+        SubmissionAnalysisService service = new SubmissionAnalysisService(
+                submissionRepository,
+                null,
+                null,
+                analysisRepository,
+                objectMapper,
+                null,
+                null,
+                taxonomy,
+                null,
+                reportReader,
+                null,
+                null,
+                new AbilitySignalAnalyzer(reportReader, taxonomy),
+                correctionRepository
+        );
+        Submission current = submission(22L, Submission.Verdict.WRONG_ANSWER, 10);
+        Submission previous = submission(21L, Submission.Verdict.WRONG_ANSWER, 0);
+        SubmissionAnalysis previousAnalysis = SubmissionAnalysis.builder()
+                .submissionId(21L)
+                .analysisSource("TEST")
+                .scenario("WA")
+                .headline("边界问题")
+                .summary("summary")
+                .reportMarkdown("markdown")
+                .reportJson("""
+                        {
+                          "issueTags": ["BOUNDARY_CONDITION"],
+                          "fineGrainedTags": ["OFF_BY_ONE"]
+                        }
+                        """)
+                .build();
+        TeacherDiagnosisCorrection correction = TeacherDiagnosisCorrection.builder()
+                .submissionId(21L)
+                .originalIssueTag("BOUNDARY_CONDITION")
+                .originalFineGrainedTag("OFF_BY_ONE")
+                .correctedIssueTag("IO_FORMAT")
+                .correctedFineGrainedTag("INPUT_PARSING")
+                .correctionType("KNOWLEDGE_PATH")
+                .targetIssueId("I2")
+                .correctedKnowledgePath("基础语法 / 输入输出 / 多组数据读取")
+                .targetEvidenceRef("code:line:4")
+                .teacherNote("路径归类错误，不只是标签错误。")
+                .correctedAt(LocalDateTime.of(2026, 5, 24, 10, 5))
+                .build();
+
+        when(submissionRepository.findByStudentProfileIdInOrderBySubmittedAtDesc(List.of(41L)))
+                .thenReturn(List.of(previous));
+        when(analysisRepository.findBySubmissionIdIn(List.of(21L))).thenReturn(List.of(previousAnalysis));
+        when(correctionRepository.findBySubmissionIdIn(List.of(21L))).thenReturn(List.of(correction));
+
+        DiagnosisEvidencePackage.StudentLearningMemorySnapshot memory =
+                service.buildLearningMemorySnapshotForTest(current);
+
+        assertThat(memory.getTeacherCalibrationPatterns()).singleElement().satisfies(pattern -> {
+            assertThat(pattern.getCorrectionType()).isEqualTo("KNOWLEDGE_PATH");
+            assertThat(pattern.getTargetIssueId()).isEqualTo("I2");
+            assertThat(pattern.getCorrectedKnowledgePath()).contains("多组数据读取");
+            assertThat(pattern.getTargetEvidenceRef()).isEqualTo("code:line:4");
+            assertThat(pattern.getLatestTeacherNote()).contains("路径归类错误");
+        });
     }
 
     @Test

@@ -455,6 +455,19 @@ const assignmentOverview = {
           latestFineGrainedIssue: "OFF_BY_ONE",
           latestProgressSignal: "已定位边界问题",
           latestConfidence: 0.68,
+          latestAiFeedbackImpact: {
+            feedbackSubmissionId: 9001,
+            followupSubmissionId: 9002,
+            problemId: 101,
+            status: "IMPROVED_AFTER_AI",
+            statusLabel: "查看建议后改善",
+            summary: "学生查看建议后，同题下一次提交已通过；这是观察到改善的相关证据，但不能单独证明由建议造成。",
+            feedbackStatus: "READY",
+            feedbackViewedAt: "2026-05-19T09:05:00",
+            previousVerdict: "WRONG_ANSWER",
+            followupVerdict: "ACCEPTED",
+            needsTeacherAttention: false
+          },
           needsAttention: true
         }
       ]
@@ -851,7 +864,7 @@ const scenarios = [
       record("student identity lives in header", headerLoginCount >= 1, `header identity count ${headerLoginCount}`);
       record("student home shows public catalog entry", homeText.includes("公共题库"), homeText);
       record("student home shows assignment details", homeText.includes("课堂编程作业") && homeText.includes("高一1班") && homeText.includes("2题"), homeText);
-      record("student home keeps entry copy direct", homeText.includes("选择练习入口") && !homeText.includes("输入邀请码"), homeText);
+      record("student home keeps entry copy direct", homeText.includes("选择今天要继续的练习") && !homeText.includes("输入邀请码"), homeText);
       record("student home uses clickable entry rows", entryCount >= 1, `entry count ${entryCount}`);
       if (viewport.name !== "mobile") {
         record("student home uses bounded width on wider screens", studentWidth <= 1024, `student width ${studentWidth}`);
@@ -1096,7 +1109,7 @@ const scenarios = [
       record("assignment analytics exposes objective metrics", assignmentText.includes("提交人数") && assignmentText.includes("正确率") && assignmentText.includes("平均提交"), assignmentText.slice(0, 900));
       record("assignment analytics lists problems", assignmentText.includes("求和边界") && assignmentText.includes("循环边界"), assignmentText.slice(0, 900));
       record("assignment analytics has AI attribution", assignmentText.includes("AI知识归因") && assignmentText.includes("当前知识路径"), assignmentText.slice(0, 900));
-      record("assignment analytics avoids teacher decision language", !assignmentText.includes("下一步") && !assignmentText.includes("建议") && !assignmentText.includes("讲评"), assignmentText.slice(0, 900));
+      record("assignment analytics avoids teacher decision language", !assignmentText.includes("下一步") && !assignmentText.includes("讲评"), assignmentText.slice(0, 900));
       record("assignment analytics normalizes percent fields", assignmentText.includes("40%") && assignmentText.includes("83%") && !assignmentText.includes("4000%") && !assignmentText.includes("8330%"), assignmentText.slice(0, 900));
       if (viewport.name === "desktop") {
         await checkElementMaxWidth(page, ".teacher-analytics-page", 1440, "assignment desktop analytics width");
@@ -1213,8 +1226,32 @@ const scenarios = [
       const problemText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
       record("problem analytics shows problem objective results", problemText.includes("求和边界") && problemText.includes("未通过人数") && problemText.includes("证据样本"), problemText.slice(0, 900));
       record("problem analytics exposes correction in evidence layer", problemText.includes("校正归因") && !problemText.includes("教师动作"), problemText.slice(0, 900));
-      record("problem analytics avoids decision copy", !problemText.includes("下一步") && !problemText.includes("建议") && !problemText.includes("讲评"), problemText.slice(0, 900));
+      record("problem analytics shows observational feedback impact", problemText.includes("查看反馈后的表现") && problemText.includes("查看反馈后改善") && problemText.includes("不能单独证明"), problemText.slice(0, 900));
+      record("problem analytics exposes four correction types", problemText.includes("错因判断") && problemText.includes("知识路径") && problemText.includes("证据引用") && problemText.includes("反馈内容"), problemText.slice(0, 900));
+      record("problem analytics avoids decision copy", !problemText.includes("下一步") && !problemText.includes("讲评"), problemText.slice(0, 900));
       record("problem analytics normalizes percent fields", problemText.includes("40%") && !problemText.includes("4000%"), problemText.slice(0, 900));
+      await page.locator(".language-toggle").dispatchEvent("click");
+      await page.waitForTimeout(80);
+      const englishProblemText = ((await page.locator(".teacher-analytics-evidence").first().textContent()) || "").replace(/\s+/g, "");
+      record(
+        "problem analytics renders feedback loop and correction fields in English",
+        englishProblemText.includes("Performanceafterviewingfeedback") &&
+          englishProblemText.includes("Improvedafterviewingfeedback") &&
+          englishProblemText.includes("Correctiontype") &&
+          englishProblemText.includes("Issuediagnosis") &&
+          englishProblemText.includes("Knowledgepath") &&
+          englishProblemText.includes("Evidencereference") &&
+          englishProblemText.includes("Feedbackcontent") &&
+          !englishProblemText.includes("查看建议后") &&
+          !englishProblemText.includes("学生查看建议后"),
+        englishProblemText.slice(0, 900)
+      );
+      await page.screenshot({
+        path: join(artifactDir, "problem-analytics-english.png"),
+        fullPage: true
+      });
+      await page.locator(".language-toggle").dispatchEvent("click");
+      await page.waitForTimeout(80);
     },
     selectors: [
       [".teacher-analytics-page", "problem analytics page"],

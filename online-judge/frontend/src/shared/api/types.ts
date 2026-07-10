@@ -914,6 +914,7 @@ export interface AssignmentOverview {
       latestHintAction?: string | null;
       latestProgressSignal?: string | null;
       latestConfidence?: number | null;
+      latestAiFeedbackImpact?: AiFeedbackImpact | null;
       needsAttention: boolean;
     }>;
   }>;
@@ -1586,6 +1587,10 @@ export interface TeacherDiagnosisCorrection {
   originalFineGrainedTag?: string | null;
   correctedIssueTag: string;
   correctedFineGrainedTag?: string | null;
+  correctionType?: "DIAGNOSIS" | "KNOWLEDGE_PATH" | "EVIDENCE" | "ADVICE" | null;
+  targetIssueId?: string | null;
+  correctedKnowledgePath?: string | null;
+  targetEvidenceRef?: string | null;
   teacherNote?: string | null;
   evalCandidate: boolean;
   correctedBy?: string | null;

@@ -35,9 +35,9 @@ class StudentAiFeedbackImpactAnalyzerTest {
         ).get(11L);
 
         assertThat(impact.getStatus()).isEqualTo("IMPROVED_AFTER_AI");
-        assertThat(impact.getStatusLabel()).isEqualTo("AI 后改善");
+        assertThat(impact.getStatusLabel()).isEqualTo("查看建议后改善");
         assertThat(impact.getFollowupSubmissionId()).isEqualTo(12L);
-        assertThat(impact.getSummary()).contains("提示有效");
+        assertThat(impact.getSummary()).contains("观察到改善");
         assertThat(impact.isNeedsTeacherAttention()).isFalse();
     }
 

@@ -144,6 +144,7 @@ public class AssignmentOverviewResponse {
         private String latestHintAction;
         private String latestProgressSignal;
         private Double latestConfidence;
+        private StudentTrajectoryResponse.AiFeedbackImpact latestAiFeedbackImpact;
         private boolean needsAttention;
     }
 

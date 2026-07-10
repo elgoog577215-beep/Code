@@ -13,6 +13,10 @@ public class TeacherDiagnosisCorrectionRequest {
     private String correctedIssueTag;
 
     private String correctedFineGrainedTag;
+    private String correctionType = "DIAGNOSIS";
+    private String targetIssueId;
+    private String correctedKnowledgePath;
+    private String targetEvidenceRef;
     private String teacherNote;
     private Boolean evalCandidate = true;
     private String correctedBy;

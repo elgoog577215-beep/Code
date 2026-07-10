@@ -298,10 +298,45 @@
     "evidence": {
       "title": "证据样本"
     },
+    "aiLoop": {
+      "title": "查看反馈后的表现",
+      "noObservation": "暂无可判断样本",
+      "noObservationDescription": "学生查看反馈并完成同题后续提交后，这里会显示变化。结果只表示前后相关，不直接证明因果。",
+      "followupEvidence": "后续提交 #{{id}}",
+      "status": {
+        "improved": "查看反馈后改善",
+        "shifted": "查看反馈后问题转移",
+        "sameIssue": "查看反馈后仍卡在同类问题",
+        "regressed": "查看反馈后出现回退",
+        "verdictChanged": "查看反馈后评测阶段变化",
+        "noClearChange": "查看反馈后暂未见明确变化",
+        "awaiting": "等待查看反馈后的提交"
+      },
+      "summary": {
+        "improved": "同题下一次提交已通过；这是观察到改善的相关证据，但不能单独证明由反馈造成。",
+        "shifted": "同题后续提交进入了新的问题阶段，需要结合新证据继续判断。",
+        "sameIssue": "同题后续提交仍出现同类问题，建议教师检查学生是否真正理解并执行了反馈。",
+        "regressed": "同题后续提交的评测阶段回退，需要检查是否误读反馈或改动范围过大。",
+        "verdictChanged": "同题后续提交的评测阶段发生变化，需要结合新失败点判断是否推进。",
+        "noClearChange": "已有同题后续提交，但目前没有观察到明确变化。",
+        "awaiting": "学生已查看反馈，但还没有同题后续提交，暂不能判断效果。"
+      }
+    },
     "correction": {
       "title": "校正归因",
       "issue": "错因",
       "fineIssue": "细分错因",
+      "type": "校正类型",
+      "types": {
+        "diagnosis": "错因判断",
+        "knowledgePath": "知识路径",
+        "evidence": "证据引用",
+        "advice": "反馈内容"
+      },
+      "knowledgePath": "修正后的知识路径",
+      "knowledgePathPlaceholder": "例如 基础语法 / 输入输出 / 多组数据读取",
+      "evidenceRef": "应关联的证据",
+      "evidenceRefPlaceholder": "例如 代码第 4 行或首个失败样例",
       "note": "记录",
       "submit": "保存校正",
       "unavailable": "暂无可校正提交。"

@@ -313,10 +313,45 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       evidence: {
         title: "证据样本"
       },
+      aiLoop: {
+        title: "查看反馈后的表现",
+        noObservation: "暂无可判断样本",
+        noObservationDescription: "学生查看反馈并完成同题后续提交后，这里会显示变化。结果只表示前后相关，不直接证明因果。",
+        followupEvidence: "后续提交 #{{id}}",
+        status: {
+          improved: "查看反馈后改善",
+          shifted: "查看反馈后问题转移",
+          sameIssue: "查看反馈后仍卡在同类问题",
+          regressed: "查看反馈后出现回退",
+          verdictChanged: "查看反馈后评测阶段变化",
+          noClearChange: "查看反馈后暂未见明确变化",
+          awaiting: "等待查看反馈后的提交"
+        },
+        summary: {
+          improved: "同题下一次提交已通过；这是观察到改善的相关证据，但不能单独证明由反馈造成。",
+          shifted: "同题后续提交进入了新的问题阶段，需要结合新证据继续判断。",
+          sameIssue: "同题后续提交仍出现同类问题，建议教师检查学生是否真正理解并执行了反馈。",
+          regressed: "同题后续提交的评测阶段回退，需要检查是否误读反馈或改动范围过大。",
+          verdictChanged: "同题后续提交的评测阶段发生变化，需要结合新失败点判断是否推进。",
+          noClearChange: "已有同题后续提交，但目前没有观察到明确变化。",
+          awaiting: "学生已查看反馈，但还没有同题后续提交，暂不能判断效果。"
+        }
+      },
       correction: {
         title: "校正归因",
         issue: "错因",
         fineIssue: "细分错因",
+        type: "校正类型",
+        types: {
+          diagnosis: "错因判断",
+          knowledgePath: "知识路径",
+          evidence: "证据引用",
+          advice: "反馈内容"
+        },
+        knowledgePath: "修正后的知识路径",
+        knowledgePathPlaceholder: "例如 基础语法 / 输入输出 / 多组数据读取",
+        evidenceRef: "应关联的证据",
+        evidenceRefPlaceholder: "例如 代码第 4 行或首个失败样例",
         note: "记录",
         submit: "保存校正",
         unavailable: "暂无可校正提交。"
@@ -1218,10 +1253,45 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       evidence: {
         title: "Evidence samples"
       },
+      aiLoop: {
+        title: "Performance after viewing feedback",
+        noObservation: "No comparable sample yet",
+        noObservationDescription: "Changes appear after the student views the feedback and submits the same problem again. This is observational evidence, not proof of causation.",
+        followupEvidence: "Follow-up submission #{{id}}",
+        status: {
+          improved: "Improved after viewing feedback",
+          shifted: "Issue shifted after viewing feedback",
+          sameIssue: "Same issue after viewing feedback",
+          regressed: "Regressed after viewing feedback",
+          verdictChanged: "Evaluation stage changed",
+          noClearChange: "No clear change yet",
+          awaiting: "Waiting for a follow-up submission"
+        },
+        summary: {
+          improved: "The next submission for the same problem passed. This is correlated evidence of improvement, not proof that the feedback caused it.",
+          shifted: "The follow-up submission moved to a new issue stage; review the new evidence before deciding what changed.",
+          sameIssue: "The same issue remains in the follow-up submission; check whether the student understood and acted on the feedback.",
+          regressed: "The follow-up moved backward in the evaluation stages; check for a misread or an overly broad change.",
+          verdictChanged: "The evaluation stage changed; use the new failure evidence to judge whether this represents progress.",
+          noClearChange: "A follow-up submission exists, but no clear change is observable yet.",
+          awaiting: "The student viewed the feedback but has not submitted the same problem again, so impact cannot be judged yet."
+        }
+      },
       correction: {
         title: "Correct attribution",
         issue: "Issue",
         fineIssue: "Detailed issue",
+        type: "Correction type",
+        types: {
+          diagnosis: "Issue diagnosis",
+          knowledgePath: "Knowledge path",
+          evidence: "Evidence reference",
+          advice: "Feedback content"
+        },
+        knowledgePath: "Corrected knowledge path",
+        knowledgePathPlaceholder: "For example Basics / Input and output / Multiple cases",
+        evidenceRef: "Expected evidence reference",
+        evidenceRefPlaceholder: "For example code line 4 or the first failed case",
         note: "Note",
         submit: "Save correction",
         unavailable: "No correctable submission yet."

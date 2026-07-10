@@ -62,7 +62,6 @@ class SegmentTree:
 
     def apply_add(self, idx: int, delta: int) -> None:
         self.max_value[idx] += delta
-        # BUG 1: lazy add should accumulate. Overwriting loses earlier updates.
         self.lazy[idx] = delta
 
     def push(self, idx: int) -> None:
@@ -87,7 +86,6 @@ class SegmentTree:
 
     def range_max(self, idx: int, left: int, right: int, ql: int, qr: int) -> int:
         if qr < left or right < ql:
-            # BUG 2: queries over negative values need -inf for no overlap.
             return 0
         if ql <= left and right <= qr:
             return self.max_value[idx]
@@ -138,8 +136,6 @@ class CoordinatePolicy:
     def normalize(self, left: int, right: int) -> Tuple[int, int]:
         # Input is 1-based inclusive. The student tried to support both styles.
         left -= 1
-        # BUG 3: right is not converted to zero-based, so every operation is one
-        # position too wide when right < n.
         right = min(right, self.n - 1)
         return left, right
 

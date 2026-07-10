@@ -139,6 +139,10 @@ public class DiagnosisEvidencePackage {
         private String originalFineGrainedTag;
         private String correctedIssueTag;
         private String correctedFineGrainedTag;
+        private String correctionType;
+        private String targetIssueId;
+        private String correctedKnowledgePath;
+        private String targetEvidenceRef;
         private Long correctionCount;
         private Long evalCandidateCount;
         private String latestTeacherNote;

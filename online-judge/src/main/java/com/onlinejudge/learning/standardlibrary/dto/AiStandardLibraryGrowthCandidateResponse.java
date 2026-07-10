@@ -18,6 +18,7 @@ public class AiStandardLibraryGrowthCandidateResponse {
     private String parentKnowledgeNodeCode;
     private Long sourceProblemId;
     private Long sourceSubmissionId;
+    private List<Long> observedSubmissionIds;
     private List<String> evidenceRefs;
     private String evidenceStatus;
     private List<String> similarExistingItems;
@@ -44,6 +45,9 @@ public class AiStandardLibraryGrowthCandidateResponse {
                 .parentKnowledgeNodeCode(candidate.getParentKnowledgeNodeCode())
                 .sourceProblemId(candidate.getSourceProblemId())
                 .sourceSubmissionId(candidate.getSourceSubmissionId())
+                .observedSubmissionIds(candidate.getObservedSubmissionIds() == null
+                        ? List.of()
+                        : candidate.getObservedSubmissionIds())
                 .evidenceRefs(lines(candidate.getEvidenceRefs()))
                 .evidenceStatus(candidate.getEvidenceStatus())
                 .similarExistingItems(lines(candidate.getSimilarExistingItems()))

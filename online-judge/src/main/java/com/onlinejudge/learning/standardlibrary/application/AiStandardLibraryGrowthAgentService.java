@@ -64,6 +64,7 @@ public class AiStandardLibraryGrowthAgentService {
                 .parentKnowledgeNodeCode(parentKnowledgeNodeCode(proposal))
                 .sourceProblemId(proposal == null ? null : proposal.getSourceProblemId())
                 .sourceSubmissionId(proposal == null ? null : proposal.getSourceSubmissionId())
+                .observedSubmissionIds(observedSubmissionIds(proposal == null ? null : proposal.getSourceSubmissionId()))
                 .similarExistingItems(joinLines(proposal == null ? null : proposal.getSimilarExistingItemCodes()))
                 .changeReason(requiredText(proposal == null ? "" : proposal.getChangeReason(), "缺少变更理由"))
                 .evidenceRefs(joinLines(proposal == null ? null : proposal.getEvidenceRefs()))
@@ -220,6 +221,12 @@ public class AiStandardLibraryGrowthAgentService {
                 : resolvedParentCode);
         candidate.setSourceProblemId(proposal == null ? candidate.getSourceProblemId() : proposal.getSourceProblemId());
         candidate.setSourceSubmissionId(proposal == null ? candidate.getSourceSubmissionId() : proposal.getSourceSubmissionId());
+        if (proposal != null && proposal.getSourceSubmissionId() != null && proposal.getSourceSubmissionId() > 0) {
+            LinkedHashSet<Long> observed = new LinkedHashSet<>(safeObservedSubmissionIds(candidate));
+            observed.add(proposal.getSourceSubmissionId());
+            candidate.setObservedSubmissionIds(List.copyOf(observed));
+            candidate.setOccurrenceCount(observed.size());
+        }
         candidate.setSimilarExistingItems(joinLines(proposal == null ? lines(candidate.getSimilarExistingItems()) : proposal.getSimilarExistingItemCodes()));
         candidate.setChangeReason(requiredText(proposal == null ? candidate.getChangeReason() : proposal.getChangeReason(), candidate.getChangeReason()));
         candidate.setEvidenceRefs(joinLines(proposal == null ? lines(candidate.getEvidenceRefs()) : proposal.getEvidenceRefs()));
@@ -291,6 +298,9 @@ public class AiStandardLibraryGrowthAgentService {
                 || candidate.getOccurrenceCount() < properties.getAutoMergeMinOccurrences()) {
             return markNeedsReview(candidate, "自动入库出现次数不足。");
         }
+        if (independentSubmissionCount(candidate) < properties.getAutoMergeMinOccurrences()) {
+            return markNeedsReview(candidate, "自动入库缺少足够的独立提交来源。");
+        }
         if (!hasValidKnowledgePointParent(candidate.getParentKnowledgeNodeCode())) {
             return markNeedsReview(candidate, "自动入库缺少有效的正式知识点父节点。");
         }
@@ -336,8 +346,16 @@ public class AiStandardLibraryGrowthAgentService {
 
     private AiStandardLibraryGrowthCandidate aggregateDuplicate(AiStandardLibraryGrowthCandidate existing,
                                                                 StandardLibraryGrowthProposal proposal) {
-        int count = existing.getOccurrenceCount() == null ? 1 : existing.getOccurrenceCount();
-        existing.setOccurrenceCount(count + 1);
+        LinkedHashSet<Long> observedSubmissionIds = new LinkedHashSet<>(safeObservedSubmissionIds(existing));
+        Long sourceSubmissionId = proposal == null ? null : proposal.getSourceSubmissionId();
+        boolean independentSourceAdded = sourceSubmissionId != null && sourceSubmissionId > 0
+                && observedSubmissionIds.add(sourceSubmissionId);
+        existing.setObservedSubmissionIds(List.copyOf(observedSubmissionIds));
+        if (!observedSubmissionIds.isEmpty()) {
+            existing.setOccurrenceCount(observedSubmissionIds.size());
+        } else if (existing.getOccurrenceCount() == null || existing.getOccurrenceCount() < 1) {
+            existing.setOccurrenceCount(1);
+        }
         existing.setLastObservedAt(LocalDateTime.now());
         if (proposal != null) {
             if (proposal.getSourceProblemId() != null) {
@@ -362,7 +380,7 @@ public class AiStandardLibraryGrowthAgentService {
         if (!reason.isBlank() && !existingReason.contains(reason)) {
             existing.setChangeReason(existingReason.isBlank() ? reason : existingReason + "\n再次出现：" + reason);
         }
-        if (List.of(
+        if (independentSourceAdded && List.of(
                 AiStandardLibraryGrowthCandidateStatus.PROPOSED,
                 AiStandardLibraryGrowthCandidateStatus.NEEDS_REVIEW,
                 AiStandardLibraryGrowthCandidateStatus.BLOCKED,
@@ -370,9 +388,12 @@ public class AiStandardLibraryGrowthAgentService {
         ).contains(existing.getStatus())) {
             existing.setStatus(AiStandardLibraryGrowthCandidateStatus.MERGED_SIMILAR);
         }
-        existing.setPrecheckMessage("相似库外发现已聚合，出现次数=" + existing.getOccurrenceCount());
+        existing.setPrecheckMessage(independentSourceAdded
+                ? "相似库外发现已按独立提交聚合，独立出现次数=" + existing.getOccurrenceCount()
+                : "同一提交的重复生成仅合并证据，独立出现次数=" + existing.getOccurrenceCount());
         existing.setDiffSummary(diffSummary(existing, existing.getStatus())
-                + "\noccurrenceCount=" + existing.getOccurrenceCount());
+                + "\noccurrenceCount=" + existing.getOccurrenceCount()
+                + "\nobservedSubmissionIds=" + existing.getObservedSubmissionIds());
         existing.setRollbackInfo("未自动写入正式标准库；该记录用于教师按频次审核。");
         return candidateRepository.save(existing);
     }
@@ -907,11 +928,37 @@ public class AiStandardLibraryGrowthAgentService {
                 || candidate.getConfidence() < properties.getAutoMergeMinConfidence()
                 || candidate.getOccurrenceCount() == null
                 || candidate.getOccurrenceCount() < properties.getAutoMergeMinOccurrences()
+                || independentSubmissionCount(candidate) < properties.getAutoMergeMinOccurrences()
                 || !"SUPPORTED".equalsIgnoreCase(candidate.getEvidenceStatus())
                 || !hasValidKnowledgePointParent(candidate.getParentKnowledgeNodeCode())) {
             return candidate;
         }
         return mergeToFormalLibrary(candidate.getId(), null);
+    }
+
+    private List<Long> observedSubmissionIds(Long sourceSubmissionId) {
+        return sourceSubmissionId == null || sourceSubmissionId <= 0
+                ? List.of()
+                : List.of(sourceSubmissionId);
+    }
+
+    private List<Long> safeObservedSubmissionIds(AiStandardLibraryGrowthCandidate candidate) {
+        LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        if (candidate != null && candidate.getObservedSubmissionIds() != null) {
+            candidate.getObservedSubmissionIds().stream()
+                    .filter(id -> id != null && id > 0)
+                    .forEach(ids::add);
+        }
+        if (ids.isEmpty() && candidate != null
+                && candidate.getSourceSubmissionId() != null
+                && candidate.getSourceSubmissionId() > 0) {
+            ids.add(candidate.getSourceSubmissionId());
+        }
+        return List.copyOf(ids);
+    }
+
+    private int independentSubmissionCount(AiStandardLibraryGrowthCandidate candidate) {
+        return safeObservedSubmissionIds(candidate).size();
     }
 
     private String growthChangeReason(AdviceGenerationOutput.LibraryGrowthCandidate candidate) {

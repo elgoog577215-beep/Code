@@ -113,8 +113,6 @@ class LayeredShortestPath:
     def should_skip_state(self, cost: int, node: int, used: int) -> bool:
         if cost != self.dist[node][used]:
             return True
-        # BUG 1: this global prune ignores coupon count. A node reached with a
-        # slightly worse cost but more remaining coupons can still be optimal.
         if cost > self.best_to_node[node]:
             return True
         return False
@@ -144,7 +142,6 @@ class LayeredShortestPath:
     ) -> None:
         if used >= self.coupons:
             return
-        # BUG 2: the coupon transition should add edge.cost // 2, not edge.cost.
         new_cost = cost + edge.cost
         new_used = used + 1
         if new_cost < self.dist[edge.to][new_used]:
@@ -162,7 +159,6 @@ class LayeredShortestPath:
             for edge in self.graph.neighbors(node):
                 self.relax_normal(heap, cost, node, used, edge)
                 self.relax_discount(heap, cost, node, used, edge)
-        # BUG 3: this reports only the exact-k layer. The problem asks at most k.
         return self.dist[self.graph.n][self.coupons]
 
     def best_layer(self, end: int) -> int:

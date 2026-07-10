@@ -472,6 +472,20 @@
   border-top: 1px solid var(--line);
 }
 
+.teacher-analytics-feedback-impact {
+  display: grid;
+  gap: 0.18rem;
+  margin-top: 0.42rem;
+  padding: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--brand-soft) 24%, var(--surface));
+}
+
+.teacher-analytics-feedback-impact strong {
+  font-size: 0.82rem;
+}
+
 .teacher-analytics-correction summary {
   color: var(--brand-strong);
   font-size: 0.78rem;
@@ -494,6 +508,7 @@
 }
 
 .teacher-analytics-correction select,
+.teacher-analytics-correction input,
 .teacher-analytics-correction textarea {
   width: 100%;
   min-height: 34px;

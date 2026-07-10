@@ -60,6 +60,9 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
         assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
+        assertThat(analysis.getAiInvocation().getDiagnosisSoftFixes())
+                .contains("basicLayerAdvice.issueId filled by stable issue order: I1")
+                .contains("improvementLayerAdvice.issueId filled by stable issue order: I1");
         assertThat(analysis.getBasicLayerAdvice()).hasSize(1);
         assertThat(analysis.getStudentFeedback().getBlockingIssues().get(0).getTitle())
                 .contains("循环右边界");
@@ -346,17 +349,20 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
-    void libraryAttachmentCapsIssueNavigationWithoutDroppingAdviceIssues() {
+    void libraryAttachmentClassifiesEveryValidatedIssueWithoutIssueCap() {
         StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
                 standardLibraryService(),
                 multiIssueFreeDiagnosisResponse(),
                 List.of(
                         attachmentSelectResponse("BASIC"),
+                        attachmentSelectResponse("MP_RANGE_RIGHT_ENDPOINT_MISSING"),
+                        attachmentSelectResponse("BASIC"),
+                        attachmentSelectResponse("MP_RANGE_RIGHT_ENDPOINT_MISSING"),
+                        attachmentSelectResponse("BASIC"),
                         attachmentSelectResponse("MP_RANGE_RIGHT_ENDPOINT_MISSING")
                 ),
                 multiIssueAdviceResponse()
         );
-        ReflectionTestUtils.setField(service, "standardLibraryNavigationMaxIssues", 1);
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
                 problem(),
@@ -365,16 +371,48 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(service.callCount()).isEqualTo(4);
-        assertThat(service.userPrompt(3))
+        assertThat(service.callCount()).isEqualTo(8);
+        assertThat(service.userPrompt(7))
                 .contains("\"issueId\":\"I1\"", "\"issueId\":\"I2\"", "\"issueId\":\"I3\"")
                 .contains("\"status\":\"LAYERED_ATTACHMENT\"")
-                .contains("standard library attachment skipped by max issue limit.");
+                .doesNotContain("skipped by max issue limit")
+                .contains("\"anchorStatus\":\"HIT\"");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
         assertThat(analysis.getBasicLayerAdvice()).hasSize(3);
         assertThat(analysis.getImprovementLayerAdvice()).hasSize(2);
+    }
+
+    @Test
+    void oneIssueAttachmentFailureDoesNotSkipRemainingIssues() {
+        StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
+                standardLibraryService(),
+                multiIssueFreeDiagnosisResponse(),
+                List.of(
+                        attachmentSelectResponse("NOT_VISIBLE"),
+                        attachmentSelectResponse("BASIC"),
+                        attachmentSelectResponse("MP_RANGE_RIGHT_ENDPOINT_MISSING"),
+                        attachmentSelectResponse("BASIC"),
+                        attachmentSelectResponse("MP_RANGE_RIGHT_ENDPOINT_MISSING")
+                ),
+                multiIssueAdviceResponse()
+        );
+
+        SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
+                problem(),
+                submission(),
+                fallback(),
+                evidencePackage()
+        );
+
+        assertThat(service.callCount()).isEqualTo(7);
+        assertThat(service.userPrompt(6))
+                .contains("\"issueId\":\"I1\"", "\"anchorStatus\":\"ATTACHMENT_FAILED\"")
+                .contains("\"issueId\":\"I2\"", "\"issueId\":\"I3\"")
+                .contains("\"anchorStatus\":\"HIT\"");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getBasicLayerAdvice()).hasSize(3);
     }
 
     @Test
@@ -392,8 +430,8 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         );
 
         assertThat(service.callCount()).isEqualTo(5);
-        assertThat(service.systemPrompt(4)).contains("数量修复重试");
-        assertThat(service.userPrompt(4)).contains("previousOutput", "ADVICE_INSUFFICIENT_ITEMS");
+        assertThat(service.systemPrompt(4)).contains("覆盖修复重试");
+        assertThat(service.userPrompt(4)).contains("previousOutput", "ADVICE_MISSING_ISSUE_COVERAGE");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getStudentFeedback().getSummary()).contains("循环边界");
         assertThat(analysis.getStudentFeedback().getNextLearningAction().getTask()).contains("手推");
@@ -507,13 +545,12 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     }
 
     @Test
-    void multiIssueAdviceUnderproductionRetriesOnceAndKeepsMultipleAdviceItems() {
+    void multiIssueAdviceAcceptsMajorIssueCoverageWithNoImprovementAdvice() {
         StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
                 emptyStandardLibraryService(),
                 multiIssueFreeDiagnosisResponse(),
                 List.of(),
-                validAdviceResponse(),
-                multiIssueAdviceResponse()
+                majorIssueCoverageAdviceResponse()
         );
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
@@ -523,26 +560,26 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 evidencePackage()
         );
 
-        assertThat(service.callCount()).isEqualTo(3);
-        assertThat(service.systemPrompt(2)).contains("数量修复重试");
-        assertThat(service.userPrompt(2)).contains("previousOutput", "ADVICE_INSUFFICIENT_ITEMS");
+        assertThat(service.callCount()).isEqualTo(2);
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
-        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isTrue();
-        assertThat(analysis.getBasicLayerAdvice()).hasSize(3);
-        assertThat(analysis.getImprovementLayerAdvice()).hasSize(2);
-        assertThat(analysis.getStudentFeedback().getBlockingIssues()).hasSize(3);
-        assertThat(analysis.getStudentFeedback().getImprovementOpportunities()).hasSize(2);
+        assertThat(analysis.getAiInvocation().getStreamFallbackRetryUsed()).isFalse();
+        assertThat(analysis.getBasicLayerAdvice()).hasSize(2)
+                .extracting(SubmissionAnalysisResponse.BasicLayerAdvice::getIssueId)
+                .containsExactly("I1", "I2");
+        assertThat(analysis.getImprovementLayerAdvice()).isEmpty();
+        assertThat(analysis.getStudentFeedback().getBlockingIssues()).hasSize(2);
+        assertThat(analysis.getStudentFeedback().getImprovementOpportunities()).isEmpty();
     }
 
     @Test
-    void multiIssueAdviceUnderproductionFailsClearlyAfterSingleCountRetry() {
+    void missingMajorIssueAdviceRetriesOnceAndRepairsCoverage() {
         StubAiReportService service = newServiceWithFreeDiagnosisAndNavigationSequence(
                 emptyStandardLibraryService(),
                 multiIssueFreeDiagnosisResponse(),
                 List.of(),
                 validAdviceResponse(),
-                validAdviceResponse()
+                majorIssueCoverageAdviceResponse()
         );
 
         SubmissionAnalysisResponse analysis = service.enhanceSubmissionAnalysis(
@@ -553,13 +590,13 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         );
 
         assertThat(service.callCount()).isEqualTo(3);
-        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_FAILED");
-        assertThat(analysis.getAiInvocation().getFailureStage()).isEqualTo("DIAGNOSIS_AND_ADVICE");
-        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("FAILED");
-        assertThat(analysis.getAiInvocation().getAdviceGenerationFailureReason())
-                .contains("ADVICE_INSUFFICIENT_ITEMS");
-        assertThat(analysis.getStudentFeedback()).isNull();
-        assertThat(analysis.getBasicLayerAdvice()).isEmpty();
+        assertThat(service.systemPrompt(2)).contains("覆盖修复重试");
+        assertThat(service.userPrompt(2)).contains("previousOutput", "ADVICE_MISSING_ISSUE_COVERAGE", "I2");
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
+        assertThat(analysis.getBasicLayerAdvice()).hasSize(2)
+                .extracting(SubmissionAnalysisResponse.BasicLayerAdvice::getIssueId)
+                .containsExactly("I1", "I2");
     }
 
     @Test
@@ -1649,6 +1686,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "primaryEvidenceRef": "code:range_excludes_n"
                   },
                   "basicLayerAdvice": [{
+                    "issueId": "I1",
                     "mistakePointId": null,
                     "skillUnitId": null,
                     "title": "循环右边界漏取",
@@ -1659,6 +1697,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "evidenceRefs": ["code:range_excludes_n"],
                     "confidence": 0.92
                   }, {
+                    "issueId": "I2",
                     "mistakePointId": null,
                     "skillUnitId": null,
                     "title": "失败样例对照不足",
@@ -1669,6 +1708,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "evidenceRefs": ["judge:first_failed_case"],
                     "confidence": 0.78
                   }, {
+                    "issueId": "I3",
                     "mistakePointId": null,
                     "skillUnitId": null,
                     "title": "循环变量手推缺失",
@@ -1680,6 +1720,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "confidence": 0.7
                   }],
                   "improvementLayerAdvice": [{
+                    "issueId": "I1",
                     "improvementPointId": null,
                     "skillUnitId": null,
                     "title": "补充边界样例意识",
@@ -1689,6 +1730,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "evidenceRefs": ["code:range_excludes_n"],
                     "confidence": 0.8
                   }, {
+                    "issueId": "I2",
                     "improvementPointId": null,
                     "skillUnitId": null,
                     "title": "保留手推记录",
@@ -1705,6 +1747,50 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                     "evidenceRef": "code:range_excludes_n"
                   }],
                   "studentSummary": "这次有多个需要分开检查的问题。"
+                }
+                """;
+    }
+
+    private String majorIssueCoverageAdviceResponse() {
+        return """
+                {
+                  "caseUnderstanding": {
+                    "problemGoal": "题目要求输出 1 到 n 的整数和。",
+                    "codeIntent": "学生使用循环累加 total。",
+                    "behaviorGap": "循环范围没有覆盖题意，并且失败样例已经暴露差异。",
+                    "primaryEvidenceRef": "code:range_excludes_n"
+                  },
+                  "basicLayerAdvice": [{
+                    "issueId": "I1",
+                    "mistakePointId": null,
+                    "skillUnitId": null,
+                    "title": "循环右边界漏取",
+                    "whatHappened": "当前循环范围没有覆盖题目要求的最后一个数。",
+                    "whyItMatters": "少处理一个端点会让求和结果偏小。",
+                    "studentAction": "先手推循环变量实际出现过哪些值。",
+                    "checkQuestion": "最后一个应该被处理的数有没有进入循环？",
+                    "evidenceRefs": ["code:range_excludes_n"],
+                    "confidence": 0.92
+                  }, {
+                    "issueId": "I2",
+                    "mistakePointId": null,
+                    "skillUnitId": null,
+                    "title": "失败样例对照不足",
+                    "whatHappened": "可见失败样例已经显示实际输出与预期不一致。",
+                    "whyItMatters": "不对照差异就容易只凭感觉修改。",
+                    "studentAction": "把实际输出和预期输出逐项写在旁边。",
+                    "checkQuestion": "第一处差异来自哪个循环取值？",
+                    "evidenceRefs": ["judge:first_failed_case"],
+                    "confidence": 0.78
+                  }],
+                  "improvementLayerAdvice": [],
+                  "nextStepPlan": [{
+                    "step": 1,
+                    "target": "手推循环变量取值。",
+                    "reason": "这是当前阻塞通过的问题。",
+                    "evidenceRef": "code:range_excludes_n"
+                  }],
+                  "studentSummary": "先处理两个主要问题；当前没有必要额外增加提高建议。"
                 }
                 """;
     }

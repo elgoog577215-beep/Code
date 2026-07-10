@@ -1,6 +1,7 @@
 package com.onlinejudge.learning.standardlibrary.domain;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -17,6 +18,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "ai_standard_library_growth_candidates")
@@ -49,6 +51,10 @@ public class AiStandardLibraryGrowthCandidate {
     private Long sourceProblemId;
 
     private Long sourceSubmissionId;
+
+    @Convert(converter = LongListAttributeConverter.class)
+    @Column(length = 1600)
+    private List<Long> observedSubmissionIds;
 
     @Column(length = 1200)
     private String evidenceRefs;
@@ -104,6 +110,9 @@ public class AiStandardLibraryGrowthCandidate {
         if (occurrenceCount == null || occurrenceCount < 1) {
             occurrenceCount = 1;
         }
+        if (observedSubmissionIds == null) {
+            observedSubmissionIds = List.of();
+        }
         if (lastObservedAt == null) {
             lastObservedAt = now;
         }
@@ -119,6 +128,9 @@ public class AiStandardLibraryGrowthCandidate {
         updatedAt = LocalDateTime.now();
         if (occurrenceCount == null || occurrenceCount < 1) {
             occurrenceCount = 1;
+        }
+        if (observedSubmissionIds == null) {
+            observedSubmissionIds = List.of();
         }
         if (lastObservedAt == null) {
             lastObservedAt = updatedAt;

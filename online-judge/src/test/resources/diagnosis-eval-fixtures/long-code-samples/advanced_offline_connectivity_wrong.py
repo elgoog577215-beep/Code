@@ -86,12 +86,9 @@ class RollbackDSU:
         while len(self.history) > snapshot:
             record = self.history.pop()
             if record.child == 0:
-                # BUG 1: components should also be restored for no-op records.
                 continue
             self.parent[record.child] = record.child
             self.size[record.parent] = record.parent_size
-            # BUG 2: the component count is incremented instead of restored,
-            # which breaks after nested segment-tree recursion.
             self.components += 1
 
     def connected(self, a: int, b: int) -> bool:
@@ -156,7 +153,6 @@ class IntervalBuilder:
         start = self.open_at.pop(edge, None)
         if start is None:
             return
-        # BUG 3: an edge removed at time t is active only until t - 1.
         self.intervals.append(Interval(start, time, edge))
 
     def close_all(self) -> None:

@@ -32,10 +32,12 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -45,7 +47,6 @@ public class AiReportService {
     private static final String PROVIDER = "ModelScope";
     private static final String PROMPT_VERSION = "submission-diagnosis-prompt-v2";
     private static final int STANDARD_LIBRARY_NAVIGATION_DEFAULT_MAX_ROUNDS = 6;
-    private static final int STANDARD_LIBRARY_NAVIGATION_DEFAULT_MAX_ISSUES = 1;
     private static final int STANDARD_LIBRARY_NAVIGATION_MAX_BRANCHES = 3;
 
     private final ObjectMapper objectMapper;
@@ -179,9 +180,6 @@ public class AiReportService {
 
     @Value("${ai.standard-library-navigation.max-rounds:6}")
     private int standardLibraryNavigationMaxRounds = STANDARD_LIBRARY_NAVIGATION_DEFAULT_MAX_ROUNDS;
-
-    @Value("${ai.standard-library-navigation.max-issues:1}")
-    private int standardLibraryNavigationMaxIssues = STANDARD_LIBRARY_NAVIGATION_DEFAULT_MAX_ISSUES;
 
     public SubmissionAnalysisResponse enhanceSubmissionAnalysis(Problem problem,
                                                                 Submission submission,
@@ -426,17 +424,19 @@ public class AiReportService {
             return runtimeFailure(baseline, runtimePlan, failure);
         }
         adviceOutput = externalModelAgentRuntime.normalizeAdviceGeneration(adviceOutput, runtimePlan);
+        linkAdviceToFreeDiagnosisIssues(adviceOutput, runtimePlan);
 
         ExternalModelStagePayloads.StageValidationResult adviceValidation =
-                validateAdviceGenerationWithCountContract(adviceOutput, runtimePlan);
-        if (!adviceValidation.isValid() && isAdviceCountFailure(adviceValidation)) {
+                validateAdviceGenerationWithCoverageContract(adviceOutput, runtimePlan);
+        if (!adviceValidation.isValid() && isAdviceCoverageFailure(adviceValidation)) {
             try {
                 AdviceGenerationOutput rewrittenOutput =
-                        retryAdviceGenerationForCount(runtimePlan, adviceOutput, adviceValidation);
+                        retryAdviceGenerationForCoverage(runtimePlan, adviceOutput, adviceValidation);
                 if (rewrittenOutput != null) {
                     rewrittenOutput = externalModelAgentRuntime.normalizeAdviceGeneration(rewrittenOutput, runtimePlan);
+                    linkAdviceToFreeDiagnosisIssues(rewrittenOutput, runtimePlan);
                     ExternalModelStagePayloads.StageValidationResult rewrittenValidation =
-                            validateAdviceGenerationWithCountContract(rewrittenOutput, runtimePlan);
+                            validateAdviceGenerationWithCoverageContract(rewrittenOutput, runtimePlan);
                     if (rewrittenValidation.isValid()) {
                         adviceOutput = rewrittenOutput;
                         adviceValidation = rewrittenValidation;
@@ -454,8 +454,9 @@ public class AiReportService {
                 AdviceGenerationOutput rewrittenOutput =
                         retryAdviceGenerationForSafety(runtimePlan, adviceOutput, adviceValidation);
                 rewrittenOutput = externalModelAgentRuntime.normalizeAdviceGeneration(rewrittenOutput, runtimePlan);
+                linkAdviceToFreeDiagnosisIssues(rewrittenOutput, runtimePlan);
                 ExternalModelStagePayloads.StageValidationResult rewrittenValidation =
-                        validateAdviceGenerationWithCountContract(rewrittenOutput, runtimePlan);
+                        validateAdviceGenerationWithCoverageContract(rewrittenOutput, runtimePlan);
                 if (rewrittenValidation.isValid()) {
                     adviceOutput = rewrittenOutput;
                     adviceValidation = rewrittenValidation;
@@ -862,14 +863,7 @@ public class AiReportService {
             return;
         }
         List<IssueLibraryAnchor> anchors = new ArrayList<>();
-        int maxIssues = navigationMaxIssues();
-        for (int index = 0; index < safeList(issues).size(); index++) {
-            FreeDiagnosisOutput.Issue issue = issues.get(index);
-            if (index >= maxIssues) {
-                anchors.add(anchorWithStatus(issue, "NO_MATCH", List.of(),
-                        "standard library attachment skipped by max issue limit.", null));
-                continue;
-            }
+        for (FreeDiagnosisOutput.Issue issue : safeList(issues)) {
             anchors.add(attachIssueToStandardLibrary(runtimePlan, issue, roots));
         }
         setLayeredAttachmentArtifacts(runtimePlan, anchors, aggregateAnchorStatus(anchors), "");
@@ -1766,10 +1760,6 @@ public class AiReportService {
         return Math.max(1, Math.min(Math.max(standardLibraryNavigationMaxRounds, 0), 10));
     }
 
-    private int navigationMaxIssues() {
-        return Math.max(1, Math.min(Math.max(standardLibraryNavigationMaxIssues, 0), 5));
-    }
-
     private <T> T firstOrNull(List<T> values) {
         return values == null || values.isEmpty() ? null : values.get(0);
     }
@@ -1848,13 +1838,13 @@ public class AiReportService {
                 .build();
     }
 
-    private ExternalModelStagePayloads.StageValidationResult validateAdviceGenerationWithCountContract(
+    private ExternalModelStagePayloads.StageValidationResult validateAdviceGenerationWithCoverageContract(
             AdviceGenerationOutput adviceOutput,
             ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        ExternalModelStagePayloads.StageValidationResult countValidation =
-                validateAdviceCountContract(adviceOutput, runtimePlan);
-        if (!countValidation.isValid()) {
-            return countValidation;
+        ExternalModelStagePayloads.StageValidationResult coverageValidation =
+                validateAdviceCoverageContract(adviceOutput, runtimePlan);
+        if (!coverageValidation.isValid()) {
+            return coverageValidation;
         }
         ExternalModelStagePayloads.StageValidationResult schemaValidation =
                 withStage("DIAGNOSIS_AND_ADVICE",
@@ -1865,49 +1855,128 @@ public class AiReportService {
         return schemaValidation;
     }
 
-    private ExternalModelStagePayloads.StageValidationResult validateAdviceCountContract(
+    private ExternalModelStagePayloads.StageValidationResult validateAdviceCoverageContract(
             AdviceGenerationOutput adviceOutput,
             ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
-        int issueCount = effectiveFreeDiagnosisIssueCount(runtimePlan);
         if (adviceOutput == null) {
             return validStage("DIAGNOSIS_AND_ADVICE");
         }
         if (isAccepted(runtimePlan == null ? null : runtimePlan.getBrief())) {
             return validStage("DIAGNOSIS_AND_ADVICE");
         }
-        int requiredBasic = issueCount >= 2 ? Math.min(2, issueCount) : 1;
-        int requiredImprovement = issueCount >= 2 ? Math.min(2, issueCount) : 0;
-        int basicCount = size(adviceOutput == null ? null : adviceOutput.getBasicLayerAdvice());
-        int improvementCount = size(adviceOutput == null ? null : adviceOutput.getImprovementLayerAdvice());
-        if (basicCount >= requiredBasic && improvementCount >= requiredImprovement) {
+        List<String> requiredIssueIds = requiredBasicAdviceIssueIds(runtimePlan);
+        Set<String> coveredIssueIds = safeList(adviceOutput.getBasicLayerAdvice()).stream()
+                .filter(Objects::nonNull)
+                .map(AdviceGenerationOutput.BasicLayerAdvice::getIssueId)
+                .map(this::cleanupAiText)
+                .filter(issueId -> !issueId.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<String> missingIssueIds = requiredIssueIds.stream()
+                .filter(issueId -> !coveredIssueIds.contains(issueId))
+                .toList();
+        if (missingIssueIds.isEmpty()) {
             return validStage("DIAGNOSIS_AND_ADVICE");
         }
         return invalidStage(
                 "DIAGNOSIS_AND_ADVICE",
                 ModelStageFailureReason.INVALID_JSON,
-                "ADVICE_INSUFFICIENT_ITEMS: issueCount=" + issueCount
-                        + ", requiredBasic=" + requiredBasic
-                        + ", requiredImprovement=" + requiredImprovement
-                        + ", basicLayerAdvice=" + basicCount
-                        + ", improvementLayerAdvice=" + improvementCount
+                "ADVICE_MISSING_ISSUE_COVERAGE: requiredIssueIds=" + requiredIssueIds
+                        + ", coveredIssueIds=" + coveredIssueIds
+                        + ", missingIssueIds=" + missingIssueIds
+                        + ", improvementAdviceCount=" + size(adviceOutput.getImprovementLayerAdvice())
         );
     }
 
-    private boolean isAdviceCountFailure(ExternalModelStagePayloads.StageValidationResult failure) {
+    private boolean isAdviceCoverageFailure(ExternalModelStagePayloads.StageValidationResult failure) {
         return failure != null
-                && cleanupAiText(failure.getMessage()).startsWith("ADVICE_INSUFFICIENT_ITEMS:");
+                && cleanupAiText(failure.getMessage()).startsWith("ADVICE_MISSING_ISSUE_COVERAGE:");
     }
 
-    private int effectiveFreeDiagnosisIssueCount(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+    private List<FreeDiagnosisOutput.Issue> effectiveFreeDiagnosisIssues(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
         if (runtimePlan == null || runtimePlan.getFreeDiagnosisOutput() == null) {
-            return 0;
+            return List.of();
         }
         return safeList(runtimePlan.getFreeDiagnosisOutput().getIssues()).stream()
                 .filter(item -> item != null)
                 .filter(item -> !defaultIfBlank(item.getTitle(), "").isBlank()
                         || !defaultIfBlank(item.getWhatHappened(), "").isBlank())
-                .toList()
-                .size();
+                .toList();
+    }
+
+    private List<String> requiredBasicAdviceIssueIds(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        return effectiveFreeDiagnosisIssues(runtimePlan).stream()
+                .filter(issue -> {
+                    String severity = defaultIfBlank(issue.getSeverity(), "MAJOR").trim().toUpperCase();
+                    return !List.of("MINOR", "LOW", "INFO", "INFORMATIONAL").contains(severity);
+                })
+                .map(FreeDiagnosisOutput.Issue::getIssueId)
+                .map(this::cleanupAiText)
+                .filter(issueId -> !issueId.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private void linkAdviceToFreeDiagnosisIssues(AdviceGenerationOutput output,
+                                                 ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (output == null) {
+            return;
+        }
+        List<String> issueIds = effectiveFreeDiagnosisIssues(runtimePlan).stream()
+                .map(FreeDiagnosisOutput.Issue::getIssueId)
+                .map(this::cleanupAiText)
+                .filter(issueId -> !issueId.isBlank())
+                .distinct()
+                .toList();
+        if (issueIds.isEmpty()) {
+            return;
+        }
+        Set<String> used = safeList(output.getBasicLayerAdvice()).stream()
+                .filter(Objects::nonNull)
+                .map(AdviceGenerationOutput.BasicLayerAdvice::getIssueId)
+                .map(this::cleanupAiText)
+                .filter(issueIds::contains)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        for (AdviceGenerationOutput.BasicLayerAdvice advice : safeList(output.getBasicLayerAdvice())) {
+            if (advice == null || !cleanupAiText(advice.getIssueId()).isBlank()) {
+                continue;
+            }
+            String issueId = issueIds.stream().filter(candidate -> !used.contains(candidate)).findFirst().orElse(null);
+            if (issueId != null) {
+                advice.setIssueId(issueId);
+                used.add(issueId);
+                recordAdviceLinkSoftFix(output, "basicLayerAdvice.issueId filled by stable issue order: " + issueId);
+            }
+        }
+        int index = 0;
+        for (AdviceGenerationOutput.ImprovementLayerAdvice advice : safeList(output.getImprovementLayerAdvice())) {
+            if (advice != null && cleanupAiText(advice.getIssueId()).isBlank() && index < issueIds.size()) {
+                advice.setIssueId(issueIds.get(index));
+                recordAdviceLinkSoftFix(output,
+                        "improvementLayerAdvice.issueId filled by stable issue order: " + issueIds.get(index));
+            }
+            index++;
+        }
+    }
+
+    private void recordAdviceLinkSoftFix(AdviceGenerationOutput output, String message) {
+        if (output == null || message == null || message.isBlank()) {
+            return;
+        }
+        AdviceGenerationOutput.TeacherTrace trace = output.getTeacherTrace();
+        if (trace == null) {
+            trace = AdviceGenerationOutput.TeacherTrace.builder()
+                    .qualityFlags(List.of())
+                    .softFixes(new ArrayList<>())
+                    .hardFailures(List.of())
+                    .build();
+            output.setTeacherTrace(trace);
+        }
+        List<String> softFixes = new ArrayList<>(safeList(trace.getSoftFixes()));
+        if (!softFixes.contains(message)) {
+            softFixes.add(message);
+            trace.setSoftFixes(softFixes);
+        }
     }
 
     private boolean isAccepted(ModelDiagnosisBrief brief) {
@@ -1917,21 +1986,20 @@ public class AiReportService {
         return "AC".equals(verdict) || "ACCEPTED".equals(verdict);
     }
 
-    private AdviceGenerationOutput retryAdviceGenerationForCount(
+    private AdviceGenerationOutput retryAdviceGenerationForCoverage(
             ExternalModelAgentRuntime.RuntimePlan runtimePlan,
             AdviceGenerationOutput underProducedOutput,
             ExternalModelStagePayloads.StageValidationResult failure)
             throws JsonProcessingException, IOException, InterruptedException {
         Map<String, Object> request = new LinkedHashMap<>();
-        int issueCount = effectiveFreeDiagnosisIssueCount(runtimePlan);
-        int requiredBasic = issueCount >= 2 ? Math.min(2, issueCount) : 1;
-        int requiredImprovement = issueCount >= 2 ? Math.min(2, issueCount) : 0;
-        request.put("task", "上一轮学生建议数量不足。请保留正确诊断，补齐结构化建议数组。");
+        List<String> requiredIssueIds = requiredBasicAdviceIssueIds(runtimePlan);
+        request.put("task", "上一轮基础建议没有覆盖全部主要问题。请保留正确诊断，只补齐缺失的问题关联与必要建议。");
         request.put("contextPolicy", List.of(
                 "studentReport 只是摘要，不能替代 basicLayerAdvice 或 improvementLayerAdvice。",
-                "basicLayerAdvice 至少返回 " + requiredBasic + " 条，每条对应一个独立 issue。",
-                "improvementLayerAdvice 至少返回 " + requiredImprovement + " 条，必须绑定当前 issue 或算法机制；如果要求为 0 可以为空。",
-                "不要为了凑数量拆分同一句话；每条建议必须有独立 title、行动和 evidenceRefs。",
+                "basicLayerAdvice 必须覆盖这些主要 issueId：" + requiredIssueIds + "；每条填写对应 issueId。",
+                "MINOR 问题只有在确实需要学生立即处理时才生成基础建议。",
+                "improvementLayerAdvice 没有最低条数，可以为 0 条、1 条或多条，只保留真实且不重复的提升方向。",
+                "不要为了凑数量拆分或重复同一句话；每条建议必须有独立 title、行动和 evidenceRefs。",
                 "不要给完整答案、替换代码或逐行改法。"
         ));
         request.put("brief", runtimePlan.getBrief());
@@ -1950,9 +2018,9 @@ public class AiReportService {
                 "message", failure == null ? "" : cleanupAiText(failure.getMessage())
         ));
         String systemPrompt = runtimePlan.getAdvicePrompt().getSystemPrompt()
-                + "\n\n数量修复重试:\n"
-                + "上一轮 JSON 的基础/提高建议数量不足，不能用 studentReport 摘要代替卡片数组。\n"
-                + "请返回同一个输出 schema，并补齐 basicLayerAdvice 与 improvementLayerAdvice。\n";
+                + "\n\n覆盖修复重试:\n"
+                + "上一轮 JSON 没有覆盖全部主要问题，不能用 studentReport 摘要代替逐条建议。\n"
+                + "请返回同一个输出 schema，补齐缺失的 basicLayerAdvice；提高建议按实际价值决定，不要求补数量。\n";
         activateRuntimePlan(runtimePlan);
         String content = chatCompletionWithOverrides(
                 systemPrompt,

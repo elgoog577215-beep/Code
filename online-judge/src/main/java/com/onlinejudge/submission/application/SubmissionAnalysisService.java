@@ -846,7 +846,11 @@ public class SubmissionAnalysisService {
                     normalizeCorrectionTag(correction.getOriginalIssueTag()),
                     normalizeCorrectionTag(correction.getOriginalFineGrainedTag()),
                     correctedIssue,
-                    correctedFine);
+                    correctedFine,
+                    normalizeCorrectionDetail(correction.getCorrectionType()),
+                    normalizeCorrectionDetail(correction.getTargetIssueId()),
+                    normalizeCorrectionDetail(correction.getCorrectedKnowledgePath()),
+                    normalizeCorrectionDetail(correction.getTargetEvidenceRef()));
             grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(correction);
         }
         return grouped.values()
@@ -895,12 +899,30 @@ public class SubmissionAnalysisService {
                 .originalFineGrainedTag(normalizeCorrectionTag(sample == null ? null : sample.getOriginalFineGrainedTag()))
                 .correctedIssueTag(correctedIssue)
                 .correctedFineGrainedTag(correctedFine)
+                .correctionType(defaultCorrectionType(sample == null ? null : sample.getCorrectionType()))
+                .targetIssueId(normalizeCorrectionDetail(sample == null ? null : sample.getTargetIssueId()))
+                .correctedKnowledgePath(normalizeCorrectionDetail(
+                        sample == null ? null : sample.getCorrectedKnowledgePath()))
+                .targetEvidenceRef(normalizeCorrectionDetail(sample == null ? null : sample.getTargetEvidenceRef()))
                 .correctionCount((long) safeCorrections.size())
                 .evalCandidateCount(evalCandidateCount)
                 .latestTeacherNote(truncateInline(sample == null ? null : sample.getTeacherNote()))
                 .evidenceSubmissionIds(evidenceSubmissionIds)
                 .evidenceRefs(refs)
                 .build();
+    }
+
+    DiagnosisEvidencePackage.StudentLearningMemorySnapshot buildLearningMemorySnapshotForTest(Submission submission) {
+        return buildLearningMemorySnapshot(submission);
+    }
+
+    private String defaultCorrectionType(String value) {
+        String normalized = normalizeCorrectionDetail(value).toUpperCase();
+        return normalized.isBlank() ? "DIAGNOSIS" : normalized;
+    }
+
+    private String normalizeCorrectionDetail(String value) {
+        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
     }
 
     private DiagnosisEvidencePackage.TeacherCalibrationPattern primaryTeacherCalibrationPattern(

@@ -44,8 +44,6 @@ class PrefixSum:
             self.prefix[i + 1] = self.prefix[i] + value
 
     def range_sum(self, left: int, right: int) -> int:
-        # BUG 1: the right endpoint is treated as exclusive although all DP
-        # intervals below use inclusive [left, right].
         return self.prefix[right] - self.prefix[left]
 
     def total(self) -> int:
@@ -97,8 +95,6 @@ class MergePlanner:
 
     def solve_linear(self) -> int:
         n = self.case.n
-        # BUG 2: this fills by left endpoint first. Interval DP needs increasing
-        # length so both child intervals are already available.
         for left in range(n):
             for right in range(left + 1, n):
                 self.fill_interval(left, right)
@@ -192,12 +188,10 @@ def solve_case(case: MergeCase) -> int:
     planner = MergePlanner(case)
     mode = choose_mode(case)
     if mode == "circular":
-        # BUG 3: equal first/last weights do not mean the problem is circular.
         return planner.solve_circular()
     warmup = GreedyWarmup(case.weights)
     optimistic = warmup.lower_bound()
     answer = planner.solve_linear()
-    # BUG 4: mixes a greedy lower bound into the exact DP result.
     return min(answer, optimistic)
 
 

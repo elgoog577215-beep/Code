@@ -249,6 +249,10 @@ export const api = {
       submissionId: number;
       correctedIssueTag: string;
       correctedFineGrainedTag?: string | null;
+      correctionType?: "DIAGNOSIS" | "KNOWLEDGE_PATH" | "EVIDENCE" | "ADVICE";
+      targetIssueId?: string | null;
+      correctedKnowledgePath?: string | null;
+      targetEvidenceRef?: string | null;
       teacherNote?: string;
       evalCandidate?: boolean;
       correctedBy?: string;

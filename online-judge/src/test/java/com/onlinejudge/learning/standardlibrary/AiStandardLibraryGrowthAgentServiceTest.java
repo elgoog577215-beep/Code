@@ -7,6 +7,7 @@ import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCa
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidateStatus;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRequest;
+import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryGrowthCandidateResponse;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryGrowthCandidateRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
@@ -72,6 +73,9 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(saved.getSuggestedPath()).contains("BASIC.LOOP.BOUNDARY.VISIBLE_CASE_ENDPOINT");
         assertThat(saved.getSourceProblemId()).isEqualTo(1L);
         assertThat(saved.getSourceSubmissionId()).isEqualTo(11L);
+        assertThat(saved.getObservedSubmissionIds()).containsExactly(11L);
+        assertThat(AiStandardLibraryGrowthCandidateResponse.from(saved).getObservedSubmissionIds())
+                .containsExactly(11L);
         assertThat(saved.getEvidenceStatus()).isEqualTo("SUPPORTED");
         assertThat(saved.getSimilarExistingItems()).contains("MP_RANGE_RIGHT_ENDPOINT_MISSING");
         assertThat(saved.getRollbackInfo()).contains("候选尚未写入正式标准库");
@@ -247,6 +251,7 @@ class AiStandardLibraryGrowthAgentServiceTest {
         assertThat(second.getOccurrenceCount()).isEqualTo(2);
         assertThat(second.getSourceProblemId()).isEqualTo(6L);
         assertThat(second.getSourceSubmissionId()).isEqualTo(66L);
+        assertThat(second.getObservedSubmissionIds()).containsExactly(55L, 66L);
         assertThat(second.getEvidenceRefs()).contains("code:first").contains("code:second");
         assertThat(second.getEvidenceStatus()).isEqualTo("SUPPORTED");
         assertThat(candidateRepository.findAll())

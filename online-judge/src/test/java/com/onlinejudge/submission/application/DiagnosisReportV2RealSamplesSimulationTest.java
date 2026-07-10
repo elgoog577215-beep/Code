@@ -11,6 +11,7 @@ import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.io.InputStream;
@@ -43,8 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.structured-retry-output-tokens=${AI_EVAL_STRUCTURED_RETRY_OUTPUT_TOKENS:2600}",
         "ai.retry.max-attempts=${AI_EVAL_RETRY_MAX_ATTEMPTS:1}",
         "ai.retry.backoff-ms=${AI_EVAL_RETRY_BACKOFF_MS:700}",
-        "ai.standard-library-navigation.max-rounds=${AI_EVAL_STANDARD_LIBRARY_NAVIGATION_MAX_ROUNDS:1}",
-        "ai.standard-library-navigation.max-issues=${AI_EVAL_STANDARD_LIBRARY_NAVIGATION_MAX_ISSUES:1}",
+        "ai.standard-library-navigation.max-rounds=${AI_EVAL_STANDARD_LIBRARY_NAVIGATION_MAX_ROUNDS:6}",
         "ai.standard-library-growth.enabled=false",
         "app.content-seed.enabled=${AI_REAL_SAMPLE_CONTENT_SEED_ENABLED:true}"
 })
@@ -54,6 +54,14 @@ class DiagnosisReportV2RealSamplesSimulationTest {
 
     @Autowired
     private DiagnosticAgentService diagnosticAgentService;
+
+    @Value("${ai.standard-library-navigation.max-rounds}")
+    private int standardLibraryNavigationMaxRounds;
+
+    @Test
+    void realSampleSimulationUsesProductionNavigationDepthByDefault() {
+        assertThat(standardLibraryNavigationMaxRounds).isGreaterThanOrEqualTo(6);
+    }
 
     @Test
     void runWebsiteVsCodexSimulationReportWhenEnabled() throws Exception {
@@ -110,6 +118,7 @@ class DiagnosisReportV2RealSamplesSimulationTest {
             String code = resolvedBuggyCode(sample);
             assertThat(code.lines().count()).as(sample.id()).isGreaterThanOrEqualTo(200);
             assertThat(code).as(sample.id()).doesNotContain("helper_1", "helper_2", "def helper_");
+            assertThat(code).as(sample.id()).doesNotContain("# BUG", "# FIXME", "should add", "should subtract");
             assertThat(sample.buggyCodeResource()).as(sample.id()).isNotBlank();
         }
     }

@@ -17,6 +17,10 @@ public class TeacherDiagnosisCorrectionResponse {
     private String originalFineGrainedTag;
     private String correctedIssueTag;
     private String correctedFineGrainedTag;
+    private String correctionType;
+    private String targetIssueId;
+    private String correctedKnowledgePath;
+    private String targetEvidenceRef;
     private String teacherNote;
     private boolean evalCandidate;
     private String correctedBy;
@@ -35,6 +39,10 @@ public class TeacherDiagnosisCorrectionResponse {
                 .originalFineGrainedTag(correction.getOriginalFineGrainedTag())
                 .correctedIssueTag(correction.getCorrectedIssueTag())
                 .correctedFineGrainedTag(correction.getCorrectedFineGrainedTag())
+                .correctionType(correction.getCorrectionType())
+                .targetIssueId(correction.getTargetIssueId())
+                .correctedKnowledgePath(correction.getCorrectedKnowledgePath())
+                .targetEvidenceRef(correction.getTargetEvidenceRef())
                 .teacherNote(correction.getTeacherNote())
                 .evalCandidate(correction.isEvalCandidate())
                 .correctedBy(correction.getCorrectedBy())

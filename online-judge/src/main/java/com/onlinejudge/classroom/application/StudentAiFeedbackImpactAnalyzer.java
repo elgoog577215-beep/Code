@@ -178,13 +178,13 @@ public class StudentAiFeedbackImpactAnalyzer {
 
     private String statusLabel(String status) {
         return switch (status) {
-            case "IMPROVED_AFTER_AI" -> "AI 后改善";
-            case "SHIFTED_AFTER_AI" -> "AI 后错因转移";
-            case "SAME_ISSUE_AFTER_AI" -> "AI 后仍卡同类问题";
-            case "REGRESSED_AFTER_AI" -> "AI 后出现回退";
-            case "VERDICT_CHANGED_AFTER_AI" -> "AI 后评测阶段变化";
-            case "NO_CLEAR_CHANGE_AFTER_AI" -> "AI 后暂未见明确变化";
-            default -> "等待 AI 后提交";
+            case "IMPROVED_AFTER_AI" -> "查看建议后改善";
+            case "SHIFTED_AFTER_AI" -> "查看建议后错因转移";
+            case "SAME_ISSUE_AFTER_AI" -> "查看建议后仍卡同类问题";
+            case "REGRESSED_AFTER_AI" -> "查看建议后出现回退";
+            case "VERDICT_CHANGED_AFTER_AI" -> "查看建议后评测阶段变化";
+            case "NO_CLEAR_CHANGE_AFTER_AI" -> "查看建议后暂未见明确变化";
+            default -> "等待查看建议后的提交";
         };
     }
 
@@ -194,7 +194,7 @@ public class StudentAiFeedbackImpactAnalyzer {
                            String afterIssue,
                            String afterFine) {
         return switch (status) {
-            case "IMPROVED_AFTER_AI" -> "学生查看 AI 反馈后，同题下一次提交已通过，可作为提示有效的观察证据。";
+            case "IMPROVED_AFTER_AI" -> "学生查看建议后，同题下一次提交已通过；这是观察到改善的相关证据，但不能单独证明由建议造成。";
             case "SHIFTED_AFTER_AI" -> "学生查看 AI 反馈后，错因从“" + tagLabel(firstNonBlank(beforeFine, beforeIssue))
                     + "”变化为“" + tagLabel(firstNonBlank(afterFine, afterIssue)) + "”，说明问题可能进入新阶段。";
             case "SAME_ISSUE_AFTER_AI" -> "学生查看 AI 反馈后，后续仍命中“" + tagLabel(firstNonBlank(beforeFine, beforeIssue))

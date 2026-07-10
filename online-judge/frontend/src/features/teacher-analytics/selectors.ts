@@ -509,6 +509,7 @@ function studentEvidence(
     problemId: problem?.problemId,
     issueTag: student.latestIssueTag || null,
     fineGrainedTag: student.latestFineGrainedIssue || null,
+    aiFeedbackImpact: student.latestAiFeedbackImpact || null,
     href:
       classId && assignmentId && problem?.problemId && student.studentProfileId
         ? `/app/teacher/classes/${classId}/assignments/${assignmentId}/problems/${problem.problemId}#student-${student.studentProfileId}`

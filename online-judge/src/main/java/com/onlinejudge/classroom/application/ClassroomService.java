@@ -16,6 +16,7 @@ import com.onlinejudge.submission.domain.SubmissionCaseResult;
 import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
+import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,6 +68,8 @@ public class ClassroomService {
     private final HintSafetyCheckRepository hintSafetyCheckRepository;
     private final CoachPromptRepository coachPromptRepository;
     private final StudentAccessTokenService studentAccessTokenService;
+    private final StudentAiFeedbackEventRepository studentAiFeedbackEventRepository;
+    private final StudentAiFeedbackImpactAnalyzer studentAiFeedbackImpactAnalyzer;
 
     public List<ClassGroupResponse> getClassGroups() {
         return classGroupRepository.findAllByOrderByCreatedAtDesc()
@@ -285,6 +288,12 @@ public class ClassroomService {
                             return right.getCorrectedAt().isAfter(left.getCorrectedAt()) ? right : left;
                         }
                 ));
+        Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts =
+                studentAiFeedbackImpactAnalyzer.summarizeByFeedbackSubmission(
+                        submissions,
+                        analyses,
+                        studentAiFeedbackEventRepository.findByAssignmentIdOrderByCreatedAtDesc(assignmentId)
+                );
         Map<Long, CoachInteractionSummaryResponse> coachInteractions = coachInteractionAnalyzer.summarize(submissionIds);
         Map<Long, CoachImpactResponse> coachImpacts = coachImpactAnalyzer.summarizeByCoachedSubmission(
                 submissions,
@@ -469,7 +478,8 @@ public class ClassroomService {
                 : studentProfileRepository.findByClassGroupIdOrderByStudentNoAscDisplayNameAsc(assignment.getClassGroupId());
         long classStudentCount = classStudents.size();
         List<AssignmentOverviewResponse.ProblemSummary> problemSummaries =
-                buildProblemSummaries(assignmentResponse, assignmentProblems, submissions, analyses, classStudents, classStudentCount);
+                buildProblemSummaries(assignmentResponse, assignmentProblems, submissions, analyses,
+                        aiFeedbackImpacts, classStudents, classStudentCount);
 
         return AssignmentOverviewResponse.builder()
                 .assignment(assignmentResponse)
@@ -1102,6 +1112,7 @@ public class ClassroomService {
             Map<Long, Problem> problems,
             List<Submission> submissions,
             Map<Long, SubmissionAnalysis> analyses,
+            Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts,
             List<StudentProfile> classStudents,
             long classStudentCount) {
         if (assignment == null || assignment.getTasks() == null || assignment.getTasks().isEmpty()) {
@@ -1124,6 +1135,7 @@ public class ClassroomService {
                         problems == null ? null : problems.get(task.getProblemId()),
                         submissionsByProblem.getOrDefault(task.getProblemId(), List.of()),
                         analyses,
+                        aiFeedbackImpacts,
                         classStudentById,
                         classStudentCount
                 ))
@@ -1135,6 +1147,7 @@ public class ClassroomService {
             Problem problem,
             List<Submission> problemSubmissions,
             Map<Long, SubmissionAnalysis> analyses,
+            Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts,
             Map<Long, StudentProfile> classStudentById,
             long classStudentCount) {
         List<Submission> ordered = safeList(problemSubmissions).stream()
@@ -1154,7 +1167,8 @@ public class ClassroomService {
                 .filter(items -> items.stream().anyMatch(submission -> submission.getVerdict() == Submission.Verdict.ACCEPTED))
                 .count();
         List<AssignmentOverviewResponse.ProblemStudentSummary> students = byStudent.entrySet().stream()
-                .map(entry -> buildProblemStudentSummary(entry.getKey(), classStudentById.get(entry.getKey()), entry.getValue(), analyses))
+                .map(entry -> buildProblemStudentSummary(entry.getKey(), classStudentById.get(entry.getKey()),
+                        entry.getValue(), analyses, aiFeedbackImpacts))
                 .sorted(Comparator.comparing(AssignmentOverviewResponse.ProblemStudentSummary::isNeedsAttention).reversed()
                         .thenComparing(AssignmentOverviewResponse.ProblemStudentSummary::getDisplayName, Comparator.nullsLast(String::compareTo)))
                 .toList();
@@ -1186,7 +1200,8 @@ public class ClassroomService {
             Long studentId,
             StudentProfile student,
             List<Submission> submissions,
-            Map<Long, SubmissionAnalysis> analyses) {
+            Map<Long, SubmissionAnalysis> analyses,
+            Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts) {
         List<Submission> ordered = safeList(submissions).stream()
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
@@ -1198,8 +1213,14 @@ public class ClassroomService {
         String issueTag = resolveLatestIssueTag(latestAnalysis);
         String primaryTag = fineTag == null ? issueTag : fineTag;
         String abilityPoint = resolveAbilityPoint(primaryTag);
+        StudentTrajectoryResponse.AiFeedbackImpact latestAiFeedbackImpact =
+                studentAiFeedbackImpactAnalyzer.latestForOrderedSubmissions(
+                        ordered.stream().map(Submission::getId).toList(),
+                        aiFeedbackImpacts
+                );
         boolean needsAttention = passedCount == 0 && ordered.size() >= 2
-                || (latest != null && latest.getVerdict() != Submission.Verdict.ACCEPTED && primaryTag != null);
+                || (latest != null && latest.getVerdict() != Submission.Verdict.ACCEPTED && primaryTag != null)
+                || latestAiFeedbackImpact != null && latestAiFeedbackImpact.isNeedsTeacherAttention();
         return AssignmentOverviewResponse.ProblemStudentSummary.builder()
                 .studentProfileId(studentId)
                 .displayName(resolveStudentDisplayName(student, studentId))
@@ -1217,6 +1238,7 @@ public class ClassroomService {
                 .latestHintAction(resolveHintAction(latestAnalysis))
                 .latestProgressSignal(resolveProgressSignal(latestAnalysis, resolveRepeatedIssue(ordered, analyses), resolveRepeatedFineIssue(ordered, analyses)))
                 .latestConfidence(diagnosisReportReader.confidence(latestAnalysis))
+                .latestAiFeedbackImpact(latestAiFeedbackImpact)
                 .needsAttention(needsAttention)
                 .build();
     }
@@ -1474,6 +1496,7 @@ public class ClassroomService {
         String correctedFineGrainedTag = normalizeNullable(request.getCorrectedFineGrainedTag()).isBlank()
                 ? null
                 : normalizeDiagnosisTag(request.getCorrectedFineGrainedTag(), true, "修正后的细粒度错因不存在");
+        String correctionType = normalizeCorrectionType(request.getCorrectionType());
 
         TeacherDiagnosisCorrection correction = teacherDiagnosisCorrectionRepository.save(TeacherDiagnosisCorrection.builder()
                 .assignmentId(assignmentId)
@@ -1483,6 +1506,10 @@ public class ClassroomService {
                 .originalFineGrainedTag(originalFineGrainedTag)
                 .correctedIssueTag(correctedIssueTag)
                 .correctedFineGrainedTag(correctedFineGrainedTag)
+                .correctionType(correctionType)
+                .targetIssueId(normalizeNullable(request.getTargetIssueId()))
+                .correctedKnowledgePath(normalizeNullable(request.getCorrectedKnowledgePath()))
+                .targetEvidenceRef(normalizeNullable(request.getTargetEvidenceRef()))
                 .teacherNote(normalizeNullable(request.getTeacherNote()))
                 .evalCandidate(request.getEvalCandidate() == null || request.getEvalCandidate())
                 .correctedBy(normalizeNullable(request.getCorrectedBy()))
@@ -3195,6 +3222,17 @@ public class ClassroomService {
             throw new IllegalArgumentException(message + ": " + value);
         }
         return tag.getId();
+    }
+
+    private String normalizeCorrectionType(String value) {
+        String normalized = normalizeNullable(value).toUpperCase(Locale.ROOT);
+        if (normalized.isBlank()) {
+            return "DIAGNOSIS";
+        }
+        if (!List.of("DIAGNOSIS", "KNOWLEDGE_PATH", "EVIDENCE", "ADVICE").contains(normalized)) {
+            throw new IllegalArgumentException("校正类型不存在: " + value);
+        }
+        return normalized;
     }
 
     private AssignmentResponse toAssignmentResponse(Assignment assignment) {

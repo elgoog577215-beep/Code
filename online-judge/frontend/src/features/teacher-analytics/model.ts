@@ -1,4 +1,4 @@
-import type { Assignment, AssignmentOverview, ClassGroup } from "../../shared/api/types";
+import type { AiFeedbackImpact, Assignment, AssignmentOverview, ClassGroup } from "../../shared/api/types";
 
 export type AnalyticsScopeType = "class" | "assignment" | "problem";
 export type AnalyticsGranularity = "chapter" | "knowledgePoint" | "skillUnit" | "mistakePoint";
@@ -38,6 +38,7 @@ export type AnalyticsEvidenceSample = {
   problemId?: number;
   issueTag?: string | null;
   fineGrainedTag?: string | null;
+  aiFeedbackImpact?: AiFeedbackImpact | null;
 };
 
 export type InsightBucket = {

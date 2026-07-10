@@ -15,7 +15,18 @@ type Props = {
   t: (key: string, params?: Record<string, string | number>) => string;
   correction?: {
     tags: DiagnosisTag[];
-    onSubmit: (sample: InsightBucket["evidence"][number], payload: { correctedIssueTag: string; correctedFineGrainedTag: string; teacherNote: string }) => Promise<void>;
+    onSubmit: (
+      sample: InsightBucket["evidence"][number],
+      payload: {
+        correctedIssueTag: string;
+        correctedFineGrainedTag: string;
+        correctionType: "DIAGNOSIS" | "KNOWLEDGE_PATH" | "EVIDENCE" | "ADVICE";
+        targetIssueId: string;
+        correctedKnowledgePath: string;
+        targetEvidenceRef: string;
+        teacherNote: string;
+      }
+    ) => Promise<void>;
   };
 };
 
@@ -137,6 +148,15 @@ export function AnalyticsDashboard({ snapshot, t, correction }: Props) {
                     title: t("teacherAnalytics.correction.title"),
                     issueLabel: t("teacherAnalytics.correction.issue"),
                     fineIssueLabel: t("teacherAnalytics.correction.fineIssue"),
+                    typeLabel: t("teacherAnalytics.correction.type"),
+                    diagnosisTypeLabel: t("teacherAnalytics.correction.types.diagnosis"),
+                    knowledgePathTypeLabel: t("teacherAnalytics.correction.types.knowledgePath"),
+                    evidenceTypeLabel: t("teacherAnalytics.correction.types.evidence"),
+                    adviceTypeLabel: t("teacherAnalytics.correction.types.advice"),
+                    knowledgePathLabel: t("teacherAnalytics.correction.knowledgePath"),
+                    knowledgePathPlaceholder: t("teacherAnalytics.correction.knowledgePathPlaceholder"),
+                    evidenceRefLabel: t("teacherAnalytics.correction.evidenceRef"),
+                    evidenceRefPlaceholder: t("teacherAnalytics.correction.evidenceRefPlaceholder"),
                     noteLabel: t("teacherAnalytics.correction.note"),
                     submitLabel: t("teacherAnalytics.correction.submit"),
                     unavailableText: t("teacherAnalytics.correction.unavailable"),
@@ -145,6 +165,14 @@ export function AnalyticsDashboard({ snapshot, t, correction }: Props) {
                   }
                 : undefined
             }
+            impactLabels={{
+              title: t("teacherAnalytics.aiLoop.title"),
+              noObservation: t("teacherAnalytics.aiLoop.noObservation"),
+              noObservationDescription: t("teacherAnalytics.aiLoop.noObservationDescription"),
+              followupEvidence: id => t("teacherAnalytics.aiLoop.followupEvidence", { id }),
+              statusLabel: status => t(`teacherAnalytics.aiLoop.status.${feedbackImpactKey(status)}`),
+              summary: status => t(`teacherAnalytics.aiLoop.summary.${feedbackImpactKey(status)}`)
+            }}
           />
         </div>
       </section>
@@ -160,4 +188,23 @@ function emptyKey(reason?: string) {
     return "teacherAnalytics.empty.noSubmissions";
   }
   return "teacherAnalytics.empty.noInsight";
+}
+
+function feedbackImpactKey(status?: string | null) {
+  switch (status) {
+    case "IMPROVED_AFTER_AI":
+      return "improved";
+    case "SHIFTED_AFTER_AI":
+      return "shifted";
+    case "SAME_ISSUE_AFTER_AI":
+      return "sameIssue";
+    case "REGRESSED_AFTER_AI":
+      return "regressed";
+    case "VERDICT_CHANGED_AFTER_AI":
+      return "verdictChanged";
+    case "NO_CLEAR_CHANGE_AFTER_AI":
+      return "noClearChange";
+    default:
+      return "awaiting";
+  }
 }

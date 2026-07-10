@@ -8,25 +8,46 @@ type Props = {
   title: string;
   emptyText: string;
   samples: AnalyticsEvidenceSample[];
+  impactLabels: {
+    title: string;
+    noObservation: string;
+    noObservationDescription: string;
+    followupEvidence: (id: number) => string;
+    statusLabel: (status?: string | null) => string;
+    summary: (status?: string | null) => string;
+  };
   correction?: {
     title: string;
     issueLabel: string;
     fineIssueLabel: string;
+    typeLabel: string;
+    diagnosisTypeLabel: string;
+    knowledgePathTypeLabel: string;
+    evidenceTypeLabel: string;
+    adviceTypeLabel: string;
+    knowledgePathLabel: string;
+    knowledgePathPlaceholder: string;
+    evidenceRefLabel: string;
+    evidenceRefPlaceholder: string;
     noteLabel: string;
     submitLabel: string;
     unavailableText: string;
     tags: DiagnosisTag[];
-    onSubmit: (sample: AnalyticsEvidenceSample, payload: { correctedIssueTag: string; correctedFineGrainedTag: string; teacherNote: string }) => Promise<void>;
+    onSubmit: (sample: AnalyticsEvidenceSample, payload: Draft) => Promise<void>;
   };
 };
 
 type Draft = {
   correctedIssueTag: string;
   correctedFineGrainedTag: string;
+  correctionType: "DIAGNOSIS" | "KNOWLEDGE_PATH" | "EVIDENCE" | "ADVICE";
+  targetIssueId: string;
+  correctedKnowledgePath: string;
+  targetEvidenceRef: string;
   teacherNote: string;
 };
 
-export function EvidenceSamples({ title, emptyText, samples, correction }: Props) {
+export function EvidenceSamples({ title, emptyText, samples, impactLabels, correction }: Props) {
   const [draftBySample, setDraftBySample] = useState<Record<string, Draft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const coarseTags = correction?.tags.filter(tag => !tag.fineGrained) || [];
@@ -37,6 +58,10 @@ export function EvidenceSamples({ title, emptyText, samples, correction }: Props
       draftBySample[sample.id] || {
         correctedIssueTag: sample.issueTag || coarseTags[0]?.id || "",
         correctedFineGrainedTag: sample.fineGrainedTag || "",
+        correctionType: "DIAGNOSIS",
+        targetIssueId: sample.fineGrainedTag || sample.issueTag || "",
+        correctedKnowledgePath: "",
+        targetEvidenceRef: "",
         teacherNote: ""
       }
     );
@@ -76,6 +101,7 @@ export function EvidenceSamples({ title, emptyText, samples, correction }: Props
                   <span>{sample.subtitle}</span>
                   {sample.meta ? <small>{sample.meta}</small> : null}
                 </Link>
+                {renderFeedbackImpact(sample)}
                 {correction ? renderCorrection(sample) : null}
               </article>
             ) : (
@@ -83,6 +109,7 @@ export function EvidenceSamples({ title, emptyText, samples, correction }: Props
                 <strong>{sample.title}</strong>
                 <span>{sample.subtitle}</span>
                 {sample.meta ? <small>{sample.meta}</small> : null}
+                {renderFeedbackImpact(sample)}
                 {correction ? renderCorrection(sample) : null}
               </article>
             )
@@ -93,6 +120,18 @@ export function EvidenceSamples({ title, emptyText, samples, correction }: Props
       )}
     </section>
   );
+
+  function renderFeedbackImpact(sample: AnalyticsEvidenceSample) {
+    const impact = sample.aiFeedbackImpact;
+    return (
+      <div className="teacher-analytics-feedback-impact">
+        <small>{impactLabels.title}</small>
+        <strong>{impact ? impactLabels.statusLabel(impact.status) : impactLabels.noObservation}</strong>
+        <span>{impact ? impactLabels.summary(impact.status) : impactLabels.noObservationDescription}</span>
+        {impact?.followupSubmissionId ? <small>{impactLabels.followupEvidence(impact.followupSubmissionId)}</small> : null}
+      </div>
+    );
+  }
 
   function renderCorrection(sample: AnalyticsEvidenceSample) {
     if (!correction) {
@@ -107,6 +146,18 @@ export function EvidenceSamples({ title, emptyText, samples, correction }: Props
         <summary>{correction.title}</summary>
         <form onSubmit={event => submitCorrection(event, sample)}>
           <label>
+            <span>{correction.typeLabel}</span>
+            <select
+              value={draft.correctionType}
+              onChange={event => updateDraft(sample, { correctionType: event.target.value as Draft["correctionType"] })}
+            >
+              <option value="DIAGNOSIS">{correction.diagnosisTypeLabel}</option>
+              <option value="KNOWLEDGE_PATH">{correction.knowledgePathTypeLabel}</option>
+              <option value="EVIDENCE">{correction.evidenceTypeLabel}</option>
+              <option value="ADVICE">{correction.adviceTypeLabel}</option>
+            </select>
+          </label>
+          <label>
             <span>{correction.issueLabel}</span>
             <select value={draft.correctedIssueTag} onChange={event => updateDraft(sample, { correctedIssueTag: event.target.value })}>
               {coarseTags.map(tag => (
@@ -116,6 +167,26 @@ export function EvidenceSamples({ title, emptyText, samples, correction }: Props
               ))}
             </select>
           </label>
+          {draft.correctionType === "KNOWLEDGE_PATH" ? (
+            <label>
+              <span>{correction.knowledgePathLabel}</span>
+              <input
+                value={draft.correctedKnowledgePath}
+                onChange={event => updateDraft(sample, { correctedKnowledgePath: event.target.value })}
+                placeholder={correction.knowledgePathPlaceholder}
+              />
+            </label>
+          ) : null}
+          {draft.correctionType === "EVIDENCE" ? (
+            <label>
+              <span>{correction.evidenceRefLabel}</span>
+              <input
+                value={draft.targetEvidenceRef}
+                onChange={event => updateDraft(sample, { targetEvidenceRef: event.target.value })}
+                placeholder={correction.evidenceRefPlaceholder}
+              />
+            </label>
+          ) : null}
           <label>
             <span>{correction.fineIssueLabel}</span>
             <select value={draft.correctedFineGrainedTag} onChange={event => updateDraft(sample, { correctedFineGrainedTag: event.target.value })}>

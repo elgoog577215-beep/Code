@@ -88,8 +88,6 @@ class RootedTreeStats:
                     continue
                 self.subtree_size[node] += self.subtree_size[nxt]
                 self.subtree_weight[node] += self.subtree_weight[nxt]
-                # BUG 1: the weighted distance should add subtree_weight[nxt],
-                # not subtree_size[nxt]. This fails when weights are not all 1.
                 self.down_cost[node] += self.down_cost[nxt] + self.subtree_size[nxt]
             self.trace.append(Contribution(
                 node,
@@ -123,9 +121,6 @@ class RerootSolver:
                 continue
             child_weight = self.stats.subtree_weight[nxt]
             outside_weight = self.total_weight - child_weight
-            # BUG 2: moving root from node to child should subtract child_weight
-            # and add outside_weight. This formula uses subtree size and reverses
-            # one side of the contribution.
             self.answer[nxt] = (
                 self.answer[node]
                 - self.stats.subtree_size[nxt]
@@ -213,8 +208,6 @@ def solve(case: TreeCase) -> List[int]:
     tree = Tree(case)
     if case.n <= 8 and not validator.connected():
         return BruteChecker(tree).small_case_answers()
-    # BUG 3: disconnected invalid input is not rejected for larger n, so the
-    # root order misses nodes and leaves zero answers.
     return RerootSolver(tree).run()
 
 

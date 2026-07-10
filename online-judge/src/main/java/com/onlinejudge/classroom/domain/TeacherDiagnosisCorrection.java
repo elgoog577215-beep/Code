@@ -47,6 +47,18 @@ public class TeacherDiagnosisCorrection {
     @Column(name = "corrected_fine_grained_tag")
     private String correctedFineGrainedTag;
 
+    @Column(name = "correction_type", length = 40)
+    private String correctionType;
+
+    @Column(name = "target_issue_id", length = 80)
+    private String targetIssueId;
+
+    @Column(name = "corrected_knowledge_path", length = 800)
+    private String correctedKnowledgePath;
+
+    @Column(name = "target_evidence_ref", length = 240)
+    private String targetEvidenceRef;
+
     @Column(name = "teacher_note", columnDefinition = "TEXT")
     private String teacherNote;
 
@@ -61,6 +73,9 @@ public class TeacherDiagnosisCorrection {
 
     @PrePersist
     protected void onCreate() {
+        if (correctionType == null || correctionType.isBlank()) {
+            correctionType = "DIAGNOSIS";
+        }
         correctedAt = LocalDateTime.now();
     }
 }

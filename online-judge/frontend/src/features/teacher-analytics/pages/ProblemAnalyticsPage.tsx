@@ -49,7 +49,15 @@ export default function ProblemAnalyticsPage() {
 
   async function saveCorrection(
     sample: AnalyticsEvidenceSample,
-    payload: { correctedIssueTag: string; correctedFineGrainedTag: string; teacherNote: string }
+    payload: {
+      correctedIssueTag: string;
+      correctedFineGrainedTag: string;
+      correctionType: "DIAGNOSIS" | "KNOWLEDGE_PATH" | "EVIDENCE" | "ADVICE";
+      targetIssueId: string;
+      correctedKnowledgePath: string;
+      targetEvidenceRef: string;
+      teacherNote: string;
+    }
   ) {
     if (!sample.submissionId || !snapshot?.scope.assignmentId) {
       return;
@@ -58,6 +66,10 @@ export default function ProblemAnalyticsPage() {
       submissionId: sample.submissionId,
       correctedIssueTag: payload.correctedIssueTag,
       correctedFineGrainedTag: payload.correctedFineGrainedTag || null,
+      correctionType: payload.correctionType,
+      targetIssueId: payload.targetIssueId || null,
+      correctedKnowledgePath: payload.correctedKnowledgePath || null,
+      targetEvidenceRef: payload.targetEvidenceRef || null,
       teacherNote: payload.teacherNote,
       evalCandidate: true,
       correctedBy: "teacher"
