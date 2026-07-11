@@ -97,6 +97,12 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       studentCta: "我是学生",
       teacherCta: "我是教师",
       serviceStatus: "评测服务运行正常",
+      preview: {
+        title: "学生端编程与评测界面预览",
+        note: "界面截图 · 不可操作",
+        badge: "界面截图",
+        alt: "学生端编程与评测界面预览截图，展示两数之和代码和全部通过的评测结果"
+      },
       features: {
         languagesTitle: "支持多语言编程练习",
         languagesDetail: "Python / C++ / Java / C",
@@ -1037,6 +1043,12 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       studentCta: "I'm a student",
       teacherCta: "I'm a teacher",
       serviceStatus: "Judge service is running normally",
+      preview: {
+        title: "Student coding and judge interface preview",
+        note: "Interface screenshot · Non-interactive",
+        badge: "Interface screenshot",
+        alt: "Student coding and judge interface screenshot showing Two Sum code and an all-passed result"
+      },
       features: {
         languagesTitle: "Practice in multiple languages",
         languagesDetail: "Python / C++ / Java / C",

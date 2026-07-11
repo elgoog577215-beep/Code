@@ -9,17 +9,17 @@ import {
   CheckCircle2,
   Code2,
   Gauge,
-  Lightbulb,
+  Image as ImageIcon,
   LogIn,
   Menu,
   Moon,
   RotateCcw,
-  Send,
   Sun,
   UserRound,
   UsersRound,
   X
 } from "lucide-react";
+import routeHubCodePreview from "./assets/route-hub-code-preview.png";
 import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
 import { TeacherShell } from "./features/teacher/TeacherShell";
 import { useTranslation } from "./shared/i18n";
@@ -122,57 +122,24 @@ function RouteHubPage() {
           </p>
         </div>
 
-        <section className="route-hub-code-stage" aria-label={t("routeHub.demo.aria")}>
-          <header className="route-hub-code-stage__head">
-            <span>{t("routeHub.demo.back")}</span>
-            <strong>{t("routeHub.demo.problem")}</strong>
-            <small>{t("routeHub.demo.difficulty")}</small>
-            <span>{t("routeHub.demo.problemId")}</span>
-            <span className="route-hub-code-stage__submit"><Send size={14} aria-hidden="true" />{t("routeHub.demo.submit")}</span>
-          </header>
-
-          <div className="route-hub-code-stage__body">
-            <div className="route-hub-editor">
-              <div className="route-hub-editor__toolbar"><span>Python 3</span><CheckCircle2 size={16} aria-hidden="true" /></div>
-              <pre aria-label={t("routeHub.demo.codeAria")}><code>
-                <span><i>1</i><b># {t("routeHub.demo.problem")}</b></span>
-                <span><i>2</i><b># nums = [2, 7, 11, 15], target = 9</b></span>
-                <span><i>3</i>&nbsp;</span>
-                <span><i>4</i><em>def</em> two_sum(nums, target):</span>
-                <span><i>5</i>    seen = &#123;&#125;</span>
-                <span><i>6</i>    <em>for</em> i, num <em>in</em> enumerate(nums):</span>
-                <span><i>7</i>        remain = target - num</span>
-                <span><i>8</i>        <em>if</em> remain <em>in</em> seen:</span>
-                <span><i>9</i>            <em>return</em> [seen[remain], i]</span>
-                <span><i>10</i>       seen[num] = i</span>
-              </code></pre>
-              <div className="route-hub-console">
-                <strong>{t("routeHub.demo.console")}</strong>
-                <p><CheckCircle2 size={14} aria-hidden="true" />{t("routeHub.demo.caseOne")}</p>
-                <p><CheckCircle2 size={14} aria-hidden="true" />{t("routeHub.demo.caseTwo")}</p>
-              </div>
-            </div>
-
-            <aside className="route-hub-result">
-              <div className="route-hub-result__tabs"><strong>{t("routeHub.demo.result")}</strong><span>{t("routeHub.demo.quality")}</span></div>
-              <div className="route-hub-result__summary">
-                <CheckCircle2 size={28} aria-hidden="true" />
-                <span><strong>{t("routeHub.demo.passed")}</strong><small>{t("routeHub.demo.testCount")}</small></span>
-                <span><small>{t("routeHub.demo.runtime")}</small><strong>32 ms</strong></span>
-              </div>
-              <div className="route-hub-result__scores">
-                <strong>{t("routeHub.demo.scoreTitle")}</strong>
-                <span>{t("routeHub.demo.correctness")}<b>100%</b></span>
-                <span>{t("routeHub.demo.efficiency")}<b>100%</b></span>
-                <span>{t("routeHub.demo.style")}<b>90%</b></span>
-              </div>
-              <div className="route-hub-result__feedback">
-                <Lightbulb size={18} aria-hidden="true" />
-                <span><strong>{t("routeHub.demo.feedbackTitle")}</strong><small>{t("routeHub.demo.feedbackDetail")}</small></span>
-              </div>
-            </aside>
+        <figure className="route-hub-preview-frame" aria-labelledby="route-hub-preview-title">
+          <figcaption>
+            <span>
+              <strong id="route-hub-preview-title">{t("routeHub.preview.title")}</strong>
+              <small>{t("routeHub.preview.note")}</small>
+            </span>
+            <span className="route-hub-preview-frame__badge"><ImageIcon size={14} aria-hidden="true" />{t("routeHub.preview.badge")}</span>
+          </figcaption>
+          <div className="route-hub-preview-frame__image">
+            <img
+              src={routeHubCodePreview}
+              alt={t("routeHub.preview.alt")}
+              width={937}
+              height={619}
+              draggable={false}
+            />
           </div>
-        </section>
+        </figure>
       </section>
 
       <section className="route-hub-learning-loop" aria-labelledby="route-hub-loop-title">

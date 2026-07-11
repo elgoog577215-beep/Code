@@ -1019,7 +1019,7 @@ const scenarios = [
     selectors: [
       [".route-hub-page", "route hub page"],
       [".route-hub-hero-copy", "route hub hero copy"],
-      [".route-hub-preview-frame img", "route hub screenshot preview"],
+      [".route-hub-preview-frame", "route hub screenshot preview"],
       [".route-hub-learning-loop", "route hub learning loop"]
     ],
     afterChecks: async (page, viewport) => {
