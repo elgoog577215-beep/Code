@@ -1051,15 +1051,43 @@ const scenarios = [
   {
     name: "student-default",
     path: "/app/student",
+    beforeChecks: async page => {
+      await page.evaluate(() => {
+        Object.keys(window.sessionStorage)
+          .filter(key => key.startsWith("wzai:student"))
+          .forEach(key => window.sessionStorage.removeItem(key));
+        window.dispatchEvent(new Event("wzai:student-change"));
+      });
+      await page.locator(".student-guest-assignment-preview").first().waitFor({ state: "visible", timeout: 10000 });
+    },
     selectors: [
       [".student-home", "student default entry"],
-      [".app-header", "application header"]
+      [".app-header", "application header"],
+      [".student-guest-practice", "guest public practice"],
+      [".student-guest-assignment-preview", "guest assignment preview"],
+      [".student-guest-tools", "guest locked tools"]
     ],
-    afterChecks: async page => {
+    afterChecks: async (page, viewport) => {
       const navCount = await page.locator(".top-nav__link").count();
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
+      const guestRows = await page.locator(".student-guest-assignment-row").count();
+      const loginActions = await page.locator(".student-guest-login-action").count();
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       record("student direct URL opens entry", page.url().includes("/app/student"), page.url());
       record("student entry keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
+      record("student guest page mirrors the assignment board", guestRows === 3, `guest rows ${guestRows}`);
+      record("student guest page keeps one login action", loginActions === 1, `login actions ${loginActions}`);
+      record("student guest page has no horizontal overflow", overflow <= 1, `overflow ${overflow}; viewport ${viewport.width}`);
+      await page.locator(".student-guest-practice__row").click();
+      await page.waitForURL(url => url.pathname === "/app/student/assignments/public", { timeout: 5000 });
+      record("student guest public practice action opens the catalog", page.url().includes("/app/student/assignments/public"), page.url());
+      await page.goBack({ waitUntil: "domcontentloaded" });
+      await page.locator(".student-guest-assignment-preview").first().waitFor({ state: "visible", timeout: 5000 });
+      await page.locator(".student-guest-login-action").click();
+      await page.waitForURL(url => url.pathname === "/app/student/login", { timeout: 5000 });
+      record("student guest assignment action opens login", page.url().includes("/app/student/login"), page.url());
+      await page.goBack({ waitUntil: "domcontentloaded" });
+      await page.locator(".student-guest-assignment-preview").first().waitFor({ state: "visible", timeout: 5000 });
     }
   },
   {

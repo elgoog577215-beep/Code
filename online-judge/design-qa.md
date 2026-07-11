@@ -1,55 +1,54 @@
-# Route Hub Design QA
+# Guest Student Workspace Design QA
 
-- Source visual truth: `C:\Users\Lenovo\.codex\generated_images\019f41cc-0af4-7b10-b30d-0f51a0c34535\exec-d1dfd177-73b7-48dd-90cb-a0555d20ddca.png`
-- Initial implementation screenshot: `D:\WenCode\Code\online-judge\output\design-qa\route-hub-desktop-light.png`
-- Final implementation screenshot: `D:\WenCode\Code\online-judge\output\playwright\app-entry-desktop-light.png`
-- Mobile implementation screenshot: `D:\WenCode\Code\online-judge\output\playwright\app-entry-mobile-light.png`
-- Final combined comparison: `D:\WenCode\Code\online-judge\output\design-qa\route-hub-comparison-final.png`
-- Viewport: source 1487 x 1058; implementation desktop 1440 x 981 full-page capture; mobile 390 x 1734 full-page capture.
-- State: light theme, public route hub, no authenticated role selected.
+- Source visual truth: `C:\Users\Lenovo\.codex\generated_images\019f41cc-0af4-7b10-b30d-0f51a0c34535\exec-ec9cacb4-e860-4193-8ed3-6b2e0f71be96.png`
+- Desktop implementation: `D:\WenCode\Code\online-judge\output\playwright\student-default-desktop-light.png`
+- Mobile implementation: `D:\WenCode\Code\online-judge\output\playwright\student-default-mobile-light.png`
+- Full-view comparison: `D:\WenCode\Code\online-judge\output\design-qa\student-guest-comparison-full.png`
+- Focused comparison: `D:\WenCode\Code\online-judge\output\design-qa\student-guest-comparison-assignment.png`
+- Viewports: source 1487 x 1058; desktop implementation 1440 x 900; mobile implementation 390 x 1054.
+- State: logged-out student, light theme. Dark theme was also exercised by browser smoke checks.
 
 **Findings**
 
 - No actionable P0, P1, or P2 differences remain.
-- Fonts and typography: the implementation uses the existing PingFang SC/Microsoft YaHei stack and matches the source hierarchy with a two-line display headline, readable 14-16px interface copy, compact metadata, and zero negative letter spacing. Text remains unclipped on desktop and mobile.
-- Spacing and layout rhythm: the same 35/65 desktop composition is present, with a full-height role introduction beside the code-and-feedback workspace. The learning loop uses three equally weighted evidence steps. Mobile collapses every region to one column with no horizontal overflow.
-- Colors and visual tokens: the existing white, cool gray, charcoal, and muted teal tokens map closely to the concept. Green is limited to successful judge states and service health; borders and elevation remain restrained.
-- Image and asset fidelity: the editor and judge example is now a real 937 x 619 PNG screenshot inside a restrained figure frame. Its border, caption, and screenshot badge distinguish product evidence from the live page while Lucide icons remain consistent with the project system.
-- Copy and content: the source headline, student/teacher role actions, three platform capabilities, service status, and practice-judge-review loop are represented with realistic product data. The preview uses one compact `界面截图` badge without a redundant title block.
-- Interaction and accessibility: student and teacher actions retain canonical routes and focus-visible styles. The static preview has descriptive alternative text, fixed intrinsic dimensions, and no pointer interaction; theme/mobile browser checks pass without page errors.
+- Fonts and typography: the implementation keeps the existing PingFang SC/Microsoft YaHei stack, compact 12-18px dashboard hierarchy, zero negative letter spacing, and source-like strong assignment titles. Desktop and mobile text remains readable and unclipped.
+- Spacing and layout rhythm: the implementation matches the source sequence of command bar, public-practice row, locked assignment table, and two-column learning-tool strip. Rows use the signed-in dashboard grid and collapse into a three-column mobile pattern without horizontal overflow.
+- Colors and visual tokens: white and cool-gray surfaces, charcoal text, muted teal accents, thin dividers, and restrained 7-8px radii match both the selected concept and the existing product tokens. Locked content is subdued without becoming unreadable.
+- Image and asset fidelity: the concept contains no photography or custom illustration. All visible UI symbols use the project's existing Lucide icon library; no placeholder imagery, custom SVG, CSS illustration, or decorative asset was introduced.
+- Copy and content: the hierarchy and realistic assignment previews match the source. The live public problem count comes from the API rather than being hard-coded to the concept's sample count. Class names and deadlines are intentionally masked for logged-out users.
+- Interaction and accessibility: the public-practice row navigates to `/app/student/assignments/public`; the single classroom action navigates to `/app/student/login`. Semantic headings, list roles, progress labels, focus-visible states, and descriptive section labels are present.
 
 **Open Questions**
 
-- None blocking. Controls visible inside the product screenshot are intentionally non-interactive and are identified as such in the adjacent caption.
+- None blocking. Masking real class and deadline data is an intentional privacy constraint rather than visual drift.
 
 **Full-view Evidence**
 
-- `route-hub-comparison-final.png` places the selected concept and final implementation together at original scale. It confirms matching headline hierarchy, role actions, code workspace proportions, judge result hierarchy, and three-step learning loop.
+- `student-guest-comparison-full.png` places the selected concept and implementation side by side after normalizing the source crop. It confirms matching information order, overall density, assignment-table proportions, and bottom utility strip.
 
 **Focused-region Evidence**
 
-- No separate crop is required: the original-resolution combined comparison keeps the headline, code editor, result panel, role actions, and learning-loop evidence readable. The mobile capture separately verifies responsive typography, controls, and stacking.
+- `student-guest-comparison-assignment.png` compares the public-practice and locked-assignment regions at readable scale. Column alignment, row rhythm, icon placement, progress bars, and the single login action remain consistent with the target.
 
 **Comparison History**
 
-1. The previous production homepage was a sparse heading plus two empty role cards and did not express the selected concept's core learning experience.
-2. The first implementation introduced the selected 35/65 experience, but the desktop headline wrapped to four lines and made the editor region excessively tall; the learning-loop steps also lacked concrete evidence. Result remained blocked by P2 hierarchy and density differences.
-3. The headline size and hero padding were corrected to restore the source's two-line rhythm. Code, judge, and complexity evidence were added to the three learning-loop steps.
-4. The editor demonstration was converted from live-looking HTML into a framed PNG with a compact static-image badge, removing ambiguity without adding a separate explanatory heading.
-5. The final desktop/mobile captures pass all 70 focused browser checks with no horizontal overflow or page errors. No P0/P1/P2 mismatch remains.
+1. The original logged-out page contained only two entry cards and left most of the viewport empty, creating a large visual and structural gap from the signed-in task board.
+2. The first implementation replaced the cards with a public-practice row, three locked assignment rows using the signed-in grid, and a compact review/history strip.
+3. Initial screenshot evidence incorrectly showed the signed-in state because the smoke fixture preloaded a student session. The fixture was corrected to clear the session and dispatch the product's student-change event before capture.
+4. Final desktop, tablet, and mobile guest captures pass 70 focused checks, including both primary navigation actions, horizontal overflow, dark-mode readability, and page-error checks.
 
 **Implementation Checklist**
 
-- [x] Headline and supporting copy match the selected concept.
-- [x] Student and teacher entry actions point to existing canonical routes.
-- [x] The first viewport demonstrates a realistic code submission and successful judge result as a clearly labeled static screenshot.
-- [x] The learning loop contains concrete practice, judge, and review evidence.
-- [x] Desktop and mobile layouts have no horizontal overflow.
-- [x] Light and dark themes remain readable.
+- [x] Public practice remains immediately available without login.
+- [x] Classroom assignments use the same visual grammar as the signed-in dashboard.
+- [x] Exactly one classroom login action is shown.
+- [x] Personal class, deadline, and progress data remains protected.
+- [x] Review and learning-history capabilities are previewed without adding extra calls to action.
+- [x] Desktop, tablet, mobile, light, and dark states remain readable with no horizontal overflow.
 - [x] Browser console has no page errors in focused checks.
 
 **Follow-up Polish**
 
-- P3: add the fourth score row and richer syntax highlighting only if exact screenshot parity is more important than keeping the homepage demonstration concise.
+- P3: derive the difficulty split from backend metadata if the catalog later exposes reliable per-difficulty counts.
 
 final result: passed

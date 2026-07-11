@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, CircleCheck, ClipboardList, Clock3, LogIn, Play, RefreshCw, RotateCcw } from "lucide-react";
+import { ArrowRight, BookOpen, CircleCheck, ClipboardList, Clock3, History, LockKeyhole, LogIn, Play, RefreshCw, RotateCcw } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { Assignment, ReviewCard, StudentAbilityProfile, StudentProfile } from "../../shared/api/types";
 import { verdictLabel } from "../../shared/format";
@@ -151,6 +151,11 @@ export default function StudentPage() {
   const reviewCard = abilityProfile?.reviewCards?.[0] || null;
   const fineFocus = abilityProfile?.fineGrainedProfile?.fineGrainedTagFocus?.[0]?.label || null;
   const abilityFocus = abilityProfile?.fineGrainedProfile?.abilityPointFocus?.[0]?.label || abilityProfile?.primaryAbilityFocus || null;
+  const guestAssignmentPreview = useMemo(() => [
+    { title: t("studentHome.guestPreview.assignmentOne"), description: t("studentHome.guestPreview.assignmentOneMeta"), count: 2 },
+    { title: t("studentHome.guestPreview.assignmentTwo"), description: t("studentHome.guestPreview.assignmentTwoMeta"), count: 1 },
+    { title: t("studentHome.guestPreview.assignmentThree"), description: t("studentHome.guestPreview.assignmentThreeMeta"), count: 3 }
+  ], [t]);
 
   function assignmentState(assignment: Assignment) {
     const progress = progressFor(assignment);
@@ -189,28 +194,91 @@ export default function StudentPage() {
       </section>
 
       {!student ? (
-        <nav id="assignments" className="student-entry-list student-guest-entry" aria-label={t("studentHome.dashboard.entryAria")}>
-          <Link className="student-entry-link student-entry-link--primary" to="/app/student/assignments/public">
-            <span className="student-entry-link__icon" aria-hidden="true"><BookOpen size={20} /></span>
-            <span className="student-entry-link__main">
-              <strong>{t("studentHome.public.title")}</strong>
-              <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
-              <span>{t("studentHome.public.description")}</span>
-            </span>
-            <span className="student-entry-link__cta">{t("studentHome.public.cta")}</span>
-            <ArrowRight size={18} aria-hidden="true" />
-          </Link>
-          <Link className="student-entry-link student-entry-link--secondary" to="/app/student/login">
-            <span className="student-entry-link__icon" aria-hidden="true"><LogIn size={20} /></span>
-            <span className="student-entry-link__main">
-              <strong>{t("studentHome.login.title")}</strong>
-              <small>{t("studentHome.login.meta")}</small>
-              <span>{t("studentHome.login.description")}</span>
-            </span>
-            <span className="student-entry-link__cta">{t("studentHome.login.cta")}</span>
-            <ArrowRight size={18} aria-hidden="true" />
-          </Link>
-        </nav>
+        <>
+          <section id="assignments" className="student-guest-practice" aria-labelledby="student-guest-practice-heading">
+            <header className="student-guest-practice__head">
+              <span className="student-assignment-board__icon" aria-hidden="true"><BookOpen size={20} /></span>
+              <div>
+                <h2 id="student-guest-practice-heading">{t("studentHome.guestPreview.today")}</h2>
+                <p>{t("studentHome.guestPreview.todayHint")}</p>
+              </div>
+            </header>
+            <Link className="student-guest-practice__row" to="/app/student/assignments/public">
+              <span className="student-guest-practice__icon" aria-hidden="true"><BookOpen size={21} /></span>
+              <span className="student-guest-practice__main">
+                <strong>{t("studentHome.public.title")}</strong>
+                <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
+                <span>{t("studentHome.public.description")}</span>
+              </span>
+              <span className="student-guest-practice__difficulty" aria-label={t("studentHome.guestPreview.difficultyAria")}>
+                <small>{t("studentHome.guestPreview.difficulty")}</small>
+                <strong>{t("studentHome.guestPreview.easy")}</strong>
+                <strong>{t("studentHome.guestPreview.medium")}</strong>
+                <strong>{t("studentHome.guestPreview.hard")}</strong>
+              </span>
+              <span className="student-guest-practice__action">{t("studentHome.public.cta")}</span>
+            </Link>
+          </section>
+
+          <section className="student-assignment-board student-guest-assignment-preview" aria-labelledby="student-guest-assignment-heading">
+            <header className="student-assignment-board__head student-guest-assignment-preview__head">
+              <span className="student-assignment-board__icon" aria-hidden="true"><LockKeyhole size={19} /></span>
+              <div>
+                <h2 id="student-guest-assignment-heading">{t("studentHome.guestPreview.continueTitle")}</h2>
+                <p>{t("studentHome.guestPreview.continueHint")}</p>
+              </div>
+              <Link className="student-guest-login-action" to="/app/student/login">
+                <LogIn size={16} aria-hidden="true" />
+                {t("studentHome.guestPreview.loginAction")}
+              </Link>
+            </header>
+            <div className="student-assignment-table" role="list">
+              <div className="student-assignment-table__header" aria-hidden="true">
+                <span>{t("studentHome.dashboard.assignmentName")}</span>
+                <span>{t("studentHome.dashboard.className")}</span>
+                <span>{t("studentHome.dashboard.status")}</span>
+                <span>{t("studentHome.dashboard.problemCount")}</span>
+                <span>{t("studentHome.dashboard.progress")}</span>
+                <span />
+              </div>
+              {guestAssignmentPreview.map(item => (
+                <div className="student-guest-assignment-row" key={item.title} role="listitem">
+                  <span className="student-assignment-row__icon" aria-hidden="true"><LockKeyhole size={18} /></span>
+                  <span className="student-assignment-row__main">
+                    <strong>{item.title}</strong>
+                    <small>{t("studentHome.dashboard.assignmentMeta", { count: item.count, description: item.description })}</small>
+                  </span>
+                  <span className="student-assignment-row__class">{t("studentHome.guestPreview.classLocked")}</span>
+                  <span className="student-assignment-row__status">
+                    <span><i className="student-assignment-row__dot student-assignment-row__dot--not-started" />{t("studentHome.guestPreview.locked")}</span>
+                    <small><Clock3 size={13} aria-hidden="true" />{t("studentHome.guestPreview.deadlineLocked")}</small>
+                  </span>
+                  <span className="student-assignment-row__count">{t("studentHome.taskCount", { count: item.count })}</span>
+                  <span className="student-assignment-row__progress" aria-label={t("studentHome.guestPreview.progressLocked")}>
+                    <progress value={0} max={item.count} />
+                    <strong>0/{item.count}</strong>
+                  </span>
+                  <span aria-hidden="true" />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="student-guest-tools" aria-label={t("studentHome.guestPreview.toolsAria")}>
+            <div>
+              <RotateCcw size={19} aria-hidden="true" />
+              <span><strong>{t("studentHome.guestPreview.reviewTitle")}</strong><small>{t("studentHome.guestPreview.reviewHint")}</small></span>
+              <LockKeyhole size={15} aria-hidden="true" />
+              <em>{t("studentHome.guestPreview.loginRequired")}</em>
+            </div>
+            <div>
+              <History size={19} aria-hidden="true" />
+              <span><strong>{t("studentHome.guestPreview.historyTitle")}</strong><small>{t("studentHome.guestPreview.historyHint")}</small></span>
+              <LockKeyhole size={15} aria-hidden="true" />
+              <em>{t("studentHome.guestPreview.loginRequired")}</em>
+            </div>
+          </section>
+        </>
       ) : (
         <>
           <section id="assignments" className="student-assignment-board" aria-labelledby="student-assignment-heading">

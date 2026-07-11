@@ -20933,6 +20933,374 @@ button.standard-library-governance-path {
   }
 }
 
+/* Guest student workspace: preserve the signed-in task-board structure. */
+.student-guest-practice {
+  min-width: 0;
+  margin-bottom: 1.55rem;
+}
+
+.student-guest-practice__head {
+  display: flex;
+  align-items: center;
+  gap: 0.72rem;
+  padding: 0 0.18rem 0.68rem;
+}
+
+.student-guest-practice__head h2 {
+  margin: 0;
+  font-size: 1.28rem;
+  line-height: 1.25;
+}
+
+.student-guest-practice__head p {
+  margin: 0.12rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.student-guest-practice__row {
+  min-height: 116px;
+  display: grid;
+  grid-template-columns: 44px minmax(280px, 1fr) minmax(320px, auto) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem;
+  border-block: 1px solid var(--line);
+  color: var(--ink);
+  background: var(--surface-strong);
+  text-decoration: none;
+}
+
+.student-guest-practice__row:hover {
+  background: color-mix(in srgb, var(--brand-soft) 20%, var(--surface-strong));
+}
+
+.student-guest-practice__icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
+  border-radius: 8px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 34%, var(--surface));
+}
+
+.student-guest-practice__main {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.student-guest-practice__main strong {
+  font-size: 1.08rem;
+  font-weight: 900;
+}
+
+.student-guest-practice__main small,
+.student-guest-practice__main > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-guest-practice__difficulty {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.68rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.student-guest-practice__difficulty small {
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.student-guest-practice__difficulty strong {
+  padding-left: 0.68rem;
+  border-left: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.student-guest-practice__action,
+.student-guest-login-action {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--line));
+  border-radius: 7px;
+  color: var(--brand-strong);
+  background: var(--surface);
+  font-size: 0.78rem;
+  font-weight: 860;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.student-guest-practice__row:focus-visible,
+.student-guest-login-action:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--brand) 56%, transparent);
+  outline-offset: 2px;
+}
+
+.student-guest-assignment-preview__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.student-guest-login-action {
+  justify-self: end;
+}
+
+.student-guest-assignment-preview .student-assignment-table {
+  background: var(--surface-strong);
+}
+
+.student-guest-assignment-row {
+  min-height: 94px;
+  display: grid;
+  grid-template-columns: 42px minmax(270px, 1.35fr) minmax(145px, 0.66fr) minmax(170px, 0.76fr) 74px minmax(150px, 0.62fr) 112px;
+  align-items: center;
+  gap: 0.78rem;
+  padding: 0.78rem 0.9rem;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface-strong) 88%, var(--surface-muted));
+}
+
+.student-assignment-table__header + .student-guest-assignment-row {
+  border-top: 0;
+}
+
+.student-guest-assignment-row .student-assignment-row__icon {
+  color: var(--ink-faint);
+}
+
+.student-guest-assignment-row .student-assignment-row__main strong {
+  color: color-mix(in srgb, var(--ink) 82%, var(--ink-soft));
+}
+
+.student-guest-assignment-row .student-assignment-row__class,
+.student-guest-assignment-row .student-assignment-row__status,
+.student-guest-assignment-row .student-assignment-row__count,
+.student-guest-assignment-row .student-assignment-row__progress {
+  opacity: 0.82;
+}
+
+.student-guest-tools {
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-strong);
+}
+
+.student-guest-tools > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.72rem;
+  padding: 0.82rem 1rem;
+}
+
+.student-guest-tools > div + div {
+  border-left: 1px solid var(--line);
+}
+
+.student-guest-tools > div > svg:first-child {
+  color: var(--brand-strong);
+}
+
+.student-guest-tools span {
+  min-width: 0;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.student-guest-tools strong,
+.student-guest-tools small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-guest-tools strong {
+  font-size: 0.88rem;
+}
+
+.student-guest-tools small,
+.student-guest-tools em {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.student-guest-tools em {
+  font-style: normal;
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] .student-guest-practice__row,
+:root[data-theme="dark"] .student-guest-assignment-preview .student-assignment-table,
+:root[data-theme="dark"] .student-guest-assignment-row,
+:root[data-theme="dark"] .student-guest-tools {
+  background: #14191f;
+}
+
+@media (max-width: 1040px) {
+  .student-guest-practice__row {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+  }
+
+  .student-guest-practice__difficulty {
+    grid-column: 2;
+  }
+
+  .student-guest-practice__action {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+
+@media (max-width: 940px) {
+  .student-guest-assignment-row {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    min-height: 104px;
+    gap: 0.42rem 0.66rem;
+    padding: 0.78rem;
+  }
+
+  .student-guest-assignment-row .student-assignment-row__icon {
+    grid-row: 1 / span 3;
+  }
+
+  .student-guest-assignment-row .student-assignment-row__main {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .student-guest-assignment-row .student-assignment-row__class {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .student-guest-assignment-row .student-assignment-row__status {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    justify-items: end;
+  }
+
+  .student-guest-assignment-row .student-assignment-row__count {
+    display: none;
+  }
+
+  .student-guest-assignment-row .student-assignment-row__progress {
+    grid-column: 2 / 4;
+    grid-row: 3;
+  }
+}
+
+@media (max-width: 680px) {
+  .student-guest-practice {
+    margin-bottom: 1.2rem;
+  }
+
+  .student-guest-practice__head h2 {
+    font-size: 1.18rem;
+  }
+
+  .student-guest-practice__row {
+    min-height: 0;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: 0.58rem;
+    padding: 0.72rem 0.62rem;
+  }
+
+  .student-guest-practice__icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .student-guest-practice__main > span {
+    white-space: normal;
+  }
+
+  .student-guest-practice__difficulty {
+    grid-column: 2 / 4;
+    flex-wrap: wrap;
+    gap: 0.38rem;
+  }
+
+  .student-guest-practice__difficulty small {
+    width: 100%;
+  }
+
+  .student-guest-practice__action {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+    padding-inline: 0.55rem;
+  }
+
+  .student-guest-assignment-preview__head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .student-guest-login-action {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 0.32rem;
+  }
+
+  .student-guest-assignment-row {
+    min-height: 112px;
+    padding-inline: 0.62rem;
+  }
+
+  .student-guest-assignment-row .student-assignment-row__status small {
+    display: none;
+  }
+
+  .student-guest-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .student-guest-tools > div + div {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .student-guest-tools > div {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 0.72rem;
+  }
+
+  .student-guest-tools > div > svg:nth-of-type(2) {
+    display: none;
+  }
+
+  .student-guest-tools em {
+    font-size: 0.7rem;
+  }
+}
+
 /* Route hub experience: selected concept 2. */
 .main-shell:has(.route-hub-page--experience) {
   width: 100%;
