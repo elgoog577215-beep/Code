@@ -1,7 +1,25 @@
 import { lazy, ReactNode, Suspense, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { BookOpenCheck, LogIn, Menu, Moon, Sun, UserRound, UsersRound, X } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  BookOpenCheck,
+  Box,
+  CheckCircle2,
+  Code2,
+  Gauge,
+  Lightbulb,
+  LogIn,
+  Menu,
+  Moon,
+  RotateCcw,
+  Send,
+  Sun,
+  UserRound,
+  UsersRound,
+  X
+} from "lucide-react";
 import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
 import { TeacherShell } from "./features/teacher/TeacherShell";
 import { useTranslation } from "./shared/i18n";
@@ -62,38 +80,125 @@ function RouteHubPage() {
   const { t } = useTranslation();
 
   return (
-    <div className="role-entry-page route-hub-page">
-      <section className="role-entry route-hub-hero">
-        <div>
-          <p className="eyebrow">{t("routeHub.eyebrow")}</p>
-          <h1>{t("routeHub.title")}</h1>
+    <div className="role-entry-page route-hub-page route-hub-page--experience">
+      <section className="route-hub-experience" aria-labelledby="route-hub-title">
+        <div className="route-hub-hero-copy">
+          <p className="eyebrow">{t("routeHub.welcome")}</p>
+          <h1 id="route-hub-title">
+            {t("routeHub.headlineStart")}<br />
+            {t("routeHub.headlineEnd")}
+          </h1>
+          <p className="route-hub-summary">{t("routeHub.summary")}</p>
+
+          <nav className="route-hub-role-actions" aria-label={t("routeHub.roleAria")}>
+            <NavLink to="/app/student" className="route-hub-role-action route-hub-role-action--primary">
+              <BookOpenCheck size={19} aria-hidden="true" />
+              <span>{t("routeHub.studentCta")}</span>
+            </NavLink>
+            <NavLink to="/app/teacher" className="route-hub-role-action">
+              <UsersRound size={19} aria-hidden="true" />
+              <span>{t("routeHub.teacherCta")}</span>
+            </NavLink>
+          </nav>
+
+          <div className="route-hub-feature-list">
+            <div>
+              <Box size={18} aria-hidden="true" />
+              <span><strong>{t("routeHub.features.languagesTitle")}</strong><small>{t("routeHub.features.languagesDetail")}</small></span>
+            </div>
+            <div>
+              <Gauge size={18} aria-hidden="true" />
+              <span><strong>{t("routeHub.features.feedbackTitle")}</strong><small>{t("routeHub.features.feedbackDetail")}</small></span>
+            </div>
+            <div>
+              <BarChart3 size={18} aria-hidden="true" />
+              <span><strong>{t("routeHub.features.dataTitle")}</strong><small>{t("routeHub.features.dataDetail")}</small></span>
+            </div>
+          </div>
+
+          <p className="route-hub-service-status">
+            <CheckCircle2 size={15} aria-hidden="true" />
+            {t("routeHub.serviceStatus")}
+          </p>
         </div>
+
+        <section className="route-hub-code-stage" aria-label={t("routeHub.demo.aria")}>
+          <header className="route-hub-code-stage__head">
+            <span>{t("routeHub.demo.back")}</span>
+            <strong>{t("routeHub.demo.problem")}</strong>
+            <small>{t("routeHub.demo.difficulty")}</small>
+            <span>{t("routeHub.demo.problemId")}</span>
+            <span className="route-hub-code-stage__submit"><Send size={14} aria-hidden="true" />{t("routeHub.demo.submit")}</span>
+          </header>
+
+          <div className="route-hub-code-stage__body">
+            <div className="route-hub-editor">
+              <div className="route-hub-editor__toolbar"><span>Python 3</span><CheckCircle2 size={16} aria-hidden="true" /></div>
+              <pre aria-label={t("routeHub.demo.codeAria")}><code>
+                <span><i>1</i><b># {t("routeHub.demo.problem")}</b></span>
+                <span><i>2</i><b># nums = [2, 7, 11, 15], target = 9</b></span>
+                <span><i>3</i>&nbsp;</span>
+                <span><i>4</i><em>def</em> two_sum(nums, target):</span>
+                <span><i>5</i>    seen = &#123;&#125;</span>
+                <span><i>6</i>    <em>for</em> i, num <em>in</em> enumerate(nums):</span>
+                <span><i>7</i>        remain = target - num</span>
+                <span><i>8</i>        <em>if</em> remain <em>in</em> seen:</span>
+                <span><i>9</i>            <em>return</em> [seen[remain], i]</span>
+                <span><i>10</i>       seen[num] = i</span>
+              </code></pre>
+              <div className="route-hub-console">
+                <strong>{t("routeHub.demo.console")}</strong>
+                <p><CheckCircle2 size={14} aria-hidden="true" />{t("routeHub.demo.caseOne")}</p>
+                <p><CheckCircle2 size={14} aria-hidden="true" />{t("routeHub.demo.caseTwo")}</p>
+              </div>
+            </div>
+
+            <aside className="route-hub-result">
+              <div className="route-hub-result__tabs"><strong>{t("routeHub.demo.result")}</strong><span>{t("routeHub.demo.quality")}</span></div>
+              <div className="route-hub-result__summary">
+                <CheckCircle2 size={28} aria-hidden="true" />
+                <span><strong>{t("routeHub.demo.passed")}</strong><small>{t("routeHub.demo.testCount")}</small></span>
+                <span><small>{t("routeHub.demo.runtime")}</small><strong>32 ms</strong></span>
+              </div>
+              <div className="route-hub-result__scores">
+                <strong>{t("routeHub.demo.scoreTitle")}</strong>
+                <span>{t("routeHub.demo.correctness")}<b>100%</b></span>
+                <span>{t("routeHub.demo.efficiency")}<b>100%</b></span>
+                <span>{t("routeHub.demo.style")}<b>90%</b></span>
+              </div>
+              <div className="route-hub-result__feedback">
+                <Lightbulb size={18} aria-hidden="true" />
+                <span><strong>{t("routeHub.demo.feedbackTitle")}</strong><small>{t("routeHub.demo.feedbackDetail")}</small></span>
+              </div>
+            </aside>
+          </div>
+        </section>
       </section>
 
-      <section className="role-entry-grid route-hub-grid" aria-label={t("routeHub.title")}>
-        <NavLink to="/app/student" className="role-entry-card route-hub-card route-hub-card--student">
-          <span className="role-entry-card__icon">
-            <BookOpenCheck size={24} />
-          </span>
-          <span>
-            <span className="role-entry-card__head">
-              <span className="eyebrow">{t("common.studentSide")}</span>
-            </span>
-            <h2>{t("routeHub.studentTitle")}</h2>
-          </span>
-        </NavLink>
-
-        <NavLink to="/app/teacher" className="role-entry-card route-hub-card route-hub-card--teacher">
-          <span className="role-entry-card__icon">
-            <UsersRound size={24} />
-          </span>
-          <span>
-            <span className="role-entry-card__head">
-              <span className="eyebrow">{t("common.teacherSide")}</span>
-            </span>
-            <h2>{t("routeHub.teacherTitle")}</h2>
-          </span>
-        </NavLink>
+      <section className="route-hub-learning-loop" aria-labelledby="route-hub-loop-title">
+        <h2 id="route-hub-loop-title">{t("routeHub.loop.title")}</h2>
+        <div className="route-hub-loop-grid">
+          <article className="route-hub-loop-step">
+            <span className="route-hub-loop-step__number">1</span>
+            <Code2 size={20} aria-hidden="true" />
+            <div><strong>{t("routeHub.loop.practice")}</strong><small>{t("routeHub.loop.practiceDetail")}</small></div>
+            <span className="route-hub-loop-step__evidence"><code>def two_sum(nums, target)</code></span>
+          </article>
+          <ArrowRight className="route-hub-loop-arrow" size={22} aria-hidden="true" />
+          <article className="route-hub-loop-step">
+            <span className="route-hub-loop-step__number">2</span>
+            <CheckCircle2 size={20} aria-hidden="true" />
+            <div><strong>{t("routeHub.loop.judge")}</strong><small>{t("routeHub.loop.judgeDetail")}</small></div>
+            <span className="route-hub-loop-step__evidence"><CheckCircle2 size={14} aria-hidden="true" />{t("routeHub.loop.judgeEvidence")}<b>32 ms</b></span>
+          </article>
+          <ArrowRight className="route-hub-loop-arrow" size={22} aria-hidden="true" />
+          <article className="route-hub-loop-step">
+            <span className="route-hub-loop-step__number">3</span>
+            <RotateCcw size={20} aria-hidden="true" />
+            <div><strong>{t("routeHub.loop.review")}</strong><small>{t("routeHub.loop.reviewDetail")}</small></div>
+            <span className="route-hub-loop-step__evidence"><strong>{t("routeHub.loop.reviewEvidence")}</strong><code>O(n)</code></span>
+          </article>
+        </div>
       </section>
     </div>
   );
