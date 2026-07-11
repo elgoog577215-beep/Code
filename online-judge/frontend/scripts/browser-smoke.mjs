@@ -1142,13 +1142,16 @@ const scenarios = [
       record("student home has no horizontal overflow", overflow <= 1, `overflow ${overflow}`);
       record("student no longer starts with invite", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
       await page.locator(".header-signout-button").first().click();
-      await page.locator(".student-entry-link").filter({ hasText: "登录查看课堂作业" }).first().waitFor({ state: "visible", timeout: 5000 });
+      await page.locator(".student-guest-assignment-preview").first().waitFor({ state: "visible", timeout: 5000 });
       const studentKeysAfterSignOut = await page.evaluate(() =>
         Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index)).filter(key => key?.startsWith("wzai:student"))
       );
-      const signedOutHomeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
+      const guestPreviewRowCount = await page.locator(".student-guest-assignment-row").count();
+      const guestLoginActionCount = await page.locator(".student-guest-assignment-preview .student-guest-login-action").count();
       record("student sign out clears student session keys", studentKeysAfterSignOut.length === 0, studentKeysAfterSignOut.join("|"));
-      record("student sign out returns classroom entry to login", signedOutHomeText.includes("登录查看课堂作业") && !signedOutHomeText.includes("课堂编程作业"), signedOutHomeText);
+      record("student sign out keeps a classroom assignment preview", guestPreviewRowCount === 3, `guest preview rows ${guestPreviewRowCount}`);
+      record("student guest view keeps one classroom login action", guestLoginActionCount === 1, `guest login actions ${guestLoginActionCount}`);
+      record("student guest view separates public practice and locked tools", await page.locator(".student-guest-practice").count() === 1 && await page.locator(".student-guest-tools").count() === 1);
       await page.evaluate(studentJson => {
         window.sessionStorage.setItem("wzai:student", studentJson);
         window.sessionStorage.setItem("wzai:student:7", studentJson);
