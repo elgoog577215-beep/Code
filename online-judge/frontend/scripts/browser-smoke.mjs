@@ -207,7 +207,7 @@ const assignmentSubmissionItems = Array.from({ length: 12 }, (_, index) => {
     verdict: accepted ? "ACCEPTED" : index % 3 === 1 ? "WRONG_ANSWER" : "RUNTIME_ERROR",
     languageName: index % 2 === 0 ? "Python 3" : "C++17",
     executionTime: accepted ? 0.032 : 0.047,
-    memoryUsed: 8192 + index * 128,
+    memoryUsed: index === 0 ? 0 : 8192 + index * 128,
     submittedAt: `2026-07-${String(11 - Math.floor(index / 4)).padStart(2, "0")}T${String(11 - (index % 4)).padStart(2, "0")}:16:00`
   };
 });
@@ -1301,12 +1301,27 @@ const scenarios = [
   {
     name: "student-assignment-submissions",
     path: "/app/student/assignments/7/submissions",
-    afterChecks: async page => {
+    afterChecks: async (page, viewport) => {
       const rowCount = await page.locator(".student-submission-row").count();
       const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
+      const filterHeight = await page.locator(".student-submission-filters").evaluate(element => element.getBoundingClientRect().height);
+      const hiddenLabelMetrics = await page.locator(".student-submission-history .sr-only").evaluateAll(elements => elements.map(element => {
+        const rect = element.getBoundingClientRect();
+        return { width: rect.width, height: rect.height, position: getComputedStyle(element).position };
+      }));
+      const visibleFilterLabels = await page.locator(".student-submission-filter-label").allTextContents();
       record("student submissions route is stable", page.url().endsWith("/app/student/assignments/7/submissions"), page.url());
       record("student submissions show truthful summary", pageText.includes("共提交12次") && pageText.includes("通过4次") && pageText.includes("涉及2道题"), pageText);
       record("student submissions paginate first page", rowCount === 8, `rows ${rowCount}`);
+      record("student submissions hides assistive-only labels", hiddenLabelMetrics.length === 4 && hiddenLabelMetrics.every(item => item.width <= 1 && item.height <= 1 && item.position === "absolute"), JSON.stringify(hiddenLabelMetrics));
+      record("student submissions keeps only compact visible filter labels", visibleFilterLabels.join("|") === "判题结果：|语言：", visibleFilterLabels.join("|"));
+      if (viewport.name === "desktop") {
+        record("student submissions filter bar stays on one compact row", filterHeight <= 72, `height ${filterHeight}`);
+      }
+      record("student submissions shows descending time sort", await page.locator(".student-submission-sort svg").count() === 1);
+      record("student submissions uses icon pagination and page numbers", await page.getByRole("button", { name: "提交记录上一页" }).count() === 1 && await page.getByRole("button", { name: "提交记录下一页" }).count() === 1 && await page.locator(".student-submission-page-number").count() === 2);
+      const firstRowText = ((await page.locator(".student-submission-row").first().textContent()) || "").replace(/\s+/g, "");
+      record("student submissions avoids false zero memory precision", firstRowText.includes("-") && !firstRowText.includes("0.0MB"), firstRowText);
       await page.getByRole("button", { name: "通过", exact: true }).click();
       await page.waitForFunction(() => document.querySelectorAll(".student-submission-row").length === 4);
       record("student submissions verdict filter works", await page.locator(".student-submission-row").count() === 4);

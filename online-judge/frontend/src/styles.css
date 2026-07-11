@@ -21998,6 +21998,18 @@ button.standard-library-governance-path {
 }
 
 /* Student assignment overview, ranking, and submission history pages. */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 .main-shell:has(.student-assignment-insights-page) {
   width: 100%;
   max-width: none;
@@ -22424,11 +22436,27 @@ button.standard-library-governance-path {
 .student-submission-filters {
   min-height: 66px;
   display: grid;
-  grid-template-columns: minmax(150px, 0.8fr) auto minmax(150px, 0.8fr) minmax(180px, 1fr);
+  grid-template-columns: 188px auto 250px 250px;
   align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
+  justify-content: start;
+  gap: 1.75rem;
+  padding: 0.65rem 1rem;
   border-bottom: 1px solid var(--line);
+}
+
+.student-submission-filter {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.student-submission-filter-label {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 720;
+  white-space: nowrap;
 }
 
 .student-submission-filters select,
@@ -22469,6 +22497,7 @@ button.standard-library-governance-path {
 
 .student-submission-search {
   position: relative;
+  display: block;
 }
 
 .student-submission-search svg {
@@ -22499,6 +22528,12 @@ button.standard-library-governance-path {
   background: color-mix(in srgb, var(--surface-muted) 45%, var(--surface-strong));
   font-size: 0.72rem;
   font-weight: 780;
+}
+
+.student-submission-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .student-submission-row {
@@ -22587,7 +22622,14 @@ button.standard-library-governance-path {
   font: inherit;
 }
 
-.student-submission-pagination button:disabled { opacity: 0.45; }
+.student-submission-pagination button { cursor: pointer; }
+.student-submission-pagination button:disabled { cursor: default; opacity: 0.45; }
+.student-submission-pagination .student-submission-page-number.is-active {
+  border-color: var(--brand);
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 44%, var(--surface-strong));
+  font-weight: 850;
+}
 
 .student-submission-detail-backdrop {
   position: fixed;

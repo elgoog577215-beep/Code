@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bookmark, CheckCircle2, Clock3, Eye, Search, Send, X } from "lucide-react";
+import { ArrowDown, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Eye, Search, Send, X } from "lucide-react";
 import { Navigate, useParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { StudentAssignmentSubmissionPage, SubmissionResult } from "../../shared/api/types";
@@ -27,8 +27,14 @@ function runtimeText(value?: number | null) {
 }
 
 function memoryText(value?: number | null) {
-  if (value === null || value === undefined) return "-";
+  if (value === null || value === undefined || value <= 0) return "-";
   return `${(value / 1024).toFixed(1)} MB`;
+}
+
+function paginationNumbers(totalPages: number, currentPage: number) {
+  const visibleCount = Math.min(totalPages, 5);
+  const start = Math.max(0, Math.min(currentPage - 2, totalPages - visibleCount));
+  return Array.from({ length: visibleCount }, (_, index) => start + index);
 }
 
 export default function StudentAssignmentSubmissionsPage() {
@@ -112,26 +118,30 @@ export default function StudentAssignmentSubmissionsPage() {
       <section className="student-submission-history" aria-labelledby="student-submission-history-title">
         <h2 className="sr-only" id="student-submission-history-title">我的提交记录</h2>
         <div className="student-submission-filters">
-          <label>
+          <label className="student-submission-filter student-submission-filter--problem">
             <span className="sr-only">按题目筛选</span>
             <select value={problemId} onChange={event => setProblemId(event.target.value)}>
               <option value="">全部题目</option>
               {workspace.assignment.tasks.map(task => <option value={task.problemId} key={task.problemId}>{task.title}</option>)}
             </select>
           </label>
-          <div className="student-submission-verdict-filter" role="group" aria-label="按判题结果筛选">
-            <button type="button" className={!accepted ? "is-active" : ""} onClick={() => setAccepted("")}>全部</button>
-            <button type="button" className={accepted === "true" ? "is-active" : ""} onClick={() => setAccepted("true")}>通过</button>
-            <button type="button" className={accepted === "false" ? "is-active" : ""} onClick={() => setAccepted("false")}>未通过</button>
+          <div className="student-submission-filter student-submission-filter--verdict">
+            <span className="student-submission-filter-label">判题结果：</span>
+            <div className="student-submission-verdict-filter" role="group" aria-label="按判题结果筛选">
+              <button type="button" className={!accepted ? "is-active" : ""} onClick={() => setAccepted("")}>全部</button>
+              <button type="button" className={accepted === "true" ? "is-active" : ""} onClick={() => setAccepted("true")}>通过</button>
+              <button type="button" className={accepted === "false" ? "is-active" : ""} onClick={() => setAccepted("false")}>未通过</button>
+            </div>
           </div>
-          <label>
+          <label className="student-submission-filter student-submission-filter--language">
+            <span className="student-submission-filter-label">语言：</span>
             <span className="sr-only">按语言筛选</span>
             <select value={languageName} onChange={event => setLanguageName(event.target.value)}>
               <option value="">全部语言</option>
               {languages.map(language => <option value={language} key={language}>{language}</option>)}
             </select>
           </label>
-          <label className="student-submission-search">
+          <label className="student-submission-filter student-submission-search">
             <Search size={17} aria-hidden="true" />
             <span className="sr-only">搜索提交编号</span>
             <input inputMode="numeric" placeholder="搜索提交编号" value={submissionId} onChange={event => setSubmissionId(event.target.value.replace(/\D/g, ""))} />
@@ -142,7 +152,7 @@ export default function StudentAssignmentSubmissionsPage() {
           <>
             <div className="student-submission-table">
               <div className="student-submission-table__header" aria-hidden="true">
-                <span>提交编号</span><span>提交时间</span><span>题目</span><span>判题结果</span><span>语言</span><span>用时</span><span>内存</span><span>操作</span>
+                <span>提交编号</span><span className="student-submission-sort">提交时间<ArrowDown size={14} /></span><span>题目</span><span>判题结果</span><span>语言</span><span>用时</span><span>内存</span><span>操作</span>
               </div>
               {data.items.map((item, index) => (
                 <button type="button" className={`student-submission-row${index === 0 && page === 0 ? " is-latest" : ""}`} onClick={() => void openDetail(item.id)} key={item.id}>
@@ -160,9 +170,20 @@ export default function StudentAssignmentSubmissionsPage() {
             <footer className="student-submission-pagination">
               <span>{data.totalElements ? `${data.page * data.size + 1}-${Math.min((data.page + 1) * data.size, data.totalElements)} / ${data.totalElements}` : "0 / 0"}</span>
               <div>
-                <button type="button" disabled={data.page <= 0} onClick={() => setPage(current => Math.max(0, current - 1))}>上一页</button>
-                <strong>{data.page + 1}</strong>
-                <button type="button" disabled={data.page + 1 >= data.totalPages} onClick={() => setPage(current => current + 1)}>下一页</button>
+                <button type="button" aria-label="提交记录上一页" disabled={data.page <= 0} onClick={() => setPage(current => Math.max(0, current - 1))}><ChevronLeft size={17} /></button>
+                {paginationNumbers(data.totalPages, data.page).map(pageNumber => (
+                  <button
+                    type="button"
+                    className={`student-submission-page-number${pageNumber === data.page ? " is-active" : ""}`}
+                    aria-label={`第 ${pageNumber + 1} 页`}
+                    aria-current={pageNumber === data.page ? "page" : undefined}
+                    onClick={() => setPage(pageNumber)}
+                    key={pageNumber}
+                  >
+                    {pageNumber + 1}
+                  </button>
+                ))}
+                <button type="button" aria-label="提交记录下一页" disabled={data.page + 1 >= data.totalPages} onClick={() => setPage(current => current + 1)}><ChevronRight size={17} /></button>
               </div>
             </footer>
           </>

@@ -13,7 +13,7 @@
 - The three routes share the same assignment title, class metadata, deadline, primary action, and tab navigation. The selected tab remains clear without adding another page-level sidebar.
 - The assignment page follows the reference hierarchy of summary band, task progress table, and compact guidance footer. The fixture has two real tasks rather than the reference's four sample tasks, so the page is intentionally shorter.
 - The ranking page uses the reference's main-table and contextual-sidebar structure. It shows the first nine students when the current student is near the top, masks classmates, highlights the current student, and explicitly states that ranking is progress-only with shared ranks.
-- The submission page matches the reference's summary, inline filters, eight-row history, verdict badges, and pagination. Opening a row produces a focused code-detail dialog and closing it returns to the unchanged list.
+- The submission page matches the reference's summary, compact single-row filters, descending-time indicator, eight-row history, verdict badges, icon pagination, and numbered pages. Assistive labels remain available to screen readers without becoming visible duplicate headings. Opening a row produces a focused code-detail dialog and closing it returns to the unchanged list.
 - Desktop width, outer frame, spacing rhythm, thin dividers, restrained teal accents, and 7-8px radii align with the existing product tokens and selected concepts.
 - At 390px, summary metrics become a stable two-column grid, tables become readable stacked rows, filters stack without clipping, and the detail dialog remains inside the viewport.
 - The concepts contain no photography or custom illustration. All controls use the project's Lucide icon library and existing design tokens.
@@ -26,7 +26,7 @@
 - [x] Submission filters, pagination, and personal submission detail work.
 - [x] Student authorization and class-bound assignment access are enforced by the backend.
 - [x] Desktop and mobile light/dark captures have no horizontal overflow or page errors.
-- [x] Browser smoke: 103 checks passed across three pages and two viewports.
+- [x] Browser smoke: 114 checks passed across three pages and two viewports; 24 focused checks passed again at the 1586 x 992 reference viewport.
 - [x] Backend: 10 tests passed, including a full Spring/JPA context startup.
 
 **Follow-up Polish**
