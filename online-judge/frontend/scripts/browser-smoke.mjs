@@ -175,6 +175,70 @@ const trajectory = {
   ]
 };
 
+const assignmentLeaderboard = {
+  assignmentId: 7,
+  totalStudents: 10,
+  totalTasks: 2,
+  myRank: 4,
+  tiedStudentCount: 3,
+  rankingRule: "PROGRESS_ONLY_V1",
+  generatedAt: "2026-07-11T11:42:00",
+  rows: [
+    { rank: 1, displayName: "王同学", completedTasks: 2, totalTasks: 2, attemptCount: 3, lastSubmittedAt: "2026-07-11T10:28:00", currentStudent: false },
+    { rank: 1, displayName: "李同学", completedTasks: 2, totalTasks: 2, attemptCount: 5, lastSubmittedAt: "2026-07-11T10:05:00", currentStudent: false },
+    { rank: 1, displayName: "陈同学", completedTasks: 2, totalTasks: 2, attemptCount: 4, lastSubmittedAt: "2026-07-11T09:45:00", currentStudent: false },
+    { rank: 4, studentProfileId: 41, displayName: "学生甲（我）", completedTasks: 1, totalTasks: 2, attemptCount: 4, lastSubmittedAt: "2026-07-11T09:16:00", currentStudent: true },
+    { rank: 4, displayName: "林同学", completedTasks: 1, totalTasks: 2, attemptCount: 2, lastSubmittedAt: "2026-07-10T20:20:00", currentStudent: false },
+    { rank: 4, displayName: "周同学", completedTasks: 1, totalTasks: 2, attemptCount: 6, lastSubmittedAt: "2026-07-10T19:15:00", currentStudent: false },
+    { rank: 7, displayName: "吴同学", completedTasks: 0, totalTasks: 2, attemptCount: 1, lastSubmittedAt: "2026-07-10T18:40:00", currentStudent: false },
+    { rank: 7, displayName: "郑同学", completedTasks: 0, totalTasks: 2, attemptCount: 0, lastSubmittedAt: null, currentStudent: false },
+    { rank: 7, displayName: "孙同学", completedTasks: 0, totalTasks: 2, attemptCount: 0, lastSubmittedAt: null, currentStudent: false },
+    { rank: 7, displayName: "赵同学", completedTasks: 0, totalTasks: 2, attemptCount: 0, lastSubmittedAt: null, currentStudent: false }
+  ]
+};
+
+const assignmentSubmissionItems = Array.from({ length: 12 }, (_, index) => {
+  const accepted = index % 3 === 0;
+  const problemId = index % 2 === 0 ? 101 : 102;
+  return {
+    id: 9001 + index,
+    problemId,
+    problemTitle: problemId === 101 ? "求和边界" : "循环边界",
+    verdict: accepted ? "ACCEPTED" : index % 3 === 1 ? "WRONG_ANSWER" : "RUNTIME_ERROR",
+    languageName: index % 2 === 0 ? "Python 3" : "C++17",
+    executionTime: accepted ? 0.032 : 0.047,
+    memoryUsed: 8192 + index * 128,
+    submittedAt: `2026-07-${String(11 - Math.floor(index / 4)).padStart(2, "0")}T${String(11 - (index % 4)).padStart(2, "0")}:16:00`
+  };
+});
+
+function assignmentSubmissionPage(url) {
+  const page = Number(url.searchParams.get("page") || 0);
+  const size = Number(url.searchParams.get("size") || 8);
+  const accepted = url.searchParams.get("accepted");
+  const problemId = url.searchParams.get("problemId");
+  const languageName = url.searchParams.get("languageName");
+  const submissionId = url.searchParams.get("submissionId");
+  const filtered = assignmentSubmissionItems.filter(item =>
+    (!accepted || String(item.verdict === "ACCEPTED") === accepted) &&
+    (!problemId || String(item.problemId) === problemId) &&
+    (!languageName || item.languageName === languageName) &&
+    (!submissionId || String(item.id) === submissionId)
+  );
+  return {
+    assignmentId: 7,
+    totalSubmissionCount: 12,
+    acceptedSubmissionCount: 4,
+    distinctProblemCount: 2,
+    latestSubmittedAt: assignmentSubmissionItems[0].submittedAt,
+    totalElements: filtered.length,
+    totalPages: Math.ceil(filtered.length / size),
+    page,
+    size,
+    items: filtered.slice(page * size, (page + 1) * size)
+  };
+}
+
 const abilityProfile = {
   student,
   mergedStudentProfileIds: [41],
@@ -1197,26 +1261,70 @@ const scenarios = [
   {
     name: "student-assignment",
     path: "/app/student/assignments/7",
-    afterChecks: async (page, viewport) => {
-      const navCount = await page.locator(".top-nav__link").count();
-      const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      const workbenchText = ((await page.locator(".problem-workbench").first().textContent()) || "").replace(/\s+/g, "");
-      const taskItemHeight = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().height);
-      const taskSidebarWidth = await page.locator(".problem-task-sidebar").first().evaluate(element => element.getBoundingClientRect().width);
-      const taskItemWidth = await page.locator(".problem-task-item").first().evaluate(element => element.getBoundingClientRect().width);
-      record("student assignment keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
-      record("student assignment redirects to workbench", page.url().includes("/app/student/assignments/7/problems/101"), page.url());
-      record("student assignment workbench has task list", workbenchText.includes("求和边界") && workbenchText.includes("循环边界"), workbenchText);
-      record("student assignment task list is compact", taskItemHeight <= 48, `item height ${taskItemHeight}`);
-      if (viewport.name === "mobile") {
-        record("student assignment mobile task list is readable", taskSidebarWidth >= viewport.width - 24 && taskItemWidth >= 140, `sidebar ${taskSidebarWidth}; item ${taskItemWidth}; viewport ${viewport.width}`);
-        await checkVisible(page, ".problem-mobile-jump", "student assignment mobile code jump");
-      }
+    afterChecks: async page => {
+      const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
+      const tabHrefs = await page.locator(".student-assignment-insights-tabs a").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
+      const rowCount = await page.locator(".student-assignment-progress-row").count();
+      const continueHref = await page.locator(".student-assignment-continue").getAttribute("href");
+      record("student assignment stays on assignment overview", page.url().endsWith("/app/student/assignments/7"), page.url());
+      record("student assignment has canonical three page navigation", tabHrefs.join("|") === "/app/student/assignments/7|/app/student/assignments/7/ranking|/app/student/assignments/7/submissions", tabHrefs.join("|"));
+      record("student assignment summary uses trajectory facts", pageText.includes("已通过1/2") && pageText.includes("总提交4次"), pageText);
+      record("student assignment lists every task", rowCount === assignment.tasks.length, `rows ${rowCount}`);
+      record("student assignment continue action opens coding page", continueHref?.startsWith("/app/student/assignments/7/problems/") === true, continueHref || "missing");
     },
     selectors: [
-      [".problem-task-sidebar", "student assignment task sidebar"],
-      [".panel--statement", "student assignment statement"],
-      [".panel--editor", "student assignment editor"]
+      [".student-assignment-insights-page", "student assignment overview"],
+      [".student-assignment-insights-tabs", "student assignment page navigation"],
+      [".student-assignment-progress-table", "student assignment progress table"]
+    ]
+  },
+  {
+    name: "student-assignment-ranking",
+    path: "/app/student/assignments/7/ranking",
+    afterChecks: async page => {
+      const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
+      const currentRows = await page.locator(".student-ranking-row.is-current").count();
+      const currentText = ((await page.locator(".student-ranking-row.is-current").textContent()) || "").replace(/\s+/g, "");
+      const tabHrefs = await page.locator(".student-assignment-insights-tabs a").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
+      record("student ranking route is stable", page.url().endsWith("/app/student/assignments/7/ranking"), page.url());
+      record("student ranking highlights current student", currentRows === 1 && currentText.includes("学生甲（我）") && currentText.includes("4"), currentText);
+      record("student ranking masks classmates", pageText.includes("王同学") && !pageText.includes("王小明"), pageText);
+      record("student ranking explains progress-only ties", pageText.includes("按已通过题数排名") && pageText.includes("同完成度并列") && pageText.includes("不按运行时间或提交速度"), pageText);
+      record("student ranking reuses canonical three page navigation", tabHrefs.length === 3, tabHrefs.join("|"));
+    },
+    selectors: [
+      [".student-ranking-table", "student assignment ranking table"],
+      [".student-ranking-context", "student assignment ranking context"],
+      [".student-assignment-insights-tabs a[aria-current='page']", "student assignment ranking active tab"]
+    ]
+  },
+  {
+    name: "student-assignment-submissions",
+    path: "/app/student/assignments/7/submissions",
+    afterChecks: async page => {
+      const rowCount = await page.locator(".student-submission-row").count();
+      const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
+      record("student submissions route is stable", page.url().endsWith("/app/student/assignments/7/submissions"), page.url());
+      record("student submissions show truthful summary", pageText.includes("共提交12次") && pageText.includes("通过4次") && pageText.includes("涉及2道题"), pageText);
+      record("student submissions paginate first page", rowCount === 8, `rows ${rowCount}`);
+      await page.getByRole("button", { name: "通过", exact: true }).click();
+      await page.waitForFunction(() => document.querySelectorAll(".student-submission-row").length === 4);
+      record("student submissions verdict filter works", await page.locator(".student-submission-row").count() === 4);
+      await page.getByRole("button", { name: "全部", exact: true }).click();
+      await page.waitForFunction(() => document.querySelectorAll(".student-submission-row").length === 8);
+      await page.locator(".student-submission-row").first().click();
+      await page.locator(".student-submission-detail").waitFor({ state: "visible", timeout: 5000 });
+      await page.waitForFunction(() => document.querySelector(".student-submission-detail h2")?.textContent?.includes("#9001"), null, { timeout: 5000 });
+      const detailText = ((await page.locator(".student-submission-detail").textContent()) || "").replace(/\s+/g, "");
+      record("student submissions open personal submission detail", detailText.includes("#9001") && detailText.includes("求和边界"), detailText);
+      await page.getByRole("button", { name: "关闭提交详情" }).click();
+      await page.locator(".student-submission-detail").waitFor({ state: "detached", timeout: 5000 });
+      await page.locator(".student-submission-history").click({ position: { x: 2, y: 2 } });
+    },
+    selectors: [
+      [".student-submission-history", "student assignment submission history"],
+      [".student-submission-filters", "student assignment submission filters"],
+      [".student-submission-table", "student assignment submission table"]
     ]
   },
   {
@@ -1582,7 +1690,11 @@ const scenarios = [
 const viewports = [
   { name: "mobile", width: 390, height: 844 },
   { name: "tablet", width: 820, height: 900 },
-  { name: "desktop", width: 1440, height: 900 }
+  {
+    name: "desktop",
+    width: Number(process.env.BROWSER_SMOKE_DESKTOP_WIDTH || 1440),
+    height: Number(process.env.BROWSER_SMOKE_DESKTOP_HEIGHT || 900)
+  }
 ];
 
 const checks = [];
@@ -1665,6 +1777,8 @@ async function routeApi(route) {
   if (path === "/api/student/assignments/8/profile/41/trajectory") return json(route, { ...trajectory, assignment: studentAssignments[1], totalTasks: 1, completedTasks: 0 });
   if (path === "/api/student/assignments/9/profile/41/trajectory") return json(route, { ...trajectory, assignment: studentAssignments[2], totalTasks: 1, completedTasks: 0 });
   if (path === "/api/student/assignments/10/profile/41/trajectory") return json(route, { ...trajectory, assignment: studentAssignments[3], totalTasks: 3, completedTasks: 3 });
+  if (path === "/api/student/assignments/7/leaderboard") return json(route, assignmentLeaderboard);
+  if (path === "/api/student/assignments/7/submissions") return json(route, assignmentSubmissionPage(url));
   if (path === "/api/student/profile/41/ability-profile") return json(route, abilityProfile);
   if (path === "/api/student/profile/41/recommendations") return json(route, recommendation);
   if (path === "/api/student/profile/41/recommendation-clicks" && method === "POST") return empty(route);
@@ -1696,7 +1810,11 @@ async function routeApi(route) {
     studentFeedbackViewCount = 0;
     return json(route, submissionPendingResult);
   }
-  if (path === "/api/submissions/9001") return json(route, submissionResult);
+  if (/^\/api\/submissions\/\d+$/.test(path)) {
+    const id = Number(path.split("/").at(-1));
+    const item = assignmentSubmissionItems.find(candidate => candidate.id === id);
+    return json(route, item ? { ...submissionResult, ...item, sourceCode: submissionResult.sourceCode } : submissionResult);
+  }
   if (path === "/api/submissions/9001/student-ai-feedback/view" && method === "POST") {
     studentFeedbackViewCount += 1;
     return empty(route);

@@ -27,6 +27,8 @@ import type {
   Readiness,
   RecommendationEffectiveness,
   StudentAbilityProfile,
+  StudentAssignmentLeaderboard,
+  StudentAssignmentSubmissionPage,
   StudentIdentityAudit,
   StudentRecommendation,
   StudentProfile,
@@ -140,6 +142,19 @@ export const api = {
 
   studentTrajectory: (assignmentId: number, studentProfileId: number) =>
     request<StudentTrajectory>(`/api/student/assignments/${assignmentId}/profile/${studentProfileId}/trajectory`),
+  studentAssignmentLeaderboard: (assignmentId: number) =>
+    request<StudentAssignmentLeaderboard>(`/api/student/assignments/${assignmentId}/leaderboard`),
+  studentAssignmentSubmissions: (assignmentId: number, params?: {
+    problemId?: number | null;
+    accepted?: boolean | null;
+    verdict?: string | null;
+    languageName?: string | null;
+    submissionId?: number | null;
+    page?: number;
+    size?: number;
+  }) => request<StudentAssignmentSubmissionPage>(
+    `/api/student/assignments/${assignmentId}/submissions${queryString(params || {})}`
+  ),
   studentAbilityProfile: (studentProfileId: number) =>
     request<StudentAbilityProfile>(`/api/student/profile/${studentProfileId}/ability-profile`),
   studentRecommendations: (studentProfileId: number) =>

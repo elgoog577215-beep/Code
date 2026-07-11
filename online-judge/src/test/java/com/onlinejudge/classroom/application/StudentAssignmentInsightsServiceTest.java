@@ -13,6 +13,7 @@ import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.shared.security.AccessDeniedException;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
+import com.onlinejudge.submission.persistence.StudentAssignmentSubmissionQueryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,8 @@ class StudentAssignmentInsightsServiceTest {
     @Mock
     private SubmissionRepository submissionRepository;
     @Mock
+    private StudentAssignmentSubmissionQueryRepository submissionQueryRepository;
+    @Mock
     private ProblemRepository problemRepository;
 
     private StudentAssignmentInsightsService service;
@@ -54,6 +57,7 @@ class StudentAssignmentInsightsServiceTest {
                 assignmentTaskRepository,
                 studentProfileRepository,
                 submissionRepository,
+                submissionQueryRepository,
                 problemRepository
         );
     }
@@ -121,15 +125,19 @@ class StudentAssignmentInsightsServiceTest {
 
         when(assignmentRepository.findById(7L)).thenReturn(Optional.of(assignment));
         when(studentProfileRepository.findById(41L)).thenReturn(Optional.of(current));
-        when(submissionRepository.findStudentAssignmentSubmissions(
+        when(submissionQueryRepository.findStudentAssignmentSubmissions(
                 eq(7L),
                 eq(41L),
                 eq(102L),
+                eq(null),
+                eq(Submission.Verdict.ACCEPTED),
                 eq(Submission.Verdict.ACCEPTED),
                 eq("Python 3"),
                 eq(null),
                 any(PageRequest.class)
         )).thenReturn(new PageImpl<>(List.of(accepted), PageRequest.of(0, 8), 1));
+        when(submissionRepository.findByAssignmentIdAndStudentProfileIdOrderBySubmittedAtDesc(7L, 41L))
+                .thenReturn(List.of(accepted));
         when(problemRepository.findAllById(List.of(102L)))
                 .thenReturn(List.of(Problem.builder().id(102L).title("回文判断").build()));
 
@@ -137,6 +145,7 @@ class StudentAssignmentInsightsServiceTest {
                 7L,
                 41L,
                 102L,
+                null,
                 Submission.Verdict.ACCEPTED,
                 "Python 3",
                 null,

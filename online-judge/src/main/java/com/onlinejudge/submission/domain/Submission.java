@@ -12,7 +12,9 @@ import java.time.LocalDateTime;
 @Table(
         name = "submissions",
         indexes = {
-                @Index(name = "idx_submissions_problem_submitted_at", columnList = "problem_id, submitted_at")
+                @Index(name = "idx_submissions_problem_submitted_at", columnList = "problem_id, submitted_at"),
+                @Index(name = "idx_submissions_assignment_student_submitted_at", columnList = "assignment_id, student_profile_id, submitted_at"),
+                @Index(name = "idx_submissions_assignment_student_problem", columnList = "assignment_id, student_profile_id, problem_id")
         }
 )
 @Data

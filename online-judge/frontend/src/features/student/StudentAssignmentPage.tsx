@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, FileText, Search, Send, X } from "lucide-react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, ProblemCatalogItem, StudentProfile, StudentTrajectory } from "../../shared/api/types";
-import { difficultyLabel } from "../../shared/format";
+import { difficultyLabel, verdictLabel } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
 import { hasDraft, loadLastPublicProblem, loadStudent, saveStudent } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
+import {
+  assignmentTaskState,
+  formatRelativeTime,
+  latestTaskSubmission,
+  StudentAssignmentShell
+} from "./StudentAssignmentWorkspace";
 
 const PUBLIC_DIFFICULTIES = ["EASY", "MEDIUM", "HARD"] as const;
 type PublicDifficulty = "" | (typeof PUBLIC_DIFFICULTIES)[number];
@@ -318,12 +324,59 @@ export default function StudentAssignmentPage() {
     );
   }
 
-  if (!isPublic && student && assignment && nextTask) {
-    return <Navigate to={`/app/student/assignments/${assignment.id}/problems/${nextTask.problemId}?studentProfileId=${student.id}`} replace />;
-  }
-
   if (!student && !isPublic) {
     return <Navigate to="/app/student/login" replace />;
+  }
+
+  if (!isPublic && student && assignment) {
+    const latestSubmissionAt = trajectory?.tasks
+      .flatMap(task => task.submissions || [])
+      .map(item => item.submittedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
+    return (
+      <StudentAssignmentShell assignment={assignment} student={student} nextTask={nextTask} activeTab="assignment">
+        <section className="student-assignment-summary-band" aria-label="作业进度摘要">
+          <span><CheckCircle2 size={20} aria-hidden="true" />已通过 <strong>{trajectory?.completedTasks || 0}</strong> / {trajectory?.totalTasks || assignment.tasks.length}</span>
+          <span><Send size={20} aria-hidden="true" />总提交 <strong>{trajectory?.totalAttempts || 0}</strong> 次</span>
+          <span><Clock3 size={20} aria-hidden="true" />最近学习 <strong>{formatRelativeTime(latestSubmissionAt)}</strong></span>
+        </section>
+
+        <section className="student-assignment-progress-section" aria-labelledby="student-assignment-progress-title">
+          <h2 id="student-assignment-progress-title">题目进度</h2>
+          <div className="student-assignment-progress-table" role="list">
+            <div className="student-assignment-progress-header" aria-hidden="true">
+              <span>编号 / 题目</span><span>难度</span><span>状态</span><span>尝试次数</span><span>最近判题</span><span>操作</span>
+            </div>
+            {assignment.tasks.map((task, index) => {
+              const state = assignmentTaskState(task, trajectory);
+              const latest = latestTaskSubmission(state);
+              const passed = Boolean(state?.passed);
+              const selected = nextTask?.problemId === task.problemId && !passed;
+              return (
+                <div className={`student-assignment-progress-row${selected ? " is-next" : ""}`} role="listitem" key={task.problemId}>
+                  <span className="student-assignment-progress-main"><b>{index + 1}</b><strong>{task.title}</strong></span>
+                  <span>{difficultyLabel(task.difficulty)}</span>
+                  <span className={passed ? "is-passed" : "is-pending"}>{passed ? <CheckCircle2 size={17} aria-hidden="true" /> : <Clock3 size={17} aria-hidden="true" />}{passed ? "已通过" : "未通过"}</span>
+                  <span>{state?.attemptCount || 0}</span>
+                  <span className="student-assignment-latest-verdict"><strong>{latest ? verdictLabel(latest.verdict) : "-"}</strong><small>{latest ? formatRelativeTime(latest.submittedAt) : "-"}</small></span>
+                  <Link to={`/app/student/assignments/${assignment.id}/problems/${task.problemId}?studentProfileId=${student.id}`}>
+                    <FileText size={16} aria-hidden="true" />
+                    {selected ? "继续练习" : "查看题目"}
+                    <ArrowRight size={15} aria-hidden="true" />
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="student-assignment-note-band">
+          <div><strong>作业说明</strong><span>{assignment.description || "请按顺序完成作业题目，及时提交并查看评测反馈。"}</span></div>
+          <div><strong>学习建议</strong><span>优先完成未通过题目，再根据反馈复盘错误原因。</span></div>
+        </section>
+      </StudentAssignmentShell>
+    );
   }
 
   return (

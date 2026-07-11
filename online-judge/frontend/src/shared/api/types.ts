@@ -824,6 +824,48 @@ export interface SubmissionHistorySummary {
   dataCompletenessStatus?: "COMPLETE" | "IDENTITY_MISSING" | "ANALYSIS_MISSING" | "FEEDBACK_MISSING" | string | null;
 }
 
+export interface StudentAssignmentLeaderboard {
+  assignmentId: number;
+  totalStudents: number;
+  totalTasks: number;
+  myRank: number;
+  tiedStudentCount: number;
+  rankingRule: string;
+  generatedAt?: string;
+  rows: Array<{
+    rank: number;
+    studentProfileId?: number | null;
+    displayName: string;
+    completedTasks: number;
+    totalTasks: number;
+    attemptCount: number;
+    lastSubmittedAt?: string | null;
+    currentStudent: boolean;
+  }>;
+}
+
+export interface StudentAssignmentSubmissionPage {
+  assignmentId: number;
+  totalSubmissionCount: number;
+  acceptedSubmissionCount: number;
+  distinctProblemCount: number;
+  latestSubmittedAt?: string | null;
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  size: number;
+  items: Array<{
+    id: number;
+    problemId: number;
+    problemTitle: string;
+    verdict: Verdict | string;
+    languageName?: string | null;
+    executionTime?: number | null;
+    memoryUsed?: number | null;
+    submittedAt?: string | null;
+  }>;
+}
+
 export interface TeacherDataCompleteness {
   totalSubmissionCount: number;
   legalIdentityCount: number;
