@@ -163,10 +163,8 @@
   "studentHome": {
     "eyebrow": "Student",
     "title": "Start Practice",
-    "subtitleGuest": "Begin with the public problem bank; log in to see class assignments, mistakes, and personal records.",
+    "subtitleGuest": "Start with the public problem bank. No login needed.",
     "subtitleSignedIn": "{{name}}, choose what to continue today.",
-    "noteGuest": "Practice without logging in",
-    "noteSignedIn": "Assignments and review stay in sync",
     "taskCount": "{{count}} problems",
     "errors": {
       "publicBank": "The public problem bank is unavailable.",
@@ -179,23 +177,42 @@
     },
     "public": {
       "title": "Public Problem Bank",
-      "meta": "{{count}} problems · start now",
-      "description": "Start from basics, or search directly by problem number or title.",
+      "meta": "{{count}} problems",
+      "description": "Choose by difficulty or problem title.",
       "cta": "Start practice"
     },
     "login": {
-      "title": "Log in for class assignments",
-      "meta": "Class assignments and personal records",
-      "description": "After login, teacher tasks, submissions, and review suggestions appear here.",
-      "cta": "Log in"
+      "title": "Class Learning",
+      "meta": "Class assignments, mistake review, and learning records",
+      "description": "Log in to see class assignments, mistake review, and learning records.",
+      "cta": "Log in to view",
+      "shortcut": "Log in for class learning"
+    },
+    "guestPreview": {
+      "today": "Public Practice",
+      "todayHint": "Choose a problem and start practicing.",
+      "difficulty": "Difficulty",
+      "difficultyAria": "Public problem bank difficulty distribution",
+      "easy": "{{count}} basic",
+      "medium": "{{count}} intermediate",
+      "hard": "{{count}} challenge",
+      "viewAll": "View all",
+      "starterTitle": "Recommended start",
+      "starterAria": "Recommended starter problems",
+      "starterHint": {
+        "easy": "Good warm-up",
+        "medium": "Practice edges",
+        "hard": "Mixed challenge",
+        "unknown": "Open practice"
+      }
     },
     "assignment": {
-      "description": "Opening an assignment takes you to the next problem automatically.",
+      "description": "Open the next problem in this assignment.",
       "cta": "Open assignment"
     },
     "emptyAssignments": {
       "title": "No class assignments",
-      "meta": "They will appear here after your teacher publishes them"
+      "meta": "Waiting for your teacher to publish assignments."
     },
     "review": {
       "aria": "My mistake review",
@@ -207,7 +224,7 @@
       "profileBuilding": "Profile is still forming",
       "focusHint": "Review one problem around {{focus}} first.",
       "organizing": "Organizing recent mistakes.",
-      "empty": "Review cards will appear here after a few submissions."
+      "empty": "Mistake review appears after submissions."
     }
   },
   "studentPublic": {
@@ -254,7 +271,7 @@
     "title": "Teaching Analytics",
     "managementTitle": "Management Tools",
     "footnote": "Drill from class to assignment to problem for objective results.",
-    "managementFootnote": "Maintain classes, problems, the standard library, and runtime state.",
+    "managementFootnote": "Maintain classes, problems, and the standard library.",
     "groups": {
       "results": "Results",
       "management": "Management tools"
@@ -492,7 +509,7 @@
       "problemNotFound": "Problem not found",
       "problemNotFoundDescription": "Return to the assignment page and choose another problem.",
       "noAssignments": "No assignment data for this class yet.",
-      "noSubmissions": "No submission data yet. Charts will appear after submissions arrive.",
+      "noSubmissions": "No submission data yet.",
       "noInsight": "No attribution data yet.",
       "noEvidence": "No evidence samples yet.",
       "noKnowledgePath": "No knowledge path yet.",
@@ -513,7 +530,7 @@
     "assignmentCount": "{{count}} items",
     "loadingAssignments": "Loading assignments",
     "emptyAssignmentsTitle": "No assignments yet",
-    "emptyAssignmentsDescription": "After you create one, classroom entry points and student status will appear here.",
+    "emptyAssignmentsDescription": "Create an assignment first.",
     "viewDetails": "View details",
     "needsAttentionWithCount": "Review {{count}}",
     "metrics": {
@@ -575,7 +592,7 @@
       "repeatedIssue": "{{issue}} appears repeatedly",
       "problemLabel": "Problem first",
       "noProblemTitle": "Waiting for submissions",
-      "noProblemDescription": "A review recommendation will appear after students submit.",
+      "noProblemDescription": "No problems need review yet.",
       "problemWithIssue": "{{count}} need attention; main issue: {{issue}}.",
       "problemWithoutIssue": "{{count}} need attention; inspect student details before deciding the review.",
       "stable": "Stable"
@@ -715,7 +732,7 @@
       "governance": {
         "eyebrow": "Standard Library Governance",
         "title": "Candidate Review Workbench",
-        "description": "New candidates begin as provisional nodes. They promote automatically only after parent-path, evidence, confidence, and repetition gates pass; teachers can still review, edit, or reject them.",
+        "description": "Review AI-suggested skills and mistake points before adding them to the approved library.",
         "pendingCount": "Pending {{count}}",
         "refresh": "Refresh candidates",
         "summaryAria": "Governance summary",
@@ -724,7 +741,7 @@
         "noHighFrequencyPaths": "No frequent candidate paths yet.",
         "noWeakPaths": "No concentrated weak paths yet.",
         "emptyTitle": "No growth candidates",
-        "emptyDescription": "Candidates will appear here when AI diagnosis finds a standard-library gap.",
+        "emptyDescription": "No candidates to review.",
         "emptyFilteredTitle": "No matching candidates",
         "emptyFilteredDescription": "Adjust status, path, or keyword filters.",
         "metrics": {

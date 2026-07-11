@@ -557,9 +557,9 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
   const firstAttentionStudent = students.find(student => student.needsAttention) || null;
   const actionTitle = hasUnlinkedSubmissions ? "先补学生关联" : !hasSubmissions ? "等待提交" : problem.statusLabel === "需讲评" ? "先讲这题" : "继续观察";
   const actionCopy = hasUnlinkedSubmissions
-    ? "这道题已有提交证据，但没有可定位到学生的明细；先让提交关联到默认班级名单。"
+    ? "这道题已有提交，但还没有匹配到学生名单；先检查名单或提交关联。"
     : !hasSubmissions
-      ? "学生提交后，这里会自动形成错因、知识点和讲评建议。"
+      ? "暂无提交证据。"
       : topIssue?.interventionSuggestion || topAbility?.abilityPoint || "等待更多学生提交后再形成讲评建议。";
   return (
     <>
@@ -640,8 +640,8 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
                   title={hasUnlinkedSubmissions ? "有提交记录，但未关联学生名单" : "暂无学生提交"}
                   description={
                     hasUnlinkedSubmissions
-                      ? "开发数据里存在未绑定学生的提交；学生明细会在提交关联到名单后出现。"
-                      : "学生提交后，这里会出现每个人在这道题上的提交、通过、错因和进入详情。"
+                      ? "有提交未匹配到学生名单，请先检查名单或提交关联。"
+                      : "暂无学生提交。"
                   }
                 />
               )}

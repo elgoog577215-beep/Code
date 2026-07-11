@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, CircleCheck, ClipboardList, Clock3, History, LockKeyhole, LogIn, Play, RefreshCw, RotateCcw } from "lucide-react";
+import { ArrowRight, BookOpen, CircleCheck, ClipboardList, Clock3, LogIn, Play, RotateCcw } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { Assignment, ReviewCard, StudentAbilityProfile, StudentProfile } from "../../shared/api/types";
+import type { Assignment, ProblemCatalogItem, ReviewCard, StudentAbilityProfile, StudentProfile } from "../../shared/api/types";
 import { verdictLabel } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
 import { loadStudent, onActiveStudentChange } from "../../shared/storage";
@@ -35,6 +35,40 @@ function formatAssignmentDate(value?: string | null) {
   }).format(parsed);
 }
 
+type DifficultyKey = "easy" | "medium" | "hard" | "unknown";
+
+function problemDifficultyKey(value?: string | null): DifficultyKey {
+  switch (String(value || "").toUpperCase()) {
+    case "EASY":
+      return "easy";
+    case "MEDIUM":
+      return "medium";
+    case "HARD":
+      return "hard";
+    default:
+      return "unknown";
+  }
+}
+
+function pickStarterProblems(problems: ProblemCatalogItem[]) {
+  const selected: ProblemCatalogItem[] = [];
+  const hasProblem = (problem: ProblemCatalogItem) => selected.some(item => item.id === problem.id);
+  const takeDifficulty = (difficulty: string) => {
+    const problem = problems.find(item => !hasProblem(item) && String(item.difficulty || "").toUpperCase() === difficulty);
+    if (problem) {
+      selected.push(problem);
+    }
+  };
+
+  ["EASY", "EASY", "MEDIUM", "HARD"].forEach(takeDifficulty);
+  problems.forEach(problem => {
+    if (selected.length < 4 && !hasProblem(problem)) {
+      selected.push(problem);
+    }
+  });
+  return selected.slice(0, 4);
+}
+
 interface AssignmentProgress {
   completedTasks: number;
   totalTasks: number;
@@ -46,7 +80,7 @@ export default function StudentPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [progressByAssignmentId, setProgressByAssignmentId] = useState<Record<number, AssignmentProgress | null>>({});
   const [abilityProfile, setAbilityProfile] = useState<StudentAbilityProfile | null>(null);
-  const [problemCount, setProblemCount] = useState<number | null>(null);
+  const [publicProblems, setPublicProblems] = useState<ProblemCatalogItem[] | null>(null);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -60,10 +94,13 @@ export default function StudentPage() {
     let ignore = false;
     api.problemCatalog()
       .then(result => {
-        if (!ignore) setProblemCount(result.length);
+        if (!ignore) setPublicProblems(result);
       })
       .catch(() => {
-        if (!ignore) setFailed(t("studentHome.errors.publicBank"));
+        if (!ignore) {
+          setPublicProblems([]);
+          setFailed(t("studentHome.errors.publicBank"));
+        }
       });
     return () => {
       ignore = true;
@@ -151,11 +188,21 @@ export default function StudentPage() {
   const reviewCard = abilityProfile?.reviewCards?.[0] || null;
   const fineFocus = abilityProfile?.fineGrainedProfile?.fineGrainedTagFocus?.[0]?.label || null;
   const abilityFocus = abilityProfile?.fineGrainedProfile?.abilityPointFocus?.[0]?.label || abilityProfile?.primaryAbilityFocus || null;
-  const guestAssignmentPreview = useMemo(() => [
-    { title: t("studentHome.guestPreview.assignmentOne"), count: 2 },
-    { title: t("studentHome.guestPreview.assignmentTwo"), count: 1 },
-    { title: t("studentHome.guestPreview.assignmentThree"), count: 3 }
-  ], [t]);
+  const problemCount = publicProblems?.length ?? null;
+  const publicDifficultyCounts = useMemo(() => {
+    const counts = { EASY: 0, MEDIUM: 0, HARD: 0 };
+    (publicProblems || []).forEach(problem => {
+      const difficulty = String(problem.difficulty || "").toUpperCase();
+      if (difficulty === "EASY" || difficulty === "MEDIUM" || difficulty === "HARD") {
+        counts[difficulty] += 1;
+      }
+    });
+    return counts;
+  }, [publicProblems]);
+  const starterProblems = useMemo(() => pickStarterProblems(publicProblems || []), [publicProblems]);
+  const publicStartPath = starterProblems[0]
+    ? `/app/student/assignments/public/problems/${starterProblems[0].id}`
+    : "/app/student/assignments/public";
 
   function assignmentState(assignment: Assignment) {
     const progress = progressFor(assignment);
@@ -187,10 +234,13 @@ export default function StudentPage() {
             active: inProgressAssignmentCount
           })}</span>
         </div> : null}
-        {student ? <span className="student-home-command__note">
-          <RefreshCw size={14} aria-hidden="true" />
-          {t("studentHome.noteSignedIn")}
-        </span> : null}
+        {!student ? (
+          <Link className="student-home-command__guest-action" to="/app/student/login">
+            <LogIn size={15} aria-hidden="true" />
+            {t("studentHome.login.shortcut")}
+            <ArrowRight size={15} aria-hidden="true" />
+          </Link>
+        ) : null}
       </section>
 
       {!student ? (
@@ -202,72 +252,67 @@ export default function StudentPage() {
                 <h2 id="student-guest-practice-heading">{t("studentHome.guestPreview.today")}</h2>
               </div>
             </header>
-            <Link className="student-guest-practice__row" to="/app/student/assignments/public">
-              <span className="student-guest-practice__icon" aria-hidden="true"><BookOpen size={21} /></span>
-              <span className="student-guest-practice__main">
-                <strong>{t("studentHome.public.title")}</strong>
-                <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
-              </span>
-              <span className="student-guest-practice__difficulty" aria-label={t("studentHome.guestPreview.difficultyAria")}>
-                <small>{t("studentHome.guestPreview.difficulty")}</small>
-                <strong>{t("studentHome.guestPreview.easy")}</strong>
-                <strong>{t("studentHome.guestPreview.medium")}</strong>
-                <strong>{t("studentHome.guestPreview.hard")}</strong>
-              </span>
-              <span className="student-guest-practice__action">{t("studentHome.public.cta")}</span>
-            </Link>
-          </section>
+            <div className="student-guest-practice__panel">
+              <div className="student-guest-practice__summary">
+                <span className="student-guest-practice__icon" aria-hidden="true"><BookOpen size={21} /></span>
+                <span className="student-guest-practice__main">
+                  <strong>{t("studentHome.public.title")}</strong>
+                  <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
+                  <span>{t("studentHome.public.description")}</span>
+                </span>
+                <span className="student-guest-practice__difficulty" aria-label={t("studentHome.guestPreview.difficultyAria")}>
+                  <small>{t("studentHome.guestPreview.difficulty")}</small>
+                  <strong>{t("studentHome.guestPreview.easy", { count: publicDifficultyCounts.EASY })}</strong>
+                  <strong>{t("studentHome.guestPreview.medium", { count: publicDifficultyCounts.MEDIUM })}</strong>
+                  <strong>{t("studentHome.guestPreview.hard", { count: publicDifficultyCounts.HARD })}</strong>
+                </span>
+                <span className="student-guest-practice__actions">
+                  <Link className="student-guest-practice__action student-guest-practice__action--primary" to={publicStartPath}>
+                    <Play size={15} fill="currentColor" aria-hidden="true" />
+                    {t("studentHome.public.cta")}
+                  </Link>
+                  <Link className="student-guest-practice__action student-guest-practice__action--secondary" to="/app/student/assignments/public">
+                    {t("studentHome.guestPreview.viewAll")}
+                  </Link>
+                </span>
+              </div>
 
-          <section className="student-assignment-board student-guest-assignment-preview" aria-labelledby="student-guest-assignment-heading">
-            <header className="student-assignment-board__head student-guest-assignment-preview__head">
-              <span className="student-assignment-board__icon" aria-hidden="true"><LockKeyhole size={19} /></span>
-              <div>
-                <h2 id="student-guest-assignment-heading">{t("studentHome.guestPreview.continueTitle")}</h2>
-              </div>
-              <Link className="student-guest-login-action" to="/app/student/login">
-                <LogIn size={16} aria-hidden="true" />
-                {t("studentHome.guestPreview.loginAction")}
-              </Link>
-            </header>
-            <div className="student-assignment-table" role="list">
-              <div className="student-assignment-table__header" aria-hidden="true">
-                <span>{t("studentHome.dashboard.assignmentName")}</span>
-                <span>{t("studentHome.dashboard.className")}</span>
-                <span>{t("studentHome.dashboard.status")}</span>
-                <span>{t("studentHome.dashboard.problemCount")}</span>
-                <span>{t("studentHome.dashboard.progress")}</span>
-                <span />
-              </div>
-              {guestAssignmentPreview.map(item => (
-                <div className="student-guest-assignment-row" key={item.title} role="listitem">
-                  <span className="student-assignment-row__icon" aria-hidden="true"><LockKeyhole size={18} /></span>
-                  <span className="student-assignment-row__main">
-                    <strong>{item.title}</strong>
-                  </span>
-                  <span aria-hidden="true" />
-                  <span aria-hidden="true" />
-                  <span className="student-assignment-row__count">{t("studentHome.taskCount", { count: item.count })}</span>
-                  <span className="student-assignment-row__progress" aria-label={t("studentHome.guestPreview.progressLocked")}>
-                    <progress value={0} max={item.count} />
-                    <strong>0/{item.count}</strong>
-                  </span>
-                  <span aria-hidden="true" />
+              {starterProblems.length ? (
+                <div className="student-guest-starters">
+                  <h3>{t("studentHome.guestPreview.starterTitle")}</h3>
+                  <nav className="student-guest-starters__grid" aria-label={t("studentHome.guestPreview.starterAria")}>
+                    {starterProblems.map(problem => {
+                      const difficultyKey = problemDifficultyKey(problem.difficulty);
+                      return (
+                        <Link
+                          className={`student-guest-starter-card is-${difficultyKey}`}
+                          to={`/app/student/assignments/public/problems/${problem.id}`}
+                          key={problem.id}
+                        >
+                          <span className="student-guest-starter-card__badge">{t(`studentPublic.difficulty.${difficultyKey}`)}</span>
+                          <strong>{problem.title}</strong>
+                          <small>{t(`studentHome.guestPreview.starterHint.${difficultyKey}`)}</small>
+                          <ArrowRight size={16} aria-hidden="true" />
+                        </Link>
+                      );
+                    })}
+                  </nav>
                 </div>
-              ))}
+              ) : null}
             </div>
           </section>
 
-          <section className="student-guest-tools" aria-label={t("studentHome.guestPreview.toolsAria")}>
+          <section className="student-guest-login-card" aria-labelledby="student-guest-login-heading">
+            <span className="student-assignment-board__icon" aria-hidden="true"><LogIn size={19} /></span>
             <div>
-              <RotateCcw size={19} aria-hidden="true" />
-              <span><strong>{t("studentHome.guestPreview.reviewTitle")}</strong></span>
-              <LockKeyhole size={15} aria-hidden="true" />
+              <h2 id="student-guest-login-heading">{t("studentHome.login.title")}</h2>
+              <p>{t("studentHome.login.description")}</p>
+              <small>{t("studentHome.login.meta")}</small>
             </div>
-            <div>
-              <History size={19} aria-hidden="true" />
-              <span><strong>{t("studentHome.guestPreview.historyTitle")}</strong></span>
-              <LockKeyhole size={15} aria-hidden="true" />
-            </div>
+            <Link className="student-guest-login-action" to="/app/student/login">
+              <LogIn size={16} aria-hidden="true" />
+              {t("studentHome.login.cta")}
+            </Link>
           </section>
         </>
       ) : (

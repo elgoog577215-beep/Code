@@ -281,7 +281,7 @@ export default function ClassOverviewPage() {
         ) : !columns.length ? (
           <EmptyState title="暂无作业" description="新建作业后，这里会按学生和作业显示推进状态。" />
         ) : !progressRows.length ? (
-          <EmptyState title="暂无可定位到学生的提交" description="现有接口还没有返回学生明细，矩阵不会伪造未开始状态。" />
+          <EmptyState title="暂无可展示的学生进度" description="先查看作业或等待学生提交。" />
         ) : (
           <>
             <div className="class-progress-matrix class-progress-matrix--desktop">

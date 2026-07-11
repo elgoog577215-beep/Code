@@ -52,7 +52,7 @@ const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, fi
   "wzai:student-change",
   "wzai:theme",
   "教师",
-  "登录查看课堂作业",
+  "登录查看课堂学习",
   "暂无课堂作业",
   "教学结果分析",
   "AI 知识归因",

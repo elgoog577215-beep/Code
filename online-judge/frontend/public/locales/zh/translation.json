@@ -163,10 +163,8 @@
   "studentHome": {
     "eyebrow": "学生端",
     "title": "开始练习",
-    "subtitleGuest": "先从公共题库进入练习；登录后再查看课堂作业、错题和个人记录。",
+    "subtitleGuest": "无需登录，可先做公共题库。",
     "subtitleSignedIn": "{{name}}，选择今天要继续的练习。",
-    "noteGuest": "不登录也可以刷题",
-    "noteSignedIn": "课堂作业和复盘会同步更新",
     "taskCount": "{{count}} 题",
     "errors": {
       "publicBank": "公共题库暂时不可用。",
@@ -179,23 +177,42 @@
     },
     "public": {
       "title": "公共题库",
-      "meta": "{{count}} 题 · 可直接练习",
-      "description": "从基础题开始，也可以直接搜索题号或题目名称。",
-      "cta": "开始刷题"
+      "meta": "{{count}} 题",
+      "description": "按难度或题名选择题目。",
+      "cta": "开始练习"
     },
     "login": {
-      "title": "登录查看课堂作业",
-      "meta": "班级作业和个人记录",
-      "description": "登录后会显示老师发布的任务、提交记录和复盘建议。",
-      "cta": "去登录"
+      "title": "课堂学习",
+      "meta": "课堂作业、错题复盘、学习记录",
+      "description": "登录后查看课堂作业、错题复盘和学习记录。",
+      "cta": "登录查看",
+      "shortcut": "登录查看课堂学习"
+    },
+    "guestPreview": {
+      "today": "公开练习",
+      "todayHint": "选择一道题开始练习。",
+      "difficulty": "难度",
+      "difficultyAria": "公共题库难度分布",
+      "easy": "基础 {{count}} 题",
+      "medium": "提高 {{count}} 题",
+      "hard": "挑战 {{count}} 题",
+      "viewAll": "查看全部",
+      "starterTitle": "推荐起步",
+      "starterAria": "推荐起步题目",
+      "starterHint": {
+        "easy": "适合热身",
+        "medium": "练习边界",
+        "hard": "综合应用",
+        "unknown": "打开练习"
+      }
     },
     "assignment": {
-      "description": "进入后会自动打开当前作业的下一道题。",
+      "description": "进入当前作业的下一题。",
       "cta": "进入作业"
     },
     "emptyAssignments": {
       "title": "暂无课堂作业",
-      "meta": "老师发布后会自动出现在这里"
+      "meta": "等待老师发布作业。"
     },
     "review": {
       "aria": "我的错题复盘",
@@ -207,7 +224,7 @@
       "profileBuilding": "画像仍在形成",
       "focusHint": "先围绕 {{focus}} 做一次错题复盘。",
       "organizing": "正在整理最近错题。",
-      "empty": "完成几次提交后，这里会出现可复盘的错题卡片。"
+      "empty": "提交后会整理可复盘错题。"
     }
   },
   "studentPublic": {
@@ -254,7 +271,7 @@
     "title": "教学分析",
     "managementTitle": "管理工具",
     "footnote": "按班级、作业、题目递进查看客观结果。",
-    "managementFootnote": "维护班级、题库、标准库和运行状态。",
+    "managementFootnote": "维护班级、题库和标准库。",
     "groups": {
       "results": "结果查看",
       "management": "管理工具"
@@ -492,7 +509,7 @@
       "problemNotFound": "题目未找到",
       "problemNotFoundDescription": "返回作业页面重新选择题目。",
       "noAssignments": "当前班级暂无作业数据。",
-      "noSubmissions": "暂无提交数据，图表会在提交后生成。",
+      "noSubmissions": "暂无提交数据。",
       "noInsight": "暂无可归因数据。",
       "noEvidence": "暂无提交证据样本。",
       "noKnowledgePath": "暂无知识路径。",
@@ -513,7 +530,7 @@
     "assignmentCount": "{{count}} 个",
     "loadingAssignments": "正在读取作业",
     "emptyAssignmentsTitle": "暂无作业",
-    "emptyAssignmentsDescription": "新建作业后，这里会显示课堂入口和学生状态。",
+    "emptyAssignmentsDescription": "先新建一项作业。",
     "viewDetails": "查看详情",
     "needsAttentionWithCount": "需看 {{count}}",
     "metrics": {
@@ -575,7 +592,7 @@
       "repeatedIssue": "{{issue}}反复出现",
       "problemLabel": "先讲题目",
       "noProblemTitle": "等待提交",
-      "noProblemDescription": "学生提交后会自动推荐最需要讲评的题目。",
+      "noProblemDescription": "暂无需要讲评的题目。",
       "problemWithIssue": "{{count}} 名需关注，主要错因是 {{issue}}。",
       "problemWithoutIssue": "{{count}} 名需关注，先看学生明细再决定讲评。",
       "stable": "稳定"
@@ -715,7 +732,7 @@
       "governance": {
         "eyebrow": "标准库人工治理",
         "title": "候选审核工作台",
-        "description": "新候选先以临时节点参与诊断；满足父路径、证据、置信度和重复次数门禁后自动晋升，老师仍可审核、修正或拒绝。",
+        "description": "审核 AI 建议的新能力点和易错点，确认后再纳入正式库。",
         "pendingCount": "待处理 {{count}}",
         "refresh": "刷新候选",
         "summaryAria": "人工治理摘要",
@@ -724,7 +741,7 @@
         "noHighFrequencyPaths": "暂无高频候选路径。",
         "noWeakPaths": "暂无集中薄弱路径。",
         "emptyTitle": "暂无成长候选",
-        "emptyDescription": "当 AI 诊断发现标准库缺口时，候选会出现在这里。",
+        "emptyDescription": "暂无待审核候选。",
         "emptyFilteredTitle": "没有匹配候选",
         "emptyFilteredDescription": "调整状态、路径或关键词筛选。",
         "metrics": {

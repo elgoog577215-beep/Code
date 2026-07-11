@@ -118,10 +118,6 @@ function RouteHubPage() {
             </div>
           </div>
 
-          <p className="route-hub-service-status">
-            <CheckCircle2 size={15} aria-hidden="true" />
-            {t("routeHub.serviceStatus")}
-          </p>
         </div>
 
         <figure className="route-hub-preview-frame" aria-label={t("routeHub.preview.alt")}>

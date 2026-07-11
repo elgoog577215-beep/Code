@@ -96,7 +96,6 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       roleAria: "选择使用身份",
       studentCta: "我是学生",
       teacherCta: "我是教师",
-      serviceStatus: "评测服务运行正常",
       preview: {
         badge: "界面截图",
         alt: "学生端编程与评测界面预览截图，展示两数之和代码和全部通过的评测结果"
@@ -147,10 +146,8 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
     studentHome: {
       eyebrow: "学生端",
       title: "开始练习",
-      subtitleGuest: "先从公共题库进入练习；登录后再查看课堂作业、错题和个人记录。",
+      subtitleGuest: "无需登录，可先做公共题库。",
       subtitleSignedIn: "{{name}}，选择今天要继续的练习。",
-      noteGuest: "不登录也可以刷题",
-      noteSignedIn: "课堂作业和复盘会同步更新",
       taskCount: "{{count}} 题",
       dashboard: {
         greeting: "{{name}}，今天先完成课堂任务。",
@@ -180,7 +177,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         browsePublic: "浏览题库",
         recentReview: "最近复盘",
         viewReview: "查看复盘",
-        emptyReview: "完成一次提交后，最近错题会出现在这里。"
+        emptyReview: "提交后可复盘错题。"
       },
       errors: {
         publicBank: "公共题库暂时不可用。",
@@ -193,51 +190,42 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       },
       public: {
         title: "公共题库",
-        meta: "{{count}} 题 · 可直接练习",
-        description: "从基础题开始，也可以直接搜索题号或题目名称。",
-        cta: "开始刷题"
+        meta: "{{count}} 题",
+        description: "按难度或题名选择题目。",
+        cta: "开始练习"
       },
       login: {
-        title: "登录查看课堂作业",
-        meta: "班级作业和个人记录",
-        description: "登录后会显示老师发布的任务、提交记录和复盘建议。",
-        cta: "去登录"
+        title: "课堂学习",
+        meta: "课堂作业、错题复盘、学习记录",
+        description: "登录后查看课堂作业、错题复盘和学习记录。",
+        cta: "登录查看",
+        shortcut: "登录查看课堂学习"
       },
       guestPreview: {
-        today: "今日学习",
-        todayHint: "先完成一组公开练习，登录后继续课堂任务",
-        difficulty: "难度分布",
+        today: "公开练习",
+        todayHint: "选择一道题开始练习。",
+        difficulty: "难度",
         difficultyAria: "公共题库难度分布",
-        easy: "基础 6 题",
-        medium: "提高 6 题",
-        hard: "挑战 4 题",
-        continueTitle: "登录后继续",
-        continueHint: "查看并继续课堂作业进度",
-        loginAction: "登录查看",
-        assignmentOne: "课堂编程作业",
-        assignmentOneMeta: "循环边界与调试练习",
-        assignmentTwo: "AI 闭环复测作业",
-        assignmentTwoMeta: "验证修正后的解题方法",
-        assignmentThree: "算法巩固练习",
-        assignmentThreeMeta: "复习近期课堂知识点",
-        classLocked: "登录后显示",
-        locked: "待解锁",
-        deadlineLocked: "登录查看截止时间",
-        progressLocked: "登录后显示真实完成进度",
-        toolsAria: "登录后可用的学习工具",
-        reviewTitle: "错题复盘",
-        reviewHint: "回顾错题，巩固薄弱知识点",
-        historyTitle: "学习记录",
-        historyHint: "查看练习时长与完成记录",
-        loginRequired: "登录后可用"
+        easy: "基础 {{count}} 题",
+        medium: "提高 {{count}} 题",
+        hard: "挑战 {{count}} 题",
+        viewAll: "查看全部",
+        starterTitle: "推荐起步",
+        starterAria: "推荐起步题目",
+        starterHint: {
+          easy: "适合热身",
+          medium: "练习边界",
+          hard: "综合应用",
+          unknown: "打开练习"
+        }
       },
       assignment: {
-        description: "进入后会自动打开当前作业的下一道题。",
+        description: "进入当前作业的下一题。",
         cta: "进入作业"
       },
       emptyAssignments: {
         title: "暂无课堂作业",
-        meta: "老师发布后会自动出现在这里"
+        meta: "等待老师发布作业。"
       },
       review: {
         aria: "我的错题复盘",
@@ -249,7 +237,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         profileBuilding: "画像仍在形成",
         focusHint: "先围绕 {{focus}} 做一次错题复盘。",
         organizing: "正在整理最近错题。",
-        empty: "完成几次提交后，这里会出现可复盘的错题卡片。"
+        empty: "提交后会整理可复盘错题。"
       }
     },
     studentPublic: {
@@ -296,7 +284,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       title: "教学分析",
       managementTitle: "管理工具",
       footnote: "按班级、作业、题目递进查看客观结果。",
-      managementFootnote: "维护班级、题库、标准库和运行状态。",
+      managementFootnote: "维护班级、题库和标准库。",
       groups: {
         results: "结果查看",
         management: "管理工具"
@@ -526,7 +514,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         problemNotFound: "题目未找到",
         problemNotFoundDescription: "返回作业页面重新选择题目。",
         noAssignments: "当前班级暂无作业数据。",
-        noSubmissions: "暂无提交数据，图表会在提交后生成。",
+        noSubmissions: "暂无提交数据。",
         noInsight: "暂无可归因数据。",
         noEvidence: "暂无提交证据样本。",
         noKnowledgePath: "暂无知识路径。",
@@ -547,7 +535,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       assignmentCount: "{{count}} 个",
       loadingAssignments: "正在读取作业",
       emptyAssignmentsTitle: "暂无作业",
-      emptyAssignmentsDescription: "新建作业后，这里会显示课堂入口和学生状态。",
+      emptyAssignmentsDescription: "先新建一项作业。",
       viewDetails: "查看详情",
       needsAttentionWithCount: "需看 {{count}}",
       metrics: {
@@ -572,7 +560,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         queueTitle: "待处理队列",
         queueHint: "只放需要老师优先看的学生或题目。",
         queueEmptyTitle: "暂时没有待处理",
-        queueEmptyDescription: "学生提交后，这里会自动汇总需关注对象。",
+        queueEmptyDescription: "暂无需处理对象。",
         stable: "稳定",
         waiting: "等待提交",
         noSharedIssue: "暂无集中错因"
@@ -628,7 +616,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         repeatedIssue: "{{issue}}反复出现",
         problemLabel: "先讲题目",
         noProblemTitle: "等待提交",
-        noProblemDescription: "学生提交后会自动推荐最需要讲评的题目。",
+        noProblemDescription: "暂无需要讲评的题目。",
         problemWithIssue: "{{count}} 名需关注，主要错因是 {{issue}}。",
         problemWithoutIssue: "{{count}} 名需关注，先看学生明细再决定讲评。",
         stable: "稳定"
@@ -676,7 +664,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         priorityStudent: "优先学生",
         priorityProblem: "优先讲评题",
         lectureSuggestion: "讲评建议",
-        noEvidenceYet: "等待学生提交后形成错因和讲评建议。",
+        noEvidenceYet: "暂无提交证据。",
         submittedRatio: "提交人数"
       }
     },
@@ -938,7 +926,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         governance: {
           eyebrow: "标准库人工治理",
           title: "候选审核工作台",
-          description: "新候选先以临时节点参与诊断；满足父路径、证据、置信度和重复次数门禁后自动晋升，老师仍可审核、修正或拒绝。",
+          description: "审核 AI 建议的新能力点和易错点，确认后再纳入正式库。",
           pendingCount: "待处理 {{count}}",
           refresh: "刷新候选",
           summaryAria: "人工治理摘要",
@@ -947,7 +935,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
           noHighFrequencyPaths: "暂无高频候选路径。",
           noWeakPaths: "暂无集中薄弱路径。",
           emptyTitle: "暂无成长候选",
-          emptyDescription: "当 AI 诊断发现标准库缺口时，候选会出现在这里。",
+          emptyDescription: "暂无待审核候选。",
           emptyFilteredTitle: "没有匹配候选",
           emptyFilteredDescription: "调整状态、路径或关键词筛选。",
           metrics: {
@@ -1068,7 +1056,6 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       roleAria: "Choose your role",
       studentCta: "I'm a student",
       teacherCta: "I'm a teacher",
-      serviceStatus: "Judge service is running normally",
       preview: {
         badge: "Interface screenshot",
         alt: "Student coding and judge interface screenshot showing Two Sum code and an all-passed result"
@@ -1119,10 +1106,8 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
     studentHome: {
       eyebrow: "Student",
       title: "Start Practice",
-      subtitleGuest: "Begin with the public problem bank; log in to see class assignments, mistakes, and personal records.",
+      subtitleGuest: "Start with the public problem bank. No login needed.",
       subtitleSignedIn: "{{name}}, choose what to continue today.",
-      noteGuest: "Practice without logging in",
-      noteSignedIn: "Assignments and review stay in sync",
       taskCount: "{{count}} problems",
       dashboard: {
         greeting: "{{name}}, finish your class work first today.",
@@ -1152,7 +1137,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         browsePublic: "Browse problems",
         recentReview: "Recent Review",
         viewReview: "Open review",
-        emptyReview: "Recent mistakes will appear here after your first submission."
+        emptyReview: "Submit solutions to review recent mistakes."
       },
       errors: {
         publicBank: "The public problem bank is unavailable.",
@@ -1165,51 +1150,42 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       },
       public: {
         title: "Public Problem Bank",
-        meta: "{{count}} problems · start now",
-        description: "Start from basics, or search directly by problem number or title.",
+        meta: "{{count}} problems",
+        description: "Choose by difficulty or problem title.",
         cta: "Start practice"
       },
       login: {
-        title: "Log in for class assignments",
-        meta: "Class assignments and personal records",
-        description: "After login, teacher tasks, submissions, and review suggestions appear here.",
-        cta: "Log in"
+        title: "Class Learning",
+        meta: "Class assignments, mistake review, and learning records",
+        description: "Log in to see class assignments, mistake review, and learning records.",
+        cta: "Log in to view",
+        shortcut: "Log in for class learning"
       },
       guestPreview: {
-        today: "Today's Learning",
-        todayHint: "Start with public practice, then log in to continue class work",
+        today: "Public Practice",
+        todayHint: "Choose a problem and start practicing.",
         difficulty: "Difficulty",
         difficultyAria: "Public problem bank difficulty distribution",
-        easy: "6 basic",
-        medium: "6 intermediate",
-        hard: "4 challenge",
-        continueTitle: "Continue after login",
-        continueHint: "View and continue your class assignment progress",
-        loginAction: "Log in to view",
-        assignmentOne: "Class Programming Assignment",
-        assignmentOneMeta: "Loop boundaries and debugging",
-        assignmentTwo: "AI Follow-up Assignment",
-        assignmentTwoMeta: "Verify the revised solution",
-        assignmentThree: "Algorithm Review",
-        assignmentThreeMeta: "Review recent class topics",
-        classLocked: "Shown after login",
-        locked: "Locked",
-        deadlineLocked: "Log in for deadline",
-        progressLocked: "Real progress appears after login",
-        toolsAria: "Learning tools available after login",
-        reviewTitle: "Mistake Review",
-        reviewHint: "Revisit mistakes and strengthen weak concepts",
-        historyTitle: "Learning History",
-        historyHint: "View practice time and completion history",
-        loginRequired: "Available after login"
+        easy: "{{count}} basic",
+        medium: "{{count}} intermediate",
+        hard: "{{count}} challenge",
+        viewAll: "View all",
+        starterTitle: "Recommended start",
+        starterAria: "Recommended starter problems",
+        starterHint: {
+          easy: "Good warm-up",
+          medium: "Practice edges",
+          hard: "Mixed challenge",
+          unknown: "Open practice"
+        }
       },
       assignment: {
-        description: "Opening an assignment takes you to the next problem automatically.",
+        description: "Open the next problem in this assignment.",
         cta: "Open assignment"
       },
       emptyAssignments: {
         title: "No class assignments",
-        meta: "They will appear here after your teacher publishes them"
+        meta: "Waiting for your teacher to publish assignments."
       },
       review: {
         aria: "My mistake review",
@@ -1221,7 +1197,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         profileBuilding: "Profile is still forming",
         focusHint: "Review one problem around {{focus}} first.",
         organizing: "Organizing recent mistakes.",
-        empty: "Review cards will appear here after a few submissions."
+        empty: "Mistake review appears after submissions."
       }
     },
     studentPublic: {
@@ -1389,7 +1365,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       title: "Teaching Analytics",
       managementTitle: "Management Tools",
       footnote: "Drill from class to assignment to problem for objective results.",
-      managementFootnote: "Maintain classes, problems, the standard library, and runtime state.",
+      managementFootnote: "Maintain classes, problems, and the standard library.",
       groups: {
         results: "Results",
         management: "Management tools"
@@ -1619,7 +1595,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         problemNotFound: "Problem not found",
         problemNotFoundDescription: "Return to the assignment page and choose another problem.",
         noAssignments: "No assignment data for this class yet.",
-        noSubmissions: "No submission data yet. Charts will appear after submissions arrive.",
+        noSubmissions: "No submission data yet.",
         noInsight: "No attribution data yet.",
         noEvidence: "No evidence samples yet.",
         noKnowledgePath: "No knowledge path yet.",
@@ -1640,7 +1616,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       assignmentCount: "{{count}} items",
       loadingAssignments: "Loading assignments",
       emptyAssignmentsTitle: "No assignments yet",
-      emptyAssignmentsDescription: "After you create one, classroom entry points and student status will appear here.",
+      emptyAssignmentsDescription: "Create an assignment first.",
       viewDetails: "View details",
       needsAttentionWithCount: "Review {{count}}",
       metrics: {
@@ -1665,7 +1641,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         queueTitle: "Priority Queue",
         queueHint: "Only students or problems that need teacher action appear here.",
         queueEmptyTitle: "Nothing urgent",
-        queueEmptyDescription: "After students submit, priority items will appear here.",
+        queueEmptyDescription: "No items need attention.",
         stable: "Stable",
         waiting: "Waiting",
         noSharedIssue: "No shared issue yet"
@@ -1721,7 +1697,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         repeatedIssue: "{{issue}} appears repeatedly",
         problemLabel: "Problem first",
         noProblemTitle: "Waiting for submissions",
-        noProblemDescription: "A review recommendation will appear after students submit.",
+        noProblemDescription: "No problems need review yet.",
         problemWithIssue: "{{count}} need attention; main issue: {{issue}}.",
         problemWithoutIssue: "{{count}} need attention; inspect student details before deciding the review.",
         stable: "Stable"
@@ -1769,7 +1745,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         priorityStudent: "Priority Student",
         priorityProblem: "Priority Problem",
         lectureSuggestion: "Review Suggestion",
-        noEvidenceYet: "Shared issues and review suggestions will appear after students submit.",
+        noEvidenceYet: "No submission evidence yet.",
         submittedRatio: "Submitted"
       }
     },
@@ -1910,7 +1886,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         governance: {
           eyebrow: "Standard Library Governance",
           title: "Candidate Review Workbench",
-          description: "New candidates begin as provisional nodes. They promote automatically only after parent-path, evidence, confidence, and repetition gates pass; teachers can still review, edit, or reject them.",
+          description: "Review AI-suggested skills and mistake points before adding them to the approved library.",
           pendingCount: "Pending {{count}}",
           refresh: "Refresh candidates",
           summaryAria: "Governance summary",
@@ -1919,7 +1895,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
           noHighFrequencyPaths: "No frequent candidate paths yet.",
           noWeakPaths: "No concentrated weak paths yet.",
           emptyTitle: "No growth candidates",
-          emptyDescription: "Candidates will appear here when AI diagnosis finds a standard-library gap.",
+          emptyDescription: "No candidates to review.",
           emptyFilteredTitle: "No matching candidates",
           emptyFilteredDescription: "Adjust status, path, or keyword filters.",
           metrics: {
