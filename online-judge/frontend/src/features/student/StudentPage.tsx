@@ -152,9 +152,9 @@ export default function StudentPage() {
   const fineFocus = abilityProfile?.fineGrainedProfile?.fineGrainedTagFocus?.[0]?.label || null;
   const abilityFocus = abilityProfile?.fineGrainedProfile?.abilityPointFocus?.[0]?.label || abilityProfile?.primaryAbilityFocus || null;
   const guestAssignmentPreview = useMemo(() => [
-    { title: t("studentHome.guestPreview.assignmentOne"), description: t("studentHome.guestPreview.assignmentOneMeta"), count: 2 },
-    { title: t("studentHome.guestPreview.assignmentTwo"), description: t("studentHome.guestPreview.assignmentTwoMeta"), count: 1 },
-    { title: t("studentHome.guestPreview.assignmentThree"), description: t("studentHome.guestPreview.assignmentThreeMeta"), count: 3 }
+    { title: t("studentHome.guestPreview.assignmentOne"), count: 2 },
+    { title: t("studentHome.guestPreview.assignmentTwo"), count: 1 },
+    { title: t("studentHome.guestPreview.assignmentThree"), count: 3 }
   ], [t]);
 
   function assignmentState(assignment: Assignment) {
@@ -180,17 +180,17 @@ export default function StudentPage() {
           <BookOpen size={20} aria-hidden="true" />
           <h1>{t("studentHome.title")}</h1>
         </div>
-        <div className="student-home-command__message">
-          <strong>{student ? t("studentHome.dashboard.greeting", { name: student.displayName }) : t("studentHome.subtitleGuest")}</strong>
-          {student ? <span>{t("studentHome.dashboard.headerSummary", {
+        {student ? <div className="student-home-command__message">
+          <strong>{t("studentHome.dashboard.greeting", { name: student.displayName })}</strong>
+          <span>{t("studentHome.dashboard.headerSummary", {
             total: visibleAssignments.length,
             active: inProgressAssignmentCount
-          })}</span> : null}
-        </div>
-        <span className="student-home-command__note">
+          })}</span>
+        </div> : null}
+        {student ? <span className="student-home-command__note">
           <RefreshCw size={14} aria-hidden="true" />
-          {student ? t("studentHome.noteSignedIn") : t("studentHome.noteGuest")}
-        </span>
+          {t("studentHome.noteSignedIn")}
+        </span> : null}
       </section>
 
       {!student ? (
@@ -200,7 +200,6 @@ export default function StudentPage() {
               <span className="student-assignment-board__icon" aria-hidden="true"><BookOpen size={20} /></span>
               <div>
                 <h2 id="student-guest-practice-heading">{t("studentHome.guestPreview.today")}</h2>
-                <p>{t("studentHome.guestPreview.todayHint")}</p>
               </div>
             </header>
             <Link className="student-guest-practice__row" to="/app/student/assignments/public">
@@ -208,7 +207,6 @@ export default function StudentPage() {
               <span className="student-guest-practice__main">
                 <strong>{t("studentHome.public.title")}</strong>
                 <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
-                <span>{t("studentHome.public.description")}</span>
               </span>
               <span className="student-guest-practice__difficulty" aria-label={t("studentHome.guestPreview.difficultyAria")}>
                 <small>{t("studentHome.guestPreview.difficulty")}</small>
@@ -225,7 +223,6 @@ export default function StudentPage() {
               <span className="student-assignment-board__icon" aria-hidden="true"><LockKeyhole size={19} /></span>
               <div>
                 <h2 id="student-guest-assignment-heading">{t("studentHome.guestPreview.continueTitle")}</h2>
-                <p>{t("studentHome.guestPreview.continueHint")}</p>
               </div>
               <Link className="student-guest-login-action" to="/app/student/login">
                 <LogIn size={16} aria-hidden="true" />
@@ -246,13 +243,9 @@ export default function StudentPage() {
                   <span className="student-assignment-row__icon" aria-hidden="true"><LockKeyhole size={18} /></span>
                   <span className="student-assignment-row__main">
                     <strong>{item.title}</strong>
-                    <small>{t("studentHome.dashboard.assignmentMeta", { count: item.count, description: item.description })}</small>
                   </span>
-                  <span className="student-assignment-row__class">{t("studentHome.guestPreview.classLocked")}</span>
-                  <span className="student-assignment-row__status">
-                    <span><i className="student-assignment-row__dot student-assignment-row__dot--not-started" />{t("studentHome.guestPreview.locked")}</span>
-                    <small><Clock3 size={13} aria-hidden="true" />{t("studentHome.guestPreview.deadlineLocked")}</small>
-                  </span>
+                  <span aria-hidden="true" />
+                  <span aria-hidden="true" />
                   <span className="student-assignment-row__count">{t("studentHome.taskCount", { count: item.count })}</span>
                   <span className="student-assignment-row__progress" aria-label={t("studentHome.guestPreview.progressLocked")}>
                     <progress value={0} max={item.count} />
@@ -267,15 +260,13 @@ export default function StudentPage() {
           <section className="student-guest-tools" aria-label={t("studentHome.guestPreview.toolsAria")}>
             <div>
               <RotateCcw size={19} aria-hidden="true" />
-              <span><strong>{t("studentHome.guestPreview.reviewTitle")}</strong><small>{t("studentHome.guestPreview.reviewHint")}</small></span>
+              <span><strong>{t("studentHome.guestPreview.reviewTitle")}</strong></span>
               <LockKeyhole size={15} aria-hidden="true" />
-              <em>{t("studentHome.guestPreview.loginRequired")}</em>
             </div>
             <div>
               <History size={19} aria-hidden="true" />
-              <span><strong>{t("studentHome.guestPreview.historyTitle")}</strong><small>{t("studentHome.guestPreview.historyHint")}</small></span>
+              <span><strong>{t("studentHome.guestPreview.historyTitle")}</strong></span>
               <LockKeyhole size={15} aria-hidden="true" />
-              <em>{t("studentHome.guestPreview.loginRequired")}</em>
             </div>
           </section>
         </>
