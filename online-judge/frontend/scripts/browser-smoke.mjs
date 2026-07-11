@@ -1310,11 +1310,13 @@ const scenarios = [
         return { width: rect.width, height: rect.height, position: getComputedStyle(element).position };
       }));
       const visibleFilterLabels = await page.locator(".student-submission-filter-label").allTextContents();
+      const languageOptions = await page.locator(".student-submission-filter--language option").allTextContents();
       record("student submissions route is stable", page.url().endsWith("/app/student/assignments/7/submissions"), page.url());
       record("student submissions show truthful summary", pageText.includes("共提交12次") && pageText.includes("通过4次") && pageText.includes("涉及2道题"), pageText);
       record("student submissions paginate first page", rowCount === 8, `rows ${rowCount}`);
       record("student submissions hides assistive-only labels", hiddenLabelMetrics.length === 4 && hiddenLabelMetrics.every(item => item.width <= 1 && item.height <= 1 && item.position === "absolute"), JSON.stringify(hiddenLabelMetrics));
       record("student submissions keeps only compact visible filter labels", visibleFilterLabels.join("|") === "判题结果：|语言：", visibleFilterLabels.join("|"));
+      record("student submissions omits Java from the language filter", !languageOptions.includes("Java 17"), languageOptions.join("|"));
       if (viewport.name === "desktop") {
         record("student submissions filter bar stays on one compact row", filterHeight <= 72, `height ${filterHeight}`);
       }

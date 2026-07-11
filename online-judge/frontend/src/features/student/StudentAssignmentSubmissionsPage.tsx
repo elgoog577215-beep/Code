@@ -89,7 +89,7 @@ export default function StudentAssignmentSubmissionsPage() {
 
   const languages = useMemo(() => {
     const values = new Set((data?.items || []).map(item => item.languageName).filter((value): value is string => Boolean(value)));
-    ["Python 3", "C++17", "Java 17"].forEach(value => values.add(value));
+    ["Python 3", "C++17"].forEach(value => values.add(value));
     return [...values];
   }, [data]);
 
