@@ -24,6 +24,7 @@ class ExternalModelChatRequestFactoryTest {
         );
 
         assertThat(request).doesNotContainKey("temperature");
+        assertThat(request).containsEntry("enable_thinking", false);
         assertThat(request).containsEntry("max_tokens", 128);
         assertThat(request.get("stream")).isEqualTo(true);
         List<?> messages = (List<?>) request.get("messages");
@@ -46,6 +47,7 @@ class ExternalModelChatRequestFactoryTest {
         );
 
         assertThat(request).containsEntry("temperature", 0.2);
+        assertThat(request).doesNotContainKey("enable_thinking");
         assertThat(request).containsEntry("max_tokens", 128);
         List<?> messages = (List<?>) request.get("messages");
         assertThat(messages).hasSize(2);
