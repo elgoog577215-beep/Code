@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.Queue;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,6 +34,58 @@ import static org.mockito.Mockito.when;
 class AiReportServiceAdviceGenerationRuntimeTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void durableWorkflowPersistsOneCoreDiagnosisIssueAttachmentAndBothOutputs() throws Exception {
+        StubAiReportService service = newService(validAdviceResponse());
+        AiDiagnosisWorkflowService workflowService = mock(AiDiagnosisWorkflowService.class);
+        when(workflowService.executeStage(
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.nullable(String.class),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any()
+        )).thenAnswer(invocation -> {
+            AiDiagnosisWorkflowService.StageCallable<?> callable = invocation.getArgument(9);
+            return callable.call();
+        });
+        service.setDiagnosisWorkflowService(workflowService);
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(4);
+        service.setDiagnosisBranchExecutor(executor);
+        service.enableParallelOutputProbe();
+
+        SubmissionAnalysisResponse analysis;
+        try (AiDiagnosisWorkflowContext.Scope ignored = AiDiagnosisWorkflowContext.activate(42L)) {
+            analysis = service.enhanceSubmissionAnalysis(
+                    problem(), submission(), fallback(), evidencePackage());
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
+        org.mockito.ArgumentCaptor<String> stageKeys = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(workflowService, atLeast(4)).executeStage(
+                org.mockito.ArgumentMatchers.eq(42L),
+                stageKeys.capture(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.nullable(String.class),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any()
+        );
+        assertThat(stageKeys.getAllValues())
+                .contains("CORE_DIAGNOSIS", "ISSUE_ATTACHMENT:I1", "STUDENT_OUTPUT", "TEACHER_OUTPUT");
+        assertThat(service.parallelOutputThreads()).hasSize(2).doesNotHaveDuplicates();
+        assertThat(analysis.getTeacherNote()).contains("本次教师观察与核心诊断一致");
+    }
 
     @Test
     void defaultRuntimeGeneratesStructuredAdviceWithSingleDiagnosisCall() {
@@ -1841,6 +1894,8 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         private final List<String> systemPrompts = new ArrayList<>();
         private final List<String> userPrompts = new ArrayList<>();
         private final List<Integer> outputTokens = new ArrayList<>();
+        private final List<String> parallelOutputThreads = java.util.Collections.synchronizedList(new ArrayList<>());
+        private java.util.concurrent.CyclicBarrier parallelOutputBarrier;
         private int callCount;
 
         StubAiReportService(ObjectMapper objectMapper,
@@ -1863,6 +1918,9 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
         @Override
         protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException {
+            if (systemPrompt.contains("teacher-insight-v1")) {
+                return teacherInsightResponse(userPrompt);
+            }
             callCount++;
             systemPrompts.add(systemPrompt);
             userPrompts.add(userPrompt);
@@ -1879,6 +1937,10 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                                                      String userPrompt,
                                                      boolean stream,
                                                      int outputTokens) throws IOException {
+            awaitParallelOutputProbe(systemPrompt);
+            if (systemPrompt.contains("teacher-insight-v1")) {
+                return teacherInsightResponse(userPrompt);
+            }
             callCount++;
             systemPrompts.add(systemPrompt);
             userPrompts.add(userPrompt);
@@ -1888,6 +1950,44 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 throw new IOException("No stub response configured.");
             }
             return response;
+        }
+
+        void enableParallelOutputProbe() {
+            parallelOutputBarrier = new java.util.concurrent.CyclicBarrier(2);
+        }
+
+        List<String> parallelOutputThreads() {
+            return List.copyOf(parallelOutputThreads);
+        }
+
+        private void awaitParallelOutputProbe(String systemPrompt) throws IOException {
+            if (parallelOutputBarrier == null || (!systemPrompt.contains("diagnosis-report-v3")
+                    && !systemPrompt.contains("teacher-insight-v1"))) {
+                return;
+            }
+            parallelOutputThreads.add(Thread.currentThread().getName());
+            try {
+                parallelOutputBarrier.await(3, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception exception) {
+                throw new IOException("parallel output probe did not overlap", exception);
+            }
+        }
+
+        private String teacherInsightResponse(String userPrompt) {
+            java.util.LinkedHashSet<String> issueIds = new java.util.LinkedHashSet<>();
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("\\\"issueId\\\":\\\"([^\\\"]+)\\\"")
+                    .matcher(userPrompt);
+            while (matcher.find()) {
+                issueIds.add(matcher.group(1));
+            }
+            String observations = issueIds.stream()
+                    .map(id -> "{\"issueId\":\"" + id
+                            + "\",\"teachingObservation\":\"继续观察该问题的证据变化。\","
+                            + "\"evidenceRefs\":[],\"priority\":1}")
+                    .collect(java.util.stream.Collectors.joining(","));
+            return "{\"summary\":\"本次教师观察与核心诊断一致。\",\"issueObservations\":["
+                    + observations + "],\"uncertainty\":\"\"}";
         }
 
         int callCount() {

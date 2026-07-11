@@ -68,6 +68,7 @@ public class ExternalModelAgentRuntime {
                 .freeDiagnosisPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.FREE_DIAGNOSIS_V1))
                 .standardLibraryNavigationPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1))
                 .advicePrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3))
+                .teacherInsightPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.TEACHER_INSIGHT_V1))
                 .runtimeProfile(RUNTIME_PROFILE_STANDARD)
                 .requestCompact(false)
                 .build();
@@ -126,9 +127,11 @@ public class ExternalModelAgentRuntime {
         private StandardLibraryNavigationOutput standardLibraryNavigationOutput;
         private StandardLibraryNavigationResult standardLibraryNavigationResult;
         private AdviceGenerationResult adviceGenerationResult;
+        private TeacherInsightOutput teacherInsightOutput;
         private PromptTemplateRegistry.PromptTemplate freeDiagnosisPrompt;
         private PromptTemplateRegistry.PromptTemplate standardLibraryNavigationPrompt;
         private PromptTemplateRegistry.PromptTemplate advicePrompt;
+        private PromptTemplateRegistry.PromptTemplate teacherInsightPrompt;
         private String runtimeProfile;
         private boolean requestCompact;
     }

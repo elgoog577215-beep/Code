@@ -121,6 +121,36 @@
       "pending": "等待 AI 建议"
     }
   },
+  "diagnosisProgress": {
+    "processing": "正在完成本次诊断",
+    "stillWorking": "正在继续分析",
+    "background": "诊断在后台继续",
+    "refreshing": "正在恢复最新进度",
+    "retrying": "正在从中断处继续",
+    "backgroundNote": "你可以先继续修改代码，完整结果会保留在本次提交中。",
+    "slowNote": "这次问题较多，系统正在逐项完成，已有结果不会丢失。",
+    "stageCount": "已完成 {{completed}} / {{total}} 个诊断阶段",
+    "status": {
+      "processing": "完整诊断中",
+      "retrying": "正在继续诊断"
+    },
+    "stages": {
+      "understanding": "理解题目与证据",
+      "matching": "匹配知识路径",
+      "generating": "生成完整建议",
+      "verifying": "核验证据与安全"
+    }
+  },
+  "diagnosisFailure": {
+    "takingLongerTitle": "本次诊断需要更长时间",
+    "takingLongerMessage": "完整结果仍会保留在这次提交中，可以稍后回来继续查看或重试。",
+    "incompleteTitle": "本次诊断尚未完整生成",
+    "incompleteMessage": "系统没有保存不完整的建议，你可以从失败阶段继续重试。",
+    "reviewTitle": "本次建议需要重新核验",
+    "reviewMessage": "为避免给出不合适的提示，本次结果没有直接展示，可以重试生成。",
+    "unavailableTitle": "本次诊断暂未完成",
+    "unavailableMessage": "评测结果和提交记录已经保存，可以稍后从当前阶段继续重试。"
+  },
   "routeHub": {
     "eyebrow": "入口",
     "title": "学习平台",

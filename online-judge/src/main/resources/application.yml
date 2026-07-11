@@ -55,6 +55,10 @@ ai:
   retry:
     max-attempts: ${AI_RETRY_MAX_ATTEMPTS:1}
     backoff-ms: ${AI_RETRY_BACKOFF_MS:700}
+  workflow:
+    branch-concurrency: ${AI_WORKFLOW_BRANCH_CONCURRENCY:4}
+    branch-queue-capacity: ${AI_WORKFLOW_BRANCH_QUEUE_CAPACITY:200}
+    recovery-enabled: ${AI_WORKFLOW_RECOVERY_ENABLED:true}
   student-feedback:
     min-request-interval-ms: ${AI_STUDENT_FEEDBACK_MIN_REQUEST_INTERVAL_MS:2000}
   standard-library-growth:

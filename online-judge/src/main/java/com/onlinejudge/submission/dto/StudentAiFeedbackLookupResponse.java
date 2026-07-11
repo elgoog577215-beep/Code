@@ -13,4 +13,5 @@ public class StudentAiFeedbackLookupResponse {
     private String status;
     private String failureReason;
     private StudentAiFeedbackResponse feedback;
+    private AiDiagnosisProgressResponse diagnosisProgress;
 }

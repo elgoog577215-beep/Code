@@ -642,10 +642,30 @@ export interface StudentAiFeedback {
   evidenceRefs?: string[];
 }
 
+export interface AiDiagnosisProgress {
+  runId?: number | null;
+  versionNumber?: number | null;
+  status?: "PROCESSING" | "RETRYING" | "COMPLETED" | "FAILED" | string | null;
+  stage?:
+    | "UNDERSTANDING_EVIDENCE"
+    | "MATCHING_KNOWLEDGE_PATHS"
+    | "GENERATING_COMPLETE_FEEDBACK"
+    | "VERIFYING_EVIDENCE_AND_SAFETY"
+    | "COMPLETED"
+    | string
+    | null;
+  completedStages?: number | null;
+  totalStages?: number | null;
+  retrying?: boolean;
+  resultAvailable?: boolean;
+  updatedAt?: string | null;
+}
+
 export interface StudentAiFeedbackLookup {
   status: StudentAiFeedbackStatus;
   failureReason?: string | null;
   feedback?: StudentAiFeedback | null;
+  diagnosisProgress?: AiDiagnosisProgress | null;
 }
 
 export interface ModelEducationIssueNote {

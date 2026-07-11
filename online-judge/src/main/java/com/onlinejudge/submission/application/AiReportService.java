@@ -16,6 +16,7 @@ import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -34,7 +35,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -70,6 +75,20 @@ public class AiReportService {
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+    private AiDiagnosisWorkflowService diagnosisWorkflowService;
+    private Executor diagnosisBranchExecutor = Runnable::run;
+
+    @Autowired(required = false)
+    void setDiagnosisWorkflowService(AiDiagnosisWorkflowService diagnosisWorkflowService) {
+        this.diagnosisWorkflowService = diagnosisWorkflowService;
+    }
+
+    @Autowired(required = false)
+    void setDiagnosisBranchExecutor(@Qualifier("aiDiagnosisBranchExecutor") Executor diagnosisBranchExecutor) {
+        if (diagnosisBranchExecutor != null) {
+            this.diagnosisBranchExecutor = diagnosisBranchExecutor;
+        }
+    }
 
     public AiReportService(ObjectMapper objectMapper, AiCodeAssistSupport aiCodeAssistSupport) {
         this(objectMapper, aiCodeAssistSupport, null, new ExternalModelFailureClassifier());
@@ -415,92 +434,54 @@ public class AiReportService {
             List<SubmissionAnalysisResponse.LineIssue> baselineLineIssues)
             throws JsonProcessingException, IOException, InterruptedException {
         String promptVersion = runtimePromptVersion(runtimePlan);
-        AdviceGenerationOutput adviceOutput;
+        Long activeRunId = AiDiagnosisWorkflowContext.currentRunId().orElse(null);
+        Consumer<ModelCallTraceEvent> activeTraceSink = MODEL_CALL_TRACE_SINK.get();
+        CompletableFuture<StudentOutputStageResult> studentFuture = CompletableFuture.supplyAsync(
+                () -> withBranchContext(activeRunId, activeTraceSink,
+                        () -> executeStudentOutputStage(runtimePlan)),
+                diagnosisBranchExecutor
+        );
+        boolean durableWorkflowActive = diagnosisWorkflowService != null
+                && AiDiagnosisWorkflowContext.currentRunId().isPresent();
+        CompletableFuture<TeacherInsightOutput> teacherFuture = durableWorkflowActive
+                ? CompletableFuture.supplyAsync(
+                        () -> withBranchContext(activeRunId, activeTraceSink,
+                                () -> executeTeacherOutputStage(runtimePlan)),
+                        diagnosisBranchExecutor
+                )
+                : CompletableFuture.completedFuture(null);
+        StudentOutputStageResult studentOutput;
+        TeacherInsightOutput teacherInsight;
         try {
-            adviceOutput = callAdviceGenerationStage(runtimePlan);
+            studentOutput = studentFuture.join();
         } catch (Exception exception) {
-            ExternalModelStagePayloads.StageValidationResult failure =
-                    stageFailureFromException("DIAGNOSIS_AND_ADVICE", exception);
+            Throwable cause = exception instanceof CompletionException && exception.getCause() != null
+                    ? exception.getCause()
+                    : exception;
+            ExternalModelStagePayloads.StageValidationResult failure = cause instanceof StageValidationException validation
+                    ? withStage("DIAGNOSIS_AND_ADVICE", validation.validationResult())
+                    : stageFailureFromException("DIAGNOSIS_AND_ADVICE",
+                    cause instanceof Exception value ? value : exception);
             runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.failed(
                     adviceFailureReason(failure),
                     promptVersion
             ));
             return runtimeFailure(baseline, runtimePlan, failure);
         }
-        adviceOutput = externalModelAgentRuntime.normalizeAdviceGeneration(adviceOutput, runtimePlan);
-        linkAdviceToFreeDiagnosisIssues(adviceOutput, runtimePlan);
-
-        ExternalModelStagePayloads.StageValidationResult adviceValidation =
-                validateAdviceGenerationWithCoverageContract(adviceOutput, runtimePlan);
-        if (!adviceValidation.isValid() && isAdviceCoverageFailure(adviceValidation)) {
-            try {
-                AdviceGenerationOutput rewrittenOutput =
-                        retryAdviceGenerationForCoverage(runtimePlan, adviceOutput, adviceValidation);
-                if (rewrittenOutput != null) {
-                    rewrittenOutput = externalModelAgentRuntime.normalizeAdviceGeneration(rewrittenOutput, runtimePlan);
-                    linkAdviceToFreeDiagnosisIssues(rewrittenOutput, runtimePlan);
-                    ExternalModelStagePayloads.StageValidationResult rewrittenValidation =
-                            validateAdviceGenerationWithCoverageContract(rewrittenOutput, runtimePlan);
-                    if (rewrittenValidation.isValid()) {
-                        adviceOutput = rewrittenOutput;
-                        adviceValidation = rewrittenValidation;
-                    } else {
-                        adviceValidation = rewrittenValidation;
-                    }
-                }
-            } catch (Exception exception) {
-                adviceValidation = stageFailureFromException("DIAGNOSIS_AND_ADVICE", exception);
-            }
+        try {
+            teacherInsight = teacherFuture.join();
+        } catch (Exception exception) {
+            Throwable cause = exception instanceof CompletionException && exception.getCause() != null
+                    ? exception.getCause()
+                    : exception;
+            ExternalModelStagePayloads.StageValidationResult failure =
+                    stageFailureFromException("TEACHER_INSIGHT",
+                            cause instanceof Exception value ? value : exception);
+            return runtimeFailure(baseline, runtimePlan, failure);
         }
-        if (!adviceValidation.isValid()
-                && adviceValidation.getFailureReason() == ModelStageFailureReason.SAFETY_RISK) {
-            try {
-                AdviceGenerationOutput rewrittenOutput =
-                        retryAdviceGenerationForSafety(runtimePlan, adviceOutput, adviceValidation);
-                rewrittenOutput = externalModelAgentRuntime.normalizeAdviceGeneration(rewrittenOutput, runtimePlan);
-                linkAdviceToFreeDiagnosisIssues(rewrittenOutput, runtimePlan);
-                ExternalModelStagePayloads.StageValidationResult rewrittenValidation =
-                        validateAdviceGenerationWithCoverageContract(rewrittenOutput, runtimePlan);
-                if (rewrittenValidation.isValid()) {
-                    adviceOutput = rewrittenOutput;
-                    adviceValidation = rewrittenValidation;
-                } else {
-                    adviceValidation = rewrittenValidation;
-                }
-            } catch (Exception exception) {
-                adviceValidation = stageFailureFromException("DIAGNOSIS_AND_ADVICE", exception);
-            }
-        }
-        if (!adviceValidation.isValid()) {
-            adviceValidation = withTransportAttribution(adviceValidation);
-            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.failed(
-                    adviceFailureReason(adviceValidation),
-                    promptVersion
-            ));
-            log.warn("External model advice generation failed validation. submissionId={}, reason={}, message={}",
-                    submission.getId(),
-                    adviceValidation.getFailureReason(),
-                    adviceValidation.getMessage());
-            return runtimeFailure(baseline, runtimePlan, adviceValidation);
-        }
-
-        reconcileAdviceKnowledgePaths(adviceOutput, runtimePlan);
-
-        SubmissionAnalysisResponse.StudentFeedback studentFeedback =
-                externalModelAgentRuntime.mapAdviceStudentFeedback(adviceOutput, runtimePlan);
-        studentFeedback = externalModelAgentRuntime.normalizeStudentFeedback(studentFeedback, runtimePlan);
-        ExternalModelStagePayloads.StageValidationResult feedbackValidation =
-                withStage("DIAGNOSIS_AND_ADVICE",
-                        externalModelAgentRuntime.validateStudentFeedback(studentFeedback, runtimePlan));
-        if (!feedbackValidation.isValid()) {
-            feedbackValidation = withTransportAttribution(feedbackValidation);
-            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.failed(
-                    adviceFailureReason(feedbackValidation),
-                    promptVersion
-            ));
-            return runtimeFailure(baseline, runtimePlan, feedbackValidation);
-        }
-
+        AdviceGenerationOutput adviceOutput = studentOutput.getAdviceOutput();
+        SubmissionAnalysisResponse.StudentFeedback studentFeedback = studentOutput.getStudentFeedback();
+        runtimePlan.setTeacherInsightOutput(teacherInsight);
         persistStandardLibraryGrowthCandidates(adviceOutput, submission);
         runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.success(adviceOutput, promptVersion));
 
@@ -512,7 +493,99 @@ public class AiReportService {
                 rawSourceCode,
                 baselineLineIssues
         );
+        if (teacherInsight != null) {
+            response.setTeacherNote(teacherInsightSummary(teacherInsight, response.getTeacherNote()));
+        }
         return response;
+    }
+
+    private StudentOutputStageResult executeStudentOutputStage(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        try {
+            StudentOutputStageResult result = executeWorkflowStage(
+                    "STUDENT_OUTPUT",
+                    "STUDENT_OUTPUT",
+                    null,
+                    outputStageInput(runtimePlan),
+                    StudentOutputStageResult.class,
+                    PromptTemplateRegistry.DIAGNOSIS_REPORT_V3,
+                    () -> generateValidatedStudentOutput(runtimePlan)
+            );
+            runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.success(
+                    result.getAdviceOutput(),
+                    runtimePromptVersion(runtimePlan)
+            ));
+            return result;
+        } catch (Exception exception) {
+            throw new CompletionException(exception);
+        }
+    }
+
+    private StudentOutputStageResult generateValidatedStudentOutput(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws Exception {
+        AdviceGenerationOutput adviceOutput = callAdviceGenerationStage(runtimePlan);
+        adviceOutput = externalModelAgentRuntime.normalizeAdviceGeneration(adviceOutput, runtimePlan);
+        linkAdviceToFreeDiagnosisIssues(adviceOutput, runtimePlan);
+
+        ExternalModelStagePayloads.StageValidationResult adviceValidation =
+                validateAdviceGenerationWithCoverageContract(adviceOutput, runtimePlan);
+        if (!adviceValidation.isValid() && isAdviceCoverageFailure(adviceValidation)) {
+            AdviceGenerationOutput rewrittenOutput =
+                    retryAdviceGenerationForCoverage(runtimePlan, adviceOutput, adviceValidation);
+            if (rewrittenOutput != null) {
+                rewrittenOutput = externalModelAgentRuntime.normalizeAdviceGeneration(rewrittenOutput, runtimePlan);
+                linkAdviceToFreeDiagnosisIssues(rewrittenOutput, runtimePlan);
+                adviceOutput = rewrittenOutput;
+                adviceValidation = validateAdviceGenerationWithCoverageContract(adviceOutput, runtimePlan);
+            }
+        }
+        if (!adviceValidation.isValid()
+                && adviceValidation.getFailureReason() == ModelStageFailureReason.SAFETY_RISK) {
+            AdviceGenerationOutput rewrittenOutput =
+                    retryAdviceGenerationForSafety(runtimePlan, adviceOutput, adviceValidation);
+            rewrittenOutput = externalModelAgentRuntime.normalizeAdviceGeneration(rewrittenOutput, runtimePlan);
+            linkAdviceToFreeDiagnosisIssues(rewrittenOutput, runtimePlan);
+            adviceOutput = rewrittenOutput;
+            adviceValidation = validateAdviceGenerationWithCoverageContract(adviceOutput, runtimePlan);
+        }
+        if (!adviceValidation.isValid()) {
+            throw new StageValidationException(adviceValidation);
+        }
+
+        reconcileAdviceKnowledgePaths(adviceOutput, runtimePlan);
+        SubmissionAnalysisResponse.StudentFeedback studentFeedback =
+                externalModelAgentRuntime.mapAdviceStudentFeedback(adviceOutput, runtimePlan);
+        studentFeedback = externalModelAgentRuntime.normalizeStudentFeedback(studentFeedback, runtimePlan);
+        ExternalModelStagePayloads.StageValidationResult feedbackValidation =
+                externalModelAgentRuntime.validateStudentFeedback(studentFeedback, runtimePlan);
+        if (!feedbackValidation.isValid()) {
+            throw new StageValidationException(feedbackValidation);
+        }
+        return StudentOutputStageResult.builder()
+                .adviceOutput(adviceOutput)
+                .studentFeedback(studentFeedback)
+                .build();
+    }
+
+    private TeacherInsightOutput executeTeacherOutputStage(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        try {
+            TeacherInsightOutput output = executeWorkflowStage(
+                    "TEACHER_OUTPUT",
+                    "TEACHER_OUTPUT",
+                    null,
+                    outputStageInput(runtimePlan),
+                    TeacherInsightOutput.class,
+                    PromptTemplateRegistry.TEACHER_INSIGHT_V1,
+                    () -> {
+                        TeacherInsightOutput generated = callTeacherInsightStage(runtimePlan);
+                        validateTeacherInsight(generated, runtimePlan);
+                        return generated;
+                    }
+            );
+            validateTeacherInsight(output, runtimePlan);
+            return output;
+        } catch (Exception exception) {
+            throw new CompletionException(exception);
+        }
     }
 
     private void persistStandardLibraryGrowthCandidates(AdviceGenerationOutput adviceOutput, Submission submission) {
@@ -522,11 +595,31 @@ public class AiReportService {
         try {
             Long sourceProblemId = submission == null ? null : submission.getProblemId();
             Long sourceSubmissionId = submission == null ? null : submission.getId();
-            standardLibraryGrowthAgentService.proposeFromDiagnosisOutput(
-                    adviceOutput,
-                    sourceProblemId,
-                    sourceSubmissionId,
-                    null
+            executeWorkflowStage(
+                    "LIBRARY_GROWTH_PROJECTION",
+                    "LIBRARY_GROWTH_PROJECTION",
+                    null,
+                    Map.of("problemId", sourceProblemId == null ? -1L : sourceProblemId,
+                            "submissionId", sourceSubmissionId == null ? -1L : sourceSubmissionId,
+                            "candidateCount", adviceOutput.getLibraryGrowth() == null
+                                    || adviceOutput.getLibraryGrowth().getCandidates() == null
+                                    ? 0
+                                    : adviceOutput.getLibraryGrowth().getCandidates().size()),
+                    AiDiagnosisProjectionResult.class,
+                    PromptTemplateRegistry.DIAGNOSIS_REPORT_V3,
+                    () -> {
+                        standardLibraryGrowthAgentService.proposeFromDiagnosisOutput(
+                                adviceOutput,
+                                sourceProblemId,
+                                sourceSubmissionId,
+                                null
+                        );
+                        int count = adviceOutput.getLibraryGrowth() == null
+                                || adviceOutput.getLibraryGrowth().getCandidates() == null
+                                ? 0
+                                : adviceOutput.getLibraryGrowth().getCandidates().size();
+                        return AiDiagnosisProjectionResult.completed("LIBRARY_GROWTH_PROJECTION", count);
+                    }
             );
         } catch (Exception exception) {
             log.warn("Failed to persist AI standard library growth candidates. reason={}", exception.getMessage());
@@ -804,6 +897,102 @@ public class AiReportService {
         );
     }
 
+    private TeacherInsightOutput callTeacherInsightStage(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("task", "基于已经确定的核心问题清单整理教师观察，不得重新诊断或改变问题集合。");
+        request.put("brief", runtimePlan == null ? null : runtimePlan.getBrief());
+        request.put("freeDiagnosis", runtimePlan == null ? null : runtimePlan.getFreeDiagnosisOutput());
+        request.put("issues", runtimePlan == null || runtimePlan.getFreeDiagnosisOutput() == null
+                ? List.of()
+                : safeList(runtimePlan.getFreeDiagnosisOutput().getIssues()));
+        request.put("libraryAnchors", runtimePlan == null ? List.of() : safeList(runtimePlan.getIssueLibraryAnchors()));
+        activateRuntimePlan(runtimePlan);
+        String systemPrompt = runtimePlan.getTeacherInsightPrompt().getSystemPrompt();
+        String userPrompt = objectMapper.writeValueAsString(request);
+        String content = chatCompletionWithOverrides(systemPrompt, userPrompt, streamEnabled,
+                Math.min(2200, adviceGenerationOutputTokens()));
+        TeacherInsightOutput output = parseModelStagePayload(content, TeacherInsightOutput.class);
+        if (output != null) {
+            return output;
+        }
+        return retryStructuredModelStagePayload(
+                systemPrompt,
+                userPrompt,
+                runtimePlan,
+                TeacherInsightOutput.class
+        );
+    }
+
+    private void validateTeacherInsight(TeacherInsightOutput output,
+                                        ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (output == null || cleanupAiText(output.getSummary()).isBlank()) {
+            throw new IllegalStateException("teacher insight summary is empty");
+        }
+        List<FreeDiagnosisOutput.Issue> issues = runtimePlan == null || runtimePlan.getFreeDiagnosisOutput() == null
+                ? List.of()
+                : safeList(runtimePlan.getFreeDiagnosisOutput().getIssues());
+        Set<String> expectedIssueIds = issues.stream()
+                .map(FreeDiagnosisOutput.Issue::getIssueId)
+                .map(this::cleanupAiText)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<TeacherInsightOutput.IssueObservation> observations = safeList(output.getIssueObservations());
+        Set<String> observedIssueIds = new LinkedHashSet<>();
+        for (TeacherInsightOutput.IssueObservation observation : observations) {
+            if (observation == null) {
+                continue;
+            }
+            String issueId = cleanupAiText(observation.getIssueId());
+            if (!expectedIssueIds.contains(issueId)) {
+                throw new IllegalStateException("teacher insight contains unknown issueId=" + issueId);
+            }
+            if (!observedIssueIds.add(issueId)) {
+                throw new IllegalStateException("teacher insight repeats issueId=" + issueId);
+            }
+            if (cleanupAiText(observation.getTeachingObservation()).isBlank()) {
+                throw new IllegalStateException("teacher insight observation is empty for issueId=" + issueId);
+            }
+            for (String ref : safeList(observation.getEvidenceRefs())) {
+                if (!EvidenceRefSupport.isValidEvidenceRef(ref, runtimePlan.getBrief())) {
+                    throw new IllegalStateException("teacher insight contains invalid evidenceRef=" + ref);
+                }
+            }
+        }
+        if (!observedIssueIds.equals(expectedIssueIds)) {
+            throw new IllegalStateException("teacher insight does not cover the canonical issue set");
+        }
+    }
+
+    private Map<String, Object> outputStageInput(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("brief", runtimePlan == null ? null : runtimePlan.getBrief());
+        input.put("issues", runtimePlan == null || runtimePlan.getFreeDiagnosisOutput() == null
+                ? List.of()
+                : safeList(runtimePlan.getFreeDiagnosisOutput().getIssues()));
+        input.put("libraryAnchors", runtimePlan == null ? List.of() : safeList(runtimePlan.getIssueLibraryAnchors()));
+        return input;
+    }
+
+    private String teacherInsightSummary(TeacherInsightOutput output, String fallback) {
+        if (output == null) {
+            return fallback;
+        }
+        List<String> observations = safeList(output.getIssueObservations()).stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(
+                        TeacherInsightOutput.IssueObservation::getPriority,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(item -> cleanupAiText(item.getTeachingObservation()))
+                .filter(value -> !value.isBlank())
+                .toList();
+        String summary = cleanupAiText(output.getSummary());
+        if (observations.isEmpty()) {
+            return defaultIfBlank(summary, fallback);
+        }
+        return summary + "\n" + String.join("\n", observations);
+    }
+
     private ExternalModelStagePayloads.StageValidationResult applyAiStandardLibraryNavigation(
             ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
         if (runtimePlan == null) {
@@ -811,25 +1000,11 @@ public class AiReportService {
         }
         FreeDiagnosisOutput freeDiagnosis;
         try {
-            freeDiagnosis = callFreeDiagnosisStage(runtimePlan);
-            if (freeDiagnosis == null) {
-                return invalidStage("FREE_DIAGNOSIS", ModelStageFailureReason.EMPTY_RESPONSE,
-                        "free diagnosis output is empty.");
-            }
+            freeDiagnosis = executeCoreDiagnosisStage(runtimePlan);
         } catch (Exception exception) {
             return stageFailureFromException("FREE_DIAGNOSIS", exception);
         }
-        List<FreeDiagnosisOutput.Issue> issues = validatedFreeDiagnosisIssues(
-                freeDiagnosis,
-                runtimePlan.getBrief()
-        );
-        if (issues.isEmpty()) {
-            log.warn("Free diagnosis output contains no valid issues. rawPreview={}",
-                    previewBody(lastModelStageRawContent.get()));
-            return invalidStage("FREE_DIAGNOSIS", ModelStageFailureReason.INVALID_EVIDENCE_REF,
-                    "free diagnosis output contains no valid issues.");
-        }
-        freeDiagnosis.setIssues(issues);
+        List<FreeDiagnosisOutput.Issue> issues = safeList(freeDiagnosis.getIssues());
         runtimePlan.setFreeDiagnosisOutput(freeDiagnosis);
         applyIssueLibraryAnchors(runtimePlan, issues);
         return ExternalModelStagePayloads.StageValidationResult.builder()
@@ -842,11 +1017,37 @@ public class AiReportService {
                 .build();
     }
 
+    private FreeDiagnosisOutput executeCoreDiagnosisStage(ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws Exception {
+        return executeWorkflowStage(
+                "CORE_DIAGNOSIS",
+                "CORE_DIAGNOSIS",
+                null,
+                runtimePlan == null ? null : runtimePlan.getBrief(),
+                FreeDiagnosisOutput.class,
+                PromptTemplateRegistry.FREE_DIAGNOSIS_V1,
+                () -> {
+                    FreeDiagnosisOutput output = callFreeDiagnosisStage(runtimePlan);
+                    if (output == null) {
+                        throw new IllegalStateException("free diagnosis output is empty");
+                    }
+                    List<FreeDiagnosisOutput.Issue> issues = validatedFreeDiagnosisIssues(
+                            output,
+                            runtimePlan == null ? null : runtimePlan.getBrief()
+                    );
+                    if (issues.isEmpty()) {
+                        throw new IllegalStateException("free diagnosis output contains no valid issues");
+                    }
+                    output.setIssues(issues);
+                    return output;
+                }
+        );
+    }
+
     private void applyIssueLibraryAnchors(ExternalModelAgentRuntime.RuntimePlan runtimePlan,
                                           List<FreeDiagnosisOutput.Issue> issues) {
         if (standardLibraryService == null || standardLibraryNavigationPackBuilder == null) {
-            List<IssueLibraryAnchor> anchors = anchorsWithStatus(issues, "ATTACHMENT_FAILED",
-                    "STANDARD_LIBRARY_NAVIGATION_SERVICES_UNAVAILABLE");
+            List<IssueLibraryAnchor> anchors = terminalIssueAnchors(
+                    issues, "ATTACHMENT_FAILED", "STANDARD_LIBRARY_NAVIGATION_SERVICES_UNAVAILABLE");
             setLayeredAttachmentArtifacts(runtimePlan, anchors, "ATTACHMENT_FAILED",
                     "STANDARD_LIBRARY_NAVIGATION_SERVICES_UNAVAILABLE");
             return;
@@ -855,22 +1056,81 @@ public class AiReportService {
         try {
             roots = safeNavigationNodes(standardLibraryService.listRootKnowledgeAreas());
         } catch (Exception exception) {
-            List<IssueLibraryAnchor> anchors = anchorsWithStatus(issues, "ATTACHMENT_FAILED",
-                    exception.getMessage());
+            List<IssueLibraryAnchor> anchors = terminalIssueAnchors(
+                    issues, "ATTACHMENT_FAILED", exception.getMessage());
             setLayeredAttachmentArtifacts(runtimePlan, anchors, "ATTACHMENT_FAILED", exception.getMessage());
             return;
         }
         if (roots.isEmpty()) {
-            List<IssueLibraryAnchor> anchors = anchorsWithStatus(issues, "LIBRARY_EMPTY",
-                    "standard library root is empty.");
+            List<IssueLibraryAnchor> anchors = terminalIssueAnchors(
+                    issues, "LIBRARY_EMPTY", "standard library root is empty.");
             setLayeredAttachmentArtifacts(runtimePlan, anchors, "LIBRARY_EMPTY", "standard library root is empty.");
             return;
         }
+        List<FreeDiagnosisOutput.Issue> orderedIssues = safeList(issues);
+        Long activeRunId = AiDiagnosisWorkflowContext.currentRunId().orElse(null);
+        Consumer<ModelCallTraceEvent> activeTraceSink = MODEL_CALL_TRACE_SINK.get();
+        List<CompletableFuture<IssueLibraryAnchor>> futures = orderedIssues.stream()
+                .map(issue -> CompletableFuture.supplyAsync(
+                        () -> withBranchContext(activeRunId, activeTraceSink,
+                                () -> executeIssueAttachmentStage(runtimePlan, issue, roots)),
+                        diagnosisBranchExecutor
+                ))
+                .toList();
         List<IssueLibraryAnchor> anchors = new ArrayList<>();
-        for (FreeDiagnosisOutput.Issue issue : safeList(issues)) {
-            anchors.add(attachIssueToStandardLibrary(runtimePlan, issue, roots));
+        for (int index = 0; index < futures.size(); index++) {
+            FreeDiagnosisOutput.Issue issue = orderedIssues.get(index);
+            try {
+                anchors.add(futures.get(index).join());
+            } catch (CompletionException failure) {
+                Throwable cause = failure.getCause() == null ? failure : failure.getCause();
+                anchors.add(anchorWithStatus(issue, "ATTACHMENT_FAILED", List.of(), cause.getMessage(), null));
+            }
         }
         setLayeredAttachmentArtifacts(runtimePlan, anchors, aggregateAnchorStatus(anchors), "");
+    }
+
+    private List<IssueLibraryAnchor> terminalIssueAnchors(List<FreeDiagnosisOutput.Issue> issues,
+                                                          String status,
+                                                          String reason) {
+        List<IssueLibraryAnchor> anchors = new ArrayList<>();
+        for (FreeDiagnosisOutput.Issue issue : safeList(issues)) {
+            String issueId = defaultIfBlank(issue == null ? null : issue.getIssueId(), "UNKNOWN");
+            try {
+                anchors.add(executeWorkflowStage(
+                        "ISSUE_ATTACHMENT:" + stableStageSegment(issueId),
+                        "ISSUE_ATTACHMENT",
+                        issueId,
+                        Map.of("issue", issue, "terminalStatus", status),
+                        IssueLibraryAnchor.class,
+                        PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1,
+                        () -> anchorWithStatus(issue, status, List.of(), reason, null)
+                ));
+            } catch (Exception exception) {
+                anchors.add(anchorWithStatus(issue, "ATTACHMENT_FAILED", List.of(), exception.getMessage(), null));
+            }
+        }
+        return anchors;
+    }
+
+    private IssueLibraryAnchor executeIssueAttachmentStage(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan,
+            FreeDiagnosisOutput.Issue issue,
+            List<AiStandardLibraryNavigationNodeResponse> roots) {
+        String issueId = defaultIfBlank(issue == null ? null : issue.getIssueId(), "UNKNOWN");
+        try {
+            return executeWorkflowStage(
+                    "ISSUE_ATTACHMENT:" + stableStageSegment(issueId),
+                    "ISSUE_ATTACHMENT",
+                    issueId,
+                    Map.of("issue", issue, "roots", roots),
+                    IssueLibraryAnchor.class,
+                    PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1,
+                    () -> attachIssueToStandardLibrary(runtimePlan, issue, roots)
+            );
+        } catch (Exception exception) {
+            throw new CompletionException(exception);
+        }
     }
 
     private List<FreeDiagnosisOutput.Issue> validatedFreeDiagnosisIssues(FreeDiagnosisOutput output,
@@ -4069,6 +4329,72 @@ public class AiReportService {
     private record NavigationExpansionBatch(
             List<AiStandardLibraryNavigationExpansionResponse> expandedNodes,
             List<AiStandardLibraryDiagnosticLayerResponse> diagnosticLayers) {
+    }
+
+    private static final class StageValidationException extends IllegalStateException {
+        private final ExternalModelStagePayloads.StageValidationResult validationResult;
+
+        private StageValidationException(ExternalModelStagePayloads.StageValidationResult validationResult) {
+            super(validationResult == null ? "stage validation failed" : validationResult.getMessage());
+            this.validationResult = validationResult;
+        }
+
+        private ExternalModelStagePayloads.StageValidationResult validationResult() {
+            return validationResult;
+        }
+    }
+
+    private <T> T executeWorkflowStage(String stageKey,
+                                       String stageType,
+                                       String issueId,
+                                       Object input,
+                                       Class<T> outputType,
+                                       String promptVersion,
+                                       AiDiagnosisWorkflowService.StageCallable<T> callable) throws Exception {
+        Long runId = AiDiagnosisWorkflowContext.currentRunId().orElse(null);
+        if (diagnosisWorkflowService == null || runId == null) {
+            return callable.call();
+        }
+        return diagnosisWorkflowService.executeStage(
+                runId,
+                stageKey,
+                stageType,
+                issueId,
+                input,
+                outputType,
+                PROVIDER,
+                defaultIfBlank(activeModel.get(), model),
+                promptVersion,
+                callable
+        );
+    }
+
+    private String stableStageSegment(String value) {
+        String cleaned = cleanupAiText(value).replaceAll("[^A-Za-z0-9_.-]", "_");
+        if (cleaned.isBlank()) {
+            return "UNKNOWN";
+        }
+        return cleaned.length() <= 100 ? cleaned : cleaned.substring(0, 100);
+    }
+
+    private <T> T withBranchContext(Long runId,
+                                    Consumer<ModelCallTraceEvent> traceSink,
+                                    Supplier<T> supplier) {
+        Consumer<ModelCallTraceEvent> previousTraceSink = MODEL_CALL_TRACE_SINK.get();
+        if (traceSink == null) {
+            MODEL_CALL_TRACE_SINK.remove();
+        } else {
+            MODEL_CALL_TRACE_SINK.set(traceSink);
+        }
+        try (AiDiagnosisWorkflowContext.Scope ignored = AiDiagnosisWorkflowContext.activate(runId)) {
+            return supplier.get();
+        } finally {
+            if (previousTraceSink == null) {
+                MODEL_CALL_TRACE_SINK.remove();
+            } else {
+                MODEL_CALL_TRACE_SINK.set(previousTraceSink);
+            }
+        }
     }
 
 }

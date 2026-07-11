@@ -121,6 +121,36 @@
       "pending": "Waiting for AI suggestions"
     }
   },
+  "diagnosisProgress": {
+    "processing": "Completing this diagnosis",
+    "stillWorking": "Continuing the analysis",
+    "background": "Diagnosis continues in the background",
+    "refreshing": "Restoring the latest progress",
+    "retrying": "Continuing from the interrupted stage",
+    "backgroundNote": "You can keep editing your code. The complete result stays with this submission.",
+    "slowNote": "This submission has more issues to process. Completed work will not be lost.",
+    "stageCount": "{{completed}} / {{total}} diagnosis stages completed",
+    "status": {
+      "processing": "Full diagnosis in progress",
+      "retrying": "Continuing diagnosis"
+    },
+    "stages": {
+      "understanding": "Understanding evidence",
+      "matching": "Matching knowledge paths",
+      "generating": "Generating complete guidance",
+      "verifying": "Verifying evidence and safety"
+    }
+  },
+  "diagnosisFailure": {
+    "takingLongerTitle": "This diagnosis needs more time",
+    "takingLongerMessage": "The complete result remains attached to this submission. Return later or retry from the current stage.",
+    "incompleteTitle": "The diagnosis is not complete yet",
+    "incompleteMessage": "Incomplete guidance was not saved. You can retry from the failed stage.",
+    "reviewTitle": "This guidance needs another review",
+    "reviewMessage": "The result was held back to avoid showing unsuitable guidance. You can generate it again.",
+    "unavailableTitle": "This diagnosis is not complete yet",
+    "unavailableMessage": "Your judge result and submission are saved. You can retry from the current stage later."
+  },
   "routeHub": {
     "eyebrow": "Entry",
     "title": "Learning Platform",

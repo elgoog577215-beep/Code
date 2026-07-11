@@ -103,3 +103,16 @@ TBD - created by archiving change build-student-submission-evidence-loop. Update
 - **WHEN** 一次提交包含大量错误点和提升点且学生使用手机查看
 - **THEN** 页面 SHALL 使用单列分组展示全部项目
 - **AND** 学生 MUST 能访问每一项内容和证据而不发生横向遮挡
+
+### Requirement: 历史提交必须恢复正式诊断阶段进度
+学生重新打开正在生成或恢复中的历史提交时，系统 SHALL 返回该提交最新正式 Run 的学习化阶段、完成进度、重试状态和更新时间，同时保留原评测结果；没有新 Run 的旧历史记录 SHALL 继续按原反馈状态兼容展示。
+
+#### Scenario: 重新打开生成中的提交
+- **WHEN** 学生重新进入题目并打开一个尚未完成正式诊断的历史提交
+- **THEN** 页面 SHALL 恢复该 Run 的当前学习阶段和进度
+- **AND** 页面 SHALL 保留该次提交的评测结果与代码
+
+#### Scenario: 打开没有 Run 的旧反馈
+- **WHEN** 学生打开系统升级前已经保存的历史反馈
+- **THEN** 系统 SHALL 继续展示原有反馈版本和状态
+- **AND** 系统 MUST NOT 因缺少 Run 记录重新调用外部模型

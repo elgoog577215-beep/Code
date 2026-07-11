@@ -15,6 +15,7 @@ import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.domain.StudentAiFeedback;
 import com.onlinejudge.submission.domain.StudentAiFeedbackEvent;
 import com.onlinejudge.submission.domain.StudentAiFeedbackRevision;
+import com.onlinejudge.submission.domain.AiDiagnosisRun;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
@@ -71,10 +72,16 @@ public class StudentAiFeedbackService {
     private final InformaticsKnowledgeNodeRepository knowledgeRepository;
     private final ObjectMapper objectMapper;
     private StudentIssueLifecycleReadService issueLifecycleReadService;
+    private AiDiagnosisWorkflowService diagnosisWorkflowService;
 
     @Autowired(required = false)
     void setIssueLifecycleReadService(StudentIssueLifecycleReadService issueLifecycleReadService) {
         this.issueLifecycleReadService = issueLifecycleReadService;
+    }
+
+    @Autowired(required = false)
+    void setDiagnosisWorkflowService(AiDiagnosisWorkflowService diagnosisWorkflowService) {
+        this.diagnosisWorkflowService = diagnosisWorkflowService;
     }
 
     @Transactional(readOnly = true)
@@ -120,7 +127,11 @@ public class StudentAiFeedbackService {
         entity.setSource(SOURCE_AI_UNAVAILABLE);
         entity.setFailureReason(null);
         entity.setFeedbackJson(serialize(feedback));
-        return toLookup(studentAiFeedbackRepository.save(entity));
+        StudentAiFeedback saved = studentAiFeedbackRepository.save(entity);
+        if (diagnosisWorkflowService != null) {
+            diagnosisWorkflowService.beginRun(submissionId, saved.getGenerationKey());
+        }
+        return toLookup(saved);
     }
 
     @Transactional(readOnly = true)
@@ -202,6 +213,10 @@ public class StudentAiFeedbackService {
                 feedback
         );
         feedback.setGeneratedAt(saved.getGeneratedAt());
+        if (diagnosisWorkflowService != null) {
+            diagnosisWorkflowService.latestRun(submissionId)
+                    .ifPresent(run -> diagnosisWorkflowService.failRun(run.getId(), new IllegalStateException(reason)));
+        }
         return feedback;
     }
 
@@ -212,10 +227,39 @@ public class StudentAiFeedbackService {
         Problem problem = problemRepository.findById(submission.getProblemId())
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + submission.getProblemId()));
         List<SubmissionCaseResult> caseResults = submissionCaseResultRepository.findBySubmissionIdOrderByTestCaseNumberAsc(submissionId);
-        SubmissionAnalysisResponse analysis = submissionAnalysisService.generateAndStoreAnalysis(problem, submission, caseResults);
-        StudentAiFeedbackResponse feedback = toStudentAiFeedback(submission, analysis);
-        feedback.setLatencyMs(elapsedMs(startedAt));
-        return saveFeedback(submission, feedback, analysis);
+        AiDiagnosisRun run = activeRun(submissionId);
+        try (AiDiagnosisWorkflowContext.Scope ignored = AiDiagnosisWorkflowContext.activate(run == null ? null : run.getId())) {
+            SubmissionAnalysisResponse analysis = submissionAnalysisService.generateAndStoreAnalysis(problem, submission, caseResults);
+            StudentAiFeedbackResponse feedback = toStudentAiFeedback(submission, analysis);
+            feedback.setLatencyMs(elapsedMs(startedAt));
+            StudentAiFeedbackResponse saved = saveFeedback(submission, feedback, analysis);
+            if (diagnosisWorkflowService != null && run != null) {
+                if ("READY".equals(saved.getStatus())) {
+                    diagnosisWorkflowService.markResultReady(run.getId());
+                    diagnosisWorkflowService.completeRun(run.getId());
+                } else {
+                    diagnosisWorkflowService.failRun(run.getId(), new IllegalStateException(failureReason(saved)));
+                }
+            }
+            return saved;
+        } catch (RuntimeException exception) {
+            if (diagnosisWorkflowService != null && run != null) {
+                diagnosisWorkflowService.failRun(run.getId(), exception);
+            }
+            throw exception;
+        }
+    }
+
+    private AiDiagnosisRun activeRun(Long submissionId) {
+        if (diagnosisWorkflowService == null) {
+            return null;
+        }
+        StudentAiFeedback entity = studentAiFeedbackRepository.findBySubmissionId(submissionId).orElse(null);
+        if (entity == null) {
+            return null;
+        }
+        ensureGenerationKey(entity);
+        return diagnosisWorkflowService.beginRun(submissionId, entity.getGenerationKey());
     }
 
     private StudentAiFeedbackResponse toStudentAiFeedback(Submission submission, SubmissionAnalysisResponse analysis) {
@@ -999,10 +1043,15 @@ public class StudentAiFeedbackService {
                     SubmissionAnalysisResponse.AiInvocation invocation = analysisResponse == null
                             ? null
                             : analysisResponse.getAiInvocation();
+                    AiDiagnosisRun diagnosisRun = diagnosisWorkflowService == null
+                            ? null
+                            : diagnosisWorkflowService.latestRun(entity.getSubmissionId()).orElse(null);
                     return studentAiFeedbackRevisionRepository.save(StudentAiFeedbackRevision.builder()
                             .submissionId(entity.getSubmissionId())
                             .feedbackId(entity.getId())
                             .analysisId(analysis == null ? null : analysis.getId())
+                            .diagnosisRunId(diagnosisRun == null ? null : diagnosisRun.getId())
+                            .diagnosisRunVersion(diagnosisRun == null ? null : diagnosisRun.getVersionNumber())
                             .versionNumber(version)
                             .generationKey(entity.getGenerationKey())
                             .status(statusOrFailed(entity.getStatus()))
@@ -1096,6 +1145,9 @@ public class StudentAiFeedbackService {
                 .status(statusOrFailed(entity.getStatus()))
                 .failureReason(entity.getFailureReason())
                 .feedback(feedback)
+                .diagnosisProgress(diagnosisWorkflowService == null
+                        ? null
+                        : diagnosisWorkflowService.progressForSubmission(entity.getSubmissionId()))
                 .build();
     }
 

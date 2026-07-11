@@ -6,8 +6,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
+import com.onlinejudge.submission.domain.AiDiagnosisRun;
+import com.onlinejudge.submission.domain.AiDiagnosisStageRun;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
+import com.onlinejudge.submission.persistence.AiDiagnosisStageRunRepository;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +27,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,6 +61,12 @@ class DiagnosisReportV2RealSamplesSimulationTest {
     @Autowired
     private DiagnosticAgentService diagnosticAgentService;
 
+    @Autowired
+    private AiDiagnosisWorkflowService diagnosisWorkflowService;
+
+    @Autowired
+    private AiDiagnosisStageRunRepository diagnosisStageRunRepository;
+
     @Value("${ai.standard-library-navigation.max-rounds}")
     private int standardLibraryNavigationMaxRounds;
 
@@ -82,7 +94,12 @@ class DiagnosisReportV2RealSamplesSimulationTest {
             List<AiReportService.ModelCallTraceEvent> traceEvents = new ArrayList<>();
             DiagnosticAgentService.AgentResult result;
             long latencyMs;
-            try (AutoCloseable ignored = AiReportService.captureModelCallTrace(traceEvents::add)) {
+            AiDiagnosisRun diagnosisRun = diagnosisWorkflowService.beginRun(
+                    fixture.submission().getId(),
+                    UUID.randomUUID().toString()
+            );
+            try (AiDiagnosisWorkflowContext.Scope ignoredRun = AiDiagnosisWorkflowContext.activate(diagnosisRun.getId());
+                 AutoCloseable ignoredTrace = AiReportService.captureModelCallTrace(traceEvents::add)) {
                 long startedAt = System.nanoTime();
                 result = diagnosticAgentService.diagnose(
                         fixture.problem(),
@@ -93,6 +110,21 @@ class DiagnosisReportV2RealSamplesSimulationTest {
                 );
                 latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
             }
+            List<AiDiagnosisStageRun> stageRuns = diagnosisStageRunRepository
+                    .findByRunIdOrderByIdAsc(diagnosisRun.getId());
+            Set<String> stageTypes = stageRuns.stream()
+                    .map(AiDiagnosisStageRun::getStageType)
+                    .collect(Collectors.toSet());
+            assertThat(stageTypes).contains(
+                    "CORE_DIAGNOSIS", "ISSUE_ATTACHMENT", "STUDENT_OUTPUT", "TEACHER_OUTPUT");
+            assertThat(stageRuns.stream()
+                    .filter(stage -> Set.of("CORE_DIAGNOSIS", "ISSUE_ATTACHMENT", "STUDENT_OUTPUT", "TEACHER_OUTPUT")
+                            .contains(stage.getStageType())))
+                    .allMatch(stage -> AiDiagnosisWorkflowService.STAGE_SUCCEEDED.equals(stage.getStatus()));
+            System.out.println("Durable diagnosis stage summary: runId=" + diagnosisRun.getId()
+                    + ", stages=" + stageRuns.stream()
+                    .map(stage -> stage.getStageKey() + ":" + stage.getStatus() + ":" + stage.getLatencyMs() + "ms")
+                    .toList());
             Path tracePath = writeTrace(sample, result.analysis(), traceEvents);
             entries.add(ReportEntry.from(sample, result.analysis(), latencyMs, codexSimulation(sample.id()),
                     tracePath, traceEvents));

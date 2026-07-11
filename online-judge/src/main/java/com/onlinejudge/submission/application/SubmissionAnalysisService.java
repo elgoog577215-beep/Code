@@ -29,6 +29,8 @@ import com.onlinejudge.submission.persistence.SubmissionHistoryProjection;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -75,6 +80,20 @@ public class SubmissionAnalysisService {
     private final AbilitySignalAnalyzer abilitySignalAnalyzer;
     private final TeacherDiagnosisCorrectionRepository teacherDiagnosisCorrectionRepository;
     private final SubmissionDiagnosisFactProjector submissionDiagnosisFactProjector;
+    private AiDiagnosisWorkflowService diagnosisWorkflowService;
+    private Executor diagnosisBranchExecutor = Runnable::run;
+
+    @Autowired(required = false)
+    void setDiagnosisWorkflowService(AiDiagnosisWorkflowService diagnosisWorkflowService) {
+        this.diagnosisWorkflowService = diagnosisWorkflowService;
+    }
+
+    @Autowired(required = false)
+    void setDiagnosisBranchExecutor(@Qualifier("aiDiagnosisBranchExecutor") Executor diagnosisBranchExecutor) {
+        if (diagnosisBranchExecutor != null) {
+            this.diagnosisBranchExecutor = diagnosisBranchExecutor;
+        }
+    }
 
     @Transactional
     public SubmissionResponse finalizeSubmission(Problem problem, Submission submission, List<SubmissionCaseResult> caseResults) {
@@ -249,10 +268,78 @@ public class SubmissionAnalysisService {
                 submission.getId(),
                 analysis.getSourceType(),
                 savedAnalysis.getGeneratedAt());
-        projectDiagnosisFactsSafely(savedAnalysis, analysis);
-        backfillSubmissionAnalysisSafely(submission, savedAnalysis);
+        runPostDiagnosisProjections(submission, savedAnalysis, analysis);
         analysis.setGeneratedAt(savedAnalysis.getGeneratedAt());
         return analysis;
+    }
+
+    private void runPostDiagnosisProjections(Submission submission,
+                                             SubmissionAnalysis savedAnalysis,
+                                             SubmissionAnalysisResponse response) {
+        Long runId = AiDiagnosisWorkflowContext.currentRunId().orElse(null);
+        if (diagnosisWorkflowService == null || runId == null) {
+            projectDiagnosisFactsSafely(savedAnalysis, response);
+            backfillSubmissionAnalysisSafely(submission, savedAnalysis);
+            return;
+        }
+        CompletableFuture<AiDiagnosisProjectionResult> facts = projectionFuture(
+                runId,
+                "FACT_LIFECYCLE_PROJECTION",
+                () -> {
+                    SubmissionDiagnosisFactProjector.ProjectionResult result =
+                            submissionDiagnosisFactProjector.project(savedAnalysis, response);
+                    return AiDiagnosisProjectionResult.completed(
+                            "FACT_LIFECYCLE_PROJECTION",
+                            result.inserted() + result.skipped()
+                    );
+                }
+        );
+        CompletableFuture<AiDiagnosisProjectionResult> recommendation = projectionFuture(
+                runId,
+                "RUNTIME_QUALITY_PROJECTION",
+                () -> {
+                    recommendationEventService.backfillSubmissionAnalysis(submission, savedAnalysis);
+                    return AiDiagnosisProjectionResult.completed("RUNTIME_QUALITY_PROJECTION", 1);
+                }
+        );
+        CompletableFuture<AiDiagnosisProjectionResult> teacher = facts.thenCompose(ignored -> projectionFuture(
+                runId,
+                "TEACHER_ANALYTICS_PROJECTION",
+                () -> AiDiagnosisProjectionResult.completed(
+                        "TEACHER_ANALYTICS_PROJECTION",
+                        submissionDiagnosisFactProjector == null ? 0 : 1)
+        ));
+        try {
+            CompletableFuture.allOf(facts, recommendation, teacher).join();
+        } catch (CompletionException failure) {
+            log.warn("One or more post-diagnosis projections failed but the formal analysis is kept. submissionId={}, reason={}",
+                    submission == null ? null : submission.getId(),
+                    failure.getCause() == null ? failure.getMessage() : failure.getCause().getMessage());
+        }
+    }
+
+    private CompletableFuture<AiDiagnosisProjectionResult> projectionFuture(
+            Long runId,
+            String stageKey,
+            AiDiagnosisWorkflowService.StageCallable<AiDiagnosisProjectionResult> callable) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (AiDiagnosisWorkflowContext.Scope ignored = AiDiagnosisWorkflowContext.activate(runId)) {
+                return diagnosisWorkflowService.executeStage(
+                        runId,
+                        stageKey,
+                        stageKey,
+                        null,
+                        Map.of("runId", runId, "stage", stageKey),
+                        AiDiagnosisProjectionResult.class,
+                        "INTERNAL",
+                        "projection",
+                        "projection-v1",
+                        callable
+                );
+            } catch (Exception exception) {
+                throw new CompletionException(exception);
+            }
+        }, diagnosisBranchExecutor);
     }
 
     private void backfillSubmissionAnalysisSafely(Submission submission, SubmissionAnalysis analysis) {

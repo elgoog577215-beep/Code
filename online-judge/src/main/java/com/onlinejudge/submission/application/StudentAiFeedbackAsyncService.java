@@ -20,12 +20,22 @@ public class StudentAiFeedbackAsyncService {
     private final Set<Long> runningSubmissionIds = ConcurrentHashMap.newKeySet();
 
     public void enqueue(Long submissionId) {
+        enqueue(submissionId, false);
+    }
+
+    public void enqueueRecovered(Long submissionId) {
+        enqueue(submissionId, true);
+    }
+
+    private void enqueue(Long submissionId, boolean recovery) {
         if (submissionId == null) {
             return;
         }
-        String status = studentAiFeedbackService.markGenerating(submissionId).getStatus();
-        if ("READY".equals(status)) {
-            return;
+        if (!recovery) {
+            String status = studentAiFeedbackService.markGenerating(submissionId).getStatus();
+            if ("READY".equals(status)) {
+                return;
+            }
         }
         if (!runningSubmissionIds.add(submissionId)) {
             return;

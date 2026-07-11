@@ -32,4 +32,23 @@ class StudentAiFeedbackAsyncServiceTest {
 
         verify(self, times(1)).generate(7L);
     }
+
+    @Test
+    void recoveredRunContinuesEvenWhenExistingFeedbackIsReady() {
+        StudentAiFeedbackService feedbackService = mock(StudentAiFeedbackService.class);
+        StudentAiFeedbackAsyncService self = mock(StudentAiFeedbackAsyncService.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<StudentAiFeedbackAsyncService> selfProvider = mock(ObjectProvider.class);
+        StudentAiFeedbackAsyncService service = new StudentAiFeedbackAsyncService(
+                feedbackService,
+                new ExternalModelFailureClassifier(),
+                selfProvider
+        );
+        when(selfProvider.getObject()).thenReturn(self);
+
+        service.enqueueRecovered(8L);
+
+        verify(feedbackService, times(0)).markGenerating(8L);
+        verify(self, times(1)).generate(8L);
+    }
 }

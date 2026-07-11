@@ -11,7 +11,6 @@ import com.onlinejudge.classroom.dto.CoachPromptResponse;
 import com.onlinejudge.classroom.dto.CoachReplyRequest;
 import com.onlinejudge.submission.application.JudgeService;
 import com.onlinejudge.submission.application.SubmissionAnalysisService;
-import com.onlinejudge.submission.application.SubmissionAnalysisAsyncService;
 import com.onlinejudge.submission.application.SubmissionComparisonService;
 import com.onlinejudge.submission.application.StudentAiFeedbackAsyncService;
 import com.onlinejudge.submission.application.StudentAiFeedbackService;
@@ -35,7 +34,6 @@ public class SubmissionController {
 
     private final JudgeService judgeService;
     private final SubmissionAnalysisService submissionAnalysisService;
-    private final SubmissionAnalysisAsyncService submissionAnalysisAsyncService;
     private final SubmissionComparisonService submissionComparisonService;
     private final StudentAiFeedbackService studentAiFeedbackService;
     private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
@@ -64,7 +62,7 @@ public class SubmissionController {
         requireSubmissionAccess(request, id);
         SubmissionAnalysisLookupResponse lookup = submissionAnalysisService.getSubmissionAnalysisLookup(id);
         if (lookup.getAnalysis() == null) {
-            submissionAnalysisAsyncService.enqueue(id);
+            studentAiFeedbackAsyncService.enqueue(id);
             return ResponseEntity.accepted().body(lookup);
         }
         return ResponseEntity.ok(lookup);
@@ -76,7 +74,7 @@ public class SubmissionController {
         requireSubmissionAccess(request, id);
         SubmissionAnalysisLookupResponse lookup = submissionAnalysisService.getSubmissionAnalysisLookup(id);
         if (lookup.getAnalysis() == null) {
-            submissionAnalysisAsyncService.enqueue(id);
+            studentAiFeedbackAsyncService.enqueue(id);
             return ResponseEntity.accepted().body(lookup);
         }
         return ResponseEntity.ok(lookup);

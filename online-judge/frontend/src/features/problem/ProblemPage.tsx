@@ -5,6 +5,7 @@ import { api } from "../../shared/api/client";
 import type {
   Assignment,
   AssignmentTask,
+  AiDiagnosisProgress,
   CoachPrompt,
   Problem,
   ProblemCatalogItem,
@@ -37,7 +38,7 @@ type FeedbackPollState = "idle" | "checking" | "slow" | "background" | "refreshi
 
 const FEEDBACK_SLOW_AFTER_MS = 30_000;
 const FEEDBACK_BACKGROUND_AFTER_MS = 95_000;
-const FEEDBACK_STALLED_AFTER_MS = 150_000;
+const FEEDBACK_STALLED_AFTER_MS = 15 * 60_000;
 
 function renderInline(text: string) {
   const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter(Boolean);
@@ -261,58 +262,37 @@ function withLookupFailureReason(feedback: StudentAiFeedback | null, failureReas
   return { ...feedback, failureReason };
 }
 
-function modelFailureTitle(reason?: string | null) {
+function modelFailureTitle(reason: string | null | undefined, t: (key: string) => string) {
   const normalized = normalizeFailureReason(reason).toUpperCase();
   switch (normalized) {
-    case "INSUFFICIENT_QUOTA":
-      return "AI API 额度已耗尽";
-    case "RATE_LIMITED":
-      return "AI API 请求被限流";
-    case "AUTHENTICATION_FAILED":
-      return "AI API 认证失败";
-    case "MODEL_UNSUPPORTED":
-      return "当前模型不可用";
     case "TIMEOUT":
-      return "AI 响应超时";
+      return t("diagnosisFailure.takingLongerTitle");
     case "OUTPUT_TRUNCATED":
-      return "AI 输出被截断";
     case "INVALID_JSON":
-      return "AI 返回格式异常";
+    case "FULL_CHAIN_FEEDBACK_EMPTY":
+      return t("diagnosisFailure.incompleteTitle");
     case "SAFETY_RISK":
     case "SAFETY_REJECTED":
-      return "AI 反馈被安全策略拦截";
-    case "FULL_CHAIN_FEEDBACK_EMPTY":
-      return "AI 没有返回可展示建议";
-    case "FULL_CHAIN_FAILED":
-    case "API_ERROR":
-    case "UNKNOWN_ERROR":
-      return "AI 生成失败";
+      return t("diagnosisFailure.reviewTitle");
     default:
-      return normalized ? `AI 生成失败：${normalized}` : "AI 生成失败";
+      return t("diagnosisFailure.unavailableTitle");
   }
 }
 
-function modelFailureMessage(reason?: string | null) {
+function modelFailureMessage(reason: string | null | undefined, t: (key: string) => string) {
   const normalized = normalizeFailureReason(reason).toUpperCase();
   switch (normalized) {
-    case "INSUFFICIENT_QUOTA":
-      return "当前 ModelScope 账号额度不足，需要充值、换 key 或切到有额度的模型后重试。";
-    case "RATE_LIMITED":
-      return "模型服务返回限流，稍等一会儿再重试，或降低连续请求频率。";
-    case "AUTHENTICATION_FAILED":
-      return "后端 API key 无效或未生效，请检查 OJ_MODELSCOPE_API_KEY / MODELSCOPE_API_KEY。";
-    case "MODEL_UNSUPPORTED":
-      return "当前模型 ID 在供应商侧不可用，请切换到已通过 smoke 的模型。";
     case "TIMEOUT":
-      return "模型响应超过等待时间，稍后重试或换更快的模型。";
+      return t("diagnosisFailure.takingLongerMessage");
     case "OUTPUT_TRUNCATED":
-      return "模型返回内容不完整，需要提高输出 token 或压缩上下文。";
     case "INVALID_JSON":
-      return "模型返回没有满足结构化格式，可以重试一次。";
     case "FULL_CHAIN_FEEDBACK_EMPTY":
-      return "模型调用完成，但没有产出可展示的修正或提升建议。";
+      return t("diagnosisFailure.incompleteMessage");
+    case "SAFETY_RISK":
+    case "SAFETY_REJECTED":
+      return t("diagnosisFailure.reviewMessage");
     default:
-      return "请稍后重试；如果连续失败，去教师端 readiness 运行 AI smoke 查看 key、额度、限流和模型状态。";
+      return t("diagnosisFailure.unavailableMessage");
   }
 }
 
@@ -549,19 +529,46 @@ function FeedbackEvidenceMeta({
   );
 }
 
-function FeedbackLoadingPanel({ mode, state }: { mode: "repair" | "growth"; state: FeedbackPollState }) {
-  const steps =
-    mode === "repair"
-      ? ["读取评测点", "定位错误方向", "生成修正建议"]
-      : ["分析代码结构", "寻找提升空间", "生成进阶建议"];
+function FeedbackLoadingPanel({
+  state,
+  progress
+}: {
+  mode: "repair" | "growth";
+  state: FeedbackPollState;
+  progress?: AiDiagnosisProgress | null;
+}) {
+  const { t } = useTranslation();
+  const steps = [
+    t("diagnosisProgress.stages.understanding"),
+    t("diagnosisProgress.stages.matching"),
+    t("diagnosisProgress.stages.generating"),
+    t("diagnosisProgress.stages.verifying")
+  ];
   const isSlow = state === "slow";
   const isBackground = state === "background";
-  const title = state === "refreshing" ? "正在刷新" : isBackground ? "后台生成中" : isSlow ? "还在分析" : "正在分析";
+  const title = progress?.retrying
+    ? t("diagnosisProgress.retrying")
+    : state === "refreshing"
+      ? t("diagnosisProgress.refreshing")
+      : isBackground
+        ? t("diagnosisProgress.background")
+        : isSlow
+          ? t("diagnosisProgress.stillWorking")
+          : t("diagnosisProgress.processing");
   const note = isBackground
-    ? "可以先继续修改代码，稍后点刷新 AI 拿结果。"
+    ? t("diagnosisProgress.backgroundNote")
     : isSlow
-      ? "模型响应较慢，结果不会丢，可以先看评测点。"
+      ? t("diagnosisProgress.slowNote")
       : null;
+  const stageIndex = {
+    UNDERSTANDING_EVIDENCE: 0,
+    MATCHING_KNOWLEDGE_PATHS: 1,
+    GENERATING_COMPLETE_FEEDBACK: 2,
+    VERIFYING_EVIDENCE_AND_SAFETY: 3,
+    COMPLETED: 3
+  }[String(progress?.stage || "UNDERSTANDING_EVIDENCE").toUpperCase()] ?? 0;
+  const completed = progress?.completedStages || 0;
+  const total = progress?.totalStages || 0;
 
   return (
     <div className="student-feedback-loading" aria-live="polite">
@@ -570,9 +577,14 @@ function FeedbackLoadingPanel({ mode, state }: { mode: "repair" | "growth"; stat
         <strong>{title}</strong>
       </div>
       {note && <p className="student-feedback-loading__note">{note}</p>}
+      {total > 0 && (
+        <p className="student-feedback-loading__note">
+          {t("diagnosisProgress.stageCount", { completed, total })}
+        </p>
+      )}
       <div className="student-feedback-loading__steps">
         {steps.map((step, index) => (
-          <span className={`is-step-${index + 1}`} key={step}>
+          <span className={`is-step-${index + 1}${index <= stageIndex ? " is-active" : ""}`} key={step}>
             {step}
           </span>
         ))}
@@ -618,6 +630,7 @@ export default function ProblemPage() {
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [studentAiFeedback, setStudentAiFeedback] = useState<StudentAiFeedback | null>(null);
+  const [diagnosisProgress, setDiagnosisProgress] = useState<AiDiagnosisProgress | null>(null);
   const [feedbackPollState, setFeedbackPollState] = useState<FeedbackPollState>("idle");
   const [coachBusy, setCoachBusy] = useState(false);
   const [coachReplyBusy, setCoachReplyBusy] = useState(false);
@@ -669,6 +682,7 @@ export default function ProblemPage() {
         clearFeedbackTimer();
         setFeedbackPollState("idle");
         setStudentAiFeedback(null);
+        setDiagnosisProgress(null);
         const [problemResult, historyResult] = await Promise.all([api.problem(problemId), api.history(problemId, assignmentId)]);
         if (ignore) {
           return;
@@ -686,6 +700,7 @@ export default function ProblemPage() {
             setLatest(submissionResult);
             const feedback = withLookupFailureReason(feedbackLookup.feedback || null, feedbackLookup.failureReason);
             setStudentAiFeedback(feedback);
+            setDiagnosisProgress(feedbackLookup.diagnosisProgress || null);
             if (inFlightFeedbackStatus(feedback?.status)) {
               const token = startFeedbackPollingState(true);
               pollStudentAiFeedback(recent.id, token);
@@ -895,6 +910,7 @@ export default function ProblemPage() {
       setResultOpen(true);
       setCoachPrompt(null);
       setStudentAiFeedback(null);
+      setDiagnosisProgress(null);
       const feedbackToken = startFeedbackPollingState(Boolean(result.id));
       setHistory(await api.history(problem.id, assignmentId));
       setAlert(
@@ -905,7 +921,10 @@ export default function ProblemPage() {
       if (result.id) {
         void api
           .triggerStudentAiFeedback(result.id)
-          .then(lookup => handleFeedbackLookup(withLookupFailureReason(lookup.feedback || null, lookup.failureReason), feedbackToken))
+          .then(lookup => {
+            setDiagnosisProgress(lookup.diagnosisProgress || null);
+            return handleFeedbackLookup(withLookupFailureReason(lookup.feedback || null, lookup.failureReason), feedbackToken);
+          })
           .catch(() => undefined);
         pollStudentAiFeedback(result.id, feedbackToken);
       }
@@ -956,6 +975,7 @@ export default function ProblemPage() {
       }
       try {
         const lookup = await api.studentAiFeedback(id);
+        setDiagnosisProgress(lookup.diagnosisProgress || null);
         const feedback = withLookupFailureReason(lookup.feedback || null, lookup.failureReason);
         if (handleFeedbackLookup(feedback, token)) {
           return;
@@ -991,6 +1011,7 @@ export default function ProblemPage() {
     setFeedbackPollState("refreshing");
     try {
       const lookup = shouldRetry ? await api.triggerStudentAiFeedback(latest.id) : await api.studentAiFeedback(latest.id);
+      setDiagnosisProgress(lookup.diagnosisProgress || null);
       const feedback = withLookupFailureReason(lookup.feedback || null, lookup.failureReason);
       if (handleFeedbackLookup(feedback, feedbackToken)) {
         return;
@@ -1019,6 +1040,7 @@ export default function ProblemPage() {
       setLatest(submissionResult);
       const feedback = withLookupFailureReason(feedbackLookup.feedback || null, feedbackLookup.failureReason);
       setStudentAiFeedback(feedback);
+      setDiagnosisProgress(feedbackLookup.diagnosisProgress || null);
       setResultOpen(true);
       if (inFlightFeedbackStatus(feedback?.status)) {
         const pollingToken = startFeedbackPollingState(true);
@@ -1111,23 +1133,27 @@ export default function ProblemPage() {
   const improvementReportText = studentReport?.improvementLayerText?.trim() || "";
   const nextActionReportText = studentReport?.nextActionText?.trim() || "";
   const feedbackFallbackMessage = feedbackPollState === "stalled"
-    ? "AI 生成超时，请稍后重试。"
+    ? t("diagnosisFailure.takingLongerMessage")
     : studentAiFeedback?.source === "RULE_FALLBACK"
-    ? "AI 暂不可用，请稍后重试。"
-    : modelFailureMessage(feedbackFailure);
-  const feedbackFailureTitle = feedbackPollState === "stalled" ? "AI 响应超时" : modelFailureTitle(feedbackFailure);
+    ? t("diagnosisFailure.unavailableMessage")
+    : modelFailureMessage(feedbackFailure, t);
+  const feedbackFailureTitle = feedbackPollState === "stalled"
+    ? t("diagnosisFailure.takingLongerTitle")
+    : modelFailureTitle(feedbackFailure, t);
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
   const feedbackReady = Boolean(latest);
   const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;
   const passedLatest = latest?.verdict === "ACCEPTED";
   const lastResultText = modelFeedbackReady
-    ? "AI 已生成"
+    ? t("problemHistory.feedback.ready")
     : isFeedbackBackground
-      ? "AI 后台生成中"
+      ? t("diagnosisProgress.background")
       : isFeedbackWaiting
-        ? "AI 分析中"
+        ? diagnosisProgress?.retrying
+          ? t("diagnosisProgress.status.retrying")
+          : t("diagnosisProgress.status.processing")
         : feedbackFailed
-          ? "AI 未完成"
+          ? t("problemHistory.feedback.failed")
           : testCaseSummary;
   const selectedLanguage = contestLanguageById(languageId);
   const draftChanged = sourceCode !== defaultSourceFor(problem, languageId);
@@ -1412,7 +1438,13 @@ export default function ProblemPage() {
               <div className="problem-result-modal__status">
                 <StatusPill tone={latest.verdict === "ACCEPTED" ? "success" : "warning"}>{testCaseSummary}</StatusPill>
                 {(isFeedbackWaiting || isFeedbackBackground) && (
-                  <StatusPill tone="neutral">{isFeedbackBackground ? "后台生成中" : feedbackPollState === "slow" ? "AI 较慢" : "AI 分析中"}</StatusPill>
+                  <StatusPill tone="neutral">
+                    {diagnosisProgress?.retrying
+                      ? t("diagnosisProgress.status.retrying")
+                      : isFeedbackBackground
+                        ? t("diagnosisProgress.background")
+                        : t("diagnosisProgress.status.processing")}
+                  </StatusPill>
                 )}
                 {feedbackFailed && <StatusPill tone="danger">{feedbackFailureTitle}</StatusPill>}
                 <button type="button" aria-label="关闭结果" onClick={closeResult}>
@@ -1518,7 +1550,7 @@ export default function ProblemPage() {
                       <h3>修正建议</h3>
                     </div>
                     {isFeedbackWaiting || isFeedbackBackground ? (
-                      <FeedbackLoadingPanel mode="repair" state={feedbackPollState} />
+                      <FeedbackLoadingPanel mode="repair" state={feedbackPollState} progress={diagnosisProgress} />
                     ) : basicReportText ? (
                       <article className="student-feedback-report student-feedback-report--basic">
                         <FeedbackTextBlock text={basicReportText} />
@@ -1574,7 +1606,7 @@ export default function ProblemPage() {
                       <h3>提升建议</h3>
                     </div>
                     {isFeedbackWaiting || isFeedbackBackground ? (
-                      <FeedbackLoadingPanel mode="growth" state={feedbackPollState} />
+                      <FeedbackLoadingPanel mode="growth" state={feedbackPollState} progress={diagnosisProgress} />
                     ) : improvementReportText ? (
                       <article className="student-feedback-report student-feedback-report--growth">
                         <FeedbackTextBlock text={improvementReportText} />

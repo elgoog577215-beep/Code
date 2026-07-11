@@ -455,6 +455,9 @@ class AiReportServiceExternalRuntimeTest {
 
         @Override
         protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException {
+            if (systemPrompt.contains("teacher-insight-v1")) {
+                return teacherInsightResponse(userPrompt);
+            }
             callCount++;
             systemPrompts.add(systemPrompt);
             userPrompts.add(userPrompt);
@@ -466,10 +469,30 @@ class AiReportServiceExternalRuntimeTest {
                                                      String userPrompt,
                                                      boolean stream,
                                                      int outputTokens) throws IOException {
+            if (systemPrompt.contains("teacher-insight-v1")) {
+                return teacherInsightResponse(userPrompt);
+            }
             callCount++;
             systemPrompts.add(systemPrompt);
             userPrompts.add(userPrompt);
             return pollResponse();
+        }
+
+        private String teacherInsightResponse(String userPrompt) {
+            java.util.LinkedHashSet<String> issueIds = new java.util.LinkedHashSet<>();
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("\\\"issueId\\\":\\\"([^\\\"]+)\\\"")
+                    .matcher(userPrompt);
+            while (matcher.find()) {
+                issueIds.add(matcher.group(1));
+            }
+            String observations = issueIds.stream()
+                    .map(id -> "{\"issueId\":\"" + id
+                            + "\",\"teachingObservation\":\"继续观察该问题的证据变化。\","
+                            + "\"evidenceRefs\":[],\"priority\":1}")
+                    .collect(java.util.stream.Collectors.joining(","));
+            return "{\"summary\":\"本次教师观察与核心诊断一致。\",\"issueObservations\":["
+                    + observations + "],\"uncertainty\":\"\"}";
         }
 
         private String pollResponse() throws IOException {

@@ -46,6 +46,12 @@ public class StudentAiFeedbackRevision {
     @Column(name = "analysis_id")
     private Long analysisId;
 
+    @Column(name = "diagnosis_run_id")
+    private Long diagnosisRunId;
+
+    @Column(name = "diagnosis_run_version")
+    private Integer diagnosisRunVersion;
+
     @Column(name = "version_number", nullable = false)
     private Integer versionNumber;
 

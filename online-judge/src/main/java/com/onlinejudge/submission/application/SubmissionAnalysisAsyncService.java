@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class SubmissionAnalysisAsyncService {
 
-    private final SubmissionAnalysisService submissionAnalysisService;
+    private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
     private final ObjectProvider<SubmissionAnalysisAsyncService> selfProvider;
     private final Set<Long> runningSubmissionIds = ConcurrentHashMap.newKeySet();
 
@@ -34,11 +34,10 @@ public class SubmissionAnalysisAsyncService {
     @Async
     public void generate(Long submissionId) {
         try {
-            log.info("Async submission analysis started. submissionId={}", submissionId);
-            submissionAnalysisService.generateAndStoreAnalysisForSubmission(submissionId);
-            log.info("Async submission analysis finished. submissionId={}", submissionId);
+            log.info("Routing legacy analysis request into the complete diagnosis workflow. submissionId={}", submissionId);
+            studentAiFeedbackAsyncService.enqueue(submissionId);
         } catch (Exception exception) {
-            log.error("Async submission analysis generation failed. submissionId={}", submissionId, exception);
+            log.error("Complete diagnosis workflow enqueue failed. submissionId={}", submissionId, exception);
         } finally {
             runningSubmissionIds.remove(submissionId);
         }
