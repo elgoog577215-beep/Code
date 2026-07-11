@@ -122,12 +122,8 @@ function RouteHubPage() {
           </p>
         </div>
 
-        <figure className="route-hub-preview-frame" aria-labelledby="route-hub-preview-title">
+        <figure className="route-hub-preview-frame" aria-label={t("routeHub.preview.alt")}>
           <figcaption>
-            <span>
-              <strong id="route-hub-preview-title">{t("routeHub.preview.title")}</strong>
-              <small>{t("routeHub.preview.note")}</small>
-            </span>
             <span className="route-hub-preview-frame__badge"><ImageIcon size={14} aria-hidden="true" />{t("routeHub.preview.badge")}</span>
           </figcaption>
           <div className="route-hub-preview-frame__image">

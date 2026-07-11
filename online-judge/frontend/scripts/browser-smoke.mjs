@@ -1039,7 +1039,7 @@ const scenarios = [
       const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       record("app root is explicit route hub", page.url().endsWith("/app") || page.url().endsWith("/app/"), page.url());
       record("app root leads with the selected concept message", hubText.includes("从一道题开始") && hubText.includes("看见真正的进步"), hubText.slice(0, 700));
-      record("app root presents the code experience as a static screenshot", previewText.includes("界面截图") && previewText.includes("不可操作") && previewImage.naturalWidth >= 700 && previewImage.naturalHeight >= 400, JSON.stringify({ previewText, previewImage }));
+      record("app root presents the code experience as a static screenshot", previewText === "界面截图" && previewImage.naturalWidth >= 700 && previewImage.naturalHeight >= 400, JSON.stringify({ previewText, previewImage }));
       record("app root screenshot has explicit alternative text", Boolean(previewImage.alt?.includes("编程与评测界面预览")), previewImage.alt || "");
       record("app root explains the learning loop", learningSteps === 3 && hubText.includes("练习") && hubText.includes("评测") && hubText.includes("复盘"), `steps ${learningSteps}; ${hubText.slice(0, 500)}`);
       record("app root exposes canonical paths", canonicalHrefs.includes("/app/student") && canonicalHrefs.includes("/app/teacher"), canonicalHrefs.join("|"));

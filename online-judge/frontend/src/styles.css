@@ -21094,30 +21094,11 @@ button.standard-library-governance-path {
 }
 
 .route-hub-preview-frame figcaption {
-  min-height: 48px;
+  min-height: 34px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0 0.35rem 0.7rem;
-}
-
-.route-hub-preview-frame figcaption > span:first-child,
-.route-hub-preview-frame figcaption strong,
-.route-hub-preview-frame figcaption small {
-  min-width: 0;
-  display: block;
-}
-
-.route-hub-preview-frame figcaption strong {
-  font-size: 0.86rem;
-}
-
-.route-hub-preview-frame figcaption small {
-  margin-top: 0.15rem;
-  color: var(--ink-soft);
-  font-size: 0.7rem;
-  font-weight: 700;
+  justify-content: flex-end;
+  padding: 0 0.15rem 0.55rem;
 }
 
 .route-hub-preview-frame__badge {
@@ -21594,7 +21575,6 @@ button.standard-library-governance-path {
   }
 
   .route-hub-preview-frame figcaption {
-    align-items: flex-start;
     padding-inline: 0.15rem;
   }
 

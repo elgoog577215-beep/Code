@@ -15,7 +15,7 @@
 - Spacing and layout rhythm: the same 35/65 desktop composition is present, with a full-height role introduction beside the code-and-feedback workspace. The learning loop uses three equally weighted evidence steps. Mobile collapses every region to one column with no horizontal overflow.
 - Colors and visual tokens: the existing white, cool gray, charcoal, and muted teal tokens map closely to the concept. Green is limited to successful judge states and service health; borders and elevation remain restrained.
 - Image and asset fidelity: the editor and judge example is now a real 937 x 619 PNG screenshot inside a restrained figure frame. Its border, caption, and screenshot badge distinguish product evidence from the live page while Lucide icons remain consistent with the project system.
-- Copy and content: the source headline, student/teacher role actions, three platform capabilities, service status, and practice-judge-review loop are represented with realistic product data. The preview explicitly says `界面截图 · 不可操作`.
+- Copy and content: the source headline, student/teacher role actions, three platform capabilities, service status, and practice-judge-review loop are represented with realistic product data. The preview uses one compact `界面截图` badge without a redundant title block.
 - Interaction and accessibility: student and teacher actions retain canonical routes and focus-visible styles. The static preview has descriptive alternative text, fixed intrinsic dimensions, and no pointer interaction; theme/mobile browser checks pass without page errors.
 
 **Open Questions**
@@ -35,7 +35,7 @@
 1. The previous production homepage was a sparse heading plus two empty role cards and did not express the selected concept's core learning experience.
 2. The first implementation introduced the selected 35/65 experience, but the desktop headline wrapped to four lines and made the editor region excessively tall; the learning-loop steps also lacked concrete evidence. Result remained blocked by P2 hierarchy and density differences.
 3. The headline size and hero padding were corrected to restore the source's two-line rhythm. Code, judge, and complexity evidence were added to the three learning-loop steps.
-4. The editor demonstration was converted from live-looking HTML into a framed PNG with an explicit static-image label, removing ambiguity about whether its controls can be used.
+4. The editor demonstration was converted from live-looking HTML into a framed PNG with a compact static-image badge, removing ambiguity without adding a separate explanatory heading.
 5. The final desktop/mobile captures pass all 70 focused browser checks with no horizontal overflow or page errors. No P0/P1/P2 mismatch remains.
 
 **Implementation Checklist**
