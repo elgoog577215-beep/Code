@@ -204,6 +204,7 @@ class AiStandardLibrarySeederTest {
         try (var paths = Files.walk(Path.of("src/main"))) {
             List<Path> offenders = paths
                     .filter(Files::isRegularFile)
+                    .filter(this::isUtf8TextSource)
                     .filter(path -> {
                         try {
                             String source = Files.readString(path);
@@ -217,6 +218,16 @@ class AiStandardLibrarySeederTest {
 
             assertThat(offenders).isEmpty();
         }
+    }
+
+    private boolean isUtf8TextSource(Path path) {
+        String name = path == null || path.getFileName() == null
+                ? ""
+                : path.getFileName().toString().toLowerCase();
+        return List.of(".java", ".json", ".yml", ".yaml", ".properties", ".xml",
+                        ".html", ".css", ".js", ".ts", ".tsx", ".md", ".txt")
+                .stream()
+                .anyMatch(name::endsWith);
     }
 
     @Test

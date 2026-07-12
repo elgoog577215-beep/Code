@@ -16,6 +16,7 @@ class ExternalModelChatRequestFactoryTest {
         Map<String, Object> request = factory.build(
                 "https://api-inference.modelscope.cn/v1",
                 "auto",
+                false,
                 "deepseek-ai/DeepSeek-V4-Pro",
                 "Return strict JSON.",
                 "Analyze this code.",
@@ -24,6 +25,7 @@ class ExternalModelChatRequestFactoryTest {
         );
 
         assertThat(request).doesNotContainKey("temperature");
+        assertThat(request).containsEntry("enable_thinking", false);
         assertThat(request).containsEntry("max_tokens", 128);
         assertThat(request.get("stream")).isEqualTo(true);
         List<?> messages = (List<?>) request.get("messages");
@@ -34,10 +36,29 @@ class ExternalModelChatRequestFactoryTest {
     }
 
     @Test
+    void explicitThinkingModeUsesSameModelScopeRequestShape() {
+        Map<String, Object> request = factory.build(
+                "https://api-inference.modelscope.cn/v1",
+                "auto",
+                true,
+                "deepseek-ai/DeepSeek-V4-Pro",
+                "Return strict JSON.",
+                "Analyze this code.",
+                true,
+                256
+        );
+
+        assertThat(request).containsEntry("enable_thinking", true);
+        assertThat(request).doesNotContainKey("temperature");
+        assertThat((List<?>) request.get("messages")).hasSize(1);
+    }
+
+    @Test
     void falseModeKeepsStandardOpenAiCompatibleShape() {
         Map<String, Object> request = factory.build(
                 "https://api-inference.modelscope.cn/v1",
                 "false",
+                true,
                 "deepseek-ai/DeepSeek-V4-Pro",
                 "Return strict JSON.",
                 "Analyze this code.",
@@ -46,6 +67,7 @@ class ExternalModelChatRequestFactoryTest {
         );
 
         assertThat(request).containsEntry("temperature", 0.2);
+        assertThat(request).doesNotContainKey("enable_thinking");
         assertThat(request).containsEntry("max_tokens", 128);
         List<?> messages = (List<?>) request.get("messages");
         assertThat(messages).hasSize(2);
