@@ -23066,56 +23066,6 @@ button.standard-library-governance-path {
   }
 }
 
-@media (min-width: 1500px) {
-  .student-task-home:has(.student-guest-practice) {
-    grid-template-columns: minmax(0, 1fr) minmax(330px, 0.31fr);
-    grid-template-areas:
-      "command command"
-      "practice login";
-    align-items: stretch;
-    column-gap: clamp(1rem, 1.7vw, 1.7rem);
-    row-gap: 1.1rem;
-  }
-
-  .student-task-home:has(.student-guest-practice) .student-home-command--entry {
-    grid-area: command;
-    margin-bottom: 0;
-  }
-
-  .student-guest-practice {
-    grid-area: practice;
-    margin-bottom: 0;
-  }
-
-  .student-guest-login-card {
-    grid-area: login;
-    min-height: 0;
-    grid-template-columns: 44px minmax(0, 1fr);
-    align-content: start;
-    align-self: start;
-  }
-
-  .student-guest-login-action {
-    grid-column: 2;
-    justify-self: start;
-    margin-top: 0.45rem;
-  }
-
-  .student-guest-practice__summary {
-    grid-template-columns: 44px minmax(250px, 1fr) minmax(220px, max-content);
-  }
-
-  .student-guest-practice__actions {
-    grid-column: 2 / 4;
-    justify-self: start;
-    margin-top: 0.2rem;
-  }
-
-  .student-guest-starters__grid {
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  }
-}
-
 @media (min-width: 1800px) {
   .route-hub-experience {
     min-height: min(70dvh, 760px);
