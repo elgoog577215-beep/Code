@@ -11262,23 +11262,23 @@ tr:last-child td {
   border-radius: 7px;
 }
 
-.student-task-home .student-assignment-row--direct.student-entry-link {
-  grid-template-columns: 42px minmax(0, 1fr) auto minmax(140px, 0.34fr) 20px;
-  min-height: 70px;
+.student-task-home .student-assignment-table--direct .student-assignment-row--direct.student-entry-link {
+  grid-template-columns: 42px minmax(260px, 1fr) minmax(100px, 0.22fr) minmax(220px, 0.42fr) 20px;
+  min-height: 78px;
   color: var(--ink);
   text-decoration: none;
   transition: background-color 160ms ease, color 160ms ease;
 }
 
-.student-task-home .student-assignment-row--direct.student-entry-link:first-child {
+.student-task-home .student-assignment-table--direct .student-assignment-row--direct.student-entry-link:first-child {
   border-top: 0;
 }
 
-.student-task-home .student-assignment-row--direct.student-entry-link:hover {
+.student-task-home .student-assignment-table--direct .student-assignment-row--direct.student-entry-link:hover {
   background: color-mix(in srgb, var(--brand-soft) 24%, var(--surface-strong));
 }
 
-.student-task-home .student-assignment-row--direct.student-entry-link:focus-visible {
+.student-task-home .student-assignment-table--direct .student-assignment-row--direct.student-entry-link:focus-visible {
   position: relative;
   z-index: 1;
   outline: 3px solid color-mix(in srgb, var(--brand) 56%, transparent);
@@ -11289,12 +11289,8 @@ tr:last-child td {
   color: var(--ink-faint);
 }
 
-.student-task-home .student-review-strip > a {
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
 @media (max-width: 940px) {
-  .student-task-home .student-assignment-row--direct.student-entry-link {
+  .student-task-home .student-assignment-table--direct .student-assignment-row--direct.student-entry-link {
     grid-template-columns: 36px minmax(0, 1fr) auto 18px;
     min-height: 76px;
   }

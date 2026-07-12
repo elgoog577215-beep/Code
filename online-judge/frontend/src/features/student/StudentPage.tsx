@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, CircleCheck, ClipboardList, LogIn, Play, RotateCcw } from "lucide-react";
+import { ArrowRight, BookOpen, CircleCheck, ClipboardList, LogIn, Play } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { Assignment, ProblemCatalogItem, ReviewCard, StudentAbilityProfile, StudentProfile } from "../../shared/api/types";
+import type { Assignment, ProblemCatalogItem, StudentProfile } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
 import { loadStudent, onActiveStudentChange } from "../../shared/storage";
 
@@ -12,10 +12,6 @@ function visibleAssignmentTitle(assignment: Assignment) {
 
 function latestTeacherAssignments(assignments: Assignment[]) {
   return assignments.filter(item => item.status !== "DRAFT");
-}
-
-function reviewCardLink(card: ReviewCard, studentId: number) {
-  return `/app/student/assignments/public/problems/${card.problemId}?studentProfileId=${studentId}`;
 }
 
 type DifficultyKey = "easy" | "medium" | "hard" | "unknown";
@@ -62,10 +58,8 @@ export default function StudentPage() {
   const [student, setStudent] = useState<StudentProfile | null>(() => loadStudent());
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [progressByAssignmentId, setProgressByAssignmentId] = useState<Record<number, AssignmentProgress | null>>({});
-  const [abilityProfile, setAbilityProfile] = useState<StudentAbilityProfile | null>(null);
   const [publicProblems, setPublicProblems] = useState<ProblemCatalogItem[] | null>(null);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
-  const [profileLoading, setProfileLoading] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => onActiveStudentChange(() => setStudent(loadStudent())), []);
@@ -91,14 +85,11 @@ export default function StudentPage() {
     if (!student) {
       setAssignments([]);
       setProgressByAssignmentId({});
-      setAbilityProfile(null);
       setAssignmentLoading(false);
-      setProfileLoading(false);
       return;
     }
     let ignore = false;
     setAssignmentLoading(true);
-    setProfileLoading(true);
     api.studentAssignments(student.id)
       .then(async result => {
         if (ignore) return;
@@ -126,16 +117,6 @@ export default function StudentPage() {
       .finally(() => {
         if (!ignore) setAssignmentLoading(false);
       });
-    api.studentAbilityProfile(student.id)
-      .then(result => {
-        if (!ignore) setAbilityProfile(result);
-      })
-      .catch(() => {
-        if (!ignore) setAbilityProfile(null);
-      })
-      .finally(() => {
-        if (!ignore) setProfileLoading(false);
-      });
     return () => {
       ignore = true;
     };
@@ -143,7 +124,6 @@ export default function StudentPage() {
 
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
   const progressFor = (assignment: Assignment) => progressByAssignmentId[assignment.id] ?? null;
-  const reviewCard = abilityProfile?.reviewCards?.[0] || null;
   const problemCount = publicProblems?.length ?? null;
   const publicDifficultyCounts = useMemo(() => {
     const counts = { EASY: 0, MEDIUM: 0, HARD: 0 };
@@ -326,21 +306,6 @@ export default function StudentPage() {
         </>
       )}
 
-      {student ? (
-        <section className="student-review-strip" aria-label={t("studentHome.review.aria")}>
-          <span className="student-review-strip__label"><RotateCcw size={16} aria-hidden="true" />{t("studentHome.dashboard.recentReview")}</span>
-          {reviewCard ? (
-            <Link to={reviewCardLink(reviewCard, student.id)} aria-label={t("studentHome.dashboard.viewReview")}>
-              <strong>{reviewCard.problemTitle || `题目 #${reviewCard.problemId}`}</strong>
-              <ArrowRight size={15} aria-hidden="true" />
-            </Link>
-          ) : (
-            <div className="student-review-strip__empty">
-              {profileLoading ? t("studentHome.review.organizing") : t("studentHome.dashboard.emptyReview")}
-            </div>
-          )}
-        </section>
-      ) : null}
     </div>
   );
 }
