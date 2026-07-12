@@ -37,6 +37,7 @@ type WorkbenchTask = {
 };
 
 type FeedbackPollState = "idle" | "checking" | "slow" | "background" | "refreshing" | "stalled";
+type ResultView = "repair" | "growth";
 
 const FEEDBACK_SLOW_AFTER_MS = 30_000;
 const FEEDBACK_BACKGROUND_AFTER_MS = 95_000;
@@ -612,6 +613,7 @@ export default function ProblemPage() {
   const [workbenchTasks, setWorkbenchTasks] = useState<WorkbenchTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [resultOpen, setResultOpen] = useState(false);
+  const [resultView, setResultView] = useState<ResultView>("repair");
   const [coachPrompt, setCoachPrompt] = useState<CoachPrompt | null>(null);
   const [coachAnswer, setCoachAnswer] = useState("");
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -631,6 +633,9 @@ export default function ProblemPage() {
 
   useEffect(() => {
     resultOpenRef.current = resultOpen;
+    if (resultOpen) {
+      setResultView("repair");
+    }
   }, [resultOpen]);
 
   useEffect(() => {
@@ -1524,6 +1529,32 @@ export default function ProblemPage() {
               <div>
                 <h2 id="problem-result-title">{verdictLabel(latest.verdict)}</h2>
               </div>
+              <div className="problem-result-view-switch" role="tablist" aria-label={t("problemResultViews.aria")}>
+                <button
+                  type="button"
+                  role="tab"
+                  id="problem-result-tab-repair"
+                  aria-controls="problem-result-panel-repair"
+                  aria-selected={resultView === "repair"}
+                  className={resultView === "repair" ? "is-active" : ""}
+                  onClick={() => setResultView("repair")}
+                >
+                  <ClipboardList size={17} />
+                  <span>{t("problemResultViews.repair")}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="problem-result-tab-growth"
+                  aria-controls="problem-result-panel-growth"
+                  aria-selected={resultView === "growth"}
+                  className={resultView === "growth" ? "is-active" : ""}
+                  onClick={() => setResultView("growth")}
+                >
+                  <BarChart3 size={17} />
+                  <span>{t("problemResultViews.growth")}</span>
+                </button>
+              </div>
               <div className="problem-result-modal__status">
                 <StatusPill tone={latest.verdict === "ACCEPTED" ? "success" : "warning"}>{testCaseSummary}</StatusPill>
                 {(isFeedbackWaiting || isFeedbackBackground) && (
@@ -1543,13 +1574,14 @@ export default function ProblemPage() {
             </div>
 
             <div className="problem-result-modal__body">
-              <SingleProblemGrowthDashboard
-                history={history}
-                selectedSubmissionId={latest.id}
-                currentSummary={currentGrowthSummary}
-                onSelectSubmission={item => void openHistorySubmission(item)}
-              />
-              <div className={`problem-result-modal__grid problem-result-modal__grid--${resultLayoutMode}`}>
+              {resultView === "repair" ? (
+                <div
+                  className="problem-result-view problem-result-view--repair"
+                  role="tabpanel"
+                  id="problem-result-panel-repair"
+                  aria-labelledby="problem-result-tab-repair"
+                >
+                  <div className={`problem-result-modal__grid problem-result-modal__grid--${resultLayoutMode}`}>
                 {lifecycleChanges.length ? (
                   <section className="problem-result-section problem-result-section--lifecycle">
                     <div className="problem-result-section__head">
@@ -1738,7 +1770,23 @@ export default function ProblemPage() {
                     ) : null}
                   </section>
                 ) : null}
-              </div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="problem-result-view problem-result-view--growth"
+                  role="tabpanel"
+                  id="problem-result-panel-growth"
+                  aria-labelledby="problem-result-tab-growth"
+                >
+                  <SingleProblemGrowthDashboard
+                    history={history}
+                    selectedSubmissionId={latest.id}
+                    currentSummary={currentGrowthSummary}
+                    onSelectSubmission={item => void openHistorySubmission(item)}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="problem-result-modal__footer">

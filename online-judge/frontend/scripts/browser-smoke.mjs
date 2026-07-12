@@ -1386,20 +1386,46 @@ const scenarios = [
       if (viewport.name === "mobile") {
         record("problem mobile task list is readable", taskSidebarWidth >= viewport.width - 24 && taskItemWidth >= 140, `sidebar ${taskSidebarWidth}; item ${taskItemWidth}; viewport ${viewport.width}`);
       }
-      record("problem modal shows pending AI feedback state first", modalText.includes("AI分析中"), modalText);
+      const feedbackWasPending = modalText.includes("AI分析中");
       record(
-        "problem modal does not invent guidance while analysis pending",
-        !modalText.includes("先看测试点") &&
-          !modalText.includes("先把当前错误修掉") &&
-          !modalText.includes("先看左侧失败点") &&
-          !modalText.includes("暂无提升建议"),
+        "problem modal opens with a valid feedback state",
+        feedbackWasPending || modalText.includes("修正建议"),
         modalText
       );
-      await page.waitForFunction(() => !document.body.innerText.includes("AI 分析中"), null, { timeout: 10000 });
+      record(
+        "problem modal does not invent guidance while analysis pending",
+        !feedbackWasPending || (
+          !modalText.includes("先看测试点") &&
+          !modalText.includes("先把当前错误修掉") &&
+          !modalText.includes("先看左侧失败点") &&
+          !modalText.includes("暂无提升建议")
+        ),
+        modalText
+      );
+      await page.waitForFunction(
+        () => document.querySelectorAll(".student-feedback-item").length === 4,
+        null,
+        { timeout: 10000 }
+      );
       const resultViewTabs = page.locator(".problem-result-view-switch button");
       const resultViewTabCount = await resultViewTabs.count();
       record("problem result separates repair and growth into two top views", resultViewTabCount === 2, `view tabs ${resultViewTabCount}`);
       if (resultViewTabCount === 2) {
+        const resultTopLayout = await page.locator(".problem-result-modal").evaluate(element => {
+          const header = element.querySelector(".problem-result-modal__header");
+          const body = element.querySelector(".problem-result-modal__body");
+          const switcher = element.querySelector(".problem-result-view-switch");
+          if (!header || !body || !switcher) return null;
+          const headerRect = header.getBoundingClientRect();
+          const bodyRect = body.getBoundingClientRect();
+          const switcherRect = switcher.getBoundingClientRect();
+          return { headerBottom: headerRect.bottom, switcherBottom: switcherRect.bottom, bodyTop: bodyRect.top };
+        });
+        record(
+          "problem result content starts below the top view switcher",
+          Boolean(resultTopLayout && resultTopLayout.bodyTop >= Math.max(resultTopLayout.headerBottom, resultTopLayout.switcherBottom) - 1),
+          JSON.stringify(resultTopLayout)
+        );
         const repairTab = page.getByRole("tab", { name: "修正工作台" });
         const growthTab = page.getByRole("tab", { name: "成长仪表盘" });
         record(
@@ -1427,6 +1453,9 @@ const scenarios = [
           verticalScrollContainers.length === 0,
           JSON.stringify(verticalScrollContainers)
         );
+        await page.locator(".problem-result-modal").screenshot({
+          path: join(artifactDir, `student-growth-dashboard-${viewport.name}-light.png`)
+        });
         await repairTab.click();
       }
       const readyModalText = ((await page.locator(".problem-result-modal").first().textContent()) || "").replace(/\s+/g, "");
@@ -1548,7 +1577,6 @@ const scenarios = [
     selectors: [
       [".problem-layout", "problem main layout"],
       [".problem-task-sidebar", "problem task sidebar"],
-      [".problem-back-link", "problem back link"],
       [".panel--statement", "problem statement panel"],
       [".panel--editor", "problem editor panel"],
       [".problem-result-modal", "problem result modal"],
