@@ -1,4 +1,4 @@
-import{i as S,g as y,k as s,E as h,U as j,c as p,L as N}from"./index-DUxNNbK_.js";import{h as T,r as o,a as v}from"./react-Bo0S8I1q.js";import{u as R,b as z,f as g,c as A}from"./StudentAssignmentWorkspace-DNZoqSD7.js";import{C as k}from"./clock-3-HbWISRFH.js";import"./arrow-left-DPLhUWA4.js";import"./clipboard-list-BX6QuuUJ.js";/*! owner=yingqi; signature=00f40662ae433dacddf0157fca60a279bf71a54fbf04ee7d50d3190752554b5d; claim=yingqi|wenzhong-ai-learning-platform|nboj|2026-05-19 *//**
+import{i as S,g as y,k as s,E as h,U as j,c as p,L as N}from"./index-Bnlxmi1Z.js";import{h as T,r as o,a as v}from"./react-Bo0S8I1q.js";import{u as R,b as z,f as g,c as A}from"./StudentAssignmentWorkspace-CBKmTN79.js";import{C as k}from"./clock-3-BghBx4iR.js";import"./arrow-left-C-Z8m_iH.js";import"./clipboard-list-BRscaeFi.js";/*! owner=yingqi; signature=00f40662ae433dacddf0157fca60a279bf71a54fbf04ee7d50d3190752554b5d; claim=yingqi|wenzhong-ai-learning-platform|nboj|2026-05-19 *//**
  * @license lucide-react v0.468.0 - ISC
  *
  * This source code is licensed under the ISC license.

@@ -1165,16 +1165,19 @@ const scenarios = [
       const navCount = await page.locator(".top-nav__link").count();
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const taskSidebarCount = await page.locator(".problem-task-sidebar").count();
-      const workbenchColumns = await page.locator(".problem-layout--workbench").first().evaluate(element => window.getComputedStyle(element).gridTemplateColumns);
+      const navigationRailCount = await page.locator(".problem-workbench-rail").count();
+      const shellColumns = await page.locator(".problem-workbench-shell").first().evaluate(element => window.getComputedStyle(element).gridTemplateColumns);
       record("public assignment keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("public assignment opens workbench", page.url().includes("/app/student/assignments/public/problems/101"), page.url());
-      record("public assignment omits the redundant task sidebar", taskSidebarCount === 0, `sidebar count ${taskSidebarCount}`);
-      record("public assignment uses a single workspace column", workbenchColumns.trim().split(/\s+/).length === 1, workbenchColumns);
+      record("public assignment keeps the problem list", taskSidebarCount === 1, `task sidebar count ${taskSidebarCount}`);
+      record("public assignment omits the navigation rail", navigationRailCount === 0, `navigation rail count ${navigationRailCount}`);
+      record("public assignment shell uses the full width", shellColumns.trim().split(/\s+/).length === 1, shellColumns);
       if (viewport.name === "mobile") {
         await checkVisible(page, ".problem-mobile-jump", "public mobile code jump");
       }
     },
     selectors: [
+      [".problem-task-sidebar", "public task sidebar"],
       [".panel--statement", "public statement panel"],
       [".panel--editor", "public editor panel"]
     ]

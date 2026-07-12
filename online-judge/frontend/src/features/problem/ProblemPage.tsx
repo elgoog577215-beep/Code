@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowRight, BarChart3, ClipboardList, FileCheck2, GripVertical, LayoutGrid, Lightbulb, PanelRightClose, PanelRightOpen, Play, RefreshCw, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, ClipboardList, FileCheck2, GripVertical, LayoutGrid, Lightbulb, PanelRightClose, PanelRightOpen, Play, RefreshCw, RotateCcw, X } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   Assignment,
@@ -613,6 +613,8 @@ export default function ProblemPage() {
   const studentProfileId = normalizeNumber(searchParams.get("studentProfileId")) ?? currentStudent?.id ?? null;
   const recommendationToken = searchParams.get("recommendationToken");
   const assignmentBasePath = assignmentId ? `/app/student/assignments/${assignmentId}` : "/app/student/assignments/public";
+  const backTo = assignmentBasePath;
+  const backLabel = isPublicWorkbench ? "返回题目列表" : "返回学生端";
 
   const [problem, setProblem] = useState<Problem | null>(null);
   const [languageId, setLanguageId] = useState(DEFAULT_CONTEST_LANGUAGE_ID);
@@ -1301,7 +1303,7 @@ export default function ProblemPage() {
       <div className={`problem-workbench-shell${assignmentId ? " student-assignment-workspace" : ""}`}>
         {assignmentId && assignmentContext && currentStudent ? (
           <StudentAssignmentNavigation assignmentId={assignmentContext.id} taskPath={buildTaskLink(problemId)} activeTab="tasks" />
-        ) : (
+        ) : !isPublicWorkbench ? (
           <nav className="problem-workbench-rail" aria-label="作业页面导航">
             <Link to="/app/student">
               <LayoutGrid size={22} aria-hidden="true" /><span>概览</span>
@@ -1316,44 +1318,47 @@ export default function ProblemPage() {
               <BarChart3 size={22} aria-hidden="true" /><span>排名</span>
             </Link>
           </nav>
-        )}
+        ) : null}
 
         <section className="problem-layout problem-layout--workbench">
-        {!isPublicWorkbench ? (
-          <aside className="problem-task-sidebar" aria-label="题目列表" aria-busy={tasksLoading}>
-            <div className="problem-task-sidebar__head">
-              <div>
-                <strong>{assignmentTitle}</strong>
-              </div>
-              <StatusPill tone={trajectory ? "success" : "neutral"}>
-                {trajectory ? `${trajectory.completedTasks}/${trajectory.totalTasks}` : tasksLoading ? "加载中" : `${taskRows.length} 题`}
-              </StatusPill>
+        <aside className="problem-task-sidebar" aria-label="题目列表" aria-busy={tasksLoading}>
+          {isPublicWorkbench ? (
+            <Link to={backTo} className="problem-back-link">
+              <ArrowLeft size={14} /> {backLabel}
+            </Link>
+          ) : null}
+          <div className="problem-task-sidebar__head">
+            <div>
+              <strong>{assignmentTitle}</strong>
             </div>
-            <div className="problem-task-list">
-              {tasksLoading ? (
-                <EmptyState title="加载中" />
-              ) : !taskRows.length ? (
-                <EmptyState title="暂无题目" description="返回列表重新选择题目。" />
-              ) : (
-                taskRows.map((task, index) => (
-                  <Link
-                    className={`problem-task-item ${task.problemId === problemId ? "is-active" : ""} ${task.passed ? "is-passed" : ""}`}
-                    to={buildTaskLink(task.problemId)}
-                    key={task.problemId}
-                    aria-current={task.problemId === problemId ? "page" : undefined}
-                  >
-                    <span className="problem-task-item__index">{index + 1}</span>
-                    <span className="problem-task-item__main">
-                      <strong>{task.title}</strong>
-                      <small>{difficultyLabel(task.difficulty)}</small>
-                    </span>
-                    {task.latestVerdict ? <VerdictPill verdict={task.latestVerdict} /> : task.passed ? <StatusPill tone="success">已过</StatusPill> : null}
-                  </Link>
-                ))
-              )}
-            </div>
-          </aside>
-        ) : null}
+            <StatusPill tone={trajectory ? "success" : "neutral"}>
+              {trajectory ? `${trajectory.completedTasks}/${trajectory.totalTasks}` : tasksLoading ? "加载中" : `${taskRows.length} 题`}
+            </StatusPill>
+          </div>
+          <div className="problem-task-list">
+            {tasksLoading ? (
+              <EmptyState title="加载中" />
+            ) : !taskRows.length ? (
+              <EmptyState title="暂无题目" description="返回列表重新选择题目。" />
+            ) : (
+              taskRows.map((task, index) => (
+                <Link
+                  className={`problem-task-item ${task.problemId === problemId ? "is-active" : ""} ${task.passed ? "is-passed" : ""}`}
+                  to={buildTaskLink(task.problemId)}
+                  key={task.problemId}
+                  aria-current={task.problemId === problemId ? "page" : undefined}
+                >
+                  <span className="problem-task-item__index">{index + 1}</span>
+                  <span className="problem-task-item__main">
+                    <strong>{task.title}</strong>
+                    <small>{difficultyLabel(task.difficulty)}</small>
+                  </span>
+                  {task.latestVerdict ? <VerdictPill verdict={task.latestVerdict} /> : task.passed ? <StatusPill tone="success">已过</StatusPill> : null}
+                </Link>
+              ))
+            )}
+          </div>
+        </aside>
 
         <div
           className={`problem-main-split${editorCollapsed ? " is-editor-collapsed" : ""}`}

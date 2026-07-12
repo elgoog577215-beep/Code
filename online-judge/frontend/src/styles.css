@@ -23971,9 +23971,8 @@ button.standard-library-governance-path {
   }
 }
 
-.problem-workbench.problem-workbench--public .problem-layout--workbench {
+.problem-workbench--public .problem-workbench-shell {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "workspace";
 }
 
 .main-shell:has(.student-assignment-insights-page) { padding: 0; }
