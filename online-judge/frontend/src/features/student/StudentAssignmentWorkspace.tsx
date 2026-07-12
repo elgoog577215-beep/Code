@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, AssignmentTask, StudentProfile, StudentTrajectory } from "../../shared/api/types";
@@ -69,6 +69,18 @@ export function assignmentTaskState(task: AssignmentTask, trajectory: StudentTra
   return trajectory?.tasks.find(item => item.problemId === task.problemId) || null;
 }
 
+function formatAssignmentDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+}
+
 export function formatRelativeTime(value?: string | null) {
   if (!value) return "暂无";
   const timestamp = new Date(value).getTime();
@@ -106,6 +118,12 @@ export function StudentAssignmentShell({ assignment, student, nextTask, activeTa
         </Link>
         <div className="student-assignment-insights-title">
           <h1>{assignment.title}</h1>
+        </div>
+        <div className="student-assignment-insights-context">
+          <span className="student-assignment-insights-meta">{assignment.className || student.className || "当前班级"}</span>
+          {assignment.endsAt ? (
+            <span className="student-assignment-insights-meta"><CalendarDays size={16} aria-hidden="true" />{formatAssignmentDate(assignment.endsAt)}</span>
+          ) : null}
         </div>
         {nextTask ? (
           <Link className="student-assignment-continue" to={`${basePath}/problems/${nextTask.problemId}?studentProfileId=${student.id}`}>

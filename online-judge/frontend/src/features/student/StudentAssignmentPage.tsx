@@ -334,12 +334,13 @@ export default function StudentAssignmentPage() {
         <section className="student-assignment-compact-progress" aria-label="作业进度">
           <span>进度 <strong>{completedTasks}/{totalTasks}</strong></span>
           <progress value={completedTasks} max={Math.max(totalTasks, 1)} />
+          <span>总提交 <strong>{trajectory?.totalAttempts || 0}</strong></span>
         </section>
 
         <section className="student-assignment-progress-section" aria-label="题目列表">
           <nav className="student-assignment-progress-table" aria-label="题目列表">
             <div className="student-assignment-progress-header" aria-hidden="true">
-              <span>题目</span><span>难度</span><span>状态</span><span />
+              <span>题目</span><span>难度</span><span>状态</span><span>尝试</span><span />
             </div>
             {assignment.tasks.map((task, index) => {
               const state = assignmentTaskState(task, trajectory);
@@ -355,6 +356,7 @@ export default function StudentAssignmentPage() {
                   <span className="student-assignment-progress-main"><b>{index + 1}</b><strong>{task.title}</strong></span>
                   <span>{difficultyLabel(task.difficulty)}</span>
                   <span className={passed ? "is-passed" : "is-pending"}>{passed ? "已通过" : "未通过"}</span>
+                  <span className="student-assignment-attempts">{state?.attemptCount || 0}</span>
                   <ArrowRight size={17} aria-hidden="true" />
                 </Link>
               );
