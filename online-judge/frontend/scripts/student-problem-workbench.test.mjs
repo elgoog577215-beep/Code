@@ -113,12 +113,13 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     page.on("pageerror", error => browserErrors.push(error.message));
     await page.goto(`${baseUrl}/app/student/assignments/7/problems/101?studentProfileId=41`, { waitUntil: "domcontentloaded" });
     await page.locator(".problem-main-split").waitFor({ state: "visible", timeout: 10000 });
-    await page.locator(".problem-assignment-header").waitFor({ state: "visible", timeout: 10000 });
+    await page.locator(".problem-page > .student-assignment-insights-header").waitFor({ state: "visible", timeout: 10000 });
 
-    assert.equal(await page.locator(".problem-assignment-header").count(), 1);
-    assert.equal((await page.locator(".problem-assignment-header h1").textContent())?.trim(), "try");
-    assert.equal(await page.locator(".problem-assignment-header .student-assignment-insights-meta").count(), 2);
-    assert.equal((await page.locator(".problem-assignment-header .student-assignment-profile strong").textContent())?.trim(), "NothingK");
+    assert.equal(await page.locator(".problem-page > .student-assignment-insights-header").count(), 1);
+    assert.equal(await page.locator(".problem-assignment-header").count(), 0);
+    assert.equal((await page.locator(".student-assignment-insights-header h1").textContent())?.trim(), "try");
+    assert.equal(await page.locator(".student-assignment-insights-header .student-assignment-insights-meta").count(), 2);
+    assert.equal((await page.locator(".student-assignment-insights-header .student-assignment-profile strong").textContent())?.trim(), "NothingK");
     assert.equal(await page.locator(".problem-back-link").count(), 0);
     const pageFrame = await page.locator(".problem-page").boundingBox();
     const appHeaderFrame = await page.locator(".app-header").boundingBox();
@@ -127,10 +128,11 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     assert.ok(pageFrame.x <= 1, JSON.stringify(pageFrame));
     assert.ok(pageFrame.width >= viewportWidth - 2, JSON.stringify(pageFrame));
     assert.ok(Math.abs(pageFrame.y - (appHeaderFrame.y + appHeaderFrame.height)) <= 1, JSON.stringify({ pageFrame, appHeaderFrame }));
-    assert.equal(await page.locator(".problem-workbench-rail a").count(), 4);
+    assert.equal(await page.locator(".student-assignment-side-nav[data-student-assignment-navigation] a").count(), 4);
+    assert.equal(await page.locator(".problem-workbench-rail").count(), 0);
     assert.equal(await page.locator(".problem-workbench-shell.student-assignment-workspace").count(), 1);
-    assert.equal(await page.locator(".problem-workbench-rail.student-assignment-side-nav").count(), 1);
-    const problemChrome = await readWorkspaceChrome(page, ".problem-assignment-header", ".problem-workbench-rail");
+    assert.equal(await page.locator(".problem-workbench-shell > .student-assignment-side-nav").count(), 1);
+    const problemChrome = await readWorkspaceChrome(page, ".student-assignment-insights-header", ".student-assignment-side-nav");
     const overviewPage = await context.newPage();
     await overviewPage.goto(`${baseUrl}/app/student/assignments/7?studentProfileId=41`, { waitUntil: "domcontentloaded" });
     await overviewPage.locator(".student-assignment-overview-layout").waitFor({ state: "visible", timeout: 10000 });
@@ -141,7 +143,7 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     );
     assert.deepEqual(problemChrome, overviewChrome);
     await overviewPage.close();
-    assert.equal((await page.locator(".problem-workbench-rail a.is-active").textContent())?.trim(), "题目");
+    assert.equal((await page.locator(".student-assignment-side-nav a.is-active").textContent())?.trim(), "题目");
     assert.equal(await page.locator(".problem-main-split > .panel--statement").count(), 1);
     assert.equal(await page.locator(".problem-main-split > .panel--editor").count(), 1);
     if (process.env.STUDENT_PROBLEM_SCREENSHOT) {
