@@ -85,6 +85,10 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     assert.equal(await page.locator(".problem-assignment-header .student-assignment-insights-meta").count(), 2);
     assert.equal((await page.locator(".problem-assignment-header .student-assignment-profile strong").textContent())?.trim(), "NothingK");
     assert.equal(await page.locator(".problem-back-link").count(), 0);
+    const pageFrame = await page.locator(".problem-page").boundingBox();
+    assert.ok(pageFrame);
+    assert.ok(pageFrame.x <= 1, JSON.stringify(pageFrame));
+    assert.ok(pageFrame.width >= viewportWidth - 2, JSON.stringify(pageFrame));
     assert.equal(await page.locator(".problem-workbench-rail a").count(), 4);
     assert.equal((await page.locator(".problem-workbench-rail a.is-active").textContent())?.trim(), "题目");
     assert.equal(await page.locator(".problem-main-split > .panel--statement").count(), 1);
