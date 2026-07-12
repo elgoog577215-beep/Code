@@ -30,7 +30,7 @@ const trajectory = {
   ]
 };
 
-test("assignment overview keeps only the core navigation, progress, and direct task list", async () => {
+test("assignment overview follows the left-rail workspace concept", async () => {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
   await context.addInitScript(value => {
@@ -52,14 +52,19 @@ test("assignment overview keeps only the core navigation, progress, and direct t
     await page.goto(`${baseUrl}/app/student/assignments/7`, { waitUntil: "domcontentloaded" });
     await page.locator(".student-assignment-progress-row").first().waitFor({ state: "visible" });
 
-    assert.equal(await page.locator(".student-assignment-insights-tabs a").count(), 3);
+    assert.equal(await page.locator(".student-assignment-insights-tabs").count(), 0);
+    assert.equal(await page.locator(".student-assignment-side-nav a").count(), 4);
+    assert.equal((await page.locator(".student-assignment-side-nav a.is-active").textContent())?.trim(), "概览");
     assert.equal(await page.locator(".student-assignment-insights-title > span").count(), 0);
     assert.equal(await page.locator(".student-assignment-insights-meta").count(), 1);
     assert.equal((await page.locator(".student-assignment-insights-meta").textContent())?.trim(), "温中信息技术试点班");
-    assert.equal((await page.locator("body").textContent()).includes("截止时间"), false);
+    assert.equal((await page.locator("body").textContent()).includes("未设置截止时间"), true);
     assert.equal(await page.locator(".student-assignment-summary-band").count(), 0);
-    assert.equal(await page.locator(".student-assignment-compact-progress").count(), 1);
-    assert.equal((await page.locator(".student-assignment-compact-progress").textContent()).includes("总提交 4"), true);
+    assert.equal(await page.locator(".student-assignment-overview-layout").count(), 1);
+    assert.equal(await page.getByRole("heading", { name: "作业概览" }).count(), 1);
+    assert.equal((await page.locator(".student-assignment-overview-summary").textContent()).includes("总提交 4"), true);
+    assert.equal(await page.locator(".student-assignment-activity").count(), 1);
+    assert.equal(await page.locator(".student-assignment-activity-item").count(), 3);
     assert.equal(await page.locator(".student-assignment-note-band").count(), 0);
     assert.equal(await page.getByRole("heading", { name: "题目进度" }).count(), 0);
     assert.equal(await page.locator(".student-assignment-progress-header > span").count(), 5);
