@@ -11255,21 +11255,6 @@ tr:last-child td {
 }
 
 /* Signed-in student home: public practice first, then direct assignment links. */
-.student-signed-in-practice {
-  margin-bottom: 1.25rem;
-}
-
-.student-signed-in-practice .student-guest-practice__summary {
-  min-height: 82px;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  padding: 0.18rem;
-  border-bottom: 0;
-}
-
-.student-signed-in-practice .student-guest-practice__actions {
-  grid-column: auto;
-  grid-row: auto;
-}
 
 .student-task-home .student-assignment-table--direct {
   overflow: hidden;
@@ -11339,18 +11324,6 @@ tr:last-child td {
     grid-column: 4;
     grid-row: 1 / span 2;
     align-self: center;
-  }
-}
-
-@media (max-width: 680px) {
-  .student-signed-in-practice .student-guest-practice__summary {
-    grid-template-columns: 36px minmax(0, 1fr);
-  }
-
-  .student-signed-in-practice .student-guest-practice__actions {
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: start;
   }
 }
 

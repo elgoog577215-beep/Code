@@ -174,6 +174,67 @@ export default function StudentPage() {
     return { key: "active", label: t("studentHome.dashboard.active") };
   }
 
+  function renderPublicPractice(headingId: string, sectionId?: string) {
+    return (
+      <section id={sectionId} className="student-guest-practice" aria-labelledby={headingId}>
+        <header className="student-guest-practice__head">
+          <span className="student-assignment-board__icon" aria-hidden="true"><BookOpen size={20} /></span>
+          <div>
+            <h2 id={headingId}>{t("studentHome.guestPreview.today")}</h2>
+          </div>
+        </header>
+        <div className="student-guest-practice__panel">
+          <div className="student-guest-practice__summary">
+            <span className="student-guest-practice__icon" aria-hidden="true"><BookOpen size={21} /></span>
+            <span className="student-guest-practice__main">
+              <strong>{t("studentHome.public.title")}</strong>
+              <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
+              <span>{t("studentHome.public.description")}</span>
+            </span>
+            <span className="student-guest-practice__difficulty" aria-label={t("studentHome.guestPreview.difficultyAria")}>
+              <small>{t("studentHome.guestPreview.difficulty")}</small>
+              <strong>{t("studentHome.guestPreview.easy", { count: publicDifficultyCounts.EASY })}</strong>
+              <strong>{t("studentHome.guestPreview.medium", { count: publicDifficultyCounts.MEDIUM })}</strong>
+              <strong>{t("studentHome.guestPreview.hard", { count: publicDifficultyCounts.HARD })}</strong>
+            </span>
+            <span className="student-guest-practice__actions">
+              <Link className="student-guest-practice__action student-guest-practice__action--primary" to={publicStartPath}>
+                <Play size={15} fill="currentColor" aria-hidden="true" />
+                {t("studentHome.public.cta")}
+              </Link>
+              <Link className="student-guest-practice__action student-guest-practice__action--secondary" to="/app/student/assignments/public">
+                {t("studentHome.guestPreview.viewAll")}
+              </Link>
+            </span>
+          </div>
+
+          {starterProblems.length ? (
+            <div className="student-guest-starters">
+              <h3>{t("studentHome.guestPreview.starterTitle")}</h3>
+              <nav className="student-guest-starters__grid" aria-label={t("studentHome.guestPreview.starterAria")}>
+                {starterProblems.map(problem => {
+                  const difficultyKey = problemDifficultyKey(problem.difficulty);
+                  return (
+                    <Link
+                      className={`student-guest-starter-card is-${difficultyKey}`}
+                      to={`/app/student/assignments/public/problems/${problem.id}`}
+                      key={problem.id}
+                    >
+                      <span className="student-guest-starter-card__badge">{t(`studentPublic.difficulty.${difficultyKey}`)}</span>
+                      <strong>{problem.title}</strong>
+                      <small>{t(`studentHome.guestPreview.starterHint.${difficultyKey}`)}</small>
+                      <ArrowRight size={16} aria-hidden="true" />
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div className="student-page student-home student-home--assignments student-task-home">
       {failed && <div className="alert alert--error">{failed}</div>}
@@ -195,62 +256,7 @@ export default function StudentPage() {
 
       {!student ? (
         <>
-          <section id="assignments" className="student-guest-practice" aria-labelledby="student-guest-practice-heading">
-            <header className="student-guest-practice__head">
-              <span className="student-assignment-board__icon" aria-hidden="true"><BookOpen size={20} /></span>
-              <div>
-                <h2 id="student-guest-practice-heading">{t("studentHome.guestPreview.today")}</h2>
-              </div>
-            </header>
-            <div className="student-guest-practice__panel">
-              <div className="student-guest-practice__summary">
-                <span className="student-guest-practice__icon" aria-hidden="true"><BookOpen size={21} /></span>
-                <span className="student-guest-practice__main">
-                  <strong>{t("studentHome.public.title")}</strong>
-                  <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
-                  <span>{t("studentHome.public.description")}</span>
-                </span>
-                <span className="student-guest-practice__difficulty" aria-label={t("studentHome.guestPreview.difficultyAria")}>
-                  <small>{t("studentHome.guestPreview.difficulty")}</small>
-                  <strong>{t("studentHome.guestPreview.easy", { count: publicDifficultyCounts.EASY })}</strong>
-                  <strong>{t("studentHome.guestPreview.medium", { count: publicDifficultyCounts.MEDIUM })}</strong>
-                  <strong>{t("studentHome.guestPreview.hard", { count: publicDifficultyCounts.HARD })}</strong>
-                </span>
-                <span className="student-guest-practice__actions">
-                  <Link className="student-guest-practice__action student-guest-practice__action--primary" to={publicStartPath}>
-                    <Play size={15} fill="currentColor" aria-hidden="true" />
-                    {t("studentHome.public.cta")}
-                  </Link>
-                  <Link className="student-guest-practice__action student-guest-practice__action--secondary" to="/app/student/assignments/public">
-                    {t("studentHome.guestPreview.viewAll")}
-                  </Link>
-                </span>
-              </div>
-
-              {starterProblems.length ? (
-                <div className="student-guest-starters">
-                  <h3>{t("studentHome.guestPreview.starterTitle")}</h3>
-                  <nav className="student-guest-starters__grid" aria-label={t("studentHome.guestPreview.starterAria")}>
-                    {starterProblems.map(problem => {
-                      const difficultyKey = problemDifficultyKey(problem.difficulty);
-                      return (
-                        <Link
-                          className={`student-guest-starter-card is-${difficultyKey}`}
-                          to={`/app/student/assignments/public/problems/${problem.id}`}
-                          key={problem.id}
-                        >
-                          <span className="student-guest-starter-card__badge">{t(`studentPublic.difficulty.${difficultyKey}`)}</span>
-                          <strong>{problem.title}</strong>
-                          <small>{t(`studentHome.guestPreview.starterHint.${difficultyKey}`)}</small>
-                          <ArrowRight size={16} aria-hidden="true" />
-                        </Link>
-                      );
-                    })}
-                  </nav>
-                </div>
-              ) : null}
-            </div>
-          </section>
+          {renderPublicPractice("student-guest-practice-heading", "assignments")}
 
           <section className="student-guest-login-card" aria-labelledby="student-guest-login-heading">
             <span className="student-assignment-board__icon" aria-hidden="true"><LogIn size={19} /></span>
@@ -267,30 +273,7 @@ export default function StudentPage() {
         </>
       ) : (
         <>
-          <section className="student-guest-practice student-signed-in-practice" aria-labelledby="student-signed-in-practice-heading">
-            <header className="student-guest-practice__head">
-              <span className="student-assignment-board__icon" aria-hidden="true"><BookOpen size={20} /></span>
-              <h2 id="student-signed-in-practice-heading">{t("studentHome.guestPreview.today")}</h2>
-            </header>
-            <div className="student-guest-practice__panel">
-              <div className="student-guest-practice__summary">
-                <span className="student-guest-practice__icon" aria-hidden="true"><BookOpen size={21} /></span>
-                <span className="student-guest-practice__main">
-                  <strong>{t("studentHome.public.title")}</strong>
-                  <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
-                </span>
-                <span className="student-guest-practice__actions">
-                  <Link className="student-guest-practice__action student-guest-practice__action--primary" to={publicStartPath}>
-                    <Play size={15} fill="currentColor" aria-hidden="true" />
-                    {t("studentHome.public.cta")}
-                  </Link>
-                  <Link className="student-guest-practice__action student-guest-practice__action--secondary" to="/app/student/assignments/public">
-                    {t("studentHome.guestPreview.viewAll")}
-                  </Link>
-                </span>
-              </div>
-            </div>
-          </section>
+          {renderPublicPractice("student-signed-in-practice-heading")}
 
           <section id="assignments" className="student-assignment-board" aria-labelledby="student-assignment-heading">
             <header className="student-assignment-board__head">
