@@ -9,6 +9,7 @@
 - implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench.png`
 - final unified implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-unified-final.png`
 - final full-screen implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-fullscreen.png`
+- final chrome-alignment screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-chrome-final.png`
 - collapsed-state screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench-collapsed.png`
 - mobile screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench-mobile.png`
 - combined comparison path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-comparison.png`
@@ -51,6 +52,7 @@ Accepted product constraints:
 4. Desktop, collapsed, and mobile states were recaptured. No clipping, overlap, missing primary action, or horizontal overflow remains in the tested states.
 5. A consistency pass found a P1 shell mismatch: the overview had an assignment context header while the problem workbench started directly below the global header. Both pages now reuse `StudentAssignmentHeader`; the duplicate inner “返回学生端” action was removed and the workbench height was recalibrated for the added 72 px header. The final unified capture confirms matching hierarchy and alignment.
 6. A final P1 canvas mismatch remained at wide viewports: the problem page inherited the general `main-shell` gutter, leaving 38 px of blank space on both sides and 21 px above the assignment header at 1600 px. The problem workbench now uses an edge-to-edge 100vw canvas and offsets the generic shell padding. Browser assertions confirm x = 0, width equals the viewport, and the assignment header starts immediately below the global header.
+7. The final chrome pass removed the last subtle mismatch: problem-page rail icons were 21 px while the other assignment pages used 22 px. The problem page now uses the shared workspace and rail classes plus one shared dimension token set: 72 px assignment header, 84 px rail, 72 px rail items, identical padding and gap, and 22 px icons. Automated browser measurements compare both pages directly and require exact equality.
 
 ## Interaction and runtime checks
 

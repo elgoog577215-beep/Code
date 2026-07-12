@@ -1300,19 +1300,19 @@ export default function ProblemPage() {
         <StudentAssignmentHeader assignment={assignmentContext} student={currentStudent} className="problem-assignment-header" />
       ) : null}
 
-      <div className="problem-workbench-shell">
-        <nav className="problem-workbench-rail" aria-label="作业页面导航">
+      <div className={`problem-workbench-shell${assignmentId ? " student-assignment-workspace" : ""}`}>
+        <nav className={`problem-workbench-rail${assignmentId ? " student-assignment-side-nav" : ""}`} aria-label="作业页面导航">
           <Link to={assignmentId ? assignmentBasePath : "/app/student"}>
-            <LayoutGrid size={21} aria-hidden="true" /><span>概览</span>
+            <LayoutGrid size={22} aria-hidden="true" /><span>概览</span>
           </Link>
           <Link className="is-active" aria-current="page" to={buildTaskLink(problemId)}>
-            <ClipboardList size={21} aria-hidden="true" /><span>题目</span>
+            <ClipboardList size={22} aria-hidden="true" /><span>题目</span>
           </Link>
           <Link to={assignmentId ? `${assignmentBasePath}/submissions` : assignmentBasePath}>
-            <FileCheck2 size={21} aria-hidden="true" /><span>提交</span>
+            <FileCheck2 size={22} aria-hidden="true" /><span>提交</span>
           </Link>
           <Link to={assignmentId ? `${assignmentBasePath}/ranking` : assignmentBasePath}>
-            <BarChart3 size={21} aria-hidden="true" /><span>排名</span>
+            <BarChart3 size={22} aria-hidden="true" /><span>排名</span>
           </Link>
         </nav>
 

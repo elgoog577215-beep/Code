@@ -23908,6 +23908,16 @@ button.standard-library-governance-path {
 }
 
 /* Keep the assignment workspace overrides last in the cascade. */
+.student-assignment-insights-page,
+.problem-page.problem-workbench--assignment {
+  --assignment-header-height: 72px;
+  --assignment-rail-width: 84px;
+  --assignment-rail-item-height: 72px;
+  --assignment-rail-gap: 0.35rem;
+  --assignment-rail-padding-block: 1rem;
+  --assignment-rail-padding-inline: 0.45rem;
+}
+
 .main-shell > .problem-page.problem-workbench {
   width: 100vw;
   max-width: none;
@@ -23973,11 +23983,23 @@ button.standard-library-governance-path {
   background: color-mix(in srgb, var(--surface-muted) 34%, var(--surface));
 }
 .student-assignment-insights-header {
+  height: var(--assignment-header-height);
   min-height: 72px;
   grid-template-columns: 48px auto minmax(0, 1fr) auto;
   gap: 0;
   padding: 0 1.4rem;
   background: var(--surface-strong);
+}
+.student-assignment-workspace {
+  grid-template-columns: var(--assignment-rail-width) minmax(0, 1fr);
+}
+.student-assignment-side-nav {
+  gap: var(--assignment-rail-gap);
+  padding: var(--assignment-rail-padding-block) var(--assignment-rail-padding-inline);
+}
+.student-assignment-side-nav a {
+  height: var(--assignment-rail-item-height);
+  min-height: var(--assignment-rail-item-height);
 }
 .student-assignment-back {
   width: 38px;
@@ -24029,11 +24051,14 @@ button.standard-library-governance-path {
 @media (max-width: 760px) {
   .student-assignment-insights-page { width: 100%; margin: 0; padding: 0; }
   .student-assignment-insights-header {
+    height: auto;
     min-height: auto;
     grid-template-columns: 42px minmax(0, 1fr) auto;
     gap: 0;
     padding: 0.7rem;
   }
+  .student-assignment-workspace { grid-template-columns: 1fr; }
+  .student-assignment-side-nav a { height: auto; min-height: 54px; }
   .student-assignment-insights-title {
     grid-column: auto;
     grid-row: auto;
