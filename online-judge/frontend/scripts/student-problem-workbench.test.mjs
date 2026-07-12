@@ -77,11 +77,13 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     page.on("pageerror", error => browserErrors.push(error.message));
     await page.goto(`${baseUrl}/app/student/assignments/7/problems/101?studentProfileId=41`, { waitUntil: "domcontentloaded" });
     await page.locator(".problem-main-split").waitFor({ state: "visible", timeout: 10000 });
+    await page.locator(".problem-assignment-header").waitFor({ state: "visible", timeout: 10000 });
 
     assert.equal(await page.locator(".problem-assignment-header").count(), 1);
     assert.equal((await page.locator(".problem-assignment-header h1").textContent())?.trim(), "try");
     assert.equal(await page.locator(".problem-assignment-header .student-assignment-insights-meta").count(), 2);
     assert.equal((await page.locator(".problem-assignment-header .student-assignment-profile strong").textContent())?.trim(), "NothingK");
+    assert.equal(await page.locator(".problem-back-link").count(), 0);
     assert.equal(await page.locator(".problem-workbench-rail a").count(), 4);
     assert.equal((await page.locator(".problem-workbench-rail a.is-active").textContent())?.trim(), "题目");
     assert.equal(await page.locator(".problem-main-split > .panel--statement").count(), 1);
