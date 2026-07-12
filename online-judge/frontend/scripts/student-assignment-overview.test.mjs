@@ -31,6 +31,16 @@ const trajectory = {
     { problemId: 104, title: "阶乘计算", difficulty: "MEDIUM", attemptCount: 0, passed: false, submissions: [] }
   ]
 };
+const problem = {
+  id: 102,
+  title: "回文判断",
+  description: "判断给定字符串是否为回文。",
+  difficulty: "EASY",
+  timeLimit: 1000,
+  memoryLimit: 131072,
+  starterCode: "",
+  sampleTestCases: [{ input: "level", expectedOutput: "true" }]
+};
 
 test("assignment overview follows the left-rail workspace concept", async () => {
   const browser = await chromium.launch({ headless: true });
@@ -50,7 +60,11 @@ test("assignment overview follows the left-rail workspace concept", async () => 
       ? [assignment]
       : path === "/api/student/assignments/7/profile/41/trajectory"
         ? trajectory
-        : {};
+        : path === "/api/problems/102"
+          ? problem
+          : path === "/api/submissions/problem/102/history-summary"
+            ? []
+            : {};
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
 
@@ -84,6 +98,11 @@ test("assignment overview follows the left-rail workspace concept", async () => 
     assert.equal(await page.locator(".student-assignment-latest-verdict").count(), 0);
     assert.equal((await page.locator(".student-assignment-attempts").first().textContent())?.trim(), "2");
     assert.deepEqual(browserErrors, []);
+    await page.getByRole("link", { name: "题目", exact: true }).click();
+    await page.waitForURL(url => url.pathname === "/app/student/assignments/7/problems/102", { timeout: 5000 });
+    await page.locator(".panel--statement").waitFor({ state: "visible" });
+    assert.equal(await page.locator("#code-workbench").count(), 1);
+    assert.equal(await page.getByRole("button", { name: "提交代码" }).count(), 1);
     if (process.env.STUDENT_ASSIGNMENT_SCREENSHOT) {
       await page.screenshot({ path: process.env.STUDENT_ASSIGNMENT_SCREENSHOT, fullPage: true });
     }
