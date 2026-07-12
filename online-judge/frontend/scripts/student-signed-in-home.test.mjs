@@ -69,6 +69,10 @@ test("signed-in public bank uses the guest card style above classroom assignment
     const publicPractice = page.locator(".student-guest-practice");
     const assignmentBoard = page.locator(".student-assignment-board");
     assert.equal(await publicPractice.count(), 1, "signed-in page must reuse the guest public-practice card");
+    assert.equal(await publicPractice.getAttribute("class"), "student-guest-practice");
+    assert.equal(await publicPractice.locator(".student-guest-practice__difficulty").count(), 1);
+    assert.equal(await publicPractice.locator(".student-guest-starters").count(), 1);
+    assert.equal(await publicPractice.locator(".student-guest-starter-card").count(), 3);
     const [publicBox, assignmentBox] = await Promise.all([publicPractice.boundingBox(), assignmentBoard.boundingBox()]);
     assert.ok(publicBox && assignmentBox && publicBox.y < assignmentBox.y, "public bank must appear above assignments");
   });
