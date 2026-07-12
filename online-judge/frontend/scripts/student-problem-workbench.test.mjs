@@ -123,11 +123,12 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     assert.equal(await page.locator(".problem-back-link").count(), 0);
     const pageFrame = await page.locator(".problem-page").boundingBox();
     const appHeaderFrame = await page.locator(".app-header").boundingBox();
+    const mainShellFrame = await page.locator(".main-shell").boundingBox();
     assert.ok(pageFrame);
     assert.ok(appHeaderFrame);
     assert.ok(pageFrame.x <= 1, JSON.stringify(pageFrame));
     assert.ok(pageFrame.width >= viewportWidth - 2, JSON.stringify(pageFrame));
-    assert.ok(Math.abs(pageFrame.y - (appHeaderFrame.y + appHeaderFrame.height)) <= 1, JSON.stringify({ pageFrame, appHeaderFrame }));
+    assert.ok(Math.abs(pageFrame.y - (appHeaderFrame.y + appHeaderFrame.height)) <= 1, JSON.stringify({ pageFrame, appHeaderFrame, mainShellFrame }));
     assert.equal(await page.locator(".student-assignment-side-nav[data-student-assignment-navigation] a").count(), 4);
     assert.equal(await page.locator(".problem-workbench-rail").count(), 0);
     assert.equal(await page.locator(".problem-workbench-shell.student-assignment-workspace").count(), 1);

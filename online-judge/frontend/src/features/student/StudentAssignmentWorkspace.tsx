@@ -5,7 +5,7 @@ import { api } from "../../shared/api/client";
 import type { Assignment, AssignmentTask, StudentProfile, StudentTrajectory } from "../../shared/api/types";
 import { loadStudent, saveStudent } from "../../shared/storage";
 
-export type StudentAssignmentTab = "assignment" | "ranking" | "submissions";
+export type StudentAssignmentTab = "assignment" | "tasks" | "ranking" | "submissions";
 
 export function pickNextAssignmentTask(assignment: Assignment | null, trajectory: StudentTrajectory | null) {
   if (!assignment?.tasks.length) {
@@ -107,6 +107,12 @@ interface StudentAssignmentHeaderProps {
   className?: string;
 }
 
+interface StudentAssignmentNavigationProps {
+  assignmentId: number;
+  taskPath: string;
+  activeTab: StudentAssignmentTab;
+}
+
 export function StudentAssignmentHeader({ assignment, student, className = "" }: StudentAssignmentHeaderProps) {
   const studentInitials = student.displayName.trim().slice(0, 2).toUpperCase() || "ST";
   return (
@@ -130,34 +136,41 @@ export function StudentAssignmentHeader({ assignment, student, className = "" }:
   );
 }
 
+export function StudentAssignmentNavigation({ assignmentId, taskPath, activeTab }: StudentAssignmentNavigationProps) {
+  const basePath = `/app/student/assignments/${assignmentId}`;
+  const navItems = [
+    { key: "assignment", label: "概览", to: basePath, icon: LayoutGrid },
+    { key: "tasks", label: "题目", to: taskPath, icon: ClipboardList },
+    { key: "submissions", label: "提交", to: `${basePath}/submissions`, icon: FileCheck2 },
+    { key: "ranking", label: "排名", to: `${basePath}/ranking`, icon: BarChart3 }
+  ] as const;
+
+  return (
+    <nav className="student-assignment-side-nav" aria-label="作业页面导航" data-student-assignment-navigation>
+      {navItems.map(item => {
+        const Icon = item.icon;
+        const isActive = activeTab === item.key;
+        return (
+          <Link className={isActive ? "is-active" : ""} aria-current={isActive ? "page" : undefined} to={item.to} key={item.key}>
+            <Icon size={22} aria-hidden="true" />
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function StudentAssignmentShell({ assignment, student, nextTask, activeTab, children }: StudentAssignmentShellProps) {
   const basePath = `/app/student/assignments/${assignment.id}`;
   const nextTaskPath = nextTask
     ? `${basePath}/problems/${nextTask.problemId}?studentProfileId=${student.id}`
     : basePath;
-  const navItems = [
-    { key: "assignment", label: "概览", to: basePath, icon: LayoutGrid },
-    { key: "tasks", label: "题目", to: nextTaskPath, icon: ClipboardList },
-    { key: "submissions", label: "提交", to: `${basePath}/submissions`, icon: FileCheck2 },
-    { key: "ranking", label: "排名", to: `${basePath}/ranking`, icon: BarChart3 }
-  ];
-
   return (
     <div className="student-assignment-insights-page">
       <StudentAssignmentHeader assignment={assignment} student={student} />
       <div className="student-assignment-workspace">
-        <nav className="student-assignment-side-nav" aria-label="作业页面导航">
-          {navItems.map(item => {
-            const Icon = item.icon;
-            const isActive = item.key !== "tasks" && activeTab === item.key;
-            return (
-              <Link className={isActive ? "is-active" : ""} aria-current={isActive ? "page" : undefined} to={item.to} key={item.key}>
-                <Icon size={22} aria-hidden="true" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        <StudentAssignmentNavigation assignmentId={assignment.id} taskPath={nextTaskPath} activeTab={activeTab} />
         <main className="student-assignment-workspace-content">{children}</main>
       </div>
     </div>

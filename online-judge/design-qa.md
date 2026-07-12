@@ -6,10 +6,15 @@
 - consistency reference — assignment overview: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-98602bd7-aebd-4881-8fa3-9ec6c3df5123.png`
 - edge-to-edge reference — problem page: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-e91d57d1-9da9-4b45-94c2-e5ca276b723e.png`
 - edge-to-edge reference — assignment overview: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-88f922cc-b182-4724-9483-575fc25d58ef.png`
+- shared chrome reference — assignment overview: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-1bda7f13-d1a7-471c-9049-190614c9801d.png`
+- shared chrome issue markup — problem page: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-396df656-e206-42b3-8cd1-5010c664690c.png`
 - implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench.png`
 - final unified implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-unified-final.png`
 - final full-screen implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-fullscreen.png`
 - final chrome-alignment screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-chrome-final.png`
+- shared-component overview screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-assignment-shared-chrome-2048.png`
+- shared-component problem screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-shared-chrome-2048.png`
+- shared-component comparison path: `D:\WenCode\Code\online-judge\output\design-qa\student-shared-chrome-current-comparison.png`
 - collapsed-state screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench-collapsed.png`
 - mobile screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench-mobile.png`
 - combined comparison path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-comparison.png`
@@ -53,6 +58,7 @@ Accepted product constraints:
 5. A consistency pass found a P1 shell mismatch: the overview had an assignment context header while the problem workbench started directly below the global header. Both pages now reuse `StudentAssignmentHeader`; the duplicate inner “返回学生端” action was removed and the workbench height was recalibrated for the added 72 px header. The final unified capture confirms matching hierarchy and alignment.
 6. A final P1 canvas mismatch remained at wide viewports: the problem page inherited the general `main-shell` gutter, leaving 38 px of blank space on both sides and 21 px above the assignment header at 1600 px. The problem workbench now uses an edge-to-edge 100vw canvas and offsets the generic shell padding. Browser assertions confirm x = 0, width equals the viewport, and the assignment header starts immediately below the global header.
 7. The final chrome pass removed the last subtle mismatch: problem-page rail icons were 21 px while the other assignment pages used 22 px. The problem page now uses the shared workspace and rail classes plus one shared dimension token set: 72 px assignment header, 84 px rail, 72 px rail items, identical padding and gap, and 22 px icons. Automated browser measurements compare both pages directly and require exact equality.
+8. Follow-up comparison found that matching class names was still not sufficient: the problem route retained problem-specific header and rail wrappers, and the wide-screen `main-shell` rule added 3.5 px above the problem canvas at 2048 px. The problem route now renders the same `StudentAssignmentHeader` and `StudentAssignmentNavigation` components as overview, submissions, and ranking, with no assignment-route `problem-*` chrome classes. Wide-screen shell exclusions remove the padding compensation hack. The 2048 x 1087 side-by-side capture confirms identical header and primary-rail geometry.
 
 ## Interaction and runtime checks
 

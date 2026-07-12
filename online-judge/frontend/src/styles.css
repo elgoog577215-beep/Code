@@ -23717,7 +23717,7 @@ button.standard-library-governance-path {
     --wide-workbench-max: 1840px;
   }
 
-  .main-shell:not(:has(.route-hub-page--experience)):not(:has(.student-assignment-insights-page)) {
+  .main-shell:not(:has(.route-hub-page--experience)):not(:has(.student-assignment-insights-page)):not(:has(.problem-workbench)):not(:has(.problem-page)) {
     width: min(calc(100% - var(--wide-page-gutter) - var(--wide-page-gutter)), var(--wide-content-max));
     max-width: none;
     padding-inline: 0;
@@ -23921,7 +23921,7 @@ button.standard-library-governance-path {
 .main-shell > .problem-page.problem-workbench {
   width: 100vw;
   max-width: none;
-  margin-top: calc(0rem - clamp(0.72rem, 2vw, 1.25rem));
+  margin-top: 0;
   margin-right: calc(50% - 50vw);
   margin-left: calc(50% - 50vw);
 }

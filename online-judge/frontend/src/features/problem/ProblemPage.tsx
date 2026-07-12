@@ -23,7 +23,7 @@ import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea } from "../../shared/ui/Field";
 import { Panel } from "../../shared/ui/Panel";
 import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
-import { StudentAssignmentHeader } from "../student/StudentAssignmentWorkspace";
+import { StudentAssignmentHeader, StudentAssignmentNavigation } from "../student/StudentAssignmentWorkspace";
 import { CONTEST_LANGUAGES, DEFAULT_CONTEST_LANGUAGE_ID, contestLanguageById } from "./languages";
 
 const CodeEditor = lazy(() => import("./CodeEditor"));
@@ -1297,24 +1297,28 @@ export default function ProblemPage() {
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
       {assignmentId && assignmentContext && currentStudent ? (
-        <StudentAssignmentHeader assignment={assignmentContext} student={currentStudent} className="problem-assignment-header" />
+        <StudentAssignmentHeader assignment={assignmentContext} student={currentStudent} />
       ) : null}
 
       <div className={`problem-workbench-shell${assignmentId ? " student-assignment-workspace" : ""}`}>
-        <nav className={`problem-workbench-rail${assignmentId ? " student-assignment-side-nav" : ""}`} aria-label="作业页面导航">
-          <Link to={assignmentId ? assignmentBasePath : "/app/student"}>
-            <LayoutGrid size={22} aria-hidden="true" /><span>概览</span>
-          </Link>
-          <Link className="is-active" aria-current="page" to={buildTaskLink(problemId)}>
-            <ClipboardList size={22} aria-hidden="true" /><span>题目</span>
-          </Link>
-          <Link to={assignmentId ? `${assignmentBasePath}/submissions` : assignmentBasePath}>
-            <FileCheck2 size={22} aria-hidden="true" /><span>提交</span>
-          </Link>
-          <Link to={assignmentId ? `${assignmentBasePath}/ranking` : assignmentBasePath}>
-            <BarChart3 size={22} aria-hidden="true" /><span>排名</span>
-          </Link>
-        </nav>
+        {assignmentId && assignmentContext && currentStudent ? (
+          <StudentAssignmentNavigation assignmentId={assignmentContext.id} taskPath={buildTaskLink(problemId)} activeTab="tasks" />
+        ) : (
+          <nav className="problem-workbench-rail" aria-label="作业页面导航">
+            <Link to="/app/student">
+              <LayoutGrid size={22} aria-hidden="true" /><span>概览</span>
+            </Link>
+            <Link className="is-active" aria-current="page" to={buildTaskLink(problemId)}>
+              <ClipboardList size={22} aria-hidden="true" /><span>题目</span>
+            </Link>
+            <Link to={assignmentBasePath}>
+              <FileCheck2 size={22} aria-hidden="true" /><span>提交</span>
+            </Link>
+            <Link to={assignmentBasePath}>
+              <BarChart3 size={22} aria-hidden="true" /><span>排名</span>
+            </Link>
+          </nav>
+        )}
 
         <section className="problem-layout problem-layout--workbench">
         <aside className="problem-task-sidebar" aria-label="题目列表" aria-busy={tasksLoading}>

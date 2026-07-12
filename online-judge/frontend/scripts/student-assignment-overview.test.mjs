@@ -98,6 +98,9 @@ test("assignment overview follows the left-rail workspace concept", async () => 
     assert.equal(await page.locator(".student-assignment-latest-verdict").count(), 0);
     assert.equal((await page.locator(".student-assignment-attempts").first().textContent())?.trim(), "2");
     assert.deepEqual(browserErrors, []);
+    if (process.env.STUDENT_ASSIGNMENT_OVERVIEW_SCREENSHOT) {
+      await page.screenshot({ path: process.env.STUDENT_ASSIGNMENT_OVERVIEW_SCREENSHOT, fullPage: true });
+    }
     await page.getByRole("link", { name: "题目", exact: true }).click();
     await page.waitForURL(url => url.pathname === "/app/student/assignments/7/problems/102", { timeout: 5000 });
     await page.locator(".panel--statement").waitFor({ state: "visible" });
