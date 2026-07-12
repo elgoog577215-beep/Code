@@ -42,6 +42,41 @@ const trajectory = {
   tasks: assignment.tasks.map(task => ({ ...task, attemptCount: 0, passed: false, submissions: [] }))
 };
 
+async function readWorkspaceChrome(page, headerSelector, railSelector) {
+  return page.evaluate(({ headerSelector, railSelector }) => {
+    const header = document.querySelector(headerSelector);
+    const rail = document.querySelector(railSelector);
+    const railItem = rail?.querySelector("a");
+    if (!(header instanceof HTMLElement) || !(rail instanceof HTMLElement) || !(railItem instanceof HTMLElement)) {
+      throw new Error(`Missing workspace chrome: ${headerSelector}, ${railSelector}`);
+    }
+    const headerRect = header.getBoundingClientRect();
+    const railRect = rail.getBoundingClientRect();
+    const railItemRect = railItem.getBoundingClientRect();
+    const headerStyle = getComputedStyle(header);
+    const railStyle = getComputedStyle(rail);
+    return {
+      header: {
+        height: headerRect.height,
+        paddingLeft: headerStyle.paddingLeft,
+        paddingRight: headerStyle.paddingRight
+      },
+      rail: {
+        width: railRect.width,
+        paddingTop: railStyle.paddingTop,
+        paddingRight: railStyle.paddingRight,
+        paddingBottom: railStyle.paddingBottom,
+        paddingLeft: railStyle.paddingLeft,
+        gap: railStyle.gap
+      },
+      railItem: {
+        width: railItemRect.width,
+        height: railItemRect.height
+      }
+    };
+  }, { headerSelector, railSelector });
+}
+
 test("problem workbench has persistent navigation, resizable split panels, and collapsible code", async () => {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -93,6 +128,19 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     assert.ok(pageFrame.width >= viewportWidth - 2, JSON.stringify(pageFrame));
     assert.ok(Math.abs(pageFrame.y - (appHeaderFrame.y + appHeaderFrame.height)) <= 1, JSON.stringify({ pageFrame, appHeaderFrame }));
     assert.equal(await page.locator(".problem-workbench-rail a").count(), 4);
+    assert.equal(await page.locator(".problem-workbench-shell.student-assignment-workspace").count(), 1);
+    assert.equal(await page.locator(".problem-workbench-rail.student-assignment-side-nav").count(), 1);
+    const problemChrome = await readWorkspaceChrome(page, ".problem-assignment-header", ".problem-workbench-rail");
+    const overviewPage = await context.newPage();
+    await overviewPage.goto(`${baseUrl}/app/student/assignments/7?studentProfileId=41`, { waitUntil: "domcontentloaded" });
+    await overviewPage.locator(".student-assignment-overview-layout").waitFor({ state: "visible", timeout: 10000 });
+    const overviewChrome = await readWorkspaceChrome(
+      overviewPage,
+      ".student-assignment-insights-header",
+      ".student-assignment-side-nav"
+    );
+    assert.deepEqual(problemChrome, overviewChrome);
+    await overviewPage.close();
     assert.equal((await page.locator(".problem-workbench-rail a.is-active").textContent())?.trim(), "题目");
     assert.equal(await page.locator(".problem-main-split > .panel--statement").count(), 1);
     assert.equal(await page.locator(".problem-main-split > .panel--editor").count(), 1);
