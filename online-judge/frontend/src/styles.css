@@ -11667,6 +11667,9 @@ tr:last-child td {
     grid-template-columns: 1fr;
     grid-template-areas: "tasks" "workspace";
   }
+  .problem-workbench.problem-workbench--assignment .problem-layout--workbench {
+    height: auto;
+  }
 }
 
 /* Student problem workbench: persistent rail and resizable statement/editor canvas. */
@@ -23905,6 +23908,18 @@ button.standard-library-governance-path {
 }
 
 /* Keep the assignment workspace overrides last in the cascade. */
+.problem-workbench--assignment .problem-task-sidebar {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.problem-workbench--assignment .problem-workbench-shell {
+  min-height: calc(100dvh - 134px);
+}
+
+.problem-workbench.problem-workbench--assignment .problem-layout--workbench {
+  height: calc(100dvh - 134px);
+}
+
 .main-shell:has(.problem-workbench),
 .main-shell:has(.problem-page) {
   width: 100%;
@@ -23932,6 +23947,9 @@ button.standard-library-governance-path {
     height: auto;
     grid-template-columns: 1fr;
     grid-template-areas: "tasks" "workspace";
+  }
+  .problem-workbench.problem-workbench--assignment .problem-layout--workbench {
+    height: auto;
   }
 }
 

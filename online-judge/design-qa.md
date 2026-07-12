@@ -2,7 +2,10 @@
 
 - source visual truth path: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-22561031-1621-48f2-b5b5-98c1dc356b6e.png`
 - prior implementation reference: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-104f3ba0-3bac-4a2b-85c2-af577dc8aaf6.png`
+- consistency reference — problem page: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-f0cbcd46-1169-4218-abda-d75fc5625802.png`
+- consistency reference — assignment overview: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-98602bd7-aebd-4881-8fa3-9ec6c3df5123.png`
 - implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench.png`
+- final unified implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-unified-final.png`
 - collapsed-state screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench-collapsed.png`
 - mobile screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench-mobile.png`
 - combined comparison path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-comparison.png`
@@ -11,7 +14,7 @@
 
 ## Full-view comparison evidence
 
-The combined comparison places the selected reference and implementation in one frame. Both use a persistent primary rail, a secondary task list, and one full-height working canvas split between the statement and code editor. The implementation keeps the platform's existing top header and teal token system as intentional product-shell constraints.
+The combined comparison places the selected reference and implementation in one frame. Both use a persistent primary rail, a secondary task list, and one full-height working canvas split between the statement and code editor. The final consistency pass also verifies that the problem page now uses the exact shared assignment header component from the overview page: back action, assignment title, class, deadline, and student identity align in the same order and at the same height.
 
 ## Focused interaction evidence
 
@@ -43,6 +46,7 @@ Accepted product constraints:
 2. The workbench was rebuilt with a persistent rail, secondary task list, border-based continuous canvas, resizable statement/editor split, and collapsible editor.
 3. First automated resize check exposed a P1 layout constraint: later wide-screen CSS limited the working canvas, leaving the statement pinned at its minimum width. Final cascade rules now give the workbench the full viewport width; post-fix drag assertions pass.
 4. Desktop, collapsed, and mobile states were recaptured. No clipping, overlap, missing primary action, or horizontal overflow remains in the tested states.
+5. A consistency pass found a P1 shell mismatch: the overview had an assignment context header while the problem workbench started directly below the global header. Both pages now reuse `StudentAssignmentHeader`; the duplicate inner “返回学生端” action was removed and the workbench height was recalibrated for the added 72 px header. The final unified capture confirms matching hierarchy and alignment.
 
 ## Interaction and runtime checks
 

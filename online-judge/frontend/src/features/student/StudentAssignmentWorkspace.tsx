@@ -101,6 +101,35 @@ interface StudentAssignmentShellProps {
   children: ReactNode;
 }
 
+interface StudentAssignmentHeaderProps {
+  assignment: Assignment;
+  student: StudentProfile;
+  className?: string;
+}
+
+export function StudentAssignmentHeader({ assignment, student, className = "" }: StudentAssignmentHeaderProps) {
+  const studentInitials = student.displayName.trim().slice(0, 2).toUpperCase() || "ST";
+  return (
+    <header className={`student-assignment-insights-header${className ? ` ${className}` : ""}`}>
+      <Link className="student-assignment-back" to="/app/student" aria-label="返回学生端">
+        <ArrowLeft size={21} aria-hidden="true" />
+      </Link>
+      <div className="student-assignment-insights-title">
+        <h1>{assignment.title}</h1>
+      </div>
+      <div className="student-assignment-insights-context">
+        <span className="student-assignment-insights-meta">{assignment.className || student.className || "当前班级"}</span>
+        <span className="student-assignment-insights-meta"><CalendarDays size={16} aria-hidden="true" />{assignment.endsAt ? formatAssignmentDate(assignment.endsAt) : "未设置截止时间"}</span>
+      </div>
+      <div className="student-assignment-profile" aria-label={`当前学生 ${student.displayName}`}>
+        <span>{studentInitials}</span>
+        <strong>{student.displayName}</strong>
+        <ChevronDown size={16} aria-hidden="true" />
+      </div>
+    </header>
+  );
+}
+
 export function StudentAssignmentShell({ assignment, student, nextTask, activeTab, children }: StudentAssignmentShellProps) {
   const basePath = `/app/student/assignments/${assignment.id}`;
   const nextTaskPath = nextTask
@@ -112,27 +141,10 @@ export function StudentAssignmentShell({ assignment, student, nextTask, activeTa
     { key: "submissions", label: "提交", to: `${basePath}/submissions`, icon: FileCheck2 },
     { key: "ranking", label: "排名", to: `${basePath}/ranking`, icon: BarChart3 }
   ];
-  const studentInitials = student.displayName.trim().slice(0, 2).toUpperCase() || "ST";
 
   return (
     <div className="student-assignment-insights-page">
-      <header className="student-assignment-insights-header">
-        <Link className="student-assignment-back" to="/app/student" aria-label="返回学生端">
-          <ArrowLeft size={21} aria-hidden="true" />
-        </Link>
-        <div className="student-assignment-insights-title">
-          <h1>{assignment.title}</h1>
-        </div>
-        <div className="student-assignment-insights-context">
-          <span className="student-assignment-insights-meta">{assignment.className || student.className || "当前班级"}</span>
-          <span className="student-assignment-insights-meta"><CalendarDays size={16} aria-hidden="true" />{assignment.endsAt ? formatAssignmentDate(assignment.endsAt) : "未设置截止时间"}</span>
-        </div>
-        <div className="student-assignment-profile" aria-label={`当前学生 ${student.displayName}`}>
-          <span>{studentInitials}</span>
-          <strong>{student.displayName}</strong>
-          <ChevronDown size={16} aria-hidden="true" />
-        </div>
-      </header>
+      <StudentAssignmentHeader assignment={assignment} student={student} />
       <div className="student-assignment-workspace">
         <nav className="student-assignment-side-nav" aria-label="作业页面导航">
           {navItems.map(item => {

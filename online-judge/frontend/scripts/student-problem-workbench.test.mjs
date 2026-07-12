@@ -51,6 +51,7 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     }
   });
   await context.addInitScript(value => {
+    window.localStorage.setItem("wzai:theme", "light");
     window.sessionStorage.setItem("wzai:student", JSON.stringify(value));
     window.sessionStorage.setItem("wzai:student:7", JSON.stringify(value));
   }, student);

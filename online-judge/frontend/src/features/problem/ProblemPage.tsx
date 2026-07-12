@@ -23,6 +23,7 @@ import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea } from "../../shared/ui/Field";
 import { Panel } from "../../shared/ui/Panel";
 import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
+import { StudentAssignmentHeader } from "../student/StudentAssignmentWorkspace";
 import { CONTEST_LANGUAGES, DEFAULT_CONTEST_LANGUAGE_ID, contestLanguageById } from "./languages";
 
 const CodeEditor = lazy(() => import("./CodeEditor"));
@@ -608,7 +609,8 @@ export default function ProblemPage() {
   const isPublicWorkbench = routeAssignmentParam === "public" || !assignmentId;
   const studentFromAssignment = assignmentId ? loadStudent(assignmentId) : null;
   const studentFromAny = loadStudent();
-  const studentProfileId = normalizeNumber(searchParams.get("studentProfileId")) ?? studentFromAssignment?.id ?? studentFromAny?.id ?? null;
+  const currentStudent = studentFromAssignment || studentFromAny;
+  const studentProfileId = normalizeNumber(searchParams.get("studentProfileId")) ?? currentStudent?.id ?? null;
   const recommendationToken = searchParams.get("recommendationToken");
   const assignmentBasePath = assignmentId ? `/app/student/assignments/${assignmentId}` : "/app/student/assignments/public";
   const backTo = assignmentBasePath;
@@ -623,6 +625,7 @@ export default function ProblemPage() {
   const [history, setHistory] = useState<SubmissionHistorySummary[]>([]);
   const [trajectory, setTrajectory] = useState<StudentTrajectory | null>(null);
   const [assignmentTitle, setAssignmentTitle] = useState(isPublicWorkbench ? "公共题库" : "课堂作业");
+  const [assignmentContext, setAssignmentContext] = useState<Assignment | null>(null);
   const [workbenchTasks, setWorkbenchTasks] = useState<WorkbenchTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [resultOpen, setResultOpen] = useState(false);
@@ -735,6 +738,7 @@ export default function ProblemPage() {
     setTasksLoading(true);
 
     if (isPublicWorkbench) {
+      setAssignmentContext(null);
       api.problemCatalog()
         .then(result => {
           if (!ignore) {
@@ -776,15 +780,18 @@ export default function ProblemPage() {
         }
         if (!ignore) {
           if (assignment) {
+            setAssignmentContext(assignment);
             setAssignmentTitle(visibleAssignmentTitle(assignment));
             setWorkbenchTasks(assignment.tasks.map(taskFromAssignment));
           } else {
+            setAssignmentContext(null);
             setAssignmentTitle("课堂作业");
             setWorkbenchTasks([]);
           }
         }
       } catch {
         if (!ignore) {
+          setAssignmentContext(null);
           setWorkbenchTasks([]);
         }
       } finally {
@@ -1286,8 +1293,12 @@ export default function ProblemPage() {
   );
 
   return (
-    <div className="stack problem-page problem-workbench">
+    <div className={`stack problem-page problem-workbench${assignmentId ? " problem-workbench--assignment" : ""}`}>
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
+
+      {assignmentId && assignmentContext && currentStudent ? (
+        <StudentAssignmentHeader assignment={assignmentContext} student={currentStudent} className="problem-assignment-header" />
+      ) : null}
 
       <div className="problem-workbench-shell">
         <nav className="problem-workbench-rail" aria-label="作业页面导航">
@@ -1307,9 +1318,11 @@ export default function ProblemPage() {
 
         <section className="problem-layout problem-layout--workbench">
         <aside className="problem-task-sidebar" aria-label="题目列表" aria-busy={tasksLoading}>
-          <Link to={backTo} className="problem-back-link">
-            <ArrowLeft size={14} /> {backLabel}
-          </Link>
+          {isPublicWorkbench ? (
+            <Link to={backTo} className="problem-back-link">
+              <ArrowLeft size={14} /> {backLabel}
+            </Link>
+          ) : null}
           <div className="problem-task-sidebar__head">
             <div>
               <strong>{assignmentTitle}</strong>
