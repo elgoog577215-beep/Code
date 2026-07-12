@@ -219,21 +219,6 @@ export default function StudentPage() {
     <div className="student-page student-home student-home--assignments student-task-home">
       {failed && <div className="alert alert--error">{failed}</div>}
 
-      <section className="student-home-command student-home-command--compact student-home-command--entry">
-        <div className="student-home-command__identity">
-          <BookOpen size={20} aria-hidden="true" />
-          <h1>{t("studentHome.title")}</h1>
-        </div>
-        {student ? <div className="student-home-command__message"><strong>{student.displayName}</strong></div> : null}
-        {!student ? (
-          <Link className="student-home-command__guest-action" to="/app/student/login">
-            <LogIn size={15} aria-hidden="true" />
-            {t("studentHome.login.shortcut")}
-            <ArrowRight size={15} aria-hidden="true" />
-          </Link>
-        ) : null}
-      </section>
-
       {!student ? (
         <>
           {renderPublicPractice("student-guest-practice-heading", "assignments")}
