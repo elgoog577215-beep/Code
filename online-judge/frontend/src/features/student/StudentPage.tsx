@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, CircleCheck, ClipboardList, Clock3, LogIn, Play, RotateCcw } from "lucide-react";
+import { ArrowRight, BookOpen, CircleCheck, ClipboardList, LogIn, Play, RotateCcw } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { Assignment, ProblemCatalogItem, ReviewCard, StudentAbilityProfile, StudentProfile } from "../../shared/api/types";
-import { verdictLabel } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
 import { loadStudent, onActiveStudentChange } from "../../shared/storage";
 
@@ -17,22 +16,6 @@ function latestTeacherAssignments(assignments: Assignment[]) {
 
 function reviewCardLink(card: ReviewCard, studentId: number) {
   return `/app/student/assignments/public/problems/${card.problemId}?studentProfileId=${studentId}`;
-}
-
-function formatAssignmentDate(value?: string | null) {
-  if (!value) {
-    return null;
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(parsed);
 }
 
 type DifficultyKey = "easy" | "medium" | "hard" | "unknown";
@@ -84,11 +67,8 @@ export default function StudentPage() {
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState<number | null>(null);
 
   useEffect(() => onActiveStudentChange(() => setStudent(loadStudent())), []);
-
-  useEffect(() => setSelectedAssignmentId(null), [student?.id]);
 
   useEffect(() => {
     let ignore = false;
@@ -163,31 +143,7 @@ export default function StudentPage() {
 
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
   const progressFor = (assignment: Assignment) => progressByAssignmentId[assignment.id] ?? null;
-  const recommendedAssignmentId = useMemo(
-    () => visibleAssignments.find(assignment => {
-      const progress = progressByAssignmentId[assignment.id];
-      return assignment.status === "ACTIVE" && progress && progress.completedTasks > 0 && progress.completedTasks < progress.totalTasks;
-    })?.id ?? visibleAssignments.find(assignment => assignment.status === "ACTIVE")?.id ?? visibleAssignments[0]?.id,
-    [progressByAssignmentId, visibleAssignments]
-  );
-  const featuredAssignmentId = visibleAssignments.some(assignment => assignment.id === selectedAssignmentId)
-    ? selectedAssignmentId
-    : recommendedAssignmentId;
-  const inProgressAssignmentCount = visibleAssignments.filter(assignment => {
-    const progress = progressByAssignmentId[assignment.id];
-    return assignment.status === "ACTIVE" && progress && progress.completedTasks > 0 && progress.completedTasks < progress.totalTasks;
-  }).length;
-  const notStartedAssignmentCount = visibleAssignments.filter(assignment => {
-    const progress = progressByAssignmentId[assignment.id];
-    return assignment.status === "ACTIVE" && progress?.completedTasks === 0;
-  }).length;
-  const completedAssignmentCount = visibleAssignments.filter(assignment => {
-    const progress = progressByAssignmentId[assignment.id];
-    return Boolean(progress && progress.totalTasks > 0 && progress.completedTasks >= progress.totalTasks);
-  }).length;
   const reviewCard = abilityProfile?.reviewCards?.[0] || null;
-  const fineFocus = abilityProfile?.fineGrainedProfile?.fineGrainedTagFocus?.[0]?.label || null;
-  const abilityFocus = abilityProfile?.fineGrainedProfile?.abilityPointFocus?.[0]?.label || abilityProfile?.primaryAbilityFocus || null;
   const problemCount = publicProblems?.length ?? null;
   const publicDifficultyCounts = useMemo(() => {
     const counts = { EASY: 0, MEDIUM: 0, HARD: 0 };
@@ -227,13 +183,7 @@ export default function StudentPage() {
           <BookOpen size={20} aria-hidden="true" />
           <h1>{t("studentHome.title")}</h1>
         </div>
-        {student ? <div className="student-home-command__message">
-          <strong>{t("studentHome.dashboard.greeting", { name: student.displayName })}</strong>
-          <span>{t("studentHome.dashboard.headerSummary", {
-            total: visibleAssignments.length,
-            active: inProgressAssignmentCount
-          })}</span>
-        </div> : null}
+        {student ? <div className="student-home-command__message"><strong>{student.displayName}</strong></div> : null}
         {!student ? (
           <Link className="student-home-command__guest-action" to="/app/student/login">
             <LogIn size={15} aria-hidden="true" />
@@ -317,18 +267,35 @@ export default function StudentPage() {
         </>
       ) : (
         <>
+          <section className="student-guest-practice student-signed-in-practice" aria-labelledby="student-signed-in-practice-heading">
+            <header className="student-guest-practice__head">
+              <span className="student-assignment-board__icon" aria-hidden="true"><BookOpen size={20} /></span>
+              <h2 id="student-signed-in-practice-heading">{t("studentHome.guestPreview.today")}</h2>
+            </header>
+            <div className="student-guest-practice__panel">
+              <div className="student-guest-practice__summary">
+                <span className="student-guest-practice__icon" aria-hidden="true"><BookOpen size={21} /></span>
+                <span className="student-guest-practice__main">
+                  <strong>{t("studentHome.public.title")}</strong>
+                  <small>{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
+                </span>
+                <span className="student-guest-practice__actions">
+                  <Link className="student-guest-practice__action student-guest-practice__action--primary" to={publicStartPath}>
+                    <Play size={15} fill="currentColor" aria-hidden="true" />
+                    {t("studentHome.public.cta")}
+                  </Link>
+                  <Link className="student-guest-practice__action student-guest-practice__action--secondary" to="/app/student/assignments/public">
+                    {t("studentHome.guestPreview.viewAll")}
+                  </Link>
+                </span>
+              </div>
+            </div>
+          </section>
+
           <section id="assignments" className="student-assignment-board" aria-labelledby="student-assignment-heading">
             <header className="student-assignment-board__head">
               <span className="student-assignment-board__icon" aria-hidden="true"><ClipboardList size={20} /></span>
-              <div>
-                <h2 id="student-assignment-heading">{t("studentHome.dashboard.classroom")}</h2>
-                <p>{t("studentHome.dashboard.assignmentSummary", {
-                  total: visibleAssignments.length,
-                  active: inProgressAssignmentCount,
-                  notStarted: notStartedAssignmentCount,
-                  completed: completedAssignmentCount
-                })}</p>
-              </div>
+              <h2 id="student-assignment-heading">{t("studentHome.dashboard.classroom")}</h2>
             </header>
 
             {assignmentLoading ? (
@@ -336,93 +303,42 @@ export default function StudentPage() {
                 {t("studentHome.loading.assignments")}
               </div>
             ) : visibleAssignments.length ? (
-              <div className="student-assignment-table" role="list">
-                <div className="student-assignment-table__header" aria-hidden="true">
-                  <span>{t("studentHome.dashboard.assignmentName")}</span>
-                  <span>{t("studentHome.dashboard.className")}</span>
-                  <span>{t("studentHome.dashboard.status")}</span>
-                  <span>{t("studentHome.dashboard.problemCount")}</span>
-                  <span>{t("studentHome.dashboard.progress")}</span>
-                  <span />
-                </div>
+              <nav className="student-assignment-table student-assignment-table--direct" aria-label={t("studentHome.dashboard.classroom")}>
                 {visibleAssignments.map(assignment => {
-                  const featured = assignment.id === featuredAssignmentId;
-                  const deadline = formatAssignmentDate(assignment.endsAt);
                   const progress = progressFor(assignment);
                   const state = assignmentState(assignment);
                   const totalTasks = progress?.totalTasks ?? assignment.tasks?.length ?? 0;
                   const completedTasks = progress?.completedTasks ?? 0;
                   return (
-                    <div
-                      className={`student-entry-link student-assignment-row${featured ? " student-assignment-row--featured" : ""}`}
+                    <Link
+                      className="student-entry-link student-assignment-row student-assignment-row--direct"
+                      to={`/app/student/assignments/${assignment.id}`}
                       key={assignment.id}
-                      role="listitem"
-                      data-selected={featured ? "true" : "false"}
+                      aria-label={visibleAssignmentTitle(assignment)}
                     >
-                      <input
-                        className="student-assignment-row__selector"
-                        type="radio"
-                        name="student-assignment-selection"
-                        id={`student-assignment-${assignment.id}`}
-                        value={assignment.id}
-                        checked={featured}
-                        onChange={() => setSelectedAssignmentId(assignment.id)}
-                        aria-label={t("studentHome.dashboard.selectAssignment", { title: visibleAssignmentTitle(assignment) })}
-                      />
                       <span className="student-assignment-row__icon" aria-hidden="true">
-                        {featured
-                          ? <Play size={17} fill="currentColor" />
-                          : state.key === "completed" ? <CircleCheck size={19} /> : <ClipboardList size={19} />}
+                        {state.key === "completed" ? <CircleCheck size={19} /> : <ClipboardList size={19} />}
                       </span>
                       <span className="student-assignment-row__main">
                         <strong>{visibleAssignmentTitle(assignment)}</strong>
-                        <small>{t("studentHome.dashboard.assignmentMeta", {
-                          count: assignment.tasks?.length || 0,
-                          description: assignment.description || t("studentHome.assignment.description")
-                        })}</small>
                       </span>
-                      <span className="student-assignment-row__class">{assignment.className || t("studentHome.dashboard.unassignedClass")}</span>
                       <span className="student-assignment-row__status">
                         <span><i className={`student-assignment-row__dot student-assignment-row__dot--${state.key}`} />{state.label}</span>
-                        {deadline ? <small><Clock3 size={13} aria-hidden="true" />{t("studentHome.dashboard.deadline", { value: deadline })}</small> : null}
                       </span>
-                      <span className="student-assignment-row__count">{t("studentHome.taskCount", { count: totalTasks })}</span>
                       <span className="student-assignment-row__progress" aria-label={t("studentHome.dashboard.progressAria", { completed: completedTasks, total: totalTasks })}>
                         <progress value={completedTasks} max={Math.max(totalTasks, 1)} />
                         <strong>{progress ? `${completedTasks}/${totalTasks}` : `-/${totalTasks}`}</strong>
                       </span>
-                      {featured
-                        ? <Link
-                            className="student-assignment-row__action"
-                            to={`/app/student/assignments/${assignment.id}`}
-                            aria-label={t("studentHome.dashboard.continueAssignment", { title: visibleAssignmentTitle(assignment) })}
-                          >
-                            {t("studentHome.dashboard.continue")}
-                          </Link>
-                        : <span aria-hidden="true" />}
-                    </div>
+                      <ArrowRight className="student-assignment-row__chevron" size={18} aria-hidden="true" />
+                    </Link>
                   );
                 })}
-              </div>
+              </nav>
             ) : (
               <div className="student-assignment-board__empty">
                 <strong>{t("studentHome.emptyAssignments.title")}</strong>
-                <span>{t("studentHome.emptyAssignments.meta")}</span>
               </div>
             )}
-          </section>
-
-          <section className="student-self-practice" aria-labelledby="student-practice-heading">
-            <header>
-              <span className="student-self-practice__icon" aria-hidden="true"><BookOpen size={19} /></span>
-              <h2 id="student-practice-heading">{t("studentHome.dashboard.selfPractice")}</h2>
-            </header>
-            <Link className="student-self-practice__row" to="/app/student/assignments/public">
-              <strong>{t("studentHome.public.title")}</strong>
-              <span>{problemCount !== null ? t("studentHome.dashboard.publicCount", { count: problemCount }) : t("studentHome.loading.publicBank")}</span>
-              <small>{t("studentHome.dashboard.publicHint")}</small>
-              <span className="student-self-practice__action">{t("studentHome.dashboard.browsePublic")}</span>
-            </Link>
           </section>
         </>
       )}
@@ -431,13 +347,9 @@ export default function StudentPage() {
         <section className="student-review-strip" aria-label={t("studentHome.review.aria")}>
           <span className="student-review-strip__label"><RotateCcw size={16} aria-hidden="true" />{t("studentHome.dashboard.recentReview")}</span>
           {reviewCard ? (
-            <Link to={reviewCardLink(reviewCard, student.id)}>
+            <Link to={reviewCardLink(reviewCard, student.id)} aria-label={t("studentHome.dashboard.viewReview")}>
               <strong>{reviewCard.problemTitle || `题目 #${reviewCard.problemId}`}</strong>
-              <small>{[
-                reviewCard.verdict ? verdictLabel(reviewCard.verdict) : null,
-                reviewCard.primaryFineGrainedTag || abilityFocus || fineFocus
-              ].filter(Boolean).join(" · ")}</small>
-              <span>{t("studentHome.dashboard.viewReview")}<ArrowRight size={15} aria-hidden="true" /></span>
+              <ArrowRight size={15} aria-hidden="true" />
             </Link>
           ) : (
             <div className="student-review-strip__empty">
