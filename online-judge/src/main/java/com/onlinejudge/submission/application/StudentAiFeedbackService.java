@@ -73,6 +73,7 @@ public class StudentAiFeedbackService {
     private final ObjectMapper objectMapper;
     private StudentIssueLifecycleReadService issueLifecycleReadService;
     private AiDiagnosisWorkflowService diagnosisWorkflowService;
+    private SubmissionGrowthSummaryService growthSummaryService;
 
     @Autowired(required = false)
     void setIssueLifecycleReadService(StudentIssueLifecycleReadService issueLifecycleReadService) {
@@ -84,15 +85,22 @@ public class StudentAiFeedbackService {
         this.diagnosisWorkflowService = diagnosisWorkflowService;
     }
 
+    @Autowired(required = false)
+    void setGrowthSummaryService(SubmissionGrowthSummaryService growthSummaryService) {
+        this.growthSummaryService = growthSummaryService;
+    }
+
     @Transactional(readOnly = true)
     public StudentAiFeedbackLookupResponse getLookup(Long submissionId) {
         ensureSubmissionExists(submissionId);
-        return studentAiFeedbackRepository.findBySubmissionId(submissionId)
+        StudentAiFeedbackLookupResponse lookup = studentAiFeedbackRepository.findBySubmissionId(submissionId)
                 .map(this::toLookup)
                 .orElse(StudentAiFeedbackLookupResponse.builder()
                         .status("NOT_REQUESTED")
                         .feedback(notRequested(submissionId))
                         .build());
+        hydrateGrowth(submissionId, lookup.getFeedback());
+        return lookup;
     }
 
     @Transactional
@@ -1141,6 +1149,7 @@ public class StudentAiFeedbackService {
         if (issueLifecycleReadService != null) {
             issueLifecycleReadService.hydrate(entity.getSubmissionId(), feedback);
         }
+        hydrateGrowth(entity.getSubmissionId(), feedback);
         return StudentAiFeedbackLookupResponse.builder()
                 .status(statusOrFailed(entity.getStatus()))
                 .failureReason(entity.getFailureReason())
@@ -1149,6 +1158,15 @@ public class StudentAiFeedbackService {
                         ? null
                         : diagnosisWorkflowService.progressForSubmission(entity.getSubmissionId()))
                 .build();
+    }
+
+    private void hydrateGrowth(Long submissionId, StudentAiFeedbackResponse feedback) {
+        if (growthSummaryService == null || submissionId == null || feedback == null || feedback.getGrowthSummary() != null) {
+            return;
+        }
+        submissionRepository.findById(submissionId)
+                .map(growthSummaryService::summarizeSubmission)
+                .ifPresent(feedback::setGrowthSummary);
     }
 
     private void hydrateDisplayContract(StudentAiFeedbackResponse feedback) {

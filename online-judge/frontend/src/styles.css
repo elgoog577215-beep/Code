@@ -22711,6 +22711,79 @@ button.standard-library-governance-path {
   }
 }
 
+.student-submission-growth-summary {
+  display: grid;
+  gap: 0.68rem;
+  padding: 0.78rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand-soft) 28%, var(--surface-strong));
+}
+
+.student-submission-growth-summary > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.student-submission-growth-summary > header span {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 760;
+}
+
+.student-submission-growth-summary > header strong {
+  color: var(--brand-strong);
+  font-size: 0.82rem;
+}
+
+.student-submission-growth-summary > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.student-submission-growth-summary > div > span {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.56rem;
+}
+
+.student-submission-growth-summary > div > span + span {
+  border-left: 1px solid var(--line);
+}
+
+.student-submission-growth-summary small {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-submission-growth-summary .ui-button {
+  justify-self: start;
+}
+
+@media (max-width: 620px) {
+  .student-submission-growth-summary > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .student-submission-growth-summary > div > span:nth-child(3) {
+    border-left: 0;
+  }
+
+  .student-submission-growth-summary > div > span:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+}
+
 /* Student assignment overview, ranking, and submission history pages. */
 .sr-only {
   position: absolute !important;
@@ -24075,4 +24148,486 @@ button.standard-library-governance-path {
   .student-assignment-progress-row { grid-template-columns: minmax(0, 1fr) auto; }
   .student-assignment-progress-row > span:nth-child(2),
   .student-assignment-progress-row > span:nth-child(4) { display: none; }
+}
+
+/* Single-problem growth: data-first dashboard and submission timeline. */
+.problem-result-modal__body {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.problem-result-modal__grid {
+  height: auto;
+  min-height: min(54vh, 620px);
+  margin-top: 0.82rem;
+}
+
+.growth-dashboard {
+  width: min(100%, 1480px);
+  margin-inline: auto;
+  color: var(--ink);
+}
+
+.growth-dashboard__header,
+.growth-dashboard__title-row,
+.growth-dashboard__surface-head,
+.growth-dashboard__legend {
+  display: flex;
+  align-items: center;
+}
+
+.growth-dashboard__header {
+  min-height: 58px;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.08rem 0.08rem 0.66rem;
+}
+
+.growth-dashboard__breadcrumb {
+  margin: 0 0 0.24rem;
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.growth-dashboard__title-row {
+  flex-wrap: wrap;
+  gap: 0.58rem;
+}
+
+.growth-dashboard__title-row h2 {
+  margin: 0;
+  font-size: clamp(1.22rem, 2vw, 1.72rem);
+  letter-spacing: -0.02em;
+}
+
+.growth-dashboard__title-row > span {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.growth-dashboard__state {
+  flex: 0 0 auto;
+  padding: 0.42rem 0.72rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: var(--surface-strong);
+  font-size: 0.76rem;
+}
+
+.growth-dashboard__state.is-positive {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 30%, var(--line));
+  background: var(--success-soft);
+}
+
+.growth-dashboard__state.is-mixed {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--line));
+  background: var(--warning-soft);
+}
+
+.growth-dashboard__state.is-negative {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+  background: var(--danger-soft);
+}
+
+.growth-dashboard__kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-strong);
+}
+
+.growth-dashboard__kpis > div {
+  min-height: 86px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.18rem;
+  padding: 0.72rem;
+  text-align: center;
+}
+
+.growth-dashboard__kpis > div + div {
+  border-left: 1px solid var(--line);
+}
+
+.growth-dashboard__kpis span {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 760;
+}
+
+.growth-dashboard__kpis strong {
+  font-size: clamp(1.3rem, 2.2vw, 1.85rem);
+  line-height: 1;
+}
+
+.growth-dashboard__primary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(300px, 0.82fr);
+  gap: 0.72rem;
+  margin-top: 0.72rem;
+}
+
+.growth-dashboard__surface {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-strong);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.growth-dashboard__surface-head {
+  min-height: 44px;
+  padding: 0.66rem 0.86rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.growth-dashboard__surface-head h3 {
+  margin: 0;
+  font-size: 0.92rem;
+  letter-spacing: -0.01em;
+}
+
+.growth-dashboard__chart {
+  width: 100%;
+  height: 224px;
+  padding: 0.48rem 0.42rem 0.34rem;
+}
+
+.growth-dashboard__evolution,
+.growth-dashboard__matrix {
+  margin-top: 0.72rem;
+}
+
+.growth-dashboard__evolution-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+
+.growth-dashboard__evolution .growth-dashboard__chart {
+  height: 190px;
+}
+
+.growth-dashboard__legend {
+  min-width: 132px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.48rem;
+  padding: 0.8rem 1rem 0.8rem 0.6rem;
+}
+
+.growth-dashboard__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 730;
+}
+
+.growth-dashboard__legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--line-strong);
+}
+
+.growth-dashboard__legend i.is-persisted { background: #2472d4; }
+.growth-dashboard__legend i.is-new { background: #e6a32f; }
+.growth-dashboard__legend i.is-recurred { background: #e66f61; }
+.growth-dashboard__legend i.is-improved { background: #20a994; }
+.growth-dashboard__legend i.is-recovered { background: #8ad3cc; }
+
+.growth-dashboard__slope {
+  min-height: 224px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 1.2rem;
+}
+
+.growth-dashboard__slope > div {
+  position: relative;
+  min-width: 96px;
+  display: grid;
+  place-items: center;
+  gap: 0.32rem;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+.growth-dashboard__slope strong {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  z-index: 1;
+  border: 5px solid color-mix(in srgb, #1769d2 15%, white);
+  border-radius: 50%;
+  color: #1769d2;
+  background: var(--surface-strong);
+  font-size: 0.9rem;
+}
+
+.growth-dashboard__slope i {
+  position: absolute;
+  top: 58%;
+  left: calc(50% + 29px);
+  width: 38px;
+  height: 2px;
+  background: color-mix(in srgb, #1769d2 48%, var(--line));
+}
+
+.growth-dashboard__slope > p,
+.growth-dashboard__empty {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.growth-dashboard__empty {
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  text-align: center;
+}
+
+.growth-dashboard__matrix-scroll {
+  overflow-x: auto;
+}
+
+.growth-dashboard__matrix table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.growth-dashboard__matrix th,
+.growth-dashboard__matrix td {
+  height: 46px;
+  padding: 0.42rem 0.62rem;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+  font-size: 0.76rem;
+}
+
+.growth-dashboard__matrix th:first-child {
+  width: 190px;
+  text-align: left;
+}
+
+.growth-dashboard__matrix tbody th {
+  color: var(--ink-soft);
+  font-weight: 760;
+}
+
+.growth-dashboard__matrix tr:last-child th,
+.growth-dashboard__matrix tr:last-child td {
+  border-bottom: 0;
+}
+
+.growth-dashboard__matrix th:last-child,
+.growth-dashboard__matrix td:last-child {
+  border-right: 0;
+}
+
+.growth-dashboard__matrix button {
+  width: 100%;
+  min-height: 28px;
+  border: 0;
+  border-radius: 5px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+}
+
+.growth-dashboard__matrix button:not(:disabled) { cursor: pointer; }
+.growth-dashboard__matrix td.is-persisted { color: #165dab; background: color-mix(in srgb, #2472d4 12%, transparent); }
+.growth-dashboard__matrix td.is-new { color: #986000; background: color-mix(in srgb, #e6a32f 15%, transparent); }
+.growth-dashboard__matrix td.is-recurred { color: #a34238; background: color-mix(in srgb, #e66f61 14%, transparent); }
+.growth-dashboard__matrix td.is-not_observed { color: #087665; background: color-mix(in srgb, #20a994 13%, transparent); }
+.growth-dashboard__matrix td.is-recovered { color: #087665; background: color-mix(in srgb, #8ad3cc 20%, transparent); }
+
+.growth-timeline {
+  position: relative;
+  display: grid;
+  gap: 0;
+}
+
+.growth-timeline::before {
+  position: absolute;
+  top: 22px;
+  bottom: 22px;
+  left: 15px;
+  width: 2px;
+  content: "";
+  background: var(--line);
+}
+
+.growth-timeline__node {
+  position: relative;
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 20px minmax(120px, 0.7fr) minmax(90px, 0.45fr) minmax(190px, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.58rem 0.68rem 0.58rem 0;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.growth-timeline__node:hover,
+.growth-timeline__node.is-active {
+  background: color-mix(in srgb, var(--brand-soft) 55%, transparent);
+}
+
+.growth-timeline__node > i {
+  width: 11px;
+  height: 11px;
+  z-index: 1;
+  justify-self: center;
+  border: 3px solid var(--surface-strong);
+  border-radius: 50%;
+  background: var(--line-strong);
+  box-shadow: 0 0 0 2px var(--line);
+}
+
+.growth-timeline__node.is-positive > i { background: var(--success); box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 28%, var(--line)); }
+.growth-timeline__node.is-mixed > i { background: var(--warning); box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 28%, var(--line)); }
+.growth-timeline__node.is-negative > i { background: var(--danger); box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 28%, var(--line)); }
+
+.growth-timeline__main,
+.growth-timeline__metrics,
+.growth-timeline__issues {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.growth-timeline__main small,
+.growth-timeline__issues small,
+.growth-timeline__issues time {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.71rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.growth-timeline__metrics {
+  grid-template-columns: auto auto;
+  justify-content: start;
+  align-items: baseline;
+  gap: 0.38rem;
+}
+
+.growth-timeline__metrics small {
+  color: var(--success);
+  font-weight: 850;
+}
+
+:root[data-theme="dark"] .growth-dashboard__kpis,
+:root[data-theme="dark"] .growth-dashboard__surface {
+  background: #11141a;
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .growth-dashboard__slope strong {
+  border-color: #20344e;
+  color: #70aef6;
+  background: #11141a;
+}
+
+.growth-dashboard .recharts-cartesian-axis-tick-value,
+.growth-dashboard .recharts-label-list text {
+  fill: var(--ink-soft);
+}
+
+.growth-dashboard .recharts-cartesian-grid line {
+  stroke: color-mix(in srgb, var(--line) 74%, transparent);
+}
+
+.growth-dashboard .recharts-tooltip-wrapper {
+  color: #152122;
+}
+
+@media (max-width: 900px) {
+  .growth-dashboard__primary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .growth-dashboard__evolution-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .growth-dashboard__legend {
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 0 0.8rem 0.8rem;
+  }
+
+  .problem-result-modal__grid,
+  .problem-result-modal__grid--waiting,
+  .problem-result-modal__grid--judge-heavy,
+  .problem-result-modal__grid--ai-heavy,
+  .problem-result-modal__grid--repair-heavy,
+  .problem-result-modal__grid--balanced {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .growth-dashboard__header {
+    align-items: flex-start;
+  }
+
+  .growth-dashboard__kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .growth-dashboard__kpis > div:nth-child(3) {
+    border-left: 0;
+  }
+
+  .growth-dashboard__kpis > div:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+
+  .growth-timeline__node {
+    grid-template-columns: 20px minmax(100px, 0.75fr) minmax(84px, 0.4fr);
+  }
+
+  .growth-timeline__issues {
+    grid-column: 2 / 4;
+    padding-bottom: 0.24rem;
+  }
+
+  .growth-dashboard__slope {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
 }

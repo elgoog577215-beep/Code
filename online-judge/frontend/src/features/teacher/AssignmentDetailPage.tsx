@@ -5,6 +5,8 @@ import { ApiError, api } from "../../shared/api/client";
 import type { AssignmentOverview, DiagnosisTag } from "../../shared/api/types";
 import { confidenceLabel, displayText, formatDateTime, hintPolicyLabel, issueLabel, percent, verdictLabel } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
+import type { SubmissionHistorySummary } from "../../shared/api/types";
+import { SingleProblemGrowthDashboard } from "../growth/SingleProblemGrowthDashboard";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { Field, Select, TextArea } from "../../shared/ui/Field";
@@ -253,6 +255,7 @@ export default function AssignmentDetailPage() {
   const currentStudentId = Number(studentProfileId);
   const [overview, setOverview] = useState<AssignmentOverview | null>(null);
   const [diagnosisTags, setDiagnosisTags] = useState<DiagnosisTag[]>([]);
+  const [studentProblemGrowth, setStudentProblemGrowth] = useState<SubmissionHistorySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState<Alert | null>(null);
@@ -268,17 +271,26 @@ export default function AssignmentDetailPage() {
     }
     void loadAssignmentDetail(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, currentProblemId, currentStudentId]);
 
   async function loadAssignmentDetail(targetId: number) {
     setLoading(true);
     setAlert(null);
     try {
-      const [overviewResult, tags] = await Promise.all([api.assignmentOverview(targetId), api.diagnosisTags()]);
+      const growthRequest = Number.isFinite(currentProblemId) && Number.isFinite(currentStudentId)
+        ? api.teacherStudentProblemGrowth(targetId, currentProblemId, currentStudentId).catch(() => [] as SubmissionHistorySummary[])
+        : Promise.resolve([] as SubmissionHistorySummary[]);
+      const [overviewResult, tags, growth] = await Promise.all([
+        api.assignmentOverview(targetId),
+        api.diagnosisTags(),
+        growthRequest
+      ]);
       setOverview(overviewResult);
       setDiagnosisTags(tags);
+      setStudentProblemGrowth(growth);
     } catch (error) {
       setOverview(null);
+      setStudentProblemGrowth([]);
       setAlert({ type: "error", message: teacherErrorMessage(error, "作业详情加载失败。") });
     } finally {
       setLoading(false);
@@ -351,6 +363,7 @@ export default function AssignmentDetailPage() {
           fineDiagnosisTags={fineDiagnosisTags}
           saving={saving}
           saveCorrection={saveCorrection}
+          growthHistory={studentProblemGrowth}
         />
       ) : null}
     </div>
@@ -680,7 +693,8 @@ function StudentProblemView({
   coarseDiagnosisTags,
   fineDiagnosisTags,
   saving,
-  saveCorrection
+  saveCorrection,
+  growthHistory
 }: {
   overview: AssignmentOverview;
   problem: ProblemSummary;
@@ -691,6 +705,7 @@ function StudentProblemView({
   fineDiagnosisTags: DiagnosisTag[];
   saving: boolean;
   saveCorrection: (event: FormEvent) => void;
+  growthHistory: SubmissionHistorySummary[];
 }) {
   const { t } = useTranslation();
   const currentIssue = student.latestFineGrainedIssue || student.latestIssueTag ? issueLabel(student.latestFineGrainedIssue || student.latestIssueTag) : "等待更多证据";
@@ -714,6 +729,14 @@ function StudentProblemView({
 
       <section className="teacher-student-problem-layout">
         <main className="teacher-student-evidence">
+          {growthHistory.length ? (
+            <SingleProblemGrowthDashboard
+              history={growthHistory}
+              selectedSubmissionId={student.latestSubmissionId}
+              currentSummary={growthHistory.find(item => item.id === student.latestSubmissionId)?.growthSummary}
+              mode="teacher"
+            />
+          ) : null}
           <article className="teacher-evidence-card teacher-evidence-card--decision">
             <span>当前卡点</span>
             <strong>{currentIssue}</strong>

@@ -25,6 +25,7 @@ import { Panel } from "../../shared/ui/Panel";
 import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
 import { StudentAssignmentHeader, StudentAssignmentNavigation } from "../student/StudentAssignmentWorkspace";
 import { CONTEST_LANGUAGES, DEFAULT_CONTEST_LANGUAGE_ID, contestLanguageById } from "./languages";
+import { GrowthTimeline, SingleProblemGrowthDashboard } from "../growth/SingleProblemGrowthDashboard";
 
 const CodeEditor = lazy(() => import("./CodeEditor"));
 
@@ -221,24 +222,6 @@ function terminalFeedbackStatus(status?: string | null) {
 
 function inFlightFeedbackStatus(status?: string | null) {
   return ["GENERATING", "NOT_REQUESTED"].includes(String(status || "").toUpperCase());
-}
-
-function historyFeedbackLabel(
-  status: string | null | undefined,
-  t: (key: string, params?: Record<string, string | number>) => string
-) {
-  switch (String(status || "NOT_REQUESTED").toUpperCase()) {
-    case "READY":
-      return t("problemHistory.feedback.ready");
-    case "GENERATING":
-      return t("problemHistory.feedback.generating");
-    case "FAILED":
-    case "TIMEOUT":
-    case "SAFETY_REJECTED":
-      return t("problemHistory.feedback.failed");
-    default:
-      return t("problemHistory.feedback.pending");
-  }
 }
 
 function normalizeFailureReason(reason?: string | null) {
@@ -1145,9 +1128,13 @@ export default function ProblemPage() {
       })
     : [];
   const improvementViewItems = modelFeedbackReady ? studentAiFeedback?.improvementItems?.filter(item => item.body || item.title) || [] : [];
-  const lifecycleChanges = modelFeedbackReady ? studentAiFeedback?.issueChanges || [] : [];
+  const lifecycleChanges = studentAiFeedback?.issueChanges || [];
   const historicalLifecycleChanges = lifecycleChanges.filter(item => ["NOT_OBSERVED", "RECOVERED"].includes(String(item.changeStatus).toUpperCase()));
   const lifecycleSummary = studentAiFeedback?.issueChangeSummary;
+  const currentGrowthSummary = studentAiFeedback?.growthSummary
+    || latest?.growthSummary
+    || history.find(item => item.id === latest?.id)?.growthSummary
+    || null;
   const isFeedbackWaiting = Boolean(
     latest &&
       feedbackPollState !== "idle" &&
@@ -1522,24 +1509,11 @@ export default function ProblemPage() {
 
       {history.length > 0 && (
         <Panel title={t("problemHistory.title")} className="problem-history-panel">
-          <div className="problem-history-list" aria-label={t("problemHistory.aria")}>
-            {history.map(item => (
-              <button
-                type="button"
-                className={latest?.id === item.id ? "problem-history-row is-active" : "problem-history-row"}
-                onClick={() => void openHistorySubmission(item)}
-                key={item.id}
-              >
-                <span>
-                  <VerdictPill verdict={item.verdict} />
-                  <strong>{t("problemHistory.submission", { id: item.id })}</strong>
-                </span>
-                <span>{item.passedTestCases ?? 0}/{item.totalTestCases ?? 0}</span>
-                <span>{historyFeedbackLabel(item.feedbackStatus, t)}</span>
-                <small>{item.submittedAt ? new Date(item.submittedAt).toLocaleString() : "-"}</small>
-              </button>
-            ))}
-          </div>
+          <GrowthTimeline
+            history={history}
+            selectedSubmissionId={latest?.id}
+            onSelectSubmission={item => void openHistorySubmission(item)}
+          />
         </Panel>
       )}
 
@@ -1569,8 +1543,14 @@ export default function ProblemPage() {
             </div>
 
             <div className="problem-result-modal__body">
+              <SingleProblemGrowthDashboard
+                history={history}
+                selectedSubmissionId={latest.id}
+                currentSummary={currentGrowthSummary}
+                onSelectSubmission={item => void openHistorySubmission(item)}
+              />
               <div className={`problem-result-modal__grid problem-result-modal__grid--${resultLayoutMode}`}>
-                {modelFeedbackReady && lifecycleChanges.length ? (
+                {lifecycleChanges.length ? (
                   <section className="problem-result-section problem-result-section--lifecycle">
                     <div className="problem-result-section__head">
                       <h3>{t("issueLifecycle.title")}</h3>

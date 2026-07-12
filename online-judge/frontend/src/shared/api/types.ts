@@ -609,6 +609,46 @@ export interface StudentAiFeedbackIssueChangeSummary {
   improvementCount: number;
 }
 
+export interface SubmissionGrowthIssueSignal {
+  normalizedPointKey?: string | null;
+  title?: string | null;
+  displayCategory?: string | null;
+  changeStatus?: string | null;
+  pointKeySource?: string | null;
+  knowledgePathStatus?: string | null;
+  knowledgePath?: string[];
+  rawOccurrenceCount?: number | null;
+  effectiveOccurrenceCount?: number | null;
+  evidenceSubmissionIds?: number[];
+}
+
+export interface SubmissionGrowthSummary {
+  submissionId?: number | null;
+  growthState: string;
+  ruleVersion?: string | null;
+  effectiveAttempt: boolean;
+  comparable: boolean;
+  comparisonSubmissionId?: number | null;
+  duplicateOfSubmissionId?: number | null;
+  passedTestCases?: number | null;
+  totalTestCases?: number | null;
+  previousPassedTestCases?: number | null;
+  previousTotalTestCases?: number | null;
+  passedTestCaseDelta?: number | null;
+  persistedCount: number;
+  newCount: number;
+  recurringCount: number;
+  notObservedCount: number;
+  recoveredCount: number;
+  uncomparableCount: number;
+  improvementCount: number;
+  unresolvedCount: number;
+  priorityIssueTitle?: string | null;
+  priorityIssueStatus?: string | null;
+  dataCompletenessStatus?: string | null;
+  issueSignals?: SubmissionGrowthIssueSignal[];
+}
+
 export interface StudentAiFeedbackEvidenceSnippet {
   evidenceRef?: string | null;
   lineNumber?: number | null;
@@ -633,6 +673,7 @@ export interface StudentAiFeedback {
   improvementItems?: StudentAiFeedbackItem[];
   issueChanges?: StudentAiFeedbackIssueLifecycleItem[];
   issueChangeSummary?: StudentAiFeedbackIssueChangeSummary | null;
+  growthSummary?: SubmissionGrowthSummary | null;
   studentReport?: StudentAiFeedbackReport | null;
   nextQuestion?: string | null;
   safety?: {
@@ -803,6 +844,7 @@ export interface SubmissionResult {
   submittedAt?: string;
   analysisStatus?: string;
   analysis?: SubmissionAnalysis | null;
+  growthSummary?: SubmissionGrowthSummary | null;
   testCaseResults?: Array<{
     testCaseNumber: number;
     passed: boolean;
@@ -838,6 +880,7 @@ export interface SubmissionHistorySummary {
   analysisHeadline?: string | null;
   analysisSummary?: string | null;
   feedbackStatus?: StudentAiFeedbackStatus | null;
+  growthSummary?: SubmissionGrowthSummary | null;
   feedbackSource?: string | null;
   feedbackFailureReason?: string | null;
   feedbackRevisionId?: number | null;

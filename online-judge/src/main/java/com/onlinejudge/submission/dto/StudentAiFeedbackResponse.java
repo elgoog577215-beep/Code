@@ -22,6 +22,7 @@ public class StudentAiFeedbackResponse {
     private List<FeedbackItem> improvementItems;
     private List<IssueLifecycleItem> issueChanges;
     private IssueChangeSummary issueChangeSummary;
+    private SubmissionGrowthSummaryResponse growthSummary;
     private StudentReport studentReport;
     private String nextQuestion;
     private Safety safety;

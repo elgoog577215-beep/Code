@@ -13,6 +13,7 @@ import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.submission.dto.SubmissionAnalysisLookupResponse;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.SubmissionHistorySummaryResponse;
+import com.onlinejudge.submission.dto.SubmissionGrowthSummaryResponse;
 import com.onlinejudge.submission.dto.SubmissionResponse;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.StudentAiFeedback;
@@ -81,11 +82,17 @@ public class SubmissionAnalysisService {
     private final TeacherDiagnosisCorrectionRepository teacherDiagnosisCorrectionRepository;
     private final SubmissionDiagnosisFactProjector submissionDiagnosisFactProjector;
     private AiDiagnosisWorkflowService diagnosisWorkflowService;
+    private SubmissionGrowthSummaryService growthSummaryService;
     private Executor diagnosisBranchExecutor = Runnable::run;
 
     @Autowired(required = false)
     void setDiagnosisWorkflowService(AiDiagnosisWorkflowService diagnosisWorkflowService) {
         this.diagnosisWorkflowService = diagnosisWorkflowService;
+    }
+
+    @Autowired(required = false)
+    void setGrowthSummaryService(SubmissionGrowthSummaryService growthSummaryService) {
+        this.growthSummaryService = growthSummaryService;
     }
 
     @Autowired(required = false)
@@ -177,6 +184,9 @@ public class SubmissionAnalysisService {
                 .summarizeBySubmissionIdIn(submissionIds)
                 .stream()
                 .collect(Collectors.toMap(SubmissionCaseResultStatsProjection::getSubmissionId, stats -> stats));
+        Map<Long, SubmissionGrowthSummaryResponse> growthBySubmissionId = growthSummaryService == null
+                ? Map.of()
+                : growthSummaryService.summarizeByIds(submissionIds);
 
         return submissions.stream()
                 .map(submission -> toHistorySummary(
@@ -184,7 +194,8 @@ public class SubmissionAnalysisService {
                         problem,
                         analysisBySubmissionId.get(submission.getId()),
                         caseResultStatsBySubmissionId.get(submission.getId()),
-                        feedbackBySubmissionId.get(submission.getId())
+                        feedbackBySubmissionId.get(submission.getId()),
+                        growthBySubmissionId.get(submission.getId())
                 ))
                 .toList();
     }
@@ -387,6 +398,7 @@ public class SubmissionAnalysisService {
                 .submittedAt(submission.getSubmittedAt())
                 .analysisStatus(resolveAnalysisStatus(analysis))
                 .analysis(analysis)
+                .growthSummary(growthSummaryService == null ? null : growthSummaryService.summarizeSubmission(submission))
                 .testCaseResults(toPublicResults(caseResults))
                 .build();
     }
@@ -1668,7 +1680,8 @@ public class SubmissionAnalysisService {
                                                               Problem problem,
                                                               SubmissionAnalysis analysis,
                                                               SubmissionCaseResultStatsProjection caseResultStats,
-                                                              StudentAiFeedback feedback) {
+                                                              StudentAiFeedback feedback,
+                                                              SubmissionGrowthSummaryResponse growthSummary) {
         int totalTestCases = caseResultStats == null || caseResultStats.getTotalTestCases() == null
                 ? 0
                 : caseResultStats.getTotalTestCases().intValue();
@@ -1698,6 +1711,7 @@ public class SubmissionAnalysisService {
                 .feedbackFailureReason(feedback == null ? null : feedback.getFailureReason())
                 .feedbackRevisionId(feedback == null ? null : feedback.getLatestRevisionId())
                 .dataCompletenessStatus(historyCompleteness(submission, analysis, feedback))
+                .growthSummary(growthSummary)
                 .build();
     }
 

@@ -31,4 +31,5 @@ public class SubmissionHistorySummaryResponse {
     private String feedbackFailureReason;
     private Long feedbackRevisionId;
     private String dataCompletenessStatus;
+    private SubmissionGrowthSummaryResponse growthSummary;
 }
