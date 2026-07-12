@@ -1158,6 +1158,19 @@ const scenarios = [
     name: "public-assignment",
     path: "/app/student/assignments/public",
     beforeChecks: async page => {
+      let returnDocumentRequests = 0;
+      const countReturnDocumentRequest = request => {
+        const url = new URL(request.url());
+        if (request.isNavigationRequest() && request.resourceType() === "document" && url.pathname === "/app/student") {
+          returnDocumentRequests += 1;
+        }
+      };
+      page.on("request", countReturnDocumentRequest);
+      await page.locator('.student-home-command--entry a[href="/app/student"]').click();
+      await page.waitForURL(url => url.pathname === "/app/student", { timeout: 5000 });
+      record("public catalog back action performs a full navigation", returnDocumentRequests === 1, `document requests ${returnDocumentRequests}`);
+      page.off("request", countReturnDocumentRequest);
+      await page.goto(new URL("/app/student/assignments/public", page.url()).href, { waitUntil: "domcontentloaded" });
       await page.locator(".public-problem-link").filter({ hasText: "求和边界" }).first().click();
       await page.locator(".problem-workbench").first().waitFor({ state: "visible", timeout: 10000 });
     },
