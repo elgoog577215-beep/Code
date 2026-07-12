@@ -1,10 +1,10 @@
 ## Why
 
-DeepSeek V4 Pro 已能通过 ModelScope 正常调用，但默认推理模式会消耗大量输出额度，导致完整诊断中的结构化学生反馈被截断，并放大耗时与配额压力。当前需要把运行策略收束为统一非推理模式，同时将 V4 Pro 设为主模型，以稳定获得完整结构化结果。
+DeepSeek V4 Pro 已能通过 ModelScope 正常调用，但推理模式会消耗大量输出额度，导致完整诊断中的结构化学生反馈被截断，并放大耗时与配额压力。当前需要把运行策略收束为同一调用链上的显式推理开关，默认关闭推理，同时将 V4 Pro 设为主模型。
 
 ## What Changes
 
-- 所有 ModelScope Chat Completions 请求显式关闭推理模式，不再生成或消费 `reasoning_content`。
+- 所有 ModelScope Chat Completions 请求显式发送可配置的 `enable_thinking`，默认值为 `false`；系统始终不展示或消费 `reasoning_content`。
 - 将 `deepseek-ai/DeepSeek-V4-Pro` 设为本地、示例配置和学校服务器的主模型。
 - 保留 Qwen 模型池作为供应商错误或配额异常时的完整路径备用模型，不减少诊断阶段和调用数量。
 - 增加请求体、默认配置、流式结构化输出和真实困难样本回归验证。

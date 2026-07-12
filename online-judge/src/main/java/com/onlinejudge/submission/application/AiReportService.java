@@ -171,6 +171,9 @@ public class AiReportService {
     @Value("${ai.modelscope-compatible-request:auto}")
     private String modelScopeCompatibleRequest = "auto";
 
+    @Value("${ai.enable-thinking:false}")
+    private boolean enableThinking;
+
     @Value("${ai.timeout-seconds:30}")
     private long timeoutSeconds;
 
@@ -3256,6 +3259,7 @@ public class AiReportService {
         Map<String, Object> requestBody = chatRequestFactory.build(
                 baseUrl,
                 modelScopeCompatibleRequest,
+                enableThinking,
                 effectiveModel,
                 systemPrompt,
                 userPrompt,

@@ -20,6 +20,7 @@ class AiModelConfigurationTest {
         assertThat(applicationYaml)
                 .contains("model: ${OJ_AI_MODEL:${AI_MODEL:" + PRIMARY_MODEL + "}}")
                 .contains("model-pool: ${OJ_AI_MODEL_POOL:${AI_MODEL_POOL:" + VERIFIED_MODEL_POOL + "}}")
+                .contains("enable-thinking: ${AI_ENABLE_THINKING:false}")
                 .doesNotContain("model: ${OJ_AI_MODEL:${AI_MODEL:deepseek-ai/DeepSeek-V4-Flash}}");
     }
 
@@ -29,6 +30,7 @@ class AiModelConfigurationTest {
 
         assertThat(envExample)
                 .contains("OJ_AI_MODEL=" + PRIMARY_MODEL)
-                .contains("OJ_AI_MODEL_POOL=" + VERIFIED_MODEL_POOL);
+                .contains("OJ_AI_MODEL_POOL=" + VERIFIED_MODEL_POOL)
+                .contains("AI_ENABLE_THINKING=false");
     }
 }

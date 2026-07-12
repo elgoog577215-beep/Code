@@ -16,6 +16,7 @@ class ExternalModelChatRequestFactoryTest {
         Map<String, Object> request = factory.build(
                 "https://api-inference.modelscope.cn/v1",
                 "auto",
+                false,
                 "deepseek-ai/DeepSeek-V4-Pro",
                 "Return strict JSON.",
                 "Analyze this code.",
@@ -35,10 +36,29 @@ class ExternalModelChatRequestFactoryTest {
     }
 
     @Test
+    void explicitThinkingModeUsesSameModelScopeRequestShape() {
+        Map<String, Object> request = factory.build(
+                "https://api-inference.modelscope.cn/v1",
+                "auto",
+                true,
+                "deepseek-ai/DeepSeek-V4-Pro",
+                "Return strict JSON.",
+                "Analyze this code.",
+                true,
+                256
+        );
+
+        assertThat(request).containsEntry("enable_thinking", true);
+        assertThat(request).doesNotContainKey("temperature");
+        assertThat((List<?>) request.get("messages")).hasSize(1);
+    }
+
+    @Test
     void falseModeKeepsStandardOpenAiCompatibleShape() {
         Map<String, Object> request = factory.build(
                 "https://api-inference.modelscope.cn/v1",
                 "false",
+                true,
                 "deepseek-ai/DeepSeek-V4-Pro",
                 "Return strict JSON.",
                 "Analyze this code.",

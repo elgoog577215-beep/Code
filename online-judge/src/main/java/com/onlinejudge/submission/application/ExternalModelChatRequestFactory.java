@@ -9,6 +9,7 @@ public class ExternalModelChatRequestFactory {
 
     public Map<String, Object> build(String baseUrl,
                                      String compatibleMode,
+                                     boolean enableThinking,
                                      String model,
                                      String systemPrompt,
                                      String userPrompt,
@@ -25,7 +26,7 @@ public class ExternalModelChatRequestFactory {
         ));
         requestBody.put("stream", stream);
         if (compatible) {
-            requestBody.put("enable_thinking", false);
+            requestBody.put("enable_thinking", enableThinking);
         }
         if (!compatible) {
             requestBody.put("temperature", 0.2);

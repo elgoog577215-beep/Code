@@ -43,6 +43,7 @@ ai:
   model: ${OJ_AI_MODEL:${AI_MODEL:deepseek-ai/DeepSeek-V4-Pro}}
   model-pool: ${OJ_AI_MODEL_POOL:${AI_MODEL_POOL:deepseek-ai/DeepSeek-V4-Pro,Qwen/Qwen3.5-35B-A3B,Qwen/Qwen3.5-27B,Qwen/Qwen3.5-122B-A10B}}
   modelscope-compatible-request: ${AI_MODELSCOPE_COMPATIBLE_REQUEST:auto}
+  enable-thinking: ${AI_ENABLE_THINKING:false}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:30}
   external-runtime-enabled: ${AI_EXTERNAL_RUNTIME_ENABLED:true}
   external-runtime-profile: ${AI_EXTERNAL_RUNTIME_PROFILE:standard}

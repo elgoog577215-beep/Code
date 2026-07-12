@@ -1,8 +1,8 @@
 ## 1. 请求与配置
 
-- [x] 1.1 为 ModelScope 兼容请求统一加入 `enable_thinking=false`，并补充请求体单元测试
+- [x] 1.1 为 ModelScope 兼容请求加入可配置 `enable_thinking`，生产默认 `false`，并覆盖开关单元测试
 - [x] 1.2 将应用默认主模型和模型池首位切换为 `deepseek-ai/DeepSeek-V4-Pro`
-- [x] 1.3 同步 `.env.example`、Docker Compose、本地 `.env` 的非推理和主模型配置
+- [x] 1.3 同步 `.env.example`、Docker Compose、本地 `.env` 的推理开关和主模型配置
 
 ## 2. 回归验证
 
