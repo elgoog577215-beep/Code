@@ -1396,6 +1396,39 @@ const scenarios = [
         modalText
       );
       await page.waitForFunction(() => !document.body.innerText.includes("AI 分析中"), null, { timeout: 10000 });
+      const resultViewTabs = page.locator(".problem-result-view-switch button");
+      const resultViewTabCount = await resultViewTabs.count();
+      record("problem result separates repair and growth into two top views", resultViewTabCount === 2, `view tabs ${resultViewTabCount}`);
+      if (resultViewTabCount === 2) {
+        const repairTab = page.getByRole("tab", { name: "修正工作台" });
+        const growthTab = page.getByRole("tab", { name: "成长仪表盘" });
+        record(
+          "problem result opens on the repair workspace",
+          await repairTab.getAttribute("aria-selected") === "true" && await page.locator(".problem-result-view--repair").isVisible()
+        );
+        await growthTab.click();
+        const dashboardText = ((await page.locator(".problem-result-view--growth").textContent()) || "").replace(/\s+/g, "");
+        record(
+          "problem growth view contains every required dashboard block",
+          ["提交次数", "有效修改", "当前测试点", "未解决问题", "测试点通过率趋势", "高频知识点", "问题变化", "知识点×提交矩阵"]
+            .every(label => dashboardText.includes(label)),
+          dashboardText
+        );
+        record(
+          "problem result displays only one page at a time",
+          await page.locator(".problem-result-view--growth").isVisible() && !await page.locator(".problem-result-view--repair").isVisible()
+        );
+        const verticalScrollContainers = await page.locator(".problem-result-modal *").evaluateAll(elements => elements.filter(element => {
+          const style = window.getComputedStyle(element);
+          return ["auto", "scroll"].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+        }).map(element => element.className));
+        record(
+          "problem result avoids nested vertical scroll containers",
+          verticalScrollContainers.length === 0,
+          JSON.stringify(verticalScrollContainers)
+        );
+        await repairTab.click();
+      }
       const readyModalText = ((await page.locator(".problem-result-modal").first().textContent()) || "").replace(/\s+/g, "");
       const readyTestText = ((await page.locator(".problem-result-section--tests").first().textContent()) || "").replace(/\s+/g, "");
       const readyRepairText = ((await page.locator(".problem-result-section--repair").first().textContent()) || "").replace(/\s+/g, "");
@@ -2137,7 +2170,12 @@ async function main() {
   try {
     await waitForServer(`${baseUrl}/app/`, child, previewOutput);
     try {
-      browser = await chromium.launch({ headless: true });
+      browser = await chromium.launch({
+        headless: true,
+        ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH
+          ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH }
+          : {})
+      });
     } catch (error) {
       throw new Error(`Chromium could not launch. Run "npx playwright install chromium" in frontend. ${error.message}`);
     }
