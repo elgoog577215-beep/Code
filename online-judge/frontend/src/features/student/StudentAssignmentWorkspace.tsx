@@ -101,11 +101,14 @@ interface StudentAssignmentShellProps {
   children: ReactNode;
 }
 
-export function StudentAssignmentShell({ assignment, student, activeTab, children }: StudentAssignmentShellProps) {
+export function StudentAssignmentShell({ assignment, student, nextTask, activeTab, children }: StudentAssignmentShellProps) {
   const basePath = `/app/student/assignments/${assignment.id}`;
+  const nextTaskPath = nextTask
+    ? `${basePath}/problems/${nextTask.problemId}?studentProfileId=${student.id}`
+    : basePath;
   const navItems = [
     { key: "assignment", label: "概览", to: basePath, icon: LayoutGrid },
-    { key: "tasks", label: "题目", to: `${basePath}#assignment-task-list`, icon: ClipboardList },
+    { key: "tasks", label: "题目", to: nextTaskPath, icon: ClipboardList },
     { key: "submissions", label: "提交", to: `${basePath}/submissions`, icon: FileCheck2 },
     { key: "ranking", label: "排名", to: `${basePath}/ranking`, icon: BarChart3 }
   ];
