@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, CalendarDays } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, AssignmentTask, StudentProfile, StudentTrajectory } from "../../shared/api/types";
@@ -69,20 +69,6 @@ export function assignmentTaskState(task: AssignmentTask, trajectory: StudentTra
   return trajectory?.tasks.find(item => item.problemId === task.problemId) || null;
 }
 
-export function formatAssignmentDate(value?: string | null) {
-  if (!value) return "未设置";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "未设置";
-  return date.toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  });
-}
-
 export function formatRelativeTime(value?: string | null) {
   if (!value) return "暂无";
   const timestamp = new Date(value).getTime();
@@ -116,14 +102,11 @@ export function StudentAssignmentShell({ assignment, student, nextTask, activeTa
       <header className="student-assignment-insights-header">
         <Link className="student-assignment-back" to="/app/student">
           <ArrowLeft size={17} aria-hidden="true" />
-          返回学生端
+          返回
         </Link>
         <div className="student-assignment-insights-title">
           <h1>{assignment.title}</h1>
-          <span>{assignment.hintPolicy}</span>
         </div>
-        <span className="student-assignment-insights-meta">{assignment.className || student.className || "当前班级"}</span>
-        <span className="student-assignment-insights-meta"><CalendarDays size={16} aria-hidden="true" />截止时间：{formatAssignmentDate(assignment.endsAt)}</span>
         {nextTask ? (
           <Link className="student-assignment-continue" to={`${basePath}/problems/${nextTask.problemId}?studentProfileId=${student.id}`}>
             继续作业
