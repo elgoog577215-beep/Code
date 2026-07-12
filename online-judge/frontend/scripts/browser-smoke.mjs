@@ -1519,10 +1519,22 @@ const scenarios = [
         readyModalText
       );
       const suggestionCardCount = await page.locator(".student-feedback-item").count();
-      const knowledgeCardCount = await page.locator(".student-feedback-knowledge").count();
-      const pathStatusText = (await page.locator(".student-feedback-knowledge__status").allTextContents()).join("|");
-      record("problem modal renders one frame per suggestion", suggestionCardCount === 4, `suggestion cards ${suggestionCardCount}`);
-      record("problem modal renders one knowledge sub-card per suggestion", knowledgeCardCount === 4, `knowledge cards ${knowledgeCardCount}`);
+      const flatMetaRows = page.locator(".student-feedback-meta-row");
+      const flatMetaRowCount = await flatMetaRows.count();
+      const nestedMetaCardCount = await page.locator(".student-feedback-knowledge, .student-feedback-evidence").count();
+      const pathStatusText = (await page.locator(".student-feedback-path-status").allTextContents()).join("|");
+      const metaRowTexts = (await flatMetaRows.allTextContents()).map(text => text.replace(/\s+/g, ""));
+      record("problem modal preserves every suggestion", suggestionCardCount === 4, `suggestions ${suggestionCardCount}`);
+      record(
+        "problem modal flattens knowledge and evidence into one metadata row",
+        flatMetaRowCount === 4 && nestedMetaCardCount === 0,
+        `meta rows ${flatMetaRowCount}; nested cards ${nestedMetaCardCount}`
+      );
+      record(
+        "problem modal preserves knowledge path and evidence for every suggestion",
+        metaRowTexts.length === 4 && metaRowTexts.every(text => text.includes("知识路径") && (text.includes("代码证据") || text.includes("证据依据"))),
+        metaRowTexts.join("|")
+      );
       record(
         "problem modal distinguishes knowledge path provenance",
         ["正式标准库", "临时知识点", "历史推断", "暂未归类"].every(label => pathStatusText.includes(label)),
@@ -1546,7 +1558,7 @@ const scenarios = [
       await page.waitForTimeout(80);
       await page.locator(".language-toggle").dispatchEvent("click");
       await page.waitForTimeout(80);
-      const englishMetaText = ((await page.locator(".student-feedback-meta").allTextContents()) || []).join("|");
+      const englishMetaText = ((await page.locator(".student-feedback-meta-row").allTextContents()) || []).join("|");
       record(
         "problem feedback metadata renders complete English copy",
         ["Knowledge path", "Formal library", "Provisional node", "Legacy inference", "Unclassified", "Code evidence"]
@@ -1560,14 +1572,19 @@ const scenarios = [
       await page.waitForTimeout(80);
       record("problem modal uses student AI feedback endpoint", studentFeedbackLookupCount >= 2, `student feedback lookup count ${studentFeedbackLookupCount}`);
       record("problem modal records model feedback view", studentFeedbackViewCount === 1, `student feedback view count ${studentFeedbackViewCount}`);
-      await page.locator(".student-feedback-evidence button").first().click();
-      await page.locator(".problem-result-modal").waitFor({ state: "hidden", timeout: 5000 });
-      await page.locator(".cm-line-evidence-highlight").first().waitFor({ state: "visible", timeout: 5000 });
-      record("problem evidence click highlights the matching editor line", await page.locator(".cm-line-evidence-highlight").count() === 1);
-      await page.screenshot({
-        path: join(artifactDir, `student-feedback-line-highlight-${viewport.name}.png`),
-        fullPage: true
-      });
+      const flatEvidenceAction = page.locator(".student-feedback-meta-action").first();
+      const flatEvidenceActionCount = await flatEvidenceAction.count();
+      record("problem flat evidence keeps the code jump action", flatEvidenceActionCount === 1, `actions ${flatEvidenceActionCount}`);
+      if (flatEvidenceActionCount === 1) {
+        await flatEvidenceAction.click();
+        await page.locator(".problem-result-modal").waitFor({ state: "hidden", timeout: 5000 });
+        await page.locator(".cm-line-evidence-highlight").first().waitFor({ state: "visible", timeout: 5000 });
+        record("problem evidence click highlights the matching editor line", await page.locator(".cm-line-evidence-highlight").count() === 1);
+        await page.screenshot({
+          path: join(artifactDir, `student-feedback-line-highlight-${viewport.name}.png`),
+          fullPage: true
+        });
+      }
       await checkVisible(page, ".problem-last-result", "problem last result entry after modal close");
       await checkVisible(page, ".problem-history-panel", "problem submission history");
       if (viewport.name === "mobile") {
