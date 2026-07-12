@@ -99,3 +99,26 @@ test("signed-in home removes secondary summaries and assignment descriptions", a
     assert.equal((await page.locator("body").textContent()).includes("这段作业说明不应显示"), false);
   });
 });
+
+test("signed-in home omits the recent review strip", async () => {
+  await withSignedInPage(async page => {
+    assert.equal(await page.locator(".student-review-strip").count(), 0);
+  });
+});
+
+test("classroom assignment rows distribute controls across the full width", async () => {
+  await withSignedInPage(async page => {
+    const row = page.locator(".student-assignment-row").first();
+    const chevron = row.locator(".student-assignment-row__chevron");
+    const progress = row.locator(".student-assignment-row__progress");
+    const [rowBox, chevronBox, progressBox] = await Promise.all([
+      row.boundingBox(),
+      chevron.boundingBox(),
+      progress.boundingBox()
+    ]);
+    assert.ok(rowBox && chevronBox && progressBox);
+    const rightGap = rowBox.x + rowBox.width - (chevronBox.x + chevronBox.width);
+    assert.ok(rightGap <= 32, `entry arrow must align near the right edge; gap=${rightGap}`);
+    assert.ok(progressBox.x >= rowBox.x + rowBox.width * 0.6, `progress must occupy the right side of the row; ${JSON.stringify({ rowBox, progressBox })}`);
+  });
+});
