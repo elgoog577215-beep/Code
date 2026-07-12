@@ -106,6 +106,12 @@ test("signed-in home omits the recent review strip", async () => {
   });
 });
 
+test("signed-in home omits the duplicated page command row", async () => {
+  await withSignedInPage(async page => {
+    assert.equal(await page.locator(".student-home-command--entry").count(), 0);
+  });
+});
+
 test("classroom assignment rows distribute controls across the full width", async () => {
   await withSignedInPage(async page => {
     const row = page.locator(".student-assignment-row").first();
