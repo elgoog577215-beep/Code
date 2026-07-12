@@ -11638,6 +11638,286 @@ tr:last-child td {
   .student-assignment-progress-row > span:nth-child(4) { display: none; }
 }
 
+/* Problem workbench cascade guard. */
+.main-shell:has(.problem-workbench),
+.main-shell:has(.problem-page) {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+}
+
+.problem-page.problem-workbench,
+.problem-workbench-shell,
+.problem-workbench .problem-layout--workbench {
+  width: 100%;
+  max-width: none;
+}
+
+.problem-workbench .problem-layout--workbench {
+  height: calc(100dvh - 62px);
+  grid-template-columns: minmax(230px, 292px) minmax(0, 1fr);
+  grid-template-areas: "tasks workspace";
+  gap: 0;
+  margin: 0;
+}
+
+@media (max-width: 980px) {
+  .problem-workbench .problem-layout--workbench {
+    height: auto;
+    grid-template-columns: 1fr;
+    grid-template-areas: "tasks" "workspace";
+  }
+}
+
+/* Student problem workbench: persistent rail and resizable statement/editor canvas. */
+.main-shell:has(.problem-workbench) {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+}
+
+.problem-page.problem-workbench {
+  width: 100%;
+  gap: 0;
+}
+
+.problem-workbench-shell {
+  min-height: calc(100dvh - 62px);
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  background: color-mix(in srgb, var(--surface-muted) 32%, var(--surface));
+}
+
+.problem-workbench-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 0.45rem;
+  border-right: 1px solid var(--line);
+  background: var(--surface-strong);
+}
+
+.problem-workbench-rail a {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 7px;
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 760;
+  text-decoration: none;
+}
+
+.problem-workbench-rail a:hover,
+.problem-workbench-rail a.is-active {
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 72%, var(--surface-strong));
+}
+
+.problem-workbench .problem-layout--workbench {
+  width: 100%;
+  height: calc(100dvh - 62px);
+  display: grid;
+  grid-template-columns: minmax(230px, 292px) minmax(0, 1fr);
+  grid-template-areas: "tasks workspace";
+  gap: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.problem-workbench .problem-task-sidebar {
+  grid-area: tasks;
+  padding: 0.85rem 0.7rem;
+  border-width: 0 1px 0 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--surface-strong);
+}
+
+.problem-main-split {
+  grid-area: workspace;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  align-items: stretch;
+  overflow: hidden;
+  background: var(--surface-strong);
+}
+
+.problem-main-split > .panel--statement,
+.problem-main-split > .panel--editor {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--surface-strong);
+}
+
+.problem-main-split > .panel--statement {
+  border-right: 1px solid var(--line);
+}
+
+.problem-main-split > .panel--statement .panel__body,
+.problem-main-split > .panel--editor .panel__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.problem-main-split > .panel--editor .panel__body {
+  display: grid;
+}
+
+.problem-main-split .panel__header {
+  min-height: 88px;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.problem-main-split .panel--statement .panel__body {
+  padding: 1.5rem 1.35rem 2rem;
+}
+
+.problem-main-split .panel--editor .panel__body {
+  padding: 0.7rem;
+}
+
+.problem-main-split .panel--editor .stack {
+  min-height: 0;
+  grid-template-rows: minmax(360px, 1fr) auto auto;
+}
+
+.problem-main-split .editor-shell,
+.problem-main-split .editor-shell .cm-editor {
+  min-height: 0;
+  height: 100%;
+}
+
+.problem-panel-resizer {
+  position: relative;
+  z-index: 2;
+  min-width: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-faint);
+  background: color-mix(in srgb, var(--surface-muted) 74%, var(--surface-strong));
+  border-inline: 1px solid var(--line);
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.problem-panel-resizer:hover,
+.problem-panel-resizer:focus-visible {
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  outline: 0;
+}
+
+.problem-editor-header-actions {
+  display: flex;
+  align-items: end;
+  gap: 0.55rem;
+}
+
+.problem-editor-collapse,
+.problem-editor-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  background: var(--surface-strong);
+  cursor: pointer;
+}
+
+.problem-editor-collapse {
+  width: 36px;
+  min-height: 36px;
+  border-radius: 6px;
+}
+
+.problem-editor-collapse:hover,
+.problem-editor-expand:hover {
+  border-color: var(--brand);
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+}
+
+.problem-editor-expand {
+  width: 44px;
+  height: 100%;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+}
+
+.problem-editor-expand span {
+  writing-mode: vertical-rl;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+:root[data-theme="dark"] .problem-workbench-rail,
+:root[data-theme="dark"] .problem-workbench .problem-task-sidebar,
+:root[data-theme="dark"] .problem-main-split,
+:root[data-theme="dark"] .problem-main-split > .panel--statement,
+:root[data-theme="dark"] .problem-main-split > .panel--editor {
+  background: #12161d;
+}
+
+@media (max-width: 980px) {
+  .problem-workbench-shell { grid-template-columns: 1fr; }
+  .problem-workbench-rail {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 0.35rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .problem-workbench-rail a { min-width: 64px; min-height: 54px; flex-direction: row; }
+  .problem-workbench-rail a svg { width: 18px; }
+  .problem-workbench .problem-layout--workbench {
+    height: auto;
+    min-height: calc(100dvh - 116px);
+    grid-template-columns: 1fr;
+    grid-template-areas: "tasks" "workspace";
+    overflow: visible;
+  }
+  .problem-workbench .problem-task-sidebar {
+    max-height: 260px;
+    border-width: 0 0 1px;
+  }
+  .problem-main-split {
+    grid-template-columns: minmax(0, 1fr) !important;
+    overflow: visible;
+  }
+  .problem-panel-resizer { display: none; }
+  .problem-main-split > .panel--statement,
+  .problem-main-split > .panel--editor { min-height: 620px; height: auto; border-bottom: 1px solid var(--line); }
+  .problem-editor-expand {
+    width: 100%;
+    height: 48px;
+    flex-direction: row;
+    border-width: 0 0 1px;
+  }
+  .problem-editor-expand span { writing-mode: horizontal-tb; letter-spacing: 0; }
+}
+
 /* Signed-in student home: public practice first, then direct assignment links. */
 
 .student-task-home .student-assignment-table--direct {
@@ -23625,6 +23905,36 @@ button.standard-library-governance-path {
 }
 
 /* Keep the assignment workspace overrides last in the cascade. */
+.main-shell:has(.problem-workbench),
+.main-shell:has(.problem-page) {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+}
+
+.problem-page.problem-workbench,
+.problem-workbench-shell,
+.problem-workbench .problem-layout--workbench {
+  width: 100%;
+  max-width: none;
+}
+
+.problem-workbench .problem-layout--workbench {
+  height: calc(100dvh - 62px);
+  grid-template-columns: minmax(230px, 292px) minmax(0, 1fr);
+  grid-template-areas: "tasks workspace";
+  gap: 0;
+  margin: 0;
+}
+
+@media (max-width: 980px) {
+  .problem-workbench .problem-layout--workbench {
+    height: auto;
+    grid-template-columns: 1fr;
+    grid-template-areas: "tasks" "workspace";
+  }
+}
+
 .main-shell:has(.student-assignment-insights-page) { padding: 0; }
 .student-assignment-insights-page {
   width: 100%;

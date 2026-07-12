@@ -3,6 +3,8 @@ import test from "node:test";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.STUDENT_PROBLEM_BASE_URL || "http://127.0.0.1:8081";
+const viewportWidth = Number(process.env.STUDENT_PROBLEM_VIEWPORT_WIDTH || 1600);
+const viewportHeight = Number(process.env.STUDENT_PROBLEM_VIEWPORT_HEIGHT || 1000);
 const student = { id: 41, displayName: "NothingK", classGroupId: 3, className: "温中信息技术试点班" };
 const assignment = {
   id: 7,
@@ -42,7 +44,12 @@ const trajectory = {
 
 test("problem workbench has persistent navigation, resizable split panels, and collapsible code", async () => {
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+  const context = await browser.newContext({
+    viewport: {
+      width: viewportWidth,
+      height: viewportHeight
+    }
+  });
   await context.addInitScript(value => {
     window.sessionStorage.setItem("wzai:student", JSON.stringify(value));
     window.sessionStorage.setItem("wzai:student:7", JSON.stringify(value));
@@ -75,32 +82,44 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     assert.equal((await page.locator(".problem-workbench-rail a.is-active").textContent())?.trim(), "题目");
     assert.equal(await page.locator(".problem-main-split > .panel--statement").count(), 1);
     assert.equal(await page.locator(".problem-main-split > .panel--editor").count(), 1);
+    if (process.env.STUDENT_PROBLEM_SCREENSHOT) {
+      await page.screenshot({ path: process.env.STUDENT_PROBLEM_SCREENSHOT, fullPage: true });
+    }
 
-    const statementBefore = await page.locator(".panel--statement").boundingBox();
-    const editorBefore = await page.locator(".panel--editor").boundingBox();
     const separator = page.getByRole("separator", { name: "调整题目和代码宽度" });
-    const separatorBox = await separator.boundingBox();
-    assert.ok(statementBefore && editorBefore && separatorBox);
-    await page.mouse.move(separatorBox.x + separatorBox.width / 2, separatorBox.y + 100);
-    await page.mouse.down();
-    await page.mouse.move(separatorBox.x + 140, separatorBox.y + 100, { steps: 6 });
-    await page.mouse.up();
-    const statementAfter = await page.locator(".panel--statement").boundingBox();
-    const editorAfter = await page.locator(".panel--editor").boundingBox();
-    assert.ok(statementAfter && editorAfter);
-    assert.ok(statementAfter.width > statementBefore.width + 60);
-    assert.ok(editorAfter.width < editorBefore.width - 60);
+    if (viewportWidth > 980) {
+      const statementBefore = await page.locator(".panel--statement").boundingBox();
+      const editorBefore = await page.locator(".panel--editor").boundingBox();
+      const splitBefore = await page.locator(".problem-main-split").evaluate(element => ({
+        style: element.getAttribute("style"),
+        columns: getComputedStyle(element).gridTemplateColumns,
+        width: element.getBoundingClientRect().width
+      }));
+      const separatorBox = await separator.boundingBox();
+      assert.ok(statementBefore && editorBefore && separatorBox);
+      await page.mouse.move(separatorBox.x + separatorBox.width / 2, separatorBox.y + 100);
+      await page.mouse.down();
+      await page.mouse.move(separatorBox.x + 140, separatorBox.y + 100, { steps: 6 });
+      await page.mouse.up();
+      const statementAfter = await page.locator(".panel--statement").boundingBox();
+      const editorAfter = await page.locator(".panel--editor").boundingBox();
+      assert.ok(statementAfter && editorAfter);
+      assert.ok(statementAfter.width > statementBefore.width + 60, JSON.stringify({ splitBefore, statementBefore, statementAfter }));
+      assert.ok(editorAfter.width < editorBefore.width - 60, JSON.stringify({ editorBefore, editorAfter }));
+    } else {
+      assert.equal(await separator.isVisible(), false);
+    }
 
     await page.getByRole("button", { name: "收起代码" }).click();
     assert.equal(await page.locator(".problem-main-split > .panel--editor").count(), 0);
+    if (process.env.STUDENT_PROBLEM_COLLAPSED_SCREENSHOT) {
+      await page.screenshot({ path: process.env.STUDENT_PROBLEM_COLLAPSED_SCREENSHOT, fullPage: true });
+    }
     await page.getByRole("button", { name: "展开代码" }).click();
     await page.locator(".problem-main-split > .panel--editor").waitFor({ state: "visible" });
     assert.equal(await page.getByRole("button", { name: "提交代码" }).count(), 1);
     assert.deepEqual(browserErrors, []);
 
-    if (process.env.STUDENT_PROBLEM_SCREENSHOT) {
-      await page.screenshot({ path: process.env.STUDENT_PROBLEM_SCREENSHOT, fullPage: true });
-    }
   } finally {
     await context.close();
     await browser.close();

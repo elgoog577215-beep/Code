@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Lightbulb, Play, RefreshCw, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, ClipboardList, FileCheck2, GripVertical, LayoutGrid, Lightbulb, PanelRightClose, PanelRightOpen, Play, RefreshCw, RotateCcw, X } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   Assignment,
@@ -610,7 +610,8 @@ export default function ProblemPage() {
   const studentFromAny = loadStudent();
   const studentProfileId = normalizeNumber(searchParams.get("studentProfileId")) ?? studentFromAssignment?.id ?? studentFromAny?.id ?? null;
   const recommendationToken = searchParams.get("recommendationToken");
-  const backTo = isPublicWorkbench ? "/app/student/assignments/public" : "/app/student";
+  const assignmentBasePath = assignmentId ? `/app/student/assignments/${assignmentId}` : "/app/student/assignments/public";
+  const backTo = assignmentBasePath;
   const backLabel = isPublicWorkbench ? "返回题目列表" : "返回学生端";
 
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -634,6 +635,9 @@ export default function ProblemPage() {
   const [feedbackPollState, setFeedbackPollState] = useState<FeedbackPollState>("idle");
   const [coachBusy, setCoachBusy] = useState(false);
   const [coachReplyBusy, setCoachReplyBusy] = useState(false);
+  const [statementShare, setStatementShare] = useState(50);
+  const [editorCollapsed, setEditorCollapsed] = useState(false);
+  const splitRef = useRef<HTMLDivElement | null>(null);
   const viewedFeedbackIdsRef = useRef<Set<number>>(new Set());
   const feedbackPollTokenRef = useRef(0);
   const feedbackTimerRef = useRef<number | null>(null);
@@ -861,6 +865,32 @@ export default function ProblemPage() {
       return `/app/student/assignments/${assignmentId}/problems/${nextProblemId}${studentParam}`;
     }
     return `/app/student/assignments/public/problems/${nextProblemId}${studentParam}`;
+  }
+
+  function updateStatementShare(clientX: number) {
+    const split = splitRef.current;
+    if (!split) return;
+    const bounds = split.getBoundingClientRect();
+    const nextShare = ((clientX - bounds.left) / bounds.width) * 100;
+    setStatementShare(Math.min(68, Math.max(32, nextShare)));
+  }
+
+  function startPanelResize(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const handleMove = (moveEvent: PointerEvent) => updateStatementShare(moveEvent.clientX);
+    const handleEnd = () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleEnd);
+    };
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleEnd, { once: true });
+  }
+
+  function resizeWithKeyboard(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    setStatementShare(current => Math.min(68, Math.max(32, current + (event.key === "ArrowRight" ? 4 : -4))));
   }
 
   function updateCode(value: string) {
@@ -1259,7 +1289,23 @@ export default function ProblemPage() {
     <div className="stack problem-page problem-workbench">
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
 
-      <section className="problem-layout problem-layout--workbench">
+      <div className="problem-workbench-shell">
+        <nav className="problem-workbench-rail" aria-label="作业页面导航">
+          <Link to={assignmentId ? assignmentBasePath : "/app/student"}>
+            <LayoutGrid size={21} aria-hidden="true" /><span>概览</span>
+          </Link>
+          <Link className="is-active" aria-current="page" to={buildTaskLink(problemId)}>
+            <ClipboardList size={21} aria-hidden="true" /><span>题目</span>
+          </Link>
+          <Link to={assignmentId ? `${assignmentBasePath}/submissions` : assignmentBasePath}>
+            <FileCheck2 size={21} aria-hidden="true" /><span>提交</span>
+          </Link>
+          <Link to={assignmentId ? `${assignmentBasePath}/ranking` : assignmentBasePath}>
+            <BarChart3 size={21} aria-hidden="true" /><span>排名</span>
+          </Link>
+        </nav>
+
+        <section className="problem-layout problem-layout--workbench">
         <aside className="problem-task-sidebar" aria-label="题目列表" aria-busy={tasksLoading}>
           <Link to={backTo} className="problem-back-link">
             <ArrowLeft size={14} /> {backLabel}
@@ -1296,6 +1342,16 @@ export default function ProblemPage() {
             )}
           </div>
         </aside>
+
+        <div
+          className={`problem-main-split${editorCollapsed ? " is-editor-collapsed" : ""}`}
+          ref={splitRef}
+          style={{
+            gridTemplateColumns: editorCollapsed
+              ? "minmax(0, 1fr) 44px"
+              : `minmax(320px, calc(${statementShare}% - 5px)) 10px minmax(360px, calc(${100 - statementShare}% - 5px))`
+          }}
+        >
 
         <Panel
           title={problem.title}
@@ -1338,19 +1394,57 @@ export default function ProblemPage() {
           </a>
         </Panel>
 
-        <Panel
+        {editorCollapsed ? (
+          <button
+            type="button"
+            className="problem-editor-expand"
+            aria-label="展开代码"
+            onClick={() => setEditorCollapsed(false)}
+          >
+            <PanelRightOpen size={19} aria-hidden="true" />
+            <span>代码</span>
+          </button>
+        ) : (
+          <>
+            <div
+              className="problem-panel-resizer"
+              role="separator"
+              aria-label="调整题目和代码宽度"
+              aria-orientation="vertical"
+              aria-valuemin={32}
+              aria-valuemax={68}
+              aria-valuenow={Math.round(statementShare)}
+              tabIndex={0}
+              onPointerDown={startPanelResize}
+              onKeyDown={resizeWithKeyboard}
+            >
+              <GripVertical size={16} aria-hidden="true" />
+            </div>
+
+            <Panel
           title="代码"
           className="panel--editor"
           action={
-            <Field label="语言">
-              <Select value={languageId} onChange={event => setLanguageId(Number(event.target.value))}>
-                {CONTEST_LANGUAGES.map(language => (
-                  <option value={language.id} key={language.id}>
-                    {language.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            <div className="problem-editor-header-actions">
+              <Field label="语言">
+                <Select value={languageId} onChange={event => setLanguageId(Number(event.target.value))}>
+                  {CONTEST_LANGUAGES.map(language => (
+                    <option value={language.id} key={language.id}>
+                      {language.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <button
+                type="button"
+                className="problem-editor-collapse"
+                aria-label="收起代码"
+                title="收起代码"
+                onClick={() => setEditorCollapsed(true)}
+              >
+                <PanelRightClose size={18} aria-hidden="true" />
+              </button>
+            </div>
           }
         >
           <div className="stack" id="code-workbench">
@@ -1402,8 +1496,12 @@ export default function ProblemPage() {
               </Button>
             </div>
           </div>
-        </Panel>
-      </section>
+            </Panel>
+          </>
+        )}
+        </div>
+        </section>
+      </div>
 
       {history.length > 0 && (
         <Panel title={t("problemHistory.title")} className="problem-history-panel">
