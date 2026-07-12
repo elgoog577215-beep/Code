@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarCheck2, Check, Clock3, Minus, Search, X, XCircle } from "lucide-react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, ProblemCatalogItem, StudentProfile, StudentTrajectory } from "../../shared/api/types";
@@ -25,6 +25,20 @@ function pickNextTask(assignment: Assignment | null, trajectory: StudentTrajecto
     return assignment.tasks.find(task => task.problemId === pending.problemId) || assignment.tasks[0];
   }
   return assignment.tasks[0];
+}
+
+function formatActivityDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
 }
 
 function publicDifficultyKey(value?: string | null) {
@@ -329,40 +343,91 @@ export default function StudentAssignmentPage() {
   if (!isPublic && student && assignment) {
     const completedTasks = trajectory?.completedTasks || 0;
     const totalTasks = trajectory?.totalTasks || assignment.tasks.length;
+    const totalAttempts = trajectory?.totalAttempts || 0;
+    const startedAt = trajectory?.tasks
+      .flatMap(task => task.submissions || [])
+      .map(submission => submission.submittedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort()[0];
     return (
       <StudentAssignmentShell assignment={assignment} student={student} nextTask={nextTask} activeTab="assignment">
-        <section className="student-assignment-compact-progress" aria-label="作业进度">
-          <span>进度 <strong>{completedTasks}/{totalTasks}</strong></span>
-          <progress value={completedTasks} max={Math.max(totalTasks, 1)} />
-          <span>总提交 <strong>{trajectory?.totalAttempts || 0}</strong></span>
-        </section>
-
-        <section className="student-assignment-progress-section" aria-label="题目列表">
-          <nav className="student-assignment-progress-table" aria-label="题目列表">
-            <div className="student-assignment-progress-header" aria-hidden="true">
-              <span>题目</span><span>难度</span><span>状态</span><span>尝试</span><span />
+        <div className="student-assignment-overview-layout">
+          <section className="student-assignment-overview-card" aria-labelledby="assignment-overview-heading">
+            <h2 id="assignment-overview-heading">作业概览</h2>
+            <div className="student-assignment-overview-summary">
+              <div className="student-assignment-overview-progress">
+                <span className="student-assignment-overview-label">进度 <strong>{completedTasks}</strong> / {totalTasks}</span>
+                <div className="student-assignment-segmented-progress" aria-label={`已完成 ${completedTasks} / ${totalTasks}`}>
+                  {assignment.tasks.map((task, index) => (
+                    <span className={index < completedTasks ? "is-complete" : ""} key={task.problemId} />
+                  ))}
+                </div>
+                <div className="student-assignment-overview-counts">
+                  <span>已通过 <strong>{completedTasks}</strong> 题</span>
+                  <span>未通过 <strong>{Math.max(totalTasks - completedTasks, 0)}</strong> 题</span>
+                </div>
+              </div>
+              <div className="student-assignment-overview-action">
+                <span>总提交 <strong>{totalAttempts}</strong></span>
+                {nextTask ? (
+                  <Link className="student-assignment-continue" to={`/app/student/assignments/${assignment.id}/problems/${nextTask.problemId}?studentProfileId=${student.id}`}>
+                    继续作业 <ArrowRight size={19} aria-hidden="true" />
+                  </Link>
+                ) : null}
+              </div>
             </div>
-            {assignment.tasks.map((task, index) => {
-              const state = assignmentTaskState(task, trajectory);
-              const passed = Boolean(state?.passed);
-              const selected = nextTask?.problemId === task.problemId && !passed;
-              return (
-                <Link
-                  className={`student-assignment-progress-row${selected ? " is-next" : ""}`}
-                  to={`/app/student/assignments/${assignment.id}/problems/${task.problemId}?studentProfileId=${student.id}`}
-                  aria-label={task.title}
-                  key={task.problemId}
-                >
-                  <span className="student-assignment-progress-main"><b>{index + 1}</b><strong>{task.title}</strong></span>
-                  <span>{difficultyLabel(task.difficulty)}</span>
-                  <span className={passed ? "is-passed" : "is-pending"}>{passed ? "已通过" : "未通过"}</span>
-                  <span className="student-assignment-attempts">{state?.attemptCount || 0}</span>
-                  <ArrowRight size={17} aria-hidden="true" />
-                </Link>
-              );
-            })}
-          </nav>
-        </section>
+
+            <section className="student-assignment-progress-section" aria-labelledby="assignment-task-list">
+              <h3 id="assignment-task-list">题目列表</h3>
+              <nav className="student-assignment-progress-table" aria-label="题目列表">
+                <div className="student-assignment-progress-header" aria-hidden="true">
+                  <span>编号 / 题目</span><span>难度</span><span>状态</span><span>尝试次数</span><span>操作</span>
+                </div>
+                {assignment.tasks.map((task, index) => {
+                  const state = assignmentTaskState(task, trajectory);
+                  const passed = Boolean(state?.passed);
+                  const attempted = (state?.attemptCount || 0) > 0;
+                  const selected = nextTask?.problemId === task.problemId && !passed;
+                  return (
+                    <Link
+                      className={`student-assignment-progress-row${selected ? " is-next" : ""}`}
+                      to={`/app/student/assignments/${assignment.id}/problems/${task.problemId}?studentProfileId=${student.id}`}
+                      aria-label={task.title}
+                      key={task.problemId}
+                    >
+                      <span className="student-assignment-progress-main"><b>{index + 1}</b><strong>{task.title}</strong></span>
+                      <span>{difficultyLabel(task.difficulty)}</span>
+                      <span className={passed ? "is-passed" : attempted ? "is-failed" : "is-pending"}>
+                        {passed ? <Check size={17} /> : attempted ? <XCircle size={17} /> : <Clock3 size={17} />}
+                        {passed ? "已通过" : "未通过"}
+                      </span>
+                      <span className="student-assignment-attempts">{state?.attemptCount || 0}</span>
+                      <ArrowRight size={17} aria-hidden="true" />
+                    </Link>
+                  );
+                })}
+              </nav>
+            </section>
+          </section>
+
+          <aside className="student-assignment-activity" aria-labelledby="assignment-activity-heading">
+            <h2 id="assignment-activity-heading">作业动态</h2>
+            <div className="student-assignment-activity-list">
+              <div className="student-assignment-activity-item is-complete">
+                <span className="student-assignment-activity-icon"><CalendarCheck2 size={18} /></span>
+                <div><strong>题目集开放</strong><time>{formatActivityDate(assignment.startsAt || assignment.createdAt) || "已开放"}</time><p>现在可以开始答题</p></div>
+              </div>
+              <div className={`student-assignment-activity-item${totalAttempts ? " is-complete" : ""}`}>
+                <span className="student-assignment-activity-icon"><Check size={18} /></span>
+                <div><strong>开始答题</strong><time>{formatActivityDate(startedAt) || (totalAttempts ? `已有 ${totalAttempts} 次提交` : "尚未开始")}</time><p>提交记录会自动更新</p></div>
+              </div>
+              <div className="student-assignment-activity-item is-muted">
+                <span className="student-assignment-activity-icon"><Minus size={18} /></span>
+                <div><strong>题目集关闭</strong><time>{formatActivityDate(assignment.endsAt) || "未设置截止时间"}</time><p>截止后将无法继续答题</p></div>
+              </div>
+            </div>
+          </aside>
+        </div>
       </StudentAssignmentShell>
     );
   }

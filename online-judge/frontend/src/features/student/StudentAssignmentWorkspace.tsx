@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, CalendarDays } from "lucide-react";
+import { ArrowLeft, BarChart3, CalendarDays, ChevronDown, ClipboardList, FileCheck2, LayoutGrid } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, AssignmentTask, StudentProfile, StudentTrajectory } from "../../shared/api/types";
@@ -101,45 +101,50 @@ interface StudentAssignmentShellProps {
   children: ReactNode;
 }
 
-export function StudentAssignmentShell({ assignment, student, nextTask, activeTab, children }: StudentAssignmentShellProps) {
+export function StudentAssignmentShell({ assignment, student, activeTab, children }: StudentAssignmentShellProps) {
   const basePath = `/app/student/assignments/${assignment.id}`;
-  const tabs: Array<{ key: StudentAssignmentTab; label: string; to: string }> = [
-    { key: "assignment", label: "作业", to: basePath },
-    { key: "ranking", label: "班内排名", to: `${basePath}/ranking` },
-    { key: "submissions", label: "提交记录", to: `${basePath}/submissions` }
+  const navItems = [
+    { key: "assignment", label: "概览", to: basePath, icon: LayoutGrid },
+    { key: "tasks", label: "题目", to: `${basePath}#assignment-task-list`, icon: ClipboardList },
+    { key: "submissions", label: "提交", to: `${basePath}/submissions`, icon: FileCheck2 },
+    { key: "ranking", label: "排名", to: `${basePath}/ranking`, icon: BarChart3 }
   ];
+  const studentInitials = student.displayName.trim().slice(0, 2).toUpperCase() || "ST";
 
   return (
     <div className="student-assignment-insights-page">
       <header className="student-assignment-insights-header">
-        <Link className="student-assignment-back" to="/app/student">
-          <ArrowLeft size={17} aria-hidden="true" />
-          返回
+        <Link className="student-assignment-back" to="/app/student" aria-label="返回学生端">
+          <ArrowLeft size={21} aria-hidden="true" />
         </Link>
         <div className="student-assignment-insights-title">
           <h1>{assignment.title}</h1>
         </div>
         <div className="student-assignment-insights-context">
           <span className="student-assignment-insights-meta">{assignment.className || student.className || "当前班级"}</span>
-          {assignment.endsAt ? (
-            <span className="student-assignment-insights-meta"><CalendarDays size={16} aria-hidden="true" />{formatAssignmentDate(assignment.endsAt)}</span>
-          ) : null}
+          <span className="student-assignment-insights-meta"><CalendarDays size={16} aria-hidden="true" />{assignment.endsAt ? formatAssignmentDate(assignment.endsAt) : "未设置截止时间"}</span>
         </div>
-        {nextTask ? (
-          <Link className="student-assignment-continue" to={`${basePath}/problems/${nextTask.problemId}?studentProfileId=${student.id}`}>
-            继续作业
-            <ArrowRight size={18} aria-hidden="true" />
-          </Link>
-        ) : null}
+        <div className="student-assignment-profile" aria-label={`当前学生 ${student.displayName}`}>
+          <span>{studentInitials}</span>
+          <strong>{student.displayName}</strong>
+          <ChevronDown size={16} aria-hidden="true" />
+        </div>
       </header>
-      <nav className="student-assignment-insights-tabs" aria-label="作业页面导航">
-        {tabs.map(tab => (
-          <Link className={activeTab === tab.key ? "is-active" : ""} aria-current={activeTab === tab.key ? "page" : undefined} to={tab.to} key={tab.key}>
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
-      {children}
+      <div className="student-assignment-workspace">
+        <nav className="student-assignment-side-nav" aria-label="作业页面导航">
+          {navItems.map(item => {
+            const Icon = item.icon;
+            const isActive = item.key !== "tasks" && activeTab === item.key;
+            return (
+              <Link className={isActive ? "is-active" : ""} aria-current={isActive ? "page" : undefined} to={item.to} key={item.key}>
+                <Icon size={22} aria-hidden="true" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        <main className="student-assignment-workspace-content">{children}</main>
+      </div>
     </div>
   );
 }

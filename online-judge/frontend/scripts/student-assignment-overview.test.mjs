@@ -16,23 +16,30 @@ const assignment = {
   tasks: [
     { problemId: 101, title: "两数求和", difficulty: "EASY", orderIndex: 1, required: true },
     { problemId: 102, title: "回文判断", difficulty: "EASY", orderIndex: 2, required: true },
-    { problemId: 103, title: "阶乘计算", difficulty: "MEDIUM", orderIndex: 3, required: true }
+    { problemId: 103, title: "FizzBuzz", difficulty: "EASY", orderIndex: 3, required: true },
+    { problemId: 104, title: "阶乘计算", difficulty: "MEDIUM", orderIndex: 4, required: true }
   ]
 };
 const trajectory = {
   completedTasks: 1,
-  totalTasks: 3,
+  totalTasks: 4,
   totalAttempts: 4,
   tasks: [
     { problemId: 101, title: "两数求和", difficulty: "EASY", attemptCount: 2, passed: true, submissions: [] },
     { problemId: 102, title: "回文判断", difficulty: "EASY", attemptCount: 2, passed: false, submissions: [] },
-    { problemId: 103, title: "阶乘计算", difficulty: "MEDIUM", attemptCount: 0, passed: false, submissions: [] }
+    { problemId: 103, title: "FizzBuzz", difficulty: "EASY", attemptCount: 0, passed: false, submissions: [] },
+    { problemId: 104, title: "阶乘计算", difficulty: "MEDIUM", attemptCount: 0, passed: false, submissions: [] }
   ]
 };
 
 test("assignment overview follows the left-rail workspace concept", async () => {
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+  const context = await browser.newContext({
+    viewport: {
+      width: Number(process.env.STUDENT_ASSIGNMENT_VIEWPORT_WIDTH || 1600),
+      height: Number(process.env.STUDENT_ASSIGNMENT_VIEWPORT_HEIGHT || 1000)
+    }
+  });
   await context.addInitScript(value => {
     window.sessionStorage.setItem("wzai:student", JSON.stringify(value));
     window.sessionStorage.setItem("wzai:student:7", JSON.stringify(value));
@@ -49,6 +56,11 @@ test("assignment overview follows the left-rail workspace concept", async () => 
 
   try {
     const page = await context.newPage();
+    const browserErrors = [];
+    page.on("console", message => {
+      if (message.type() === "error") browserErrors.push(message.text());
+    });
+    page.on("pageerror", error => browserErrors.push(error.message));
     await page.goto(`${baseUrl}/app/student/assignments/7`, { waitUntil: "domcontentloaded" });
     await page.locator(".student-assignment-progress-row").first().waitFor({ state: "visible" });
 
@@ -56,8 +68,8 @@ test("assignment overview follows the left-rail workspace concept", async () => 
     assert.equal(await page.locator(".student-assignment-side-nav a").count(), 4);
     assert.equal((await page.locator(".student-assignment-side-nav a.is-active").textContent())?.trim(), "概览");
     assert.equal(await page.locator(".student-assignment-insights-title > span").count(), 0);
-    assert.equal(await page.locator(".student-assignment-insights-meta").count(), 1);
-    assert.equal((await page.locator(".student-assignment-insights-meta").textContent())?.trim(), "温中信息技术试点班");
+    assert.equal(await page.locator(".student-assignment-insights-meta").count(), 2);
+    assert.equal((await page.locator(".student-assignment-insights-meta").first().textContent())?.trim(), "温中信息技术试点班");
     assert.equal((await page.locator("body").textContent()).includes("未设置截止时间"), true);
     assert.equal(await page.locator(".student-assignment-summary-band").count(), 0);
     assert.equal(await page.locator(".student-assignment-overview-layout").count(), 1);
@@ -71,6 +83,10 @@ test("assignment overview follows the left-rail workspace concept", async () => 
     assert.equal(await page.locator(".student-assignment-progress-row").first().evaluate(element => element.tagName), "A");
     assert.equal(await page.locator(".student-assignment-latest-verdict").count(), 0);
     assert.equal((await page.locator(".student-assignment-attempts").first().textContent())?.trim(), "2");
+    assert.deepEqual(browserErrors, []);
+    if (process.env.STUDENT_ASSIGNMENT_SCREENSHOT) {
+      await page.screenshot({ path: process.env.STUDENT_ASSIGNMENT_SCREENSHOT, fullPage: true });
+    }
   } finally {
     await context.close();
     await browser.close();
