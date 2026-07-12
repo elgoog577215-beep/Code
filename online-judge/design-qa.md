@@ -4,8 +4,11 @@
 - prior implementation reference: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-104f3ba0-3bac-4a2b-85c2-af577dc8aaf6.png`
 - consistency reference — problem page: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-f0cbcd46-1169-4218-abda-d75fc5625802.png`
 - consistency reference — assignment overview: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-98602bd7-aebd-4881-8fa3-9ec6c3df5123.png`
+- edge-to-edge reference — problem page: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-e91d57d1-9da9-4b45-94c2-e5ca276b723e.png`
+- edge-to-edge reference — assignment overview: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-88f922cc-b182-4724-9483-575fc25d58ef.png`
 - implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench.png`
 - final unified implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-unified-final.png`
+- final full-screen implementation screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-fullscreen.png`
 - collapsed-state screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench-collapsed.png`
 - mobile screenshot path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-workbench-mobile.png`
 - combined comparison path: `D:\WenCode\Code\online-judge\output\design-qa\student-problem-comparison.png`
@@ -47,6 +50,7 @@ Accepted product constraints:
 3. First automated resize check exposed a P1 layout constraint: later wide-screen CSS limited the working canvas, leaving the statement pinned at its minimum width. Final cascade rules now give the workbench the full viewport width; post-fix drag assertions pass.
 4. Desktop, collapsed, and mobile states were recaptured. No clipping, overlap, missing primary action, or horizontal overflow remains in the tested states.
 5. A consistency pass found a P1 shell mismatch: the overview had an assignment context header while the problem workbench started directly below the global header. Both pages now reuse `StudentAssignmentHeader`; the duplicate inner “返回学生端” action was removed and the workbench height was recalibrated for the added 72 px header. The final unified capture confirms matching hierarchy and alignment.
+6. A final P1 canvas mismatch remained at wide viewports: the problem page inherited the general `main-shell` gutter, leaving 38 px of blank space on both sides and 21 px above the assignment header at 1600 px. The problem workbench now uses an edge-to-edge 100vw canvas and offsets the generic shell padding. Browser assertions confirm x = 0, width equals the viewport, and the assignment header starts immediately below the global header.
 
 ## Interaction and runtime checks
 
