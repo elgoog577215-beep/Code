@@ -76,6 +76,42 @@ class SubmissionIssueLifecycleServiceTest {
         assertThat(transitions.get(4).getPersonalLabel()).isEqualTo("RECOVERED");
     }
 
+    @Test
+    void keepsLastEffectiveComparableBaselineAcrossIncompleteSubmission() {
+        SubmissionRepository submissionRepository = mock(SubmissionRepository.class);
+        SubmissionAnalysisRepository analysisRepository = mock(SubmissionAnalysisRepository.class);
+        SubmissionDiagnosisFactRepository factRepository = mock(SubmissionDiagnosisFactRepository.class);
+        SubmissionIssueTransitionRepository transitionRepository = mock(SubmissionIssueTransitionRepository.class);
+        SubmissionIssueLifecycleService service = new SubmissionIssueLifecycleService(
+                submissionRepository,
+                analysisRepository,
+                factRepository,
+                transitionRepository,
+                new IssuePointKeyFactory(),
+                new SubmissionEvidenceProperties(),
+                new ObjectMapper()
+        );
+        LocalDateTime base = LocalDateTime.now().minusHours(1);
+        Submission first = submission(1L, "v1", Submission.Verdict.WRONG_ANSWER, base);
+        Submission incomplete = submission(2L, "unknown", Submission.Verdict.WRONG_ANSWER, base.plusMinutes(1));
+        Submission followup = submission(3L, "v2", Submission.Verdict.WRONG_ANSWER, base.plusMinutes(2));
+        when(factRepository.findBySubmissionIdIn(anyList())).thenReturn(List.of(fact(101L, 1L), fact(103L, 3L)));
+        when(analysisRepository.findBySubmissionIdIn(anyList())).thenReturn(List.of(analysis(1L), analysis(3L)));
+        when(transitionRepository.findByCurrentSubmissionIdIn(anyList())).thenReturn(List.of());
+
+        service.rebuildScope(List.of(first, incomplete, followup));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<SubmissionIssueTransition>> captor = ArgumentCaptor.forClass(List.class);
+        verify(transitionRepository).saveAll(captor.capture());
+        SubmissionIssueTransition followupTransition = captor.getValue().stream()
+                .filter(item -> item.getCurrentSubmissionId().equals(3L))
+                .findFirst()
+                .orElseThrow();
+        assertThat(followupTransition.getPreviousSubmissionId()).isEqualTo(1L);
+        assertThat(followupTransition.getTransitionType()).isEqualTo("PERSISTED");
+    }
+
     private Submission submission(Long id, String source, Submission.Verdict verdict, LocalDateTime submittedAt) {
         return Submission.builder()
                 .id(id)

@@ -24,6 +24,67 @@
       "dark": "夜间"
     }
   },
+  "growthDashboard": {
+    "title": "单题成长仪表盘",
+    "latestSubmission": "当前 #{{id}}",
+    "comparedWith": "对比有效提交 #{{id}}",
+    "metricsAria": "本题成长核心数据",
+    "metrics": {
+      "submissions": "提交次数",
+      "effective": "有效修改",
+      "tests": "当前测试点",
+      "unresolved": "未解决问题"
+    },
+    "state": {
+      "first_record": "首次记录",
+      "duplicate_no_change": "重复提交",
+      "uncomparable": "暂无法比较",
+      "completed": "本题完成",
+      "clear_progress": "明显进步",
+      "mixed_progress": "有进步，也有新问题",
+      "issue_shifted": "问题发生迁移",
+      "stalled": "暂未改善",
+      "regressed": "出现退步"
+    },
+    "trendTitle": "测试点通过率趋势",
+    "trendAria": "有效提交的测试点通过率趋势图",
+    "passRate": "通过率",
+    "noComparableAttempts": "还没有可比较的有效提交。",
+    "knowledgeTitle": "高频知识点",
+    "knowledgeAria": "高频问题知识点排行",
+    "effectiveOccurrences": "有效出现次数",
+    "unnamedIssue": "未归类问题",
+    "noKnowledgeData": "还没有可统计的知识点问题。",
+    "evolutionTitle": "问题变化",
+    "evolutionAria": "各次提交的问题变化堆叠图",
+    "noEvolutionData": "还没有可比较的问题变化。",
+    "legendAria": "问题变化图例",
+    "legend": {
+      "persisted": "持续",
+      "new": "新增",
+      "recurred": "复发",
+      "improved": "改善",
+      "recovered": "恢复"
+    },
+    "matrixTitle": "知识点 × 提交矩阵",
+    "knowledgePoint": "知识点",
+    "noMatrixData": "暂无可生成矩阵的数据。",
+    "detailAria": "本次提交的成长摘要",
+    "detailNewRisks": "新增风险",
+    "openProblem": "查看本题完整成长仪表盘",
+    "issueStatus": {
+      "new": "新增",
+      "persisted": "持续",
+      "recurred": "复发",
+      "not_observed": "改善",
+      "recovered": "恢复",
+      "uncomparable": "不可比"
+    }
+  },
+  "growthTimeline": {
+    "aria": "本题提交成长轨迹",
+    "issueDelta": "改善 {{improved}} · 风险 {{risk}}"
+  },
   "feedbackMeta": {
     "knowledgePath": "知识路径",
     "knowledgePathAria": "建议对应的知识路径",

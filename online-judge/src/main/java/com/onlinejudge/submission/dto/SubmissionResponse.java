@@ -27,6 +27,7 @@ public class SubmissionResponse {
     private LocalDateTime submittedAt;
     private String analysisStatus;
     private SubmissionAnalysisResponse analysis;
+    private SubmissionGrowthSummaryResponse growthSummary;
     private List<TestCaseResult> testCaseResults;
 
     @Data

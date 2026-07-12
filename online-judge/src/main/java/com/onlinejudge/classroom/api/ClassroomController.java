@@ -13,7 +13,9 @@ import com.onlinejudge.classroom.application.StudentRecommendationService;
 import com.onlinejudge.classroom.application.StudentAiFeedbackObservabilityService;
 import com.onlinejudge.classroom.application.StudentTrajectoryService;
 import com.onlinejudge.submission.application.SubmissionEvidenceBackfillService;
+import com.onlinejudge.submission.application.SubmissionAnalysisService;
 import com.onlinejudge.submission.dto.SubmissionEvidenceBackfillResponse;
+import com.onlinejudge.submission.dto.SubmissionHistorySummaryResponse;
 import com.onlinejudge.classroom.dto.*;
 import com.onlinejudge.classroom.importing.ClassroomImportService;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
@@ -46,6 +48,7 @@ public class ClassroomController {
     private final DiagnosisTaxonomy diagnosisTaxonomy;
     private final StudentAccessTokenService studentAccessTokenService;
     private final SubmissionEvidenceBackfillService submissionEvidenceBackfillService;
+    private final SubmissionAnalysisService submissionAnalysisService;
 
     @GetMapping("/api/teacher/classes")
     public ResponseEntity<List<ClassGroupResponse>> getClasses() {
@@ -128,6 +131,18 @@ public class ClassroomController {
     @GetMapping("/api/teacher/assignments/{assignmentId}/overview")
     public ResponseEntity<AssignmentOverviewResponse> getAssignmentOverview(@PathVariable Long assignmentId) {
         return ResponseEntity.ok(classroomService.getAssignmentOverview(assignmentId));
+    }
+
+    @GetMapping("/api/teacher/assignments/{assignmentId}/problems/{problemId}/students/{studentProfileId}/growth")
+    public ResponseEntity<List<SubmissionHistorySummaryResponse>> getStudentProblemGrowth(
+            @PathVariable Long assignmentId,
+            @PathVariable Long problemId,
+            @PathVariable Long studentProfileId) {
+        return ResponseEntity.ok(submissionAnalysisService.getSubmissionHistorySummaries(
+                problemId,
+                assignmentId,
+                studentProfileId
+        ));
     }
 
     @GetMapping("/api/teacher/submission-evidence/backfill-preview")

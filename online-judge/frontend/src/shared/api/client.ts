@@ -234,6 +234,10 @@ export const api = {
   rotateInvite: (id: number) =>
     request<Assignment>(`/api/teacher/assignments/${id}/invite`, { method: "POST" }),
   assignmentOverview: (id: number) => request<AssignmentOverview>(`/api/teacher/assignments/${id}/overview`),
+  teacherStudentProblemGrowth: (assignmentId: number, problemId: number, studentProfileId: number) =>
+    request<SubmissionHistorySummary[]>(
+      `/api/teacher/assignments/${assignmentId}/problems/${problemId}/students/${studentProfileId}/growth`
+    ),
   aiQualityOverview: (id: number) => request<AiQualityOverview>(`/api/teacher/assignments/${id}/ai-quality`),
   studentAiFeedbackObservability: (id: number) =>
     request<StudentAiFeedbackObservability>(`/api/teacher/assignments/${id}/student-ai-feedback-observability`),

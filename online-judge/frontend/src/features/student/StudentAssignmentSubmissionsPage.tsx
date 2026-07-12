@@ -4,7 +4,10 @@ import { Navigate, useParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { StudentAssignmentSubmissionPage, SubmissionResult } from "../../shared/api/types";
 import { verdictLabel } from "../../shared/format";
+import { useTranslation } from "../../shared/i18n";
+import { ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
+import { growthStateKey } from "../growth/SingleProblemGrowthDashboard";
 import { formatRelativeTime, StudentAssignmentShell, useStudentAssignmentWorkspace } from "./StudentAssignmentWorkspace";
 
 function verdictCode(value: string) {
@@ -38,6 +41,7 @@ function paginationNumbers(totalPages: number, currentPage: number) {
 }
 
 export default function StudentAssignmentSubmissionsPage() {
+  const { t } = useTranslation();
   const { assignmentId } = useParams();
   const numericAssignmentId = Number(assignmentId);
   const workspace = useStudentAssignmentWorkspace(numericAssignmentId);
@@ -202,6 +206,25 @@ export default function StudentAssignmentSubmissionsPage() {
                 <div className="student-submission-detail__meta">
                   <strong>{verdictLabel(detail.verdict)}</strong><span>{detail.languageName || "-"}</span><span>{runtimeText(detail.executionTime)}</span><span>{memoryText(detail.memoryUsed)}</span>
                 </div>
+                {detail.growthSummary ? (
+                  <section className="student-submission-growth-summary" aria-label={t("growthDashboard.detailAria")}>
+                    <header>
+                      <span>{t("growthDashboard.title")}</span>
+                      <strong>{t(`growthDashboard.state.${growthStateKey(detail.growthSummary.growthState)}`)}</strong>
+                    </header>
+                    <div>
+                      <span><small>{t("growthDashboard.metrics.tests")}</small><b>{detail.growthSummary.passedTestCases ?? 0}/{detail.growthSummary.totalTestCases ?? 0}</b></span>
+                      <span><small>{t("growthDashboard.legend.improved")}</small><b>{(detail.growthSummary.notObservedCount || 0) + (detail.growthSummary.recoveredCount || 0)}</b></span>
+                      <span><small>{t("growthDashboard.detailNewRisks")}</small><b>{(detail.growthSummary.newCount || 0) + (detail.growthSummary.recurringCount || 0)}</b></span>
+                      <span><small>{t("growthDashboard.metrics.unresolved")}</small><b>{detail.growthSummary.unresolvedCount}</b></span>
+                    </div>
+                    {detail.assignmentId ? (
+                      <ButtonLink to={`/app/student/assignments/${detail.assignmentId}/problems/${detail.problemId}`} variant="secondary">
+                        {t("growthDashboard.openProblem")}
+                      </ButtonLink>
+                    ) : null}
+                  </section>
+                ) : null}
                 <pre><code>{detail.sourceCode}</code></pre>
               </>
             ) : <EmptyState title="正在读取提交详情" live />}

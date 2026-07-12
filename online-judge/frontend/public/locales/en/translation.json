@@ -24,6 +24,67 @@
       "dark": "Dark"
     }
   },
+  "growthDashboard": {
+    "title": "Single-problem growth dashboard",
+    "latestSubmission": "Current #{{id}}",
+    "comparedWith": "Compared with effective submission #{{id}}",
+    "metricsAria": "Core growth metrics for this problem",
+    "metrics": {
+      "submissions": "Submissions",
+      "effective": "Effective edits",
+      "tests": "Current tests",
+      "unresolved": "Unresolved issues"
+    },
+    "state": {
+      "first_record": "First record",
+      "duplicate_no_change": "Duplicate submission",
+      "uncomparable": "Not comparable",
+      "completed": "Problem completed",
+      "clear_progress": "Clear progress",
+      "mixed_progress": "Progress with new issues",
+      "issue_shifted": "Issues shifted",
+      "stalled": "No improvement yet",
+      "regressed": "Regressed"
+    },
+    "trendTitle": "Test pass-rate trend",
+    "trendAria": "Test pass-rate trend across effective submissions",
+    "passRate": "Pass rate",
+    "noComparableAttempts": "No comparable effective submissions yet.",
+    "knowledgeTitle": "Frequent knowledge points",
+    "knowledgeAria": "Ranking of frequent issue knowledge points",
+    "effectiveOccurrences": "Effective occurrences",
+    "unnamedIssue": "Unclassified issue",
+    "noKnowledgeData": "No knowledge-point issues are ready for aggregation.",
+    "evolutionTitle": "Issue evolution",
+    "evolutionAria": "Stacked chart of issue changes by submission",
+    "noEvolutionData": "No comparable issue changes yet.",
+    "legendAria": "Issue evolution legend",
+    "legend": {
+      "persisted": "Persisted",
+      "new": "New",
+      "recurred": "Recurred",
+      "improved": "Improved",
+      "recovered": "Recovered"
+    },
+    "matrixTitle": "Knowledge point × submission matrix",
+    "knowledgePoint": "Knowledge point",
+    "noMatrixData": "There is not enough data to build the matrix.",
+    "detailAria": "Growth summary for this submission",
+    "detailNewRisks": "New risks",
+    "openProblem": "Open the full growth dashboard",
+    "issueStatus": {
+      "new": "New",
+      "persisted": "Persisted",
+      "recurred": "Recurred",
+      "not_observed": "Improved",
+      "recovered": "Recovered",
+      "uncomparable": "N/A"
+    }
+  },
+  "growthTimeline": {
+    "aria": "Submission growth timeline for this problem",
+    "issueDelta": "Improved {{improved}} · Risks {{risk}}"
+  },
   "feedbackMeta": {
     "knowledgePath": "Knowledge path",
     "knowledgePathAria": "Knowledge path for this suggestion",

@@ -84,7 +84,6 @@ public class SubmissionIssueLifecycleService {
         Map<String, PointCounter> counters = new LinkedHashMap<>();
         Map<String, SubmissionDiagnosisFact> previousFacts = Map.of();
         Submission previousSubmission = null;
-        boolean previousComparable = false;
         List<SubmissionIssueTransition> projected = new ArrayList<>();
         int incomparable = 0;
 
@@ -99,63 +98,51 @@ public class SubmissionIssueLifecycleService {
                     ));
             boolean comparable = analyzedSubmissionIds.contains(current.getId());
             String fingerprint = pointKeyFactory.sourceFingerprint(current.getSourceCode());
-            boolean effectiveAttempt = isEffectiveAttempt(previousSubmission, current, previousFacts.keySet(), currentFacts.keySet());
+            boolean effectiveAttempt = comparable
+                    && isEffectiveAttempt(previousSubmission, current, previousFacts.keySet(), currentFacts.keySet());
 
             if (!comparable) {
                 projected.add(transition(current, previousSubmission, null, null, UNCOMPARABLE_KEY,
                         "EVIDENCE", "UNCOMPARABLE", "UNCOMPARABLE", fingerprint, false, new PointCounter()));
                 incomparable++;
-                previousSubmission = current;
-                previousFacts = Map.of();
-                previousComparable = false;
                 continue;
             }
 
-            if (previousSubmission != null && !previousComparable) {
-                for (SubmissionDiagnosisFact fact : currentFacts.values()) {
-                    PointCounter counter = counters.computeIfAbsent(fact.getNormalizedPointKey(), ignored -> new PointCounter());
-                    counter.observe(current.getId(), effectiveAttempt);
-                    projected.add(transition(current, previousSubmission, fact, null, fact.getNormalizedPointKey(),
-                            fact.getDisplayCategory(), "UNCOMPARABLE", label("UNCOMPARABLE", counter), fingerprint,
+            for (Map.Entry<String, SubmissionDiagnosisFact> entry : currentFacts.entrySet()) {
+                String pointKey = entry.getKey();
+                SubmissionDiagnosisFact fact = entry.getValue();
+                PointCounter counter = counters.computeIfAbsent(pointKey, ignored -> new PointCounter());
+                String status;
+                if (previousSubmission == null) {
+                    status = "NEW";
+                } else if (previousFacts.containsKey(pointKey)) {
+                    status = "PERSISTED";
+                } else if (counter.rawOccurrenceCount > 0) {
+                    status = "RECURRED";
+                } else {
+                    status = "NEW";
+                }
+                counter.observe(current.getId(), effectiveAttempt);
+                projected.add(transition(current, previousSubmission, fact, previousFacts.get(pointKey), pointKey,
+                        fact.getDisplayCategory(), status, label(status, counter), fingerprint, effectiveAttempt, counter));
+            }
+            if (previousSubmission != null) {
+                for (Map.Entry<String, SubmissionDiagnosisFact> entry : previousFacts.entrySet()) {
+                    if (currentFacts.containsKey(entry.getKey())) {
+                        continue;
+                    }
+                    PointCounter counter = counters.computeIfAbsent(entry.getKey(), ignored -> new PointCounter());
+                    String status = current.getVerdict() == Submission.Verdict.ACCEPTED ? "RECOVERED" : "NOT_OBSERVED";
+                    projected.add(transition(current, previousSubmission, null, entry.getValue(), entry.getKey(),
+                            entry.getValue().getDisplayCategory(), status, label(status, counter), fingerprint,
                             effectiveAttempt, counter));
-                }
-                incomparable += Math.max(1, currentFacts.size());
-            } else {
-                for (Map.Entry<String, SubmissionDiagnosisFact> entry : currentFacts.entrySet()) {
-                    String pointKey = entry.getKey();
-                    SubmissionDiagnosisFact fact = entry.getValue();
-                    PointCounter counter = counters.computeIfAbsent(pointKey, ignored -> new PointCounter());
-                    String status;
-                    if (previousSubmission == null) {
-                        status = "NEW";
-                    } else if (previousFacts.containsKey(pointKey)) {
-                        status = "PERSISTED";
-                    } else if (counter.rawOccurrenceCount > 0) {
-                        status = "RECURRED";
-                    } else {
-                        status = "NEW";
-                    }
-                    counter.observe(current.getId(), effectiveAttempt);
-                    projected.add(transition(current, previousSubmission, fact, previousFacts.get(pointKey), pointKey,
-                            fact.getDisplayCategory(), status, label(status, counter), fingerprint, effectiveAttempt, counter));
-                }
-                if (previousSubmission != null) {
-                    for (Map.Entry<String, SubmissionDiagnosisFact> entry : previousFacts.entrySet()) {
-                        if (currentFacts.containsKey(entry.getKey())) {
-                            continue;
-                        }
-                        PointCounter counter = counters.computeIfAbsent(entry.getKey(), ignored -> new PointCounter());
-                        String status = current.getVerdict() == Submission.Verdict.ACCEPTED ? "RECOVERED" : "NOT_OBSERVED";
-                        projected.add(transition(current, previousSubmission, null, entry.getValue(), entry.getKey(),
-                                entry.getValue().getDisplayCategory(), status, label(status, counter), fingerprint,
-                                effectiveAttempt, counter));
-                        counter.breakContinuity();
-                    }
+                    counter.breakContinuity();
                 }
             }
-            previousSubmission = current;
-            previousFacts = currentFacts;
-            previousComparable = true;
+            if (effectiveAttempt) {
+                previousSubmission = current;
+                previousFacts = currentFacts;
+            }
         }
         transitionRepository.saveAll(projected);
         log.info("Rebuilt submission issue lifecycle. studentProfileId={}, assignmentId={}, problemId={}, submissions={}, transitions={}, incomparable={}",
