@@ -19,23 +19,56 @@ cp .env.example .env
 - `TEACHER_SESSION_SECRET`
 - `STUDENT_TOKEN_SECRET`
 
-部署前可以先跑一次环境自检：
+部署前先跑一次环境自检：
 
 ```bash
 bash scripts/doctor-school.sh
 ```
 
-macOS / Linux:
+### 首次安装或受控构建
+
+镜像构建与生产启动已经分离。只允许在本地、CI 或确认资源充足的受控环境显式构建；构建脚本不会启动或替换任何容器。
+
+macOS / Linux：
+
+```bash
+bash scripts/build-school-images.sh --confirm-build
+bash scripts/start-school.sh
+```
+
+Windows PowerShell：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-school-images.ps1 -ConfirmBuild
+powershell -ExecutionPolicy Bypass -File scripts/start-school.ps1
+```
+
+### 生产发布
+
+生产服务器不得执行 `docker compose up --build`，也不应运行镜像构建脚本。先在外部构建并验证与服务器架构一致的镜像，再推送到镜像仓库或用 `docker save` / `docker load` 传入服务器。
+
+替换应用前必须：
+
+1. 备份 `.env` 和 PostgreSQL，并验证备份可读。
+2. 检查磁盘、内存、运行容器与数据卷。
+3. 为当前应用镜像保留带时间戳的回滚标签。
+4. 加载新镜像后运行安全启动脚本；该脚本固定使用 `--no-build`。
+
+macOS / Linux 生产启动或配置重载：
 
 ```bash
 bash scripts/start-school.sh
 ```
 
-Windows PowerShell:
+Windows PowerShell 生产启动或配置重载：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/start-school.ps1
 ```
+
+若镜像不存在，启动脚本会直接失败并提示先构建或加载镜像，不会回退到服务器现场构建。生产发布不得使用 `docker system prune`、`docker volume prune` 或 `docker compose down -v`；PostgreSQL 的 `postgres-data` Volume 不参与应用镜像替换。
+
+新镜像上线后必须检查页面、readiness、判题和 AI smoke。若验证失败，重新指向保留的旧镜像并再次运行安全启动脚本，数据库 Volume 保持不变。
 
 启动后访问：
 
