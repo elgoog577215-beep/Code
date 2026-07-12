@@ -1459,6 +1459,15 @@ const scenarios = [
         await repairTab.click();
       }
       const readyModalText = ((await page.locator(".problem-result-modal").first().textContent()) || "").replace(/\s+/g, "");
+      const pageOverflowWhileModalOpen = await page.evaluate(() => ({
+        root: document.documentElement.style.overflow,
+        body: document.body.style.overflow
+      }));
+      record(
+        "problem modal locks background page scrolling",
+        pageOverflowWhileModalOpen.root === "hidden" && pageOverflowWhileModalOpen.body === "hidden",
+        `root overflow ${pageOverflowWhileModalOpen.root || "unset"}; body overflow ${pageOverflowWhileModalOpen.body || "unset"}`
+      );
       const readyTestText = ((await page.locator(".problem-result-section--tests").first().textContent()) || "").replace(/\s+/g, "");
       const readyRepairText = ((await page.locator(".problem-result-section--repair").first().textContent()) || "").replace(/\s+/g, "");
       const readyGrowthText = ((await page.locator(".problem-result-section--growth").first().textContent()) || "").replace(/\s+/g, "");
@@ -1578,6 +1587,15 @@ const scenarios = [
       if (flatEvidenceActionCount === 1) {
         await flatEvidenceAction.click();
         await page.locator(".problem-result-modal").waitFor({ state: "hidden", timeout: 5000 });
+        const pageOverflowAfterModalClose = await page.evaluate(() => ({
+          root: document.documentElement.style.overflow,
+          body: document.body.style.overflow
+        }));
+        record(
+          "problem modal restores background page scrolling after close",
+          pageOverflowAfterModalClose.root === "" && pageOverflowAfterModalClose.body === "",
+          `root overflow ${pageOverflowAfterModalClose.root || "unset"}; body overflow ${pageOverflowAfterModalClose.body || "unset"}`
+        );
         await page.locator(".cm-line-evidence-highlight").first().waitFor({ state: "visible", timeout: 5000 });
         record("problem evidence click highlights the matching editor line", await page.locator(".cm-line-evidence-highlight").count() === 1);
         await page.screenshot({

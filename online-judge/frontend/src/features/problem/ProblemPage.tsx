@@ -441,26 +441,23 @@ function FeedbackEvidenceMeta({
   showEmptyEvidence?: boolean;
 }) {
   const { t } = useTranslation();
-  const knowledgePath = item?.knowledgePath?.filter(Boolean).slice(0, 5) || [];
+  const knowledgePath = item?.knowledgePath?.filter(Boolean) || [];
   const pathStatus = (item?.knowledgePathStatus || (knowledgePath.length ? "INFERRED" : "UNCLASSIFIED")).toUpperCase();
   const pathStatusKey = ["FORMAL", "PROVISIONAL", "INFERRED", "UNCLASSIFIED"].includes(pathStatus)
     ? pathStatus.toLowerCase()
     : "unclassified";
-  const snippets = item?.evidenceSnippets?.filter(snippet => snippet.code && snippet.lineNumber).slice(0, 3) || [];
-  const evidenceRefs = item?.evidenceRefs?.filter(Boolean).slice(0, 4) || [];
+  const snippets = item?.evidenceSnippets?.filter(snippet => snippet.code && snippet.lineNumber) || [];
+  const evidenceRefs = item?.evidenceRefs?.filter(Boolean) || [];
   const fallbackLine = evidenceLineFromItem(item);
   if (!knowledgePath.length && !snippets.length && !fallbackLine && !evidenceRefs.length && !showEmptyEvidence) {
     return null;
   }
   return (
-    <div className="student-feedback-meta">
-      <div className={`student-feedback-knowledge student-feedback-knowledge--${pathStatusKey}`} aria-label={t("feedbackMeta.knowledgePathAria")}>
-        <div className="student-feedback-meta__head">
-          <span className="student-feedback-meta__label">{t("feedbackMeta.knowledgePath")}</span>
-          <span className="student-feedback-knowledge__status">{t(`feedbackMeta.pathStatus.${pathStatusKey}`)}</span>
-        </div>
+    <div className={`student-feedback-meta-row student-feedback-meta-row--${pathStatusKey}`}>
+      <div className="student-feedback-meta-segment student-feedback-meta-segment--knowledge" aria-label={t("feedbackMeta.knowledgePathAria")}>
+        <span className="student-feedback-meta__label">{t("feedbackMeta.knowledgePath")}</span>
         {knowledgePath.length ? (
-          <nav className="student-feedback-knowledge__path" aria-label={t("feedbackMeta.knowledgePathAria")}>
+          <nav className="student-feedback-meta-path" aria-label={t("feedbackMeta.knowledgePathAria")}>
             {knowledgePath.map((segment, index) => (
               <span key={`${segment}-${index}`}>
                 {index > 0 ? <i aria-hidden="true">›</i> : null}
@@ -469,15 +466,17 @@ function FeedbackEvidenceMeta({
             ))}
           </nav>
         ) : (
-          <p className="student-feedback-knowledge__empty">{t("feedbackMeta.noKnowledgePath")}</p>
+          <span className="student-feedback-meta-empty">{t("feedbackMeta.noKnowledgePath")}</span>
         )}
+        <span className="student-feedback-path-status">{t(`feedbackMeta.pathStatus.${pathStatusKey}`)}</span>
       </div>
       {snippets.length ? (
-        <div className="student-feedback-evidence" aria-label={t("feedbackMeta.codeEvidenceAria")}>
+        <div className="student-feedback-meta-segment student-feedback-meta-segment--evidence" aria-label={t("feedbackMeta.codeEvidenceAria")}>
           <span className="student-feedback-meta__label">{t("feedbackMeta.codeEvidence")}</span>
           {snippets.map(snippet => (
             <button
               type="button"
+              className="student-feedback-meta-action"
               key={snippet.evidenceRef || `${snippet.lineNumber}-${snippet.code}`}
               title={t("feedbackMeta.jumpToCode")}
               onClick={() => snippet.lineNumber && onJumpToLine(snippet.lineNumber)}
@@ -490,22 +489,22 @@ function FeedbackEvidenceMeta({
           ))}
         </div>
       ) : fallbackLine ? (
-        <div className="student-feedback-evidence" aria-label={t("feedbackMeta.codeEvidenceAria")}>
+        <div className="student-feedback-meta-segment student-feedback-meta-segment--evidence" aria-label={t("feedbackMeta.codeEvidenceAria")}>
           <span className="student-feedback-meta__label">{t("feedbackMeta.codeEvidence")}</span>
-          <button type="button" title={t("feedbackMeta.jumpToCode")} onClick={() => onJumpToLine(fallbackLine)}>
+          <button className="student-feedback-meta-action" type="button" title={t("feedbackMeta.jumpToCode")} onClick={() => onJumpToLine(fallbackLine)}>
             <span>{t("feedbackMeta.line", { line: fallbackLine })}</span>
             <code>{t("feedbackMeta.viewCode")}</code>
           </button>
         </div>
       ) : evidenceRefs.length ? (
-        <div className="student-feedback-evidence student-feedback-evidence--empty" aria-label={t("feedbackMeta.evidenceBasis")}>
+        <div className="student-feedback-meta-segment student-feedback-meta-segment--evidence" aria-label={t("feedbackMeta.evidenceBasis")}>
           <span className="student-feedback-meta__label">{t("feedbackMeta.evidenceBasis")}</span>
           <em>{t("feedbackMeta.noJumpableLine", {
             evidence: Array.from(new Set(evidenceRefs.map(ref => t(evidenceRefKindKey(ref))))).join(t("feedbackMeta.listSeparator"))
           })}</em>
         </div>
       ) : (
-        <div className="student-feedback-evidence student-feedback-evidence--empty" aria-label={t("feedbackMeta.codeEvidenceAria")}>
+        <div className="student-feedback-meta-segment student-feedback-meta-segment--evidence" aria-label={t("feedbackMeta.codeEvidenceAria")}>
           <span className="student-feedback-meta__label">{t("feedbackMeta.codeEvidence")}</span>
           <em>{t("feedbackMeta.noCodeEvidence")}</em>
         </div>
@@ -650,6 +649,21 @@ export default function ProblemPage() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [resultOpen]);
+
+  useEffect(() => {
+    if (!resultOpen || !latest) {
+      return;
+    }
+    const root = document.documentElement;
+    const previousRootOverflow = root.style.overflow;
+    const previousOverflow = document.body.style.overflow;
+    root.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = previousRootOverflow;
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [latest, resultOpen]);
 
   useEffect(() => {
     return () => {

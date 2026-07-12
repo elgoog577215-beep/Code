@@ -85,6 +85,11 @@
     "aria": "Submission growth timeline for this problem",
     "issueDelta": "Improved {{improved}} · Risks {{risk}}"
   },
+  "problemResultViews": {
+    "aria": "Result page switcher",
+    "repair": "Correction workspace",
+    "growth": "Growth dashboard"
+  },
   "feedbackMeta": {
     "knowledgePath": "Knowledge path",
     "knowledgePathAria": "Knowledge path for this suggestion",

@@ -214,7 +214,7 @@ export default function StudentAssignmentPage() {
             <h1>{t("studentPublic.title")}</h1>
             <p>{t("studentPublic.subtitle", { count: problems.length })}</p>
           </div>
-          <ButtonLink to="/app/student" variant="secondary" icon={<ArrowLeft size={17} />}>
+          <ButtonLink to="/app/student" reloadDocument variant="secondary" icon={<ArrowLeft size={17} />}>
             {t("studentPublic.back")}
           </ButtonLink>
         </section>

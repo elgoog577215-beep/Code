@@ -85,6 +85,11 @@
     "aria": "本题提交成长轨迹",
     "issueDelta": "改善 {{improved}} · 风险 {{risk}}"
   },
+  "problemResultViews": {
+    "aria": "结果页面切换",
+    "repair": "修正工作台",
+    "growth": "成长仪表盘"
+  },
   "feedbackMeta": {
     "knowledgePath": "知识路径",
     "knowledgePathAria": "建议对应的知识路径",

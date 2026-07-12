@@ -6455,7 +6455,7 @@ button.list-row:hover {
 
 .student-feedback-list {
   display: grid;
-  gap: 0.72rem;
+  gap: 0;
 }
 
 .student-feedback-item {
@@ -6463,11 +6463,12 @@ button.list-row:hover {
   display: grid;
   gap: 0.56rem;
   min-width: 0;
-  padding: 0.78rem;
-  border: 1px solid color-mix(in srgb, var(--line-strong) 72%, transparent);
-  border-radius: calc(var(--radius-sm) + 2px);
-  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 6%, transparent);
+  padding: 0.95rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .student-feedback-report {
@@ -6499,7 +6500,7 @@ button.list-row:hover {
 .student-feedback-secondary-list {
   counter-reset: feedback-step;
   display: grid;
-  gap: 0.62rem;
+  gap: 0;
   padding-top: 0.4rem;
 }
 
@@ -6511,14 +6512,14 @@ button.list-row:hover {
 
 .student-feedback-secondary-list > article {
   counter-increment: feedback-step;
-  padding-left: 2.25rem;
+  padding-left: 2.4rem;
 }
 
 .student-feedback-secondary-list > article::before {
   content: counter(feedback-step);
   position: absolute;
-  top: 0.76rem;
-  left: 0.72rem;
+  top: 0.95rem;
+  left: 0;
   display: grid;
   place-items: center;
   width: 1.12rem;
@@ -6536,36 +6537,42 @@ button.list-row:hover {
   font-size: 0.88rem;
 }
 
-.student-feedback-meta {
-  display: grid;
-  gap: 0.56rem;
-  padding-top: 0.12rem;
-}
-
 .student-feedback-meta__label {
+  flex: 0 0 auto;
   color: var(--ink-soft);
   font-size: 0.73rem;
   font-weight: 900;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 
-.student-feedback-meta__head {
+.student-feedback-meta-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.45rem 1rem;
+  margin-top: 0.12rem;
+  padding-top: 0.62rem;
+  border-top: 1px dashed color-mix(in srgb, var(--line) 84%, transparent);
+  color: var(--ink-soft);
 }
 
-.student-feedback-knowledge {
-  display: grid;
-  gap: 0.32rem;
-  padding: 0.46rem 0.52rem;
-  border: 1px solid color-mix(in srgb, var(--blue) 24%, var(--line));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--blue-soft) 44%, var(--surface-strong));
+.student-feedback-meta-segment {
+  min-width: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem 0.42rem;
 }
 
-.student-feedback-knowledge__status {
+.student-feedback-meta-segment--knowledge {
+  flex: 1 1 52%;
+}
+
+.student-feedback-meta-segment--evidence {
+  flex: 1 1 38%;
+}
+
+.student-feedback-path-status {
   flex: 0 0 auto;
   padding: 0.1rem 0.32rem;
   border: 1px solid currentColor;
@@ -6576,23 +6583,23 @@ button.list-row:hover {
   line-height: 1.2;
 }
 
-.student-feedback-knowledge--formal .student-feedback-knowledge__status {
+.student-feedback-meta-row--formal .student-feedback-path-status {
   color: var(--success);
 }
 
-.student-feedback-knowledge--provisional .student-feedback-knowledge__status {
+.student-feedback-meta-row--provisional .student-feedback-path-status {
   color: var(--warning);
 }
 
-.student-feedback-knowledge--inferred .student-feedback-knowledge__status {
+.student-feedback-meta-row--inferred .student-feedback-path-status {
   color: var(--blue);
 }
 
-.student-feedback-knowledge--unclassified .student-feedback-knowledge__status {
+.student-feedback-meta-row--unclassified .student-feedback-path-status {
   color: var(--ink-faint);
 }
 
-.student-feedback-knowledge__path {
+.student-feedback-meta-path {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -6602,56 +6609,37 @@ button.list-row:hover {
   line-height: 1.3;
 }
 
-.student-feedback-knowledge__path span {
+.student-feedback-meta-path span {
   display: inline-flex;
   align-items: center;
   gap: 0.08rem;
   min-height: 0;
 }
 
-.student-feedback-knowledge__path b {
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.4rem;
-  padding: 0.12rem 0.36rem;
-  border: 1px solid color-mix(in srgb, var(--blue) 20%, var(--line));
-  border-radius: 0.36rem;
-  color: var(--ink);
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+.student-feedback-meta-path b {
+  color: var(--brand-strong);
   font-size: inherit;
-  font-weight: 820;
+  font-weight: 780;
 }
 
-.student-feedback-knowledge__path i {
-  color: var(--blue);
+.student-feedback-meta-path i {
+  color: var(--ink-faint);
   font-style: normal;
   font-weight: 900;
 }
 
-.student-feedback-knowledge__empty {
-  margin: 0;
+.student-feedback-meta-empty {
   color: var(--ink-faint);
   font-size: 0.73rem;
 }
 
-.student-feedback-evidence {
-  display: grid;
+.student-feedback-meta-action {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
   gap: 0.32rem;
-  padding: 0.62rem 0.68rem;
-  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--brand-soft) 22%, var(--surface-strong));
-}
-
-.student-feedback-evidence button {
-  width: 100%;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 0.45rem;
-  padding: 0.22rem 0;
+  padding: 0;
   border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--line) 58%, transparent);
   border-radius: 0;
   color: inherit;
   background: transparent;
@@ -6659,41 +6647,43 @@ button.list-row:hover {
   text-align: left;
 }
 
-.student-feedback-evidence button:hover {
-  background: color-mix(in srgb, var(--brand-soft) 28%, transparent);
+.student-feedback-meta-action:hover {
+  color: var(--brand-strong);
+  text-decoration: underline;
+  text-underline-offset: 0.18rem;
 }
 
-.student-feedback-evidence span {
+.student-feedback-meta-action span {
   color: var(--brand-strong);
   font-size: 0.76rem;
   font-weight: 900;
   white-space: nowrap;
 }
 
-.student-feedback-evidence code {
+.student-feedback-meta-action code {
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  color: var(--ink);
-  font-size: 0.78rem;
+  color: var(--ink-soft);
+  font-size: 0.74rem;
   line-height: 1.42;
 }
 
-.student-feedback-evidence--empty em {
+.student-feedback-meta-segment em {
   color: var(--ink-faint);
-  font-size: 0.78rem;
+  font-size: 0.73rem;
   font-style: normal;
   line-height: 1.45;
 }
 
 .student-feedback-item--primary {
-  border-color: color-mix(in srgb, var(--warning) 38%, var(--line));
-  box-shadow: inset 3px 0 0 var(--warning), 0 8px 24px color-mix(in srgb, var(--ink) 6%, transparent);
+  border-color: var(--line);
+  box-shadow: none;
 }
 
 .student-feedback-item--growth {
-  border-color: color-mix(in srgb, var(--blue) 34%, var(--line));
-  box-shadow: inset 3px 0 0 var(--blue), 0 8px 24px color-mix(in srgb, var(--ink) 6%, transparent);
+  border-color: var(--line);
+  box-shadow: none;
 }
 
 .student-feedback-item strong,
@@ -21561,29 +21551,30 @@ button.standard-library-governance-path {
 
   .student-feedback-item,
   .student-feedback-secondary-list > article {
-    padding: 0.68rem;
+    padding: 0.8rem 0;
   }
 
   .student-feedback-secondary-list > article {
-    padding-top: 2.25rem;
+    padding-left: 2.2rem;
   }
 
   .student-feedback-secondary-list > article::before {
-    top: 0.68rem;
-    left: 0.68rem;
+    top: 0.8rem;
+    left: 0;
   }
 
-  .student-feedback-meta__head {
+  .student-feedback-meta-row,
+  .student-feedback-meta-segment {
     align-items: flex-start;
   }
 
-  .student-feedback-knowledge__path {
-    align-items: flex-start;
+  .student-feedback-meta-segment {
+    flex-basis: 100%;
   }
 
-  .student-feedback-evidence button {
-    grid-template-columns: 1fr;
-    gap: 0.2rem;
+  .student-feedback-meta-action {
+    align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .problem-result-modal__grid,
@@ -21600,9 +21591,7 @@ button.standard-library-governance-path {
   }
 }
 
-:root[data-theme="dark"] .student-feedback-item,
-:root[data-theme="dark"] .student-feedback-knowledge,
-:root[data-theme="dark"] .student-feedback-evidence {
+:root[data-theme="dark"] .student-feedback-item {
   box-shadow: none;
 }
 
