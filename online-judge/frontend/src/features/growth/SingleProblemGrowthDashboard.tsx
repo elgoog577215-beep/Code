@@ -197,15 +197,15 @@ export function SingleProblemGrowthDashboard({
         <article className="growth-dashboard__surface growth-dashboard__trend">
           <SurfaceHeader title={t("growthDashboard.trendTitle")} />
           <div className="growth-dashboard__trend-body">
-            {trend.length >= 4 ? (
+            {trend.length >= 2 ? (
               <div className="growth-dashboard__chart" aria-label={t("growthDashboard.trendAria")}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={trend} margin={{ top: 12, right: 30, left: -8, bottom: 0 }}>
                     <CartesianGrid stroke="#e6eaf0" strokeDasharray="4 4" vertical={false} />
                     <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#475467", fontSize: 12 }} />
-                    <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} axisLine={false} tickLine={false} tickFormatter={value => `${value}%`} tick={{ fill: "#667085", fontSize: 12 }} />
+                    <YAxis domain={[0, 100]} padding={{ top: 8, bottom: 8 }} ticks={[0, 25, 50, 75, 100]} axisLine={false} tickLine={false} tickFormatter={value => `${value}%`} tick={{ fill: "#667085", fontSize: 12 }} />
                     <Tooltip formatter={value => [`${value}%`, t("growthDashboard.passRate")]} />
-                    <Line type="monotone" dataKey="passRate" stroke="#1769d2" strokeWidth={3} dot={{ r: 5, fill: "#1769d2", strokeWidth: 2, stroke: "#ffffff" }} activeDot={{ r: 7 }} connectNulls={false} />
+                    <Line type="linear" dataKey="passRate" stroke="#1769d2" strokeWidth={3} dot={{ r: 5, fill: "#1769d2", strokeWidth: 2, stroke: "#ffffff" }} activeDot={{ r: 7 }} connectNulls={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
