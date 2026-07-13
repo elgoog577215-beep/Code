@@ -63,3 +63,10 @@ test("the selected live summary participates in trend and matrix calculations", 
   assert.match(componentSource, /currentSummary && item\.id === selectedSubmissionId/);
   assert.match(componentSource, /growthSummary: currentSummary/);
 });
+
+test("two comparable submissions render as a real line chart", () => {
+  assert.match(componentSource, /trend\.length >= 2 \? \(/);
+  assert.doesNotMatch(componentSource, /trend\.length >= 4 \? \(/);
+  assert.match(componentSource, /<YAxis domain=\{\[0, 100\]\} padding=\{\{ top: 8, bottom: 8 \}\}/);
+  assert.match(componentSource, /<Line type="linear" dataKey="passRate"/);
+});
