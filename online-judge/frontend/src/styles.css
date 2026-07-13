@@ -23981,11 +23981,9 @@ button.standard-library-governance-path {
 }
 
 .main-shell > .problem-page.problem-workbench {
-  width: 100vw;
+  width: 100%;
   max-width: none;
-  margin-top: 0;
-  margin-right: calc(50% - 50vw);
-  margin-left: calc(50% - 50vw);
+  margin: 0;
 }
 
 .problem-workbench--assignment .problem-task-sidebar {
