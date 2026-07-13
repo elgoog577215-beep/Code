@@ -19,5 +19,7 @@ test("deployed app contains the redesigned growth dashboard assets", () => {
 
   assert.match(deployedStyles, /growth-dashboard__metric-icon/);
   assert.match(deployedStyles, /growth-dashboard__trend-insight/);
-  assert.match(deployedStyles, /growth-dashboard__evolution-summary/);
+  assert.match(deployedStyles, /growth-dashboard__analytics-grid/);
+  assert.match(deployedStyles, /growth-dashboard__knowledge-list/);
+  assert.match(deployedStyles, /growth-dashboard__donut/);
 });
