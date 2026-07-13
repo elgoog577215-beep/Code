@@ -8,11 +8,12 @@ import {
   type LucideIcon
 } from "lucide-react";
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -36,14 +37,13 @@ type Props = {
   onSelectSubmission?: (item: SubmissionHistorySummary) => void;
 };
 
-const COLORS = {
-  persisted: "#2472d4",
-  added: "#e6a32f",
-  recurring: "#e66f61",
-  improved: "#20a994",
-  recovered: "#8ad3cc",
-  neutral: "#98a2b3"
-};
+const ISSUE_CATEGORIES = [
+  { key: "persisted", color: "#2472d4" },
+  { key: "new", color: "#e6a32f" },
+  { key: "recurred", color: "#e66f61" },
+  { key: "improved", color: "#20a994" },
+  { key: "recovered", color: "#8ad3cc" }
+] as const;
 
 function normalizedStatus(value?: string | null) {
   return String(value || "UNCOMPARABLE").toUpperCase();
@@ -137,15 +137,6 @@ export function SingleProblemGrowthDashboard({
     });
     return [...grouped.values()].sort((left, right) => right.count - left.count || left.title.localeCompare(right.title)).slice(0, 5);
   }, [ordered, t]);
-  const issueEvolution = shownHistory.map(item => ({
-    id: item.id,
-    label: `#${item.id}`,
-    persisted: item.growthSummary?.persistedCount || 0,
-    added: item.growthSummary?.newCount || 0,
-    recurring: item.growthSummary?.recurringCount || 0,
-    improved: item.growthSummary?.notObservedCount || 0,
-    recovered: item.growthSummary?.recoveredCount || 0
-  }));
   const matrixRows = knowledge.map(point => ({
     ...point,
     cells: shownHistory.map(item => {
@@ -156,9 +147,22 @@ export function SingleProblemGrowthDashboard({
   const currentPassed = selectedSummary?.passedTestCases ?? selected?.passedTestCases ?? 0;
   const currentTotal = selectedSummary?.totalTestCases ?? selected?.totalTestCases ?? 0;
   const currentPassRate = currentTotal ? Math.round((currentPassed / currentTotal) * 1000) / 10 : null;
-  const evolutionDomainMax = Math.max(
-    4,
-    ...issueEvolution.map(item => item.persisted + item.added + item.recurring + item.improved + item.recovered)
+  const issueCounts = {
+    persisted: selectedSummary?.persistedCount || 0,
+    new: selectedSummary?.newCount || 0,
+    recurred: selectedSummary?.recurringCount || 0,
+    improved: selectedSummary?.notObservedCount || 0,
+    recovered: selectedSummary?.recoveredCount || 0
+  };
+  const issueBreakdown = ISSUE_CATEGORIES.map(category => ({
+    ...category,
+    name: t(`growthDashboard.legend.${category.key}`),
+    value: issueCounts[category.key]
+  }));
+  const issueTotal = issueBreakdown.reduce((total, item) => total + item.value, 0);
+  const dominantIssue = issueBreakdown.reduce(
+    (largest, item) => item.value > largest.value ? item : largest,
+    issueBreakdown[0]
   );
   const breadcrumb = knowledge[0]?.path?.length ? knowledge[0].path.slice(0, 3) : [];
 
@@ -189,7 +193,7 @@ export function SingleProblemGrowthDashboard({
         <MetricFrame icon={TriangleAlert} label={t("growthDashboard.metrics.unresolved")} value={selectedSummary?.unresolvedCount ?? "-"} tone="danger" />
       </div>
 
-      <div className="growth-dashboard__primary-grid">
+      <div className="growth-dashboard__analytics-grid">
         <article className="growth-dashboard__surface growth-dashboard__trend">
           <SurfaceHeader title={t("growthDashboard.trendTitle")} />
           <div className="growth-dashboard__trend-body">
@@ -230,46 +234,62 @@ export function SingleProblemGrowthDashboard({
         <article className="growth-dashboard__surface growth-dashboard__knowledge">
           <SurfaceHeader title={t("growthDashboard.knowledgeTitle")} />
           {knowledge.length ? (
-            <div className="growth-dashboard__chart" aria-label={t("growthDashboard.knowledgeAria")}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={knowledge} layout="vertical" margin={{ top: 6, right: 46, left: 4, bottom: 0 }}>
-                  <XAxis type="number" hide domain={[0, "dataMax"]} />
-                  <YAxis type="category" dataKey="title" width={82} axisLine={false} tickLine={false} tick={{ fill: "#344054", fontSize: 13 }} />
-                  <Tooltip formatter={value => [value, t("growthDashboard.effectiveOccurrences")]} />
-                  <Bar dataKey="count" fill="#1769d2" radius={[0, 5, 5, 0]} maxBarSize={28} label={{ position: "right", fill: "#344054", fontWeight: 700 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <ol className="growth-dashboard__knowledge-list" aria-label={t("growthDashboard.knowledgeAria")}>
+              {knowledge.map((point, index) => (
+                <li key={point.key}>
+                  <span className="growth-dashboard__knowledge-rank">{index + 1}</span>
+                  <span className="growth-dashboard__knowledge-name">{point.title}</span>
+                  <strong aria-label={`${t("growthDashboard.effectiveOccurrences")} ${point.count}`}>{point.count}</strong>
+                </li>
+              ))}
+            </ol>
           ) : <div className="growth-dashboard__empty">{t("growthDashboard.noKnowledgeData")}</div>}
         </article>
-      </div>
 
-      <article className="growth-dashboard__surface growth-dashboard__evolution">
-        <SurfaceHeader title={t("growthDashboard.evolutionTitle")} />
-        {issueEvolution.some(item => item.persisted + item.added + item.recurring + item.improved + item.recovered > 0) ? (
-          <div className="growth-dashboard__evolution-layout growth-dashboard__evolution-summary">
-            <div className="growth-dashboard__chart" aria-label={t("growthDashboard.evolutionAria")}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={issueEvolution} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
-                  <XAxis type="number" hide domain={[0, evolutionDomainMax]} />
-                  <YAxis type="category" dataKey="label" width={58} axisLine={false} tickLine={false} tick={{ fill: "#344054", fontSize: 12, fontWeight: 700 }} />
-                  <Tooltip />
-                  <Bar dataKey="persisted" stackId="issues" fill={COLORS.persisted} name={t("growthDashboard.legend.persisted")} />
-                  <Bar dataKey="added" stackId="issues" fill={COLORS.added} name={t("growthDashboard.legend.new")} />
-                  <Bar dataKey="recurring" stackId="issues" fill={COLORS.recurring} name={t("growthDashboard.legend.recurred")} />
-                  <Bar dataKey="improved" stackId="issues" fill={COLORS.improved} name={t("growthDashboard.legend.improved")} />
-                  <Bar dataKey="recovered" stackId="issues" fill={COLORS.recovered} name={t("growthDashboard.legend.recovered")} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+        <article className="growth-dashboard__surface growth-dashboard__evolution">
+          <SurfaceHeader title={t("growthDashboard.evolutionTitle")} />
+          {issueTotal > 0 ? (
+            <div className="growth-dashboard__donut-layout">
+              <div className="growth-dashboard__donut" aria-label={t("growthDashboard.evolutionAria")}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={issueBreakdown}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="62%"
+                      outerRadius="84%"
+                      paddingAngle={2}
+                      stroke="none"
+                    >
+                      {issueBreakdown.map(item => <Cell key={item.key} fill={item.color} />)}
+                    </Pie>
+                    <Tooltip formatter={(value, name) => [value, name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <span className="growth-dashboard__donut-center">
+                  <strong>{issueTotal}</strong>
+                  <small>{dominantIssue.name}</small>
+                </span>
+              </div>
+              <div className="growth-dashboard__donut-meta">
+                <div className="growth-dashboard__legend" aria-label={t("growthDashboard.legendAria")}>
+                  {issueBreakdown.map(item => (
+                    <span key={item.key}>
+                      <i style={{ background: item.color }} />
+                      {item.name}
+                      <strong>{item.value}</strong>
+                    </span>
+                  ))}
+                </div>
+                {selected ? <small className="growth-dashboard__donut-submission">#{selected.id}</small> : null}
+              </div>
             </div>
-            <div className="growth-dashboard__legend" aria-label={t("growthDashboard.legendAria")}>
-              {(["persisted", "new", "recurred", "improved", "recovered"] as const).map(key => (
-                <span key={key}><i className={`is-${key}`} />{t(`growthDashboard.legend.${key}`)}</span>
-              ))}
-            </div>
-          </div>
-        ) : <div className="growth-dashboard__empty">{t("growthDashboard.noEvolutionData")}</div>}
-      </article>
+          ) : <div className="growth-dashboard__empty">{t("growthDashboard.noEvolutionData")}</div>}
+        </article>
+      </div>
 
       <article className="growth-dashboard__surface growth-dashboard__matrix">
         <SurfaceHeader title={t("growthDashboard.matrixTitle")} />
