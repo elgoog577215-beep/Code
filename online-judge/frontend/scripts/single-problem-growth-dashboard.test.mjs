@@ -45,3 +45,21 @@ test("growth dashboard uses the radial concept without changing surrounding chro
   assert.match(stylesheet, /@media \(max-width: 900px\)/);
   assert.doesNotMatch(stylesheet, /\.app-header|\.problem-result-modal|\.student-assignment-side-nav/);
 });
+
+test("issue evolution explains the comparison instead of presenting an ambiguous submission badge", () => {
+  assert.match(componentSource, /growth-dashboard__evolution-context/);
+  assert.match(componentSource, /growthDashboard\.latestSubmission/);
+  assert.match(componentSource, /growthDashboard\.comparedWith/);
+  assert.match(componentSource, /<small>\{t\("growthDashboard\.evolutionTitle"\)\}<\/small>/);
+  assert.doesNotMatch(componentSource, /dominantIssue/);
+  assert.doesNotMatch(componentSource, /growth-dashboard__donut-submission/);
+
+  const stylesheet = readFileSync(stylesheetPath, "utf8");
+  assert.match(stylesheet, /\.growth-dashboard__evolution-context\s*\{/);
+  assert.doesNotMatch(stylesheet, /\.growth-dashboard__donut-submission\s*\{/);
+});
+
+test("the selected live summary participates in trend and matrix calculations", () => {
+  assert.match(componentSource, /currentSummary && item\.id === selectedSubmissionId/);
+  assert.match(componentSource, /growthSummary: currentSummary/);
+});
