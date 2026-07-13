@@ -1,9 +1,16 @@
 import { useMemo } from "react";
 import {
+  CircleCheckBig,
+  FlaskConical,
+  Info,
+  Send,
+  TriangleAlert,
+  type LucideIcon
+} from "lucide-react";
+import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -17,6 +24,7 @@ import type {
   SubmissionHistorySummary
 } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
+import "./SingleProblemGrowthDashboard.css";
 
 type DashboardMode = "student" | "teacher";
 
@@ -147,6 +155,11 @@ export function SingleProblemGrowthDashboard({
   }));
   const currentPassed = selectedSummary?.passedTestCases ?? selected?.passedTestCases ?? 0;
   const currentTotal = selectedSummary?.totalTestCases ?? selected?.totalTestCases ?? 0;
+  const currentPassRate = currentTotal ? Math.round((currentPassed / currentTotal) * 1000) / 10 : null;
+  const evolutionDomainMax = Math.max(
+    4,
+    ...issueEvolution.map(item => item.persisted + item.added + item.recurring + item.improved + item.recovered)
+  );
   const breadcrumb = knowledge[0]?.path?.length ? knowledge[0].path.slice(0, 3) : [];
 
   return (
@@ -156,9 +169,9 @@ export function SingleProblemGrowthDashboard({
           {breadcrumb.length ? <p className="growth-dashboard__breadcrumb">{breadcrumb.join(" / ")}</p> : null}
           <div className="growth-dashboard__title-row">
             <h2 id="growth-dashboard-title">{t("growthDashboard.title")}</h2>
-            {selected ? <span>{t("growthDashboard.latestSubmission", { id: selected.id })}</span> : null}
+            {selected ? <span className="growth-dashboard__submission-chip">{t("growthDashboard.latestSubmission", { id: selected.id })}</span> : null}
             {selectedSummary?.comparisonSubmissionId ? (
-              <span>{t("growthDashboard.comparedWith", { id: selectedSummary.comparisonSubmissionId })}</span>
+              <span className="growth-dashboard__comparison-chip">{t("growthDashboard.comparedWith", { id: selectedSummary.comparisonSubmissionId })}</span>
             ) : null}
           </div>
         </div>
@@ -170,38 +183,48 @@ export function SingleProblemGrowthDashboard({
       </header>
 
       <div className="growth-dashboard__kpis" aria-label={t("growthDashboard.metricsAria") }>
-        <MetricFrame label={t("growthDashboard.metrics.submissions")} value={history.length} />
-        <MetricFrame label={t("growthDashboard.metrics.effective")} value={effective.length} />
-        <MetricFrame label={t("growthDashboard.metrics.tests")} value={currentTotal ? `${currentPassed}/${currentTotal}` : "-"} />
-        <MetricFrame label={t("growthDashboard.metrics.unresolved")} value={selectedSummary?.unresolvedCount ?? "-"} />
+        <MetricFrame icon={Send} label={t("growthDashboard.metrics.submissions")} value={history.length} tone="brand" />
+        <MetricFrame icon={CircleCheckBig} label={t("growthDashboard.metrics.effective")} value={effective.length} tone="success" />
+        <MetricFrame icon={FlaskConical} label={t("growthDashboard.metrics.tests")} value={currentTotal ? `${currentPassed}/${currentTotal}` : "-"} tone="warning" />
+        <MetricFrame icon={TriangleAlert} label={t("growthDashboard.metrics.unresolved")} value={selectedSummary?.unresolvedCount ?? "-"} tone="danger" />
       </div>
 
       <div className="growth-dashboard__primary-grid">
         <article className="growth-dashboard__surface growth-dashboard__trend">
           <SurfaceHeader title={t("growthDashboard.trendTitle")} />
-          {trend.length >= 4 ? (
-            <div className="growth-dashboard__chart" aria-label={t("growthDashboard.trendAria")}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trend} margin={{ top: 12, right: 30, left: -8, bottom: 0 }}>
-                  <CartesianGrid stroke="#e6eaf0" strokeDasharray="4 4" vertical={false} />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#475467", fontSize: 12 }} />
-                  <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} axisLine={false} tickLine={false} tickFormatter={value => `${value}%`} tick={{ fill: "#667085", fontSize: 12 }} />
-                  <Tooltip formatter={value => [`${value}%`, t("growthDashboard.passRate")]} />
-                  <Line type="monotone" dataKey="passRate" stroke="#1769d2" strokeWidth={3} dot={{ r: 5, fill: "#1769d2", strokeWidth: 2, stroke: "#ffffff" }} activeDot={{ r: 7 }} connectNulls={false} />
-                </LineChart>
-              </ResponsiveContainer>
+          <div className="growth-dashboard__trend-body">
+            {trend.length >= 4 ? (
+              <div className="growth-dashboard__chart" aria-label={t("growthDashboard.trendAria")}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trend} margin={{ top: 12, right: 30, left: -8, bottom: 0 }}>
+                    <CartesianGrid stroke="#e6eaf0" strokeDasharray="4 4" vertical={false} />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#475467", fontSize: 12 }} />
+                    <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} axisLine={false} tickLine={false} tickFormatter={value => `${value}%`} tick={{ fill: "#667085", fontSize: 12 }} />
+                    <Tooltip formatter={value => [`${value}%`, t("growthDashboard.passRate")]} />
+                    <Line type="monotone" dataKey="passRate" stroke="#1769d2" strokeWidth={3} dot={{ r: 5, fill: "#1769d2", strokeWidth: 2, stroke: "#ffffff" }} activeDot={{ r: 7 }} connectNulls={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="growth-dashboard__slope" aria-label={t("growthDashboard.trendAria")}>
+                {trend.length ? trend.map((point, index) => (
+                  <div key={point.id}>
+                    <span>{point.label}</span>
+                    <strong>{point.passRate === null ? "-" : `${point.passRate}%`}</strong>
+                    {index < trend.length - 1 ? <i aria-hidden="true" /> : null}
+                  </div>
+                )) : <p>{t("growthDashboard.noComparableAttempts")}</p>}
+              </div>
+            )}
+            <div className="growth-dashboard__trend-insight">
+              <Info size={15} aria-hidden="true" />
+              <span>
+                {currentPassRate === null
+                  ? t("growthDashboard.noComparableAttempts")
+                  : `${t("growthDashboard.passRate")} ${currentPassRate}%`}
+              </span>
             </div>
-          ) : (
-            <div className="growth-dashboard__slope" aria-label={t("growthDashboard.trendAria")}>
-              {trend.length ? trend.map((point, index) => (
-                <div key={point.id}>
-                  <span>{point.label}</span>
-                  <strong>{point.passRate === null ? "-" : `${point.passRate}%`}</strong>
-                  {index < trend.length - 1 ? <i aria-hidden="true" /> : null}
-                </div>
-              )) : <p>{t("growthDashboard.noComparableAttempts")}</p>}
-            </div>
-          )}
+          </div>
         </article>
 
         <article className="growth-dashboard__surface growth-dashboard__knowledge">
@@ -224,11 +247,11 @@ export function SingleProblemGrowthDashboard({
       <article className="growth-dashboard__surface growth-dashboard__evolution">
         <SurfaceHeader title={t("growthDashboard.evolutionTitle")} />
         {issueEvolution.some(item => item.persisted + item.added + item.recurring + item.improved + item.recovered > 0) ? (
-          <div className="growth-dashboard__evolution-layout">
+          <div className="growth-dashboard__evolution-layout growth-dashboard__evolution-summary">
             <div className="growth-dashboard__chart" aria-label={t("growthDashboard.evolutionAria")}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={issueEvolution} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
-                  <XAxis type="number" hide />
+                  <XAxis type="number" hide domain={[0, evolutionDomainMax]} />
                   <YAxis type="category" dataKey="label" width={58} axisLine={false} tickLine={false} tick={{ fill: "#344054", fontSize: 12, fontWeight: 700 }} />
                   <Tooltip />
                   <Bar dataKey="persisted" stackId="issues" fill={COLORS.persisted} name={t("growthDashboard.legend.persisted")} />
@@ -281,8 +304,23 @@ export function SingleProblemGrowthDashboard({
   );
 }
 
-function MetricFrame({ label, value }: { label: string; value: string | number }) {
-  return <div><span>{label}</span><strong>{value}</strong></div>;
+function MetricFrame({
+  icon: Icon,
+  label,
+  tone,
+  value
+}: {
+  icon: LucideIcon;
+  label: string;
+  tone: "brand" | "success" | "warning" | "danger";
+  value: string | number;
+}) {
+  return (
+    <div className={`growth-dashboard__metric is-${tone}`}>
+      <span className="growth-dashboard__metric-icon" aria-hidden="true"><Icon size={22} /></span>
+      <span className="growth-dashboard__metric-copy"><span>{label}</span><strong>{value}</strong></span>
+    </div>
+  );
 }
 
 function SurfaceHeader({ title }: { title: string }) {
