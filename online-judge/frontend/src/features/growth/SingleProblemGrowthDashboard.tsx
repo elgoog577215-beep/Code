@@ -102,14 +102,18 @@ export function SingleProblemGrowthDashboard({
 }: Props) {
   const { t } = useTranslation();
   const ordered = useMemo(
-    () => [...history].sort((left, right) => {
-      const time = new Date(left.submittedAt || 0).getTime() - new Date(right.submittedAt || 0).getTime();
-      return time || left.id - right.id;
-    }),
-    [history]
+    () => history
+      .map(item => currentSummary && item.id === selectedSubmissionId
+        ? { ...item, growthSummary: currentSummary }
+        : item)
+      .sort((left, right) => {
+        const time = new Date(left.submittedAt || 0).getTime() - new Date(right.submittedAt || 0).getTime();
+        return time || left.id - right.id;
+      }),
+    [currentSummary, history, selectedSubmissionId]
   );
   const selected = ordered.find(item => item.id === selectedSubmissionId) || ordered[ordered.length - 1] || null;
-  const selectedSummary = currentSummary || selected?.growthSummary || null;
+  const selectedSummary = selected?.growthSummary || currentSummary || null;
   const effective = ordered.filter(item => item.growthSummary?.effectiveAttempt && item.growthSummary.comparable);
   const trend = effective.map(item => ({
     id: item.id,
@@ -160,10 +164,6 @@ export function SingleProblemGrowthDashboard({
     value: issueCounts[category.key]
   }));
   const issueTotal = issueBreakdown.reduce((total, item) => total + item.value, 0);
-  const dominantIssue = issueBreakdown.reduce(
-    (largest, item) => item.value > largest.value ? item : largest,
-    issueBreakdown[0]
-  );
   const breadcrumb = knowledge[0]?.path?.length ? knowledge[0].path.slice(0, 3) : [];
 
   return (
@@ -249,42 +249,49 @@ export function SingleProblemGrowthDashboard({
         <article className="growth-dashboard__surface growth-dashboard__evolution">
           <SurfaceHeader title={t("growthDashboard.evolutionTitle")} />
           {issueTotal > 0 ? (
-            <div className="growth-dashboard__donut-layout">
-              <div className="growth-dashboard__donut" aria-label={t("growthDashboard.evolutionAria")}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={issueBreakdown}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius="62%"
-                      outerRadius="84%"
-                      paddingAngle={2}
-                      stroke="none"
-                    >
-                      {issueBreakdown.map(item => <Cell key={item.key} fill={item.color} />)}
-                    </Pie>
-                    <Tooltip formatter={(value, name) => [value, name]} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <span className="growth-dashboard__donut-center">
-                  <strong>{issueTotal}</strong>
-                  <small>{dominantIssue.name}</small>
-                </span>
+            <div className="growth-dashboard__evolution-body">
+              <div className="growth-dashboard__evolution-context">
+                {selected ? <strong>{t("growthDashboard.latestSubmission", { id: selected.id })}</strong> : null}
+                {selectedSummary?.comparisonSubmissionId ? (
+                  <span>{t("growthDashboard.comparedWith", { id: selectedSummary.comparisonSubmissionId })}</span>
+                ) : null}
               </div>
-              <div className="growth-dashboard__donut-meta">
-                <div className="growth-dashboard__legend" aria-label={t("growthDashboard.legendAria")}>
-                  {issueBreakdown.map(item => (
-                    <span key={item.key}>
-                      <i style={{ background: item.color }} />
-                      {item.name}
-                      <strong>{item.value}</strong>
-                    </span>
-                  ))}
+              <div className="growth-dashboard__donut-layout">
+                <div className="growth-dashboard__donut" aria-label={t("growthDashboard.evolutionAria")}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={issueBreakdown}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="62%"
+                        outerRadius="84%"
+                        paddingAngle={2}
+                        stroke="none"
+                      >
+                        {issueBreakdown.map(item => <Cell key={item.key} fill={item.color} />)}
+                      </Pie>
+                      <Tooltip formatter={(value, name) => [value, name]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <span className="growth-dashboard__donut-center">
+                    <strong>{issueTotal}</strong>
+                    <small>{t("growthDashboard.evolutionTitle")}</small>
+                  </span>
                 </div>
-                {selected ? <small className="growth-dashboard__donut-submission">#{selected.id}</small> : null}
+                <div className="growth-dashboard__donut-meta">
+                  <div className="growth-dashboard__legend" aria-label={t("growthDashboard.legendAria")}>
+                    {issueBreakdown.map(item => (
+                      <span key={item.key} className={item.value ? undefined : "is-zero"}>
+                        <i style={{ background: item.color }} />
+                        {item.name}
+                        <strong>{item.value}</strong>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           ) : <div className="growth-dashboard__empty">{t("growthDashboard.noEvolutionData")}</div>}
