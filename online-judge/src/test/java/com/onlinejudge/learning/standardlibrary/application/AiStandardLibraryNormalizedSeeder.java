@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 @Order(6)
 @RequiredArgsConstructor
 @Slf4j
-@ConditionalOnProperty(prefix = "app.content-seed", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "app.content-migration", name = "enabled", havingValue = "true")
 public class AiStandardLibraryNormalizedSeeder implements CommandLineRunner {
 
     private static final String UNMAPPED_KNOWLEDGE_NODE = "STANDARD_LIBRARY.UNMAPPED";

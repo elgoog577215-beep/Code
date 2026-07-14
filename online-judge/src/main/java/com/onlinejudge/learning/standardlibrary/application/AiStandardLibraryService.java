@@ -159,7 +159,7 @@ public class AiStandardLibraryService {
             return true;
         }
         return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
-                .anyMatch(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(item.getLayer(), item.getCode()));
+                .anyMatch(item -> !ArchivedFallbackCodePolicy.isArchivedFallback(item.getLayer(), item.getCode()));
     }
 
     @Transactional(readOnly = true)
@@ -170,7 +170,7 @@ public class AiStandardLibraryService {
                         || item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
                         || item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT
                         || item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
-                .filter(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(item.getLayer(), item.getCode()))
+                .filter(item -> !ArchivedFallbackCodePolicy.isArchivedFallback(item.getLayer(), item.getCode()))
                 .toList();
         if (normalizedItems.isEmpty()) {
             return legacyItems;
@@ -640,7 +640,7 @@ public class AiStandardLibraryService {
             return List.of();
         }
         return items.stream()
-                .filter(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(codeAccessor.apply(item)))
+                .filter(item -> !ArchivedFallbackCodePolicy.isArchivedFallback(codeAccessor.apply(item)))
                 .toList();
     }
 
@@ -848,7 +848,7 @@ public class AiStandardLibraryService {
         item.setPrerequisiteKnowledgeCodes(join(request.getPrerequisiteKnowledgeCodes()));
         item.setTeachingAction(normalizeText(request.getTeachingAction()));
         item.setLibraryVersion(normalizeText(request.getLibraryVersion()).isBlank()
-                ? AiStandardLibrarySeedCatalog.VERSION
+                ? "standard-library-db-v3"
                 : normalizeText(request.getLibraryVersion()));
         item.setEnabled(request.getEnabled() == null || request.getEnabled());
         validateKnowledgeItem(item);

@@ -19,7 +19,7 @@ import java.util.List;
 @Order(1)
 @RequiredArgsConstructor
 @Slf4j
-@ConditionalOnProperty(prefix = "app.content-seed", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "app.content-migration", name = "enabled", havingValue = "true")
 public class DataInitializer implements CommandLineRunner {
 
     private final ProblemRepository problemRepository;

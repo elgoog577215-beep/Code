@@ -16,7 +16,7 @@ import java.util.List;
 @Order(4)
 @RequiredArgsConstructor
 @Slf4j
-@ConditionalOnProperty(prefix = "app.content-seed", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "app.content-migration", name = "enabled", havingValue = "true")
 public class InformaticsKnowledgeSeeder implements CommandLineRunner {
 
     private final InformaticsKnowledgeNodeRepository repository;

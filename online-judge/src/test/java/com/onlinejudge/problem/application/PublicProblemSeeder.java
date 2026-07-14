@@ -5,6 +5,7 @@ import com.onlinejudge.problem.domain.TestCase;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.problem.persistence.TestCaseRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
@@ -18,7 +19,8 @@ import java.util.stream.IntStream;
 @Component
 @Order(2)
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "app.content-seed", name = "enabled", havingValue = "true")
+@Slf4j
+@ConditionalOnProperty(prefix = "app.content-migration", name = "enabled", havingValue = "true")
 public class PublicProblemSeeder implements CommandLineRunner {
 
     private final ProblemRepository problemRepository;
@@ -26,6 +28,7 @@ public class PublicProblemSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        int inserted = 0;
         List<Problem> existingProblems = problemRepository.findAllByOrderByIdAsc();
         existingProblems.forEach(problem -> {
                     String starterCode = PublicStarterCodeCatalog.findByTitle(problem.getTitle());
@@ -57,7 +60,10 @@ public class PublicProblemSeeder implements CommandLineRunner {
                     .build());
             saveTestCases(problem.getId(), seed.testCases());
             existingTitles.add(seed.title());
+            inserted++;
         }
+        log.info("One-shot content migration processed public problems: inserted={}, total={}",
+                inserted, problemRepository.count());
     }
 
     private boolean shouldUpgradeStarterCode(String title, String currentStarterCode, String catalogStarterCode) {

@@ -52,7 +52,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.retry.backoff-ms=${AI_EVAL_RETRY_BACKOFF_MS:700}",
         "ai.standard-library-navigation.max-rounds=${AI_EVAL_STANDARD_LIBRARY_NAVIGATION_MAX_ROUNDS:6}",
         "ai.standard-library-growth.enabled=false",
-        "app.content-seed.enabled=${AI_REAL_SAMPLE_CONTENT_SEED_ENABLED:true}"
+        "app.content-migration.enabled=${AI_REAL_SAMPLE_CONTENT_SEED_ENABLED:true}"
 })
 class DiagnosisReportV2RealSamplesSimulationTest {
 
