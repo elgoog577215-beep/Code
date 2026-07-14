@@ -302,7 +302,21 @@ const submissionResult = {
   problemTitle: "求和边界",
   languageId: 54,
   languageName: "C++17",
-  sourceCode: "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    int n;\n    cin >> n;\n    cout << n << '\\n';\n    return 0;\n}\n",
+  sourceCode: [
+    "#include <bits/stdc++.h>",
+    "using namespace std;",
+    "",
+    "int main() {",
+    "    ios::sync_with_stdio(false);",
+    "    cin.tie(nullptr);",
+    "    int n;",
+    "    cin >> n;",
+    "    cout << n << '\\n';",
+    ...Array.from({ length: 52 }, (_, index) => `    // diagnostic context ${index + 10}`),
+    "    return 0;",
+    "}",
+    ""
+  ].join("\n"),
   verdict: "WRONG_ANSWER",
   executionTime: 28,
   memoryUsed: 8192,
@@ -1516,6 +1530,25 @@ const scenarios = [
         readyOverviewText.includes("1/2") && readyOverviewText.includes("50%") && !readyOverviewText.includes("耗时内存"),
         readyOverviewText
       );
+      const codeViewport = await page.locator(".feedback-code-workbench__code").evaluate(element => ({
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        overflowY: window.getComputedStyle(element).overflowY
+      }));
+      record(
+        "problem code evidence uses a bounded vertical scroll region",
+        codeViewport.overflowY === "auto"
+          && codeViewport.scrollHeight > codeViewport.clientHeight + 40
+          && codeViewport.clientHeight <= 620,
+        JSON.stringify(codeViewport)
+      );
+      record(
+        "problem workbench does not rerun unchanged source code",
+        !readyModalText.includes("运行测试")
+          && !readyModalText.includes("运行并验证")
+          && await page.getByRole("button", { name: /运行测试|运行并验证/ }).count() === 0,
+        readyModalText
+      );
       record("problem modal removes empty count noise", !readyModalText.includes("0条"), readyModalText);
       record(
         "problem modal removes system-like labels",
@@ -1584,7 +1617,7 @@ const scenarios = [
       const englishMetaText = ((await page.locator(".feedback-code-workbench").textContent()) || "").replace(/\s+/g, " ");
       record(
         "problem feedback workbench renders complete English copy",
-        ["Status overview", "Issue list", "Current failed case", "Reason", "Correction", "Verification", "Run and verify"]
+        ["Status overview", "Issue list", "Current failed case", "Reason", "Correction", "Verification", "Return to code"]
           .every(label => englishMetaText.includes(label)) && !englishMetaText.includes("problemFeedbackWorkbench."),
         englishMetaText
       );
