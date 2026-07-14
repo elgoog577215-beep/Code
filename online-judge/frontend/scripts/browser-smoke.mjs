@@ -404,7 +404,8 @@ const studentAiFeedbackReady = {
         knowledgePath: ["信息学基础", "循环结构", "循环状态", "累计结果输出时机不稳定"],
         knowledgePathStatus: "PROVISIONAL",
         provisionalNodeCode: "MP_AI_OUTPUT_TIMING",
-        evidenceRefs: ["judge:first_failed_case:1"],
+        evidenceSnippets: [{ evidenceRef: "code:line:9", lineNumber: 9, lineEnd: 9, code: "cout << n << '\\n';" }],
+        evidenceRefs: ["judge:first_failed_case:1", "code:line:9"],
         qualitySignals: ["evidence_grounded", "actionable"]
       }
     ],
@@ -1414,6 +1415,30 @@ const scenarios = [
         null,
         { timeout: 10000 }
       );
+      const feedbackWorkbench = page.locator(".feedback-code-workbench");
+      record("problem result uses the code-linked correction workbench", await feedbackWorkbench.count() === 1);
+      if (await feedbackWorkbench.count() === 1) {
+        const issueButtons = page.locator(".feedback-code-workbench__issue");
+        record("problem workbench preserves both repair issues", await issueButtons.count() === 2);
+        record(
+          "problem workbench maps issue one to amber code references",
+          await page.locator('.feedback-code-workbench__issue[data-tone="amber"] .feedback-code-workbench__issue-number').count() === 1
+            && await page.locator('.feedback-code-workbench__line[data-tone="amber"]').count() >= 1
+            && await page.locator('.feedback-code-workbench__inspector[data-tone="amber"]').count() === 1
+        );
+        await issueButtons.nth(1).click();
+        record(
+          "problem workbench maps issue two to teal and updates the inspector",
+          await page.locator('.feedback-code-workbench__issue.is-active[data-tone="teal"]').count() === 1
+            && await page.locator('.feedback-code-workbench__line.is-active[data-tone="teal"]').count() >= 1
+            && ((await page.locator(".feedback-code-workbench__inspector").textContent()) || "").includes("累计结果输出时机不稳定")
+        );
+        record(
+          "problem workbench exposes one central run and verify action",
+          await page.getByRole("button", { name: "运行并验证" }).count() === 1
+        );
+        await issueButtons.first().click();
+      }
       const resultViewTabs = page.locator(".problem-result-view-switch button");
       const resultViewTabCount = await resultViewTabs.count();
       record("problem result separates repair and growth into two top views", resultViewTabCount === 2, `view tabs ${resultViewTabCount}`);
