@@ -438,7 +438,8 @@ const studentAiFeedbackReady = {
         affectedProblemCount: 2,
         knowledgePath: ["竞赛过程", "提交检查", "边界复测"],
         knowledgePathStatus: "INFERRED",
-        evidenceRefs: ["public-case-1"],
+        evidenceSnippets: [{ evidenceRef: "code:line:12", lineNumber: 12, lineEnd: 12, code: "// diagnostic context 12" }],
+        evidenceRefs: ["public-case-1", "code:line:12"],
         qualitySignals: ["transfer"]
       },
       {
@@ -1432,7 +1433,7 @@ const scenarios = [
       const feedbackWorkbench = page.locator(".feedback-code-workbench");
       record("problem result uses the code-linked correction workbench", await feedbackWorkbench.count() === 1);
       if (await feedbackWorkbench.count() === 1) {
-        const issueButtons = page.locator(".feedback-code-workbench__issue");
+        const issueButtons = page.locator(".feedback-code-workbench__issue--repair");
         record("problem workbench preserves both repair issues", await issueButtons.count() === 2);
         record(
           "problem workbench maps issue one to amber code references",
@@ -1452,6 +1453,34 @@ const scenarios = [
           await page.getByRole("button", { name: "返回代码修改" }).count() === 1
             && await page.getByRole("button", { name: /^(运行测试|运行并验证)$/ }).count() === 0
         );
+        const growthButtons = page.locator(".feedback-code-workbench__issue--growth");
+        record("problem workbench presents growth suggestions as compact selectable items", await growthButtons.count() === 2);
+        const growthRailText = ((await page.locator(".feedback-code-workbench__growth").textContent()) || "").replace(/\s+/g, "");
+        record(
+          "problem workbench keeps growth details out of the left rail",
+          growthRailText.includes("测试习惯")
+            && growthRailText.includes("迁移到多组输入")
+            && !growthRailText.includes("提交前先跑最小公开样例")
+            && !growthRailText.includes("基础问题修正后")
+        );
+        if (await growthButtons.count() === 2) {
+          await growthButtons.first().click();
+          const growthInspectorText = ((await page.locator(".feedback-code-workbench__inspector").textContent()) || "").replace(/\s+/g, "");
+          record(
+            "problem workbench opens growth details in the inspector",
+            growthInspectorText.includes("提升建议1/2")
+              && growthInspectorText.includes("测试习惯")
+              && growthInspectorText.includes("提交前先跑最小公开样例")
+              && growthInspectorText.includes("竞赛过程›提交检查›边界复测")
+          );
+          record(
+            "problem workbench maps growth evidence to its own code color",
+            await page.locator('.feedback-code-workbench__issue--growth.is-active[data-tone="blue"]').count() === 1
+              && await page.locator('.feedback-code-workbench__line.is-active[data-tone="blue"]').count() >= 1
+              && await page.locator('.feedback-code-workbench__inspector[data-tone="blue"]').count() === 1
+          );
+        }
+        record("problem workbench removes manual confirmation checkboxes", await page.locator(".feedback-code-workbench__checks").count() === 0);
         await issueButtons.first().click();
       }
       const resultViewTabs = page.locator(".problem-result-view-switch button");
@@ -1586,14 +1615,21 @@ const scenarios = [
           readyRepairText.includes("第二次读取时应该拿到123"),
         readyRepairText
       );
-      record("problem modal maps growth fields structurally", readyGrowthText.includes("提升建议") && readyGrowthText.includes("测试习惯") && readyGrowthText.includes("能更早发现输入格式问题"), readyGrowthText);
+      record(
+        "problem modal keeps growth navigation compact",
+        readyGrowthText.includes("提升建议")
+          && readyGrowthText.includes("测试习惯")
+          && readyGrowthText.includes("迁移到多组输入")
+          && !readyGrowthText.includes("能更早发现输入格式问题"),
+        readyGrowthText
+      );
       record(
         "problem modal keeps issue lifecycle in the focused inspector",
           readyModalText.includes("仍存在") &&
           readyModalText.includes("问题1/2"),
         readyModalText
       );
-      const suggestionCardCount = await page.locator(".feedback-code-workbench__issue, .feedback-code-workbench__growth-item").count();
+      const suggestionCardCount = await page.locator(".feedback-code-workbench__issue").count();
       record("problem modal preserves every suggestion", suggestionCardCount === 4, `suggestions ${suggestionCardCount}`);
       record(
         "problem modal keeps knowledge path and evidence in the active inspector",
