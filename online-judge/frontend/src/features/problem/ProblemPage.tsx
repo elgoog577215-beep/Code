@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, BarChart3, ClipboardList, FileCheck2, GripVertical, LayoutGrid, Lightbulb, PanelRightClose, PanelRightOpen, Play, RefreshCw, RotateCcw, X } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
@@ -582,6 +582,7 @@ function FeedbackLoadingPanel({
 
 export default function ProblemPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const params = useParams();
   const [searchParams] = useSearchParams();
   const problemId = Number(params.problemId);
@@ -595,6 +596,7 @@ export default function ProblemPage() {
   const currentStudent = studentFromAssignment || studentFromAny;
   const studentProfileId = normalizeNumber(searchParams.get("studentProfileId")) ?? currentStudent?.id ?? null;
   const recommendationToken = searchParams.get("recommendationToken");
+  const requestedSubmissionId = normalizeNumber(searchParams.get("submissionId"));
   const assignmentBasePath = assignmentId ? `/app/student/assignments/${assignmentId}` : "/app/student/assignments/public";
   const backTo = assignmentBasePath;
   const backLabel = isPublicWorkbench ? "返回题目列表" : "返回学生端";
@@ -699,20 +701,23 @@ export default function ProblemPage() {
         setProblem(problemResult);
         setHistory(historyResult);
         setSourceCode(initialSourceFor(problemResult, problemId, languageId));
-        const recent = historyResult[0];
-        if (recent) {
+        const selectedSubmissionId = requestedSubmissionId ?? historyResult[0]?.id ?? null;
+        if (selectedSubmissionId) {
           const [submissionResult, feedbackLookup] = await Promise.all([
-            api.submission(recent.id),
-            api.studentAiFeedback(recent.id)
+            api.submission(selectedSubmissionId),
+            api.studentAiFeedback(selectedSubmissionId)
           ]);
           if (!ignore) {
             setLatest(submissionResult);
             const feedback = withLookupFailureReason(feedbackLookup.feedback || null, feedbackLookup.failureReason);
             setStudentAiFeedback(feedback);
             setDiagnosisProgress(feedbackLookup.diagnosisProgress || null);
+            if (requestedSubmissionId) {
+              setResultOpen(true);
+            }
             if (inFlightFeedbackStatus(feedback?.status)) {
               const token = startFeedbackPollingState(true);
-              pollStudentAiFeedback(recent.id, token);
+              pollStudentAiFeedback(selectedSubmissionId, token);
             }
           }
         }
@@ -729,7 +734,7 @@ export default function ProblemPage() {
       ignore = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentId, problemId]);
+  }, [assignmentId, problemId, requestedSubmissionId]);
 
   useEffect(() => {
     setSourceCode(initialSourceFor(problem, problemId, languageId));
@@ -924,6 +929,10 @@ export default function ProblemPage() {
   }
 
   function closeResult() {
+    if (requestedSubmissionId && assignmentId) {
+      navigate(`${assignmentBasePath}/submissions`);
+      return;
+    }
     setResultOpen(false);
   }
 
@@ -1540,7 +1549,13 @@ export default function ProblemPage() {
         <div className="problem-result-modal-backdrop" role="presentation" onClick={closeResult}>
           <section className="problem-result-modal" role="dialog" aria-modal="true" aria-labelledby="problem-result-title" onClick={event => event.stopPropagation()}>
             <div className="problem-result-modal__header">
-              <div>
+              <div className="problem-result-modal__summary">
+                {requestedSubmissionId && assignmentId && (
+                  <Link className="problem-result-modal__back" to={`${assignmentBasePath}/submissions`}>
+                    <ArrowLeft size={16} />
+                    <span>{t("problemResultViews.returnToSubmissions")}</span>
+                  </Link>
+                )}
                 <h2 id="problem-result-title">{verdictLabel(latest.verdict)}</h2>
               </div>
               <div className="problem-result-view-switch" role="tablist" aria-label={t("problemResultViews.aria")}>

@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Eye, Search, Send, X } from "lucide-react";
-import { Navigate, useParams } from "react-router-dom";
+import { ArrowDown, ChevronLeft, ChevronRight, Search, Sparkles } from "lucide-react";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
-import type { StudentAssignmentSubmissionPage, SubmissionResult } from "../../shared/api/types";
-import { verdictLabel } from "../../shared/format";
-import { useTranslation } from "../../shared/i18n";
-import { ButtonLink } from "../../shared/ui/Button";
+import type { StudentAssignmentSubmissionPage } from "../../shared/api/types";
 import { EmptyState } from "../../shared/ui/EmptyState";
-import { growthStateKey } from "../growth/SingleProblemGrowthDashboard";
 import { formatRelativeTime, StudentAssignmentShell, useStudentAssignmentWorkspace } from "./StudentAssignmentWorkspace";
 
 function verdictCode(value: string) {
@@ -41,7 +37,6 @@ function paginationNumbers(totalPages: number, currentPage: number) {
 }
 
 export default function StudentAssignmentSubmissionsPage() {
-  const { t } = useTranslation();
   const { assignmentId } = useParams();
   const numericAssignmentId = Number(assignmentId);
   const workspace = useStudentAssignmentWorkspace(numericAssignmentId);
@@ -53,8 +48,6 @@ export default function StudentAssignmentSubmissionsPage() {
   const [data, setData] = useState<StudentAssignmentSubmissionPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState<string | null>(null);
-  const [detail, setDetail] = useState<SubmissionResult | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => setPage(0), [problemId, accepted, languageName, submissionId]);
 
@@ -97,28 +90,12 @@ export default function StudentAssignmentSubmissionsPage() {
     return [...values];
   }, [data]);
 
-  async function openDetail(id: number) {
-    setDetailLoading(true);
-    try {
-      setDetail(await api.submission(id));
-    } finally {
-      setDetailLoading(false);
-    }
-  }
-
   if (!workspace.student) return <Navigate to="/app/student/login" replace />;
   if (workspace.loading) return <EmptyState title="正在读取作业" live />;
   if (!workspace.assignment) return <EmptyState title={workspace.failed || "作业不存在"} />;
 
   return (
     <StudentAssignmentShell assignment={workspace.assignment} student={workspace.student} nextTask={workspace.nextTask} activeTab="submissions">
-      <section className="student-assignment-summary-band student-submission-summary" aria-label="提交记录摘要">
-        <span><Send size={20} aria-hidden="true" />共提交 <strong>{data?.totalSubmissionCount || 0}</strong> 次</span>
-        <span><CheckCircle2 size={20} aria-hidden="true" />通过 <strong>{data?.acceptedSubmissionCount || 0}</strong> 次</span>
-        <span><Bookmark size={20} aria-hidden="true" />涉及 <strong>{data?.distinctProblemCount || 0}</strong> 道题</span>
-        <span><Clock3 size={20} aria-hidden="true" />最近提交 <strong>{formatRelativeTime(data?.latestSubmittedAt)}</strong></span>
-      </section>
-
       <section className="student-submission-history" aria-labelledby="student-submission-history-title">
         <h2 className="sr-only" id="student-submission-history-title">我的提交记录</h2>
         <div className="student-submission-filters">
@@ -159,7 +136,7 @@ export default function StudentAssignmentSubmissionsPage() {
                 <span>提交编号</span><span className="student-submission-sort">提交时间<ArrowDown size={14} /></span><span>题目</span><span>判题结果</span><span>语言</span><span>用时</span><span>内存</span><span>操作</span>
               </div>
               {data.items.map((item, index) => (
-                <button type="button" className={`student-submission-row${index === 0 && page === 0 ? " is-latest" : ""}`} onClick={() => void openDetail(item.id)} key={item.id}>
+                <div className={`student-submission-row${index === 0 && page === 0 ? " is-latest" : ""}`} key={item.id}>
                   <span>#{item.id}</span>
                   <span>{item.submittedAt ? new Date(item.submittedAt).toLocaleString("zh-CN", { hour12: false }) : "-"}</span>
                   <span>{item.problemTitle}</span>
@@ -167,8 +144,16 @@ export default function StudentAssignmentSubmissionsPage() {
                   <span>{item.languageName || "-"}</span>
                   <span>{runtimeText(item.executionTime)}</span>
                   <span>{memoryText(item.memoryUsed)}</span>
-                  <span><Eye size={18} aria-label="查看提交详情" /></span>
-                </button>
+                  <span className="student-submission-actions">
+                    <Link
+                      to={`/app/student/assignments/${numericAssignmentId}/problems/${item.problemId}?submissionId=${item.id}`}
+                      aria-label="查看 AI 评测"
+                      title="查看 AI 评测"
+                    >
+                      <Sparkles size={18} />
+                    </Link>
+                  </span>
+                </div>
               ))}
             </div>
             <footer className="student-submission-pagination">
@@ -194,43 +179,6 @@ export default function StudentAssignmentSubmissionsPage() {
         ) : <EmptyState title="没有符合条件的提交记录" />}
       </section>
 
-      {(detail || detailLoading) ? (
-        <div className="student-submission-detail-backdrop" role="presentation" onClick={() => !detailLoading && setDetail(null)}>
-          <section className="student-submission-detail" role="dialog" aria-modal="true" aria-labelledby="student-submission-detail-title" onClick={event => event.stopPropagation()}>
-            <header>
-              <div><span>提交详情</span><h2 id="student-submission-detail-title">{detail ? `#${detail.id} · ${detail.problemTitle || "题目"}` : "正在读取"}</h2></div>
-              <button type="button" aria-label="关闭提交详情" onClick={() => setDetail(null)} disabled={detailLoading}><X size={19} /></button>
-            </header>
-            {detail ? (
-              <>
-                <div className="student-submission-detail__meta">
-                  <strong>{verdictLabel(detail.verdict)}</strong><span>{detail.languageName || "-"}</span><span>{runtimeText(detail.executionTime)}</span><span>{memoryText(detail.memoryUsed)}</span>
-                </div>
-                {detail.growthSummary ? (
-                  <section className="student-submission-growth-summary" aria-label={t("growthDashboard.detailAria")}>
-                    <header>
-                      <span>{t("growthDashboard.title")}</span>
-                      <strong>{t(`growthDashboard.state.${growthStateKey(detail.growthSummary.growthState)}`)}</strong>
-                    </header>
-                    <div>
-                      <span><small>{t("growthDashboard.metrics.tests")}</small><b>{detail.growthSummary.passedTestCases ?? 0}/{detail.growthSummary.totalTestCases ?? 0}</b></span>
-                      <span><small>{t("growthDashboard.legend.improved")}</small><b>{(detail.growthSummary.notObservedCount || 0) + (detail.growthSummary.recoveredCount || 0)}</b></span>
-                      <span><small>{t("growthDashboard.detailNewRisks")}</small><b>{(detail.growthSummary.newCount || 0) + (detail.growthSummary.recurringCount || 0)}</b></span>
-                      <span><small>{t("growthDashboard.metrics.unresolved")}</small><b>{detail.growthSummary.unresolvedCount}</b></span>
-                    </div>
-                    {detail.assignmentId ? (
-                      <ButtonLink to={`/app/student/assignments/${detail.assignmentId}/problems/${detail.problemId}`} variant="secondary">
-                        {t("growthDashboard.openProblem")}
-                      </ButtonLink>
-                    ) : null}
-                  </section>
-                ) : null}
-                <pre><code>{detail.sourceCode}</code></pre>
-              </>
-            ) : <EmptyState title="正在读取提交详情" live />}
-          </section>
-        </div>
-      ) : null}
     </StudentAssignmentShell>
   );
 }

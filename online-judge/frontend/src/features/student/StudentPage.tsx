@@ -237,21 +237,41 @@ export default function StudentPage() {
           </section>
         </>
       ) : (
-        <>
-          {renderPublicPractice("student-signed-in-practice-heading")}
+        <section id="assignments" className="student-assignment-board student-learning-task-board" aria-labelledby="student-assignment-heading">
+          <header className="student-assignment-board__head">
+            <span className="student-assignment-board__icon" aria-hidden="true"><ClipboardList size={20} /></span>
+            <h2 id="student-assignment-heading">{t("studentHome.dashboard.learningTasks")}</h2>
+          </header>
 
-          <section id="assignments" className="student-assignment-board" aria-labelledby="student-assignment-heading">
-            <header className="student-assignment-board__head">
-              <span className="student-assignment-board__icon" aria-hidden="true"><ClipboardList size={20} /></span>
-              <h2 id="student-assignment-heading">{t("studentHome.dashboard.classroom")}</h2>
-            </header>
+          <nav className="student-assignment-table student-assignment-table--direct student-learning-task-list" aria-label={t("studentHome.dashboard.learningTasks")}>
+            <Link
+              className="student-entry-link student-assignment-row student-assignment-row--direct student-assignment-row--featured student-public-task-row"
+              to="/app/student/assignments/public"
+              aria-label={`${t("studentHome.dashboard.pinnedPublic")}，${t("studentHome.public.title")}`}
+            >
+              <span className="student-assignment-row__icon" aria-hidden="true"><BookOpen size={19} /></span>
+              <span className="student-assignment-row__main">
+                <small className="student-public-task-row__eyebrow">{t("studentHome.dashboard.pinnedPublic")}</small>
+                <strong>{t("studentHome.public.title")}</strong>
+              </span>
+              <span className="student-assignment-row__status">
+                <span><i className="student-assignment-row__dot student-assignment-row__dot--active" />{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</span>
+                <small>{t("studentHome.public.description")}</small>
+              </span>
+              <span className="student-public-task-row__difficulty" aria-label={t("studentHome.guestPreview.difficultyAria")}>
+                <span>{t("studentHome.guestPreview.easy", { count: publicDifficultyCounts.EASY })}</span>
+                <span>{t("studentHome.guestPreview.medium", { count: publicDifficultyCounts.MEDIUM })}</span>
+                <span>{t("studentHome.guestPreview.hard", { count: publicDifficultyCounts.HARD })}</span>
+              </span>
+              <ArrowRight className="student-assignment-row__chevron" size={18} aria-hidden="true" />
+            </Link>
 
             {assignmentLoading ? (
               <div className="student-assignment-board__empty" role="status" aria-live="polite">
                 {t("studentHome.loading.assignments")}
               </div>
             ) : visibleAssignments.length ? (
-              <nav className="student-assignment-table student-assignment-table--direct" aria-label={t("studentHome.dashboard.classroom")}>
+              <>
                 {visibleAssignments.map(assignment => {
                   const progress = progressFor(assignment);
                   const state = assignmentState(assignment);
@@ -281,14 +301,14 @@ export default function StudentPage() {
                     </Link>
                   );
                 })}
-              </nav>
+              </>
             ) : (
               <div className="student-assignment-board__empty">
                 <strong>{t("studentHome.emptyAssignments.title")}</strong>
               </div>
             )}
-          </section>
-        </>
+          </nav>
+        </section>
       )}
 
     </div>

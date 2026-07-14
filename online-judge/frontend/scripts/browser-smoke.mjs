@@ -1122,36 +1122,38 @@ const scenarios = [
           .forEach(key => window.sessionStorage.removeItem(key));
         window.dispatchEvent(new Event("wzai:student-change"));
       });
-      await page.locator(".student-guest-assignment-preview").first().waitFor({ state: "visible", timeout: 10000 });
+      await page.locator(".student-guest-practice").first().waitFor({ state: "visible", timeout: 10000 });
     },
     selectors: [
       [".student-home", "student default entry"],
       [".app-header", "application header"],
       [".student-guest-practice", "guest public practice"],
-      [".student-guest-assignment-preview", "guest assignment preview"],
-      [".student-guest-tools", "guest locked tools"]
+      [".student-guest-login-card", "guest classroom login card"]
     ],
     afterChecks: async (page, viewport) => {
       const navCount = await page.locator(".top-nav__link").count();
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      const guestRows = await page.locator(".student-guest-assignment-row").count();
       const loginActions = await page.locator(".student-guest-login-action").count();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       record("student direct URL opens entry", page.url().includes("/app/student"), page.url());
       record("student entry keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
-      record("student guest page mirrors the assignment board", guestRows === 3, `guest rows ${guestRows}`);
       record("student guest page keeps one login action", loginActions === 1, `login actions ${loginActions}`);
       record("student guest page has no horizontal overflow", overflow <= 1, `overflow ${overflow}; viewport ${viewport.width}`);
-      await page.locator(".student-guest-practice__row").click();
+      const publicCatalogAction = page.locator('.student-guest-practice__action[href="/app/student/assignments/public"]');
+      if (await publicCatalogAction.isVisible()) {
+        await publicCatalogAction.click();
+      } else {
+        await publicCatalogAction.evaluate(element => element.click());
+      }
       await page.waitForURL(url => url.pathname === "/app/student/assignments/public", { timeout: 5000 });
       record("student guest public practice action opens the catalog", page.url().includes("/app/student/assignments/public"), page.url());
       await page.goBack({ waitUntil: "domcontentloaded" });
-      await page.locator(".student-guest-assignment-preview").first().waitFor({ state: "visible", timeout: 5000 });
+      await page.locator(".student-guest-practice").first().waitFor({ state: "visible", timeout: 5000 });
       await page.locator(".student-guest-login-action").click();
       await page.waitForURL(url => url.pathname === "/app/student/login", { timeout: 5000 });
       record("student guest assignment action opens login", page.url().includes("/app/student/login"), page.url());
       await page.goBack({ waitUntil: "domcontentloaded" });
-      await page.locator(".student-guest-assignment-preview").first().waitFor({ state: "visible", timeout: 5000 });
+      await page.locator(".student-guest-practice").first().waitFor({ state: "visible", timeout: 5000 });
     }
   },
   {
@@ -1203,62 +1205,33 @@ const scenarios = [
       const navCount = await page.locator(".top-nav__link").count();
       const inviteFormCount = await page.locator("text=输入邀请码").count();
       const homeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
-      const assignmentRowCount = await page.locator(".student-assignment-row").count();
-      const primaryActionCount = await page.locator(".student-assignment-row__action").count();
-      const assignmentSelector = page.locator('input[name="student-assignment-selection"]');
-      const assignmentSelectorCount = await assignmentSelector.count();
-      const progressCount = await page.locator(".student-assignment-row__progress").count();
+      const taskRows = page.locator(".student-learning-task-list > .student-entry-link");
+      const assignmentRows = page.locator(".student-learning-task-list > .student-assignment-row:not(.student-public-task-row)");
+      const publicRows = page.locator(".student-public-task-row");
+      const taskRowCount = await taskRows.count();
+      const assignmentRowCount = await assignmentRows.count();
+      const progressCount = await assignmentRows.locator(".student-assignment-row__progress").count();
       const headerLoginCount = await page.locator(".header-login-link, .header-student-chip").count();
-      const studentWidth = await page.locator(".student-home").first().evaluate(element => element.getBoundingClientRect().width);
-      const commandHeight = await page.locator(".student-home-command").first().evaluate(element => element.getBoundingClientRect().height);
-      const assignmentRowHeights = await page.locator(".student-assignment-row").evaluateAll(elements =>
-        elements.map(element => element.getBoundingClientRect().height)
-      );
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-      const assignmentBottom = await page.locator(".student-assignment-board").first().evaluate(element => element.getBoundingClientRect().bottom);
-      const practiceTop = await page.locator(".student-self-practice").first().evaluate(element => element.getBoundingClientRect().top);
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       record("student home keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("student identity lives in header", headerLoginCount >= 1, `header identity count ${headerLoginCount}`);
-      record("student home shows public catalog entry", homeText.includes("公共题库"), homeText);
-      record("student home shows assignment details", homeText.includes("课堂编程作业") && homeText.includes("高一1班") && homeText.includes("2题"), homeText);
-      record("student home keeps entry copy direct", homeText.includes("今天先完成课堂任务") && !homeText.includes("输入邀请码"), homeText);
-      record("student home uses a classroom assignment board", assignmentRowCount >= 1, `assignment rows ${assignmentRowCount}`);
-      record("student home keeps one primary assignment action", primaryActionCount === 1, `primary actions ${primaryActionCount}`);
-      record("student home exposes one native selector per assignment", assignmentSelectorCount === assignmentRowCount, `selectors ${assignmentSelectorCount}; rows ${assignmentRowCount}`);
-      if (assignmentSelectorCount >= 3) {
-        const urlBeforeSelection = page.url();
-        await assignmentSelector.nth(1).check();
-        const selectedSecondHref = await page.locator('.student-assignment-row[data-selected="true"] .student-assignment-row__action').getAttribute("href");
-        record("student assignment selection moves highlight and action without navigation", page.url() === urlBeforeSelection && selectedSecondHref === "/app/student/assignments/8", `url ${page.url()}; href ${selectedSecondHref}`);
-        await assignmentSelector.nth(1).press("ArrowDown");
-        const thirdSelected = await assignmentSelector.nth(2).isChecked();
-        const selectedThirdHref = await page.locator('.student-assignment-row[data-selected="true"] .student-assignment-row__action').getAttribute("href");
-        record("student assignment selection supports arrow keys", thirdSelected && selectedThirdHref === "/app/student/assignments/9", `third selected ${thirdSelected}; href ${selectedThirdHref}`);
-      }
+      record("student home uses one learning task board", homeText.includes("学习任务") && await page.locator(".student-assignment-board").count() === 1, homeText);
+      record("student home pins public practice as the first task", await publicRows.count() === 1 && await taskRows.first().evaluate(element => element.classList.contains("student-public-task-row")), `public rows ${await publicRows.count()}; task rows ${taskRowCount}`);
+      record("student home merges public practice with classroom assignments", taskRowCount === assignmentRowCount + 1 && await page.locator(".student-guest-practice").count() === 0, `tasks ${taskRowCount}; assignments ${assignmentRowCount}`);
+      record("student home keeps public catalog details", homeText.includes("公开练习") && homeText.includes("公共题库") && homeText.includes("基础") && homeText.includes("提高") && homeText.includes("挑战"), homeText);
+      record("student home shows assignment details", homeText.includes("课堂编程作业"), homeText);
       record("student home shows truthful progress for every assignment", progressCount === assignmentRowCount && homeText.includes("1/2") && homeText.includes("3/3"), `progress rows ${progressCount}; ${homeText}`);
       record("student home distinguishes learning states", homeText.includes("待开始") && homeText.includes("进行中") && homeText.includes("已完成") && !homeText.includes("信息技术老师"), homeText);
-      record("student home separates public practice below assignments", practiceTop >= assignmentBottom, `assignment bottom ${assignmentBottom}; practice top ${practiceTop}`);
-      if (viewport.name === "desktop") {
-        record("student home uses concept-scale width", studentWidth >= 1280 && studentWidth <= 1360, `student width ${studentWidth}`);
-      }
-      if (viewport.name !== "mobile") {
-        record("student home uses a compact command bar", commandHeight <= 82, `command height ${commandHeight}`);
-        record("student home keeps concept-scale row rhythm", Math.min(...assignmentRowHeights) >= 104, `row heights ${assignmentRowHeights.join(",")}`);
-      }
       record("student home has no horizontal overflow", overflow <= 1, `overflow ${overflow}`);
       record("student no longer starts with invite", inviteFormCount === 0, `invite form count ${inviteFormCount}`);
       await page.locator(".header-signout-button").first().click();
-      await page.locator(".student-guest-assignment-preview").first().waitFor({ state: "visible", timeout: 5000 });
+      await page.locator(".student-guest-practice").first().waitFor({ state: "visible", timeout: 5000 });
       const studentKeysAfterSignOut = await page.evaluate(() =>
         Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index)).filter(key => key?.startsWith("wzai:student"))
       );
-      const guestPreviewRowCount = await page.locator(".student-guest-assignment-row").count();
-      const guestLoginActionCount = await page.locator(".student-guest-assignment-preview .student-guest-login-action").count();
       record("student sign out clears student session keys", studentKeysAfterSignOut.length === 0, studentKeysAfterSignOut.join("|"));
-      record("student sign out keeps a classroom assignment preview", guestPreviewRowCount === 3, `guest preview rows ${guestPreviewRowCount}`);
-      record("student guest view keeps one classroom login action", guestLoginActionCount === 1, `guest login actions ${guestLoginActionCount}`);
-      record("student guest view separates public practice and locked tools", await page.locator(".student-guest-practice").count() === 1 && await page.locator(".student-guest-tools").count() === 1);
+      record("student guest view keeps public practice accessible", await page.locator(".student-guest-practice").count() === 1 && await page.locator(".student-guest-login-card").count() === 1);
       await page.evaluate(studentJson => {
         window.sessionStorage.setItem("wzai:student", studentJson);
         window.sessionStorage.setItem("wzai:student:7", studentJson);
@@ -1269,8 +1242,8 @@ const scenarios = [
     selectors: [
       [".header-login-link, .header-student-chip", "student header identity"],
       [".student-assignment-board", "student assignment board"],
-      [".student-self-practice", "student self practice"],
-      [".student-review-strip", "student review strip"]
+      [".student-learning-task-list", "student unified learning task list"],
+      [".student-public-task-row", "student pinned public task"]
     ]
   },
   {
@@ -1278,18 +1251,26 @@ const scenarios = [
     path: "/app/student/assignments/7",
     afterChecks: async page => {
       const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
-      const tabHrefs = await page.locator(".student-assignment-insights-tabs a").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
+      const tabHrefs = await page.locator("[data-student-assignment-navigation] a").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
       const rowCount = await page.locator(".student-assignment-progress-row").count();
       const continueHref = await page.locator(".student-assignment-continue").getAttribute("href");
       record("student assignment stays on assignment overview", page.url().endsWith("/app/student/assignments/7"), page.url());
-      record("student assignment has canonical three page navigation", tabHrefs.join("|") === "/app/student/assignments/7|/app/student/assignments/7/ranking|/app/student/assignments/7/submissions", tabHrefs.join("|"));
-      record("student assignment summary uses trajectory facts", pageText.includes("已通过1/2") && pageText.includes("总提交4次"), pageText);
+      record(
+        "student assignment has canonical four destination navigation",
+        tabHrefs.length === 4
+          && tabHrefs[0] === "/app/student/assignments/7"
+          && tabHrefs[1]?.startsWith("/app/student/assignments/7/problems/")
+          && tabHrefs[2] === "/app/student/assignments/7/submissions"
+          && tabHrefs[3] === "/app/student/assignments/7/ranking",
+        tabHrefs.join("|")
+      );
+      record("student assignment summary uses trajectory facts", pageText.includes("进度1/2") && pageText.includes("已通过1题") && pageText.includes("总提交4"), pageText);
       record("student assignment lists every task", rowCount === assignment.tasks.length, `rows ${rowCount}`);
       record("student assignment continue action opens coding page", continueHref?.startsWith("/app/student/assignments/7/problems/") === true, continueHref || "missing");
     },
     selectors: [
       [".student-assignment-insights-page", "student assignment overview"],
-      [".student-assignment-insights-tabs", "student assignment page navigation"],
+      ["[data-student-assignment-navigation]", "student assignment page navigation"],
       [".student-assignment-progress-table", "student assignment progress table"]
     ]
   },
@@ -1300,17 +1281,18 @@ const scenarios = [
       const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
       const currentRows = await page.locator(".student-ranking-row.is-current").count();
       const currentText = ((await page.locator(".student-ranking-row.is-current").textContent()) || "").replace(/\s+/g, "");
-      const tabHrefs = await page.locator(".student-assignment-insights-tabs a").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
+      const tabHrefs = await page.locator("[data-student-assignment-navigation] a").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
       record("student ranking route is stable", page.url().endsWith("/app/student/assignments/7/ranking"), page.url());
       record("student ranking highlights current student", currentRows === 1 && currentText.includes("学生甲（我）") && currentText.includes("4"), currentText);
       record("student ranking masks classmates", pageText.includes("王同学") && !pageText.includes("王小明"), pageText);
       record("student ranking explains progress-only ties", pageText.includes("按已通过题数排名") && pageText.includes("同完成度并列") && pageText.includes("不按运行时间或提交速度"), pageText);
-      record("student ranking reuses canonical three page navigation", tabHrefs.length === 3, tabHrefs.join("|"));
+      record("student ranking reuses canonical assignment navigation", tabHrefs.length === 4, tabHrefs.join("|"));
+      record("student ranking omits the redundant summary band", await page.locator(".student-ranking-summary").count() === 0);
     },
     selectors: [
       [".student-ranking-table", "student assignment ranking table"],
       [".student-ranking-context", "student assignment ranking context"],
-      [".student-assignment-insights-tabs a[aria-current='page']", "student assignment ranking active tab"]
+      ["[data-student-assignment-navigation] a[aria-current='page']", "student assignment ranking active tab"]
     ]
   },
   {
@@ -1327,7 +1309,7 @@ const scenarios = [
       const visibleFilterLabels = await page.locator(".student-submission-filter-label").allTextContents();
       const languageOptions = await page.locator(".student-submission-filter--language option").allTextContents();
       record("student submissions route is stable", page.url().endsWith("/app/student/assignments/7/submissions"), page.url());
-      record("student submissions show truthful summary", pageText.includes("共提交12次") && pageText.includes("通过4次") && pageText.includes("涉及2道题"), pageText);
+      record("student submissions omit the redundant summary band", await page.locator(".student-submission-summary").count() === 0);
       record("student submissions paginate first page", rowCount === 8, `rows ${rowCount}`);
       record("student submissions hides assistive-only labels", hiddenLabelMetrics.length === 4 && hiddenLabelMetrics.every(item => item.width <= 1 && item.height <= 1 && item.position === "absolute"), JSON.stringify(hiddenLabelMetrics));
       record("student submissions keeps only compact visible filter labels", visibleFilterLabels.join("|") === "判题结果：|语言：", visibleFilterLabels.join("|"));
@@ -1339,19 +1321,44 @@ const scenarios = [
       record("student submissions uses icon pagination and page numbers", await page.getByRole("button", { name: "提交记录上一页" }).count() === 1 && await page.getByRole("button", { name: "提交记录下一页" }).count() === 1 && await page.locator(".student-submission-page-number").count() === 2);
       const firstRowText = ((await page.locator(".student-submission-row").first().textContent()) || "").replace(/\s+/g, "");
       record("student submissions avoids false zero memory precision", firstRowText.includes("-") && !firstRowText.includes("0.0MB"), firstRowText);
+      const aiReviewActions = page.getByRole("link", { name: "查看 AI 评测" });
+      const detailActions = page.getByRole("button", { name: "查看提交详情" });
+      record(
+        "student submissions gives every row one AI review entry",
+        await aiReviewActions.count() === rowCount && await detailActions.count() === 0,
+        `AI links ${await aiReviewActions.count()}; detail actions ${await detailActions.count()}; rows ${rowCount}`
+      );
+      if (viewport.name === "desktop") {
+        const actionAlignment = await page.locator(".student-submission-table").evaluate(element => {
+          const header = element.querySelector(".student-submission-table__header > :last-child");
+          const action = element.querySelector(".student-submission-row .student-submission-actions a");
+          if (!header || !action) return null;
+          const headerRect = header.getBoundingClientRect();
+          const actionRect = action.getBoundingClientRect();
+          return Math.abs((headerRect.left + headerRect.width / 2) - (actionRect.left + actionRect.width / 2));
+        });
+        record("student submission AI actions align with the operation heading", actionAlignment !== null && actionAlignment <= 2, `offset ${actionAlignment}`);
+      }
       await page.getByRole("button", { name: "通过", exact: true }).click();
       await page.waitForFunction(() => document.querySelectorAll(".student-submission-row").length === 4);
       record("student submissions verdict filter works", await page.locator(".student-submission-row").count() === 4);
       await page.getByRole("button", { name: "全部", exact: true }).click();
       await page.waitForFunction(() => document.querySelectorAll(".student-submission-row").length === 8);
-      await page.locator(".student-submission-row").first().click();
-      await page.locator(".student-submission-detail").waitFor({ state: "visible", timeout: 5000 });
-      await page.waitForFunction(() => document.querySelector(".student-submission-detail h2")?.textContent?.includes("#9001"), null, { timeout: 5000 });
-      const detailText = ((await page.locator(".student-submission-detail").textContent()) || "").replace(/\s+/g, "");
-      record("student submissions open personal submission detail", detailText.includes("#9001") && detailText.includes("求和边界"), detailText);
-      await page.getByRole("button", { name: "关闭提交详情" }).click();
-      await page.locator(".student-submission-detail").waitFor({ state: "detached", timeout: 5000 });
-      await page.locator(".student-submission-history").click({ position: { x: 2, y: 2 } });
+      await page.getByRole("link", { name: "查看 AI 评测" }).first().click();
+      await page.waitForURL(url => url.pathname === "/app/student/assignments/7/problems/101" && url.searchParams.get("submissionId") === "9001", { timeout: 5000 });
+      await page.locator(".problem-result-modal").waitFor({ state: "visible", timeout: 10000 });
+      await page.waitForFunction(() => document.querySelector(".problem-result-modal")?.textContent?.includes("输入没有完整读取"), null, { timeout: 10000 });
+      const returnToSubmissions = page.getByRole("link", { name: "返回提交记录" });
+      record("linked AI review provides a return to submissions", await returnToSubmissions.count() === 1);
+      const linkedReviewText = ((await page.locator(".problem-result-modal").textContent()) || "").replace(/\s+/g, "");
+      record(
+        "student submission AI entry opens the matching full review page",
+        page.url().includes("submissionId=9001") && linkedReviewText.includes("输入没有完整读取"),
+        `${page.url()} | ${linkedReviewText}`
+      );
+      await page.getByRole("button", { name: "关闭结果" }).click();
+      await page.waitForURL("**/app/student/assignments/7/submissions", { timeout: 5000 });
+      await page.locator(".student-submission-history").waitFor({ state: "visible", timeout: 10000 });
     },
     selectors: [
       [".student-submission-history", "student assignment submission history"],

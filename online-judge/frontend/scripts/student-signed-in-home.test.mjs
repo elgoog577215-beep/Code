@@ -56,7 +56,7 @@ async function withSignedInPage(run) {
   try {
     const page = await context.newPage();
     await page.goto(`${baseUrl}/app/student`, { waitUntil: "domcontentloaded" });
-    await page.locator(".student-assignment-row").first().waitFor({ state: "visible" });
+    await page.locator(".student-learning-task-list").waitFor({ state: "visible" });
     await run(page);
   } finally {
     await context.close();
@@ -64,23 +64,21 @@ async function withSignedInPage(run) {
   }
 }
 
-test("signed-in public bank uses the guest card style above classroom assignments", async () => {
+test("signed-in public bank is pinned inside the unified learning task list", async () => {
   await withSignedInPage(async page => {
-    const publicPractice = page.locator(".student-guest-practice");
-    const assignmentBoard = page.locator(".student-assignment-board");
-    assert.equal(await publicPractice.count(), 1, "signed-in page must reuse the guest public-practice card");
-    assert.equal(await publicPractice.getAttribute("class"), "student-guest-practice");
-    assert.equal(await publicPractice.locator(".student-guest-practice__difficulty").count(), 1);
-    assert.equal(await publicPractice.locator(".student-guest-starters").count(), 1);
-    assert.equal(await publicPractice.locator(".student-guest-starter-card").count(), 3);
-    const [publicBox, assignmentBox] = await Promise.all([publicPractice.boundingBox(), assignmentBoard.boundingBox()]);
-    assert.ok(publicBox && assignmentBox && publicBox.y < assignmentBox.y, "public bank must appear above assignments");
+    const taskList = page.locator(".student-learning-task-list");
+    const publicTask = taskList.locator(".student-public-task-row");
+    assert.equal(await taskList.count(), 1);
+    assert.equal(await publicTask.count(), 1);
+    assert.equal(await taskList.locator(".student-entry-link").first().evaluate(element => element.classList.contains("student-public-task-row")), true);
+    assert.equal(await publicTask.locator(".student-public-task-row__difficulty").count(), 1);
+    assert.equal(await page.locator(".student-guest-practice").count(), 0);
   });
 });
 
 test("each classroom assignment opens directly without selection", async () => {
   await withSignedInPage(async page => {
-    const firstAssignment = page.locator(".student-assignment-row").first();
+    const firstAssignment = page.locator(".student-assignment-row:not(.student-public-task-row)").first();
     assert.equal(await firstAssignment.evaluate(element => element.tagName), "A");
     assert.equal(await page.locator('.student-assignment-row input[type="radio"]').count(), 0);
     await Promise.all([
@@ -95,7 +93,7 @@ test("signed-in home removes secondary summaries and assignment descriptions", a
     assert.equal(await page.locator(".student-home-command__message span").count(), 0);
     assert.equal(await page.locator(".student-assignment-board__head p").count(), 0);
     assert.equal(await page.locator(".student-assignment-table__header").count(), 0);
-    assert.equal(await page.locator(".student-assignment-row__main small").count(), 0);
+    assert.equal(await page.locator(".student-assignment-row:not(.student-public-task-row) .student-assignment-row__main small").count(), 0);
     assert.equal((await page.locator("body").textContent()).includes("这段作业说明不应显示"), false);
   });
 });
@@ -114,7 +112,7 @@ test("signed-in home omits the duplicated page command row", async () => {
 
 test("classroom assignment rows distribute controls across the full width", async () => {
   await withSignedInPage(async page => {
-    const row = page.locator(".student-assignment-row").first();
+    const row = page.locator(".student-assignment-row:not(.student-public-task-row)").first();
     const chevron = row.locator(".student-assignment-row__chevron");
     const progress = row.locator(".student-assignment-row__progress");
     const [rowBox, chevronBox, progressBox] = await Promise.all([

@@ -88,7 +88,8 @@
   "problemResultViews": {
     "aria": "结果页面切换",
     "repair": "修正工作台",
-    "growth": "成长仪表盘"
+    "growth": "成长仪表盘",
+    "returnToSubmissions": "返回提交记录"
   },
   "feedbackMeta": {
     "knowledgePath": "知识路径",
@@ -232,6 +233,10 @@
     "subtitleGuest": "无需登录，可先做公共题库。",
     "subtitleSignedIn": "{{name}}，选择今天要继续的练习。",
     "taskCount": "{{count}} 题",
+    "dashboard": {
+      "learningTasks": "学习任务",
+      "pinnedPublic": "置顶 · 公开练习"
+    },
     "errors": {
       "publicBank": "公共题库暂时不可用。",
       "assignments": "老师作业加载失败。"

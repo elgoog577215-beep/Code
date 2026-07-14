@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clock3, Info, LockKeyhole, UsersRound } from "lucide-react";
+import { CheckCircle2, Clock3, Info, LockKeyhole } from "lucide-react";
 import { Navigate, useParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { StudentAssignmentLeaderboard } from "../../shared/api/types";
@@ -73,13 +73,6 @@ export default function StudentAssignmentRankingPage() {
         <EmptyState title={rankingFailed || "暂无排名数据"} />
       ) : (
         <>
-          <section className="student-assignment-summary-band student-ranking-summary" aria-label="我的班内排名摘要">
-            <span><UsersRound size={20} aria-hidden="true" />我的排名 <strong>{leaderboard.myRank}</strong> / {leaderboard.totalStudents}</span>
-            <span><CheckCircle2 size={20} aria-hidden="true" />已通过 <strong>{leaderboard.rows.find(item => item.currentStudent)?.completedTasks || 0}</strong> / {leaderboard.totalTasks}</span>
-            <span><UsersRound size={20} aria-hidden="true" />并列 <strong>{leaderboard.tiedStudentCount}</strong> 人</span>
-            <span><Clock3 size={20} aria-hidden="true" />更新于 <strong>{formatRelativeTime(leaderboard.generatedAt)}</strong></span>
-          </section>
-
           <div className="student-ranking-layout">
             <section className="student-ranking-table" aria-label="班内完成度排名">
               <div className="student-ranking-table__header" aria-hidden="true">

@@ -88,7 +88,8 @@
   "problemResultViews": {
     "aria": "Result page switcher",
     "repair": "Correction workspace",
-    "growth": "Growth dashboard"
+    "growth": "Growth dashboard",
+    "returnToSubmissions": "Back to submissions"
   },
   "feedbackMeta": {
     "knowledgePath": "Knowledge path",
@@ -232,6 +233,10 @@
     "subtitleGuest": "Start with the public problem bank. No login needed.",
     "subtitleSignedIn": "{{name}}, choose what to continue today.",
     "taskCount": "{{count}} problems",
+    "dashboard": {
+      "learningTasks": "Learning Tasks",
+      "pinnedPublic": "Pinned · Public Practice"
+    },
     "errors": {
       "publicBank": "The public problem bank is unavailable.",
       "assignments": "Failed to load teacher assignments."
