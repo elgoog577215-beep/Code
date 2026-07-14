@@ -1473,6 +1473,22 @@ const scenarios = [
               && growthInspectorText.includes("提交前先跑最小公开样例")
               && growthInspectorText.includes("竞赛过程›提交检查›边界复测")
           );
+          const knowledgeList = page.locator(".feedback-code-workbench__knowledge-list");
+          const knowledgeListCount = await knowledgeList.count();
+          const knowledgeTags = page.locator(".feedback-code-workbench__knowledge-tag");
+          record(
+            "problem workbench renders the knowledge path as linked tags",
+            knowledgeListCount === 1
+              && await knowledgeTags.count() === 3
+              && await knowledgeTags.nth(0).textContent() === "竞赛过程"
+              && await knowledgeTags.nth(1).textContent() === "提交检查"
+              && await knowledgeTags.nth(2).textContent() === "边界复测"
+              && await page.locator(".feedback-code-workbench__knowledge-arrow").count() === 2
+          );
+          record(
+            "problem workbench knowledge tags wrap without horizontal overflow",
+            knowledgeListCount === 1 && await knowledgeList.evaluate(element => element.scrollWidth <= element.clientWidth + 1)
+          );
           record(
             "problem workbench maps growth evidence to its own code color",
             await page.locator('.feedback-code-workbench__issue--growth.is-active[data-tone="blue"]').count() === 1
