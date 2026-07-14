@@ -106,9 +106,13 @@
     "codeLegend": "代码问题颜色图例",
     "currentIssue": "当前问题",
     "relatedIssue": "关联问题",
+    "currentSuggestion": "当前提升",
+    "relatedSuggestion": "关联提升",
     "codeEvidence": "本次提交代码与问题标注",
     "selectIssue": "查看问题 {{number}}",
+    "selectSuggestion": "查看提升建议 {{number}}",
     "inlineIssue": "问题 {{number}} · 对应代码",
+    "inlineSuggestion": "提升 {{number}} · 对应代码",
     "failedCase": "当前失败用例",
     "currentFailedCase": "当前失败用例",
     "caseNumber": "第 {{number}} 个",
@@ -120,6 +124,7 @@
     "failed": "失败",
     "noPublicFailedCase": "当前失败点为隐藏用例，修改后重新运行验证。",
     "issuePosition": "问题 {{current}} / {{total}}",
+    "suggestionPosition": "提升建议 {{current}} / {{total}}",
     "reason": "原因",
     "correction": "修改建议",
     "verification": "验证方式",
@@ -127,11 +132,9 @@
     "noSummary": "结合评测结果和代码证据确认当前问题。",
     "noCorrection": "按当前问题对应的代码范围逐步修正。",
     "defaultVerification": "修改后重新运行全部测试用例。",
-    "returnToCode": "返回代码修改",
-    "checks": {
-      "understood": "已理解问题对应的代码范围",
-      "verified": "已准备重新运行测试"
-    }
+    "suggestionDetails": "建议内容",
+    "noSuggestionDetails": "结合当前代码与知识路径完成这项提升。",
+    "returnToCode": "返回代码修改"
   },
   "feedbackMeta": {
     "knowledgePath": "知识路径",

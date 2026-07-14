@@ -1426,7 +1426,7 @@ const scenarios = [
         modalText
       );
       await page.waitForFunction(
-        () => document.querySelectorAll(".feedback-code-workbench__issue").length === 2,
+        () => document.querySelectorAll(".feedback-code-workbench__issue--repair").length === 2,
         null,
         { timeout: 10000 }
       );
@@ -1479,6 +1479,11 @@ const scenarios = [
               && await page.locator('.feedback-code-workbench__line.is-active[data-tone="blue"]').count() >= 1
               && await page.locator('.feedback-code-workbench__inspector[data-tone="blue"]').count() === 1
           );
+          if (viewport.name === "desktop") {
+            await page.locator(".feedback-code-workbench").screenshot({
+              path: join(artifactDir, "student-growth-inspector-desktop-light.png")
+            });
+          }
         }
         record("problem workbench removes manual confirmation checkboxes", await page.locator(".feedback-code-workbench__checks").count() === 0);
         await issueButtons.first().click();

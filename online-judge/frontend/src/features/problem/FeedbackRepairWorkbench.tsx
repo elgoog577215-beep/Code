@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Code2 } from "lucide-react";
+import { Code2 } from "lucide-react";
 import type { StudentAiFeedbackItem, SubmissionResult } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
 import {
@@ -9,6 +9,7 @@ import {
 } from "./feedbackCodeReferences";
 
 type FeedbackTestCase = NonNullable<SubmissionResult["testCaseResults"]>[number];
+type FeedbackSelection = { kind: "repair" | "improvement"; index: number };
 
 type FeedbackRepairWorkbenchProps = {
   sourceCode: string;
@@ -61,6 +62,12 @@ function issueReferenceAtLine(references: FeedbackCodeReference[], lineNumber: n
   return matches.find(reference => reference.issueIndex === activeIssueIndex) || matches[0] || null;
 }
 
+function selectionFromReference(reference: FeedbackCodeReference, repairCount: number): FeedbackSelection {
+  return reference.issueIndex < repairCount
+    ? { kind: "repair", index: reference.issueIndex }
+    : { kind: "improvement", index: reference.issueIndex - repairCount };
+}
+
 export function FeedbackRepairWorkbench({
   sourceCode,
   sourceFileName,
@@ -75,40 +82,59 @@ export function FeedbackRepairWorkbench({
   onReturnToCode
 }: FeedbackRepairWorkbenchProps) {
   const { t } = useTranslation();
-  const [activeIssueIndex, setActiveIssueIndex] = useState(0);
-  const [checkedSteps, setCheckedSteps] = useState<Record<string, boolean>>({});
+  const [selection, setSelection] = useState<FeedbackSelection>(() => repairItems.length
+    ? { kind: "repair", index: 0 }
+    : { kind: "improvement", index: 0 });
   const codePaneRef = useRef<HTMLDivElement>(null);
   const codeLines = useMemo(() => (sourceCode || "").replace(/\r\n/g, "\n").split("\n"), [sourceCode]);
   const references = useMemo(
-    () => buildFeedbackCodeReferences(repairItems, Math.max(codeLines.length, 1)),
-    [codeLines.length, repairItems]
+    () => buildFeedbackCodeReferences([...repairItems, ...improvementItems], Math.max(codeLines.length, 1)),
+    [codeLines.length, improvementItems, repairItems]
   );
-  const activeIssue = repairItems[activeIssueIndex] || repairItems[0] || null;
-  const activeReference = referenceForIssue(references, activeIssueIndex);
-  const activeTone = feedbackIssueTone(activeIssueIndex);
+  const activeGlobalIndex = selection.kind === "repair" ? selection.index : repairItems.length + selection.index;
+  const activeItem = selection.kind === "repair"
+    ? repairItems[selection.index] || repairItems[0] || null
+    : improvementItems[selection.index] || improvementItems[0] || null;
+  const activeReference = referenceForIssue(references, activeGlobalIndex);
+  const activeTone = feedbackIssueTone(activeGlobalIndex);
+  const activeCategoryItems = selection.kind === "repair" ? repairItems : improvementItems;
+  const activeCategoryOffset = selection.kind === "repair" ? 0 : repairItems.length;
   const passRate = total ? Math.round((passed / total) * 100) : 0;
 
   useEffect(() => {
-    if (activeIssueIndex >= repairItems.length) {
-      setActiveIssueIndex(0);
+    const items = selection.kind === "repair" ? repairItems : improvementItems;
+    if (selection.index < items.length) {
+      return;
     }
-  }, [activeIssueIndex, repairItems.length]);
+    if (repairItems.length) {
+      setSelection({ kind: "repair", index: 0 });
+    } else if (improvementItems.length) {
+      setSelection({ kind: "improvement", index: 0 });
+    }
+  }, [improvementItems.length, repairItems.length, selection.index, selection.kind]);
 
-  function selectIssue(issueIndex: number) {
-    setActiveIssueIndex(issueIndex);
-    const targetLine = referenceForIssue(references, issueIndex)?.ranges[0]?.startLine;
+  function selectFeedback(nextSelection: FeedbackSelection) {
+    setSelection(nextSelection);
+    const globalIndex = nextSelection.kind === "repair" ? nextSelection.index : repairItems.length + nextSelection.index;
+    const targetLine = referenceForIssue(references, globalIndex)?.ranges[0]?.startLine;
     if (!targetLine) {
       return;
     }
     window.requestAnimationFrame(() => {
-      codePaneRef.current
-        ?.querySelector<HTMLElement>(`[data-line-number="${targetLine}"]`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const codePane = codePaneRef.current;
+      const lineElement = codePane?.querySelector<HTMLElement>(`[data-line-number="${targetLine}"]`);
+      if (!codePane || !lineElement) {
+        return;
+      }
+      codePane.scrollTo({
+        top: Math.max(0, lineElement.offsetTop - (codePane.clientHeight / 2) + (lineElement.clientHeight / 2)),
+        behavior: "smooth"
+      });
     });
   }
 
-  function toggleCheck(key: string) {
-    setCheckedSteps(current => ({ ...current, [key]: !current[key] }));
+  function selectReference(reference: FeedbackCodeReference) {
+    selectFeedback(selectionFromReference(reference, repairItems.length));
   }
 
   return (
@@ -139,10 +165,10 @@ export function FeedbackRepairWorkbench({
             return (
               <button
                 type="button"
-                className={`feedback-code-workbench__issue${activeIssueIndex === issueIndex ? " is-active" : ""}`}
+                className={`feedback-code-workbench__issue feedback-code-workbench__issue--repair${selection.kind === "repair" && selection.index === issueIndex ? " is-active" : ""}`}
                 data-tone={tone}
-                aria-pressed={activeIssueIndex === issueIndex}
-                onClick={() => selectIssue(issueIndex)}
+                aria-pressed={selection.kind === "repair" && selection.index === issueIndex}
+                onClick={() => selectFeedback({ kind: "repair", index: issueIndex })}
                 key={`${item.normalizedPointKey || item.title || "issue"}-${issueIndex}`}
               >
                 <span className="feedback-code-workbench__issue-number">{issueIndex + 1}</span>
@@ -162,43 +188,61 @@ export function FeedbackRepairWorkbench({
           })}
         </div>
 
-        <details className="feedback-code-workbench__growth">
-          <summary>
-            <span>{t("problemFeedbackWorkbench.growthSuggestions")}</span>
-            <strong>{t("problemFeedbackWorkbench.itemCount", { count: improvementItems.length })}</strong>
-            <ChevronDown size={16} aria-hidden="true" />
-          </summary>
-          <div>
-            {improvementItems.map((item, index) => (
-              <article className="feedback-code-workbench__growth-item" key={`${item.title || "growth"}-${index}`}>
-                <strong>{item.title || t("issueLifecycle.unnamedIssue")}</strong>
-                <p>{item.body}</p>
-                <small>
-                  {t("feedbackMeta.knowledgePath")} · {item.knowledgePath?.length ? item.knowledgePath.join(" › ") : t("feedbackMeta.noKnowledgePath")}
-                  <b>{t(`feedbackMeta.pathStatus.${knowledgePathStatusKey(item.knowledgePathStatus)}`)}</b>
-                </small>
-              </article>
-            ))}
+        <section className="feedback-code-workbench__growth">
+          <div className="feedback-code-workbench__section-title">
+            <strong>{t("problemFeedbackWorkbench.growthSuggestions")}</strong>
+            <span>{t("problemFeedbackWorkbench.itemCount", { count: improvementItems.length })}</span>
           </div>
-        </details>
+          {improvementItems.map((item, improvementIndex) => {
+            const globalIndex = repairItems.length + improvementIndex;
+            const tone = feedbackIssueTone(globalIndex);
+            const reference = referenceForIssue(references, globalIndex);
+            return (
+              <button
+                type="button"
+                className={`feedback-code-workbench__issue feedback-code-workbench__issue--growth${selection.kind === "improvement" && selection.index === improvementIndex ? " is-active" : ""}`}
+                data-tone={tone}
+                aria-pressed={selection.kind === "improvement" && selection.index === improvementIndex}
+                onClick={() => selectFeedback({ kind: "improvement", index: improvementIndex })}
+                key={`${item.normalizedPointKey || item.title || "growth"}-${improvementIndex}`}
+              >
+                <span className="feedback-code-workbench__issue-number">{improvementIndex + 1}</span>
+                <span className="feedback-code-workbench__issue-copy">
+                  <strong>{item.title || t("issueLifecycle.unnamedIssue")}</strong>
+                  <small>{reference
+                    ? rangeLabel(
+                        reference,
+                        t("problemFeedbackWorkbench.codeLocated"),
+                        line => t("feedbackMeta.line", { line }),
+                        (start, end) => t("feedbackMeta.lineRange", { start, end })
+                      )
+                    : t("problemFeedbackWorkbench.noCodeLocation")}</small>
+                </span>
+              </button>
+            );
+          })}
+        </section>
       </aside>
 
       <main className="feedback-code-workbench__main">
         <div className="feedback-code-workbench__legend" aria-label={t("problemFeedbackWorkbench.codeLegend")}>
-          {repairItems.map((item, issueIndex) => (
-            <button
-              type="button"
-              data-tone={feedbackIssueTone(issueIndex)}
-              className={activeIssueIndex === issueIndex ? "is-active" : ""}
-              onClick={() => selectIssue(issueIndex)}
-              key={`${item.title || "legend"}-${issueIndex}`}
-            >
-              <span>{issueIndex + 1}</span>
-              {activeIssueIndex === issueIndex
-                ? t("problemFeedbackWorkbench.currentIssue")
-                : t("problemFeedbackWorkbench.relatedIssue")}
-            </button>
-          ))}
+          {activeCategoryItems.map((item, categoryIndex) => {
+            const globalIndex = activeCategoryOffset + categoryIndex;
+            return (
+              <button
+                type="button"
+                data-tone={feedbackIssueTone(globalIndex)}
+                className={selection.index === categoryIndex ? "is-active" : ""}
+                onClick={() => selectFeedback({ kind: selection.kind, index: categoryIndex })}
+                key={`${selection.kind}-${item.title || "legend"}-${categoryIndex}`}
+              >
+                <span>{categoryIndex + 1}</span>
+                {selection.index === categoryIndex
+                  ? t(selection.kind === "repair" ? "problemFeedbackWorkbench.currentIssue" : "problemFeedbackWorkbench.currentSuggestion")
+                  : t(selection.kind === "repair" ? "problemFeedbackWorkbench.relatedIssue" : "problemFeedbackWorkbench.relatedSuggestion")}
+              </button>
+            );
+          })}
         </div>
 
         <section className="feedback-code-workbench__editor" aria-label={t("problemFeedbackWorkbench.codeEvidence")}>
@@ -211,9 +255,11 @@ export function FeedbackRepairWorkbench({
           <div className="feedback-code-workbench__code" ref={codePaneRef}>
             {codeLines.map((line, lineIndex) => {
               const lineNumber = lineIndex + 1;
-              const reference = issueReferenceAtLine(references, lineNumber, activeIssueIndex);
+              const reference = issueReferenceAtLine(references, lineNumber, activeGlobalIndex);
               const startsRange = reference?.ranges.some(range => range.startLine === lineNumber);
-              const isActive = reference?.issueIndex === activeIssueIndex;
+              const isActive = reference?.issueIndex === activeGlobalIndex;
+              const referenceSelection = reference ? selectionFromReference(reference, repairItems.length) : null;
+              const referenceNumber = referenceSelection ? referenceSelection.index + 1 : 0;
               return (
                 <div
                   className={`feedback-code-workbench__line${reference ? " is-referenced" : ""}${isActive ? " is-active" : ""}`}
@@ -223,16 +269,16 @@ export function FeedbackRepairWorkbench({
                 >
                   <span className="feedback-code-workbench__gutter">
                     {startsRange ? (
-                      <button type="button" onClick={() => reference && selectIssue(reference.issueIndex)} aria-label={t("problemFeedbackWorkbench.selectIssue", { number: reference?.issueNumber || "" })}>
-                        {reference?.issueNumber}
+                      <button type="button" onClick={() => reference && selectReference(reference)} aria-label={t(referenceSelection?.kind === "improvement" ? "problemFeedbackWorkbench.selectSuggestion" : "problemFeedbackWorkbench.selectIssue", { number: referenceNumber })}>
+                        {referenceNumber}
                       </button>
                     ) : null}
                     <em>{lineNumber}</em>
                   </span>
                   <code>{line || " "}</code>
                   {startsRange && reference ? (
-                    <button type="button" className="feedback-code-workbench__inline-label" onClick={() => selectIssue(reference.issueIndex)}>
-                      {t("problemFeedbackWorkbench.inlineIssue", { number: reference.issueNumber })}
+                    <button type="button" className="feedback-code-workbench__inline-label" onClick={() => selectReference(reference)}>
+                      {t(referenceSelection?.kind === "improvement" ? "problemFeedbackWorkbench.inlineSuggestion" : "problemFeedbackWorkbench.inlineIssue", { number: referenceNumber })}
                     </button>
                   ) : null}
                 </div>
@@ -260,23 +306,32 @@ export function FeedbackRepairWorkbench({
 
       <aside className="feedback-code-workbench__inspector" data-tone={activeTone} aria-live="polite">
         <header>
-          <span>{t("problemFeedbackWorkbench.issuePosition", { current: activeIssueIndex + 1, total: repairItems.length })}</span>
-          <strong>{activeIssue?.title || t("issueLifecycle.unnamedIssue")}</strong>
-          <small>{t(`issueLifecycle.status.${lifecycleStatusKey(activeIssue?.changeStatus)}`)}</small>
+          <span>{t(selection.kind === "repair" ? "problemFeedbackWorkbench.issuePosition" : "problemFeedbackWorkbench.suggestionPosition", { current: selection.index + 1, total: activeCategoryItems.length })}</span>
+          <strong>{activeItem?.title || t("issueLifecycle.unnamedIssue")}</strong>
+          <small>{t(`issueLifecycle.status.${lifecycleStatusKey(activeItem?.changeStatus)}`)}</small>
         </header>
 
-        <section>
-          <h3>{t("problemFeedbackWorkbench.reason")}</h3>
-          <p>{summary || activeIssue?.body || t("problemFeedbackWorkbench.noSummary")}</p>
-        </section>
-        <section>
-          <h3>{t("problemFeedbackWorkbench.correction")}</h3>
-          <p>{activeIssue?.body || t("problemFeedbackWorkbench.noCorrection")}</p>
-        </section>
-        <section>
-          <h3>{t("problemFeedbackWorkbench.verification")}</h3>
-          <p>{verificationPrompt || t("problemFeedbackWorkbench.defaultVerification")}</p>
-        </section>
+        {selection.kind === "repair" ? (
+          <>
+            <section>
+              <h3>{t("problemFeedbackWorkbench.reason")}</h3>
+              <p>{summary || activeItem?.body || t("problemFeedbackWorkbench.noSummary")}</p>
+            </section>
+            <section>
+              <h3>{t("problemFeedbackWorkbench.correction")}</h3>
+              <p>{activeItem?.body || t("problemFeedbackWorkbench.noCorrection")}</p>
+            </section>
+            <section>
+              <h3>{t("problemFeedbackWorkbench.verification")}</h3>
+              <p>{verificationPrompt || t("problemFeedbackWorkbench.defaultVerification")}</p>
+            </section>
+          </>
+        ) : (
+          <section>
+            <h3>{t("problemFeedbackWorkbench.suggestionDetails")}</h3>
+            <p>{activeItem?.body || t("problemFeedbackWorkbench.noSuggestionDetails")}</p>
+          </section>
+        )}
 
         <div className="feedback-code-workbench__evidence-location">
           <strong>{t("problemFeedbackWorkbench.evidenceLocation")}</strong>
@@ -290,26 +345,13 @@ export function FeedbackRepairWorkbench({
             : t("problemFeedbackWorkbench.noCodeLocation")}</span>
         </div>
 
-        {activeIssue?.knowledgePath?.length ? (
+        {activeItem?.knowledgePath?.length ? (
           <div className="feedback-code-workbench__knowledge">
             <strong>{t("feedbackMeta.knowledgePath")}</strong>
-            <span>{activeIssue.knowledgePath.join(" › ")}</span>
-            <em>{t(`feedbackMeta.pathStatus.${knowledgePathStatusKey(activeIssue.knowledgePathStatus)}`)}</em>
+            <span>{activeItem.knowledgePath.join(" › ")}</span>
+            <em>{t(`feedbackMeta.pathStatus.${knowledgePathStatusKey(activeItem.knowledgePathStatus)}`)}</em>
           </div>
         ) : null}
-
-        <div className="feedback-code-workbench__checks">
-          {["understood", "verified"].map(checkKey => {
-            const stateKey = `${activeIssueIndex}-${checkKey}`;
-            return (
-              <label key={checkKey}>
-                <input type="checkbox" checked={Boolean(checkedSteps[stateKey])} onChange={() => toggleCheck(stateKey)} />
-                <span aria-hidden="true"><Check size={13} /></span>
-                {t(`problemFeedbackWorkbench.checks.${checkKey}`)}
-              </label>
-            );
-          })}
-        </div>
 
         <button type="button" className="feedback-code-workbench__return" onClick={onReturnToCode}>
           <Code2 size={16} aria-hidden="true" />

@@ -106,9 +106,13 @@
     "codeLegend": "Issue color legend for code",
     "currentIssue": "Current issue",
     "relatedIssue": "Related issue",
+    "currentSuggestion": "Current suggestion",
+    "relatedSuggestion": "Related suggestion",
     "codeEvidence": "Submitted code with issue annotations",
     "selectIssue": "View issue {{number}}",
+    "selectSuggestion": "View suggestion {{number}}",
     "inlineIssue": "Issue {{number}} · related code",
+    "inlineSuggestion": "Suggestion {{number}} · related code",
     "failedCase": "Current failed case",
     "currentFailedCase": "Current failed case",
     "caseNumber": "Case {{number}}",
@@ -120,6 +124,7 @@
     "failed": "Failed",
     "noPublicFailedCase": "The current failure is hidden. Run all tests again after editing.",
     "issuePosition": "Issue {{current}} / {{total}}",
+    "suggestionPosition": "Suggestion {{current}} / {{total}}",
     "reason": "Reason",
     "correction": "Correction",
     "verification": "Verification",
@@ -127,11 +132,9 @@
     "noSummary": "Use the judge result and code evidence to confirm this issue.",
     "noCorrection": "Correct the highlighted code range for this issue.",
     "defaultVerification": "Run the full test suite again after editing.",
-    "returnToCode": "Return to code",
-    "checks": {
-      "understood": "I understand the highlighted code range",
-      "verified": "I am ready to rerun the tests"
-    }
+    "suggestionDetails": "Suggestion details",
+    "noSuggestionDetails": "Use the code evidence and knowledge path to practice this improvement.",
+    "returnToCode": "Return to code"
   },
   "feedbackMeta": {
     "knowledgePath": "Knowledge path",
