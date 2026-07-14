@@ -1411,7 +1411,7 @@ const scenarios = [
         modalText
       );
       await page.waitForFunction(
-        () => document.querySelectorAll(".student-feedback-item").length === 4,
+        () => document.querySelectorAll(".feedback-code-workbench__issue").length === 2,
         null,
         { timeout: 10000 }
       );
@@ -1476,14 +1476,15 @@ const scenarios = [
           "problem result displays only one page at a time",
           await page.locator(".problem-result-view--growth").isVisible() && !await page.locator(".problem-result-view--repair").isVisible()
         );
-        const verticalScrollContainers = await page.locator(".problem-result-modal *").evaluateAll(elements => elements.filter(element => {
+        const unexpectedVerticalScrollContainers = await page.locator(".problem-result-modal *").evaluateAll(elements => elements.filter(element => {
           const style = window.getComputedStyle(element);
-          return ["auto", "scroll"].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+          const allowed = element.matches(".feedback-code-workbench__rail, .feedback-code-workbench__code, .feedback-code-workbench__inspector");
+          return !allowed && ["auto", "scroll"].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
         }).map(element => element.className));
         record(
-          "problem result avoids nested vertical scroll containers",
-          verticalScrollContainers.length === 0,
-          JSON.stringify(verticalScrollContainers)
+          "problem result limits scrolling to the workbench panes",
+          unexpectedVerticalScrollContainers.length === 0,
+          JSON.stringify(unexpectedVerticalScrollContainers)
         );
         await page.locator(".problem-result-modal").screenshot({
           path: join(artifactDir, `student-growth-dashboard-${viewport.name}-light.png`)
@@ -1500,21 +1501,20 @@ const scenarios = [
         pageOverflowWhileModalOpen.root === "hidden" && pageOverflowWhileModalOpen.body === "hidden",
         `root overflow ${pageOverflowWhileModalOpen.root || "unset"}; body overflow ${pageOverflowWhileModalOpen.body || "unset"}`
       );
-      const readyTestText = ((await page.locator(".problem-result-section--tests").first().textContent()) || "").replace(/\s+/g, "");
-      const readyRepairText = ((await page.locator(".problem-result-section--repair").first().textContent()) || "").replace(/\s+/g, "");
-      const readyGrowthText = ((await page.locator(".problem-result-section--growth").first().textContent()) || "").replace(/\s+/g, "");
+      const readyOverviewText = ((await page.locator(".feedback-code-workbench__overview").textContent()) || "").replace(/\s+/g, "");
+      const readyRepairText = ((await page.locator(".feedback-code-workbench").textContent()) || "").replace(/\s+/g, "");
+      const readyGrowthText = ((await page.locator(".feedback-code-workbench__growth").textContent()) || "").replace(/\s+/g, "");
       record(
-        "problem modal has teaching columns",
-        readyTestText.includes("评测") && readyRepairText.includes("修正建议") && readyGrowthText.includes("提升建议"),
+        "problem modal has status, code, and diagnosis panes",
+        readyOverviewText.includes("评测结果")
+          && await page.locator(".feedback-code-workbench__editor").count() === 1
+          && await page.locator(".feedback-code-workbench__inspector").count() === 1,
         readyModalText
       );
       record(
-        "problem modal keeps testcase column minimal",
-        !readyTestText.includes("通过耗时内存") &&
-          !readyTestText.includes("公开测试点") &&
-          !readyTestText.includes("第一个公开失败点") &&
-          readyTestText.includes("1公开28ms错"),
-        readyTestText
+        "problem modal keeps the status overview minimal",
+        readyOverviewText.includes("1/2") && readyOverviewText.includes("50%") && !readyOverviewText.includes("耗时内存"),
+        readyOverviewText
       );
       record("problem modal removes empty count noise", !readyModalText.includes("0条"), readyModalText);
       record(
@@ -1543,7 +1543,7 @@ const scenarios = [
       record("problem modal footer has no duplicate close copy", !modalFooterText.includes("关闭"), modalFooterText);
       record(
         "problem modal maps repair fields structurally",
-        readyRepairText.includes("修正建议") &&
+        readyRepairText.includes("问题清单") &&
           readyRepairText.includes("输入没有完整读取") &&
           readyRepairText.includes("先把公开样例的每一行input手推清楚") &&
           readyRepairText.includes("第二次读取时应该拿到123"),
@@ -1551,35 +1551,17 @@ const scenarios = [
       );
       record("problem modal maps growth fields structurally", readyGrowthText.includes("提升建议") && readyGrowthText.includes("测试习惯") && readyGrowthText.includes("能更早发现输入格式问题"), readyGrowthText);
       record(
-        "problem modal shows complete issue lifecycle",
-        readyModalText.includes("本次问题变化") &&
+        "problem modal keeps issue lifecycle in the focused inspector",
           readyModalText.includes("仍存在") &&
-          readyModalText.includes("新出现") &&
-          readyModalText.includes("已有恢复证据") &&
-          readyModalText.includes("完整展示4项"),
+          readyModalText.includes("问题1/2"),
         readyModalText
       );
-      const suggestionCardCount = await page.locator(".student-feedback-item").count();
-      const flatMetaRows = page.locator(".student-feedback-meta-row");
-      const flatMetaRowCount = await flatMetaRows.count();
-      const nestedMetaCardCount = await page.locator(".student-feedback-knowledge, .student-feedback-evidence").count();
-      const pathStatusText = (await page.locator(".student-feedback-path-status").allTextContents()).join("|");
-      const metaRowTexts = (await flatMetaRows.allTextContents()).map(text => text.replace(/\s+/g, ""));
+      const suggestionCardCount = await page.locator(".feedback-code-workbench__issue, .feedback-code-workbench__growth-item").count();
       record("problem modal preserves every suggestion", suggestionCardCount === 4, `suggestions ${suggestionCardCount}`);
       record(
-        "problem modal flattens knowledge and evidence into one metadata row",
-        flatMetaRowCount === 4 && nestedMetaCardCount === 0,
-        `meta rows ${flatMetaRowCount}; nested cards ${nestedMetaCardCount}`
-      );
-      record(
-        "problem modal preserves knowledge path and evidence for every suggestion",
-        metaRowTexts.length === 4 && metaRowTexts.every(text => text.includes("知识路径") && (text.includes("代码证据") || text.includes("证据依据"))),
-        metaRowTexts.join("|")
-      );
-      record(
-        "problem modal distinguishes knowledge path provenance",
-        ["正式标准库", "临时知识点", "历史推断", "暂未归类"].every(label => pathStatusText.includes(label)),
-        pathStatusText
+        "problem modal keeps knowledge path and evidence in the active inspector",
+        readyRepairText.includes("知识路径") && readyRepairText.includes("证据定位") && readyRepairText.includes("第2行"),
+        readyRepairText
       );
       await page.locator(".problem-result-modal").screenshot({
         path: join(artifactDir, `student-feedback-cards-${viewport.name}-light.png`)
@@ -1599,11 +1581,11 @@ const scenarios = [
       await page.waitForTimeout(80);
       await page.locator(".language-toggle").dispatchEvent("click");
       await page.waitForTimeout(80);
-      const englishMetaText = ((await page.locator(".student-feedback-meta-row").allTextContents()) || []).join("|");
+      const englishMetaText = ((await page.locator(".feedback-code-workbench").textContent()) || "").replace(/\s+/g, " ");
       record(
-        "problem feedback metadata renders complete English copy",
-        ["Knowledge path", "Formal library", "Provisional node", "Legacy inference", "Unclassified", "Code evidence"]
-          .every(label => englishMetaText.includes(label)) && !englishMetaText.includes("feedbackMeta."),
+        "problem feedback workbench renders complete English copy",
+        ["Status overview", "Issue list", "Current failed case", "Reason", "Correction", "Verification", "Run and verify"]
+          .every(label => englishMetaText.includes(label)) && !englishMetaText.includes("problemFeedbackWorkbench."),
         englishMetaText
       );
       await page.locator(".problem-result-modal").screenshot({
@@ -1613,28 +1595,17 @@ const scenarios = [
       await page.waitForTimeout(80);
       record("problem modal uses student AI feedback endpoint", studentFeedbackLookupCount >= 2, `student feedback lookup count ${studentFeedbackLookupCount}`);
       record("problem modal records model feedback view", studentFeedbackViewCount === 1, `student feedback view count ${studentFeedbackViewCount}`);
-      const flatEvidenceAction = page.locator(".student-feedback-meta-action").first();
-      const flatEvidenceActionCount = await flatEvidenceAction.count();
-      record("problem flat evidence keeps the code jump action", flatEvidenceActionCount === 1, `actions ${flatEvidenceActionCount}`);
-      if (flatEvidenceActionCount === 1) {
-        await flatEvidenceAction.click();
-        await page.locator(".problem-result-modal").waitFor({ state: "hidden", timeout: 5000 });
-        const pageOverflowAfterModalClose = await page.evaluate(() => ({
-          root: document.documentElement.style.overflow,
-          body: document.body.style.overflow
-        }));
-        record(
-          "problem modal restores background page scrolling after close",
-          pageOverflowAfterModalClose.root === "" && pageOverflowAfterModalClose.body === "",
-          `root overflow ${pageOverflowAfterModalClose.root || "unset"}; body overflow ${pageOverflowAfterModalClose.body || "unset"}`
-        );
-        await page.locator(".cm-line-evidence-highlight").first().waitFor({ state: "visible", timeout: 5000 });
-        record("problem evidence click highlights the matching editor line", await page.locator(".cm-line-evidence-highlight").count() === 1);
-        await page.screenshot({
-          path: join(artifactDir, `student-feedback-line-highlight-${viewport.name}.png`),
-          fullPage: true
-        });
-      }
+      await page.getByRole("button", { name: "返回代码修改" }).click();
+      await page.locator(".problem-result-modal").waitFor({ state: "hidden", timeout: 5000 });
+      const pageOverflowAfterModalClose = await page.evaluate(() => ({
+        root: document.documentElement.style.overflow,
+        body: document.body.style.overflow
+      }));
+      record(
+        "problem modal restores background page scrolling after close",
+        pageOverflowAfterModalClose.root === "" && pageOverflowAfterModalClose.body === "",
+        `root overflow ${pageOverflowAfterModalClose.root || "unset"}; body overflow ${pageOverflowAfterModalClose.body || "unset"}`
+      );
       await checkVisible(page, ".problem-last-result", "problem last result entry after modal close");
       await checkVisible(page, ".problem-history-panel", "problem submission history");
       if (viewport.name === "mobile") {
