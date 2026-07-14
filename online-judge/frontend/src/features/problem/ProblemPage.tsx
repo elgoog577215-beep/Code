@@ -26,6 +26,7 @@ import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusP
 import { StudentAssignmentHeader, StudentAssignmentNavigation } from "../student/StudentAssignmentWorkspace";
 import { CONTEST_LANGUAGES, DEFAULT_CONTEST_LANGUAGE_ID, contestLanguageById } from "./languages";
 import { GrowthTimeline, SingleProblemGrowthDashboard } from "../growth/SingleProblemGrowthDashboard";
+import { FeedbackRepairWorkbench } from "./FeedbackRepairWorkbench";
 
 const CodeEditor = lazy(() => import("./CodeEditor"));
 
@@ -1556,7 +1557,10 @@ export default function ProblemPage() {
                     <span>{t("problemResultViews.returnToSubmissions")}</span>
                   </Link>
                 )}
-                <h2 id="problem-result-title">{verdictLabel(latest.verdict)}</h2>
+                <div className="problem-result-modal__title-row">
+                  <h2 id="problem-result-title">{passedLatest ? verdictLabel(latest.verdict) : t("problemFeedbackWorkbench.title")}</h2>
+                  <span>{t("problemFeedbackWorkbench.score", { score: total ? `${passed}/${total}` : "-" })}</span>
+                </div>
               </div>
               <div className="problem-result-view-switch" role="tablist" aria-label={t("problemResultViews.aria")}>
                 <button
@@ -1610,6 +1614,21 @@ export default function ProblemPage() {
                   id="problem-result-panel-repair"
                   aria-labelledby="problem-result-tab-repair"
                 >
+                  {modelFeedbackReady ? (
+                    <FeedbackRepairWorkbench
+                      sourceCode={latest.sourceCode || sourceCode}
+                      sourceFileName={selectedLanguage.sourceFileName}
+                      languageName={latest.languageName || selectedLanguage.label}
+                      repairItems={repairViewItems}
+                      improvementItems={improvementViewItems}
+                      summary={basicReportText}
+                      verificationPrompt={repairCheckQuestion}
+                      passed={passed}
+                      total={total}
+                      firstFailedCase={firstFailedCase}
+                      onReturnToCode={() => setResultOpen(false)}
+                    />
+                  ) : (
                   <div className={`problem-result-modal__grid problem-result-modal__grid--${resultLayoutMode}`}>
                 {lifecycleChanges.length ? (
                   <section className="problem-result-section problem-result-section--lifecycle">
@@ -1800,6 +1819,7 @@ export default function ProblemPage() {
                   </section>
                 ) : null}
                   </div>
+                  )}
                 </div>
               ) : (
                 <div
@@ -1818,7 +1838,7 @@ export default function ProblemPage() {
               )}
             </div>
 
-            <div className="problem-result-modal__footer">
+            {!(resultView === "repair" && modelFeedbackReady) && <div className="problem-result-modal__footer">
               {showFeedbackRefreshAction && (
                 <Button
                   type="button"
@@ -1838,7 +1858,7 @@ export default function ProblemPage() {
                   下一题
                 </ButtonLink>
               )}
-            </div>
+            </div>}
           </section>
         </div>
       )}
