@@ -1471,7 +1471,6 @@ const scenarios = [
             growthInspectorText.includes("提升建议1/2")
               && growthInspectorText.includes("测试习惯")
               && growthInspectorText.includes("提交前先跑最小公开样例")
-              && growthInspectorText.includes("竞赛过程›提交检查›边界复测")
           );
           const knowledgeList = page.locator(".feedback-code-workbench__knowledge-list");
           const knowledgeListCount = await knowledgeList.count();

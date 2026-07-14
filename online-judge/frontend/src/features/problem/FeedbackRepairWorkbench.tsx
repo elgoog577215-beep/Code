@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Code2 } from "lucide-react";
+import { ChevronRight, Code2 } from "lucide-react";
 import type { StudentAiFeedbackItem, SubmissionResult } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
 import {
@@ -348,7 +348,14 @@ export function FeedbackRepairWorkbench({
         {activeItem?.knowledgePath?.length ? (
           <div className="feedback-code-workbench__knowledge">
             <strong>{t("feedbackMeta.knowledgePath")}</strong>
-            <span>{activeItem.knowledgePath.join(" › ")}</span>
+            <ol className="feedback-code-workbench__knowledge-list" aria-label={t("feedbackMeta.knowledgePathAria")}>
+              {activeItem.knowledgePath.map((knowledgePoint, index) => (
+                <li key={`${knowledgePoint}-${index}`}>
+                  {index > 0 ? <ChevronRight className="feedback-code-workbench__knowledge-arrow" size={14} aria-hidden="true" /> : null}
+                  <span className="feedback-code-workbench__knowledge-tag">{knowledgePoint}</span>
+                </li>
+              ))}
+            </ol>
             <em>{t(`feedbackMeta.pathStatus.${knowledgePathStatusKey(activeItem.knowledgePathStatus)}`)}</em>
           </div>
         ) : null}
