@@ -24781,6 +24781,7 @@ button.standard-library-governance-path {
 @media (max-width: 1080px) {
   .problem-result-modal__header {
     grid-template-columns: minmax(0, 1fr) auto;
+    padding-bottom: 0;
   }
 
   .problem-result-view-switch {
@@ -24875,7 +24876,8 @@ button.standard-library-governance-path {
   --feedback-teal: #147d79;
   --feedback-blue: #5275d8;
   --feedback-violet: #7b61c8;
-  min-height: calc(100dvh - 126px);
+  height: clamp(560px, calc(100dvh - 150px), 760px);
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(230px, 0.72fr) minmax(520px, 1.45fr) minmax(310px, 0.92fr);
   overflow: hidden;
@@ -25113,7 +25115,7 @@ button.standard-library-governance-path {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(360px, 1fr) auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   background: color-mix(in srgb, var(--bg-plain) 96%, var(--surface));
 }
 
@@ -25179,8 +25181,7 @@ button.standard-library-governance-path {
   gap: 0.48rem;
 }
 
-.feedback-code-workbench__editor > header div > span,
-.feedback-code-workbench__editor > header button {
+.feedback-code-workbench__editor > header div > span {
   min-height: 32px;
   display: inline-flex;
   align-items: center;
@@ -25195,21 +25196,13 @@ button.standard-library-governance-path {
   font-weight: 820;
 }
 
-.feedback-code-workbench__editor > header button {
-  border-color: #168f88;
-  background: #137b76;
-  cursor: pointer;
-}
-
-.feedback-code-workbench__editor > header button:disabled,
-.feedback-code-workbench__run:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-}
-
 .feedback-code-workbench__code {
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #647792 #12233b;
   padding: 0.38rem 0 0.6rem;
   color: #dce7f4;
   background: #12233b;
@@ -25217,6 +25210,25 @@ button.standard-library-governance-path {
   font-size: 0.82rem;
   line-height: 1.7;
   tab-size: 4;
+}
+
+.feedback-code-workbench__code::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.feedback-code-workbench__code::-webkit-scrollbar-track {
+  background: #0d1a2d;
+}
+
+.feedback-code-workbench__code::-webkit-scrollbar-thumb {
+  border: 2px solid #0d1a2d;
+  border-radius: 999px;
+  background: #60738e;
+}
+
+.feedback-code-workbench__code::-webkit-scrollbar-thumb:hover {
+  background: #8193aa;
 }
 
 .feedback-code-workbench__line {
@@ -25367,23 +25379,6 @@ button.standard-library-governance-path {
   padding: 0 0.75rem 0.65rem;
   color: var(--ink-soft);
   font-size: 0.76rem;
-}
-
-.feedback-code-workbench__run {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  margin: 0.65rem 0.75rem 0.75rem;
-  border: 0;
-  border-radius: 7px;
-  color: #fff;
-  background: var(--brand-strong);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.84rem;
-  font-weight: 900;
 }
 
 .feedback-code-workbench__inspector {
@@ -25567,8 +25562,13 @@ button.standard-library-governance-path {
 
 @media (max-width: 1180px) {
   .feedback-code-workbench {
+    height: auto;
     min-height: 0;
     grid-template-columns: minmax(220px, 0.68fr) minmax(520px, 1.5fr);
+  }
+
+  .feedback-code-workbench__editor {
+    height: clamp(460px, 62vh, 620px);
   }
 
   .feedback-code-workbench__inspector {
@@ -25613,7 +25613,11 @@ button.standard-library-governance-path {
   }
 
   .feedback-code-workbench__main {
-    grid-template-rows: auto minmax(420px, 62vh) auto auto;
+    grid-template-rows: auto minmax(420px, 62vh) auto;
+  }
+
+  .feedback-code-workbench__editor {
+    height: auto;
   }
 
   .feedback-code-workbench__inspector {

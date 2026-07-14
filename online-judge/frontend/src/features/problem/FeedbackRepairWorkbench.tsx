@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Code2, Play } from "lucide-react";
+import { Check, ChevronDown, Code2 } from "lucide-react";
 import type { StudentAiFeedbackItem, SubmissionResult } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
 import {
@@ -21,8 +21,6 @@ type FeedbackRepairWorkbenchProps = {
   passed: number;
   total: number;
   firstFailedCase: FeedbackTestCase | null;
-  busy: boolean;
-  onRunAndVerify: () => void;
   onReturnToCode: () => void;
 };
 
@@ -74,8 +72,6 @@ export function FeedbackRepairWorkbench({
   passed,
   total,
   firstFailedCase,
-  busy,
-  onRunAndVerify,
   onReturnToCode
 }: FeedbackRepairWorkbenchProps) {
   const { t } = useTranslation();
@@ -210,10 +206,6 @@ export function FeedbackRepairWorkbench({
             <span>{sourceFileName}</span>
             <div>
               <span>{languageName}</span>
-              <button type="button" onClick={onRunAndVerify} disabled={busy}>
-                <Play size={15} fill="currentColor" aria-hidden="true" />
-                {t("problemFeedbackWorkbench.runTest")}
-              </button>
             </div>
           </header>
           <div className="feedback-code-workbench__code" ref={codePaneRef}>
@@ -264,10 +256,6 @@ export function FeedbackRepairWorkbench({
           ) : <p>{t("problemFeedbackWorkbench.noPublicFailedCase")}</p>}
         </section>
 
-        <button type="button" className="feedback-code-workbench__run" onClick={onRunAndVerify} disabled={busy}>
-          <Play size={17} fill="currentColor" aria-hidden="true" />
-          {busy ? t("problemFeedbackWorkbench.running") : t("problemFeedbackWorkbench.runAndVerify")}
-        </button>
       </main>
 
       <aside className="feedback-code-workbench__inspector" data-tone={activeTone} aria-live="polite">

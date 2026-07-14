@@ -1448,8 +1448,9 @@ const scenarios = [
             && ((await page.locator(".feedback-code-workbench__inspector").textContent()) || "").includes("累计结果输出时机不稳定")
         );
         record(
-          "problem workbench exposes one central run and verify action",
-          await page.getByRole("button", { name: "运行并验证" }).count() === 1
+          "problem workbench keeps editing as the only next action",
+          await page.getByRole("button", { name: "返回代码修改" }).count() === 1
+            && await page.getByRole("button", { name: /^(运行测试|运行并验证)$/ }).count() === 0
         );
         await issueButtons.first().click();
       }
@@ -1542,11 +1543,14 @@ const scenarios = [
           && codeViewport.clientHeight <= 620,
         JSON.stringify(codeViewport)
       );
+      const codeScrollTop = await page.locator(".feedback-code-workbench__code").evaluate(element => {
+        element.scrollTop = 180;
+        return element.scrollTop;
+      });
+      record("problem code evidence scrolls independently", codeScrollTop > 0, `scrollTop ${codeScrollTop}`);
       record(
         "problem workbench does not rerun unchanged source code",
-        !readyModalText.includes("运行测试")
-          && !readyModalText.includes("运行并验证")
-          && await page.getByRole("button", { name: /运行测试|运行并验证/ }).count() === 0,
+        await page.getByRole("button", { name: /^(运行测试|运行并验证)$/ }).count() === 0,
         readyModalText
       );
       record("problem modal removes empty count noise", !readyModalText.includes("0条"), readyModalText);

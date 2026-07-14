@@ -1626,11 +1626,6 @@ export default function ProblemPage() {
                       passed={passed}
                       total={total}
                       firstFailedCase={firstFailedCase}
-                      busy={busy}
-                      onRunAndVerify={() => {
-                        setResultOpen(false);
-                        void submit();
-                      }}
                       onReturnToCode={() => setResultOpen(false)}
                     />
                   ) : (
