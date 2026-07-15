@@ -96,19 +96,35 @@ AI_ENABLED=false
 
 ## 5. 数据备份
 
-学校部署使用 Postgres。建议每天课后备份一次：
+学校部署使用 PostgreSQL。Schema 由 Flyway 版本化迁移，Hibernate 在 `school` profile 下只执行 `validate`，不会自动改表。
+
+已有非空数据库第一次接入 Flyway 时，必须使用受控基线入口：
+
+```bash
+bash scripts/baseline-postgres-flyway.sh --confirm-baseline
+```
+
+该脚本会先检查关键结构，创建并验证备份，记录迁移前计数，然后只登记 V1 基线。正式 `.env` 中的 `FLYWAY_BASELINE_ON_MIGRATE` 必须保持 `false`。
+
+建议每天课后生成一次可验证备份：
 
 ```bash
 bash scripts/backup-postgres.sh
 ```
 
-恢复：
+新备份采用 PostgreSQL custom format，同时生成 `.sha256` 和 `.meta`。定期执行不接触正式 Volume 的恢复演练：
 
 ```bash
-bash scripts/restore-postgres.sh backups/onlinejudge-YYYYMMDD-HHMMSS.sql
+bash scripts/rehearse-postgres-restore.sh backups/onlinejudge-YYYYMMDD-HHMMSS.dump
 ```
 
-备份文件默认在 `backups/`，不要提交到 Git。
+正式恢复前先停止 app 容器，并显式确认破坏性操作：
+
+```bash
+bash scripts/restore-postgres.sh --confirm-restore backups/onlinejudge-YYYYMMDD-HHMMSS.dump
+```
+
+历史 `.sql` 仍可兼容恢复，但缺少 custom-format 归档目录校验。备份文件和迁移审计默认在 `backups/`，不要提交到 Git。完整流程见 [数据库迁移与恢复指南](database-migration-guide.md)。
 
 ## 6. 常见故障
 

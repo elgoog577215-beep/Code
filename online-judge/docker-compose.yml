@@ -17,6 +17,7 @@ services:
       POSTGRES_JDBC_URL: "jdbc:postgresql://postgres:5432/${POSTGRES_DB:-onlinejudge}"
       POSTGRES_USER: "${POSTGRES_USER:-onlinejudge}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-change-this-postgres-password}"
+      FLYWAY_BASELINE_ON_MIGRATE: "${FLYWAY_BASELINE_ON_MIGRATE:-false}"
       TEACHER_PASSWORD: "${TEACHER_PASSWORD:-}"
       TEACHER_SESSION_SECRET: "${TEACHER_SESSION_SECRET:-}"
       STUDENT_TOKEN_SECRET: "${STUDENT_TOKEN_SECRET:-}"

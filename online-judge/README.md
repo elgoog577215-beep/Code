@@ -114,10 +114,13 @@ cp .env.example .env
 - `APP_PROFILE`: 学校部署使用 `school`。
 - `EXECUTOR_MODE`: 学校部署建议保持 `docker`。
 - `POSTGRES_PASSWORD`: 学校部署数据库密码。
+- `FLYWAY_BASELINE_ON_MIGRATE`: 正式运行固定为 `false`；只有受控的一次性旧库基线允许临时启用。
 - `TEACHER_PASSWORD`: 教师端共享口令。
 - `TEACHER_SESSION_SECRET`: 教师会话签名密钥。
 - `STUDENT_TOKEN_SECRET`: 学生访问令牌签名密钥。
 - `OJ_APP_IMAGE`: 应用 Docker 镜像名。
+
+学校与生产 PostgreSQL 使用 Flyway 管理 Schema，Hibernate 只执行结构校验。第一次把已有非空数据库接入 Flyway 时，不要直接启动新应用，先阅读并执行 [数据库迁移与恢复指南](docs/database-migration-guide.md)。
 - `OJ_CPP17_DOCKER_IMAGE`: C++17 runner 镜像名。
 - `OJ_CPP17_BASE_IMAGE`: 构建 C++17 runner 使用的基础镜像，默认 `gcc:13-bookworm`。
 - `OJ_PYTHON3_DOCKER_IMAGE`: Python 3 runner 镜像名。
