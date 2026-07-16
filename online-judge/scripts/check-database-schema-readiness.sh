@@ -57,6 +57,7 @@ BEGIN
     ('ai_standard_skill_units', 'primary_knowledge_node_code'),
     ('ai_standard_mistake_points', 'skill_unit_code'),
     ('ai_standard_improvement_points', 'skill_unit_code'),
+    ('submission_diagnosis_facts', 'provisional_node_code'),
     ('submissions', 'problem_id'), ('student_ai_feedbacks', 'submission_id'),
     ('ai_diagnosis_runs', 'submission_id')
   )
@@ -79,7 +80,7 @@ BEGIN
     ('uk_ai_standard_skill_unit_code'),
     ('uk_ai_standard_mistake_point_code'), ('uk_ai_standard_improvement_point_code'),
     ('idx_submissions_problem_submitted_at'), ('idx_ai_diagnosis_run_submission'),
-    ('idx_issue_transition_student_point')
+    ('idx_issue_transition_student_point'), ('idx_diagnosis_fact_provisional')
   )
   SELECT string_agg(e.name, ', ' ORDER BY e.name) INTO missing
   FROM expected e

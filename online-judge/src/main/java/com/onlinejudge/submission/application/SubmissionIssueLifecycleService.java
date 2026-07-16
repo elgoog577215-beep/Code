@@ -155,10 +155,17 @@ public class SubmissionIssueLifecycleService {
     public int normalizeFacts(Collection<SubmissionDiagnosisFact> input, boolean dryRun) {
         int changed = 0;
         for (SubmissionDiagnosisFact fact : input == null ? List.<SubmissionDiagnosisFact>of() : input) {
-            if (fact == null || hasText(fact.getNormalizedPointKey())) {
+            if (fact == null) {
                 continue;
             }
             IssuePointKeyFactory.Identity identity = pointKeyFactory.identity(fact, parseJsonList(fact.getKnowledgePathJson()));
+            String expectedDisplayCategory = displayCategory(fact.getFactType());
+            if (Objects.equals(identity.key(), fact.getNormalizedPointKey())
+                    && Objects.equals(identity.source(), fact.getPointKeySource())
+                    && Objects.equals(identity.version(), fact.getPointKeyVersion())
+                    && Objects.equals(expectedDisplayCategory, fact.getDisplayCategory())) {
+                continue;
+            }
             changed++;
             if (dryRun) {
                 continue;
@@ -166,7 +173,7 @@ public class SubmissionIssueLifecycleService {
             fact.setNormalizedPointKey(identity.key());
             fact.setPointKeySource(identity.source());
             fact.setPointKeyVersion(identity.version());
-            fact.setDisplayCategory(displayCategory(fact.getFactType()));
+            fact.setDisplayCategory(expectedDisplayCategory);
             factRepository.save(fact);
         }
         return changed;

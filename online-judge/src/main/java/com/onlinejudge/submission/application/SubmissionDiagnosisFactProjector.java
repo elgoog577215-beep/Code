@@ -2,6 +2,9 @@ package com.onlinejudge.submission.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.domain.SubmissionDiagnosisFact;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
@@ -22,22 +25,31 @@ public class SubmissionDiagnosisFactProjector {
     private final ObjectMapper objectMapper;
     private final IssuePointKeyFactory pointKeyFactory;
     private final SubmissionIssueLifecycleService lifecycleService;
+    private final AiStandardSkillUnitRepository skillUnitRepository;
+    private final AiStandardMistakePointRepository mistakePointRepository;
+    private final AiStandardImprovementPointRepository improvementPointRepository;
 
     @Autowired
     public SubmissionDiagnosisFactProjector(
             SubmissionDiagnosisFactRepository factRepository,
             ObjectMapper objectMapper,
             IssuePointKeyFactory pointKeyFactory,
-            SubmissionIssueLifecycleService lifecycleService
+            SubmissionIssueLifecycleService lifecycleService,
+            AiStandardSkillUnitRepository skillUnitRepository,
+            AiStandardMistakePointRepository mistakePointRepository,
+            AiStandardImprovementPointRepository improvementPointRepository
     ) {
         this.factRepository = factRepository;
         this.objectMapper = objectMapper;
         this.pointKeyFactory = pointKeyFactory;
         this.lifecycleService = lifecycleService;
+        this.skillUnitRepository = skillUnitRepository;
+        this.mistakePointRepository = mistakePointRepository;
+        this.improvementPointRepository = improvementPointRepository;
     }
 
     public SubmissionDiagnosisFactProjector(SubmissionDiagnosisFactRepository factRepository, ObjectMapper objectMapper) {
-        this(factRepository, objectMapper, new IssuePointKeyFactory(), null);
+        this(factRepository, objectMapper, new IssuePointKeyFactory(), null, null, null, null);
     }
 
     @Transactional
@@ -61,6 +73,7 @@ public class SubmissionDiagnosisFactProjector {
                     advice.getSkillUnitId(),
                     advice.getMistakePointId(),
                     null,
+                    advice.getProvisionalNodeCode(),
                     advice.getKnowledgePath(),
                     advice.getKnowledgePathStatus(),
                     libraryFit,
@@ -84,6 +97,7 @@ public class SubmissionDiagnosisFactProjector {
                     advice.getSkillUnitId(),
                     null,
                     advice.getImprovementPointId(),
+                    advice.getProvisionalNodeCode(),
                     advice.getKnowledgePath(),
                     advice.getKnowledgePathStatus(),
                     libraryFit,
@@ -107,6 +121,7 @@ public class SubmissionDiagnosisFactProjector {
                         tag,
                         fallbackIndex == 0,
                         tag,
+                        null,
                         null,
                         null,
                         null,
@@ -144,6 +159,7 @@ public class SubmissionDiagnosisFactProjector {
             String skillUnitId,
             String mistakePointId,
             String improvementPointId,
+            String provisionalNodeCode,
             List<String> knowledgePath,
             String pathStatus,
             String libraryFit,
@@ -151,13 +167,34 @@ public class SubmissionDiagnosisFactProjector {
             Double confidence,
             int index
     ) {
+        FormalAnchors anchors = resolveFormalAnchors(
+                factType,
+                skillUnitId,
+                mistakePointId,
+                improvementPointId
+        );
+        String normalizedPathStatus = normalizePathStatus(
+                pathStatus,
+                knowledgePath,
+                anchors.skillUnitId(),
+                anchors.mistakePointId(),
+                anchors.improvementPointId(),
+                provisionalNodeCode
+        );
+        String normalizedProvisionalCode = "PROVISIONAL".equals(normalizedPathStatus)
+                ? clean(provisionalNodeCode)
+                : null;
+        String normalizedSkillUnitId = "PROVISIONAL".equals(normalizedPathStatus) ? null : anchors.skillUnitId();
+        String normalizedMistakePointId = "PROVISIONAL".equals(normalizedPathStatus) ? null : anchors.mistakePointId();
+        String normalizedImprovementPointId = "PROVISIONAL".equals(normalizedPathStatus) ? null : anchors.improvementPointId();
         String stableIssue = firstNonBlank(issueId, mistakePointId, improvementPointId, skillUnitId, title, "item-" + index);
         String factKey = analysis.getId() + ":" + factType + ":" + stableIssue + ":" + index;
         IssuePointKeyFactory.Identity identity = pointKeyFactory.identity(
                 factType,
-                mistakePointId,
-                improvementPointId,
-                skillUnitId,
+                normalizedMistakePointId,
+                normalizedImprovementPointId,
+                normalizedProvisionalCode,
+                normalizedSkillUnitId,
                 safe(knowledgePath),
                 title
         );
@@ -173,16 +210,62 @@ public class SubmissionDiagnosisFactProjector {
                 .pointKeyVersion(identity.version())
                 .primaryIssue(primary)
                 .title(limit(clean(title), 500))
-                .skillUnitId(limit(clean(skillUnitId), 160))
-                .mistakePointId(limit(clean(mistakePointId), 160))
-                .improvementPointId(limit(clean(improvementPointId), 160))
+                .skillUnitId(limit(normalizedSkillUnitId, 160))
+                .mistakePointId(limit(normalizedMistakePointId, 160))
+                .improvementPointId(limit(normalizedImprovementPointId, 160))
+                .provisionalNodeCode(limit(normalizedProvisionalCode, 160))
                 .knowledgePathJson(json(safe(knowledgePath)))
-                .knowledgePathStatus(normalizePathStatus(pathStatus, knowledgePath))
-                .libraryFit(normalizeLibraryFit(libraryFit))
+                .knowledgePathStatus(normalizedPathStatus)
+                .libraryFit(normalizeLibraryFit(libraryFit, normalizedPathStatus))
                 .evidenceRefsJson(json(safe(evidenceRefs)))
                 .confidence(confidence)
                 .projectionStatus("READY")
                 .build();
+    }
+
+    private FormalAnchors resolveFormalAnchors(
+            String factType,
+            String skillUnitId,
+            String mistakePointId,
+            String improvementPointId
+    ) {
+        String skill = clean(skillUnitId);
+        String mistake = clean(mistakePointId);
+        String improvement = clean(improvementPointId);
+        if (skillUnitRepository == null || mistakePointRepository == null || improvementPointRepository == null) {
+            return new FormalAnchors(skill, mistake, improvement);
+        }
+        if ("REPAIR".equals(factType) && mistake != null && !mistake.isBlank()) {
+            var point = mistakePointRepository.findByCode(mistake)
+                    .filter(item -> item.isEnabled() && enabledSkill(item.getSkillUnitCode()) != null)
+                    .orElse(null);
+            if (point != null) {
+                return new FormalAnchors(enabledSkill(point.getSkillUnitCode()), point.getCode(), null);
+            }
+        }
+        if ("IMPROVEMENT".equals(factType) && improvement != null && !improvement.isBlank()) {
+            var point = improvementPointRepository.findByCode(improvement)
+                    .filter(item -> item.isEnabled()
+                            && (clean(item.getSkillUnitCode()) == null
+                            || clean(item.getSkillUnitCode()).isBlank()
+                            || enabledSkill(item.getSkillUnitCode()) != null))
+                    .orElse(null);
+            if (point != null) {
+                return new FormalAnchors(enabledSkill(point.getSkillUnitCode()), null, point.getCode());
+            }
+        }
+        return new FormalAnchors(enabledSkill(skill), null, null);
+    }
+
+    private String enabledSkill(String code) {
+        String normalized = clean(code);
+        if (normalized == null || normalized.isBlank()) {
+            return null;
+        }
+        return skillUnitRepository.findByCode(normalized)
+                .filter(item -> item.isEnabled())
+                .map(item -> clean(item.getCode()))
+                .orElse(null);
     }
 
     private String libraryFit(SubmissionAnalysisResponse response) {
@@ -193,17 +276,45 @@ public class SubmissionDiagnosisFactProjector {
         return firstNonBlank(invocation.getDiagnosisLibraryFit(), invocation.getLibraryFit(), "UNKNOWN");
     }
 
-    private String normalizePathStatus(String value, List<String> path) {
+    private String normalizePathStatus(
+            String value,
+            List<String> path,
+            String skillUnitId,
+            String mistakePointId,
+            String improvementPointId,
+            String provisionalNodeCode
+    ) {
         String normalized = clean(value) == null ? "" : clean(value).toUpperCase();
-        if (List.of("FORMAL", "PROVISIONAL", "INFERRED", "UNCLASSIFIED").contains(normalized)) {
+        boolean formalIdentity = !firstNonBlank(mistakePointId, improvementPointId, skillUnitId).isBlank();
+        boolean provisionalIdentity = !firstNonBlank(provisionalNodeCode).isBlank();
+        if ("FORMAL".equals(normalized)) {
+            return formalIdentity ? "FORMAL" : "UNCLASSIFIED";
+        }
+        if ("PROVISIONAL".equals(normalized)) {
+            return provisionalIdentity ? "PROVISIONAL" : "UNCLASSIFIED";
+        }
+        if (List.of("INFERRED", "UNCLASSIFIED").contains(normalized)) {
             return normalized;
+        }
+        if (formalIdentity) {
+            return "FORMAL";
+        }
+        if (provisionalIdentity) {
+            return "PROVISIONAL";
         }
         return safe(path).isEmpty() ? "UNCLASSIFIED" : "INFERRED";
     }
 
-    private String normalizeLibraryFit(String value) {
+    private String normalizeLibraryFit(String value, String pathStatus) {
         String normalized = clean(value) == null ? "" : clean(value).toUpperCase();
-        return List.of("HIT", "PARTIAL", "MISS").contains(normalized) ? normalized : "UNKNOWN";
+        if (List.of("HIT", "PARTIAL", "MISS").contains(normalized)) {
+            return normalized;
+        }
+        return switch (pathStatus) {
+            case "FORMAL" -> "HIT";
+            case "PROVISIONAL", "INFERRED" -> "PARTIAL";
+            default -> "MISS";
+        };
     }
 
     private String json(List<String> values) {
@@ -239,5 +350,8 @@ public class SubmissionDiagnosisFactProjector {
     }
 
     public record ProjectionResult(int inserted, int skipped) {
+    }
+
+    private record FormalAnchors(String skillUnitId, String mistakePointId, String improvementPointId) {
     }
 }
