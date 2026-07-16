@@ -21653,6 +21653,226 @@ button.standard-library-governance-path {
   width: min(100%, 1320px);
 }
 
+.student-next-learning {
+  margin-bottom: 1.35rem;
+  padding: 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 94% 8%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 34%),
+    var(--surface);
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.student-next-learning__head {
+  display: flex;
+  align-items: center;
+  gap: 0.72rem;
+  margin-bottom: 0.9rem;
+}
+
+.student-next-learning__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+}
+
+.student-next-learning__head span,
+.student-next-learning__contract span {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.student-next-learning__head h2 {
+  margin: 0.1rem 0 0;
+  font-size: 1.28rem;
+}
+
+.student-next-learning__primary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.9fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 92%, var(--brand) 8%);
+}
+
+.student-next-learning__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  width: fit-content;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.student-next-learning__summary h3 {
+  margin: 0.58rem 0 0.3rem;
+  font-size: clamp(1.12rem, 2vw, 1.42rem);
+}
+
+.student-next-learning__summary p,
+.student-next-learning__contract p,
+.student-next-learning__state p {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.student-next-learning__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.student-next-learning__tags span {
+  padding: 0.27rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.student-next-learning__contract {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.student-next-learning__contract > div {
+  padding-left: 0.72rem;
+  border-left: 3px solid var(--line);
+}
+
+.student-next-learning__contract > .is-completion {
+  border-left-color: var(--success);
+}
+
+.student-next-learning__cta,
+.student-next-learning__candidate-link,
+.student-next-learning__state button,
+.student-next-learning__state > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  min-height: 42px;
+  padding: 0.62rem 0.82rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-weight: 820;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.student-next-learning__cta {
+  color: white;
+  background: var(--brand);
+  white-space: nowrap;
+}
+
+.student-next-learning__cta:hover,
+.student-next-learning__cta:focus-visible {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.student-next-learning__candidates {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.student-next-learning__candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.62rem 0.72rem;
+  border-top: 1px solid var(--line);
+}
+
+.student-next-learning__candidate > span {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.student-next-learning__candidate small {
+  color: var(--ink-soft);
+}
+
+.student-next-learning__candidate-link,
+.student-next-learning__state button,
+.student-next-learning__state > a {
+  color: var(--brand);
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  background: var(--surface);
+}
+
+.student-next-learning__state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 96px;
+  padding: 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 11px;
+}
+
+.student-next-learning__state.is-error {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+}
+
+@media (max-width: 860px) {
+  .student-next-learning__primary {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .student-next-learning__cta {
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .student-next-learning {
+    padding: 0.8rem;
+    border-radius: 10px;
+  }
+
+  .student-next-learning__primary {
+    padding: 0.86rem;
+  }
+
+  .student-next-learning__candidate,
+  .student-next-learning__state {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .student-next-learning__candidate-link,
+  .student-next-learning__state button,
+  .student-next-learning__state > a {
+    width: 100%;
+  }
+}
+
 .student-task-home .student-assignment-table__header,
 .student-task-home .student-assignment-row.student-entry-link {
   grid-template-columns: 42px minmax(270px, 1.35fr) minmax(145px, 0.66fr) minmax(170px, 0.76fr) 74px minmax(150px, 0.62fr) 112px;

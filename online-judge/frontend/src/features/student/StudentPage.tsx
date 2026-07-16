@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, CircleCheck, ClipboardList, LogIn, Play } from "lucide-react";
+import { ArrowRight, BookOpen, CircleCheck, ClipboardList, LogIn, Play, RotateCcw, Sparkles, Target } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { Assignment, ProblemCatalogItem, StudentProfile } from "../../shared/api/types";
+import type { Assignment, ProblemCatalogItem, StudentProfile, StudentRecommendation, StudentRecommendationItem } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
 import { loadStudent, onActiveStudentChange } from "../../shared/storage";
 
@@ -60,6 +60,10 @@ export default function StudentPage() {
   const [progressByAssignmentId, setProgressByAssignmentId] = useState<Record<number, AssignmentProgress | null>>({});
   const [publicProblems, setPublicProblems] = useState<ProblemCatalogItem[] | null>(null);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [recommendation, setRecommendation] = useState<StudentRecommendation | null>(null);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const [recommendationFailed, setRecommendationFailed] = useState(false);
+  const [recommendationReload, setRecommendationReload] = useState(0);
   const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => onActiveStudentChange(() => setStudent(loadStudent())), []);
@@ -122,6 +126,34 @@ export default function StudentPage() {
     };
   }, [student, t]);
 
+  useEffect(() => {
+    if (!student) {
+      setRecommendation(null);
+      setRecommendationLoading(false);
+      setRecommendationFailed(false);
+      return;
+    }
+    let ignore = false;
+    setRecommendationLoading(true);
+    setRecommendationFailed(false);
+    api.studentRecommendations(student.id)
+      .then(result => {
+        if (!ignore) setRecommendation(result);
+      })
+      .catch(() => {
+        if (!ignore) {
+          setRecommendation(null);
+          setRecommendationFailed(true);
+        }
+      })
+      .finally(() => {
+        if (!ignore) setRecommendationLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [student, recommendationReload]);
+
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
   const progressFor = (assignment: Assignment) => progressByAssignmentId[assignment.id] ?? null;
   const problemCount = publicProblems?.length ?? null;
@@ -139,6 +171,91 @@ export default function StudentPage() {
   const publicStartPath = starterProblems[0]
     ? `/app/student/assignments/public/problems/${starterProblems[0].id}`
     : "/app/student/assignments/public";
+
+  function recommendationPath(item: StudentRecommendationItem) {
+    if (!student) return null;
+    const query = new URLSearchParams({ studentProfileId: String(student.id) });
+    if (item.recommendationToken) query.set("recommendationToken", item.recommendationToken);
+    if (item.problemId && item.assignmentId) return `/app/student/assignments/${item.assignmentId}/problems/${item.problemId}?${query}`;
+    if (item.problemId) return `/app/student/assignments/public/problems/${item.problemId}?${query}`;
+    if (item.assignmentId) return `/app/student/assignments/${item.assignmentId}`;
+    return null;
+  }
+
+  function recommendationAction(item: StudentRecommendationItem, primary = false) {
+    const path = recommendationPath(item);
+    if (!path) return null;
+    return (
+      <Link
+        className={primary ? "student-next-learning__cta" : "student-next-learning__candidate-link"}
+        to={path}
+        onClick={() => {
+          if (student && item.recommendationToken) void api.recordRecommendationEvent(student.id, item.recommendationToken).catch(() => undefined);
+        }}
+        aria-label={t("studentHome.nextLearning.openAria", { title: item.title })}
+      >
+        {item.actionLabel || t("studentHome.nextLearning.open")}<ArrowRight size={16} aria-hidden="true" />
+      </Link>
+    );
+  }
+
+  function renderNextLearning() {
+    const items = recommendation?.recommendations || [];
+    const primary = items[0];
+    const tags = primary ? [primary.focusAbility, ...(primary.focusTags || [])].filter(Boolean) as string[] : [];
+    return (
+      <section className="student-next-learning" aria-labelledby="student-next-learning-heading">
+        <header className="student-next-learning__head">
+          <span className="student-next-learning__icon" aria-hidden="true"><Sparkles size={20} /></span>
+          <div><span>{t("studentHome.nextLearning.eyebrow")}</span><h2 id="student-next-learning-heading">{t("studentHome.nextLearning.title")}</h2></div>
+        </header>
+        {recommendationLoading ? (
+          <div className="student-next-learning__state" role="status" aria-live="polite">
+            <span className="student-feedback-loading__spinner" aria-hidden="true" />
+            <div><strong>{t("studentHome.nextLearning.loading")}</strong><p>{t("studentHome.nextLearning.loadingHint")}</p></div>
+          </div>
+        ) : recommendationFailed ? (
+          <div className="student-next-learning__state is-error" role="alert">
+            <div><strong>{t("studentHome.nextLearning.failed")}</strong><p>{t("studentHome.nextLearning.failedHint")}</p></div>
+            <button type="button" onClick={() => setRecommendationReload(value => value + 1)}><RotateCcw size={15} aria-hidden="true" />{t("studentHome.nextLearning.retry")}</button>
+          </div>
+        ) : !primary ? (
+          <div className="student-next-learning__state">
+            <div><strong>{t("studentHome.nextLearning.empty")}</strong><p>{t("studentHome.nextLearning.emptyHint")}</p></div>
+            <a href="#assignments">{t("studentHome.nextLearning.keepLearning")}</a>
+          </div>
+        ) : (
+          <>
+            <article className="student-next-learning__primary">
+              <div className="student-next-learning__summary">
+                <span className="student-next-learning__badge"><Target size={14} aria-hidden="true" />{t("studentHome.nextLearning.primary")}</span>
+                <h3>{primary.title}</h3>
+                {primary.reason && <p>{primary.reason}</p>}
+                {tags.length > 0 && <div className="student-next-learning__tags" aria-label={t("studentHome.nextLearning.focus")}>{tags.slice(0, 4).map(tag => <span key={tag}>{tag}</span>)}</div>}
+              </div>
+              <div className="student-next-learning__contract">
+                {primary.learningHypothesis && <div><span>{t("studentHome.nextLearning.why")}</span><p>{primary.learningHypothesis}</p></div>}
+                {primary.expectedCompletionSignal && <div className="is-completion"><span>{t("studentHome.nextLearning.completion")}</span><p>{primary.expectedCompletionSignal}</p></div>}
+                {primary.riskLevel && <div><span>{t("studentHome.nextLearning.risk")}</span><p>{t(`studentHome.nextLearning.riskLevel.${primary.riskLevel.toLowerCase()}`)}</p></div>}
+                {primary.fallbackAction && <div><span>{t("studentHome.nextLearning.fallback")}</span><p>{primary.fallbackAction}</p></div>}
+              </div>
+              {recommendationAction(primary, true)}
+            </article>
+            {items.length > 1 && (
+              <div className="student-next-learning__candidates">
+                <strong>{t("studentHome.nextLearning.later")}</strong>
+                {items.slice(1).map(item => (
+                  <div className="student-next-learning__candidate" key={item.recommendationToken || `${item.type}-${item.title}`}>
+                    <span><b>{item.title}</b>{item.reason && <small>{item.reason}</small>}</span>{recommendationAction(item)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </section>
+    );
+  }
 
   function assignmentState(assignment: Assignment) {
     const progress = progressFor(assignment);
@@ -237,7 +354,9 @@ export default function StudentPage() {
           </section>
         </>
       ) : (
-        <section id="assignments" className="student-assignment-board student-learning-task-board" aria-labelledby="student-assignment-heading">
+        <>
+          {renderNextLearning()}
+          <section id="assignments" className="student-assignment-board student-learning-task-board" aria-labelledby="student-assignment-heading">
           <header className="student-assignment-board__head">
             <span className="student-assignment-board__icon" aria-hidden="true"><ClipboardList size={20} /></span>
             <h2 id="student-assignment-heading">{t("studentHome.dashboard.learningTasks")}</h2>
@@ -308,7 +427,8 @@ export default function StudentPage() {
               </div>
             )}
           </nav>
-        </section>
+          </section>
+        </>
       )}
 
     </div>

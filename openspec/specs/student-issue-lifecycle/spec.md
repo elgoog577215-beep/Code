@@ -72,3 +72,16 @@ TBD - created by archiving change build-student-issue-lifecycle-and-class-diffic
 - **WHEN** 管理员对同一历史范围执行两次生命周期回填
 - **THEN** 事实规范化键 SHALL 保持一致
 - **AND** 转换记录和聚合计数 MUST NOT 重复增加
+
+### Requirement: 下一步行动必须保持生命周期证据边界
+下一步学习行动 SHALL 使用后端已经归一化的问题生命周期和可信状态作为事实输入；单次观察、低置信度匹配和不可比较记录 MUST NOT 在学生页面被描述为长期缺陷、已恢复或稳定掌握。
+
+#### Scenario: 只有单次低置信度问题
+- **WHEN** 推荐依据仅包含单次观察或低置信度推断身份
+- **THEN** 页面 SHALL 使用当前观察或建议尝试的表述
+- **AND** 页面 MUST NOT 将学生固定标记为长期薄弱
+
+#### Scenario: 缺少可比较后续证据
+- **WHEN** 当前问题尚无可比较的后续提交
+- **THEN** 完成信号 SHALL 表达需要通过后续行动验证
+- **AND** 系统 MUST NOT 提前宣称问题已恢复

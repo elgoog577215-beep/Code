@@ -181,6 +181,28 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         viewReview: "查看复盘",
         emptyReview: "提交后可复盘错题。"
       },
+      nextLearning: {
+        eyebrow: "AI 学习导航",
+        title: "本轮下一步",
+        primary: "现在先做",
+        loading: "正在整理下一步",
+        loadingHint: "基于最近提交、问题变化和学习记录生成。",
+        failed: "暂时无法读取个性化建议",
+        failedHint: "不影响继续做题或进入课堂作业。",
+        retry: "重新读取",
+        empty: "暂无可靠的个性化行动",
+        emptyHint: "继续当前作业或自主练习，产生新提交后再判断。",
+        keepLearning: "查看学习任务",
+        focus: "本轮关注点",
+        why: "判断依据",
+        completion: "完成标准",
+        risk: "行动风险",
+        riskLevel: { low: "低风险，可直接尝试", medium: "需要留意当前薄弱点", high: "建议必要时请教师介入" },
+        fallback: "如果卡住",
+        later: "之后可以做",
+        open: "开始行动",
+        openAria: "开始学习行动：{{title}}"
+      },
       errors: {
         publicBank: "公共题库暂时不可用。",
         assignments: "老师作业加载失败。"
@@ -1142,6 +1164,28 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         recentReview: "Recent Review",
         viewReview: "Open review",
         emptyReview: "Submit solutions to review recent mistakes."
+      },
+      nextLearning: {
+        eyebrow: "AI Learning Navigation",
+        title: "Your Next Step",
+        primary: "Do this now",
+        loading: "Preparing your next step",
+        loadingHint: "Using recent submissions, issue changes, and learning evidence.",
+        failed: "Personalized guidance is temporarily unavailable",
+        failedHint: "You can still practice or open your class assignments.",
+        retry: "Try again",
+        empty: "No reliable personalized action yet",
+        emptyHint: "Continue an assignment or practice problem, then check again after a new submission.",
+        keepLearning: "View learning tasks",
+        focus: "Focus for this round",
+        why: "Why this step",
+        completion: "Completion signal",
+        risk: "Action risk",
+        riskLevel: { low: "Low risk; try it directly", medium: "Watch the current learning gap", high: "Ask a teacher to step in if needed" },
+        fallback: "If you get stuck",
+        later: "Later options",
+        open: "Start action",
+        openAria: "Start learning action: {{title}}"
       },
       errors: {
         publicBank: "The public problem bank is unavailable.",

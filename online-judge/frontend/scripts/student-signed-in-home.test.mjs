@@ -35,6 +35,36 @@ const publicProblems = [
   { id: 102, title: "回文判断", difficulty: "EASY", timeLimit: 1000, memoryLimit: 65536 },
   { id: 103, title: "阶乘计算", difficulty: "MEDIUM", timeLimit: 1000, memoryLimit: 65536 }
 ];
+const recommendations = {
+  student,
+  summary: "先解决边界判断，再做迁移练习。",
+  recommendations: [
+    {
+      type: "REDO",
+      title: "重做回文判断的边界样例",
+      reason: "最近一次提交在空串边界仍未通过。",
+      actionLabel: "去修复",
+      assignmentId: 7,
+      problemId: 102,
+      focusAbility: "边界条件分析",
+      focusTags: ["字符串", "空输入"],
+      recommendationToken: "rec-primary-41",
+      learningHypothesis: "当前更需要验证边界判断，而不是更换算法。",
+      expectedCompletionSignal: "补充空串与单字符样例，并在后续提交中通过。",
+      fallbackAction: "先手写三个最小边界样例。",
+      priority: 1
+    },
+    {
+      type: "NEXT_PROBLEM",
+      title: "完成一道同类迁移题",
+      reason: "用于确认问题不是只在原题中偶然解决。",
+      actionLabel: "稍后练习",
+      problemId: 103,
+      recommendationToken: "rec-secondary-41",
+      priority: 2
+    }
+  ]
+};
 
 async function withSignedInPage(run) {
   const browser = await chromium.launch({ headless: true });
@@ -50,6 +80,11 @@ async function withSignedInPage(run) {
     if (path === "/api/student/assignments/7/profile/41/trajectory") body = { completedTasks: 1, totalTasks: 2 };
     if (path === "/api/student/assignments/8/profile/41/trajectory") body = { completedTasks: 0, totalTasks: 1 };
     if (path === "/api/student/profile/41/ability-profile") body = {};
+    if (path === "/api/student/profile/41/recommendations") body = recommendations;
+    if (path === "/api/student/profile/41/recommendation-clicks") {
+      await route.fulfill({ status: 204, body: "" });
+      return;
+    }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
 
@@ -73,6 +108,30 @@ test("signed-in public bank is pinned inside the unified learning task list", as
     assert.equal(await taskList.locator(".student-entry-link").first().evaluate(element => element.classList.contains("student-public-task-row")), true);
     assert.equal(await publicTask.locator(".student-public-task-row__difficulty").count(), 1);
     assert.equal(await page.locator(".student-guest-practice").count(), 0);
+  });
+});
+
+test("next learning shows one primary action with evidence and completion signal", async () => {
+  await withSignedInPage(async page => {
+    const panel = page.locator(".student-next-learning");
+    await panel.locator(".student-next-learning__primary").waitFor({ state: "visible" });
+    assert.equal(await panel.locator(".student-next-learning__primary").count(), 1);
+    assert.match(await panel.textContent(), /重做回文判断的边界样例/);
+    assert.match(await panel.textContent(), /补充空串与单字符样例/);
+    assert.equal(await panel.locator(".student-next-learning__candidate").count(), 1);
+  });
+});
+
+test("primary action preserves student identity and recommendation token", async () => {
+  await withSignedInPage(async page => {
+    const action = page.locator(".student-next-learning__cta");
+    await action.waitFor({ state: "visible" });
+    const href = await action.getAttribute("href");
+    assert.ok(href);
+    const url = new URL(href, baseUrl);
+    assert.equal(url.pathname, "/app/student/assignments/7/problems/102");
+    assert.equal(url.searchParams.get("studentProfileId"), "41");
+    assert.equal(url.searchParams.get("recommendationToken"), "rec-primary-41");
   });
 });
 
