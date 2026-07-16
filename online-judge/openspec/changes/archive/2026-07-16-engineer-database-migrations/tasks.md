@@ -26,6 +26,6 @@
 ## 5. 生产切换与沉淀
 
 - [x] 5.1 在项目记忆中记录 PostgreSQL 为 Schema 权威、Flyway 负责演进、Hibernate 只负责校验的长期决策
-- [ ] 5.2 生产切换前检查服务器资源、旧镜像、数据库 Volume 和现有未提交配置，创建并验证正式备份
-- [ ] 5.3 对现有生产库执行一次性 V1 基线，核对前后计数、Flyway 历史、Schema readiness 和内容 readiness
-- [ ] 5.4 外部构建并部署新应用镜像，只替换 app 容器，验证 readiness 后保留回滚证据
+- [x] 5.2 生产切换前检查服务器资源、旧镜像、数据库 Volume 和现有未提交配置，创建并验证正式备份
+- [x] 5.3 对现有生产库执行一次性 V1 基线，核对前后计数、Flyway 历史、Schema readiness 和内容 readiness
+- [x] 5.4 外部构建并部署新应用镜像，只替换 app 容器，验证 readiness 后保留回滚证据
