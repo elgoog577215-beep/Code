@@ -289,6 +289,162 @@ class AiStandardLibraryNavigationServiceTest {
 
     @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void returnsBatchThreeAlgorithmAndDataStructureClosuresFromPreciseKnowledgePoints() {
+        String algorithmSkillPrimary = "ALGO.DQ3.BFS";
+        String algorithmPoint = "ALGO.DQ3.DIJKSTRA";
+        String dataStructureSkillPrimary = "DS.DQ3.STACK";
+        String dataStructurePoint = "DS.DQ3.QUEUE";
+        knowledgeRepository.saveAllAndFlush(List.of(
+                knowledgeNode(algorithmSkillPrimary, "ALGO", InformaticsKnowledgeNodeType.KNOWLEDGE_POINT,
+                        "BFS 最短路测试点", "算法思想 / BFS 最短路测试点", 20),
+                knowledgeNode(algorithmPoint, "ALGO", InformaticsKnowledgeNodeType.KNOWLEDGE_POINT,
+                        "Dijkstra 测试点", "算法思想 / Dijkstra 测试点", 21),
+                knowledgeNode(dataStructureSkillPrimary, "DS", InformaticsKnowledgeNodeType.KNOWLEDGE_POINT,
+                        "栈操作测试点", "数据结构 / 栈操作测试点", 20),
+                knowledgeNode(dataStructurePoint, "DS", InformaticsKnowledgeNodeType.KNOWLEDGE_POINT,
+                        "队列操作测试点", "数据结构 / 队列操作测试点", 21)
+        ));
+
+        String algorithmSkill = "SK_DQ3_ALGORITHM_NAVIGATION_FIXTURE";
+        String algorithmMistake = "MP_DQ3_ALGORITHM_NAVIGATION_FIXTURE";
+        String algorithmImprovement = "IP_DQ3_ALGORITHM_NAVIGATION_FIXTURE";
+        skillUnitRepository.saveAndFlush(AiStandardSkillUnit.builder()
+                .code(algorithmSkill)
+                .category("图算法")
+                .name("检查最短路算法前提")
+                .description("根据边权和距离状态选择并验证最短路算法。")
+                .learningGoal("先检查算法前提，再手算松弛轨迹。")
+                .primaryKnowledgeNodeCode(algorithmSkillPrimary)
+                .knowledgeNodeCodes(algorithmSkillPrimary + "\n" + algorithmPoint)
+                .masteryLevel("MEDIUM")
+                .applicableLanguages("PYTHON\nCPP17")
+                .enabled(true)
+                .libraryVersion("informatics-discipline-quality-v3")
+                .build());
+        mistakePointRepository.saveAndFlush(AiStandardMistakePoint.builder()
+                .code(algorithmMistake)
+                .category("图算法")
+                .name("Dijkstra 未过滤陈旧状态")
+                .description("弹出历史距离后仍继续松弛出边。")
+                .skillUnitCode(algorithmSkill)
+                .mistakeType("STALE_STATE")
+                .misconception("认为堆中同一节点只会出现一次。")
+                .symptom("重复扩展并可能使用过期距离。")
+                .repairStrategy("弹出后比较队列距离和当前 dist。")
+                .severity("HIGH")
+                .primaryKnowledgeNodeCode(algorithmPoint)
+                .knowledgeNodeCodes(algorithmSkillPrimary + "\n" + algorithmPoint)
+                .applicableLanguages("PYTHON\nCPP17")
+                .enabled(true)
+                .libraryVersion("informatics-discipline-quality-v3")
+                .build());
+        improvementPointRepository.saveAndFlush(AiStandardImprovementPoint.builder()
+                .code(algorithmImprovement)
+                .category("提升点/最短路")
+                .name("手算距离松弛轨迹")
+                .description("逐步记录弹出状态、候选距离和松弛结果。")
+                .skillUnitCode(algorithmSkill)
+                .primaryKnowledgeNodeCode(algorithmPoint)
+                .knowledgeNodeCodes(algorithmSkillPrimary + "\n" + algorithmPoint)
+                .relatedMistakeCodes(algorithmMistake)
+                .improvementGoal("建立最短路状态检查合同。")
+                .practiceStrategy("对五点图填写完整松弛轨迹表。")
+                .studentBenefit("能定位初始化、松弛或陈旧状态错误。")
+                .teacherExplanation("要求学生解释每一次未松弛的原因。")
+                .applicableLanguages("PYTHON\nCPP17")
+                .enabled(true)
+                .libraryVersion("informatics-discipline-quality-v3")
+                .build());
+
+        String dataStructureSkill = "SK_DQ3_DATA_STRUCTURE_NAVIGATION_FIXTURE";
+        String dataStructureMistake = "MP_DQ3_DATA_STRUCTURE_NAVIGATION_FIXTURE";
+        String dataStructureImprovement = "IP_DQ3_DATA_STRUCTURE_NAVIGATION_FIXTURE";
+        skillUnitRepository.saveAndFlush(AiStandardSkillUnit.builder()
+                .code(dataStructureSkill)
+                .category("数据结构")
+                .name("按操作语义选择线性结构")
+                .description("区分栈与队列的加入和取出顺序。")
+                .learningGoal("用操作轨迹验证容器选择。")
+                .primaryKnowledgeNodeCode(dataStructureSkillPrimary)
+                .knowledgeNodeCodes(dataStructureSkillPrimary + "\n" + dataStructurePoint)
+                .masteryLevel("MEDIUM")
+                .applicableLanguages("PYTHON\nCPP17")
+                .enabled(true)
+                .libraryVersion("informatics-discipline-quality-v3")
+                .build());
+        mistakePointRepository.saveAndFlush(AiStandardMistakePoint.builder()
+                .code(dataStructureMistake)
+                .category("数据结构")
+                .name("队列错误使用后进先出")
+                .description("从队尾取出元素，破坏先进先出顺序。")
+                .skillUnitCode(dataStructureSkill)
+                .mistakeType("OPERATION_CONTRACT")
+                .misconception("只关注容器能存元素，没有检查取出顺序。")
+                .symptom("BFS 扩展顺序变成深度优先。")
+                .repairStrategy("记录每次入队和出队后的完整队列。")
+                .severity("HIGH")
+                .primaryKnowledgeNodeCode(dataStructurePoint)
+                .knowledgeNodeCodes(dataStructureSkillPrimary + "\n" + dataStructurePoint)
+                .applicableLanguages("PYTHON\nCPP17")
+                .enabled(true)
+                .libraryVersion("informatics-discipline-quality-v3")
+                .build());
+        improvementPointRepository.saveAndFlush(AiStandardImprovementPoint.builder()
+                .code(dataStructureImprovement)
+                .category("提升点/数据结构")
+                .name("按操作语义回放队列")
+                .description("逐步记录入队、出队和下一次取出元素。")
+                .skillUnitCode(dataStructureSkill)
+                .primaryKnowledgeNodeCode(dataStructurePoint)
+                .knowledgeNodeCodes(dataStructureSkillPrimary + "\n" + dataStructurePoint)
+                .relatedMistakeCodes(dataStructureMistake)
+                .improvementGoal("让容器操作和题目时序保持一致。")
+                .practiceStrategy("回放八次操作并预测完整出队序列。")
+                .studentBenefit("能区分栈、队列和优先队列。")
+                .teacherExplanation("隐藏容器名，只给操作要求让学生选择结构。")
+                .applicableLanguages("PYTHON\nCPP17")
+                .enabled(true)
+                .libraryVersion("informatics-discipline-quality-v3")
+                .build());
+
+        AiStandardLibraryDiagnosticLayerResponse algorithmLayer = service.expandDiagnosticLayer(algorithmPoint);
+        assertThat(algorithmLayer.getSkillUnits())
+                .filteredOn(skill -> algorithmSkill.equals(skill.getCode()))
+                .singleElement()
+                .satisfies(skill -> {
+                    assertThat(skill.getMistakePoints())
+                            .extracting(AiStandardLibraryDiagnosticLayerResponse.MistakePoint::getCode)
+                            .containsExactly(algorithmMistake);
+                    assertThat(skill.getImprovementPoints())
+                            .singleElement()
+                            .satisfies(improvement -> {
+                                assertThat(improvement.getCode()).isEqualTo(algorithmImprovement);
+                                assertThat(improvement.getRelatedMistakeCodes())
+                                        .containsExactly(algorithmMistake);
+                            });
+                });
+
+        AiStandardLibraryDiagnosticLayerResponse dataStructureLayer =
+                service.expandDiagnosticLayer(dataStructurePoint);
+        assertThat(dataStructureLayer.getSkillUnits())
+                .filteredOn(skill -> dataStructureSkill.equals(skill.getCode()))
+                .singleElement()
+                .satisfies(skill -> {
+                    assertThat(skill.getMistakePoints())
+                            .extracting(AiStandardLibraryDiagnosticLayerResponse.MistakePoint::getCode)
+                            .containsExactly(dataStructureMistake);
+                    assertThat(skill.getImprovementPoints())
+                            .singleElement()
+                            .satisfies(improvement -> {
+                                assertThat(improvement.getCode()).isEqualTo(dataStructureImprovement);
+                                assertThat(improvement.getRelatedMistakeCodes())
+                                        .containsExactly(dataStructureMistake);
+                            });
+                });
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void resolvesParentSkillWhenMistakeUsesMorePrecisePrimaryKnowledgePoint() {
         String skillPrimaryCode = "BASIC.IO.MULTI_CASE.显式_T_组循环";
         String precisePointCode = "BASIC.IO.MULTI_CASE.周期等待参数";

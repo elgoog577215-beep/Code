@@ -184,13 +184,14 @@ raw_metrics(metric, severity, value, direction, target, definition) AS (
            '已接入的统一、高中和竞赛框架数量'
     FROM informatics_discipline_scope_mappings WHERE enabled = true
     UNION ALL
-    SELECT 'curated_knowledge_points', 'BLOCKER', count(*), 'MIN', 54,
-           '第一批与第二批累计人工精修知识点数'
+    SELECT 'curated_knowledge_points', 'BLOCKER', count(*), 'MIN', 84,
+           '第一批至第三批累计人工精修知识点数'
     FROM informatics_knowledge_nodes
     WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
       AND library_version IN (
           'informatics-knowledge-discipline-v1',
-          'informatics-knowledge-discipline-v2'
+          'informatics-knowledge-discipline-v2',
+          'informatics-knowledge-discipline-v3'
       )
       AND description NOT LIKE '细颗粒知识点：%'
     UNION ALL
@@ -240,6 +241,107 @@ raw_metrics(metric, severity, value, direction, target, definition) AS (
       AND (m.id IS NULL OR m.migration_status <> 'MAPPED'
         OR m.target_type <> 'IMPROVEMENT_POINT'
         OR m.target_code <> i.code)
+    UNION ALL
+    SELECT 'curated_knowledge_points_batch_3', 'BLOCKER', count(*), 'MIN', 30,
+           '第三批人工精修且已标记 discipline-v3 的知识点数'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND library_version = 'informatics-knowledge-discipline-v3'
+      AND description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'curated_knowledge_points_batch_3_algo', 'BLOCKER', count(DISTINCT n.code), 'MIN', 20,
+           '第三批 ALGO 领域人工精修知识点数'
+    FROM informatics_knowledge_nodes n
+    JOIN lineage l ON l.node_code = n.code
+    JOIN informatics_knowledge_nodes d
+      ON d.code = l.ancestor_code AND d.type = 'DOMAIN' AND d.code = 'ALGO'
+    WHERE n.enabled = true AND n.type = 'KNOWLEDGE_POINT'
+      AND n.library_version = 'informatics-knowledge-discipline-v3'
+      AND n.description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'curated_knowledge_points_batch_3_ds', 'BLOCKER', count(DISTINCT n.code), 'MIN', 10,
+           '第三批 DS 领域人工精修知识点数'
+    FROM informatics_knowledge_nodes n
+    JOIN lineage l ON l.node_code = n.code
+    JOIN informatics_knowledge_nodes d
+      ON d.code = l.ancestor_code AND d.type = 'DOMAIN' AND d.code = 'DS'
+    WHERE n.enabled = true AND n.type = 'KNOWLEDGE_POINT'
+      AND n.library_version = 'informatics-knowledge-discipline-v3'
+      AND n.description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'discipline_v3_improvement_points', 'BLOCKER', count(*), 'MIN', 12,
+           '第三批新增且启用的正式提升点数'
+    FROM ai_standard_improvement_points
+    WHERE enabled = true
+      AND library_version = 'informatics-discipline-quality-v3'
+    UNION ALL
+    SELECT 'discipline_v3_improvement_invalid_content', 'BLOCKER', count(*), 'MAX', 0,
+           '第三批提升点缺少目标、练习、学生收益、教师解释或关联错因的数量'
+    FROM ai_standard_improvement_points
+    WHERE enabled = true
+      AND library_version = 'informatics-discipline-quality-v3'
+      AND (btrim(COALESCE(improvement_goal, '')) = ''
+        OR btrim(COALESCE(practice_strategy, '')) = ''
+        OR btrim(COALESCE(student_benefit, '')) = ''
+        OR btrim(COALESCE(teacher_explanation, '')) = ''
+        OR btrim(COALESCE(related_mistake_codes, '')) = '')
+    UNION ALL
+    SELECT 'discipline_v3_improvement_invalid_mistake_refs', 'BLOCKER', count(*), 'MAX', 0,
+           '第三批提升点关联不存在、停用或归属其他能力的易错点引用数量'
+    FROM ai_standard_improvement_points i
+    CROSS JOIN LATERAL regexp_split_to_table(COALESCE(i.related_mistake_codes, ''), E'\n') ref
+    LEFT JOIN ai_standard_mistake_points m
+      ON m.code = btrim(ref) AND m.enabled = true AND m.skill_unit_code = i.skill_unit_code
+    WHERE i.enabled = true
+      AND i.library_version = 'informatics-discipline-quality-v3'
+      AND btrim(ref) <> '' AND m.code IS NULL
+    UNION ALL
+    SELECT 'discipline_v3_snapshot_mismatch', 'BLOCKER', count(*), 'MAX', 0,
+           '第三批规范提升点缺少同 code 启用快照或关键归属不一致的数量'
+    FROM ai_standard_improvement_points i
+    LEFT JOIN ai_standard_library_items item
+      ON item.layer = 'IMPROVEMENT_POINT' AND item.code = i.code
+    WHERE i.enabled = true
+      AND i.library_version = 'informatics-discipline-quality-v3'
+      AND (item.id IS NULL OR item.enabled IS DISTINCT FROM true
+        OR item.skill_unit_code IS DISTINCT FROM i.skill_unit_code
+        OR item.primary_knowledge_node_code IS DISTINCT FROM i.primary_knowledge_node_code
+        OR item.related_items IS DISTINCT FROM i.related_mistake_codes)
+    UNION ALL
+    SELECT 'discipline_v3_legacy_mapping_mismatch', 'BLOCKER', count(*), 'MAX', 0,
+           '第三批规范提升点缺少同 code MAPPED 兼容映射的数量'
+    FROM ai_standard_improvement_points i
+    LEFT JOIN ai_standard_library_legacy_mappings m
+      ON m.legacy_layer = 'IMPROVEMENT_POINT' AND m.legacy_code = i.code
+    WHERE i.enabled = true
+      AND i.library_version = 'informatics-discipline-quality-v3'
+      AND (m.id IS NULL OR m.migration_status <> 'MAPPED'
+        OR m.target_type <> 'IMPROVEMENT_POINT'
+        OR m.target_code <> i.code)
+    UNION ALL
+    SELECT 'discipline_v3_compatibility_skill_target', 'BLOCKER', count(*), 'MAX', 0,
+           '第三批正式提升点错误关联兼容占位能力的数量'
+    FROM ai_standard_improvement_points i
+    JOIN ai_standard_skill_units s ON s.code = i.skill_unit_code
+    WHERE i.enabled = true
+      AND i.library_version = 'informatics-discipline-quality-v3'
+      AND (s.code LIKE 'SK_COMPAT_%'
+        OR s.description LIKE '%用于兼容旧 AI 标准库标签%')
+    UNION ALL
+    SELECT 'template_knowledge_descriptions_batch_3_limit', 'BLOCKER', count(*), 'MAX', 502,
+           '第三批发布后模板化知识点描述的允许上限'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND description LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'skills_without_improvement_batch_3_limit', 'BLOCKER', count(*), 'MAX', 41,
+           '第三批发布后缺少提升点能力点的允许上限'
+    FROM ai_standard_skill_units s
+    WHERE s.enabled = true
+      AND NOT EXISTS (
+          SELECT 1 FROM ai_standard_improvement_points i
+          WHERE i.enabled = true AND i.skill_unit_code = s.code
+      )
     UNION ALL
     SELECT 'template_knowledge_descriptions_batch_2_limit', 'BLOCKER', count(*), 'MAX', 532,
            '第二批发布后模板化知识点描述的允许上限'

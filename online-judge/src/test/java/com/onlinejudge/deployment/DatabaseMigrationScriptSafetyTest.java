@@ -77,7 +77,6 @@ class DatabaseMigrationScriptSafetyTest {
         String migration = Files.readString(Path.of(
                 "src/main/resources/db/migration/V3__refine_discipline_quality_batch_2.sql"));
         String qualityGate = read("check-discipline-data-quality.sh");
-        String integration = read("test-postgres-migrations.sh");
 
         assertThat(migration)
                 .contains("informatics-knowledge-discipline-v2")
@@ -93,9 +92,36 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("discipline_v2_legacy_mapping_mismatch")
                 .contains("template_knowledge_descriptions_batch_2_limit")
                 .contains("skills_without_improvement_batch_2_limit");
+    }
+
+    @Test
+    void disciplineBatchThreeUsesEvidenceDrivenMigrationAndCompatibilityGuard() throws IOException {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V4__refine_discipline_quality_batch_3.sql"));
+        String qualityGate = read("check-discipline-data-quality.sh");
+        String integration = read("test-postgres-migrations.sh");
+
+        assertThat(migration)
+                .contains("informatics-knowledge-discipline-v3")
+                .contains("informatics-discipline-quality-v3")
+                .contains("discipline_quality_v3_improvements")
+                .contains("s.code NOT LIKE 'SK_COMPAT_%'")
+                .contains("INSERT INTO public.ai_standard_improvement_points")
+                .contains("INSERT INTO public.ai_standard_library_items")
+                .contains("INSERT INTO public.ai_standard_library_legacy_mappings")
+                .doesNotContain("DELETE FROM", "TRUNCATE", "DROP TABLE public");
+        assertThat(qualityGate)
+                .contains("curated_knowledge_points_batch_3_algo")
+                .contains("curated_knowledge_points_batch_3_ds")
+                .contains("discipline_v3_improvement_invalid_mistake_refs")
+                .contains("discipline_v3_snapshot_mismatch")
+                .contains("discipline_v3_legacy_mapping_mismatch")
+                .contains("discipline_v3_compatibility_skill_target")
+                .contains("template_knowledge_descriptions_batch_3_limit")
+                .contains("skills_without_improvement_batch_3_limit");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"3\" ]]")
-                .contains("V1-V3");
+                .contains("[[ \"${VERSION}\" == \"4\" ]]")
+                .contains("V1-V4");
     }
 
     private String read(String name) throws IOException {
