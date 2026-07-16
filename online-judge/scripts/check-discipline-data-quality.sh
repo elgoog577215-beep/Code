@@ -184,12 +184,77 @@ raw_metrics(metric, severity, value, direction, target, definition) AS (
            '已接入的统一、高中和竞赛框架数量'
     FROM informatics_discipline_scope_mappings WHERE enabled = true
     UNION ALL
-    SELECT 'curated_knowledge_points', 'BLOCKER', count(*), 'MIN', 20,
-           '首批人工精修且已标记 discipline-v1 的知识点数'
+    SELECT 'curated_knowledge_points', 'BLOCKER', count(*), 'MIN', 54,
+           '第一批与第二批累计人工精修知识点数'
     FROM informatics_knowledge_nodes
     WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
-      AND library_version = 'informatics-knowledge-discipline-v1'
+      AND library_version IN (
+          'informatics-knowledge-discipline-v1',
+          'informatics-knowledge-discipline-v2'
+      )
       AND description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'curated_knowledge_points_batch_2', 'BLOCKER', count(*), 'MIN', 30,
+           '第二批人工精修且已标记 discipline-v2 的知识点数'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND library_version = 'informatics-knowledge-discipline-v2'
+      AND description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'discipline_v2_improvement_points', 'BLOCKER', count(*), 'MIN', 12,
+           '第二批新增且启用的正式提升点数'
+    FROM ai_standard_improvement_points
+    WHERE enabled = true
+      AND library_version = 'informatics-discipline-quality-v2'
+    UNION ALL
+    SELECT 'discipline_v2_improvement_invalid_content', 'BLOCKER', count(*), 'MAX', 0,
+           '第二批提升点缺少目标、练习、学生收益、教师解释或关联错因的数量'
+    FROM ai_standard_improvement_points
+    WHERE enabled = true
+      AND library_version = 'informatics-discipline-quality-v2'
+      AND (btrim(COALESCE(improvement_goal, '')) = ''
+        OR btrim(COALESCE(practice_strategy, '')) = ''
+        OR btrim(COALESCE(student_benefit, '')) = ''
+        OR btrim(COALESCE(teacher_explanation, '')) = ''
+        OR btrim(COALESCE(related_mistake_codes, '')) = '')
+    UNION ALL
+    SELECT 'discipline_v2_snapshot_mismatch', 'BLOCKER', count(*), 'MAX', 0,
+           '第二批规范提升点缺少同 code 启用快照或关键归属不一致的数量'
+    FROM ai_standard_improvement_points i
+    LEFT JOIN ai_standard_library_items item
+      ON item.layer = 'IMPROVEMENT_POINT' AND item.code = i.code
+    WHERE i.enabled = true
+      AND i.library_version = 'informatics-discipline-quality-v2'
+      AND (item.id IS NULL OR item.enabled IS DISTINCT FROM true
+        OR item.skill_unit_code IS DISTINCT FROM i.skill_unit_code
+        OR item.primary_knowledge_node_code IS DISTINCT FROM i.primary_knowledge_node_code
+        OR item.related_items IS DISTINCT FROM i.related_mistake_codes)
+    UNION ALL
+    SELECT 'discipline_v2_legacy_mapping_mismatch', 'BLOCKER', count(*), 'MAX', 0,
+           '第二批规范提升点缺少同 code MAPPED 兼容映射的数量'
+    FROM ai_standard_improvement_points i
+    LEFT JOIN ai_standard_library_legacy_mappings m
+      ON m.legacy_layer = 'IMPROVEMENT_POINT' AND m.legacy_code = i.code
+    WHERE i.enabled = true
+      AND i.library_version = 'informatics-discipline-quality-v2'
+      AND (m.id IS NULL OR m.migration_status <> 'MAPPED'
+        OR m.target_type <> 'IMPROVEMENT_POINT'
+        OR m.target_code <> i.code)
+    UNION ALL
+    SELECT 'template_knowledge_descriptions_batch_2_limit', 'BLOCKER', count(*), 'MAX', 532,
+           '第二批发布后模板化知识点描述的允许上限'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND description LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'skills_without_improvement_batch_2_limit', 'BLOCKER', count(*), 'MAX', 53,
+           '第二批发布后缺少提升点能力点的允许上限'
+    FROM ai_standard_skill_units s
+    WHERE s.enabled = true
+      AND NOT EXISTS (
+          SELECT 1 FROM ai_standard_improvement_points i
+          WHERE i.enabled = true AND i.skill_unit_code = s.code
+      )
     UNION ALL
     SELECT 'knowledge_scope_covered_nodes', 'INFO', count(*), 'INFO', 0,
            '通过直接或最近祖先映射获得学科范围的启用节点数'

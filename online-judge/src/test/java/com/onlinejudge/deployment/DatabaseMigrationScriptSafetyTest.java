@@ -72,6 +72,32 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("ddl-auto: validate");
     }
 
+    @Test
+    void disciplineBatchTwoUsesVersionedMigrationAndThreeTableConsistencyGate() throws IOException {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V3__refine_discipline_quality_batch_2.sql"));
+        String qualityGate = read("check-discipline-data-quality.sh");
+        String integration = read("test-postgres-migrations.sh");
+
+        assertThat(migration)
+                .contains("informatics-knowledge-discipline-v2")
+                .contains("informatics-discipline-quality-v2")
+                .contains("discipline_quality_v2_improvements")
+                .contains("INSERT INTO public.ai_standard_improvement_points")
+                .contains("INSERT INTO public.ai_standard_library_items")
+                .contains("INSERT INTO public.ai_standard_library_legacy_mappings")
+                .doesNotContain("DELETE FROM", "TRUNCATE", "DROP TABLE public");
+        assertThat(qualityGate)
+                .contains("curated_knowledge_points_batch_2")
+                .contains("discipline_v2_snapshot_mismatch")
+                .contains("discipline_v2_legacy_mapping_mismatch")
+                .contains("template_knowledge_descriptions_batch_2_limit")
+                .contains("skills_without_improvement_batch_2_limit");
+        assertThat(integration)
+                .contains("[[ \"${VERSION}\" == \"3\" ]]")
+                .contains("V1-V3");
+    }
+
     private String read(String name) throws IOException {
         return Files.readString(SCRIPTS.resolve(name));
     }
