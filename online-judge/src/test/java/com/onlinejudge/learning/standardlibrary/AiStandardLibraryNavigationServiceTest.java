@@ -215,6 +215,80 @@ class AiStandardLibraryNavigationServiceTest {
 
     @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void returnsBatchTwoImprovementWithSkillAndRelatedMistakeFromPrimaryKnowledgePoint() {
+        String pointCode = "BASIC.IO.MULTI_CASE.显式_T_组循环";
+        String skillCode = "SK_DQ2_NAVIGATION_FIXTURE";
+        String mistakeCode = "MP_DQ2_NAVIGATION_FIXTURE";
+        String improvementCode = "IP_DQ2_NAVIGATION_FIXTURE";
+        skillUnitRepository.saveAndFlush(AiStandardSkillUnit.builder()
+                .code(skillCode)
+                .category("输入输出")
+                .name("多组变量生命周期测试能力")
+                .description("能区分每组重置和跨组共享状态。")
+                .learningGoal("为变量标注生命周期并验证第二组输入。")
+                .primaryKnowledgeNodeCode(pointCode)
+                .knowledgeNodeCodes(pointCode)
+                .masteryLevel("MEDIUM")
+                .applicableLanguages("PYTHON\nCPP17")
+                .enabled(true)
+                .libraryVersion("informatics-discipline-quality-v2")
+                .build());
+        mistakePointRepository.saveAndFlush(AiStandardMistakePoint.builder()
+                .code(mistakeCode)
+                .category("输入输出")
+                .name("每组状态在外层循环外初始化")
+                .description("第二组继续使用第一组累计状态。")
+                .skillUnitCode(skillCode)
+                .mistakeType("STATE_LIFECYCLE")
+                .misconception("没有区分跨组共享和每组临时状态。")
+                .symptom("单组正确，多组从第二组开始偏差。")
+                .repairStrategy("把每组状态初始化移动到组循环内部。")
+                .severity("HIGH")
+                .primaryKnowledgeNodeCode(pointCode)
+                .knowledgeNodeCodes(pointCode)
+                .applicableLanguages("PYTHON\nCPP17")
+                .enabled(true)
+                .libraryVersion("informatics-discipline-quality-v2")
+                .build());
+        improvementPointRepository.saveAndFlush(AiStandardImprovementPoint.builder()
+                .code(improvementCode)
+                .category("提升点/多组输入")
+                .name("给多组变量标注生命周期")
+                .description("用两组不同输入检查状态是否按组重置。")
+                .skillUnitCode(skillCode)
+                .primaryKnowledgeNodeCode(pointCode)
+                .knowledgeNodeCodes(pointCode)
+                .relatedMistakeCodes(mistakeCode)
+                .improvementGoal("区分跨组共享和每组重置状态。")
+                .practiceStrategy("标注变量生命周期并手推第二组。")
+                .studentBenefit("避免只在多组输入时出现状态串组。")
+                .teacherExplanation("要求学生说明每个初始化语句所在层级。")
+                .applicableLanguages("PYTHON\nCPP17")
+                .enabled(true)
+                .libraryVersion("informatics-discipline-quality-v2")
+                .build());
+
+        AiStandardLibraryDiagnosticLayerResponse layer = service.expandDiagnosticLayer(pointCode);
+
+        assertThat(layer.getSkillUnits())
+                .filteredOn(skill -> skillCode.equals(skill.getCode()))
+                .singleElement()
+                .satisfies(skill -> {
+                    assertThat(skill.getMistakePoints())
+                            .extracting(AiStandardLibraryDiagnosticLayerResponse.MistakePoint::getCode)
+                            .containsExactly(mistakeCode);
+                    assertThat(skill.getImprovementPoints())
+                            .singleElement()
+                            .satisfies(improvement -> {
+                                assertThat(improvement.getCode()).isEqualTo(improvementCode);
+                                assertThat(improvement.getPrimaryKnowledgeNodeCode()).isEqualTo(pointCode);
+                                assertThat(improvement.getRelatedMistakeCodes()).containsExactly(mistakeCode);
+                            });
+                });
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void resolvesParentSkillWhenMistakeUsesMorePrecisePrimaryKnowledgePoint() {
         String skillPrimaryCode = "BASIC.IO.MULTI_CASE.显式_T_组循环";
         String precisePointCode = "BASIC.IO.MULTI_CASE.周期等待参数";
