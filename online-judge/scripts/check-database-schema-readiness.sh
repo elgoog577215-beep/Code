@@ -30,7 +30,8 @@ BEGIN
     ('ai_standard_library_relations'), ('ai_standard_mistake_points'), ('ai_standard_skill_units'),
     ('assignment_invites'), ('assignment_tasks'), ('assignments'), ('class_groups'),
     ('class_review_feedback'), ('coach_prompts'), ('hint_safety_checks'),
-    ('informatics_knowledge_nodes'), ('problems'), ('student_ai_feedback_events'),
+    ('informatics_discipline_scope_mappings'), ('informatics_knowledge_nodes'),
+    ('problems'), ('student_ai_feedback_events'),
     ('student_ai_feedback_revisions'), ('student_ai_feedbacks'), ('student_profiles'),
     ('student_recommendation_events'), ('submission_analyses'), ('submission_case_results'),
     ('submission_diagnosis_facts'), ('submission_evidence_backfill_batches'),
@@ -51,6 +52,8 @@ BEGIN
   WITH expected(table_name, column_name) AS (VALUES
     ('problems', 'id'), ('problems', 'title'), ('test_cases', 'problem_id'),
     ('informatics_knowledge_nodes', 'code'),
+    ('informatics_discipline_scope_mappings', 'framework_code'),
+    ('informatics_discipline_scope_mappings', 'scope_code'),
     ('ai_standard_skill_units', 'primary_knowledge_node_code'),
     ('ai_standard_mistake_points', 'skill_unit_code'),
     ('ai_standard_improvement_points', 'skill_unit_code'),
@@ -71,7 +74,9 @@ DO $$
 DECLARE missing text;
 BEGIN
   WITH expected(name) AS (VALUES
-    ('uk_informatics_knowledge_node_code'), ('uk_ai_standard_skill_unit_code'),
+    ('uk_informatics_knowledge_node_code'), ('uk_discipline_scope_mapping'),
+    ('idx_discipline_scope_framework'), ('idx_discipline_scope_knowledge'),
+    ('uk_ai_standard_skill_unit_code'),
     ('uk_ai_standard_mistake_point_code'), ('uk_ai_standard_improvement_point_code'),
     ('idx_submissions_problem_submitted_at'), ('idx_ai_diagnosis_run_submission'),
     ('idx_issue_transition_student_point')

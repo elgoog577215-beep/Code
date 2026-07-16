@@ -54,12 +54,14 @@ run_app() {
     java -jar "${JAR}" --spring.main.web-application-type=none > "${log_file}" 2>&1
 }
 
-echo "[1/4] 验证空 PostgreSQL 执行 V1 并通过 Hibernate validate"
+echo "[1/4] 验证空 PostgreSQL 执行完整迁移链并通过 Hibernate validate"
 run_app onlinejudge false "${LOG_DIR}/empty-database.log"
 VERSION="$(docker exec "${NAME}" psql -U onlinejudge -d onlinejudge -Atc "select version from flyway_schema_history where success order by installed_rank desc limit 1")"
-[[ "${VERSION}" == "1" ]]
+[[ "${VERSION}" == "2" ]]
 TABLES="$(docker exec "${NAME}" psql -U onlinejudge -d onlinejudge -Atc "select count(*) from pg_tables where schemaname='public' and tablename <> 'flyway_schema_history'")"
-[[ "${TABLES}" == "31" ]]
+[[ "${TABLES}" == "32" ]]
+MAPPING_TABLE="$(docker exec "${NAME}" psql -U onlinejudge -d onlinejudge -Atc "select to_regclass('public.informatics_discipline_scope_mappings') is not null")"
+[[ "${MAPPING_TABLE}" == "t" ]]
 
 echo "[2/4] 验证重复启动不重复执行迁移"
 HISTORY_BEFORE="$(docker exec "${NAME}" psql -U onlinejudge -d onlinejudge -Atc 'select count(*) from flyway_schema_history')"
@@ -77,6 +79,8 @@ fi
 run_app legacy true "${LOG_DIR}/legacy-baseline.log"
 BASELINE_TYPE="$(docker exec "${NAME}" psql -U onlinejudge -d legacy -Atc "select type from flyway_schema_history where version='1' and success")"
 [[ "${BASELINE_TYPE}" == "BASELINE" ]]
+LEGACY_VERSION="$(docker exec "${NAME}" psql -U onlinejudge -d legacy -Atc "select version from flyway_schema_history where success order by installed_rank desc limit 1")"
+[[ "${LEGACY_VERSION}" == "2" ]]
 
 echo "[4/4] 验证 Schema 漂移阻止应用启动"
 docker exec "${NAME}" psql -v ON_ERROR_STOP=1 -U onlinejudge -d legacy -c 'alter table problems drop column title;' >/dev/null
@@ -86,4 +90,4 @@ if run_app legacy false "${LOG_DIR}/schema-drift.log"; then
 fi
 grep -Eq 'Schema-validation|missing column|title' "${LOG_DIR}/schema-drift.log"
 
-echo "PostgreSQL Flyway 集成验证 PASS：空库、幂等、显式基线、漂移阻断均通过。"
+echo "PostgreSQL Flyway 集成验证 PASS：V1-V2 空库、幂等、显式基线、漂移阻断均通过。"
