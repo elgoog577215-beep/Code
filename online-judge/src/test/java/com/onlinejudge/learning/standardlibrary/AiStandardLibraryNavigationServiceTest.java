@@ -215,6 +215,82 @@ class AiStandardLibraryNavigationServiceTest {
 
     @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void resolvesParentSkillWhenMistakeUsesMorePrecisePrimaryKnowledgePoint() {
+        String skillPrimaryCode = "BASIC.IO.MULTI_CASE.显式_T_组循环";
+        String precisePointCode = "BASIC.IO.MULTI_CASE.周期等待参数";
+        String skillCode = "SK_MULTI_CASE_CROSS_NODE_FIXTURE";
+        String mistakeCode = "MP_MULTI_CASE_CROSS_NODE_FIXTURE";
+        String improvementCode = "IP_MULTI_CASE_CROSS_NODE_FIXTURE";
+        knowledgeRepository.saveAndFlush(knowledgeNode(
+                precisePointCode,
+                "BASIC.IO.MULTI_CASE",
+                InformaticsKnowledgeNodeType.KNOWLEDGE_POINT,
+                "周期等待参数",
+                "基础语法 / 输入输出 / 多组数据 / 周期等待参数",
+                2));
+        skillUnitRepository.saveAndFlush(AiStandardSkillUnit.builder()
+                .code(skillCode)
+                .category("输入输出")
+                .name("跨知识点能力归属")
+                .description("能力点以主知识点组织，并允许错因挂到更精确的相关知识点。")
+                .learningGoal("在精确知识点下仍能找到所属能力点和错因。")
+                .primaryKnowledgeNodeCode(skillPrimaryCode)
+                .knowledgeNodeCodes(skillPrimaryCode + "\n" + precisePointCode)
+                .masteryLevel("MEDIUM")
+                .applicableLanguages("CPP17")
+                .enabled(true)
+                .libraryVersion("test-fixture")
+                .build());
+        mistakePointRepository.saveAndFlush(AiStandardMistakePoint.builder()
+                .code(mistakeCode)
+                .category("输入输出")
+                .name("精确知识点下的参数误用")
+                .description("错因使用更精确的主知识点，但仍属于上级能力点。")
+                .skillUnitCode(skillCode)
+                .mistakeType("PARAMETER_MISUSE")
+                .misconception("把两个不同语义的参数混为一谈。")
+                .symptom("边界样例的计算结果出现固定偏差。")
+                .repairStrategy("分别列出参数来源、单位和进入公式的位置。")
+                .severity("HIGH")
+                .primaryKnowledgeNodeCode(precisePointCode)
+                .knowledgeNodeCodes(precisePointCode)
+                .applicableLanguages("CPP17")
+                .enabled(true)
+                .libraryVersion("test-fixture")
+                .build());
+        improvementPointRepository.saveAndFlush(AiStandardImprovementPoint.builder()
+                .code(improvementCode)
+                .category("自测")
+                .name("参数语义对照表")
+                .description("用最小样例对照每个参数的来源、单位和作用。")
+                .skillUnitCode(skillCode)
+                .primaryKnowledgeNodeCode(precisePointCode)
+                .knowledgeNodeCodes(precisePointCode)
+                .improvementGoal("建立参数进入公式前的语义核对习惯。")
+                .practiceStrategy("先写参数表，再手推一个边界样例。")
+                .studentBenefit("能更早发现重复计入或参数串位。")
+                .enabled(true)
+                .libraryVersion("test-fixture")
+                .build());
+
+        AiStandardLibraryDiagnosticLayerResponse layer = service.expandDiagnosticLayer(precisePointCode);
+
+        assertThat(layer.getKnowledgePoint().isHasDiagnosticLayer()).isTrue();
+        assertThat(layer.getSkillUnits()).singleElement()
+                .satisfies(skill -> {
+                    assertThat(skill.getCode()).isEqualTo(skillCode);
+                    assertThat(skill.getPrimaryKnowledgeNodeCode()).isEqualTo(skillPrimaryCode);
+                    assertThat(skill.getMistakePoints())
+                            .extracting(AiStandardLibraryDiagnosticLayerResponse.MistakePoint::getCode)
+                            .containsExactly(mistakeCode);
+                    assertThat(skill.getImprovementPoints())
+                            .extracting(AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint::getCode)
+                            .containsExactly(improvementCode);
+                });
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void h2FixtureExpandsFromRootToNormalizedAnchorLayer() {
         String chapterCode = "BASIC.AI_QUALITY_FIXTURE";
         String pointCode = "BASIC.AI_QUALITY_FIXTURE.LAZY_RANGE";

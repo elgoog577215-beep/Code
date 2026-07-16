@@ -30,10 +30,12 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -224,12 +226,32 @@ public class AiStandardLibraryService {
             throw new IllegalArgumentException("诊断层只能展开到知识点: " + knowledgePointCode);
         }
         String code = knowledgePoint.getCode();
-        List<AiStandardSkillUnit> skills =
+        List<AiStandardSkillUnit> directSkills =
                 skillUnitRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
         List<AiStandardMistakePoint> mistakes =
                 mistakePointRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
         List<AiStandardImprovementPoint> improvements =
                 improvementPointRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
+
+        Set<String> referencedSkillCodes = new LinkedHashSet<>();
+        directSkills.stream()
+                .map(AiStandardSkillUnit::getCode)
+                .map(this::normalizeText)
+                .filter(skillCode -> !skillCode.isBlank())
+                .forEach(referencedSkillCodes::add);
+        mistakes.stream()
+                .map(AiStandardMistakePoint::getSkillUnitCode)
+                .map(this::normalizeText)
+                .filter(skillCode -> !skillCode.isBlank())
+                .forEach(referencedSkillCodes::add);
+        improvements.stream()
+                .map(AiStandardImprovementPoint::getSkillUnitCode)
+                .map(this::normalizeText)
+                .filter(skillCode -> !skillCode.isBlank())
+                .forEach(referencedSkillCodes::add);
+        List<AiStandardSkillUnit> skills = referencedSkillCodes.isEmpty()
+                ? List.of()
+                : skillUnitRepository.findByEnabledTrueAndCodeInOrderByCategoryAscCodeAsc(referencedSkillCodes);
 
         Map<String, List<AiStandardLibraryDiagnosticLayerResponse.MistakePoint>> mistakesBySkill = mistakes.stream()
                 .map(AiStandardLibraryDiagnosticLayerResponse.MistakePoint::from)
@@ -251,7 +273,10 @@ public class AiStandardLibraryService {
                         mistakesBySkill.getOrDefault(skill.getCode(), List.of()),
                         improvementsBySkill.getOrDefault(skill.getCode(), List.of())))
                 .toList();
-        List<String> skillCodes = skills.stream().map(AiStandardSkillUnit::getCode).toList();
+        Set<String> skillCodes = skills.stream()
+                .map(AiStandardSkillUnit::getCode)
+                .map(this::normalizeText)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         List<AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint> directImprovements = improvements.stream()
                 .filter(item -> normalizeText(item.getSkillUnitCode()).isBlank()
                         || !skillCodes.contains(normalizeText(item.getSkillUnitCode())))
