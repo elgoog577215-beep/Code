@@ -45,7 +45,7 @@ powershell -ExecutionPolicy Bypass -File scripts/start-school.ps1
 
 ### 生产发布
 
-生产服务器不得执行 `docker compose up --build`，也不应运行镜像构建脚本。先在外部构建并验证与服务器架构一致的镜像，再推送到镜像仓库或用 `docker save` / `docker load` 传入服务器。
+`main` 的 push 只更新 Git 历史，不再自动 SSH 到生产服务器、构建镜像或替换容器。日常生产发布不得执行 `docker compose up --build`，优先在外部构建并验证与服务器架构一致的镜像，再推送到镜像仓库或用 `docker save` / `docker load` 传入服务器。
 
 替换应用前必须：
 
@@ -69,6 +69,8 @@ powershell -ExecutionPolicy Bypass -File scripts/start-school.ps1
 若镜像不存在，启动脚本会直接失败并提示先构建或加载镜像，不会回退到服务器现场构建。生产发布不得使用 `docker system prune`、`docker volume prune` 或 `docker compose down -v`；PostgreSQL 的 `postgres-data` Volume 不参与应用镜像替换。
 
 新镜像上线后必须检查页面、readiness、判题和 AI smoke。若验证失败，重新指向保留的旧镜像并再次运行安全启动脚本，数据库 Volume 保持不变。
+
+仓库的 GitHub Actions `Deploy online judge manually` 只保留人工触发，作为尚未接入镜像仓库时的受控构建入口。它会把 `--confirm-build` 传给服务器脚本，服务器先运行独立构建脚本，再使用 `--no-build` 安全启动；只能在完成备份、资源检查并预留维护窗口后手动执行。普通 push 不会触发该工作流。
 
 启动后访问：
 

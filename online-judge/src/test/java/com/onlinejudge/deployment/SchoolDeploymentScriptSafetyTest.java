@@ -42,12 +42,36 @@ class SchoolDeploymentScriptSafetyTest {
     }
 
     @Test
+    void githubDeploymentRequiresManualDispatchAndExplicitBuildConfirmation() throws IOException {
+        String workflow = readRepoFile(".github", "workflows", "deploy-online-judge.yml");
+
+        assertThat(workflow).contains("workflow_dispatch:", "deploy-online-judge --confirm-build");
+        assertThat(workflow).doesNotContain("push:");
+    }
+
+    @Test
+    void serverDeploymentEntryUsesGuardedBuildAndSafeStartupScripts() throws IOException {
+        String deploy = read("deploy-online-judge.sh");
+
+        assertThat(deploy).contains(
+                "--confirm-build",
+                "git -C \"${REPO_ROOT}\" fetch origin main",
+                "bash scripts/build-school-images.sh --confirm-build",
+                "bash scripts/start-school.sh"
+        );
+        assertThat(deploy.indexOf("--confirm-build"))
+                .isLessThan(deploy.indexOf("git -C \"${REPO_ROOT}\" fetch origin main"));
+        assertThat(deploy).doesNotContain("docker compose up", "docker compose build");
+    }
+
+    @Test
     void deploymentScriptsNeverDeleteDockerVolumesOrBroadRuntimeState() throws IOException {
         for (String scriptName : List.of(
                 "start-school.sh",
                 "start-school.ps1",
                 "build-school-images.sh",
-                "build-school-images.ps1"
+                "build-school-images.ps1",
+                "deploy-online-judge.sh"
         )) {
             assertThat(read(scriptName))
                     .as(scriptName)
@@ -57,5 +81,13 @@ class SchoolDeploymentScriptSafetyTest {
 
     private String read(String scriptName) throws IOException {
         return Files.readString(SCRIPTS.resolve(scriptName));
+    }
+
+    private String readRepoFile(String... parts) throws IOException {
+        Path fromProject = Path.of("..").resolve(Path.of("", parts));
+        if (Files.exists(fromProject)) {
+            return Files.readString(fromProject);
+        }
+        return Files.readString(Path.of("", parts));
     }
 }

@@ -41,6 +41,8 @@ AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED=false
 
 ## 2. 启动
 
+推送或合并 `main` 不会自动部署到学校服务器。需要使用已经加载的镜像时，直接运行安全启动脚本；只有明确接受服务器受控构建成本并预留维护窗口时，才人工触发 GitHub Actions 的 `Deploy online judge manually`，不得把它恢复成 push 自动部署。
+
 ```bash
 bash scripts/start-school.sh
 ```
