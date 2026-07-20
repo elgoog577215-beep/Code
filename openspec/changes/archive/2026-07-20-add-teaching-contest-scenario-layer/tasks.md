@@ -21,6 +21,6 @@
 
 ## 4. 发布与收束
 
-- [ ] 4.1 显式提交任务文件、fetch 校验并推送到 origin/main
-- [ ] 4.2 备份生产 PostgreSQL 和应用镜像，安全发布 V7 并复核导航、业务计数、readiness 与 HTTP
-- [ ] 4.3 归档 OpenSpec、再次校验并推送归档提交
+- [x] 4.1 显式提交任务文件、fetch 校验并推送到 origin/main
+- [x] 4.2 备份生产 PostgreSQL 和应用镜像，安全发布 V7 并复核导航、业务计数、readiness 与 HTTP
+- [x] 4.3 归档 OpenSpec、再次校验并推送归档提交

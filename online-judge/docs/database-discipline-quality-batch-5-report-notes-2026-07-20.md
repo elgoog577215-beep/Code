@@ -77,7 +77,7 @@
 
 ## 隔离验证结果
 
-当前生产 V6 备份已通过 SHA-256 校验，并在本机隔离 PostgreSQL 16 恢复。V7 原始 SQL 连续执行两次后仍为：
+发布前生产 V6 备份已通过 SHA-256 校验，并在本机隔离 PostgreSQL 16 恢复。V7 原始 SQL 连续执行两次后仍为：
 
 | 指标 | V6 | V7 |
 |---|---:|---:|
@@ -89,6 +89,19 @@
 | 结构阻断指标 | 0 | 0 |
 
 题目 16、测试用例 45、提交 53、分析 34、诊断事实 85、学生反馈 53，迁移前后完全一致。真实 Flyway 从 V6 升到 V7 后，Hibernate schema validation 通过；空库 V1→V7、重复启动、显式基线和 Schema 漂移阻断通过；完整后端回归 660 个测试通过，失败和错误均为 0，跳过 9 个；OpenSpec 严格校验和全量 109 项校验通过。
+
+## 生产发布结果
+
+2026-07-20 已把提交 `e9b7763e` 安全发布到生产服务器：
+
+- 发布前备份 `backups/onlinejudge-20260720-190457.dump` 已做 SHA-256 校验，并保留回滚镜像 `wenzhong-oj-app:rollback-pre-v7-20260720-191339`。
+- 应用启动时真实执行 Flyway V6→V7，迁移和 Hibernate 校验通过；Schema readiness、内容 readiness 和全部学科质量阻断门禁通过。
+- 生产库为 138 条启用提升点，其中本批 17 条；34 条场景组成 17 个完整迁移对，正式能力无提升路径数从 17 降为 0，剩余 10 个全部是历史兼容能力。
+- 教师真实登录后展开 `ALGO.BINARY.ANSWER.check_函数`，`SK_BINARY_ANSWER_CHECK` 同时返回 `SC_DQ5_BINARY_ANSWER_CLASSROOM` 与 `SC_DQ5_BINARY_ANSWER_CONTEST`，并带完整来源、观察证据、提升点引用和成功标准。
+- 应用直连和 Nginx `code.tuotuzju.com` HTTP Host 路由均返回 200；readiness 没有阻断失败，只保留 `ai-smoke` 与成长 Agent 两个既有非阻断提醒。
+- 核心业务计数与发布前完全一致，没有因为迁移新增、删除或改写题目、测试、提交、分析、诊断事实和学生反馈。
+
+公网入口仍有一个既有基础设施缺口：外部 DNS 当前无法解析 `code.tuotuzju.com`，现有 TLS 证书也只覆盖根域和 `www`。这不影响本批应用、数据库和服务器内 Nginx 路由已经通过验收，但应在独立的域名与证书任务中修复，不能把它误记成数据库发布已解决。
 
 ## 证据边界
 

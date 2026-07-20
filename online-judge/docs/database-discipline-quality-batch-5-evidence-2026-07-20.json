@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-20T11:10:00Z",
+  "generatedAt": "2026-07-20T11:18:31Z",
   "change": "add-teaching-contest-scenario-layer",
   "baseline": {
     "database": "production PostgreSQL 16 V6 snapshot",
@@ -224,7 +224,55 @@
     "staticChecks": "git diff --check, shell syntax and docker compose config PASS"
   },
   "productionResult": {
-    "status": "PENDING_DEPLOYMENT"
+    "status": "DEPLOYED_VERIFIED",
+    "deployedAt": "2026-07-20T11:15:56Z",
+    "commit": "e9b7763e48606f56cc6a01ce11f5de870d13188d",
+    "flywayVersion": "7",
+    "databaseBackup": {
+      "path": "backups/onlinejudge-20260720-190457.dump",
+      "sha256": "69ec3cea2837b14cbfd5d1d55aaa2acfd4f063d1017d0b15ebe9decb185eaa80"
+    },
+    "rollbackImage": "wenzhong-oj-app:rollback-pre-v7-20260720-191339",
+    "applicationImageId": "sha256:158b52a9cad7676c31cec8425c00368a4f16e91947ca7d3fb56e1f8fee87aeb5",
+    "enabledImprovementPoints": 138,
+    "batchImprovementPoints": 17,
+    "enabledApplicationScenarios": 34,
+    "transferPairs": 17,
+    "formalSkillsWithoutImprovement": 0,
+    "compatibilitySkillsWithoutImprovement": 10,
+    "qualityGate": "PASS",
+    "schemaReadiness": "PASS",
+    "contentReadiness": "PASS",
+    "applicationHttp": 200,
+    "nginxHostRouteHttp": 200,
+    "readinessStatus": "DEGRADED",
+    "readinessBlockingFailures": 0,
+    "readinessNonBlockingWarnings": [
+      "ai-smoke",
+      "ai-standard-library-growth"
+    ],
+    "teacherDiagnosticNavigation": {
+      "status": "PASS",
+      "knowledgePoint": "ALGO.BINARY.ANSWER.check_函数",
+      "skillUnit": "SK_BINARY_ANSWER_CHECK",
+      "scenarioContexts": [
+        "CLASSROOM",
+        "CONTEST"
+      ],
+      "scenarioCodes": [
+        "SC_DQ5_BINARY_ANSWER_CLASSROOM",
+        "SC_DQ5_BINARY_ANSWER_CONTEST"
+      ]
+    },
+    "businessCountsUnchanged": {
+      "problems": 16,
+      "testCases": 45,
+      "submissions": 53,
+      "submissionAnalyses": 34,
+      "submissionDiagnosisFacts": 85,
+      "studentAiFeedbacks": 53
+    },
+    "existingIngressRisk": "Nginx 的 code.tuotuzju.com HTTP 虚拟主机已通过 Host 路由返回 200；外部 DNS 当前无法解析该子域，且现有 TLS 证书只覆盖 tuotuzju.com 与 www.tuotuzju.com。该基础设施缺口早于本批数据库变更，不影响应用、数据库和内网 Nginx 路由验收。"
   },
   "sources": [
     {
