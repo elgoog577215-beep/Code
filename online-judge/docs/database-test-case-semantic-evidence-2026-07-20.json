@@ -164,7 +164,7 @@
   },
   "verification": {
     "targetedBackendTests": "44 run, 0 failures, 0 errors",
-    "fullBackendTests": "662 run, 0 failures, 0 errors, 9 skipped",
+    "fullBackendTests": "663 run, 0 failures, 0 errors, 9 skipped",
     "postgresFlywayIntegration": "V1-V8 empty database, idempotent restart, explicit baseline and schema drift blocking PASS",
     "productionSnapshotMigration": "V7 snapshot migrated to V8 and Hibernate validate PASS",
     "semanticQualityGate": "PASS",
@@ -178,6 +178,52 @@
     "nextEvidenceNeeded": "后续需要真实新提交、教师校正和同题再提交行为，才能评价哪些测试意图真正提高了诊断与学习质量。"
   },
   "productionResult": {
-    "status": "PENDING_DEPLOYMENT"
+    "status": "DEPLOYED_VERIFIED",
+    "deployedAt": "2026-07-20T13:02:54Z",
+    "commit": "5be632c8f624835e2fcf2470fc5128d5b22ceb51",
+    "flywayVersion": "8",
+    "databaseBackup": {
+      "path": "backups/onlinejudge-20260720-205359.dump",
+      "createdAt": "2026-07-20T12:54:00Z",
+      "sha256": "7dee07930aea985e77d5bb08b07a7f1dc9ee301a364e89cceffbad5c50027cbf"
+    },
+    "isolatedRestoreRehearsal": {
+      "status": "PASS",
+      "businessTablesRead": 34,
+      "productionDatabaseOrVolumeMounted": false
+    },
+    "applicationImageId": "sha256:30c4594d6dc82a591822004f1af9c809c422703e46fcbff9f4c8306d742503f3",
+    "semanticProfiles": 45,
+    "mappedCaseResults": "60/60",
+    "semanticSnapshots": "60/60",
+    "intentTypes": 7,
+    "knowledgeNodesDirectlyCovered": 29,
+    "skillUnitsDirectlyCovered": 26,
+    "schemaReadiness": "PASS",
+    "disciplineQualityGate": "PASS",
+    "testCaseSemanticQualityGate": "PASS",
+    "canonicalPublicUrl": "https://tuotuzju.com/code/",
+    "canonicalPageHttp": 200,
+    "canonicalAssetHttp": 200,
+    "canonicalApiHttp": 200,
+    "canonicalSpaRouteHttp": 200,
+    "readinessStatus": "DEGRADED",
+    "readinessBlockingFailures": 0,
+    "readinessNonBlockingWarnings": [
+      "ai-smoke",
+      "ai-standard-library-growth"
+    ],
+    "businessCountsUnchanged": {
+      "problems": 16,
+      "testCases": 45,
+      "submissions": 53,
+      "submissionAnalyses": 34,
+      "submissionDiagnosisFacts": 85,
+      "studentAiFeedbacks": 53
+    },
+    "deploymentHardening": [
+      "恢复演练脚本改为把校验 SQL 真实传入隔离容器，防止只恢复不验表的假通过。",
+      "部署脚本改为先等待应用页面可用和 Flyway 完成，再执行数据库门禁，消除启动竞态。"
+    ]
   }
 }
