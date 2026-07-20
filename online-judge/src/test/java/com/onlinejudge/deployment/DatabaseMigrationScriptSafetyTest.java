@@ -64,6 +64,21 @@ class DatabaseMigrationScriptSafetyTest {
     }
 
     @Test
+    void productionDeployWaitsForApplicationMigrationBeforeDatabaseGates() throws IOException {
+        String script = read("deploy-online-judge.sh");
+
+        int applicationProbe = script.indexOf("\"http://127.0.0.1:${SERVER_PORT:-8081}/app/\"");
+        int schemaGate = script.indexOf("bash scripts/check-database-schema-readiness.sh");
+        int disciplineGate = script.indexOf("bash scripts/check-discipline-data-quality.sh");
+        int semanticGate = script.indexOf("bash scripts/check-test-case-semantic-quality.sh");
+
+        assertThat(applicationProbe).isGreaterThan(0);
+        assertThat(schemaGate).isGreaterThan(applicationProbe);
+        assertThat(disciplineGate).isGreaterThan(applicationProbe);
+        assertThat(semanticGate).isGreaterThan(applicationProbe);
+    }
+
+    @Test
     void schoolProfileUsesFlywayAndHibernateValidation() throws IOException {
         String application = Files.readString(Path.of("src/main/resources/application.yml"));
 
