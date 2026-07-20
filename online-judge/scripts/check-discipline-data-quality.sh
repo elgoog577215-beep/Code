@@ -495,6 +495,158 @@ raw_metrics(metric, severity, value, direction, target, definition) AS (
           'SK_READING_SAMPLE_CONSTRAINT_CROSSCHECK'
       )
     UNION ALL
+    SELECT 'discipline_v5_improvement_points', 'BLOCKER', count(*), 'MIN', 17,
+           '第五批为全部正式无路径能力新增的提升点数'
+    FROM ai_standard_improvement_points
+    WHERE enabled = true AND library_version = 'informatics-discipline-quality-v5'
+    UNION ALL
+    SELECT 'discipline_v5_improvement_invalid_content', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批提升点缺少目标、练习、学生收益、教师解释或关联错因的数量'
+    FROM ai_standard_improvement_points
+    WHERE enabled = true AND library_version = 'informatics-discipline-quality-v5'
+      AND (btrim(COALESCE(improvement_goal, '')) = ''
+        OR btrim(COALESCE(practice_strategy, '')) = ''
+        OR btrim(COALESCE(student_benefit, '')) = ''
+        OR btrim(COALESCE(teacher_explanation, '')) = ''
+        OR btrim(COALESCE(related_mistake_codes, '')) = '')
+    UNION ALL
+    SELECT 'discipline_v5_improvement_invalid_mistake_refs', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批提升点关联不存在、停用或归属其他能力的易错点引用数量'
+    FROM ai_standard_improvement_points i
+    CROSS JOIN LATERAL regexp_split_to_table(COALESCE(i.related_mistake_codes, ''), E'\n') ref
+    LEFT JOIN ai_standard_mistake_points m
+      ON m.code = btrim(ref) AND m.enabled = true AND m.skill_unit_code = i.skill_unit_code
+    WHERE i.enabled = true AND i.library_version = 'informatics-discipline-quality-v5'
+      AND btrim(ref) <> '' AND m.code IS NULL
+    UNION ALL
+    SELECT 'discipline_v5_snapshot_mismatch', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批规范提升点缺少同 code 启用快照或关键归属不一致的数量'
+    FROM ai_standard_improvement_points i
+    LEFT JOIN ai_standard_library_items item
+      ON item.layer = 'IMPROVEMENT_POINT' AND item.code = i.code
+    WHERE i.enabled = true AND i.library_version = 'informatics-discipline-quality-v5'
+      AND (item.id IS NULL OR item.enabled IS DISTINCT FROM true
+        OR item.skill_unit_code IS DISTINCT FROM i.skill_unit_code
+        OR item.primary_knowledge_node_code IS DISTINCT FROM i.primary_knowledge_node_code
+        OR item.related_items IS DISTINCT FROM i.related_mistake_codes)
+    UNION ALL
+    SELECT 'discipline_v5_legacy_mapping_mismatch', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批规范提升点缺少同 code MAPPED 兼容映射的数量'
+    FROM ai_standard_improvement_points i
+    LEFT JOIN ai_standard_library_legacy_mappings m
+      ON m.legacy_layer = 'IMPROVEMENT_POINT' AND m.legacy_code = i.code
+    WHERE i.enabled = true AND i.library_version = 'informatics-discipline-quality-v5'
+      AND (m.id IS NULL OR m.migration_status <> 'MAPPED'
+        OR m.target_type <> 'IMPROVEMENT_POINT' OR m.target_code <> i.code)
+    UNION ALL
+    SELECT 'discipline_v5_compatibility_skill_target', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批正式提升点错误关联兼容占位能力的数量'
+    FROM ai_standard_improvement_points i
+    JOIN ai_standard_skill_units s ON s.code = i.skill_unit_code
+    WHERE i.enabled = true AND i.library_version = 'informatics-discipline-quality-v5'
+      AND (s.code LIKE 'SK_COMPAT_%'
+        OR s.description LIKE '%用于兼容旧 AI 标准库标签%')
+    UNION ALL
+    SELECT 'discipline_v5_application_scenarios', 'BLOCKER', count(*), 'MIN', 34,
+           '第五批启用课堂—竞赛应用场景数'
+    FROM ai_standard_application_scenarios
+    WHERE enabled = true AND library_version = 'informatics-discipline-application-v1'
+    UNION ALL
+    SELECT 'discipline_v5_transfer_pairs', 'BLOCKER', count(DISTINCT transfer_pair_code), 'MIN', 17,
+           '第五批课堂—竞赛迁移对数'
+    FROM ai_standard_application_scenarios
+    WHERE enabled = true AND library_version = 'informatics-discipline-application-v1'
+    UNION ALL
+    SELECT 'discipline_v5_incomplete_transfer_pairs', 'BLOCKER', count(*), 'MAX', 0,
+           '缺少课堂端、竞赛端或跨越多个能力点的第五批迁移对数量'
+    FROM (
+        SELECT transfer_pair_code
+        FROM ai_standard_application_scenarios
+        WHERE enabled = true AND library_version = 'informatics-discipline-application-v1'
+        GROUP BY transfer_pair_code
+        HAVING count(*) <> 2
+           OR count(*) FILTER (WHERE context_type = 'CLASSROOM') <> 1
+           OR count(*) FILTER (WHERE context_type = 'CONTEST') <> 1
+           OR count(DISTINCT skill_unit_code) <> 1
+           OR count(DISTINCT knowledge_point_code) <> 1
+    ) invalid_pairs
+    UNION ALL
+    SELECT 'discipline_v5_scenario_invalid_parent', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批场景引用非知识点、停用能力、兼容能力或错误主锚点的数量'
+    FROM ai_standard_application_scenarios a
+    LEFT JOIN informatics_knowledge_nodes n
+      ON n.code = a.knowledge_point_code AND n.enabled = true AND n.type = 'KNOWLEDGE_POINT'
+    LEFT JOIN ai_standard_skill_units s
+      ON s.code = a.skill_unit_code AND s.enabled = true
+    WHERE a.enabled = true AND a.library_version = 'informatics-discipline-application-v1'
+      AND (n.code IS NULL OR s.code IS NULL OR s.code LIKE 'SK_COMPAT_%'
+        OR s.primary_knowledge_node_code IS DISTINCT FROM a.knowledge_point_code)
+    UNION ALL
+    SELECT 'discipline_v5_scenario_invalid_mistake_refs', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批场景关联不存在、停用或跨能力易错点的引用数量'
+    FROM ai_standard_application_scenarios a
+    CROSS JOIN LATERAL regexp_split_to_table(COALESCE(a.linked_mistake_codes, ''), E'\n') ref
+    LEFT JOIN ai_standard_mistake_points m
+      ON m.code = btrim(ref) AND m.enabled = true AND m.skill_unit_code = a.skill_unit_code
+    WHERE a.enabled = true AND a.library_version = 'informatics-discipline-application-v1'
+      AND btrim(ref) <> '' AND m.code IS NULL
+    UNION ALL
+    SELECT 'discipline_v5_scenario_invalid_improvement_refs', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批场景关联不存在、停用或跨能力提升点的引用数量'
+    FROM ai_standard_application_scenarios a
+    CROSS JOIN LATERAL regexp_split_to_table(COALESCE(a.linked_improvement_codes, ''), E'\n') ref
+    LEFT JOIN ai_standard_improvement_points i
+      ON i.code = btrim(ref) AND i.enabled = true AND i.skill_unit_code = a.skill_unit_code
+    WHERE a.enabled = true AND a.library_version = 'informatics-discipline-application-v1'
+      AND btrim(ref) <> '' AND i.code IS NULL
+    UNION ALL
+    SELECT 'discipline_v5_scenario_thin_content', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批场景缺少可观察任务、检查动作、约束或成功标准的数量'
+    FROM ai_standard_application_scenarios
+    WHERE enabled = true AND library_version = 'informatics-discipline-application-v1'
+      AND (length(btrim(task_context)) < 30
+        OR length(btrim(student_task)) < 30
+        OR length(btrim(observable_evidence)) < 30
+        OR length(btrim(common_failure)) < 20
+        OR length(btrim(teacher_move)) < 25
+        OR length(btrim(student_check)) < 20
+        OR length(btrim(constraint_profile)) < 25
+        OR length(btrim(success_criteria)) < 25
+        OR length(btrim(transfer_note)) < 25
+        OR task_context LIKE '%待补%'
+        OR teacher_move LIKE '%加强练习%'
+        OR success_criteria LIKE '%待定%')
+    UNION ALL
+    SELECT 'discipline_v5_scenario_source_mismatch', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批课堂或竞赛场景来源框架、链接或审校状态不一致的数量'
+    FROM ai_standard_application_scenarios
+    WHERE enabled = true AND library_version = 'informatics-discipline-application-v1'
+      AND ((context_type = 'CLASSROOM'
+            AND (source_framework <> 'MOE_HIGH_SCHOOL_IT_2020'
+              OR source_reference NOT LIKE 'https://jyj.changdu.gov.cn/%'))
+        OR (context_type = 'CONTEST'
+            AND (source_framework <> 'CCF_NOI_2025'
+              OR source_reference <> 'https://www.noi.cn/upload/resources/file/2025/04/18/NOI_Syllabus_Edition_2025.pdf'))
+        OR review_status <> 'INFERRED_REVIEWED')
+    UNION ALL
+    SELECT 'formal_skills_without_improvement_v5', 'BLOCKER', count(*), 'MAX', 0,
+           '第五批发布后仍无提升路径的正式非兼容能力点数'
+    FROM ai_standard_skill_units s
+    WHERE s.enabled = true AND s.code NOT LIKE 'SK_COMPAT_%'
+      AND NOT EXISTS (
+          SELECT 1 FROM ai_standard_improvement_points i
+          WHERE i.enabled = true AND i.skill_unit_code = s.code
+      )
+    UNION ALL
+    SELECT 'skills_without_improvement_batch_5_limit', 'BLOCKER', count(*), 'MAX', 10,
+           '第五批发布后缺少提升点能力只允许保留历史兼容能力'
+    FROM ai_standard_skill_units s
+    WHERE s.enabled = true
+      AND NOT EXISTS (
+          SELECT 1 FROM ai_standard_improvement_points i
+          WHERE i.enabled = true AND i.skill_unit_code = s.code
+      )
+    UNION ALL
     SELECT 'template_knowledge_descriptions_batch_4_limit', 'BLOCKER', count(*), 'MAX', 454,
            '第四批发布后模板化知识点描述的允许上限'
     FROM informatics_knowledge_nodes

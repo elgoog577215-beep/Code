@@ -4,6 +4,7 @@ import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
 import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
 import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardApplicationScenario;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardImprovementPoint;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardMistakePoint;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardSkillUnit;
@@ -11,6 +12,7 @@ import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryDiagnosticL
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationExpansionResponse;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardApplicationScenarioRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +55,9 @@ class AiStandardLibraryNavigationServiceTest {
 
     @Autowired
     AiStandardImprovementPointRepository improvementPointRepository;
+
+    @Autowired
+    AiStandardApplicationScenarioRepository applicationScenarioRepository;
 
     @BeforeEach
     void seedMinimalNavigationLibrary() {
@@ -147,6 +152,30 @@ class AiStandardLibraryNavigationServiceTest {
                     .libraryVersion("test-fixture")
                     .build());
         }
+        if (applicationScenarioRepository.findByCode("SC_MULTI_CASE_CLASSROOM_FIXTURE").isEmpty()) {
+            applicationScenarioRepository.saveAllAndFlush(List.of(
+                    applicationScenario(
+                            "SC_MULTI_CASE_CLASSROOM_FIXTURE",
+                            "CLASSROOM",
+                            "GUIDED_PRACTICE",
+                            "课堂：多组输入读取轨迹",
+                            skillCode,
+                            pointCode,
+                            "MP_MULTI_CASE_MISSING_LOOP_FIXTURE",
+                            "IP_MULTI_CASE_TRACE_FIXTURE",
+                            10),
+                    applicationScenario(
+                            "SC_MULTI_CASE_CONTEST_FIXTURE",
+                            "CONTEST",
+                            "PROBLEM_READING",
+                            "竞赛：多组输入结构核对",
+                            skillCode,
+                            pointCode,
+                            "MP_MULTI_CASE_MISSING_LOOP_FIXTURE",
+                            "IP_MULTI_CASE_TRACE_FIXTURE",
+                            20)
+            ));
+        }
     }
 
     @Test
@@ -211,6 +240,25 @@ class AiStandardLibraryNavigationServiceTest {
                 });
         assertThat(layer.getSkillUnits())
                 .anySatisfy(skill -> assertThat(skill.getMistakePoints()).isNotEmpty());
+        assertThat(layer.getSkillUnits())
+                .filteredOn(skill -> "SK_MULTI_CASE_LOOP_FIXTURE".equals(skill.getCode()))
+                .singleElement()
+                .satisfies(skill -> {
+                    assertThat(skill.getApplicationScenarios())
+                            .extracting(AiStandardLibraryDiagnosticLayerResponse.ApplicationScenario::getContextType)
+                            .containsExactly("CLASSROOM", "CONTEST");
+                    assertThat(skill.getApplicationScenarios())
+                            .allSatisfy(scenario -> {
+                                assertThat(scenario.getTransferPairCode())
+                                        .isEqualTo("PAIR_MULTI_CASE_FIXTURE");
+                                assertThat(scenario.getObservableEvidence()).isNotBlank();
+                                assertThat(scenario.getSuccessCriteria()).isNotBlank();
+                                assertThat(scenario.getLinkedMistakeCodes())
+                                        .containsExactly("MP_MULTI_CASE_MISSING_LOOP_FIXTURE");
+                                assertThat(scenario.getLinkedImprovementCodes())
+                                        .containsExactly("IP_MULTI_CASE_TRACE_FIXTURE");
+                            });
+                });
     }
 
     @Test
@@ -702,6 +750,48 @@ class AiStandardLibraryNavigationServiceTest {
                 .description(name)
                 .path(path)
                 .sortOrder(hasChildren ? -20 : -19)
+                .enabled(true)
+                .libraryVersion("test-fixture")
+                .build();
+    }
+
+    private AiStandardApplicationScenario applicationScenario(
+            String code,
+            String contextType,
+            String learningPhase,
+            String title,
+            String skillCode,
+            String knowledgePointCode,
+            String mistakeCode,
+            String improvementCode,
+            int sortOrder) {
+        return AiStandardApplicationScenario.builder()
+                .code(code)
+                .transferPairCode("PAIR_MULTI_CASE_FIXTURE")
+                .contextType(contextType)
+                .learningPhase(learningPhase)
+                .title(title)
+                .knowledgePointCode(knowledgePointCode)
+                .skillUnitCode(skillCode)
+                .linkedMistakeCodes(mistakeCode)
+                .linkedImprovementCodes(improvementCode)
+                .taskContext("读取两组结构不同但字段合同相同的输入，检查循环是否完整消费每一组。")
+                .studentTask("画出读取游标并逐项标注每次循环消费的字段，再运行两组输入。")
+                .observableEvidence("两组数据都产生对应输出，第二组读取起点与第一组结束位置连续且无状态串组。")
+                .commonFailure("只处理第一组，或第二组继续使用第一组的临时状态。")
+                .teacherMove("让学生指出第二组第一个 token 在代码中的读取位置并手推状态重置。")
+                .studentCheck("把第二组改成最小边界后，循环次数和输出条数是否仍一致。")
+                .constraintProfile("课堂使用两组最小输入；竞赛使用 T 组并包含每组边界与状态重置。")
+                .successCriteria("输出条数等于 T，每组读取字段数符合题面且临时状态按组重置。")
+                .transferNote("从课堂读取轨迹迁移到竞赛多测试用例，只增加组数，不改变每组输入合同。")
+                .difficultyLevel("FOUNDATION")
+                .applicableLanguages("PYTHON\nCPP17")
+                .sourceFramework(contextType.equals("CLASSROOM")
+                        ? "MOE_HIGH_SCHOOL_IT_2020"
+                        : "CCF_NOI_2025")
+                .sourceReference("https://example.test/official-standard")
+                .reviewStatus("INFERRED_REVIEWED")
+                .sortOrder(sortOrder)
                 .enabled(true)
                 .libraryVersion("test-fixture")
                 .build();

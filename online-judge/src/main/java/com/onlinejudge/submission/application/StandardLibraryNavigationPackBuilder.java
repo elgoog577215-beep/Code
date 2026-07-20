@@ -4,9 +4,11 @@ import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
 import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardApplicationScenario;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -14,9 +16,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class StandardLibraryNavigationPackBuilder {
 
     private final AiStandardLibraryService standardLibraryService;
@@ -91,17 +95,31 @@ public class StandardLibraryNavigationPackBuilder {
                 .filter(anchor -> anchor != null)
                 .limit(12)
                 .toList();
+        LinkedHashSet<String> selectedSkillCodes = new LinkedHashSet<>();
+        items.stream()
+                .filter(item -> item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT)
+                .map(AiStandardLibraryItem::getCode)
+                .forEach(code -> add(selectedSkillCodes, code));
+        items.stream()
+                .map(AiStandardLibraryItem::getSkillUnitCode)
+                .forEach(code -> add(selectedSkillCodes, code));
+        List<StandardLibraryPack.ApplicationScenarioOption> applicationScenarios =
+                relevantApplicationScenarios(selectedSkillCodes, knowledgeIds).stream()
+                        .map(this::toApplicationScenario)
+                        .toList();
 
         return StandardLibraryPack.builder()
                 .schemaVersion(StandardLibraryPack.SCHEMA_VERSION)
                 .taxonomyVersion(DiagnosisTaxonomy.TAXONOMY_VERSION)
                 .structureVersion(StandardLibraryPack.STRUCTURE_VERSION)
-                .knowledgeGroups(buildKnowledgeGroups(items, skillUnits, mistakePoints, improvementPoints))
+                .knowledgeGroups(buildKnowledgeGroups(
+                        items, skillUnits, mistakePoints, improvementPoints, applicationScenarios))
                 .basicCauses(basicCauses)
                 .improvementPoints(improvementPoints)
                 .knowledgeAnchors(anchors)
                 .skillUnits(skillUnits)
                 .mistakePoints(mistakePoints)
+                .applicationScenarios(applicationScenarios)
                 .standardLibraryNavigationSummary(StandardLibraryPack.StandardLibraryNavigationSummary.builder()
                         .status(firstNonBlank(status, "LOCAL_RECALL"))
                         .failureReason("")
@@ -128,7 +146,8 @@ public class StandardLibraryNavigationPackBuilder {
             List<AiStandardLibraryItem> selectedItems,
             List<StandardLibraryPack.SkillUnitOption> skillUnits,
             List<StandardLibraryPack.MistakePointOption> mistakePoints,
-            List<StandardLibraryPack.ImprovementPointOption> improvementPoints) {
+            List<StandardLibraryPack.ImprovementPointOption> improvementPoints,
+            List<StandardLibraryPack.ApplicationScenarioOption> applicationScenarios) {
         LinkedHashMap<String, List<AiStandardLibraryItem>> byKnowledge = new LinkedHashMap<>();
         for (AiStandardLibraryItem item : selectedItems) {
             String code = firstNonBlank(primaryKnowledgeCode(item), firstNonBlank(item.getCategory(), "UNMAPPED"));
@@ -136,7 +155,9 @@ public class StandardLibraryNavigationPackBuilder {
         }
         return byKnowledge.entrySet().stream()
                 .limit(10)
-                .map(entry -> toKnowledgeGroup(entry.getKey(), entry.getValue(), skillUnits, mistakePoints, improvementPoints))
+                .map(entry -> toKnowledgeGroup(
+                        entry.getKey(), entry.getValue(), skillUnits, mistakePoints,
+                        improvementPoints, applicationScenarios))
                 .toList();
     }
 
@@ -145,7 +166,8 @@ public class StandardLibraryNavigationPackBuilder {
             List<AiStandardLibraryItem> items,
             List<StandardLibraryPack.SkillUnitOption> allSkills,
             List<StandardLibraryPack.MistakePointOption> allMistakes,
-            List<StandardLibraryPack.ImprovementPointOption> allImprovements) {
+            List<StandardLibraryPack.ImprovementPointOption> allImprovements,
+            List<StandardLibraryPack.ApplicationScenarioOption> allScenarios) {
         LinkedHashSet<String> skillIds = new LinkedHashSet<>();
         for (AiStandardLibraryItem item : items) {
             if (item.getLayer() == AiStandardLibraryLayer.SKILL_UNIT) {
@@ -154,7 +176,8 @@ public class StandardLibraryNavigationPackBuilder {
             add(skillIds, item.getSkillUnitCode());
         }
         List<StandardLibraryPack.SkillUnitGroupOption> skillGroups = skillIds.stream()
-                .map(skillId -> toSkillGroup(skillId, allSkills, allMistakes, allImprovements))
+                .map(skillId -> toSkillGroup(
+                        skillId, allSkills, allMistakes, allImprovements, allScenarios))
                 .filter(group -> group.getSkillUnit() != null
                         || !safe(group.getMistakePoints()).isEmpty()
                         || !safe(group.getImprovementPoints()).isEmpty())
@@ -175,7 +198,8 @@ public class StandardLibraryNavigationPackBuilder {
             String skillId,
             List<StandardLibraryPack.SkillUnitOption> allSkills,
             List<StandardLibraryPack.MistakePointOption> allMistakes,
-            List<StandardLibraryPack.ImprovementPointOption> allImprovements) {
+            List<StandardLibraryPack.ImprovementPointOption> allImprovements,
+            List<StandardLibraryPack.ApplicationScenarioOption> allScenarios) {
         StandardLibraryPack.SkillUnitOption skill = allSkills.stream()
                 .filter(item -> skillId.equals(item.getId()))
                 .findFirst()
@@ -188,6 +212,10 @@ public class StandardLibraryNavigationPackBuilder {
                 .filter(item -> skillId.equals(item.getAbilityPoint()))
                 .limit(5)
                 .toList();
+        List<StandardLibraryPack.ApplicationScenarioOption> scenarios = allScenarios.stream()
+                .filter(item -> skillId.equals(item.getSkillUnitCode()))
+                .limit(2)
+                .toList();
         LinkedHashSet<String> candidateIds = new LinkedHashSet<>();
         if (skill != null) {
             candidateIds.add(skill.getId());
@@ -198,7 +226,51 @@ public class StandardLibraryNavigationPackBuilder {
                 .skillUnit(skill)
                 .mistakePoints(mistakes)
                 .improvementPoints(improvements)
+                .applicationScenarios(scenarios)
                 .candidateIds(candidateIds.stream().toList())
+                .build();
+    }
+
+    private List<AiStandardApplicationScenario> relevantApplicationScenarios(
+            Set<String> skillCodes,
+            Set<String> knowledgeCodes) {
+        try {
+            return standardLibraryService.findRelevantApplicationScenarios(
+                    skillCodes, knowledgeCodes, 12).stream()
+                    .limit(12)
+                    .toList();
+        } catch (RuntimeException exception) {
+            log.warn("Application scenarios unavailable; continuing with the selected standard library items: {}",
+                    exception.getMessage());
+            return List.of();
+        }
+    }
+
+    private StandardLibraryPack.ApplicationScenarioOption toApplicationScenario(
+            AiStandardApplicationScenario item) {
+        return StandardLibraryPack.ApplicationScenarioOption.builder()
+                .id(item.getCode())
+                .transferPairCode(item.getTransferPairCode())
+                .contextType(item.getContextType())
+                .learningPhase(item.getLearningPhase())
+                .title(item.getTitle())
+                .knowledgePointCode(item.getKnowledgePointCode())
+                .skillUnitCode(item.getSkillUnitCode())
+                .linkedMistakeCodes(lines(item.getLinkedMistakeCodes()))
+                .linkedImprovementCodes(lines(item.getLinkedImprovementCodes()))
+                .taskContext(item.getTaskContext())
+                .studentTask(item.getStudentTask())
+                .observableEvidence(item.getObservableEvidence())
+                .commonFailure(item.getCommonFailure())
+                .teacherMove(item.getTeacherMove())
+                .studentCheck(item.getStudentCheck())
+                .constraintProfile(item.getConstraintProfile())
+                .successCriteria(item.getSuccessCriteria())
+                .transferNote(item.getTransferNote())
+                .difficultyLevel(item.getDifficultyLevel())
+                .applicableLanguages(lines(item.getApplicableLanguages()))
+                .sourceFramework(item.getSourceFramework())
+                .reviewStatus(item.getReviewStatus())
                 .build();
     }
 

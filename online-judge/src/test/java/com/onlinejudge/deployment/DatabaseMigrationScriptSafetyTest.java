@@ -146,8 +146,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("library_fit_invalid")
                 .contains("post_v5_fact_rows");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"6\" ]]")
-                .contains("V1-V6");
+                .contains("[[ \"${VERSION}\" == \"7\" ]]")
+                .contains("V1-V7");
     }
 
     @Test
@@ -183,6 +183,43 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("discipline_v4_legacy_mapping_mismatch")
                 .contains("template_knowledge_descriptions_batch_4_limit")
                 .contains("skills_without_improvement_batch_4_limit");
+    }
+
+    @Test
+    void disciplineBatchFiveAddsPairedTeachingContestScenariosAndFormalSkillClosure() throws IOException {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V7__add_teaching_contest_application_scenarios.sql"));
+        String qualityGate = read("check-discipline-data-quality.sh");
+        String schemaReadiness = read("check-database-schema-readiness.sh");
+
+        assertThat(migration)
+                .contains("CREATE TABLE IF NOT EXISTS public.ai_standard_application_scenarios")
+                .contains("uk_ai_standard_application_scenario_pair_context")
+                .contains("discipline_quality_v5_improvements")
+                .contains("discipline_quality_v5_scenarios")
+                .contains("expected exactly 17 normalized improvement points")
+                .contains("expected exactly 34 application scenarios")
+                .contains("expected exactly 17 teaching-contest transfer pairs")
+                .contains("one classroom and one contest context")
+                .contains("every formal non-compatibility skill to have an improvement path")
+                .contains("s.code NOT LIKE 'SK_COMPAT_%'")
+                .contains("INSERT INTO public.ai_standard_improvement_points")
+                .contains("INSERT INTO public.ai_standard_library_items")
+                .contains("INSERT INTO public.ai_standard_library_legacy_mappings")
+                .doesNotContain("DELETE FROM", "TRUNCATE TABLE", "DROP TABLE public");
+        assertThat(qualityGate)
+                .contains("discipline_v5_improvement_points")
+                .contains("discipline_v5_application_scenarios")
+                .contains("discipline_v5_incomplete_transfer_pairs")
+                .contains("discipline_v5_scenario_invalid_mistake_refs")
+                .contains("discipline_v5_scenario_invalid_improvement_refs")
+                .contains("discipline_v5_scenario_thin_content")
+                .contains("formal_skills_without_improvement_v5")
+                .contains("skills_without_improvement_batch_5_limit");
+        assertThat(schemaReadiness)
+                .contains("ai_standard_application_scenarios")
+                .contains("uk_ai_standard_application_scenario_pair_context")
+                .contains("idx_ai_standard_application_scenario_skill");
     }
 
     private String read(String name) throws IOException {

@@ -1691,6 +1691,7 @@ public class AiReportService {
                 .knowledgeAnchors(List.of())
                 .skillUnits(List.of())
                 .mistakePoints(List.of())
+                .applicationScenarios(List.of())
                 .standardLibraryNavigationSummary(StandardLibraryPack.StandardLibraryNavigationSummary.builder()
                         .status(status)
                         .failureReason(defaultIfBlank(failureReason, ""))

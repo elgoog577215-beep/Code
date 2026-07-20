@@ -3,6 +3,7 @@ package com.onlinejudge.learning.standardlibrary.application;
 import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
 import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
 import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardApplicationScenario;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidateStatus;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
@@ -15,6 +16,7 @@ import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRespons
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationExpansionResponse;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardApplicationScenarioRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryGrowthCandidateRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
@@ -47,6 +49,7 @@ public class AiStandardLibraryService {
     private final AiStandardSkillUnitRepository skillUnitRepository;
     private final AiStandardMistakePointRepository mistakePointRepository;
     private final AiStandardImprovementPointRepository improvementPointRepository;
+    private final AiStandardApplicationScenarioRepository applicationScenarioRepository;
     private final InformaticsKnowledgeNodeRepository knowledgeRepository;
     private final AiStandardLibraryGrowthCandidateRepository growthCandidateRepository;
 
@@ -232,6 +235,9 @@ public class AiStandardLibraryService {
                 mistakePointRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
         List<AiStandardImprovementPoint> improvements =
                 improvementPointRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
+        List<AiStandardApplicationScenario> applicationScenarios =
+                applicationScenarioRepository
+                        .findByEnabledTrueAndKnowledgePointCodeOrderBySortOrderAscCodeAsc(code);
 
         Set<String> referencedSkillCodes = new LinkedHashSet<>();
         directSkills.stream()
@@ -267,11 +273,19 @@ public class AiStandardLibraryService {
                                 item -> normalizeText(item.getSkillUnitCode()),
                                 LinkedHashMap::new,
                                 Collectors.toList()));
+        Map<String, List<AiStandardLibraryDiagnosticLayerResponse.ApplicationScenario>> scenariosBySkill =
+                applicationScenarios.stream()
+                        .map(AiStandardLibraryDiagnosticLayerResponse.ApplicationScenario::from)
+                        .collect(Collectors.groupingBy(
+                                item -> normalizeText(item.getSkillUnitCode()),
+                                LinkedHashMap::new,
+                                Collectors.toList()));
         List<AiStandardLibraryDiagnosticLayerResponse.SkillUnit> skillUnits = skills.stream()
                 .map(skill -> AiStandardLibraryDiagnosticLayerResponse.SkillUnit.from(
                         skill,
                         mistakesBySkill.getOrDefault(skill.getCode(), List.of()),
-                        improvementsBySkill.getOrDefault(skill.getCode(), List.of())))
+                        improvementsBySkill.getOrDefault(skill.getCode(), List.of()),
+                        scenariosBySkill.getOrDefault(skill.getCode(), List.of())))
                 .toList();
         Set<String> skillCodes = skills.stream()
                 .map(AiStandardSkillUnit::getCode)
@@ -309,6 +323,47 @@ public class AiStandardLibraryService {
                 .directImprovementPoints(directImprovements)
                 .provisionalCandidates(provisionalCandidates)
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AiStandardApplicationScenario> findRelevantApplicationScenarios(
+            Set<String> skillUnitCodes,
+            Set<String> knowledgePointCodes,
+            int limit) {
+        LinkedHashMap<String, AiStandardApplicationScenario> scenarios = new LinkedHashMap<>();
+        Set<String> normalizedSkills = safeCodes(skillUnitCodes);
+        Set<String> normalizedKnowledge = safeCodes(knowledgePointCodes);
+        if (!normalizedSkills.isEmpty()) {
+            applicationScenarioRepository
+                    .findByEnabledTrueAndSkillUnitCodeInOrderBySortOrderAscCodeAsc(normalizedSkills)
+                    .forEach(item -> scenarios.putIfAbsent(item.getCode(), item));
+        } else if (!normalizedKnowledge.isEmpty()) {
+            applicationScenarioRepository
+                    .findByEnabledTrueAndKnowledgePointCodeInOrderBySortOrderAscCodeAsc(normalizedKnowledge)
+                    .forEach(item -> scenarios.putIfAbsent(item.getCode(), item));
+        }
+        int boundedLimit = Math.max(0, Math.min(limit, 12));
+        if (boundedLimit == 0) {
+            return List.of();
+        }
+        return scenarios.values().stream()
+                .sorted(Comparator
+                        .comparing(AiStandardApplicationScenario::getSkillUnitCode)
+                        .thenComparing(AiStandardApplicationScenario::getTransferPairCode)
+                        .thenComparingInt(AiStandardApplicationScenario::getSortOrder)
+                        .thenComparing(AiStandardApplicationScenario::getCode))
+                .limit(boundedLimit)
+                .toList();
+    }
+
+    private Set<String> safeCodes(Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return Set.of();
+        }
+        return codes.stream()
+                .map(this::normalizeText)
+                .filter(code -> !code.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private List<String> splitDotPath(String value) {

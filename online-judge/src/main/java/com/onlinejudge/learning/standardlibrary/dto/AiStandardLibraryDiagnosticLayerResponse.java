@@ -1,5 +1,6 @@
 package com.onlinejudge.learning.standardlibrary.dto;
 
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardApplicationScenario;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardImprovementPoint;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardMistakePoint;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardSkillUnit;
@@ -42,10 +43,12 @@ public class AiStandardLibraryDiagnosticLayerResponse {
         private List<String> knowledgeNodeCodes;
         private List<MistakePoint> mistakePoints;
         private List<ImprovementPoint> improvementPoints;
+        private List<ApplicationScenario> applicationScenarios;
 
         public static SkillUnit from(AiStandardSkillUnit item,
                                      List<MistakePoint> mistakePoints,
-                                     List<ImprovementPoint> improvementPoints) {
+                                     List<ImprovementPoint> improvementPoints,
+                                     List<ApplicationScenario> applicationScenarios) {
             return SkillUnit.builder()
                     .code(item.getCode())
                     .category(item.getCategory())
@@ -56,6 +59,63 @@ public class AiStandardLibraryDiagnosticLayerResponse {
                     .knowledgeNodeCodes(lines(item.getKnowledgeNodeCodes()))
                     .mistakePoints(mistakePoints)
                     .improvementPoints(improvementPoints)
+                    .applicationScenarios(applicationScenarios)
+                    .build();
+        }
+    }
+
+    @Data
+    @Builder
+    public static class ApplicationScenario {
+        private String code;
+        private String transferPairCode;
+        private String contextType;
+        private String learningPhase;
+        private String title;
+        private String knowledgePointCode;
+        private String skillUnitCode;
+        private List<String> linkedMistakeCodes;
+        private List<String> linkedImprovementCodes;
+        private String taskContext;
+        private String studentTask;
+        private String observableEvidence;
+        private String commonFailure;
+        private String teacherMove;
+        private String studentCheck;
+        private String constraintProfile;
+        private String successCriteria;
+        private String transferNote;
+        private String difficultyLevel;
+        private List<String> applicableLanguages;
+        private String sourceFramework;
+        private String sourceReference;
+        private String reviewStatus;
+
+        public static ApplicationScenario from(AiStandardApplicationScenario item) {
+            return ApplicationScenario.builder()
+                    .code(item.getCode())
+                    .transferPairCode(item.getTransferPairCode())
+                    .contextType(item.getContextType())
+                    .learningPhase(item.getLearningPhase())
+                    .title(item.getTitle())
+                    .knowledgePointCode(item.getKnowledgePointCode())
+                    .skillUnitCode(item.getSkillUnitCode())
+                    .linkedMistakeCodes(lines(item.getLinkedMistakeCodes()))
+                    .linkedImprovementCodes(lines(item.getLinkedImprovementCodes()))
+                    .taskContext(item.getTaskContext())
+                    .studentTask(item.getStudentTask())
+                    .observableEvidence(item.getObservableEvidence())
+                    .commonFailure(item.getCommonFailure())
+                    .teacherMove(item.getTeacherMove())
+                    .studentCheck(item.getStudentCheck())
+                    .constraintProfile(item.getConstraintProfile())
+                    .successCriteria(item.getSuccessCriteria())
+                    .transferNote(item.getTransferNote())
+                    .difficultyLevel(item.getDifficultyLevel())
+                    .applicableLanguages(lines(item.getApplicableLanguages()))
+                    .sourceFramework(item.getSourceFramework())
+                    .sourceReference(item.getSourceReference())
+                    .reviewStatus(item.getReviewStatus())
                     .build();
         }
     }

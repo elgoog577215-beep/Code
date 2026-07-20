@@ -240,6 +240,7 @@ public class PromptTemplateRegistry {
                 All user-facing strings MUST be Simplified Chinese.
                 Do not provide complete code, final answers, hidden test data, replacement loop headers, transition formulas, executable control structures, or a step-by-step full solution.
                 When standardLibrary.knowledgeGroups is present, treat it as the main structure: knowledge point -> skill unit -> mistake point / improvement point.
+                applicationScenarios under a skill unit are paired classroom/contest contexts for observable checks and transfer. They are not legal diagnosis ids or submission evidence.
                 Do not treat the knowledge tree and standard library as two parallel libraries; skill units are diagnostic children under knowledge points.
                 The flat standardLibrary.basicCauses, improvementPoints, skillUnits, and mistakePoints lists are compatibility lists for legal ids.
                 Treat standardLibrary as a teaching reference pack for curriculum-aligned naming and granularity, not as a forced answer sheet.
@@ -304,6 +305,7 @@ public class PromptTemplateRegistry {
                 7. skillUnitId MUST come from standardLibrary.skillUnits or be null when no precise skill unit exists.
                 8. improvementPointId MUST come from standardLibrary.improvementPoints or be null when no precise improvement point exists.
                 9. Prefer selected fine-grained IDs from standardLibrary.mistakePoints, skillUnits, and improvementPoints when they match the evidence.
+                9a. Use a relevant applicationScenario to make studentAction/checkQuestion observable or to make improvement advice constraint-aware. If a scenario conflicts with the current code or judge facts, ignore the scenario and follow the current evidence.
                 10. If verdict is not ACCEPTED, basicLayerAdvice MUST contain the evidence-backed blocking issues that actually exist; usually at least one item, but never invent or merge issues to satisfy a fixed count.
                 11. nextStepPlan[0] MUST be exactly one small observable action for the student. Do not pack multiple numbered actions into one field.
                 12. All confidence values MUST be between 0 and 1.
@@ -362,10 +364,12 @@ public class PromptTemplateRegistry {
                 - submission.sourceCodeWithLineNumbers 是完整学生代码或带截断标记的最大可用代码；必须先整体理解代码策略，再定位关键行。
                 - submission.verdict、visibleCaseFacts、runtimeErrorMessage、compileOutput 和 evidenceRefs 是判题参考信号，用来验证诊断，不是替你下结论的模板。
                 - standardLibrary.knowledgeGroups 是统一知识树下的诊断层；它给出相关知识点路径、能力点、易错点和提升点，不是无关全库倾倒。
+                - standardLibrary.applicationScenarios 及能力点下的 applicationScenarios 是成对的课堂/竞赛应用语境，只用于理解可观察任务、检查动作、约束和迁移，不是当前提交证据。
 
                 标准库的作用：
                 - 它的主结构是 standardLibrary.knowledgeGroups：知识点 → 能力点 → 易错点 / 提升点。
                 - basicCauses、improvementPoints、skillUnits、mistakePoints 是兼容列表；优先读 knowledgeGroups 理解父子关系，再用兼容列表校验合法 id。
+                - applicationScenarios 不是合法诊断 id 列表，不得把场景 id 填入 mistakePointId、skillUnitId、improvementPointId 或 evidenceRefs。
                 - primaryKnowledgeNodeCode 是能力点或易错点的主知识路径锚点；relatedKnowledgeNodeCodes 只是相关知识、前置知识或检索补充，不能当作另一条独立错因。
                 - 学生可见 knowledgePath 应优先来自主路径：知识点 → 能力点 → 易错点；相关知识只在能帮助区分相似问题时补充，不要平铺成一堆标签。
                 - 不要把知识树和标准库理解成两套平行库；知识树回答“学什么”，能力点回答“会做什么”，易错点回答“常错在哪里”。
@@ -373,6 +377,7 @@ public class PromptTemplateRegistry {
                 - 它不是唯一答案来源，不是强制答案表，也不能限制你对题目、代码和判题结果的整体判断。
                 - 你应先像老师一样自由判断真实诊断候选，再评判这些候选是否能被标准库覆盖；不要一开始就为了匹配 id 而牺牲判断质量。
                 - 结构邻域只说明“这些能力和易错点相邻”，不是证据；HIT 必须由当前提交 evidenceRefs 支撑。
+                - 场景中的 commonFailure 也只是常见失败，不代表当前学生已经发生；与代码或判题事实冲突时必须忽略场景。只有证据先成立后，才能用 teacherMove、studentCheck、constraintProfile、successCriteria 和 transferNote 把建议写得更可检查、更贴近竞赛迁移。
                 - 同一个能力点下可能有多个独立易错点，也可能只有一个真实命中；按证据返回，不要强行合并或凑数。
                 - 命中候选时用 HIT；只命中方向但不够精确时用 PARTIAL；候选解释不了真实问题时用 MISS。
                 - 候选不匹配时必须允许 OUT_OF_LIBRARY，并在 outOfLibraryFindings 和 libraryGrowth 中留下可审核线索，不要硬套一个弱 id。
@@ -482,6 +487,7 @@ public class PromptTemplateRegistry {
                 命中与成长规则:
                 1. 先填写 diagnosisCandidates：自由列出实际有证据的问题候选，可以包含标准库命中项、半命中项和库外发现；数量由真实独立问题决定，不要为了凑数量而添加弱候选。
                 2. 先用 standardLibrary.knowledgeGroups 判断候选属于哪个知识节点、能力点和易错点，再填写合法 id。
+                2a. 只有在当前 issue 已由题目、代码和判题证据支持后，才可参考相同能力点的 applicationScenarios 细化检查问题或提高方向；不得反过来从场景猜测 issue。
                 3. 每个 diagnosisCandidates 项都必须引用 evidenceRefs，并说明为什么是 HIT、PARTIAL、MISS 或 OUT_OF_LIBRARY。
                 3a. 每个 diagnosisCandidates 项都必须填写 libraryPath；HIT 用标准库真实路径，PARTIAL 用最接近的上级路径，MISS/OUT_OF_LIBRARY 用建议新路径。
                 4. 如果你认为标准库已经精确覆盖主因，libraryFit 必须是 HIT，并且 anchors 至少包含一个合法的 MISTAKE_POINT、SKILL_UNIT、KNOWLEDGE_NODE 或 IMPROVEMENT_POINT id。

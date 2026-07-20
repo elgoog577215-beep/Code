@@ -15,8 +15,8 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class StandardLibraryPack {
 
-    public static final String SCHEMA_VERSION = "standard-library-pack-v1";
-    public static final String STRUCTURE_VERSION = "standard-library-structure-v2";
+    public static final String SCHEMA_VERSION = "standard-library-pack-v2";
+    public static final String STRUCTURE_VERSION = "standard-library-structure-v3";
 
     private String schemaVersion;
     private String taxonomyVersion;
@@ -27,6 +27,7 @@ public class StandardLibraryPack {
     private List<KnowledgeAnchorOption> knowledgeAnchors;
     private List<SkillUnitOption> skillUnits;
     private List<MistakePointOption> mistakePoints;
+    private List<ApplicationScenarioOption> applicationScenarios;
     private StandardLibraryNavigationSummary standardLibraryNavigationSummary;
     private List<TagOption> issueTags;
     private List<TagOption> fineGrainedTags;
@@ -81,7 +82,38 @@ public class StandardLibraryPack {
         private SkillUnitOption skillUnit;
         private List<MistakePointOption> mistakePoints;
         private List<ImprovementPointOption> improvementPoints;
+        private List<ApplicationScenarioOption> applicationScenarios;
         private List<String> candidateIds;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ApplicationScenarioOption {
+        private String id;
+        private String transferPairCode;
+        private String contextType;
+        private String learningPhase;
+        private String title;
+        private String knowledgePointCode;
+        private String skillUnitCode;
+        private List<String> linkedMistakeCodes;
+        private List<String> linkedImprovementCodes;
+        private String taskContext;
+        private String studentTask;
+        private String observableEvidence;
+        private String commonFailure;
+        private String teacherMove;
+        private String studentCheck;
+        private String constraintProfile;
+        private String successCriteria;
+        private String transferNote;
+        private String difficultyLevel;
+        private List<String> applicableLanguages;
+        private String sourceFramework;
+        private String reviewStatus;
     }
 
     @Data

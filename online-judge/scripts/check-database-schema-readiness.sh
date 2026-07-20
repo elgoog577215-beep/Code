@@ -25,6 +25,7 @@ DECLARE missing text;
 BEGIN
   WITH expected(name) AS (VALUES
     ('ai_diagnosis_runs'), ('ai_diagnosis_stage_runs'),
+    ('ai_standard_application_scenarios'),
     ('ai_standard_improvement_points'), ('ai_standard_library_growth_candidates'),
     ('ai_standard_library_items'), ('ai_standard_library_legacy_mappings'),
     ('ai_standard_library_relations'), ('ai_standard_mistake_points'), ('ai_standard_skill_units'),
@@ -57,6 +58,12 @@ BEGIN
     ('ai_standard_skill_units', 'primary_knowledge_node_code'),
     ('ai_standard_mistake_points', 'skill_unit_code'),
     ('ai_standard_improvement_points', 'skill_unit_code'),
+    ('ai_standard_application_scenarios', 'transfer_pair_code'),
+    ('ai_standard_application_scenarios', 'context_type'),
+    ('ai_standard_application_scenarios', 'knowledge_point_code'),
+    ('ai_standard_application_scenarios', 'skill_unit_code'),
+    ('ai_standard_application_scenarios', 'observable_evidence'),
+    ('ai_standard_application_scenarios', 'success_criteria'),
     ('submission_diagnosis_facts', 'provisional_node_code'),
     ('submissions', 'problem_id'), ('student_ai_feedbacks', 'submission_id'),
     ('ai_diagnosis_runs', 'submission_id')
@@ -79,6 +86,10 @@ BEGIN
     ('idx_discipline_scope_framework'), ('idx_discipline_scope_knowledge'),
     ('uk_ai_standard_skill_unit_code'),
     ('uk_ai_standard_mistake_point_code'), ('uk_ai_standard_improvement_point_code'),
+    ('uk_ai_standard_application_scenario_code'),
+    ('uk_ai_standard_application_scenario_pair_context'),
+    ('idx_ai_standard_application_scenario_knowledge'),
+    ('idx_ai_standard_application_scenario_skill'),
     ('idx_submissions_problem_submitted_at'), ('idx_ai_diagnosis_run_submission'),
     ('idx_issue_transition_student_point'), ('idx_diagnosis_fact_provisional')
   )
