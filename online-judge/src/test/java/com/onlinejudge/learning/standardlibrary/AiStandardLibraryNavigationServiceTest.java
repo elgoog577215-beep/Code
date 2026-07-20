@@ -599,6 +599,89 @@ class AiStandardLibraryNavigationServiceTest {
     }
 
     @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void returnsBatchFourClosuresForBasicMathEngineeringAndContestPoints() {
+        List<String> domains = List.of("BASIC", "MATH", "ENG", "CONTEST");
+        knowledgeRepository.saveAllAndFlush(domains.stream()
+                .map(domain -> knowledgeNode(
+                        domain + ".DQ4.POINT",
+                        domain,
+                        InformaticsKnowledgeNodeType.KNOWLEDGE_POINT,
+                        domain + " 第四批测试点",
+                        domain + " / 第四批测试点",
+                        90))
+                .toList());
+
+        for (String domain : domains) {
+            String pointCode = domain + ".DQ4.POINT";
+            String skillCode = "SK_DQ4_" + domain + "_FIXTURE";
+            String mistakeCode = "MP_DQ4_" + domain + "_FIXTURE";
+            String improvementCode = "IP_DQ4_" + domain + "_FIXTURE";
+
+            skillUnitRepository.saveAndFlush(AiStandardSkillUnit.builder()
+                    .code(skillCode)
+                    .category("第四批导航测试")
+                    .name(domain + " 第四批能力")
+                    .description("验证第四批知识点可以读取规范诊断层。")
+                    .learningGoal("读取同一能力下的易错点和提升点。")
+                    .primaryKnowledgeNodeCode(pointCode)
+                    .knowledgeNodeCodes(pointCode)
+                    .masteryLevel("MEDIUM")
+                    .applicableLanguages("PYTHON\nCPP17")
+                    .enabled(true)
+                    .libraryVersion("informatics-discipline-quality-v4")
+                    .build());
+            mistakePointRepository.saveAndFlush(AiStandardMistakePoint.builder()
+                    .code(mistakeCode)
+                    .category("第四批导航测试")
+                    .name(domain + " 第四批细颗粒错误")
+                    .description("描述可观察的第四批错误行为。")
+                    .skillUnitCode(skillCode)
+                    .mistakeType("CONTRACT")
+                    .misconception("没有核对知识点合同。")
+                    .symptom("边界样例出现第一处状态偏差。")
+                    .repairStrategy("填写状态表并复测相邻边界。")
+                    .severity("HIGH")
+                    .primaryKnowledgeNodeCode(pointCode)
+                    .knowledgeNodeCodes(pointCode)
+                    .applicableLanguages("PYTHON\nCPP17")
+                    .enabled(true)
+                    .libraryVersion("informatics-discipline-quality-v4")
+                    .build());
+            improvementPointRepository.saveAndFlush(AiStandardImprovementPoint.builder()
+                    .code(improvementCode)
+                    .category("第四批导航测试")
+                    .name(domain + " 第四批训练路径")
+                    .description("把细颗粒错误转成可执行练习。")
+                    .skillUnitCode(skillCode)
+                    .primaryKnowledgeNodeCode(pointCode)
+                    .knowledgeNodeCodes(pointCode)
+                    .relatedMistakeCodes(mistakeCode)
+                    .improvementGoal("建立可验证的知识点合同。")
+                    .practiceStrategy("填写最小样例状态表并复测边界。")
+                    .studentBenefit("能定位第一处偏差。")
+                    .teacherExplanation("检查学生能否解释每一步状态变化。")
+                    .applicableLanguages("PYTHON\nCPP17")
+                    .enabled(true)
+                    .libraryVersion("informatics-discipline-quality-v4")
+                    .build());
+
+            AiStandardLibraryDiagnosticLayerResponse layer = service.expandDiagnosticLayer(pointCode);
+            assertThat(layer.getSkillUnits())
+                    .filteredOn(skill -> skillCode.equals(skill.getCode()))
+                    .singleElement()
+                    .satisfies(skill -> {
+                        assertThat(skill.getMistakePoints())
+                                .extracting(AiStandardLibraryDiagnosticLayerResponse.MistakePoint::getCode)
+                                .containsExactly(mistakeCode);
+                        assertThat(skill.getImprovementPoints())
+                                .extracting(AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint::getCode)
+                                .containsExactly(improvementCode);
+                    });
+        }
+    }
+
+    @Test
     void refusesDiagnosticLayerForNonKnowledgePoint() {
         assertThatThrownBy(() -> service.expandDiagnosticLayer("BASIC.IO.MULTI_CASE"))
                 .isInstanceOf(IllegalArgumentException.class)

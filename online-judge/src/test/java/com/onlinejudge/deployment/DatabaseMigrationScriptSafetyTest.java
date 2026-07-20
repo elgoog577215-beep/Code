@@ -146,8 +146,43 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("library_fit_invalid")
                 .contains("post_v5_fact_rows");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"5\" ]]")
-                .contains("V1-V5");
+                .contains("[[ \"${VERSION}\" == \"6\" ]]")
+                .contains("V1-V6");
+    }
+
+    @Test
+    void disciplineBatchFourUsesStandardsDrivenGranularExpansionAndCompatibilityGuards() throws IOException {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V6__expand_discipline_library_batch_4.sql"));
+        String qualityGate = read("check-discipline-data-quality.sh");
+
+        assertThat(migration)
+                .contains("informatics-knowledge-discipline-v4")
+                .contains("informatics-discipline-quality-v4")
+                .contains("discipline_quality_v4_mistakes")
+                .contains("discipline_quality_v4_improvements")
+                .contains("MOE_HIGH_SCHOOL_IT_2020")
+                .contains("CCF_NOI_2025")
+                .contains("expected exactly 48 curated knowledge points")
+                .contains("expected exactly 22 normalized mistake points")
+                .contains("expected exactly 22 normalized improvement points")
+                .contains("s.code NOT LIKE 'SK_COMPAT_%'")
+                .contains("INSERT INTO public.ai_standard_mistake_points")
+                .contains("INSERT INTO public.ai_standard_improvement_points")
+                .contains("INSERT INTO public.ai_standard_library_items")
+                .contains("INSERT INTO public.ai_standard_library_legacy_mappings")
+                .doesNotContain("DELETE FROM", "TRUNCATE TABLE", "DROP TABLE public");
+        assertThat(qualityGate)
+                .contains("discipline_v4_chapter_scope_mappings")
+                .contains("curated_knowledge_points_batch_4_basic")
+                .contains("curated_knowledge_points_batch_4_math")
+                .contains("curated_knowledge_points_batch_4_eng")
+                .contains("curated_knowledge_points_batch_4_contest")
+                .contains("discipline_v4_unlinked_new_mistakes")
+                .contains("discipline_v4_snapshot_mismatch")
+                .contains("discipline_v4_legacy_mapping_mismatch")
+                .contains("template_knowledge_descriptions_batch_4_limit")
+                .contains("skills_without_improvement_batch_4_limit");
     }
 
     private String read(String name) throws IOException {

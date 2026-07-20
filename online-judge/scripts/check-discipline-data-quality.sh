@@ -175,8 +175,8 @@ raw_metrics(metric, severity, value, direction, target, definition) AS (
     ) categories
     WHERE category ~* '/V[0-9]+|兜底吸收|兜底榨取-(A类|B类)'
     UNION ALL
-    SELECT 'discipline_scope_mapping_rows', 'BLOCKER', count(*), 'MIN', 10,
-           '启用且有来源的直接学科范围锚点数'
+    SELECT 'discipline_scope_mapping_rows', 'BLOCKER', count(*), 'MIN', 39,
+           '第四批发布后启用且有来源的领域与章节级学科范围锚点数'
     FROM informatics_discipline_scope_mappings
     WHERE enabled = true AND btrim(source_reference) <> ''
     UNION ALL
@@ -184,14 +184,15 @@ raw_metrics(metric, severity, value, direction, target, definition) AS (
            '已接入的统一、高中和竞赛框架数量'
     FROM informatics_discipline_scope_mappings WHERE enabled = true
     UNION ALL
-    SELECT 'curated_knowledge_points', 'BLOCKER', count(*), 'MIN', 84,
-           '第一批至第三批累计人工精修知识点数'
+    SELECT 'curated_knowledge_points', 'BLOCKER', count(*), 'MIN', 132,
+           '第一批至第四批累计人工精修知识点数'
     FROM informatics_knowledge_nodes
     WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
       AND library_version IN (
           'informatics-knowledge-discipline-v1',
           'informatics-knowledge-discipline-v2',
-          'informatics-knowledge-discipline-v3'
+          'informatics-knowledge-discipline-v3',
+          'informatics-knowledge-discipline-v4'
       )
       AND description NOT LIKE '细颗粒知识点：%'
     UNION ALL
@@ -327,6 +328,187 @@ raw_metrics(metric, severity, value, direction, target, definition) AS (
       AND i.library_version = 'informatics-discipline-quality-v3'
       AND (s.code LIKE 'SK_COMPAT_%'
         OR s.description LIKE '%用于兼容旧 AI 标准库标签%')
+    UNION ALL
+    SELECT 'discipline_v4_chapter_scope_mappings', 'BLOCKER', count(*), 'MIN', 26,
+           '第四批新增且可追溯到高中课程或 NOI 大纲的章节级范围映射数'
+    FROM informatics_discipline_scope_mappings m
+    JOIN informatics_knowledge_nodes n ON n.code = m.knowledge_node_code
+    WHERE m.enabled = true AND n.type = 'CHAPTER'
+      AND ((m.framework_code = 'MOE_HIGH_SCHOOL_IT_2020'
+            AND m.source_reference LIKE 'https://jyj.changdu.gov.cn/%')
+        OR (m.framework_code = 'CCF_NOI_2025'
+            AND m.source_reference = 'https://www.noi.cn/upload/resources/file/2025/04/18/NOI_Syllabus_Edition_2025.pdf'))
+    UNION ALL
+    SELECT 'curated_knowledge_points_batch_4', 'BLOCKER', count(*), 'MIN', 48,
+           '第四批人工精修且已标记 discipline-v4 的知识点数'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND library_version = 'informatics-knowledge-discipline-v4'
+      AND description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'curated_knowledge_points_batch_4_basic', 'BLOCKER', count(*), 'MIN', 12,
+           '第四批 BASIC 领域人工精修知识点数'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND library_version = 'informatics-knowledge-discipline-v4'
+      AND code LIKE 'BASIC.%' AND description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'curated_knowledge_points_batch_4_math', 'BLOCKER', count(*), 'MIN', 12,
+           '第四批 MATH 领域人工精修知识点数'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND library_version = 'informatics-knowledge-discipline-v4'
+      AND code LIKE 'MATH.%' AND description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'curated_knowledge_points_batch_4_eng', 'BLOCKER', count(*), 'MIN', 12,
+           '第四批 ENG 领域人工精修知识点数'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND library_version = 'informatics-knowledge-discipline-v4'
+      AND code LIKE 'ENG.%' AND description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'curated_knowledge_points_batch_4_contest', 'BLOCKER', count(*), 'MIN', 12,
+           '第四批 CONTEST 领域人工精修知识点数'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND library_version = 'informatics-knowledge-discipline-v4'
+      AND code LIKE 'CONTEST.%' AND description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'discipline_v4_mistake_points', 'BLOCKER', count(*), 'MIN', 22,
+           '第四批新增且启用的细颗粒易错点数'
+    FROM ai_standard_mistake_points
+    WHERE enabled = true AND library_version = 'informatics-discipline-quality-v4'
+    UNION ALL
+    SELECT 'discipline_v4_improvement_points', 'BLOCKER', count(*), 'MIN', 22,
+           '第四批新增且启用的正式提升点数'
+    FROM ai_standard_improvement_points
+    WHERE enabled = true AND library_version = 'informatics-discipline-quality-v4'
+    UNION ALL
+    SELECT 'discipline_v4_mistake_invalid_content', 'BLOCKER', count(*), 'MAX', 0,
+           '第四批易错点缺少误区、症状、修复策略、能力或知识归属的数量'
+    FROM ai_standard_mistake_points
+    WHERE enabled = true AND library_version = 'informatics-discipline-quality-v4'
+      AND (btrim(COALESCE(misconception, '')) = ''
+        OR btrim(COALESCE(symptom, '')) = ''
+        OR btrim(COALESCE(repair_strategy, '')) = ''
+        OR btrim(COALESCE(skill_unit_code, '')) = ''
+        OR btrim(COALESCE(primary_knowledge_node_code, '')) = ''
+        OR btrim(COALESCE(knowledge_node_codes, '')) = '')
+    UNION ALL
+    SELECT 'discipline_v4_improvement_invalid_content', 'BLOCKER', count(*), 'MAX', 0,
+           '第四批提升点缺少目标、练习、学生收益、教师解释或关联错因的数量'
+    FROM ai_standard_improvement_points
+    WHERE enabled = true AND library_version = 'informatics-discipline-quality-v4'
+      AND (btrim(COALESCE(improvement_goal, '')) = ''
+        OR btrim(COALESCE(practice_strategy, '')) = ''
+        OR btrim(COALESCE(student_benefit, '')) = ''
+        OR btrim(COALESCE(teacher_explanation, '')) = ''
+        OR btrim(COALESCE(related_mistake_codes, '')) = '')
+    UNION ALL
+    SELECT 'discipline_v4_improvement_invalid_mistake_refs', 'BLOCKER', count(*), 'MAX', 0,
+           '第四批提升点关联不存在、停用或归属其他能力的易错点引用数量'
+    FROM ai_standard_improvement_points i
+    CROSS JOIN LATERAL regexp_split_to_table(COALESCE(i.related_mistake_codes, ''), E'\n') ref
+    LEFT JOIN ai_standard_mistake_points m
+      ON m.code = btrim(ref) AND m.enabled = true AND m.skill_unit_code = i.skill_unit_code
+    WHERE i.enabled = true AND i.library_version = 'informatics-discipline-quality-v4'
+      AND btrim(ref) <> '' AND m.code IS NULL
+    UNION ALL
+    SELECT 'discipline_v4_unlinked_new_mistakes', 'BLOCKER', count(*), 'MAX', 0,
+           '第四批易错点没有被同能力的第四批提升点关联的数量'
+    FROM ai_standard_mistake_points m
+    WHERE m.enabled = true AND m.library_version = 'informatics-discipline-quality-v4'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM ai_standard_improvement_points i
+          CROSS JOIN LATERAL regexp_split_to_table(COALESCE(i.related_mistake_codes, ''), E'\n') ref
+          WHERE i.enabled = true
+            AND i.library_version = 'informatics-discipline-quality-v4'
+            AND i.skill_unit_code = m.skill_unit_code
+            AND btrim(ref) = m.code
+      )
+    UNION ALL
+    SELECT 'discipline_v4_snapshot_mismatch', 'BLOCKER', count(*), 'MAX', 0,
+           '第四批规范易错点或提升点缺少同 code 启用快照或关键归属不一致的数量'
+    FROM (
+        SELECT m.code
+        FROM ai_standard_mistake_points m
+        LEFT JOIN ai_standard_library_items item
+          ON item.layer = 'MISTAKE_POINT' AND item.code = m.code
+        WHERE m.enabled = true AND m.library_version = 'informatics-discipline-quality-v4'
+          AND (item.id IS NULL OR item.enabled IS DISTINCT FROM true
+            OR item.skill_unit_code IS DISTINCT FROM m.skill_unit_code
+            OR item.primary_knowledge_node_code IS DISTINCT FROM m.primary_knowledge_node_code
+            OR item.related_knowledge_node_codes IS DISTINCT FROM m.knowledge_node_codes)
+        UNION ALL
+        SELECT i.code
+        FROM ai_standard_improvement_points i
+        LEFT JOIN ai_standard_library_items item
+          ON item.layer = 'IMPROVEMENT_POINT' AND item.code = i.code
+        WHERE i.enabled = true AND i.library_version = 'informatics-discipline-quality-v4'
+          AND (item.id IS NULL OR item.enabled IS DISTINCT FROM true
+            OR item.skill_unit_code IS DISTINCT FROM i.skill_unit_code
+            OR item.primary_knowledge_node_code IS DISTINCT FROM i.primary_knowledge_node_code
+            OR item.related_items IS DISTINCT FROM i.related_mistake_codes)
+    ) mismatches
+    UNION ALL
+    SELECT 'discipline_v4_legacy_mapping_mismatch', 'BLOCKER', count(*), 'MAX', 0,
+           '第四批规范易错点或提升点缺少同 code MAPPED 兼容映射的数量'
+    FROM (
+        SELECT 'MISTAKE_POINT'::text AS layer, code
+        FROM ai_standard_mistake_points
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v4'
+        UNION ALL
+        SELECT 'IMPROVEMENT_POINT', code
+        FROM ai_standard_improvement_points
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v4'
+    ) canonical
+    LEFT JOIN ai_standard_library_legacy_mappings m
+      ON m.legacy_layer = canonical.layer AND m.legacy_code = canonical.code
+    WHERE m.id IS NULL OR m.migration_status <> 'MAPPED'
+       OR m.target_type <> canonical.layer OR m.target_code <> canonical.code
+    UNION ALL
+    SELECT 'discipline_v4_compatibility_skill_target', 'BLOCKER', count(*), 'MAX', 0,
+           '第四批正式易错点或提升点错误关联兼容占位能力的数量'
+    FROM (
+        SELECT skill_unit_code FROM ai_standard_mistake_points
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v4'
+        UNION ALL
+        SELECT skill_unit_code FROM ai_standard_improvement_points
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v4'
+    ) v4
+    JOIN ai_standard_skill_units s ON s.code = v4.skill_unit_code
+    WHERE s.code LIKE 'SK_COMPAT_%'
+       OR s.description LIKE '%用于兼容旧 AI 标准库标签%'
+    UNION ALL
+    SELECT 'discipline_v4_first_path_skills', 'BLOCKER', count(DISTINCT skill_unit_code), 'MIN', 14,
+           '第四批为 BASIC 与 CONTEST 正式能力补齐首条提升路径的能力数'
+    FROM ai_standard_improvement_points
+    WHERE enabled = true AND library_version = 'informatics-discipline-quality-v4'
+      AND skill_unit_code IN (
+          'SK_BRANCH_CASE_COVERAGE', 'SK_FUNCTION_CONTRACT', 'SK_INDEX_BASE_MAPPING',
+          'SK_INTEGER_RANGE_PROTECTION', 'SK_IO_STRUCTURE_MAPPING',
+          'SK_MATRIX_COORDINATE_MAPPING', 'SK_RECURSION_BACKTRACK_STATE',
+          'SK_RECURSION_BASE_PROGRESS', 'SK_STRING_SLICE_ENDPOINT',
+          'SK_V7_MULTICASE_STATE_RESET_CONTRACT', 'SK_V7_NUMERIC_RANGE_PRECISION_CONTRACT',
+          'SK_V7_STRING_BOUNDARY_ENCODING_CONTRACT', 'SK_READING_OBJECTIVE_CONSTRAINT',
+          'SK_READING_SAMPLE_CONSTRAINT_CROSSCHECK'
+      )
+    UNION ALL
+    SELECT 'template_knowledge_descriptions_batch_4_limit', 'BLOCKER', count(*), 'MAX', 454,
+           '第四批发布后模板化知识点描述的允许上限'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND description LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'skills_without_improvement_batch_4_limit', 'BLOCKER', count(*), 'MAX', 27,
+           '第四批发布后缺少提升点能力点的允许上限'
+    FROM ai_standard_skill_units s
+    WHERE s.enabled = true
+      AND NOT EXISTS (
+          SELECT 1 FROM ai_standard_improvement_points i
+          WHERE i.enabled = true AND i.skill_unit_code = s.code
+      )
     UNION ALL
     SELECT 'template_knowledge_descriptions_batch_3_limit', 'BLOCKER', count(*), 'MAX', 502,
            '第三批发布后模板化知识点描述的允许上限'
