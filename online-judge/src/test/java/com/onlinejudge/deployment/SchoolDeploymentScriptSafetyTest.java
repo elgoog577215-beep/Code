@@ -57,11 +57,16 @@ class SchoolDeploymentScriptSafetyTest {
                 "--confirm-build",
                 "git -C \"${REPO_ROOT}\" fetch origin main",
                 "bash scripts/build-school-images.sh --confirm-build",
-                "bash scripts/start-school.sh"
+                "bash scripts/start-school.sh",
+                "PUBLIC_HOST=\"${OJ_PUBLIC_HOST:-tuotuzju.com}\"",
+                "PUBLIC_PATH=\"${OJ_PUBLIC_PATH:-/code/}\"",
+                "--resolve \"${PUBLIC_HOST}:443:127.0.0.1\"",
+                "\"https://${PUBLIC_HOST}${PUBLIC_PATH}api/system/readiness\""
         );
         assertThat(deploy.indexOf("--confirm-build"))
                 .isLessThan(deploy.indexOf("git -C \"${REPO_ROOT}\" fetch origin main"));
-        assertThat(deploy).doesNotContain("docker compose up", "docker compose build");
+        assertThat(deploy)
+                .doesNotContain("docker compose up", "docker compose build", "code.tuotuzju.com");
     }
 
     @Test

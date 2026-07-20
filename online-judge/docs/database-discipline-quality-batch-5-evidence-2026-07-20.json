@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-20T11:18:31Z",
+  "generatedAt": "2026-07-20T12:03:42Z",
   "change": "add-teaching-contest-scenario-layer",
   "baseline": {
     "database": "production PostgreSQL 16 V6 snapshot",
@@ -244,7 +244,12 @@
     "schemaReadiness": "PASS",
     "contentReadiness": "PASS",
     "applicationHttp": 200,
-    "nginxHostRouteHttp": 200,
+    "canonicalPublicUrl": "https://tuotuzju.com/code/",
+    "nginxCanonicalRouteHttps": 200,
+    "canonicalAssetRewrite": "PASS",
+    "canonicalApiRewrite": "PASS",
+    "legacySubdomainNginxSite": "DISABLED",
+    "legacySubdomainRollbackConfig": "/etc/nginx/sites-available/code_tuotuzju",
     "readinessStatus": "DEGRADED",
     "readinessBlockingFailures": 0,
     "readinessNonBlockingWarnings": [
@@ -271,8 +276,7 @@
       "submissionAnalyses": 34,
       "submissionDiagnosisFacts": 85,
       "studentAiFeedbacks": 53
-    },
-    "existingIngressRisk": "Nginx 的 code.tuotuzju.com HTTP 虚拟主机已通过 Host 路由返回 200；外部 DNS 当前无法解析该子域，且现有 TLS 证书只覆盖 tuotuzju.com 与 www.tuotuzju.com。该基础设施缺口早于本批数据库变更，不影响应用、数据库和内网 Nginx 路由验收。"
+    }
   },
   "sources": [
     {

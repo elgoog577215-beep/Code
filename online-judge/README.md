@@ -72,6 +72,14 @@ powershell -ExecutionPolicy Bypass -File scripts/start-school.ps1
 
 仓库的 GitHub Actions `Deploy online judge manually` 只保留人工触发，作为尚未接入镜像仓库时的受控构建入口。它会把 `--confirm-build` 传给服务器脚本，服务器先运行独立构建脚本，再使用 `--no-build` 安全启动；只能在完成备份、资源检查并预留维护窗口后手动执行。普通 push 不会触发该工作流。
 
+正式生产入口固定为：
+
+```text
+https://tuotuzju.com/code/
+```
+
+生产环境不得使用 `code.tuotuzju.com`。`/app/` 是 Online Judge 容器内部的前端路径，Nginx 负责把主域名 `/code/` 下的页面、静态资源和 `/code/api/` 请求改写到应用；生产验收与对外文档都必须使用 `/code/`。
+
 启动后访问：
 
 ```text

@@ -12,6 +12,16 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 REPO_ROOT="${OJ_DEPLOY_REPO_ROOT:-/opt/Code}"
 APP_ROOT="${REPO_ROOT}/online-judge"
 LOCK_FILE="${OJ_DEPLOY_LOCK_FILE:-/var/lock/online-judge-deploy.lock}"
+PUBLIC_HOST="${OJ_PUBLIC_HOST:-tuotuzju.com}"
+PUBLIC_PATH="${OJ_PUBLIC_PATH:-/code/}"
+
+if [[ "${PUBLIC_PATH}" != /* ]]; then
+  echo "生产公开路径必须以 / 开头：${PUBLIC_PATH}" >&2
+  exit 2
+fi
+if [[ "${PUBLIC_PATH}" != */ ]]; then
+  PUBLIC_PATH="${PUBLIC_PATH}/"
+fi
 
 if [[ ! -d "${REPO_ROOT}/.git" || ! -d "${APP_ROOT}" ]]; then
   echo "部署目录不存在：${APP_ROOT}" >&2
@@ -56,4 +66,21 @@ for attempt in $(seq 1 30); do
 done
 
 nginx -t
-echo "人工生产部署完成。"
+
+for attempt in $(seq 1 30); do
+  if curl --fail --silent --show-error --max-time 5 \
+    --resolve "${PUBLIC_HOST}:443:127.0.0.1" \
+    "https://${PUBLIC_HOST}${PUBLIC_PATH}" >/dev/null \
+    && curl --fail --silent --show-error --max-time 5 \
+      --resolve "${PUBLIC_HOST}:443:127.0.0.1" \
+      "https://${PUBLIC_HOST}${PUBLIC_PATH}api/system/readiness" >/dev/null; then
+    break
+  fi
+  if [[ "${attempt}" == "30" ]]; then
+    echo "主域名公开入口 https://${PUBLIC_HOST}${PUBLIC_PATH} 未通过页面或 readiness 探针。" >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+echo "人工生产部署完成：https://${PUBLIC_HOST}${PUBLIC_PATH}"
