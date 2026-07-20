@@ -64,6 +64,36 @@
       "studentAiFeedbacks": 52
     }
   },
+  "productionResult": {
+    "deployedAt": "2026-07-20T08:46:20Z",
+    "commit": "583ce48c2c1c6734cf2fbf01e079b9d2ba4f7a94",
+    "flywayVersion": "6",
+    "flywaySuccess": true,
+    "applicationImage": "sha256:c6d9a8390b219ffd07bfb809e35bdabb4d2767806770944b72640dafa8c3bf4f",
+    "preDeployBackup": "backups/onlinejudge-20260720-161256.dump",
+    "preDeployBackupSha256": "c75c788f8a0e29794e177157cd3af7a0a0b89d13fc6193c1a6363e0fa0b04d2a",
+    "rollbackImage": "wenzhong-oj-app:rollback-pre-v6-20260720-161256",
+    "businessCountsBeforeAndAfter": {
+      "problems": 16,
+      "testCases": 45,
+      "submissions": 53,
+      "submissionAnalyses": 34,
+      "submissionDiagnosisFacts": 85,
+      "studentAiFeedbacks": 53
+    },
+    "enabledScopeMappings": 39,
+    "enabledKnowledgeNodes": 737,
+    "enabledSkillUnits": 140,
+    "enabledMistakePoints": 381,
+    "enabledImprovementPoints": 121,
+    "curatedBatchFourKnowledgePoints": 48,
+    "representativeNavigationChainsPassed": 4,
+    "schemaReadiness": "PASS",
+    "qualityGate": "PASS",
+    "applicationPage": "200",
+    "nginxPage": "200",
+    "publicHttpPage": "200"
+  },
   "representativeChains": [
     {
       "domain": "BASIC",
@@ -115,11 +145,13 @@
     "targetedNavigationAndMigrationTests": "PASS",
     "fullBackendTests": "659 run, 0 failures, 0 errors, 9 skipped",
     "flywayIntegration": "V1-V6 empty database, idempotent restart, explicit baseline and schema drift blocking PASS",
-    "productionDeployment": "PENDING"
+    "productionDeployment": "PASS"
   },
   "limitations": [
     "本批证明的是标准覆盖、内容颗粒度、结构一致性和工程可发布性，不证明学生学习效果",
     "剩余 454 个模板知识点和 27 个缺少提升路径的能力点仍是后续质量债务",
-    "真实新 cohort 足够后，应按重复临时候选、教师校正和正式命中重新排序剩余债务"
+    "真实新 cohort 足够后，应按重复临时候选、教师校正和正式命中重新排序剩余债务",
+    "生产 readiness 的阻断项全部通过，但仍保留 AI smoke 未执行和成长 Agent 已开启两个非阻断提醒",
+    "生产根分区发布后剩余约 3.1 GiB，后续发布前应先治理镜像与构建缓存占用"
   ]
 }
