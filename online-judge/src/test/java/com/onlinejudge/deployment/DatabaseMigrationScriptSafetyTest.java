@@ -58,6 +58,7 @@ class DatabaseMigrationScriptSafetyTest {
         assertThat(script)
                 .contains("docker run -d --name")
                 .contains("pg_restore")
+                .contains("docker exec -i \"${NAME}\" psql -v ON_ERROR_STOP=1")
                 .contains("正式数据库和 Volume 未挂载");
         assertThat(script).doesNotContain("postgres-data", "docker compose exec");
     }

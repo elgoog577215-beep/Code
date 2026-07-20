@@ -57,7 +57,7 @@ case "${INPUT}" in
     ;;
 esac
 
-docker exec "${NAME}" psql -v ON_ERROR_STOP=1 -U onlinejudge -d onlinejudge -P pager=off <<'SQL'
+docker exec -i "${NAME}" psql -v ON_ERROR_STOP=1 -U onlinejudge -d onlinejudge -P pager=off <<'SQL'
 SELECT count(*) AS business_table_count
 FROM information_schema.tables
 WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history';
