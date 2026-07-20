@@ -510,7 +510,7 @@ public class AiReportService {
                     null,
                     outputStageInput(runtimePlan),
                     StudentOutputStageResult.class,
-                    PromptTemplateRegistry.DIAGNOSIS_REPORT_V3,
+                    PromptTemplateRegistry.DIAGNOSIS_REPORT_V4,
                     () -> generateValidatedStudentOutput(runtimePlan)
             );
             runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.success(
@@ -609,7 +609,7 @@ public class AiReportService {
                                     ? 0
                                     : adviceOutput.getLibraryGrowth().getCandidates().size()),
                     AiDiagnosisProjectionResult.class,
-                    PromptTemplateRegistry.DIAGNOSIS_REPORT_V3,
+                    PromptTemplateRegistry.DIAGNOSIS_REPORT_V4,
                     () -> {
                         standardLibraryGrowthAgentService.proposeFromDiagnosisOutput(
                                 adviceOutput,
@@ -864,6 +864,7 @@ public class AiReportService {
         request.put("contextPolicy", List.of(
                 "problem.description 是完整题目描述；submission.sourceCodeWithLineNumbers 是完整学生代码或最大可用带行号代码。",
                 "submission.verdict、visibleCaseFacts、runtimeErrorMessage、compileOutput 和 evidenceRefs 只是判题参考信号，用来验证诊断。",
+                "testIntentFacts 只说明测试覆盖目标，不能单独证明错因；隐藏测试点只允许形成泛化检查动作，不能猜测或复述隐藏数据。",
                 "freeDiagnosis.issues 是本阶段最重要的输入；每个 issue 都代表一个有证据支持的独立诊断点。",
                 "libraryAnchors 是后端按 issue 逐层浏览标准库得到的可选挂接结果；anchorStatus 不是学生可见文案。",
                 "standardLibrary 是教学参考规范包，用于统一术语、路径和颗粒度；即使为空或未命中，也必须继续基于 issues 生成学生建议。",
@@ -1027,7 +1028,7 @@ public class AiReportService {
                 null,
                 runtimePlan == null ? null : runtimePlan.getBrief(),
                 FreeDiagnosisOutput.class,
-                PromptTemplateRegistry.FREE_DIAGNOSIS_V1,
+                PromptTemplateRegistry.FREE_DIAGNOSIS_V2,
                 () -> {
                     FreeDiagnosisOutput output = callFreeDiagnosisStage(runtimePlan);
                     if (output == null) {
@@ -2883,7 +2884,7 @@ public class AiReportService {
                 && !cleanupAiText(runtimePlan.getAdvicePrompt().getVersion()).isBlank()) {
             return cleanupAiText(runtimePlan.getAdvicePrompt().getVersion());
         }
-        return PromptTemplateRegistry.DIAGNOSIS_REPORT_V3;
+        return PromptTemplateRegistry.DIAGNOSIS_REPORT_V4;
     }
 
     private String failureSummary(ExternalModelStagePayloads.StageValidationResult failure) {
@@ -3346,13 +3347,13 @@ public class AiReportService {
 
     private String traceStage(String systemPrompt) {
         String text = defaultIfBlank(systemPrompt, "");
-        if (text.contains("free-diagnosis-v1")) {
+        if (text.contains("free-diagnosis-v1") || text.contains("free-diagnosis-v2")) {
             return "FREE_DIAGNOSIS";
         }
         if (text.contains("standard-library-navigation-v1")) {
             return "LAYERED_ATTACHMENT";
         }
-        if (text.contains("diagnosis-report-v3")) {
+        if (text.contains("diagnosis-report-v3") || text.contains("diagnosis-report-v4")) {
             return "ADVICE_GENERATION";
         }
         return "MODEL_CALL";
@@ -4155,7 +4156,8 @@ public class AiReportService {
             return "advice-generation";
         }
         if (PromptTemplateRegistry.DIAGNOSIS_REPORT_V2.equals(version)
-                || PromptTemplateRegistry.DIAGNOSIS_REPORT_V3.equals(version)) {
+                || PromptTemplateRegistry.DIAGNOSIS_REPORT_V3.equals(version)
+                || PromptTemplateRegistry.DIAGNOSIS_REPORT_V4.equals(version)) {
             return "diagnosis-report";
         }
         return "external-model";

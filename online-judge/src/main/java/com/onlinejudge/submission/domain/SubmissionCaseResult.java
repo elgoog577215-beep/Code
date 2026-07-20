@@ -30,6 +30,9 @@ public class SubmissionCaseResult {
     @Column(name = "test_case_number", nullable = false)
     private Integer testCaseNumber;
 
+    @Column(name = "test_case_id")
+    private Long testCaseId;
+
     @Column(nullable = false)
     private Boolean passed;
 
@@ -50,5 +53,25 @@ public class SubmissionCaseResult {
 
     @Column(name = "is_hidden", nullable = false)
     private Boolean hidden;
-}
 
+    @Column(name = "test_semantic_code", length = 160)
+    private String testSemanticCode;
+
+    @Column(name = "test_intent_type", length = 40)
+    private String testIntentType;
+
+    @Column(name = "test_intent_title", length = 160)
+    private String testIntentTitle;
+
+    @Column(name = "test_intent_summary", length = 800)
+    private String testIntentSummary;
+
+    @Column(name = "test_learning_objective", length = 800)
+    private String testLearningObjective;
+
+    @Column(name = "test_contest_role", length = 40)
+    private String testContestRole;
+
+    @Column(name = "test_reveal_policy", length = 40)
+    private String testRevealPolicy;
+}

@@ -12,8 +12,10 @@ public class PromptTemplateRegistry {
     public static final String DIAGNOSIS_AND_ADVICE_V1 = "diagnosis-and-advice-v1";
     public static final String DIAGNOSIS_REPORT_V2 = "diagnosis-report-v2";
     public static final String FREE_DIAGNOSIS_V1 = "free-diagnosis-v1";
+    public static final String FREE_DIAGNOSIS_V2 = "free-diagnosis-v2";
     public static final String STANDARD_LIBRARY_NAVIGATION_V1 = "standard-library-navigation-v1";
     public static final String DIAGNOSIS_REPORT_V3 = "diagnosis-report-v3";
+    public static final String DIAGNOSIS_REPORT_V4 = "diagnosis-report-v4";
     public static final String TEACHER_INSIGHT_V1 = "teacher-insight-v1";
 
     private final Map<String, PromptTemplate> templates = Map.of(
@@ -21,6 +23,11 @@ public class PromptTemplateRegistry {
                     .version(FREE_DIAGNOSIS_V1)
                     .stage("FREE_DIAGNOSIS")
                     .systemPrompt(freeDiagnosisV1SystemPrompt())
+                    .build(),
+            FREE_DIAGNOSIS_V2, PromptTemplate.builder()
+                    .version(FREE_DIAGNOSIS_V2)
+                    .stage("FREE_DIAGNOSIS")
+                    .systemPrompt(freeDiagnosisV2SystemPrompt())
                     .build(),
             STANDARD_LIBRARY_NAVIGATION_V1, PromptTemplate.builder()
                     .version(STANDARD_LIBRARY_NAVIGATION_V1)
@@ -31,6 +38,11 @@ public class PromptTemplateRegistry {
                     .version(DIAGNOSIS_REPORT_V3)
                     .stage("DIAGNOSIS_REPORT")
                     .systemPrompt(diagnosisReportV3SystemPrompt())
+                    .build(),
+            DIAGNOSIS_REPORT_V4, PromptTemplate.builder()
+                    .version(DIAGNOSIS_REPORT_V4)
+                    .stage("DIAGNOSIS_REPORT")
+                    .systemPrompt(diagnosisReportV4SystemPrompt())
                     .build(),
             TEACHER_INSIGHT_V1, PromptTemplate.builder()
                     .version(TEACHER_INSIGHT_V1)
@@ -101,6 +113,33 @@ public class PromptTemplateRegistry {
                 4. 不要给完整代码、替换表达式、最终答案、隐藏测试猜测或可复制改法。
                 5. 如果证据不足，要明确写在 uncertainty 中。
                 """;
+    }
+
+    private String freeDiagnosisV2SystemPrompt() {
+        return freeDiagnosisV1SystemPrompt()
+                .replace(
+                        "Prompt version: free-diagnosis-v1.",
+                        "Prompt version: free-diagnosis-v2."
+                )
+                .replace(
+                        "Input schema:",
+                        """
+                        测试点语义规则：
+                        - brief.testIntentFacts 是命题者对测试覆盖范围的中性说明，用于区分代表性、边界、结构、状态空间、规模和性能覆盖。
+                        - 测试点失败只能证明程序没有通过该类覆盖，不能直接证明某个代码错因；必须与完整代码和实际行为差距交叉验证。
+                        - evidenceRef 形如 judge:test-intent:<semantic-code>，可以作为评测覆盖证据，但不能替代 code:line:N。
+                        - hidden=true 时只允许使用泛化意图；不得猜测、复述或反推隐藏输入、输出和具体数值。
+                        - 测试点语义不包含标准库答案。本阶段仍然禁止接收或猜测标准库 ID。
+
+                        Input schema:"""
+                )
+                .replace(
+                        "5. 如果证据不足，要明确写在 uncertainty 中。",
+                        """
+                        5. 如果证据不足，要明确写在 uncertainty 中。
+                        6. 仅凭 testIntentFacts 不得生成 issue；至少还要引用代码行或可见行为差距。
+                        7. 隐藏测试点只能支持“自构同类边界或状态检查”一类泛化方向，不得进入学生可见数据细节。"""
+                );
     }
 
     private String standardLibraryNavigationV1SystemPrompt() {
@@ -230,6 +269,29 @@ public class PromptTemplateRegistry {
                 12. nextStepPlan 只能返回 1 条，并且只包含一个可执行小动作，例如“画出 dist[node][used] 状态表”；不要把多个修复步骤打包在一起。
                 13. 学生可见字段禁止出现“直接改成”“替换为”“完整代码”“参考代码”“最终答案”等直给表达。
                 """;
+    }
+
+    private String diagnosisReportV4SystemPrompt() {
+        return diagnosisReportV3SystemPrompt()
+                .replace(
+                        "Prompt version: diagnosis-report-v3.",
+                        "Prompt version: diagnosis-report-v4."
+                )
+                .replace(
+                        "你必须同时读取原始提交上下文、自由诊断 issues 和可选标准库挂接结果。",
+                        """
+                        你必须同时读取原始提交上下文、自由诊断 issues 和可选标准库挂接结果。
+                        brief.testIntentFacts 只描述测试点覆盖目标，不是预先计算的错因，也不是标准库命中证据。
+                        使用 judge:test-intent:<semantic-code> 时必须保留自由诊断中已经由代码和行为支持的问题；
+                        不得因测试点映射而改写真实诊断。隐藏测试点语义只能转化为泛化检查动作，不得猜测、复述或反推隐藏数据。"""
+                )
+                .replace(
+                        "13. 学生可见字段禁止出现“直接改成”“替换为”“完整代码”“参考代码”“最终答案”等直给表达。",
+                        """
+                        13. 学生可见字段禁止出现“直接改成”“替换为”“完整代码”“参考代码”“最终答案”等直给表达。
+                        14. testIntentFacts 不能单独证明错因；正式诊断仍必须由代码行或可见行为差距支撑。
+                        15. hidden=true 的测试语义不得被原样复述给学生，只能提出自构反例、边界手推或状态追踪。"""
+                );
     }
 
     private String diagnosisAndAdviceV1SystemPrompt() {

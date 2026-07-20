@@ -134,16 +134,16 @@ class StandardLibraryPackBuilderTest {
         );
 
         assertThat(standardPlan.getStandardLibraryPack()).isNull();
-        assertThat(standardPlan.getFreeDiagnosisPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.FREE_DIAGNOSIS_V1);
+        assertThat(standardPlan.getFreeDiagnosisPrompt().getVersion()).isEqualTo(PromptTemplateRegistry.FREE_DIAGNOSIS_V2);
         assertThat(standardPlan.getStandardLibraryNavigationPrompt().getVersion())
                 .isEqualTo(PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1);
-        assertThat(standardPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
+        assertThat(standardPlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V4);
         assertThat(ignoredProfilePlan.getRuntimeProfile()).isEqualTo(ExternalModelAgentRuntime.RUNTIME_PROFILE_STANDARD);
         assertThat(ignoredProfilePlan.isRequestCompact()).isFalse();
         assertThat(ignoredProfilePlan.getStandardLibraryPack()).isNull();
-        assertThat(ignoredProfilePlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
+        assertThat(ignoredProfilePlan.getAdvicePrompt().getVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V4);
         assertThat(ignoredProfilePlan.getAdvicePrompt().getSystemPrompt())
-                .contains("diagnosis-report-v3")
+                .contains("diagnosis-report-v4")
                 .contains("自由诊断")
                 .contains("标准库挂接结果")
                 .contains("navigationResult")

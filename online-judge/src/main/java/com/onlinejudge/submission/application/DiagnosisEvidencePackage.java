@@ -75,6 +75,7 @@ public class DiagnosisEvidencePackage {
     @AllArgsConstructor
     public static class CaseSummary {
         private Integer testCaseNumber;
+        private Long testCaseId;
         private Boolean passed;
         private Boolean hidden;
         private Double executionTime;
@@ -82,6 +83,13 @@ public class DiagnosisEvidencePackage {
         private String inputPreview;
         private String actualOutputPreview;
         private String expectedOutputPreview;
+        private String semanticCode;
+        private String intentType;
+        private String intentTitle;
+        private String intentSummary;
+        private String learningObjective;
+        private String contestRole;
+        private String revealPolicy;
     }
 
     @Data

@@ -7,6 +7,7 @@ import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovemen
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
 import com.onlinejudge.problem.persistence.ProblemRepository;
+import com.onlinejudge.problem.persistence.TestCaseRepository;
 import com.onlinejudge.system.dto.AiSmokeResponse;
 import com.onlinejudge.system.dto.ExecutorStatusResponse;
 import com.onlinejudge.system.dto.ReadinessResponse;
@@ -27,6 +28,7 @@ public class ReadinessService {
     private final SchoolSecurityProperties securityProperties;
     private final AiStandardLibraryGrowthProperties growthProperties;
     private final ProblemRepository problemRepository;
+    private final TestCaseRepository testCaseRepository;
     private final InformaticsKnowledgeNodeRepository knowledgeNodeRepository;
     private final AiStandardSkillUnitRepository skillUnitRepository;
     private final AiStandardMistakePointRepository mistakePointRepository;
@@ -212,11 +214,16 @@ public class ReadinessService {
     private ReadinessResponse.Check databaseContentCheck() {
         try {
             long problems = problemRepository.count();
+            long testCases = testCaseRepository.count();
+            long reviewedSemanticTestCases =
+                    testCaseRepository.countBySemanticCodeIsNotNullAndReviewStatus("REVIEWED");
             long knowledgeNodes = knowledgeNodeRepository.countByEnabledTrue();
             long skills = skillUnitRepository.countByEnabledTrue();
             long mistakes = mistakePointRepository.countByEnabledTrue();
             long improvements = improvementPointRepository.countByEnabledTrue();
             boolean ready = problems > 0
+                    && testCases > 0
+                    && reviewedSemanticTestCases == testCases
                     && knowledgeNodes > 0
                     && skills > 0
                     && mistakes > 0
@@ -227,9 +234,10 @@ public class ReadinessService {
                     ready ? "PASS" : securityProperties.schoolProfile() ? "FAIL" : "WARN",
                     securityProperties.schoolProfile() && !ready,
                     ready
-                            ? "正式数据库已有题库、知识树和 AI 标准库内容。"
-                            : "正式数据库内容不完整：problems=%d, knowledgeNodes=%d, skills=%d, mistakes=%d, improvements=%d。"
-                            .formatted(problems, knowledgeNodes, skills, mistakes, improvements),
+                            ? "正式数据库已有题库、测试点语义、知识树和 AI 标准库内容。"
+                            : "正式数据库内容不完整：problems=%d, testCases=%d, reviewedSemanticTestCases=%d, knowledgeNodes=%d, skills=%d, mistakes=%d, improvements=%d。"
+                            .formatted(problems, testCases, reviewedSemanticTestCases,
+                                    knowledgeNodes, skills, mistakes, improvements),
                     ready
                             ? "继续使用数据库作为正式内容主库。"
                             : "先执行数据库内容迁移和验证，不要依赖运行时 seed 自动补齐。"

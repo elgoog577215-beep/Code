@@ -52,6 +52,9 @@ bash scripts/build-school-images.sh --confirm-build
 bash scripts/start-school.sh
 
 docker compose ps
+bash scripts/check-database-schema-readiness.sh
+bash scripts/check-discipline-data-quality.sh
+bash scripts/check-test-case-semantic-quality.sh
 
 for attempt in $(seq 1 30); do
   if curl --fail --silent --show-error --max-time 5 \

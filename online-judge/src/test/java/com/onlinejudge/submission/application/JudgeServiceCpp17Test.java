@@ -16,6 +16,7 @@ import com.onlinejudge.system.application.ExecutorStatusService;
 import com.onlinejudge.system.dto.ExecutorStatusResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Optional;
@@ -87,6 +88,23 @@ class JudgeServiceCpp17Test {
                     assertThat(result.getActualOutput()).isEqualTo("7");
                     assertThat(result.getExpectedOutput()).isEqualTo("7");
         });
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<SubmissionCaseResult>> caseResultsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(submissionAnalysisService).finalizeSubmission(
+                any(Problem.class),
+                any(Submission.class),
+                caseResultsCaptor.capture()
+        );
+        assertThat(caseResultsCaptor.getValue()).singleElement()
+                .satisfies(result -> {
+                    assertThat(result.getTestCaseId()).isEqualTo(81L);
+                    assertThat(result.getTestSemanticCode()).isEqualTo("TCI_ECHO_REPRESENTATIVE");
+                    assertThat(result.getTestIntentType()).isEqualTo("REPRESENTATIVE");
+                    assertThat(result.getTestIntentSummary()).contains("普通整数");
+                    assertThat(result.getTestLearningObjective()).contains("读取并输出");
+                    assertThat(result.getTestContestRole()).isEqualTo("SAMPLE_EXPLANATION");
+                    assertThat(result.getTestRevealPolicy()).isEqualTo("PUBLIC_EXAMPLE");
+                });
         verify(studentAiFeedbackAsyncService).enqueue(response.getId());
     }
 
@@ -178,11 +196,19 @@ class JudgeServiceCpp17Test {
 
     private TestCase testCase(String input, String expectedOutput) {
         return TestCase.builder()
+                .id(81L)
                 .problemId(1L)
                 .input(input)
                 .expectedOutput(expectedOutput)
                 .isHidden(false)
                 .orderIndex(1)
+                .semanticCode("TCI_ECHO_REPRESENTATIVE")
+                .intentType("REPRESENTATIVE")
+                .intentTitle("普通整数回显")
+                .intentSummary("覆盖普通整数的读取与原样输出流程。")
+                .learningObjective("能按题面顺序读取并输出一个整数。")
+                .contestRole("SAMPLE_EXPLANATION")
+                .revealPolicy("PUBLIC_EXAMPLE")
                 .build();
     }
 

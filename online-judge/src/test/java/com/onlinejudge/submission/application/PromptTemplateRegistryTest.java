@@ -13,6 +13,8 @@ class PromptTemplateRegistryTest {
     void registersStandardLibraryNavigationAdviceAndDiagnosisReportPrompts() {
         PromptTemplateRegistry.PromptTemplate freeDiagnosis =
                 registry.get(PromptTemplateRegistry.FREE_DIAGNOSIS_V1);
+        PromptTemplateRegistry.PromptTemplate freeDiagnosisV2 =
+                registry.get(PromptTemplateRegistry.FREE_DIAGNOSIS_V2);
         PromptTemplateRegistry.PromptTemplate navigation =
                 registry.get(PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1);
         PromptTemplateRegistry.PromptTemplate advice =
@@ -21,6 +23,8 @@ class PromptTemplateRegistryTest {
                 registry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V2);
         PromptTemplateRegistry.PromptTemplate reportV3 =
                 registry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
+        PromptTemplateRegistry.PromptTemplate reportV4 =
+                registry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V4);
 
         assertThat(freeDiagnosis.getStage()).isEqualTo("FREE_DIAGNOSIS");
         assertThat(freeDiagnosis.getSystemPrompt())
@@ -31,6 +35,13 @@ class PromptTemplateRegistryTest {
                 .contains("issues")
                 .contains("navigationIntent")
                 .contains("不能写数据库 ID");
+        assertThat(freeDiagnosisV2.getSystemPrompt())
+                .contains("free-diagnosis-v2")
+                .contains("brief.testIntentFacts")
+                .contains("不能直接证明某个代码错因")
+                .contains("judge:test-intent:<semantic-code>")
+                .contains("不得猜测、复述或反推隐藏输入")
+                .contains("至少还要引用代码行或可见行为差距");
 
         assertThat(navigation.getStage()).isEqualTo("STANDARD_LIBRARY_NAVIGATION");
         assertThat(navigation.getSystemPrompt())
@@ -159,6 +170,13 @@ class PromptTemplateRegistryTest {
                 .contains("必须绑定当前 issue")
                 .contains("nextStepPlan 只能返回 1 条")
                 .contains("学生可见字段禁止出现“直接改成”“替换为”“完整代码”");
+        assertThat(reportV4.getSystemPrompt())
+                .contains("diagnosis-report-v4")
+                .contains("brief.testIntentFacts")
+                .contains("不是预先计算的错因")
+                .contains("不得因测试点映射而改写真实诊断")
+                .contains("testIntentFacts 不能单独证明错因")
+                .contains("hidden=true 的测试语义不得被原样复述给学生");
     }
 
     @Test

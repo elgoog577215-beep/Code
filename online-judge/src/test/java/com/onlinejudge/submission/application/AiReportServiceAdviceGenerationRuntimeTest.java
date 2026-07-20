@@ -99,9 +99,9 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         );
 
         assertThat(service.callCount()).isEqualTo(4);
-        assertThat(service.systemPrompt(0)).contains("free-diagnosis-v1");
+        assertThat(service.systemPrompt(0)).contains("free-diagnosis-v2");
         assertThat(service.systemPrompt(1)).contains("standard-library-navigation-v1");
-        assertThat(service.systemPrompt(3)).contains("diagnosis-report-v3");
+        assertThat(service.systemPrompt(3)).contains("diagnosis-report-v4");
         assertThat(service.outputTokens(3)).isEqualTo(4200);
         assertThat(service.userPrompt(1))
                 .contains("currentLayer", "allowedActions", "maxRounds");
@@ -110,7 +110,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 .contains("mistakePoints")
                 .contains("MP_RANGE_RIGHT_ENDPOINT_MISSING")
                 .contains("\"status\":\"LAYERED_ATTACHMENT\"");
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V4);
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
         assertThat(analysis.getAiInvocation().getStandardLibraryNavigationStatus()).isEqualTo("LAYERED_ATTACHMENT");
         assertThat(analysis.getAiInvocation().getDiagnosisSoftFixes())
@@ -837,7 +837,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         );
 
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V4);
         assertThat(analysis.getAiInvocation().getDiagnosisLibraryFit()).isEqualTo("PARTIAL");
         assertThat(analysis.getAiInvocation().getDiagnosisSoftFixes())
                 .contains("evidenceRef alias code:range_excludes_n:line3 -> code:range_excludes_n")
@@ -1961,7 +1961,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         }
 
         private void awaitParallelOutputProbe(String systemPrompt) throws IOException {
-            if (parallelOutputBarrier == null || (!systemPrompt.contains("diagnosis-report-v3")
+            if (parallelOutputBarrier == null || (!systemPrompt.contains("diagnosis-report-v4")
                     && !systemPrompt.contains("teacher-insight-v1"))) {
                 return;
             }

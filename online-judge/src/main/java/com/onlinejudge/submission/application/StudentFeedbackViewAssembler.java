@@ -89,7 +89,8 @@ public class StudentFeedbackViewAssembler {
         }
         String version = safe(invocation.getPromptVersion()).trim();
         return PromptTemplateRegistry.DIAGNOSIS_REPORT_V2.equals(version)
-                || PromptTemplateRegistry.DIAGNOSIS_REPORT_V3.equals(version);
+                || PromptTemplateRegistry.DIAGNOSIS_REPORT_V3.equals(version)
+                || PromptTemplateRegistry.DIAGNOSIS_REPORT_V4.equals(version);
     }
 
     private List<SubmissionAnalysisResponse.FeedbackViewItem> repairItems(SubmissionAnalysisResponse.StudentFeedback feedback,

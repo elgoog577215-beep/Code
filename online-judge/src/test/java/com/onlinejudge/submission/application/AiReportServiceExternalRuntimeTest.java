@@ -41,7 +41,7 @@ class AiReportServiceExternalRuntimeTest {
         );
 
         assertThat(service.callCount()).isEqualTo(4);
-        assertThat(service.lastSystemPrompt()).contains("diagnosis-report-v3");
+        assertThat(service.lastSystemPrompt()).contains("diagnosis-report-v4");
         assertThat(service.lastSystemPrompt())
                 .contains("diagnosisDecision")
                 .doesNotContain("teachingHint");
@@ -53,7 +53,7 @@ class AiReportServiceExternalRuntimeTest {
         assertThat(analysis.getSourceType()).isEqualTo("MODEL_SCOPE_EXTERNAL_MODEL");
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         assertThat(analysis.getAiInvocation().isFallbackUsed()).isFalse();
-        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3);
+        assertThat(analysis.getAiInvocation().getPromptVersion()).isEqualTo(PromptTemplateRegistry.DIAGNOSIS_REPORT_V4);
         assertThat(analysis.getAiInvocation().getRuntimeMode()).isEqualTo("diagnosis-report");
         assertThat(analysis.getAiInvocation().getFailureStage()).isEmpty();
         assertThat(analysis.getAiInvocation().getAdviceGenerationStatus()).isEqualTo("SUCCESS");
@@ -170,7 +170,7 @@ class AiReportServiceExternalRuntimeTest {
         );
 
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
-        assertThat(service.lastRequestBody()).contains("diagnosis-report-v3");
+        assertThat(service.lastRequestBody()).contains("diagnosis-report-v4");
         assertThat(service.lastRequestBody()).contains("\"role\":\"user\"");
         assertThat(service.lastRequestBody()).doesNotContain("\"role\":\"system\"");
     }

@@ -107,8 +107,10 @@ public class DiagnosisEvidencePackageBuilder {
 
     private DiagnosisEvidencePackage.CaseSummary toCaseSummary(SubmissionCaseResult result) {
         boolean hidden = Boolean.TRUE.equals(result.getHidden());
+        boolean semanticVisible = !hidden || "AI_GENERALIZED".equals(result.getTestRevealPolicy());
         return DiagnosisEvidencePackage.CaseSummary.builder()
                 .testCaseNumber(result.getTestCaseNumber())
+                .testCaseId(result.getTestCaseId())
                 .passed(Boolean.TRUE.equals(result.getPassed()))
                 .hidden(hidden)
                 .executionTime(result.getExecutionTime())
@@ -116,6 +118,13 @@ public class DiagnosisEvidencePackageBuilder {
                 .inputPreview(hidden ? "[隐藏测试点]" : Optional.ofNullable(result.getInputSnapshot()).orElse(""))
                 .actualOutputPreview(hidden ? "[隐藏测试点]" : Optional.ofNullable(result.getActualOutput()).orElse(""))
                 .expectedOutputPreview(hidden ? "[隐藏测试点]" : Optional.ofNullable(result.getExpectedOutput()).orElse(""))
+                .semanticCode(semanticVisible ? result.getTestSemanticCode() : null)
+                .intentType(semanticVisible ? result.getTestIntentType() : null)
+                .intentTitle(semanticVisible ? result.getTestIntentTitle() : null)
+                .intentSummary(semanticVisible ? result.getTestIntentSummary() : null)
+                .learningObjective(semanticVisible ? result.getTestLearningObjective() : null)
+                .contestRole(semanticVisible ? result.getTestContestRole() : null)
+                .revealPolicy(semanticVisible ? result.getTestRevealPolicy() : null)
                 .build();
     }
 

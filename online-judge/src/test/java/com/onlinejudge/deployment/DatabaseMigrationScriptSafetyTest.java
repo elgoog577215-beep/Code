@@ -146,8 +146,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("library_fit_invalid")
                 .contains("post_v5_fact_rows");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"7\" ]]")
-                .contains("V1-V7");
+                .contains("[[ \"${VERSION}\" == \"8\" ]]")
+                .contains("V1-V8");
     }
 
     @Test
@@ -220,6 +220,45 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("ai_standard_application_scenarios")
                 .contains("uk_ai_standard_application_scenario_pair_context")
                 .contains("idx_ai_standard_application_scenario_skill");
+    }
+
+    @Test
+    void testCaseSemanticV8AddsReviewedCoverageSnapshotsAndHiddenDataGate() throws IOException {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V8__add_test_case_semantic_evidence.sql"));
+        String qualityGate = read("check-test-case-semantic-quality.sh");
+        String schemaReadiness = read("check-database-schema-readiness.sh");
+        String integration = read("test-postgres-migrations.sh");
+        String deploy = read("deploy-online-judge.sh");
+
+        assertThat(migration)
+                .contains("ADD COLUMN IF NOT EXISTS semantic_code")
+                .contains("ADD COLUMN IF NOT EXISTS test_case_id")
+                .contains("test_case_semantic_v1")
+                .contains("expected exactly 45 managed test cases")
+                .contains("expected 45 reviewed semantic test cases")
+                .contains("test-case-semantic-quality-v1")
+                .contains("AI_GENERALIZED")
+                .contains("PUBLIC_EXAMPLE")
+                .contains("mapped historical case results without semantic snapshots")
+                .doesNotContain("DELETE FROM", "TRUNCATE TABLE", "DROP TABLE public");
+        assertThat(qualityGate)
+                .contains("semantic_profile_missing")
+                .contains("semantic_reveal_policy_mismatch")
+                .contains("semantic_hidden_raw_input_leak")
+                .contains("semantic_invalid_knowledge_skill_path")
+                .contains("problems_without_intent_diversity")
+                .contains("mapped_case_result_missing_snapshot");
+        assertThat(schemaReadiness)
+                .contains("test_cases', 'semantic_code")
+                .contains("submission_case_results', 'test_case_id")
+                .contains("uk_test_case_semantic_code")
+                .contains("idx_submission_case_results_test_case");
+        assertThat(integration)
+                .contains("[[ \"${VERSION}\" == \"8\" ]]")
+                .contains("V1-V8")
+                .contains("check-test-case-semantic-quality.sh");
+        assertThat(deploy).contains("check-test-case-semantic-quality.sh");
     }
 
     private String read(String name) throws IOException {

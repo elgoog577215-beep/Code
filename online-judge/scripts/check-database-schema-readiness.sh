@@ -52,6 +52,9 @@ DECLARE missing text;
 BEGIN
   WITH expected(table_name, column_name) AS (VALUES
     ('problems', 'id'), ('problems', 'title'), ('test_cases', 'problem_id'),
+    ('test_cases', 'semantic_code'), ('test_cases', 'intent_type'),
+    ('test_cases', 'learning_objective'), ('test_cases', 'reveal_policy'),
+    ('test_cases', 'knowledge_node_code'), ('test_cases', 'skill_unit_code'),
     ('informatics_knowledge_nodes', 'code'),
     ('informatics_discipline_scope_mappings', 'framework_code'),
     ('informatics_discipline_scope_mappings', 'scope_code'),
@@ -65,6 +68,9 @@ BEGIN
     ('ai_standard_application_scenarios', 'observable_evidence'),
     ('ai_standard_application_scenarios', 'success_criteria'),
     ('submission_diagnosis_facts', 'provisional_node_code'),
+    ('submission_case_results', 'test_case_id'),
+    ('submission_case_results', 'test_semantic_code'),
+    ('submission_case_results', 'test_intent_summary'),
     ('submissions', 'problem_id'), ('student_ai_feedbacks', 'submission_id'),
     ('ai_diagnosis_runs', 'submission_id')
   )
@@ -90,6 +96,8 @@ BEGIN
     ('uk_ai_standard_application_scenario_pair_context'),
     ('idx_ai_standard_application_scenario_knowledge'),
     ('idx_ai_standard_application_scenario_skill'),
+    ('uk_test_case_semantic_code'), ('idx_test_case_semantic_knowledge'),
+    ('idx_test_case_semantic_skill'), ('idx_submission_case_results_test_case'),
     ('idx_submissions_problem_submitted_at'), ('idx_ai_diagnosis_run_submission'),
     ('idx_issue_transition_student_point'), ('idx_diagnosis_fact_provisional')
   )

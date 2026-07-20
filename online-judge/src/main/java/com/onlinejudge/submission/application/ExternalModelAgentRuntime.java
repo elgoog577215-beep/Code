@@ -65,9 +65,9 @@ public class ExternalModelAgentRuntime {
         ModelDiagnosisBrief brief = briefBuilder.build(evidencePackage, fallback);
         return RuntimePlan.builder()
                 .brief(brief)
-                .freeDiagnosisPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.FREE_DIAGNOSIS_V1))
+                .freeDiagnosisPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.FREE_DIAGNOSIS_V2))
                 .standardLibraryNavigationPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.STANDARD_LIBRARY_NAVIGATION_V1))
-                .advicePrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V3))
+                .advicePrompt(promptTemplateRegistry.get(PromptTemplateRegistry.DIAGNOSIS_REPORT_V4))
                 .teacherInsightPrompt(promptTemplateRegistry.get(PromptTemplateRegistry.TEACHER_INSIGHT_V1))
                 .runtimeProfile(RUNTIME_PROFILE_STANDARD)
                 .requestCompact(false)
