@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, CircleCheck, ClipboardList, LogIn, Play, RotateCcw, Sparkles, Target } from "lucide-react";
+import { ArrowRight, BookOpen, CircleCheck, ClipboardList, LogIn, Play } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type { Assignment, ProblemCatalogItem, StudentProfile, StudentRecommendation, StudentRecommendationItem } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
@@ -63,7 +63,6 @@ export default function StudentPage() {
   const [recommendation, setRecommendation] = useState<StudentRecommendation | null>(null);
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [recommendationFailed, setRecommendationFailed] = useState(false);
-  const [recommendationReload, setRecommendationReload] = useState(0);
   const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => onActiveStudentChange(() => setStudent(loadStudent())), []);
@@ -152,7 +151,7 @@ export default function StudentPage() {
     return () => {
       ignore = true;
     };
-  }, [student, recommendationReload]);
+  }, [student]);
 
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
   const progressFor = (assignment: Assignment) => progressByAssignmentId[assignment.id] ?? null;
@@ -182,12 +181,12 @@ export default function StudentPage() {
     return null;
   }
 
-  function recommendationAction(item: StudentRecommendationItem, primary = false) {
+  function recommendationAction(item: StudentRecommendationItem) {
     const path = recommendationPath(item);
     if (!path) return null;
     return (
       <Link
-        className={primary ? "student-next-learning__cta" : "student-next-learning__candidate-link"}
+        className="student-next-learning__cta"
         to={path}
         onClick={() => {
           if (student && item.recommendationToken) void api.recordRecommendationEvent(student.id, item.recommendationToken).catch(() => undefined);
@@ -202,57 +201,54 @@ export default function StudentPage() {
   function renderNextLearning() {
     const items = recommendation?.recommendations || [];
     const primary = items[0];
-    const tags = primary ? [primary.focusAbility, ...(primary.focusTags || [])].filter(Boolean) as string[] : [];
+    const fallbackAssignment = visibleAssignments[0];
+    const fallbackPath = fallbackAssignment ? `/app/student/assignments/${fallbackAssignment.id}` : "/app/student/assignments/public";
     return (
-      <section className="student-next-learning" aria-labelledby="student-next-learning-heading">
+      <section className="student-home-zone student-next-learning" data-home-zone="continue" aria-labelledby="student-next-learning-heading">
         <header className="student-next-learning__head">
-          <span className="student-next-learning__icon" aria-hidden="true"><Sparkles size={20} /></span>
-          <div><span>{t("studentHome.nextLearning.eyebrow")}</span><h2 id="student-next-learning-heading">{t("studentHome.nextLearning.title")}</h2></div>
+          <h2 id="student-next-learning-heading">{t("studentHome.nextLearning.title")}</h2>
         </header>
         {recommendationLoading ? (
           <div className="student-next-learning__state" role="status" aria-live="polite">
-            <span className="student-feedback-loading__spinner" aria-hidden="true" />
             <div><strong>{t("studentHome.nextLearning.loading")}</strong><p>{t("studentHome.nextLearning.loadingHint")}</p></div>
           </div>
-        ) : recommendationFailed ? (
-          <div className="student-next-learning__state is-error" role="alert">
-            <div><strong>{t("studentHome.nextLearning.failed")}</strong><p>{t("studentHome.nextLearning.failedHint")}</p></div>
-            <button type="button" onClick={() => setRecommendationReload(value => value + 1)}><RotateCcw size={15} aria-hidden="true" />{t("studentHome.nextLearning.retry")}</button>
-          </div>
-        ) : !primary ? (
+        ) : recommendationFailed || !primary ? (
           <div className="student-next-learning__state">
-            <div><strong>{t("studentHome.nextLearning.empty")}</strong><p>{t("studentHome.nextLearning.emptyHint")}</p></div>
-            <a href="#assignments">{t("studentHome.nextLearning.keepLearning")}</a>
+            <div>
+              <strong>{t(recommendationFailed ? "studentHome.nextLearning.fallbackTitle" : "studentHome.nextLearning.empty")}</strong>
+              <p>{t(recommendationFailed ? "studentHome.nextLearning.fallbackHint" : "studentHome.nextLearning.emptyHint")}</p>
+            </div>
+            <Link to={fallbackPath}>{t("studentHome.nextLearning.keepLearning")}<ArrowRight size={16} aria-hidden="true" /></Link>
           </div>
         ) : (
-          <>
-            <article className="student-next-learning__primary">
-              <div className="student-next-learning__summary">
-                <span className="student-next-learning__badge"><Target size={14} aria-hidden="true" />{t("studentHome.nextLearning.primary")}</span>
-                <h3>{primary.title}</h3>
-                {primary.reason && <p>{primary.reason}</p>}
-                {tags.length > 0 && <div className="student-next-learning__tags" aria-label={t("studentHome.nextLearning.focus")}>{tags.slice(0, 4).map(tag => <span key={tag}>{tag}</span>)}</div>}
-              </div>
-              <div className="student-next-learning__contract">
-                {primary.learningHypothesis && <div><span>{t("studentHome.nextLearning.why")}</span><p>{primary.learningHypothesis}</p></div>}
-                {primary.expectedCompletionSignal && <div className="is-completion"><span>{t("studentHome.nextLearning.completion")}</span><p>{primary.expectedCompletionSignal}</p></div>}
-                {primary.riskLevel && <div><span>{t("studentHome.nextLearning.risk")}</span><p>{t(`studentHome.nextLearning.riskLevel.${primary.riskLevel.toLowerCase()}`)}</p></div>}
-                {primary.fallbackAction && <div><span>{t("studentHome.nextLearning.fallback")}</span><p>{primary.fallbackAction}</p></div>}
-              </div>
-              {recommendationAction(primary, true)}
-            </article>
-            {items.length > 1 && (
-              <div className="student-next-learning__candidates">
-                <strong>{t("studentHome.nextLearning.later")}</strong>
-                {items.slice(1).map(item => (
-                  <div className="student-next-learning__candidate" key={item.recommendationToken || `${item.type}-${item.title}`}>
-                    <span><b>{item.title}</b>{item.reason && <small>{item.reason}</small>}</span>{recommendationAction(item)}
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
+          <article className="student-next-learning__primary">
+            <div className="student-next-learning__summary">
+              <h3>{primary.title}</h3>
+              {primary.reason && <p>{primary.reason}</p>}
+              {primary.expectedCompletionSignal && <small>{t("studentHome.nextLearning.goal", { goal: primary.expectedCompletionSignal })}</small>}
+            </div>
+            {recommendationAction(primary)}
+          </article>
         )}
+      </section>
+    );
+  }
+
+  function renderSelfPractice() {
+    return (
+      <section className="student-home-zone student-self-practice" data-home-zone="practice" aria-labelledby="student-self-practice-heading">
+        <header className="student-home-zone__head">
+          <h2 id="student-self-practice-heading">{t("studentHome.selfPractice.title")}</h2>
+        </header>
+        <Link className="student-self-practice-row" to="/app/student/assignments/public">
+          <span className="student-self-practice-row__icon" aria-hidden="true"><BookOpen size={19} /></span>
+          <span className="student-self-practice-row__main">
+            <strong>{t("studentHome.public.title")}</strong>
+            <small>{problemCount !== null ? t("studentHome.selfPractice.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</small>
+          </span>
+          <span className="student-self-practice-row__action">{t("studentHome.selfPractice.action")}</span>
+          <ArrowRight size={18} aria-hidden="true" />
+        </Link>
       </section>
     );
   }
@@ -354,37 +350,20 @@ export default function StudentPage() {
           </section>
         </>
       ) : (
-        <>
+        <div className="student-home-sections">
           {renderNextLearning()}
-          <section id="assignments" className="student-assignment-board student-learning-task-board" aria-labelledby="student-assignment-heading">
+          <section
+            id="assignments"
+            className="student-home-zone student-assignment-board student-learning-task-board student-classroom-section"
+            data-home-zone="classroom"
+            aria-labelledby="student-assignment-heading"
+          >
           <header className="student-assignment-board__head">
             <span className="student-assignment-board__icon" aria-hidden="true"><ClipboardList size={20} /></span>
-            <h2 id="student-assignment-heading">{t("studentHome.dashboard.learningTasks")}</h2>
+            <h2 id="student-assignment-heading">{t("studentHome.dashboard.classroom")}</h2>
           </header>
 
-          <nav className="student-assignment-table student-assignment-table--direct student-learning-task-list" aria-label={t("studentHome.dashboard.learningTasks")}>
-            <Link
-              className="student-entry-link student-assignment-row student-assignment-row--direct student-assignment-row--featured student-public-task-row"
-              to="/app/student/assignments/public"
-              aria-label={`${t("studentHome.dashboard.pinnedPublic")}，${t("studentHome.public.title")}`}
-            >
-              <span className="student-assignment-row__icon" aria-hidden="true"><BookOpen size={19} /></span>
-              <span className="student-assignment-row__main">
-                <small className="student-public-task-row__eyebrow">{t("studentHome.dashboard.pinnedPublic")}</small>
-                <strong>{t("studentHome.public.title")}</strong>
-              </span>
-              <span className="student-assignment-row__status">
-                <span><i className="student-assignment-row__dot student-assignment-row__dot--active" />{problemCount !== null ? t("studentHome.public.meta", { count: problemCount }) : t("studentHome.loading.publicBank")}</span>
-                <small>{t("studentHome.public.description")}</small>
-              </span>
-              <span className="student-public-task-row__difficulty" aria-label={t("studentHome.guestPreview.difficultyAria")}>
-                <span>{t("studentHome.guestPreview.easy", { count: publicDifficultyCounts.EASY })}</span>
-                <span>{t("studentHome.guestPreview.medium", { count: publicDifficultyCounts.MEDIUM })}</span>
-                <span>{t("studentHome.guestPreview.hard", { count: publicDifficultyCounts.HARD })}</span>
-              </span>
-              <ArrowRight className="student-assignment-row__chevron" size={18} aria-hidden="true" />
-            </Link>
-
+          <nav className="student-assignment-table student-assignment-table--direct student-learning-task-list" aria-label={t("studentHome.dashboard.classroom")}>
             {assignmentLoading ? (
               <div className="student-assignment-board__empty" role="status" aria-live="polite">
                 {t("studentHome.loading.assignments")}
@@ -428,7 +407,8 @@ export default function StudentPage() {
             )}
           </nav>
           </section>
-        </>
+          {renderSelfPractice()}
+        </div>
       )}
 
     </div>

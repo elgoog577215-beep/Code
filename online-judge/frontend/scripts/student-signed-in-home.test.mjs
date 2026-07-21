@@ -66,9 +66,9 @@ const recommendations = {
   ]
 };
 
-async function withSignedInPage(run) {
+async function withSignedInPage(run, viewport = { width: 1600, height: 1000 }) {
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+  const context = await browser.newContext({ viewport });
   await context.addInitScript(value => {
     window.sessionStorage.setItem("wzai:student", JSON.stringify(value));
   }, student);
@@ -91,7 +91,7 @@ async function withSignedInPage(run) {
   try {
     const page = await context.newPage();
     await page.goto(`${baseUrl}/app/student`, { waitUntil: "domcontentloaded" });
-    await page.locator(".student-learning-task-list").waitFor({ state: "visible" });
+    await page.locator(".student-home-sections").waitFor({ state: "visible" });
     await run(page);
   } finally {
     await context.close();
@@ -99,26 +99,31 @@ async function withSignedInPage(run) {
   }
 }
 
-test("signed-in public bank is pinned inside the unified learning task list", async () => {
+test("signed-in home separates continue, classroom, and self-practice areas", async () => {
   await withSignedInPage(async page => {
-    const taskList = page.locator(".student-learning-task-list");
-    const publicTask = taskList.locator(".student-public-task-row");
-    assert.equal(await taskList.count(), 1);
-    assert.equal(await publicTask.count(), 1);
-    assert.equal(await taskList.locator(".student-entry-link").first().evaluate(element => element.classList.contains("student-public-task-row")), true);
-    assert.equal(await publicTask.locator(".student-public-task-row__difficulty").count(), 1);
+    const sections = page.locator(".student-home-sections > section");
+    assert.equal(await sections.count(), 3);
+    assert.equal(await sections.nth(0).getAttribute("data-home-zone"), "continue");
+    assert.equal(await sections.nth(1).getAttribute("data-home-zone"), "classroom");
+    assert.equal(await sections.nth(2).getAttribute("data-home-zone"), "practice");
+    assert.equal(await page.locator(".student-self-practice-row").count(), 1);
+    assert.equal(await page.locator(".student-public-task-row__difficulty").count(), 0);
     assert.equal(await page.locator(".student-guest-practice").count(), 0);
   });
 });
 
-test("next learning shows one primary action with evidence and completion signal", async () => {
+test("next learning shows only the primary action, reason, and completion target", async () => {
   await withSignedInPage(async page => {
     const panel = page.locator(".student-next-learning");
     await panel.locator(".student-next-learning__primary").waitFor({ state: "visible" });
     assert.equal(await panel.locator(".student-next-learning__primary").count(), 1);
     assert.match(await panel.textContent(), /重做回文判断的边界样例/);
     assert.match(await panel.textContent(), /补充空串与单字符样例/);
-    assert.equal(await panel.locator(".student-next-learning__candidate").count(), 1);
+    assert.doesNotMatch(await panel.textContent(), /当前更需要验证边界判断/);
+    assert.doesNotMatch(await panel.textContent(), /先手写三个最小边界样例/);
+    assert.doesNotMatch(await panel.textContent(), /完成一道同类迁移题/);
+    assert.equal(await panel.locator(".student-next-learning__candidate").count(), 0);
+    assert.equal(await panel.locator(".student-next-learning__tags").count(), 0);
   });
 });
 
@@ -137,7 +142,7 @@ test("primary action preserves student identity and recommendation token", async
 
 test("each classroom assignment opens directly without selection", async () => {
   await withSignedInPage(async page => {
-    const firstAssignment = page.locator(".student-assignment-row:not(.student-public-task-row)").first();
+    const firstAssignment = page.locator(".student-classroom-section .student-assignment-row").first();
     assert.equal(await firstAssignment.evaluate(element => element.tagName), "A");
     assert.equal(await page.locator('.student-assignment-row input[type="radio"]').count(), 0);
     await Promise.all([
@@ -152,7 +157,7 @@ test("signed-in home removes secondary summaries and assignment descriptions", a
     assert.equal(await page.locator(".student-home-command__message span").count(), 0);
     assert.equal(await page.locator(".student-assignment-board__head p").count(), 0);
     assert.equal(await page.locator(".student-assignment-table__header").count(), 0);
-    assert.equal(await page.locator(".student-assignment-row:not(.student-public-task-row) .student-assignment-row__main small").count(), 0);
+    assert.equal(await page.locator(".student-classroom-section .student-assignment-row__main small").count(), 0);
     assert.equal((await page.locator("body").textContent()).includes("这段作业说明不应显示"), false);
   });
 });
@@ -171,7 +176,7 @@ test("signed-in home omits the duplicated page command row", async () => {
 
 test("classroom assignment rows distribute controls across the full width", async () => {
   await withSignedInPage(async page => {
-    const row = page.locator(".student-assignment-row:not(.student-public-task-row)").first();
+    const row = page.locator(".student-classroom-section .student-assignment-row").first();
     const chevron = row.locator(".student-assignment-row__chevron");
     const progress = row.locator(".student-assignment-row__progress");
     const [rowBox, chevronBox, progressBox] = await Promise.all([
@@ -184,4 +189,14 @@ test("classroom assignment rows distribute controls across the full width", asyn
     assert.ok(rightGap <= 32, `entry arrow must align near the right edge; gap=${rightGap}`);
     assert.ok(progressBox.x >= rowBox.x + rowBox.width * 0.6, `progress must occupy the right side of the row; ${JSON.stringify({ rowBox, progressBox })}`);
   });
+});
+
+test("mobile first viewport includes continue learning and classroom work", async () => {
+  await withSignedInPage(async page => {
+    const continueBox = await page.locator('.student-home-zone[data-home-zone="continue"]').boundingBox();
+    const classroomHeadingBox = await page.locator("#student-assignment-heading").boundingBox();
+    assert.ok(continueBox && classroomHeadingBox);
+    assert.ok(continueBox.height <= 230, `continue area must stay compact; height=${continueBox.height}`);
+    assert.ok(classroomHeadingBox.y < 844, `classroom heading must appear in initial viewport; y=${classroomHeadingBox.y}`);
+  }, { width: 390, height: 844 });
 });

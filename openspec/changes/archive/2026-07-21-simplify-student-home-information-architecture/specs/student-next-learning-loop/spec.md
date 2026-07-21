@@ -1,8 +1,5 @@
-# student-next-learning-loop Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change productize-student-next-learning-loop. Update Purpose after archive.
-## Requirements
 ### Requirement: 学生首页必须展示单一主学习行动
 系统 SHALL 在登录学生首页使用后端返回的推荐顺序展示一个最高优先级主行动；前端 MUST NOT 根据标签文本、通过率或本地规则重新计算推荐优先级。其他有效建议 SHALL 保留在推荐响应和证据链中，但 MUST NOT 在首页默认展开为并列或次级行动列表。
 
@@ -24,18 +21,6 @@ TBD - created by archiving change productize-student-next-learning-loop. Update 
 - **THEN** 页面 MUST NOT 展示模板式虚假完成标准
 - **AND** 行动入口仍可在其他必要字段完整时使用
 
-### Requirement: 推荐行动必须进入既有学习证据链
-可跳转行动 SHALL 携带学生身份和推荐令牌进入对应题目，并在点击、进入题目和再次提交时复用现有推荐事件链；无安全目标路由时系统 SHALL 只展示建议，不得构造错误入口。
-
-#### Scenario: 推荐指向作业题
-- **WHEN** 推荐同时包含作业 ID、题目 ID 和推荐令牌
-- **THEN** 主按钮 SHALL 进入对应作业题目并携带学生身份与推荐令牌
-
-#### Scenario: 推荐目标不完整
-- **WHEN** 推荐缺少构造安全目标所需的题目或作业信息
-- **THEN** 页面 SHALL 保留可读建议
-- **AND** 页面 MUST NOT 展示指向错误题目的主按钮
-
 ### Requirement: 推荐状态必须诚实且不阻塞首页
 推荐加载、空结果和请求失败 SHALL 与课堂作业、自主练习独立；推荐失败 MUST NOT 阻塞原有学习入口，也不得被描述为学生已经掌握。首页 SHALL 使用低权重任务降级，不得用大型 AI 错误卡抢占首屏。
 
@@ -48,11 +33,3 @@ TBD - created by archiving change productize-student-next-learning-loop. Update 
 - **WHEN** 推荐接口成功但没有有效建议
 - **THEN** 页面 SHALL 引导学生继续当前作业或自主练习
 - **AND** 页面 MUST NOT 使用已经掌握的结论解释空结果
-
-### Requirement: 下一步学习区域必须双语且可访问
-新增标题、状态、按钮、标签和辅助说明 SHALL 同时提供中文和英文，并满足键盘操作、屏幕阅读顺序、非颜色状态表达和移动端单列布局。
-
-#### Scenario: 英文移动端访问
-- **WHEN** 学生在英文模式和窄屏设备打开首页
-- **THEN** 下一步区域 SHALL 使用英文且保持单列可读
-- **AND** 主行动入口 SHALL 可通过键盘聚焦并具有明确可访问名称

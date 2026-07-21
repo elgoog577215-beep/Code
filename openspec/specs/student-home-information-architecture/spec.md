@@ -1,0 +1,42 @@
+# student-home-information-architecture Specification
+
+## Purpose
+TBD - created by archiving change simplify-student-home-information-architecture. Update Purpose after archive.
+## Requirements
+### Requirement: 登录学生首页必须按三个用户任务分区
+登录学生首页 SHALL 依次展示“继续学习”“课堂作业”“自主练习”三个功能区；三个区块 MUST NOT 将推荐解释、教师作业和公共题库混入同一个列表或同一视觉层级。
+
+#### Scenario: 登录学生存在推荐和课堂作业
+- **WHEN** 学生打开首页且推荐、课堂作业与公共题库均可用
+- **THEN** 页面 SHALL 先展示一个继续学习主行动
+- **AND** 课堂作业 SHALL 位于自主练习之前
+
+### Requirement: 课堂作业区必须保持任务导向
+课堂作业区 SHALL 仅展示作业名称、状态、完成进度和入口；作业动态、逐题状态和总提交次数 MUST 留在作业详情页。
+
+#### Scenario: 学生有多项课堂作业
+- **WHEN** 两项或以上已发布作业可见
+- **THEN** 每项作业 SHALL 使用一行可点击入口展示名称、状态和进度
+
+### Requirement: 自主练习必须作为轻量独立入口
+登录学生首页的自主练习区 SHALL 以单行公共题库入口展示题目数量和简短说明，不得默认展开难度分布、推荐起步题或筛选器；未登录学生的公共练习展示 MUST 保持原有能力。
+
+#### Scenario: 登录学生查看公共题库入口
+- **WHEN** 公共题库可用
+- **THEN** 自主练习区 SHALL 提供一个进入公共题库的轻量入口
+- **AND** 页面 MUST NOT 将其标记为置顶课堂任务
+
+### Requirement: 移动端首屏必须同时暴露行动与课堂任务
+在 390px 宽移动视口中，继续学习区 SHALL 保持紧凑，初始视口 MUST 同时出现课堂作业区标题或首条作业，不得由推荐解释独占首屏。
+
+#### Scenario: 移动端存在完整推荐
+- **WHEN** 推荐包含原因、标签、学习假设、完成信号、风险和回退动作
+- **THEN** 首页 SHALL 仅以紧凑主行动展示必要字段
+- **AND** 课堂作业区 SHALL 在初始视口可见
+
+### Requirement: 首页新增文案必须双语且状态可访问
+三个功能区的标题、状态、按钮和辅助说明 SHALL 同时提供中文和英文；加载、空和降级状态 SHALL 使用文本表达且不只依赖颜色。
+
+#### Scenario: 英文模式查看首页
+- **WHEN** 学生切换到英文
+- **THEN** 三个功能区与所有状态 SHALL 无硬编码中文
