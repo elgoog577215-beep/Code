@@ -33,5 +33,5 @@
 ## 6. 生产发布与收束
 
 - [x] 6.1 备份并验证生产 PostgreSQL，保留旧镜像与环境配置
-- [ ] 6.2 受控发布到 `https://tuotuzju.com/code/` 并验证 Flyway、数据库门禁、页面、readiness 与核心 API
-- [ ] 6.3 同步规格、归档 OpenSpec，提交并推送当前任务改动
+- [x] 6.2 受控发布到 `https://tuotuzju.com/code/` 并验证 Flyway、数据库门禁、页面、readiness 与核心 API
+- [x] 6.3 同步规格、归档 OpenSpec，提交并推送当前任务改动
