@@ -293,6 +293,11 @@
       "emptyHint": "完成一次提交后，这里会接回最适合继续的内容。",
       "keepLearning": "继续学习",
       "goal": "目标：{{goal}}",
+      "outcome": {
+        "fulfilled": "上一次行动已有完成证据",
+        "unresolved": "同类问题仍需继续处理",
+        "waiting": "正在等待下一次有效证据"
+      },
       "open": "开始行动",
       "openAria": "开始学习行动：{{title}}"
     },
@@ -668,6 +673,33 @@
     "emptyAssignmentsDescription": "先新建一项作业。",
     "viewDetails": "查看详情",
     "needsAttentionWithCount": "需看 {{count}}",
+    "console": {
+      "title": "课堂教学工作台",
+      "description": "先看需要介入的学生，再进入作业与题目证据。",
+      "tableTitle": "当前作业",
+      "tableHint": "统一查看参与、通过与需关注情况",
+      "classColumn": "班级",
+      "submitted": "已提交",
+      "passRate": "通过率",
+      "attention": "需关注",
+      "action": "操作",
+      "stable": "稳定",
+      "noSharedIssue": "暂无集中错因",
+      "queueTitle": "优先处理",
+      "queueHint": "队列优先使用建议后的真实提交证据。",
+      "queueEmptyTitle": "暂无待介入项",
+      "queueEmptyDescription": "当前没有持续未解决的建议行动。",
+      "recent": "近期新增",
+      "waiting": "等待新证据",
+      "unboundAction": "未绑定作业的学习行动",
+      "actionNeedsReview": "需复核",
+      "studentWithId": "学生 #{{id}}",
+      "actionUnresolved": "建议后的提交仍命中同类问题",
+      "actionHighRisk": "高风险行动尚未兑现",
+      "actionNoFollowup": "已经进入行动，但还没有后续提交",
+      "actionEvidencePending": "行动证据尚不足",
+      "matchBasis": "匹配依据：{{basis}}"
+    },
     "metrics": {
       "assignments": "作业",
       "students": "学生",
@@ -681,6 +713,27 @@
       "serviceUnavailable": "教师端数据读取失败，服务暂时不可用。",
       "notFound": "教师端数据读取失败，未找到课堂资源。",
       "separator": "，"
+    }
+  },
+  "assignmentReadiness": {
+    "checking": "正在检查题目与测试点质量",
+    "ready": "发布质检通过",
+    "notReady": "正式发布前还需修复阻断项",
+    "empty": "选择题目后自动检查发布质量",
+    "blocker": "阻断",
+    "warning": "提醒",
+    "publishBlocked": "所选题目尚未通过发布质检，可先保存为草稿后继续修复。",
+    "blockerSummary": "{{count}} 个质量阻断项",
+    "issues": {
+      "PROBLEM_NOT_FOUND": "题目不存在或已被删除",
+      "NO_TEST_CASES": "缺少测试用例，无法可靠判题",
+      "SEMANTIC_PROFILE_INCOMPLETE": "存在缺少完整审核语义的测试点",
+      "SEMANTIC_CODE_DUPLICATE": "测试点语义标识重复",
+      "STANDARD_LIBRARY_PATH_INVALID": "测试点的知识点与能力路径无效或不一致",
+      "REVEAL_POLICY_MISMATCH": "隐藏属性与测试点揭示策略冲突",
+      "LOW_INTENT_DIVERSITY": "多个测试点只覆盖一种评测意图",
+      "STARTER_CODE_MISSING": "未提供起步代码，初学者缺少结构支架",
+      "UNKNOWN": "存在尚未识别的发布质量问题"
     }
   },
   "assignmentDetail": {

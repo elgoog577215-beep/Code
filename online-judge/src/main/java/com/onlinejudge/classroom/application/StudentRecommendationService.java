@@ -209,6 +209,24 @@ public class StudentRecommendationService {
                 .limit(3)
                 .peek(item -> item.setRecommendationToken(recommendationEventService.tokenFor(studentProfileId, item)))
                 .toList();
+        Map<String, RecommendationEffectivenessResponse.ActionEvidenceSignal> actionEvidenceByToken =
+                actionEvidenceSignals.stream()
+                        .filter(signal -> signal.getRecommendationToken() != null)
+                        .collect(Collectors.toMap(
+                                RecommendationEffectivenessResponse.ActionEvidenceSignal::getRecommendationToken,
+                                Function.identity(),
+                                (left, right) -> left
+                        ));
+        recommendations.forEach(item -> {
+            RecommendationEffectivenessResponse.ActionEvidenceSignal signal =
+                    actionEvidenceByToken.get(item.getRecommendationToken());
+            if (signal != null) {
+                item.setActionOutcome(signal.getOutcome());
+                item.setActionOutcomeSummary(signal.getSummary());
+                item.setActionMatchBasis(signal.getMatchBasis());
+                item.setActionEvidenceRefs(signal.getEvidenceRefs());
+            }
+        });
         recommendations.forEach(item -> recommendationEventService.recordExposure(studentProfileId, item));
 
         return StudentRecommendationResponse.builder()

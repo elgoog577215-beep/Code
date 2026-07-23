@@ -198,6 +198,21 @@ export default function StudentPage() {
     );
   }
 
+  function recommendationOutcome(item: StudentRecommendationItem) {
+    switch (item.actionOutcome) {
+      case "CONTRACT_FULFILLED":
+        return t("studentHome.nextLearning.outcome.fulfilled");
+      case "UNRESOLVED_SAME_FOCUS":
+      case "TEACHER_INTERVENTION_NEEDED":
+        return t("studentHome.nextLearning.outcome.unresolved");
+      case "WAITING_DIAGNOSIS":
+      case "NO_FOLLOWUP_SUBMISSION":
+        return t("studentHome.nextLearning.outcome.waiting");
+      default:
+        return null;
+    }
+  }
+
   function renderNextLearning() {
     const items = recommendation?.recommendations || [];
     const primary = items[0];
@@ -225,6 +240,9 @@ export default function StudentPage() {
             <div className="student-next-learning__summary">
               <h3>{primary.title}</h3>
               {primary.reason && <p>{primary.reason}</p>}
+              {recommendationOutcome(primary) && (
+                <span className="student-next-learning__status">{recommendationOutcome(primary)}</span>
+              )}
               {primary.expectedCompletionSignal && <small>{t("studentHome.nextLearning.goal", { goal: primary.expectedCompletionSignal })}</small>}
             </div>
             {recommendationAction(primary)}

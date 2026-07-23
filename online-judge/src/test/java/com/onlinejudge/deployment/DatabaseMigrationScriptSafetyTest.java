@@ -162,8 +162,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("library_fit_invalid")
                 .contains("post_v5_fact_rows");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"8\" ]]")
-                .contains("V1-V8");
+                .contains("[[ \"${VERSION}\" == \"9\" ]]")
+                .contains("V1-V9");
     }
 
     @Test
@@ -271,10 +271,30 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("uk_test_case_semantic_code")
                 .contains("idx_submission_case_results_test_case");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"8\" ]]")
-                .contains("V1-V8")
+                .contains("[[ \"${VERSION}\" == \"9\" ]]")
+                .contains("V1-V9")
                 .contains("check-test-case-semantic-quality.sh");
         assertThat(deploy).contains("check-test-case-semantic-quality.sh");
+    }
+
+    @Test
+    void learningActionV9AddsStableEvidenceSnapshotsWithoutDestructiveChanges() throws IOException {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V9__close_learning_action_evidence_loop.sql"));
+        String schemaReadiness = read("check-database-schema-readiness.sh");
+
+        assertThat(migration)
+                .contains("ADD COLUMN IF NOT EXISTS source_submission_id")
+                .contains("ADD COLUMN IF NOT EXISTS focus_point_keys")
+                .contains("ADD COLUMN IF NOT EXISTS focus_test_semantic_codes")
+                .contains("ADD COLUMN IF NOT EXISTS followup_point_keys")
+                .contains("ADD COLUMN IF NOT EXISTS followup_failed_test_semantic_codes")
+                .contains("idx_reco_events_source_submission")
+                .doesNotContain("DELETE FROM", "TRUNCATE TABLE", "DROP TABLE public");
+        assertThat(schemaReadiness)
+                .contains("student_recommendation_events', 'focus_point_keys")
+                .contains("student_recommendation_events', 'followup_failed_test_semantic_codes")
+                .contains("idx_reco_events_source_submission");
     }
 
     private String read(String name) throws IOException {

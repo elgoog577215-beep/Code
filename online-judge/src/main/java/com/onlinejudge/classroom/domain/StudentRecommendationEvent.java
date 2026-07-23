@@ -49,6 +49,27 @@ public class StudentRecommendationEvent {
     @Column(name = "focus_tags", columnDefinition = "TEXT")
     private String focusTags;
 
+    @Column(name = "source_submission_id")
+    private Long sourceSubmissionId;
+
+    @Column(name = "focus_issue_ids", columnDefinition = "TEXT")
+    private String focusIssueIds;
+
+    @Column(name = "focus_point_keys", columnDefinition = "TEXT")
+    private String focusPointKeys;
+
+    @Column(name = "focus_knowledge_node_codes", columnDefinition = "TEXT")
+    private String focusKnowledgeNodeCodes;
+
+    @Column(name = "focus_skill_unit_codes", columnDefinition = "TEXT")
+    private String focusSkillUnitCodes;
+
+    @Column(name = "focus_mistake_point_codes", columnDefinition = "TEXT")
+    private String focusMistakePointCodes;
+
+    @Column(name = "focus_test_semantic_codes", columnDefinition = "TEXT")
+    private String focusTestSemanticCodes;
+
     @Column(name = "strategy")
     private String strategy;
 
@@ -78,6 +99,24 @@ public class StudentRecommendationEvent {
 
     @Column(name = "followup_fine_grained_tag")
     private String followupFineGrainedTag;
+
+    @Column(name = "followup_issue_ids", columnDefinition = "TEXT")
+    private String followupIssueIds;
+
+    @Column(name = "followup_point_keys", columnDefinition = "TEXT")
+    private String followupPointKeys;
+
+    @Column(name = "followup_knowledge_node_codes", columnDefinition = "TEXT")
+    private String followupKnowledgeNodeCodes;
+
+    @Column(name = "followup_skill_unit_codes", columnDefinition = "TEXT")
+    private String followupSkillUnitCodes;
+
+    @Column(name = "followup_mistake_point_codes", columnDefinition = "TEXT")
+    private String followupMistakePointCodes;
+
+    @Column(name = "followup_failed_test_semantic_codes", columnDefinition = "TEXT")
+    private String followupFailedTestSemanticCodes;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

@@ -140,6 +140,11 @@ class RecommendationEffectivenessServiceTest {
             assertThat(signal.isNeedsTeacherAttention()).isTrue();
             assertThat(signal.getRecommendedAdjustment()).contains("教师介入");
         });
+        assertThat(service.buildInterventionQueue()).singleElement().satisfies(signal -> {
+            assertThat(signal.getStudentProfileId()).isEqualTo(41L);
+            assertThat(signal.getAssignmentId()).isEqualTo(7L);
+            assertThat(signal.getProblemId()).isEqualTo(101L);
+        });
     }
 
     @Test

@@ -18,6 +18,7 @@ import com.onlinejudge.submission.persistence.SubmissionCaseResultRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +36,7 @@ public class ClassroomService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final ClassGroupRepository classGroupRepository;
+    private AssignmentReadinessService assignmentReadinessService;
     private final StudentProfileRepository studentProfileRepository;
     private final AssignmentRepository assignmentRepository;
     private final AssignmentInviteRepository assignmentInviteRepository;
@@ -68,6 +70,11 @@ public class ClassroomService {
     private final HintSafetyCheckRepository hintSafetyCheckRepository;
     private final CoachPromptRepository coachPromptRepository;
     private final StudentAccessTokenService studentAccessTokenService;
+
+    @Autowired
+    void setAssignmentReadinessService(AssignmentReadinessService assignmentReadinessService) {
+        this.assignmentReadinessService = assignmentReadinessService;
+    }
     private final StudentAiFeedbackEventRepository studentAiFeedbackEventRepository;
     private final StudentAiFeedbackImpactAnalyzer studentAiFeedbackImpactAnalyzer;
     private final SubmissionEvidenceAnalyticsService submissionEvidenceAnalyticsService;
@@ -108,6 +115,11 @@ public class ClassroomService {
         }
 
         validateProblemsExist(request.getProblemIds());
+        Assignment.AssignmentStatus targetStatus =
+                request.getStatus() == null ? Assignment.AssignmentStatus.ACTIVE : request.getStatus();
+        if (targetStatus == Assignment.AssignmentStatus.ACTIVE && assignmentReadinessService != null) {
+            assignmentReadinessService.requirePublishable(request.getProblemIds());
+        }
         if (request.getClassGroupId() != null && !classGroupRepository.existsById(request.getClassGroupId())) {
             throw new IllegalArgumentException("班级不存在: " + request.getClassGroupId());
         }
@@ -117,7 +129,7 @@ public class ClassroomService {
                 .description(normalizeNullable(request.getDescription()))
                 .classGroupId(request.getClassGroupId())
                 .hintPolicy(request.getHintPolicy() == null ? Assignment.HintPolicy.L2 : request.getHintPolicy())
-                .status(request.getStatus() == null ? Assignment.AssignmentStatus.ACTIVE : request.getStatus())
+                .status(targetStatus)
                 .startsAt(request.getStartsAt())
                 .endsAt(request.getEndsAt())
                 .build());
@@ -131,12 +143,17 @@ public class ClassroomService {
     public AssignmentResponse updateAssignment(Long assignmentId, CreateAssignmentRequest request) {
         Assignment assignment = findAssignment(assignmentId);
         validateProblemsExist(request.getProblemIds());
+        Assignment.AssignmentStatus targetStatus =
+                request.getStatus() == null ? Assignment.AssignmentStatus.ACTIVE : request.getStatus();
+        if (targetStatus == Assignment.AssignmentStatus.ACTIVE && assignmentReadinessService != null) {
+            assignmentReadinessService.requirePublishable(request.getProblemIds());
+        }
 
         assignment.setTitle(normalizeRequired(request.getTitle(), "作业标题不能为空"));
         assignment.setDescription(normalizeNullable(request.getDescription()));
         assignment.setClassGroupId(request.getClassGroupId());
         assignment.setHintPolicy(request.getHintPolicy() == null ? Assignment.HintPolicy.L2 : request.getHintPolicy());
-        assignment.setStatus(request.getStatus() == null ? Assignment.AssignmentStatus.ACTIVE : request.getStatus());
+        assignment.setStatus(targetStatus);
         assignment.setStartsAt(request.getStartsAt());
         assignment.setEndsAt(request.getEndsAt());
         Assignment saved = assignmentRepository.save(assignment);

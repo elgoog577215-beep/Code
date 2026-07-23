@@ -62,6 +62,9 @@ class StudentRecommendationServiceTest {
     private final StudentRecommendationEventService recommendationEventService = new StudentRecommendationEventService(
             recommendationEventRepository,
             analysisRepository,
+            submissionRepository,
+            org.mockito.Mockito.mock(com.onlinejudge.submission.persistence.SubmissionDiagnosisFactRepository.class),
+            org.mockito.Mockito.mock(com.onlinejudge.submission.persistence.SubmissionCaseResultRepository.class),
             new DiagnosisReportReader(objectMapper, taxonomy),
             objectMapper
     );

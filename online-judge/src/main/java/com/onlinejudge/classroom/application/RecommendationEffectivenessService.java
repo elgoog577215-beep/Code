@@ -57,6 +57,14 @@ public class RecommendationEffectivenessService {
         return buildFrom(eventRepository.findTop500ByAssignmentIdOrderByCreatedAtDesc(assignmentId));
     }
 
+    public List<RecommendationEffectivenessResponse.ActionEvidenceSignal> buildInterventionQueue() {
+        return actionEvidenceAnalyzer.analyze(eventRepository.findTop500ByOrderByCreatedAtDesc())
+                .stream()
+                .filter(signal -> signal.isNeedsTeacherAttention() || actionEvidenceAnalyzer.isUnresolved(signal))
+                .limit(20)
+                .toList();
+    }
+
     RecommendationEffectivenessResponse buildFrom(List<StudentRecommendationEvent> events) {
         List<StudentRecommendationEvent> safeEvents = normalizeEvents(events);
         Metrics overall = metricsFor(safeEvents);

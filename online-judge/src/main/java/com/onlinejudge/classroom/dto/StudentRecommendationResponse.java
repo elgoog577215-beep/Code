@@ -31,6 +31,10 @@ public class StudentRecommendationResponse {
         private String strategy;
         private String riskLevel;
         private String fallbackAction;
+        private String actionOutcome;
+        private String actionOutcomeSummary;
+        private String actionMatchBasis;
+        private List<String> actionEvidenceRefs;
         private int priority;
     }
 }

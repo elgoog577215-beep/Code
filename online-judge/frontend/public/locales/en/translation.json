@@ -293,6 +293,11 @@
       "emptyHint": "After your next submission, this area will bring back the best task to continue.",
       "keepLearning": "Continue learning",
       "goal": "Goal: {{goal}}",
+      "outcome": {
+        "fulfilled": "The previous action now has completion evidence",
+        "unresolved": "The same issue still needs attention",
+        "waiting": "Waiting for the next valid evidence"
+      },
       "open": "Start action",
       "openAria": "Start learning action: {{title}}"
     },
@@ -668,6 +673,33 @@
     "emptyAssignmentsDescription": "Create an assignment first.",
     "viewDetails": "View details",
     "needsAttentionWithCount": "Review {{count}}",
+    "console": {
+      "title": "Classroom Teaching Workbench",
+      "description": "Review students who need intervention, then open assignment and submission evidence.",
+      "tableTitle": "Current assignments",
+      "tableHint": "Participation, pass rates, and attention in one view",
+      "classColumn": "Class",
+      "submitted": "Submitted",
+      "passRate": "Pass rate",
+      "attention": "Attention",
+      "action": "Action",
+      "stable": "Stable",
+      "noSharedIssue": "No shared issue",
+      "queueTitle": "Priority queue",
+      "queueHint": "The queue prioritizes real submissions after a recommendation.",
+      "queueEmptyTitle": "No interventions pending",
+      "queueEmptyDescription": "No recommendation actions remain unresolved.",
+      "recent": "Recent",
+      "waiting": "Waiting for evidence",
+      "unboundAction": "Learning action without an assignment",
+      "actionNeedsReview": "Review",
+      "studentWithId": "Student #{{id}}",
+      "actionUnresolved": "The follow-up submission still matches the same issue",
+      "actionHighRisk": "A high-risk action remains unresolved",
+      "actionNoFollowup": "The action was opened but has no follow-up submission",
+      "actionEvidencePending": "Action evidence is still insufficient",
+      "matchBasis": "Match basis: {{basis}}"
+    },
     "metrics": {
       "assignments": "Assignments",
       "students": "Students",
@@ -681,6 +713,27 @@
       "serviceUnavailable": "Failed to load teacher data. The service is temporarily unavailable.",
       "notFound": "Failed to load teacher data. Classroom resources were not found.",
       "separator": ": "
+    }
+  },
+  "assignmentReadiness": {
+    "checking": "Checking problem and test-case quality",
+    "ready": "Publish readiness passed",
+    "notReady": "Resolve blockers before publishing",
+    "empty": "Select problems to run the publish check",
+    "blocker": "Blocker",
+    "warning": "Warning",
+    "publishBlocked": "Selected problems are not ready to publish. Save as a draft and continue fixing them.",
+    "blockerSummary": "{{count}} quality blockers",
+    "issues": {
+      "PROBLEM_NOT_FOUND": "The problem no longer exists",
+      "NO_TEST_CASES": "No test cases are available for reliable judging",
+      "SEMANTIC_PROFILE_INCOMPLETE": "Some test cases do not have a complete reviewed semantic profile",
+      "SEMANTIC_CODE_DUPLICATE": "Test-case semantic identifiers are duplicated",
+      "STANDARD_LIBRARY_PATH_INVALID": "The knowledge and skill path is invalid or inconsistent",
+      "REVEAL_POLICY_MISMATCH": "Hidden visibility conflicts with the reveal policy",
+      "LOW_INTENT_DIVERSITY": "Multiple test cases cover only one evaluation intent",
+      "STARTER_CODE_MISSING": "Starter code is missing for learners who need structure",
+      "UNKNOWN": "An unrecognized publish-quality issue remains"
     }
   },
   "assignmentDetail": {

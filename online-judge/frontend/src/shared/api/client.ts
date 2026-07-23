@@ -1,5 +1,6 @@
 import type {
   Assignment,
+  AssignmentReadiness,
   AssignmentOverview,
   AiStandardLibraryItem,
   AiStandardLibraryItemPayload,
@@ -26,6 +27,7 @@ import type {
   ProblemManage,
   Readiness,
   RecommendationEffectiveness,
+  RecommendationActionEvidenceSignal,
   StudentAbilityProfile,
   StudentAssignmentLeaderboard,
   StudentAssignmentSubmissionPage,
@@ -229,6 +231,11 @@ export const api = {
   assignment: (id: number) => request<Assignment>(`/api/teacher/assignments/${id}`),
   createAssignment: (payload: unknown) =>
     request<Assignment>("/api/teacher/assignments", { method: "POST", body: jsonBody(payload) }),
+  assignmentReadiness: (problemIds: number[]) =>
+    request<AssignmentReadiness>("/api/teacher/assignments/readiness", {
+      method: "POST",
+      body: jsonBody({ problemIds })
+    }),
   updateAssignment: (id: number, payload: unknown) =>
     request<Assignment>(`/api/teacher/assignments/${id}`, { method: "PUT", body: jsonBody(payload) }),
   rotateInvite: (id: number) =>
@@ -247,6 +254,8 @@ export const api = {
     request<DiagnosisEvalFixtureDraft>(`/api/teacher/assignments/${id}/diagnosis-eval-fixture-draft`),
   aiQualityTrend: () => request<AiQualityTrend>("/api/teacher/ai-quality/trend"),
   recommendationEffectiveness: () => request<RecommendationEffectiveness>("/api/teacher/recommendations/effectiveness"),
+  recommendationInterventions: () =>
+    request<RecommendationActionEvidenceSignal[]>("/api/teacher/recommendations/interventions"),
   recordClassReviewFeedback: (
     assignmentId: number,
     payload: {

@@ -1,6 +1,7 @@
 package com.onlinejudge.classroom.api;
 
 import com.onlinejudge.classroom.application.ClassroomService;
+import com.onlinejudge.classroom.application.AssignmentReadinessService;
 import com.onlinejudge.classroom.application.AiQualityOverviewService;
 import com.onlinejudge.classroom.application.AiQualityTrendService;
 import com.onlinejudge.classroom.application.ClassReviewFeedbackService;
@@ -33,6 +34,7 @@ import java.util.List;
 public class ClassroomController {
 
     private final ClassroomService classroomService;
+    private final AssignmentReadinessService assignmentReadinessService;
     private final AiQualityOverviewService aiQualityOverviewService;
     private final AiQualityTrendService aiQualityTrendService;
     private final ClassReviewFeedbackService classReviewFeedbackService;
@@ -95,6 +97,13 @@ public class ClassroomController {
     @PostMapping("/api/teacher/assignments")
     public ResponseEntity<AssignmentResponse> createAssignment(@Valid @RequestBody CreateAssignmentRequest request) {
         return ResponseEntity.ok(classroomService.createAssignment(request));
+    }
+
+    @PostMapping("/api/teacher/assignments/readiness")
+    public ResponseEntity<AssignmentReadinessResponse> inspectAssignmentReadiness(
+            @Valid @RequestBody AssignmentReadinessRequest request
+    ) {
+        return ResponseEntity.ok(assignmentReadinessService.inspect(request.getProblemIds()));
     }
 
     @PutMapping("/api/teacher/assignments/{assignmentId}")
@@ -181,6 +190,11 @@ public class ClassroomController {
     @GetMapping("/api/teacher/recommendations/effectiveness")
     public ResponseEntity<RecommendationEffectivenessResponse> getRecommendationEffectiveness() {
         return ResponseEntity.ok(recommendationEffectivenessService.buildOverview());
+    }
+
+    @GetMapping("/api/teacher/recommendations/interventions")
+    public ResponseEntity<List<RecommendationEffectivenessResponse.ActionEvidenceSignal>> getRecommendationInterventions() {
+        return ResponseEntity.ok(recommendationEffectivenessService.buildInterventionQueue());
     }
 
     @PostMapping("/api/teacher/assignments/{assignmentId}/class-review-feedback")

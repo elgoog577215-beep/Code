@@ -34,6 +34,29 @@ export interface Assignment {
   tasks: AssignmentTask[];
 }
 
+export interface AssignmentReadinessIssue {
+  code: string;
+  severity: "BLOCKER" | "WARNING" | string;
+  message?: string | null;
+}
+
+export interface AssignmentProblemReadiness {
+  problemId: number;
+  problemTitle: string;
+  ready: boolean;
+  testCaseCount: number;
+  reviewedSemanticCount: number;
+  blockers: AssignmentReadinessIssue[];
+  warnings: AssignmentReadinessIssue[];
+}
+
+export interface AssignmentReadiness {
+  publishable: boolean;
+  blockerCount: number;
+  warningCount: number;
+  problems: AssignmentProblemReadiness[];
+}
+
 export interface StudentProfile {
   id: number;
   classGroupId?: number | null;
@@ -258,6 +281,10 @@ export interface StudentRecommendationItem {
   strategy?: string | null;
   riskLevel?: string | null;
   fallbackAction?: string | null;
+  actionOutcome?: string | null;
+  actionOutcomeSummary?: string | null;
+  actionMatchBasis?: string | null;
+  actionEvidenceRefs?: string[];
   priority: number;
 }
 
@@ -1843,12 +1870,16 @@ export interface RecommendationFeedbackSignal {
 
 export interface RecommendationActionEvidenceSignal {
   recommendationToken?: string | null;
+  studentProfileId?: number | null;
+  assignmentId?: number | null;
+  problemId?: number | null;
   type?: string | null;
   strategy?: string | null;
   riskLevel?: string | null;
   learningHypothesis?: string | null;
   expectedCompletionSignal?: string | null;
   outcome?: string | null;
+  matchBasis?: string | null;
   summary?: string | null;
   recommendedAdjustment?: string | null;
   needsTeacherAttention?: boolean;
@@ -1856,6 +1887,10 @@ export interface RecommendationActionEvidenceSignal {
   followupVerdict?: string | null;
   followupIssueTag?: string | null;
   followupFineGrainedTag?: string | null;
+  focusPointKeys?: string[];
+  focusTestSemanticCodes?: string[];
+  followupPointKeys?: string[];
+  followupFailedTestSemanticCodes?: string[];
   evidenceRefs?: string[];
   lastEventAt?: string | null;
 }
