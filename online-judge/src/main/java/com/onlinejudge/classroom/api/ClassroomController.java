@@ -5,9 +5,12 @@ import com.onlinejudge.classroom.application.AssignmentReadinessService;
 import com.onlinejudge.classroom.application.AiQualityOverviewService;
 import com.onlinejudge.classroom.application.AiQualityTrendService;
 import com.onlinejudge.classroom.application.ClassReviewFeedbackService;
+import com.onlinejudge.classroom.application.RecommendationEffectivenessService;
 import com.onlinejudge.classroom.application.StudentAbilityProfileService;
 import com.onlinejudge.classroom.application.StudentIdentityAdminService;
 import com.onlinejudge.classroom.application.StudentIdentityAuditService;
+import com.onlinejudge.classroom.application.StudentRecommendationEventService;
+import com.onlinejudge.classroom.application.StudentRecommendationService;
 import com.onlinejudge.classroom.application.StudentAiFeedbackObservabilityService;
 import com.onlinejudge.classroom.application.StudentTrajectoryService;
 import com.onlinejudge.submission.application.SubmissionEvidenceBackfillService;
@@ -35,12 +38,15 @@ public class ClassroomController {
     private final AiQualityOverviewService aiQualityOverviewService;
     private final AiQualityTrendService aiQualityTrendService;
     private final ClassReviewFeedbackService classReviewFeedbackService;
+    private final RecommendationEffectivenessService recommendationEffectivenessService;
     private final StudentAiFeedbackObservabilityService studentAiFeedbackObservabilityService;
     private final ClassroomImportService classroomImportService;
     private final StudentTrajectoryService studentTrajectoryService;
     private final StudentAbilityProfileService studentAbilityProfileService;
     private final StudentIdentityAdminService studentIdentityAdminService;
     private final StudentIdentityAuditService studentIdentityAuditService;
+    private final StudentRecommendationService studentRecommendationService;
+    private final StudentRecommendationEventService studentRecommendationEventService;
     private final DiagnosisTaxonomy diagnosisTaxonomy;
     private final StudentAccessTokenService studentAccessTokenService;
     private final SubmissionEvidenceBackfillService submissionEvidenceBackfillService;
@@ -181,6 +187,16 @@ public class ClassroomController {
         return ResponseEntity.ok(aiQualityTrendService.buildTrend());
     }
 
+    @GetMapping("/api/teacher/recommendations/effectiveness")
+    public ResponseEntity<RecommendationEffectivenessResponse> getRecommendationEffectiveness() {
+        return ResponseEntity.ok(recommendationEffectivenessService.buildOverview());
+    }
+
+    @GetMapping("/api/teacher/recommendations/interventions")
+    public ResponseEntity<List<RecommendationEffectivenessResponse.ActionEvidenceSignal>> getRecommendationInterventions() {
+        return ResponseEntity.ok(recommendationEffectivenessService.buildInterventionQueue());
+    }
+
     @PostMapping("/api/teacher/assignments/{assignmentId}/class-review-feedback")
     public ResponseEntity<ClassReviewFeedbackResponse> recordClassReviewFeedback(@PathVariable Long assignmentId,
                                                                                  @Valid @RequestBody ClassReviewFeedbackRequest request) {
@@ -253,4 +269,23 @@ public class ClassroomController {
         return ResponseEntity.ok(studentAbilityProfileService.buildProfile(studentProfileId));
     }
 
+    @GetMapping("/api/student/profile/{studentProfileId}/recommendations")
+    public ResponseEntity<StudentRecommendationResponse> getStudentRecommendations(@PathVariable Long studentProfileId,
+                                                                                  HttpServletRequest request) {
+        studentAccessTokenService.requireStudent(request, studentProfileId);
+        return ResponseEntity.ok(studentRecommendationService.recommend(studentProfileId));
+    }
+
+    @PostMapping("/api/student/profile/{studentProfileId}/recommendation-clicks")
+    public ResponseEntity<Void> recordRecommendationClick(@PathVariable Long studentProfileId,
+                                                          @Valid @RequestBody RecommendationEventRequest recommendationRequest,
+                                                          HttpServletRequest request) {
+        studentAccessTokenService.requireStudent(request, studentProfileId);
+        if (StudentRecommendationEventService.EVENT_ENTERED_PROBLEM.equals(recommendationRequest.getEventType())) {
+            studentRecommendationEventService.recordEnteredProblem(studentProfileId, recommendationRequest.getRecommendationToken());
+        } else {
+            studentRecommendationEventService.recordClick(studentProfileId, recommendationRequest.getRecommendationToken());
+        }
+        return ResponseEntity.noContent().build();
+    }
 }

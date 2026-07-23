@@ -13,6 +13,7 @@ import type {
   AiQualityTrend,
   AuthSession,
   ClassGroup,
+  CoachPrompt,
   DiagnosisEvalCandidates,
   DiagnosisEvalFixtureDraft,
   DiagnosisTag,
@@ -25,10 +26,13 @@ import type {
   ProblemCatalogItem,
   ProblemManage,
   Readiness,
+  RecommendationEffectiveness,
+  RecommendationActionEvidenceSignal,
   StudentAbilityProfile,
   StudentAssignmentLeaderboard,
   StudentAssignmentSubmissionPage,
   StudentIdentityAudit,
+  StudentRecommendation,
   StudentProfile,
   StudentTrajectory,
   StudentAiFeedbackObservability,
@@ -155,6 +159,14 @@ export const api = {
   ),
   studentAbilityProfile: (studentProfileId: number) =>
     request<StudentAbilityProfile>(`/api/student/profile/${studentProfileId}/ability-profile`),
+  studentRecommendations: (studentProfileId: number) =>
+    request<StudentRecommendation>(`/api/student/profile/${studentProfileId}/recommendations`),
+  recordRecommendationEvent: (studentProfileId: number, recommendationToken: string, eventType = "CLICKED") =>
+    request<void>(`/api/student/profile/${studentProfileId}/recommendation-clicks`, {
+      method: "POST",
+      body: jsonBody({ recommendationToken, eventType })
+    }),
+
   problems: () => request<Problem[]>("/api/problems"),
   problemCatalog: () => request<ProblemCatalogItem[]>("/api/problems/catalog"),
   problem: (id: number) => request<Problem>(`/api/problems/${id}`),
@@ -168,6 +180,7 @@ export const api = {
     problemId: number;
     assignmentId?: number | null;
     studentProfileId?: number | null;
+    recommendationToken?: string | null;
     languageId: number;
     sourceCode: string;
   }) =>
@@ -185,6 +198,14 @@ export const api = {
     request<StudentAiFeedbackLookup>(`/api/submissions/${id}/student-ai-feedback`, { method: "POST" }),
   recordStudentAiFeedbackView: (id: number) =>
     request<void>(`/api/submissions/${id}/student-ai-feedback/view`, { method: "POST" }),
+  coachPrompt: (id: number) => request<CoachPrompt | null>(`/api/submissions/${id}/coach-prompt`),
+  generateCoachPrompt: (id: number) =>
+    request<CoachPrompt>(`/api/submissions/${id}/coach-prompt`, { method: "POST" }),
+  replyCoachPrompt: (id: number, answer: string) =>
+    request<CoachPrompt>(`/api/submissions/${id}/coach-turns`, {
+      method: "POST",
+      body: jsonBody({ answer })
+    }),
   history: (problemId: number, assignmentId?: number | null) =>
     request<SubmissionHistorySummary[]>(
       `/api/submissions/problem/${problemId}/history-summary${queryString({ assignmentId })}`
@@ -232,6 +253,9 @@ export const api = {
   diagnosisEvalFixtureDraft: (id: number) =>
     request<DiagnosisEvalFixtureDraft>(`/api/teacher/assignments/${id}/diagnosis-eval-fixture-draft`),
   aiQualityTrend: () => request<AiQualityTrend>("/api/teacher/ai-quality/trend"),
+  recommendationEffectiveness: () => request<RecommendationEffectiveness>("/api/teacher/recommendations/effectiveness"),
+  recommendationInterventions: () =>
+    request<RecommendationActionEvidenceSignal[]>("/api/teacher/recommendations/interventions"),
   recordClassReviewFeedback: (
     assignmentId: number,
     payload: {

@@ -1,11 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BarChart3, ClipboardList, FileCheck2, GripVertical, LayoutGrid, PanelRightClose, PanelRightOpen, Play, RefreshCw, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, ClipboardList, FileCheck2, GripVertical, LayoutGrid, Lightbulb, PanelRightClose, PanelRightOpen, Play, RefreshCw, RotateCcw, X } from "lucide-react";
 import { api } from "../../shared/api/client";
 import type {
   Assignment,
   AssignmentTask,
   AiDiagnosisProgress,
+  CoachPrompt,
   Problem,
   ProblemCatalogItem,
   StudentAiFeedback,
@@ -19,12 +20,12 @@ import { useTranslation } from "../../shared/i18n";
 import { clearDraft, loadDraft, loadStudent, saveDraft, saveLastPublicProblem } from "../../shared/storage";
 import { Button, ButtonLink } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
-import { Field, Select } from "../../shared/ui/Field";
+import { Field, Select, TextArea } from "../../shared/ui/Field";
 import { Panel } from "../../shared/ui/Panel";
 import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
 import { StudentAssignmentHeader, StudentAssignmentNavigation } from "../student/StudentAssignmentWorkspace";
 import { CONTEST_LANGUAGES, DEFAULT_CONTEST_LANGUAGE_ID, contestLanguageById } from "./languages";
-import { GrowthTimeline } from "../growth/SingleProblemGrowthDashboard";
+import { GrowthTimeline, SingleProblemGrowthDashboard } from "../growth/SingleProblemGrowthDashboard";
 import { FeedbackRepairWorkbench } from "./FeedbackRepairWorkbench";
 
 const CodeEditor = lazy(() => import("./CodeEditor"));
@@ -37,6 +38,8 @@ type WorkbenchTask = {
 };
 
 type FeedbackPollState = "idle" | "checking" | "slow" | "background" | "refreshing" | "stalled";
+type ResultView = "repair" | "growth";
+
 const FEEDBACK_SLOW_AFTER_MS = 30_000;
 const FEEDBACK_BACKGROUND_AFTER_MS = 95_000;
 const FEEDBACK_STALLED_AFTER_MS = 15 * 60_000;
@@ -593,6 +596,7 @@ export default function ProblemPage() {
   const studentFromAny = loadStudent();
   const currentStudent = studentFromAssignment || studentFromAny;
   const studentProfileId = normalizeNumber(searchParams.get("studentProfileId")) ?? currentStudent?.id ?? null;
+  const recommendationToken = searchParams.get("recommendationToken");
   const requestedSubmissionId = normalizeNumber(searchParams.get("submissionId"));
   const assignmentBasePath = assignmentId ? `/app/student/assignments/${assignmentId}` : "/app/student/assignments/public";
   const backTo = assignmentBasePath;
@@ -611,11 +615,16 @@ export default function ProblemPage() {
   const [workbenchTasks, setWorkbenchTasks] = useState<WorkbenchTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [resultOpen, setResultOpen] = useState(false);
+  const [resultView, setResultView] = useState<ResultView>("repair");
+  const [coachPrompt, setCoachPrompt] = useState<CoachPrompt | null>(null);
+  const [coachAnswer, setCoachAnswer] = useState("");
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [studentAiFeedback, setStudentAiFeedback] = useState<StudentAiFeedback | null>(null);
   const [diagnosisProgress, setDiagnosisProgress] = useState<AiDiagnosisProgress | null>(null);
   const [feedbackPollState, setFeedbackPollState] = useState<FeedbackPollState>("idle");
+  const [coachBusy, setCoachBusy] = useState(false);
+  const [coachReplyBusy, setCoachReplyBusy] = useState(false);
   const [statementShare, setStatementShare] = useState(50);
   const [editorCollapsed, setEditorCollapsed] = useState(false);
   const splitRef = useRef<HTMLDivElement | null>(null);
@@ -626,6 +635,9 @@ export default function ProblemPage() {
 
   useEffect(() => {
     resultOpenRef.current = resultOpen;
+    if (resultOpen) {
+      setResultView("repair");
+    }
   }, [resultOpen]);
 
   useEffect(() => {
@@ -675,6 +687,8 @@ export default function ProblemPage() {
       try {
         setLatest(null);
         setResultOpen(false);
+        setCoachPrompt(null);
+        setCoachAnswer("");
         setAlert(null);
         feedbackPollTokenRef.current += 1;
         clearFeedbackTimer();
@@ -810,6 +824,22 @@ export default function ProblemPage() {
   }, [assignmentId, studentProfileId, latest]);
 
   useEffect(() => {
+    if (!studentProfileId || !recommendationToken) {
+      return;
+    }
+    void api.recordRecommendationEvent(studentProfileId, recommendationToken, "ENTERED_PROBLEM");
+  }, [studentProfileId, recommendationToken]);
+
+  useEffect(() => {
+    setCoachPrompt(null);
+    setCoachAnswer("");
+    if (!latest?.id || studentAiFeedback?.status !== "READY" || studentAiFeedback.source !== "MODEL") {
+      return;
+    }
+    void api.coachPrompt(latest.id).then(result => setCoachPrompt(result || null)).catch(() => undefined);
+  }, [latest?.id, studentAiFeedback?.status, studentAiFeedback?.source]);
+
+  useEffect(() => {
     if (!resultOpen || !latest?.id || studentAiFeedback?.status !== "READY" || studentAiFeedback.source !== "MODEL") {
       return;
     }
@@ -840,6 +870,9 @@ export default function ProblemPage() {
       }),
     [trajectoryTaskByProblemId, workbenchTasks]
   );
+
+  const currentTaskIndex = taskRows.findIndex(task => task.problemId === problemId);
+  const nextTask = currentTaskIndex >= 0 ? taskRows[currentTaskIndex + 1] || null : taskRows.find(task => task.problemId !== problemId) || null;
 
   function buildTaskLink(nextProblemId: number) {
     const studentParam = studentProfileId ? `?studentProfileId=${studentProfileId}` : "";
@@ -904,17 +937,6 @@ export default function ProblemPage() {
     setResultOpen(false);
   }
 
-  function openLearningRecord() {
-    if (assignmentId) {
-      navigate(`${assignmentBasePath}/submissions`);
-      return;
-    }
-    setResultOpen(false);
-    window.requestAnimationFrame(() => {
-      document.querySelector(".problem-history-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
-
   async function submit() {
     if (!problem) {
       return;
@@ -929,11 +951,13 @@ export default function ProblemPage() {
         problemId: problem.id,
         assignmentId,
         studentProfileId,
+        recommendationToken,
         languageId,
         sourceCode
       });
       setLatest(result);
       setResultOpen(true);
+      setCoachPrompt(null);
       setStudentAiFeedback(null);
       setDiagnosisProgress(null);
       const feedbackToken = startFeedbackPollingState(Boolean(result.id));
@@ -1052,6 +1076,8 @@ export default function ProblemPage() {
 
   async function openHistorySubmission(summary: SubmissionHistorySummary) {
     const token = startFeedbackPollingState(false);
+    setCoachPrompt(null);
+    setCoachAnswer("");
     try {
       const [submissionResult, feedbackLookup] = await Promise.all([
         api.submission(summary.id),
@@ -1074,6 +1100,44 @@ export default function ProblemPage() {
     }
   }
 
+  async function generateCoachPrompt() {
+    if (!latest?.id) {
+      return;
+    }
+    if (studentAiFeedback?.status !== "READY" || studentAiFeedback.source !== "MODEL") {
+      setAlert({ type: "error", message: "AI 反馈生成后才能追问。" });
+      return;
+    }
+    setCoachBusy(true);
+    try {
+      setCoachPrompt(await api.generateCoachPrompt(latest.id));
+      setCoachAnswer("");
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "追问生成失败。" });
+    } finally {
+      setCoachBusy(false);
+    }
+  }
+
+  async function replyCoachPrompt() {
+    if (!latest?.id || !coachPrompt) {
+      return;
+    }
+    if (!coachAnswer.trim()) {
+      setAlert({ type: "error", message: "先写一句你的判断或验证样例。" });
+      return;
+    }
+    setCoachReplyBusy(true);
+    try {
+      setCoachPrompt(await api.replyCoachPrompt(latest.id, coachAnswer));
+      setCoachAnswer("");
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "回答提交失败。" });
+    } finally {
+      setCoachReplyBusy(false);
+    }
+  }
+
   if (!problem) {
     return <EmptyState title="正在加载题目" live />;
   }
@@ -1093,6 +1157,13 @@ export default function ProblemPage() {
       })
     : [];
   const improvementViewItems = modelFeedbackReady ? studentAiFeedback?.improvementItems?.filter(item => item.body || item.title) || [] : [];
+  const lifecycleChanges = studentAiFeedback?.issueChanges || [];
+  const historicalLifecycleChanges = lifecycleChanges.filter(item => ["NOT_OBSERVED", "RECOVERED"].includes(String(item.changeStatus).toUpperCase()));
+  const lifecycleSummary = studentAiFeedback?.issueChangeSummary;
+  const currentGrowthSummary = studentAiFeedback?.growthSummary
+    || latest?.growthSummary
+    || history.find(item => item.id === latest?.id)?.growthSummary
+    || null;
   const isFeedbackWaiting = Boolean(
     latest &&
       feedbackPollState !== "idle" &&
@@ -1124,6 +1195,7 @@ export default function ProblemPage() {
     : modelFailureTitle(feedbackFailure, t);
   const testCaseSummary = total ? `${passed}/${total} 测试点` : "等待评测";
   const feedbackReady = Boolean(latest);
+  const nextTaskLink = nextTask ? buildTaskLink(nextTask.problemId) : null;
   const passedLatest = latest?.verdict === "ACCEPTED";
   const lastResultText = modelFeedbackReady
     ? t("problemHistory.feedback.ready")
@@ -1147,7 +1219,8 @@ export default function ProblemPage() {
     feedbackFailed ||
     Boolean(basicReportText) ||
     repairViewItems.length > 0 ||
-    Boolean(repairCheckQuestion);
+    Boolean(repairCheckQuestion) ||
+    Boolean(coachPrompt);
   const showGrowthSection = isFeedbackWaiting || isFeedbackBackground || feedbackFailed || Boolean(improvementReportText) || improvementViewItems.length > 0;
   const showFeedbackRefreshAction = Boolean(
     latest && (isFeedbackBackground || feedbackFailed || feedbackPollState === "slow" || feedbackPollState === "refreshing")
@@ -1171,7 +1244,7 @@ export default function ProblemPage() {
     (firstFailedCase && !firstFailedCase.hidden
       ? (firstFailedCase.expectedOutput?.length || 0) + (firstFailedCase.actualOutput?.length || 0) + 90
       : 0);
-  const repairTextWeight = feedbackTextWeight(repairViewItems) + basicReportText.length + repairCheckQuestion.length;
+  const repairTextWeight = feedbackTextWeight(repairViewItems) + basicReportText.length + repairCheckQuestion.length + (coachPrompt?.question?.length || 0);
   const growthTextWeight = feedbackTextWeight(improvementViewItems) + improvementReportText.length;
   const resultLayoutMode = isFeedbackWaiting
     ? "waiting"
@@ -1182,6 +1255,59 @@ export default function ProblemPage() {
         : repairTextWeight + growthTextWeight > Math.max(520, judgeTextWeight * 1.18)
           ? "ai-heavy"
           : "balanced";
+  const coachQuestionBlock = (
+    <div className="coach-next-question">
+      {modelFeedbackReady ? (
+        coachPrompt ? (
+          <>
+            <strong>{coachPrompt.question}</strong>
+            {coachPrompt.contextSummary && <p>{coachPrompt.contextSummary}</p>}
+            {coachPrompt.rationale && <p>{coachPrompt.rationale}</p>}
+            {coachPrompt.turns?.length ? (
+              <div className="coach-turn-list">
+                {coachPrompt.turns.map(turn => (
+                  <div className="coach-turn" key={turn.id}>
+                    <span>第 {turn.turnIndex || 1} 轮</span>
+                    <strong>{turn.question}</strong>
+                    {turn.studentAnswer && <p>我的回答：{turn.studentAnswer}</p>}
+                    {turn.coachFeedback && <p>反馈：{turn.coachFeedback}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {!coachPrompt.studentAnswer && (
+              <div className="coach-reply-box">
+                <TextArea
+                  value={coachAnswer}
+                  onChange={event => setCoachAnswer(event.target.value)}
+                  rows={3}
+                  maxLength={1200}
+                  placeholder="写下你的判断、最小样例、变量变化或复杂度估算。"
+                />
+                <Button type="button" variant="primary" onClick={() => void replyCoachPrompt()} disabled={coachReplyBusy}>
+                  {coachReplyBusy ? "提交中" : "提交回答"}
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          null
+        )
+      ) : null}
+      {modelFeedbackReady && (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => void generateCoachPrompt()}
+          disabled={coachBusy}
+          icon={<Lightbulb size={16} />}
+        >
+          {coachBusy ? "稍等" : coachPrompt ? "换一问" : "给我一问"}
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <div className={`stack problem-page problem-workbench${assignmentId ? " problem-workbench--assignment" : " problem-workbench--public"}`}>
       {alert && <div className={`alert alert--${alert.type === "success" ? "success" : "error"}`}>{alert.message}</div>}
@@ -1436,6 +1562,32 @@ export default function ProblemPage() {
                   <span>{t("problemFeedbackWorkbench.score", { score: total ? `${passed}/${total}` : "-" })}</span>
                 </div>
               </div>
+              <div className="problem-result-view-switch" role="tablist" aria-label={t("problemResultViews.aria")}>
+                <button
+                  type="button"
+                  role="tab"
+                  id="problem-result-tab-repair"
+                  aria-controls="problem-result-panel-repair"
+                  aria-selected={resultView === "repair"}
+                  className={resultView === "repair" ? "is-active" : ""}
+                  onClick={() => setResultView("repair")}
+                >
+                  <ClipboardList size={17} />
+                  <span>{t("problemResultViews.repair")}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="problem-result-tab-growth"
+                  aria-controls="problem-result-panel-growth"
+                  aria-selected={resultView === "growth"}
+                  className={resultView === "growth" ? "is-active" : ""}
+                  onClick={() => setResultView("growth")}
+                >
+                  <BarChart3 size={17} />
+                  <span>{t("problemResultViews.growth")}</span>
+                </button>
+              </div>
               <div className="problem-result-modal__status">
                 <StatusPill tone={latest.verdict === "ACCEPTED" ? "success" : "warning"}>{testCaseSummary}</StatusPill>
                 {(isFeedbackWaiting || isFeedbackBackground) && (
@@ -1455,7 +1607,13 @@ export default function ProblemPage() {
             </div>
 
             <div className="problem-result-modal__body">
-              <div className="problem-result-view problem-result-view--repair">
+              {resultView === "repair" ? (
+                <div
+                  className="problem-result-view problem-result-view--repair"
+                  role="tabpanel"
+                  id="problem-result-panel-repair"
+                  aria-labelledby="problem-result-tab-repair"
+                >
                   {modelFeedbackReady ? (
                     <FeedbackRepairWorkbench
                       sourceCode={latest.sourceCode || sourceCode}
@@ -1468,9 +1626,41 @@ export default function ProblemPage() {
                       passed={passed}
                       total={total}
                       firstFailedCase={firstFailedCase}
+                      onReturnToCode={() => setResultOpen(false)}
                     />
                   ) : (
                   <div className={`problem-result-modal__grid problem-result-modal__grid--${resultLayoutMode}`}>
+                {lifecycleChanges.length ? (
+                  <section className="problem-result-section problem-result-section--lifecycle">
+                    <div className="problem-result-section__head">
+                      <h3>{t("issueLifecycle.title")}</h3>
+                      <strong>{t("issueLifecycle.completeCount", { count: repairViewItems.length + improvementViewItems.length })}</strong>
+                    </div>
+                    <div className="student-issue-change-summary">
+                      <span>{t("issueLifecycle.summary.persisted", { count: lifecycleSummary?.persistedCount || 0 })}</span>
+                      <span>{t("issueLifecycle.summary.new", { count: lifecycleSummary?.newCount || 0 })}</span>
+                      <span>{t("issueLifecycle.summary.recurring", { count: lifecycleSummary?.recurringCount || 0 })}</span>
+                      <span>{t("issueLifecycle.summary.recovered", { count: lifecycleSummary?.recoveredCount || 0 })}</span>
+                      <span>{t("issueLifecycle.summary.improvements", { count: improvementViewItems.length })}</span>
+                    </div>
+                    {historicalLifecycleChanges.length ? (
+                      <div className="student-issue-history-changes">
+                        <strong>{t("issueLifecycle.previousChanges")}</strong>
+                        {historicalLifecycleChanges.map(item => (
+                          <article key={`${item.normalizedPointKey}-${item.changeStatus}`}>
+                            <span>{t(`issueLifecycle.status.${lifecycleStatusKey(item.changeStatus)}`)}</span>
+                            <p>{item.title || t("issueLifecycle.unnamedIssue")}</p>
+                            <small>{t("issueLifecycle.historyEvidence", {
+                              raw: item.rawOccurrenceCount,
+                              effective: item.effectiveOccurrenceCount,
+                              submission: item.previousSubmissionId || "-"
+                            })}</small>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
                 <section className="problem-result-section problem-result-section--tests">
                   <div className="problem-result-section__head">
                     <h3>评测</h3>
@@ -1572,9 +1762,14 @@ export default function ProblemPage() {
                     ) : null}
 
                     {canShowStudentReport && repairCheckQuestion ? (
-                      <section className="student-feedback-next" aria-label={t("problemResultActions.verificationReference")}>
-                        <strong>{t("problemResultActions.verificationReference")}</strong>
+                      <section className="student-feedback-next" aria-label="下一步">
                         <p>{repairCheckQuestion}</p>
+                      </section>
+                    ) : null}
+
+                    {modelFeedbackReady && coachPrompt ? (
+                      <section className="problem-feedback-coach" aria-label="追问">
+                        {coachQuestionBlock}
                       </section>
                     ) : null}
                   </section>
@@ -1626,9 +1821,24 @@ export default function ProblemPage() {
                   </div>
                   )}
                 </div>
+              ) : (
+                <div
+                  className="problem-result-view problem-result-view--growth"
+                  role="tabpanel"
+                  id="problem-result-panel-growth"
+                  aria-labelledby="problem-result-tab-growth"
+                >
+                  <SingleProblemGrowthDashboard
+                    history={history}
+                    selectedSubmissionId={latest.id}
+                    currentSummary={currentGrowthSummary}
+                    onSelectSubmission={item => void openHistorySubmission(item)}
+                  />
+                </div>
+              )}
             </div>
 
-            <div className="problem-result-modal__footer">
+            {!(resultView === "repair" && modelFeedbackReady) && <div className="problem-result-modal__footer">
               {showFeedbackRefreshAction && (
                 <Button
                   type="button"
@@ -1640,18 +1850,15 @@ export default function ProblemPage() {
                   {feedbackRefreshLabel}
                 </Button>
               )}
-              <ButtonLink to={backTo} variant="secondary" icon={<ClipboardList size={16} />}>
-                {t("problemResultActions.taskList")}
-              </ButtonLink>
-              {history.length > 0 && (
-                <Button type="button" variant="secondary" onClick={openLearningRecord} icon={<BarChart3 size={16} />}>
-                  {t("problemResultActions.learningRecord")}
-                </Button>
-              )}
-              <Button type="button" variant="secondary" onClick={() => setResultOpen(false)}>
-                {t("problemResultActions.continueEditing")}
+              <Button type="button" variant="primary" onClick={() => setResultOpen(false)}>
+                {passedLatest && nextTaskLink ? "留在本题" : "继续修改"}
               </Button>
-            </div>
+              {nextTaskLink && (
+                <ButtonLink to={nextTaskLink} variant={passedLatest ? "primary" : "secondary"} icon={<ArrowRight size={16} />}>
+                  下一题
+                </ButtonLink>
+              )}
+            </div>}
           </section>
         </div>
       )}

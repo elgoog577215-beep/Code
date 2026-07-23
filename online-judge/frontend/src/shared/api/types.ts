@@ -264,6 +264,36 @@ export interface StudentAbilityProfile {
   reviewCards?: ReviewCard[];
 }
 
+export interface StudentRecommendationItem {
+  type: "REDO" | "NEXT_PROBLEM" | "REVIEW" | string;
+  title: string;
+  reason?: string | null;
+  actionLabel?: string | null;
+  assignmentId?: number | null;
+  problemId?: number | null;
+  problemTitle?: string | null;
+  focusAbility?: string | null;
+  focusTags?: string[];
+  evidenceProblemIds?: number[];
+  recommendationToken?: string | null;
+  learningHypothesis?: string | null;
+  expectedCompletionSignal?: string | null;
+  strategy?: string | null;
+  riskLevel?: string | null;
+  fallbackAction?: string | null;
+  actionOutcome?: string | null;
+  actionOutcomeSummary?: string | null;
+  actionMatchBasis?: string | null;
+  actionEvidenceRefs?: string[];
+  priority: number;
+}
+
+export interface StudentRecommendation {
+  student: StudentProfile;
+  summary?: string | null;
+  recommendations: StudentRecommendationItem[];
+}
+
 export interface SampleTestCase {
   input: string;
   expectedOutput: string;
@@ -1785,6 +1815,84 @@ export interface AiQualitySourceSegment {
   highLeakRiskRate: number;
   promptSafetyIncidentRate?: number;
   modelRuntimeFailureRate?: number;
+}
+
+export interface RecommendationEffectiveness {
+  recentEventCount: number;
+  uniqueRecommendationCount: number;
+  exposureCount: number;
+  clickCount: number;
+  enteredProblemCount: number;
+  followupSubmissionCount: number;
+  acceptedFollowupCount: number;
+  sameFocusIssueCount: number;
+  clickedWithoutSubmissionCount: number;
+  unresolvedLearningSignalCount: number;
+  teacherInterventionRecommendedCount: number;
+  clickThroughRate: number;
+  followupSubmissionRate: number;
+  acceptedFollowupRate: number;
+  sameFocusIssueRate: number;
+  summary?: string | null;
+  byType: RecommendationEffectivenessSegment[];
+  byStrategy: RecommendationEffectivenessSegment[];
+  focusTags: RecommendationEffectivenessSegment[];
+  feedbackSignals: RecommendationFeedbackSignal[];
+  actionEvidenceSignals?: RecommendationActionEvidenceSignal[];
+}
+
+export interface RecommendationEffectivenessSegment {
+  key: string;
+  label?: string | null;
+  exposureCount: number;
+  clickCount: number;
+  enteredProblemCount: number;
+  followupSubmissionCount: number;
+  acceptedFollowupCount: number;
+  sameFocusIssueCount: number;
+  unresolvedLearningSignalCount: number;
+  teacherInterventionRecommendedCount: number;
+  clickThroughRate: number;
+  followupSubmissionRate: number;
+  acceptedFollowupRate: number;
+  sameFocusIssueRate: number;
+}
+
+export interface RecommendationFeedbackSignal {
+  signal: string;
+  strategy?: string | null;
+  severity?: string | null;
+  evidenceCount: number;
+  summary?: string | null;
+  recommendedAction?: string | null;
+  evidenceTokens?: string[];
+}
+
+export interface RecommendationActionEvidenceSignal {
+  recommendationToken?: string | null;
+  studentProfileId?: number | null;
+  assignmentId?: number | null;
+  problemId?: number | null;
+  type?: string | null;
+  strategy?: string | null;
+  riskLevel?: string | null;
+  learningHypothesis?: string | null;
+  expectedCompletionSignal?: string | null;
+  outcome?: string | null;
+  matchBasis?: string | null;
+  summary?: string | null;
+  recommendedAdjustment?: string | null;
+  needsTeacherAttention?: boolean;
+  followupSubmissionId?: number | null;
+  followupVerdict?: string | null;
+  followupIssueTag?: string | null;
+  followupFineGrainedTag?: string | null;
+  focusPointKeys?: string[];
+  focusTestSemanticCodes?: string[];
+  followupPointKeys?: string[];
+  followupFailedTestSemanticCodes?: string[];
+  evidenceRefs?: string[];
+  lastEventAt?: string | null;
 }
 
 export interface TeacherDiagnosisCorrection {

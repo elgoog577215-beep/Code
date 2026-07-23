@@ -36,7 +36,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void durableWorkflowPersistsCoreDiagnosisIssueAttachmentAndStudentOutput() throws Exception {
+    void durableWorkflowPersistsOneCoreDiagnosisIssueAttachmentAndBothOutputs() throws Exception {
         StubAiReportService service = newService(validAdviceResponse());
         AiDiagnosisWorkflowService workflowService = mock(AiDiagnosisWorkflowService.class);
         when(workflowService.executeStage(
@@ -57,6 +57,8 @@ class AiReportServiceAdviceGenerationRuntimeTest {
         service.setDiagnosisWorkflowService(workflowService);
         java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(4);
         service.setDiagnosisBranchExecutor(executor);
+        service.enableParallelOutputProbe();
+
         SubmissionAnalysisResponse analysis;
         try (AiDiagnosisWorkflowContext.Scope ignored = AiDiagnosisWorkflowContext.activate(42L)) {
             analysis = service.enhanceSubmissionAnalysis(
@@ -67,7 +69,7 @@ class AiReportServiceAdviceGenerationRuntimeTest {
 
         assertThat(analysis.getAiInvocation().getStatus()).isEqualTo("MODEL_COMPLETED");
         org.mockito.ArgumentCaptor<String> stageKeys = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(workflowService, atLeast(3)).executeStage(
+        verify(workflowService, atLeast(4)).executeStage(
                 org.mockito.ArgumentMatchers.eq(42L),
                 stageKeys.capture(),
                 org.mockito.ArgumentMatchers.anyString(),
@@ -80,8 +82,9 @@ class AiReportServiceAdviceGenerationRuntimeTest {
                 org.mockito.ArgumentMatchers.any()
         );
         assertThat(stageKeys.getAllValues())
-                .contains("CORE_DIAGNOSIS", "ISSUE_ATTACHMENT:I1", "STUDENT_OUTPUT")
-                .doesNotContain("TEACHER_OUTPUT");
+                .contains("CORE_DIAGNOSIS", "ISSUE_ATTACHMENT:I1", "STUDENT_OUTPUT", "TEACHER_OUTPUT");
+        assertThat(service.parallelOutputThreads()).hasSize(2).doesNotHaveDuplicates();
+        assertThat(analysis.getTeacherNote()).contains("本次教师观察与核心诊断一致");
     }
 
     @Test

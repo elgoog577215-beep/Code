@@ -444,7 +444,17 @@ public class AiReportService {
                         () -> executeStudentOutputStage(runtimePlan)),
                 diagnosisBranchExecutor
         );
+        boolean durableWorkflowActive = diagnosisWorkflowService != null
+                && AiDiagnosisWorkflowContext.currentRunId().isPresent();
+        CompletableFuture<TeacherInsightOutput> teacherFuture = durableWorkflowActive
+                ? CompletableFuture.supplyAsync(
+                        () -> withBranchContext(activeRunId, activeTraceSink,
+                                () -> executeTeacherOutputStage(runtimePlan)),
+                        diagnosisBranchExecutor
+                )
+                : CompletableFuture.completedFuture(null);
         StudentOutputStageResult studentOutput;
+        TeacherInsightOutput teacherInsight;
         try {
             studentOutput = studentFuture.join();
         } catch (Exception exception) {
@@ -461,8 +471,20 @@ public class AiReportService {
             ));
             return runtimeFailure(baseline, runtimePlan, failure);
         }
+        try {
+            teacherInsight = teacherFuture.join();
+        } catch (Exception exception) {
+            Throwable cause = exception instanceof CompletionException && exception.getCause() != null
+                    ? exception.getCause()
+                    : exception;
+            ExternalModelStagePayloads.StageValidationResult failure =
+                    stageFailureFromException("TEACHER_INSIGHT",
+                            cause instanceof Exception value ? value : exception);
+            return runtimeFailure(baseline, runtimePlan, failure);
+        }
         AdviceGenerationOutput adviceOutput = studentOutput.getAdviceOutput();
         SubmissionAnalysisResponse.StudentFeedback studentFeedback = studentOutput.getStudentFeedback();
+        runtimePlan.setTeacherInsightOutput(teacherInsight);
         persistStandardLibraryGrowthCandidates(adviceOutput, submission);
         runtimePlan.setAdviceGenerationResult(AdviceGenerationResult.success(adviceOutput, promptVersion));
 
@@ -474,6 +496,9 @@ public class AiReportService {
                 rawSourceCode,
                 baselineLineIssues
         );
+        if (teacherInsight != null) {
+            response.setTeacherNote(teacherInsightSummary(teacherInsight, response.getTeacherNote()));
+        }
         return response;
     }
 
@@ -542,6 +567,28 @@ public class AiReportService {
                 .adviceOutput(adviceOutput)
                 .studentFeedback(studentFeedback)
                 .build();
+    }
+
+    private TeacherInsightOutput executeTeacherOutputStage(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        try {
+            TeacherInsightOutput output = executeWorkflowStage(
+                    "TEACHER_OUTPUT",
+                    "TEACHER_OUTPUT",
+                    null,
+                    outputStageInput(runtimePlan),
+                    TeacherInsightOutput.class,
+                    PromptTemplateRegistry.TEACHER_INSIGHT_V1,
+                    () -> {
+                        TeacherInsightOutput generated = callTeacherInsightStage(runtimePlan);
+                        validateTeacherInsight(generated, runtimePlan);
+                        return generated;
+                    }
+            );
+            validateTeacherInsight(output, runtimePlan);
+            return output;
+        } catch (Exception exception) {
+            throw new CompletionException(exception);
+        }
     }
 
     private void persistStandardLibraryGrowthCandidates(AdviceGenerationOutput adviceOutput, Submission submission) {
@@ -854,6 +901,73 @@ public class AiReportService {
         );
     }
 
+    private TeacherInsightOutput callTeacherInsightStage(
+            ExternalModelAgentRuntime.RuntimePlan runtimePlan) throws JsonProcessingException, IOException, InterruptedException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("task", "基于已经确定的核心问题清单整理教师观察，不得重新诊断或改变问题集合。");
+        request.put("brief", runtimePlan == null ? null : runtimePlan.getBrief());
+        request.put("freeDiagnosis", runtimePlan == null ? null : runtimePlan.getFreeDiagnosisOutput());
+        request.put("issues", runtimePlan == null || runtimePlan.getFreeDiagnosisOutput() == null
+                ? List.of()
+                : safeList(runtimePlan.getFreeDiagnosisOutput().getIssues()));
+        request.put("libraryAnchors", runtimePlan == null ? List.of() : safeList(runtimePlan.getIssueLibraryAnchors()));
+        activateRuntimePlan(runtimePlan);
+        String systemPrompt = runtimePlan.getTeacherInsightPrompt().getSystemPrompt();
+        String userPrompt = objectMapper.writeValueAsString(request);
+        String content = chatCompletionWithOverrides(systemPrompt, userPrompt, streamEnabled,
+                Math.min(2200, adviceGenerationOutputTokens()));
+        TeacherInsightOutput output = parseModelStagePayload(content, TeacherInsightOutput.class);
+        if (output != null) {
+            return output;
+        }
+        return retryStructuredModelStagePayload(
+                systemPrompt,
+                userPrompt,
+                runtimePlan,
+                TeacherInsightOutput.class
+        );
+    }
+
+    private void validateTeacherInsight(TeacherInsightOutput output,
+                                        ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
+        if (output == null || cleanupAiText(output.getSummary()).isBlank()) {
+            throw new IllegalStateException("teacher insight summary is empty");
+        }
+        List<FreeDiagnosisOutput.Issue> issues = runtimePlan == null || runtimePlan.getFreeDiagnosisOutput() == null
+                ? List.of()
+                : safeList(runtimePlan.getFreeDiagnosisOutput().getIssues());
+        Set<String> expectedIssueIds = issues.stream()
+                .map(FreeDiagnosisOutput.Issue::getIssueId)
+                .map(this::cleanupAiText)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<TeacherInsightOutput.IssueObservation> observations = safeList(output.getIssueObservations());
+        Set<String> observedIssueIds = new LinkedHashSet<>();
+        for (TeacherInsightOutput.IssueObservation observation : observations) {
+            if (observation == null) {
+                continue;
+            }
+            String issueId = cleanupAiText(observation.getIssueId());
+            if (!expectedIssueIds.contains(issueId)) {
+                throw new IllegalStateException("teacher insight contains unknown issueId=" + issueId);
+            }
+            if (!observedIssueIds.add(issueId)) {
+                throw new IllegalStateException("teacher insight repeats issueId=" + issueId);
+            }
+            if (cleanupAiText(observation.getTeachingObservation()).isBlank()) {
+                throw new IllegalStateException("teacher insight observation is empty for issueId=" + issueId);
+            }
+            for (String ref : safeList(observation.getEvidenceRefs())) {
+                if (!EvidenceRefSupport.isValidEvidenceRef(ref, runtimePlan.getBrief())) {
+                    throw new IllegalStateException("teacher insight contains invalid evidenceRef=" + ref);
+                }
+            }
+        }
+        if (!observedIssueIds.equals(expectedIssueIds)) {
+            throw new IllegalStateException("teacher insight does not cover the canonical issue set");
+        }
+    }
+
     private Map<String, Object> outputStageInput(ExternalModelAgentRuntime.RuntimePlan runtimePlan) {
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("brief", runtimePlan == null ? null : runtimePlan.getBrief());
@@ -862,6 +976,25 @@ public class AiReportService {
                 : safeList(runtimePlan.getFreeDiagnosisOutput().getIssues()));
         input.put("libraryAnchors", runtimePlan == null ? List.of() : safeList(runtimePlan.getIssueLibraryAnchors()));
         return input;
+    }
+
+    private String teacherInsightSummary(TeacherInsightOutput output, String fallback) {
+        if (output == null) {
+            return fallback;
+        }
+        List<String> observations = safeList(output.getIssueObservations()).stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(
+                        TeacherInsightOutput.IssueObservation::getPriority,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(item -> cleanupAiText(item.getTeachingObservation()))
+                .filter(value -> !value.isBlank())
+                .toList();
+        String summary = cleanupAiText(output.getSummary());
+        if (observations.isEmpty()) {
+            return defaultIfBlank(summary, fallback);
+        }
+        return summary + "\n" + String.join("\n", observations);
     }
 
     private ExternalModelStagePayloads.StageValidationResult applyAiStandardLibraryNavigation(

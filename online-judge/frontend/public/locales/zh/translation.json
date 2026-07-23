@@ -91,12 +91,6 @@
     "growth": "成长仪表盘",
     "returnToSubmissions": "返回提交记录"
   },
-  "problemResultActions": {
-    "verificationReference": "验证参考",
-    "taskList": "返回任务列表",
-    "learningRecord": "查看学习记录",
-    "continueEditing": "继续修改"
-  },
   "problemFeedbackWorkbench": {
     "title": "答案需修正",
     "score": "得分 {{score}}",
@@ -289,6 +283,24 @@
       "pinnedPublic": "置顶 · 公开练习",
       "classroom": "课堂作业"
     },
+    "nextLearning": {
+      "title": "继续学习",
+      "loading": "正在同步学习进度",
+      "loadingHint": "马上为你接回最近的学习任务。",
+      "fallbackTitle": "继续完成当前任务",
+      "fallbackHint": "学习建议暂未更新，不影响进入课堂作业或自主练习。",
+      "empty": "从一个明确任务开始",
+      "emptyHint": "完成一次提交后，这里会接回最适合继续的内容。",
+      "keepLearning": "继续学习",
+      "goal": "目标：{{goal}}",
+      "outcome": {
+        "fulfilled": "上一次行动已有完成证据",
+        "unresolved": "同类问题仍需继续处理",
+        "waiting": "正在等待下一次有效证据"
+      },
+      "open": "开始行动",
+      "openAria": "开始学习行动：{{title}}"
+    },
     "selfPractice": {
       "title": "自主练习",
       "meta": "{{count}} 道题，可按难度选择",
@@ -325,8 +337,8 @@
       "medium": "提高 {{count}} 题",
       "hard": "挑战 {{count}} 题",
       "viewAll": "查看全部",
-      "starterTitle": "按难度浏览",
-      "starterAria": "按难度选择题目",
+      "starterTitle": "推荐起步",
+      "starterAria": "推荐起步题目",
       "starterHint": {
         "easy": "适合热身",
         "medium": "练习边界",
@@ -335,7 +347,7 @@
       }
     },
     "assignment": {
-      "description": "查看当前作业的题目与完成状态。",
+      "description": "进入当前作业的下一题。",
       "cta": "进入作业"
     },
     "emptyAssignments": {

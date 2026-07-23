@@ -25,7 +25,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         "TEACHER_SESSION_SECRET=test-teacher-session-secret-1234567890",
         "STUDENT_TOKEN_SECRET=test-student-token-secret-1234567890",
         "AI_ENABLED=false",
-        "app.content-migration.enabled=true"
+        "app.content-migration.enabled=true",
+        "ai.standard-library-growth.auto-merge-enabled=true",
+        "ai.standard-library-growth.auto-merge-min-confidence=0.90",
+        "ai.standard-library-growth.auto-merge-min-occurrences=2"
 })
 class AiStandardLibraryProvisionalGrowthTest {
 
@@ -39,7 +42,7 @@ class AiStandardLibraryProvisionalGrowthTest {
     AiStandardLibraryService standardLibraryService;
 
     @Test
-    void provisionalCandidateKeepsIndependentEvidenceUntilTeacherReview() {
+    void provisionalCandidatePromotesOnlyAfterIndependentSubmissionEvidence() {
         var first = growthService.propose(proposal(101L, "code:line:3"));
 
         assertThat(first.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.PROPOSED);
@@ -69,14 +72,14 @@ class AiStandardLibraryProvisionalGrowthTest {
         assertThat(second.getId()).isEqualTo(first.getId());
         assertThat(second.getOccurrenceCount()).isEqualTo(2);
         assertThat(second.getObservedSubmissionIds()).containsExactly(101L, 102L);
-        assertThat(second.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.MERGED_SIMILAR);
-        assertThat(standardLibraryService.formalItemExists(AiStandardLibraryLayer.MISTAKE_POINT, CODE)).isFalse();
+        assertThat(second.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.MERGED);
+        assertThat(standardLibraryService.formalItemExists(AiStandardLibraryLayer.MISTAKE_POINT, CODE)).isTrue();
         assertThat(standardLibraryService.expandDiagnosticLayer(PARENT).getProvisionalCandidates())
-                .anyMatch(candidate -> CODE.equals(candidate.getCode()));
+                .noneMatch(candidate -> CODE.equals(candidate.getCode()));
     }
 
     @Test
-    void candidateWithoutSubmissionSourceRemainsProvisional() {
+    void candidateWithoutSubmissionSourceCannotAutoPromote() {
         String code = "MP_PROVISIONAL_WITHOUT_SOURCE";
         var first = growthService.propose(proposal(code, null, "code:line:7"));
         var repeated = growthService.propose(proposal(code, null, "judge:first_failed_case"));
