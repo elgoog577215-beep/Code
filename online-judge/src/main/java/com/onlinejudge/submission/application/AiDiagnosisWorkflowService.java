@@ -219,7 +219,7 @@ public class AiDiagnosisWorkflowService {
     }
 
     private boolean isRequiredStage(String stageType) {
-        return List.of("CORE_DIAGNOSIS", "ISSUE_ATTACHMENT", "STUDENT_OUTPUT", "TEACHER_OUTPUT")
+        return List.of("CORE_DIAGNOSIS", "ISSUE_ATTACHMENT", "STUDENT_OUTPUT")
                 .contains(clean(stageType));
     }
 

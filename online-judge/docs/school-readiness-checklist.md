@@ -94,7 +94,7 @@ AI_ENABLED=false
 
 - 候选未合并前：忽略候选即可回滚。
 - 候选已合并后：到正式标准库中停用或删除对应条目，并保留候选审计记录中的 `beforeSnapshot`、`diffSummary`、`rollbackInfo`。
-- 自动入库默认关闭；只有学校明确接受风险，并把 `AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED=true` 后，系统才会在高置信、无冲突、来源完整时尝试自动写入正式库。
+- 正式标准库只允许教师或标准库管理员在治理台人工批准、合并；系统不会因置信度或出现次数达到门槛而自动写入。`AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED` 仅作为旧部署兼容配置保留，设置为 `true` 也不会恢复自动晋升链路。
 
 ## 5. 数据备份
 

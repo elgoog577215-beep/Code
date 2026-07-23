@@ -116,9 +116,10 @@ class DiagnosisReportV2RealSamplesSimulationTest {
                     .map(AiDiagnosisStageRun::getStageType)
                     .collect(Collectors.toSet());
             assertThat(stageTypes).contains(
-                    "CORE_DIAGNOSIS", "ISSUE_ATTACHMENT", "STUDENT_OUTPUT", "TEACHER_OUTPUT");
+                    "CORE_DIAGNOSIS", "ISSUE_ATTACHMENT", "STUDENT_OUTPUT");
+            assertThat(stageTypes).doesNotContain("TEACHER_OUTPUT");
             assertThat(stageRuns.stream()
-                    .filter(stage -> Set.of("CORE_DIAGNOSIS", "ISSUE_ATTACHMENT", "STUDENT_OUTPUT", "TEACHER_OUTPUT")
+                    .filter(stage -> Set.of("CORE_DIAGNOSIS", "ISSUE_ATTACHMENT", "STUDENT_OUTPUT")
                             .contains(stage.getStageType())))
                     .allMatch(stage -> AiDiagnosisWorkflowService.STAGE_SUCCEEDED.equals(stage.getStatus()));
             System.out.println("Durable diagnosis stage summary: runId=" + diagnosisRun.getId()

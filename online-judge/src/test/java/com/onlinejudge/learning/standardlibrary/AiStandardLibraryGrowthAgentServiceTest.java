@@ -196,25 +196,28 @@ class AiStandardLibraryGrowthAgentServiceTest {
     }
 
     @Test
-    void autoMergeIsBlockedWhenConfigurationDisallowsFormalWrites() {
+    void highConfidenceCandidateStillWaitsForTeacherReview() {
         AiStandardLibraryGrowthCandidate candidate = service.propose(StandardLibraryGrowthProposal.builder()
-                .suggestedCode("MP_BLOCKED_AUTO_MERGE")
-                .suggestedName("配置关闭时不能自动入库")
+                .suggestedCode("MP_REQUIRES_TEACHER_REVIEW")
+                .suggestedName("高置信候选仍需教师审核")
                 .layer(AiStandardLibraryLayer.MISTAKE_POINT)
                 .suggestedPath(List.of("BASIC", "LOOP", "BOUNDARY"))
                 .sourceProblemId(3L)
                 .sourceSubmissionId(33L)
-                .changeReason("用于验证自动入库配置门禁。")
+                .changeReason("用于验证正式标准库必须人工审核。")
                 .evidenceRefs(List.of("code:loop_boundary"))
-                .confidence(0.91)
+                .evidenceStatus("SUPPORTED")
+                .confidence(0.99)
                 .build());
 
-        AiStandardLibraryGrowthCandidate merged = service.autoMergeToFormalLibrary(candidate.getId(), null);
-
-        assertThat(merged.getStatus()).isEqualTo(AiStandardLibraryGrowthCandidateStatus.NEEDS_REVIEW);
-        assertThat(merged.getPrecheckMessage()).contains("自动入库未开启");
-        assertThat(itemRepository.existsByLayerAndCode(AiStandardLibraryLayer.MISTAKE_POINT, "MP_BLOCKED_AUTO_MERGE")).isFalse();
-        assertThat(merged.getRollbackInfo()).contains("未写入正式标准库");
+        assertThat(candidate.getStatus()).isNotIn(
+                AiStandardLibraryGrowthCandidateStatus.MERGED,
+                AiStandardLibraryGrowthCandidateStatus.TEACHER_APPROVED
+        );
+        assertThat(itemRepository.existsByLayerAndCode(
+                AiStandardLibraryLayer.MISTAKE_POINT,
+                "MP_REQUIRES_TEACHER_REVIEW"
+        )).isFalse();
     }
 
     @Test

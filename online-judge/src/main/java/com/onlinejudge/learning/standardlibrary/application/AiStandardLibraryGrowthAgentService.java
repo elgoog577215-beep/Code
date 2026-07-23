@@ -49,7 +49,7 @@ public class AiStandardLibraryGrowthAgentService {
                 ? Optional.empty()
                 : findDuplicate(layer, parentKnowledgeNodeCode(proposal), code);
         if (duplicateCandidate.isPresent()) {
-            return maybeAutoPromote(aggregateDuplicate(duplicateCandidate.get(), proposal));
+            return aggregateDuplicate(duplicateCandidate.get(), proposal);
         }
         List<String> precheckErrors = precheck(proposal, layer, code);
         AiStandardLibraryGrowthCandidateStatus status = precheckErrors.isEmpty()
@@ -78,7 +78,7 @@ public class AiStandardLibraryGrowthAgentService {
                 .diffSummary(diffSummary(proposal, status))
                 .rollbackInfo(rollbackInfo(status))
                 .build();
-        return maybeAutoPromote(candidateRepository.save(candidate));
+        return candidateRepository.save(candidate);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -277,34 +277,6 @@ public class AiStandardLibraryGrowthAgentService {
             return candidateRepository.save(candidate);
         }
         return candidate;
-    }
-
-    @Transactional
-    public AiStandardLibraryGrowthCandidate autoMergeToFormalLibrary(Long id, StandardLibraryGrowthProposal overrideProposal) {
-        AiStandardLibraryGrowthCandidate candidate = findCandidate(id);
-        if (!properties.isEnabled()) {
-            return markNeedsReview(candidate, "标准库成长 Agent 已关闭。");
-        }
-        if (!properties.isAutoMergeEnabled()) {
-            return markNeedsReview(candidate, "自动入库未开启；候选保留给教师确认。");
-        }
-        if (candidate.getConfidence() == null || candidate.getConfidence() < properties.getAutoMergeMinConfidence()) {
-            return markNeedsReview(candidate, "自动入库置信度不足。");
-        }
-        if (!"SUPPORTED".equalsIgnoreCase(candidate.getEvidenceStatus())) {
-            return markNeedsReview(candidate, "自动入库缺少直接代码证据。");
-        }
-        if (candidate.getOccurrenceCount() == null
-                || candidate.getOccurrenceCount() < properties.getAutoMergeMinOccurrences()) {
-            return markNeedsReview(candidate, "自动入库出现次数不足。");
-        }
-        if (independentSubmissionCount(candidate) < properties.getAutoMergeMinOccurrences()) {
-            return markNeedsReview(candidate, "自动入库缺少足够的独立提交来源。");
-        }
-        if (!hasValidKnowledgePointParent(candidate.getParentKnowledgeNodeCode())) {
-            return markNeedsReview(candidate, "自动入库缺少有效的正式知识点父节点。");
-        }
-        return mergeToFormalLibrary(id, overrideProposal);
     }
 
     @Transactional
@@ -916,24 +888,6 @@ public class AiStandardLibraryGrowthAgentService {
         return knowledgeNodeRepository.findByCode(normalized)
                 .filter(node -> node.isEnabled() && node.getType() == InformaticsKnowledgeNodeType.KNOWLEDGE_POINT)
                 .isPresent();
-    }
-
-    private AiStandardLibraryGrowthCandidate maybeAutoPromote(AiStandardLibraryGrowthCandidate candidate) {
-        if (candidate == null
-                || !properties.isEnabled()
-                || !properties.isAutoMergeEnabled()
-                || candidate.getStatus() == AiStandardLibraryGrowthCandidateStatus.MERGED
-                || candidate.getStatus() == AiStandardLibraryGrowthCandidateStatus.TEACHER_APPROVED
-                || candidate.getConfidence() == null
-                || candidate.getConfidence() < properties.getAutoMergeMinConfidence()
-                || candidate.getOccurrenceCount() == null
-                || candidate.getOccurrenceCount() < properties.getAutoMergeMinOccurrences()
-                || independentSubmissionCount(candidate) < properties.getAutoMergeMinOccurrences()
-                || !"SUPPORTED".equalsIgnoreCase(candidate.getEvidenceStatus())
-                || !hasValidKnowledgePointParent(candidate.getParentKnowledgeNodeCode())) {
-            return candidate;
-        }
-        return mergeToFormalLibrary(candidate.getId(), null);
     }
 
     private List<Long> observedSubmissionIds(Long sourceSubmissionId) {

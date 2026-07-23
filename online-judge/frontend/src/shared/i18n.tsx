@@ -181,19 +181,6 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         viewReview: "查看复盘",
         emptyReview: "提交后可复盘错题。"
       },
-      nextLearning: {
-        title: "继续学习",
-        loading: "正在同步学习进度",
-        loadingHint: "马上为你接回最近的学习任务。",
-        fallbackTitle: "继续完成当前任务",
-        fallbackHint: "学习建议暂未更新，不影响进入课堂作业或自主练习。",
-        empty: "从一个明确任务开始",
-        emptyHint: "完成一次提交后，这里会接回最适合继续的内容。",
-        keepLearning: "继续学习",
-        goal: "目标：{{goal}}",
-        open: "开始行动",
-        openAria: "开始学习行动：{{title}}"
-      },
       selfPractice: {
         title: "自主练习",
         meta: "{{count}} 道题，可按难度选择",
@@ -230,8 +217,8 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         medium: "提高 {{count}} 题",
         hard: "挑战 {{count}} 题",
         viewAll: "查看全部",
-        starterTitle: "推荐起步",
-        starterAria: "推荐起步题目",
+        starterTitle: "按难度浏览",
+        starterAria: "按难度选择题目",
         starterHint: {
           easy: "适合热身",
           medium: "练习边界",
@@ -240,7 +227,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         }
       },
       assignment: {
-        description: "进入当前作业的下一题。",
+        description: "查看当前作业的题目与完成状态。",
         cta: "进入作业"
       },
       emptyAssignments: {
@@ -1161,19 +1148,6 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         viewReview: "Open review",
         emptyReview: "Submit solutions to review recent mistakes."
       },
-      nextLearning: {
-        title: "Continue Learning",
-        loading: "Syncing your progress",
-        loadingHint: "Your most recent learning task will be ready in a moment.",
-        fallbackTitle: "Continue your current task",
-        fallbackHint: "Guidance has not refreshed, but class work and self practice are still available.",
-        empty: "Start with one clear task",
-        emptyHint: "After your next submission, this area will bring back the best task to continue.",
-        keepLearning: "Continue learning",
-        goal: "Goal: {{goal}}",
-        open: "Start action",
-        openAria: "Start learning action: {{title}}"
-      },
       selfPractice: {
         title: "Self Practice",
         meta: "{{count}} problems, choose by difficulty",
@@ -1210,8 +1184,8 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         medium: "{{count}} intermediate",
         hard: "{{count}} challenge",
         viewAll: "View all",
-        starterTitle: "Recommended start",
-        starterAria: "Recommended starter problems",
+        starterTitle: "Browse by difficulty",
+        starterAria: "Choose a problem by difficulty",
         starterHint: {
           easy: "Good warm-up",
           medium: "Practice edges",
@@ -1220,7 +1194,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         }
       },
       assignment: {
-        description: "Open the next problem in this assignment.",
+        description: "View the problems and completion status in this assignment.",
         cta: "Open assignment"
       },
       emptyAssignments: {

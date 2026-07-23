@@ -89,17 +89,6 @@ public class AiStandardLibraryGrowthCandidateController {
         ));
     }
 
-    @PostMapping("/{id}/auto-merge")
-    public ResponseEntity<AiStandardLibraryGrowthCandidateResponse> autoMerge(@PathVariable Long id,
-                                                                              @RequestBody(required = false) AiStandardLibraryGrowthCandidateRequest request) {
-        StandardLibraryGrowthProposal proposal = request == null || request.getSuggestedCode() == null
-                ? null
-                : toProposal(request);
-        return ResponseEntity.ok(AiStandardLibraryGrowthCandidateResponse.from(
-                service.autoMergeToFormalLibrary(id, proposal)
-        ));
-    }
-
     private StandardLibraryGrowthProposal toProposal(AiStandardLibraryGrowthCandidateRequest request) {
         return StandardLibraryGrowthProposal.builder()
                 .suggestedCode(request == null ? "" : request.getSuggestedCode())

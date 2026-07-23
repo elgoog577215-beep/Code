@@ -6,9 +6,6 @@ import com.onlinejudge.submission.dto.SubmissionHistorySummaryResponse;
 import com.onlinejudge.submission.dto.SubmissionRequest;
 import com.onlinejudge.submission.dto.SubmissionResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackLookupResponse;
-import com.onlinejudge.classroom.application.CoachPromptService;
-import com.onlinejudge.classroom.dto.CoachPromptResponse;
-import com.onlinejudge.classroom.dto.CoachReplyRequest;
 import com.onlinejudge.submission.application.JudgeService;
 import com.onlinejudge.submission.application.SubmissionAnalysisService;
 import com.onlinejudge.submission.application.SubmissionComparisonService;
@@ -37,7 +34,6 @@ public class SubmissionController {
     private final SubmissionComparisonService submissionComparisonService;
     private final StudentAiFeedbackService studentAiFeedbackService;
     private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
-    private final CoachPromptService coachPromptService;
     private final StudentAccessTokenService studentAccessTokenService;
     private final SubmissionRepository submissionRepository;
     private final ClassroomSubmissionContextService classroomSubmissionContextService;
@@ -112,32 +108,6 @@ public class SubmissionController {
         requireSubmissionAccess(request, id);
         studentAiFeedbackService.recordViewed(id);
         return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/{id}/coach-prompt")
-    public ResponseEntity<CoachPromptResponse> getCoachPrompt(@PathVariable Long id,
-                                                              HttpServletRequest request) {
-        requireSubmissionAccess(request, id);
-        CoachPromptResponse prompt = coachPromptService.getLatestPrompt(id);
-        if (prompt == null) {
-            return ResponseEntity.noContent().build();
-        }
-        return ResponseEntity.ok(prompt);
-    }
-
-    @PostMapping("/{id}/coach-prompt")
-    public ResponseEntity<CoachPromptResponse> generateCoachPrompt(@PathVariable Long id,
-                                                                   HttpServletRequest request) {
-        requireSubmissionAccess(request, id);
-        return ResponseEntity.ok(coachPromptService.generateNextQuestion(id));
-    }
-
-    @PostMapping("/{id}/coach-turns")
-    public ResponseEntity<CoachPromptResponse> replyCoachPrompt(@PathVariable Long id,
-                                                                @Valid @RequestBody CoachReplyRequest coachRequest,
-                                                                HttpServletRequest request) {
-        requireSubmissionAccess(request, id);
-        return ResponseEntity.ok(coachPromptService.replyAndGenerateNext(id, coachRequest));
     }
 
     @GetMapping("/problem/{problemId}/history-summary")

@@ -91,6 +91,12 @@
     "growth": "Growth dashboard",
     "returnToSubmissions": "Back to submissions"
   },
+  "problemResultActions": {
+    "verificationReference": "Verification reference",
+    "taskList": "Back to task list",
+    "learningRecord": "View learning record",
+    "continueEditing": "Continue editing"
+  },
   "problemFeedbackWorkbench": {
     "title": "Answer needs correction",
     "score": "Score {{score}}",
@@ -283,24 +289,6 @@
       "pinnedPublic": "Pinned · Public Practice",
       "classroom": "Class Assignments"
     },
-    "nextLearning": {
-      "title": "Continue Learning",
-      "loading": "Syncing your progress",
-      "loadingHint": "Your most recent learning task will be ready in a moment.",
-      "fallbackTitle": "Continue your current task",
-      "fallbackHint": "Guidance has not refreshed, but class work and self practice are still available.",
-      "empty": "Start with one clear task",
-      "emptyHint": "After your next submission, this area will bring back the best task to continue.",
-      "keepLearning": "Continue learning",
-      "goal": "Goal: {{goal}}",
-      "outcome": {
-        "fulfilled": "The previous action now has completion evidence",
-        "unresolved": "The same issue still needs attention",
-        "waiting": "Waiting for the next valid evidence"
-      },
-      "open": "Start action",
-      "openAria": "Start learning action: {{title}}"
-    },
     "selfPractice": {
       "title": "Self Practice",
       "meta": "{{count}} problems, choose by difficulty",
@@ -337,8 +325,8 @@
       "medium": "{{count}} intermediate",
       "hard": "{{count}} challenge",
       "viewAll": "View all",
-      "starterTitle": "Recommended start",
-      "starterAria": "Recommended starter problems",
+      "starterTitle": "Browse by difficulty",
+      "starterAria": "Choose a problem by difficulty",
       "starterHint": {
         "easy": "Good warm-up",
         "medium": "Practice edges",
@@ -347,7 +335,7 @@
       }
     },
     "assignment": {
-      "description": "Open the next problem in this assignment.",
+      "description": "View the problems and completion status in this assignment.",
       "cta": "Open assignment"
     },
     "emptyAssignments": {

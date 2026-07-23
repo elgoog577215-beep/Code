@@ -162,10 +162,10 @@ public class ReadinessService {
                 false,
                 growthProperties.isEnabled()
                         ? growthProperties.isAutoMergeEnabled()
-                        ? "成长 Agent 已开启，允许自动入库。"
+                        ? "候选发现已开启；旧自动入库开关仍为 true，但自动晋升链路已移除。"
                         : "成长 Agent 已开启，只写入候选池。"
                         : "成长 Agent 已关闭。",
-                "自动入库前请先小范围审核。"
+                "保持 AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED=false，并在治理台人工审核候选。"
         ));
 
         String overall = overallStatus(checks);

@@ -114,7 +114,7 @@ class AiDiagnosisWorkflowPersistenceTest {
         assertThat(retryingSaved.isResultSaved()).isTrue();
 
         AiDiagnosisRun completed = workflowService.beginRun(13L, "generation-projection-failure");
-        for (String stageType : List.of("CORE_DIAGNOSIS", "ISSUE_ATTACHMENT", "STUDENT_OUTPUT", "TEACHER_OUTPUT")) {
+        for (String stageType : List.of("CORE_DIAGNOSIS", "ISSUE_ATTACHMENT", "STUDENT_OUTPUT")) {
             workflowService.executeStage(
                     completed.getId(), stageType, stageType, null,
                     "input", StageOutput.class, "provider", "model", "prompt",

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, Code2 } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { StudentAiFeedbackItem, SubmissionResult } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
 import {
@@ -22,7 +22,6 @@ type FeedbackRepairWorkbenchProps = {
   passed: number;
   total: number;
   firstFailedCase: FeedbackTestCase | null;
-  onReturnToCode: () => void;
 };
 
 function lifecycleStatusKey(status?: string | null) {
@@ -78,8 +77,7 @@ export function FeedbackRepairWorkbench({
   verificationPrompt,
   passed,
   total,
-  firstFailedCase,
-  onReturnToCode
+  firstFailedCase
 }: FeedbackRepairWorkbenchProps) {
   const { t } = useTranslation();
   const [selection, setSelection] = useState<FeedbackSelection>(() => repairItems.length
@@ -360,10 +358,6 @@ export function FeedbackRepairWorkbench({
           </div>
         ) : null}
 
-        <button type="button" className="feedback-code-workbench__return" onClick={onReturnToCode}>
-          <Code2 size={16} aria-hidden="true" />
-          {t("problemFeedbackWorkbench.returnToCode")}
-        </button>
       </aside>
     </div>
   );

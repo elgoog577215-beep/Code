@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, BookOpen, CircleCheck, ClipboardList, LogIn, Play } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { Assignment, ProblemCatalogItem, StudentProfile, StudentRecommendation, StudentRecommendationItem } from "../../shared/api/types";
+import type { Assignment, ProblemCatalogItem, StudentProfile } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
 import { loadStudent, onActiveStudentChange } from "../../shared/storage";
 
@@ -60,9 +60,6 @@ export default function StudentPage() {
   const [progressByAssignmentId, setProgressByAssignmentId] = useState<Record<number, AssignmentProgress | null>>({});
   const [publicProblems, setPublicProblems] = useState<ProblemCatalogItem[] | null>(null);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
-  const [recommendation, setRecommendation] = useState<StudentRecommendation | null>(null);
-  const [recommendationLoading, setRecommendationLoading] = useState(false);
-  const [recommendationFailed, setRecommendationFailed] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => onActiveStudentChange(() => setStudent(loadStudent())), []);
@@ -125,34 +122,6 @@ export default function StudentPage() {
     };
   }, [student, t]);
 
-  useEffect(() => {
-    if (!student) {
-      setRecommendation(null);
-      setRecommendationLoading(false);
-      setRecommendationFailed(false);
-      return;
-    }
-    let ignore = false;
-    setRecommendationLoading(true);
-    setRecommendationFailed(false);
-    api.studentRecommendations(student.id)
-      .then(result => {
-        if (!ignore) setRecommendation(result);
-      })
-      .catch(() => {
-        if (!ignore) {
-          setRecommendation(null);
-          setRecommendationFailed(true);
-        }
-      })
-      .finally(() => {
-        if (!ignore) setRecommendationLoading(false);
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [student]);
-
   const visibleAssignments = useMemo(() => latestTeacherAssignments(assignments), [assignments]);
   const progressFor = (assignment: Assignment) => progressByAssignmentId[assignment.id] ?? null;
   const problemCount = publicProblems?.length ?? null;
@@ -170,87 +139,6 @@ export default function StudentPage() {
   const publicStartPath = starterProblems[0]
     ? `/app/student/assignments/public/problems/${starterProblems[0].id}`
     : "/app/student/assignments/public";
-
-  function recommendationPath(item: StudentRecommendationItem) {
-    if (!student) return null;
-    const query = new URLSearchParams({ studentProfileId: String(student.id) });
-    if (item.recommendationToken) query.set("recommendationToken", item.recommendationToken);
-    if (item.problemId && item.assignmentId) return `/app/student/assignments/${item.assignmentId}/problems/${item.problemId}?${query}`;
-    if (item.problemId) return `/app/student/assignments/public/problems/${item.problemId}?${query}`;
-    if (item.assignmentId) return `/app/student/assignments/${item.assignmentId}`;
-    return null;
-  }
-
-  function recommendationAction(item: StudentRecommendationItem) {
-    const path = recommendationPath(item);
-    if (!path) return null;
-    return (
-      <Link
-        className="student-next-learning__cta"
-        to={path}
-        onClick={() => {
-          if (student && item.recommendationToken) void api.recordRecommendationEvent(student.id, item.recommendationToken).catch(() => undefined);
-        }}
-        aria-label={t("studentHome.nextLearning.openAria", { title: item.title })}
-      >
-        {item.actionLabel || t("studentHome.nextLearning.open")}<ArrowRight size={16} aria-hidden="true" />
-      </Link>
-    );
-  }
-
-  function recommendationOutcome(item: StudentRecommendationItem) {
-    switch (item.actionOutcome) {
-      case "CONTRACT_FULFILLED":
-        return t("studentHome.nextLearning.outcome.fulfilled");
-      case "UNRESOLVED_SAME_FOCUS":
-      case "TEACHER_INTERVENTION_NEEDED":
-        return t("studentHome.nextLearning.outcome.unresolved");
-      case "WAITING_DIAGNOSIS":
-      case "NO_FOLLOWUP_SUBMISSION":
-        return t("studentHome.nextLearning.outcome.waiting");
-      default:
-        return null;
-    }
-  }
-
-  function renderNextLearning() {
-    const items = recommendation?.recommendations || [];
-    const primary = items[0];
-    const fallbackAssignment = visibleAssignments[0];
-    const fallbackPath = fallbackAssignment ? `/app/student/assignments/${fallbackAssignment.id}` : "/app/student/assignments/public";
-    return (
-      <section className="student-home-zone student-next-learning" data-home-zone="continue" aria-labelledby="student-next-learning-heading">
-        <header className="student-next-learning__head">
-          <h2 id="student-next-learning-heading">{t("studentHome.nextLearning.title")}</h2>
-        </header>
-        {recommendationLoading ? (
-          <div className="student-next-learning__state" role="status" aria-live="polite">
-            <div><strong>{t("studentHome.nextLearning.loading")}</strong><p>{t("studentHome.nextLearning.loadingHint")}</p></div>
-          </div>
-        ) : recommendationFailed || !primary ? (
-          <div className="student-next-learning__state">
-            <div>
-              <strong>{t(recommendationFailed ? "studentHome.nextLearning.fallbackTitle" : "studentHome.nextLearning.empty")}</strong>
-              <p>{t(recommendationFailed ? "studentHome.nextLearning.fallbackHint" : "studentHome.nextLearning.emptyHint")}</p>
-            </div>
-            <Link to={fallbackPath}>{t("studentHome.nextLearning.keepLearning")}<ArrowRight size={16} aria-hidden="true" /></Link>
-          </div>
-        ) : (
-          <article className="student-next-learning__primary">
-            <div className="student-next-learning__summary">
-              <h3>{primary.title}</h3>
-              {primary.reason && <p>{primary.reason}</p>}
-              {recommendationOutcome(primary) && (
-                <span className="student-next-learning__status">{recommendationOutcome(primary)}</span>
-              )}
-              {primary.expectedCompletionSignal && <small>{t("studentHome.nextLearning.goal", { goal: primary.expectedCompletionSignal })}</small>}
-            </div>
-            {recommendationAction(primary)}
-          </article>
-        )}
-      </section>
-    );
-  }
 
   function renderSelfPractice() {
     return (
@@ -369,7 +257,6 @@ export default function StudentPage() {
         </>
       ) : (
         <div className="student-home-sections">
-          {renderNextLearning()}
           <section
             id="assignments"
             className="student-home-zone student-assignment-board student-learning-task-board student-classroom-section"

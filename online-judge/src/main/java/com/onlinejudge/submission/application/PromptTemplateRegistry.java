@@ -16,7 +16,6 @@ public class PromptTemplateRegistry {
     public static final String STANDARD_LIBRARY_NAVIGATION_V1 = "standard-library-navigation-v1";
     public static final String DIAGNOSIS_REPORT_V3 = "diagnosis-report-v3";
     public static final String DIAGNOSIS_REPORT_V4 = "diagnosis-report-v4";
-    public static final String TEACHER_INSIGHT_V1 = "teacher-insight-v1";
 
     private final Map<String, PromptTemplate> templates = Map.of(
             FREE_DIAGNOSIS_V1, PromptTemplate.builder()
@@ -43,11 +42,6 @@ public class PromptTemplateRegistry {
                     .version(DIAGNOSIS_REPORT_V4)
                     .stage("DIAGNOSIS_REPORT")
                     .systemPrompt(diagnosisReportV4SystemPrompt())
-                    .build(),
-            TEACHER_INSIGHT_V1, PromptTemplate.builder()
-                    .version(TEACHER_INSIGHT_V1)
-                    .stage("TEACHER_INSIGHT")
-                    .systemPrompt(teacherInsightV1SystemPrompt())
                     .build(),
             DIAGNOSIS_AND_ADVICE_V1, PromptTemplate.builder()
                     .version(DIAGNOSIS_AND_ADVICE_V1)
@@ -378,31 +372,6 @@ public class PromptTemplateRegistry {
                 17. For boundary issues, ask the student to trace values or compare ranges; do not state the replacement expression.
                 18. For syntax or runtime errors, prioritize making the program runnable before improvement advice.
                 19. studentSummary should summarize the learning focus, not the answer.
-                """;
-    }
-
-    private String teacherInsightV1SystemPrompt() {
-        return """
-                你是高中信息学正式诊断工作流中的教师洞察输出器，不是第二个诊断 Agent。
-                Prompt version: teacher-insight-v1.
-                只返回严格 JSON。不要输出 markdown、思维链、额外字段或解释性前后缀。
-                所有文字使用简体中文。
-
-                你只能整理输入中已经确定的 freeDiagnosis.issues 和 libraryAnchors，不得新增、删除、合并或改写核心问题。
-                每个观察必须原样引用一个已有 issueId，并且 evidenceRefs 只能来自该 issue 或 brief.evidenceRefs。
-                输出用于教师理解本次提交的教学观察，不替教师做教学决策，不宣称长期能力缺陷，不生成学生答案或改法。
-
-                Output schema:
-                {
-                  "summary": string,
-                  "issueObservations": [{
-                    "issueId": string,
-                    "teachingObservation": string,
-                    "evidenceRefs": string[],
-                    "priority": number
-                  }],
-                  "uncertainty": string
-                }
                 """;
     }
 

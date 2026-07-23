@@ -92,3 +92,25 @@ TBD - created by archiving change redesign-teacher-console-ui. Update Purpose af
 - **WHEN** 教师选择证据位置有误
 - **THEN** 表单 SHALL 允许填写目标证据引用和校正说明
 
+### Requirement: 教师端不得建立独立 AI 干预首页
+教师端 SHALL 将 AI 归因和关注状态依附在班级、作业、题目和学生证据对象中，MUST NOT 建立跨对象汇总且替教师安排处理顺序的独立 AI 干预首页。
+
+#### Scenario: 存在多个需关注学生信号
+- **WHEN** 教师查看某个班级、作业或题目
+- **THEN** 页面 MAY 在当前对象范围内提供“需关注”筛选
+- **AND** 每个信号 SHALL 能回到具体提交证据
+- **AND** 系统 MUST NOT 使用 AI 语言替教师决定处理顺序
+
+#### Scenario: 未接入路由的替代教师页面存在
+- **WHEN** 某个教师页面不属于正式班级到证据路径且未被正式路由使用
+- **THEN** 系统 SHALL 合并其中仍有价值的客观证据能力或删除该页面
+- **AND** 系统 MUST NOT 为保留代码而新增重复入口
+
+### Requirement: 教师面板必须保持对象边界
+教师页面 SHALL 在当前教学对象内分别呈现基础指标、归因分布和证据列表，MUST NOT 将多个层级和多种行动建议压缩到一个无边界综合面板。
+
+#### Scenario: 教师查看题目分析
+- **WHEN** 当前对象为一道题目
+- **THEN** 基础指标、错因分布和学生证据 SHALL 只属于该题目
+- **AND** 页面 SHALL 允许教师自主选择查看哪个错因或学生
+
