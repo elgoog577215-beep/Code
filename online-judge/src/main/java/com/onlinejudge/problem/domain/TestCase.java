@@ -27,6 +27,61 @@ public class TestCase {
     @Column(name = "expected_output", columnDefinition = "TEXT", nullable = false)
     private String expectedOutput;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "input_storage_type")
+    @Builder.Default
+    private StorageType inputStorageType = StorageType.INLINE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "output_storage_type")
+    @Builder.Default
+    private StorageType outputStorageType = StorageType.INLINE;
+
+    @Column(name = "input_file_path", columnDefinition = "TEXT")
+    private String inputFilePath;
+
+    @Column(name = "output_file_path", columnDefinition = "TEXT")
+    private String outputFilePath;
+
+    @Column(name = "input_file_name")
+    private String inputFileName;
+
+    @Column(name = "output_file_name")
+    private String outputFileName;
+
+    @Column(name = "input_size_bytes")
+    private Long inputSizeBytes;
+
+    @Column(name = "output_size_bytes")
+    private Long outputSizeBytes;
+
+    @Column(name = "input_sha256", length = 64)
+    private String inputSha256;
+
+    @Column(name = "output_sha256", length = 64)
+    private String outputSha256;
+
+    @Column(name = "time_limit_ms")
+    private Integer timeLimitMs;
+
+    @Column(name = "memory_limit_kib")
+    private Integer memoryLimitKib;
+
+    @Column(name = "subtask_index")
+    @Builder.Default
+    private Integer subtaskIndex = 0;
+
+    @Column(name = "score")
+    @Builder.Default
+    private Integer score = 0;
+
+    @Column(name = "public_example")
+    @Builder.Default
+    private Boolean publicExample = false;
+
+    @Column(name = "import_batch_id", length = 80)
+    private String importBatchId;
+
     @Column(name = "is_hidden")
     @Builder.Default
     private Boolean isHidden = false;
@@ -73,4 +128,8 @@ public class TestCase {
 
     @Column(name = "reviewed_at")
     private java.time.LocalDateTime reviewedAt;
+
+    public enum StorageType {
+        INLINE, FILE
+    }
 }

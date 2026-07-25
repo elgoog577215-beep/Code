@@ -29,6 +29,11 @@ public class Problem {
     private String description;
 
     @Enumerated(EnumType.STRING)
+    @Column
+    @Builder.Default
+    private ProblemStatus status = ProblemStatus.HIDDEN;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Difficulty difficulty;
 
@@ -43,6 +48,43 @@ public class Problem {
 
     @Column(name = "starter_code", columnDefinition = "TEXT")
     private String starterCode;
+
+    @Column(name = "statement_background", columnDefinition = "TEXT")
+    private String statementBackground;
+
+    @Column(name = "statement_description", columnDefinition = "TEXT")
+    private String statementDescription;
+
+    @Column(name = "statement_input_format", columnDefinition = "TEXT")
+    private String statementInputFormat;
+
+    @Column(name = "statement_output_format", columnDefinition = "TEXT")
+    private String statementOutputFormat;
+
+    @Column(name = "statement_samples", columnDefinition = "TEXT")
+    private String statementSamples;
+
+    @Column(name = "statement_hints", columnDefinition = "TEXT")
+    private String statementHints;
+
+    @Column(length = 255)
+    private String provider;
+
+    @Column(columnDefinition = "TEXT")
+    private String attachments;
+
+    @Convert(converter = StringListJsonConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private List<String> tags;
+
+    @Column(name = "data_download_enabled")
+    @Builder.Default
+    private Boolean dataDownloadEnabled = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "score_display_mode")
+    @Builder.Default
+    private ScoreDisplayMode scoreDisplayMode = ScoreDisplayMode.ICPC;
 
     @Convert(converter = StringListJsonConverter.class)
     @Column(name = "knowledge_points", columnDefinition = "TEXT")
@@ -70,5 +112,13 @@ public class Problem {
 
     public enum Difficulty {
         EASY, MEDIUM, HARD
+    }
+
+    public enum ProblemStatus {
+        HIDDEN, PUBLIC, PARTIAL, CONTEST
+    }
+
+    public enum ScoreDisplayMode {
+        OI, ICPC
     }
 }

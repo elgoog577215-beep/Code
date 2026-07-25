@@ -7,6 +7,7 @@ import com.onlinejudge.system.application.ExecutorStatusService;
 import com.onlinejudge.submission.dto.SubmissionRequest;
 import com.onlinejudge.submission.dto.SubmissionResponse;
 import com.onlinejudge.problem.domain.Problem;
+import com.onlinejudge.problem.application.TestCaseContentService;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
 import com.onlinejudge.problem.domain.TestCase;
@@ -35,6 +36,7 @@ public class JudgeService {
     private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
     private final ExecutorStatusService executorStatusService;
     private final StudentRecommendationEventService recommendationEventService;
+    private final TestCaseContentService testCaseContentService;
 
     @PostConstruct
     public void init() {
@@ -85,13 +87,17 @@ public class JudgeService {
 
         for (int index = 0; index < testCases.size(); index++) {
             TestCase testCase = testCases.get(index);
+            String testInput = testCaseContentService.input(testCase);
+            String testExpectedOutput = testCaseContentService.expectedOutput(testCase);
+            int timeLimitMs = testCase.getTimeLimitMs() == null ? problem.getTimeLimit() : testCase.getTimeLimitMs();
+            int memoryLimitKib = testCase.getMemoryLimitKib() == null ? problem.getMemoryLimit() : testCase.getMemoryLimitKib();
 
             CodeExecutor.ExecutionResult executionResult = codeExecutor.execute(
                     request.getSourceCode(),
                     request.getLanguageId(),
-                    testCase.getInput(),
-                    problem.getTimeLimit(),
-                    problem.getMemoryLimit()
+                    testInput,
+                    timeLimitMs,
+                    memoryLimitKib
             );
 
             maxExecutionTimeMs = Math.max(maxExecutionTimeMs, executionResult.executionTimeMs);
@@ -109,7 +115,7 @@ public class JudgeService {
                     submission.setVerdict(finalVerdict);
                     submission.setExecutionTime(millisecondsToSeconds(maxExecutionTimeMs));
                     submission.setMemoryUsed(maxMemoryUsed);
-                    caseResults.add(buildCaseResult(index + 1, false, testCase, "", normalizeOutput(testCase.getExpectedOutput()), 0.0, 0));
+                    caseResults.add(buildCaseResult(index + 1, false, testCase, testInput, "", normalizeOutput(testExpectedOutput), 0.0, 0));
                     return finalizeAndQueue(problem, submission, caseResults, request.getRecommendationToken());
                 }
                 case MEMORY_LIMIT_EXCEEDED -> {
@@ -117,7 +123,7 @@ public class JudgeService {
                     submission.setVerdict(finalVerdict);
                     submission.setExecutionTime(millisecondsToSeconds(maxExecutionTimeMs));
                     submission.setMemoryUsed(problem.getMemoryLimit());
-                    caseResults.add(buildCaseResult(index + 1, false, testCase, "", normalizeOutput(testCase.getExpectedOutput()), 0.0, problem.getMemoryLimit()));
+                    caseResults.add(buildCaseResult(index + 1, false, testCase, testInput, "", normalizeOutput(testExpectedOutput), 0.0, memoryLimitKib));
                     return finalizeAndQueue(problem, submission, caseResults, request.getRecommendationToken());
                 }
                 case RUNTIME_ERROR -> {
@@ -132,8 +138,9 @@ public class JudgeService {
                             index + 1,
                             false,
                             testCase,
+                            testInput,
                             normalizeOutput(runtimeOutput),
-                            normalizeOutput(testCase.getExpectedOutput()),
+                            normalizeOutput(testExpectedOutput),
                             millisecondsToSeconds(executionResult.executionTimeMs),
                             0
                     ));
@@ -148,7 +155,7 @@ public class JudgeService {
                 }
                 case SUCCESS -> {
                     String actualOutput = normalizeOutput(executionResult.stdout);
-                    String expectedOutput = normalizeOutput(testCase.getExpectedOutput());
+                    String expectedOutput = normalizeOutput(testExpectedOutput);
                     boolean passed = actualOutput.equals(expectedOutput);
 
                     submission.setOutput(actualOutput);
@@ -156,6 +163,7 @@ public class JudgeService {
                             index + 1,
                             passed,
                             testCase,
+                            testInput,
                             actualOutput,
                             expectedOutput,
                             millisecondsToSeconds(executionResult.executionTimeMs),
@@ -186,6 +194,7 @@ public class JudgeService {
     private SubmissionCaseResult buildCaseResult(int testCaseNumber,
                                                  boolean passed,
                                                  TestCase testCase,
+                                                 String inputSnapshot,
                                                  String actualOutput,
                                                  String expectedOutput,
                                                  double executionTime,
@@ -194,7 +203,7 @@ public class JudgeService {
                 .testCaseNumber(testCaseNumber)
                 .testCaseId(testCase.getId())
                 .passed(passed)
-                .inputSnapshot(testCase.getInput())
+                .inputSnapshot(inputSnapshot)
                 .actualOutput(actualOutput)
                 .expectedOutput(expectedOutput)
                 .executionTime(executionTime)

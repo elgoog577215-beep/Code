@@ -23,9 +23,11 @@ import type {
   ImportPreview,
   LeaderboardEntry,
   Problem,
+  ProblemAttachment,
   ProblemCatalogItem,
   ProblemManage,
   Readiness,
+  StatementImportResult,
   RecommendationEffectiveness,
   RecommendationActionEvidenceSignal,
   StudentAbilityProfile,
@@ -39,6 +41,9 @@ import type {
   SubmissionAnalysisLookup,
   SubmissionHistorySummary,
   SubmissionResult,
+  TestDataFilePreview,
+  TestDataImportCommit,
+  TestDataImportPreview,
   StudentAiFeedbackLookup,
   TeacherDiagnosisCorrection
 } from "./types";
@@ -175,6 +180,27 @@ export const api = {
     request<Problem>("/api/problems", { method: "POST", body: jsonBody(payload) }),
   updateProblem: (id: number, payload: unknown) =>
     request<Problem>(`/api/problems/${id}`, { method: "PUT", body: jsonBody(payload) }),
+  importProblemStatement: (content: string) =>
+    request<StatementImportResult>("/api/problems/statement-import", { method: "POST", body: jsonBody({ content }) }),
+  previewProblemTestData: (problemId: number, file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    return request<TestDataImportPreview>(`/api/problems/${problemId}/test-data/import-preview`, { method: "POST", body });
+  },
+  commitProblemTestData: (problemId: number, file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    return request<TestDataImportCommit>(`/api/problems/${problemId}/test-data/import-commit`, { method: "POST", body });
+  },
+  previewProblemTestDataFile: (problemId: number, testCaseId: number, kind: "input" | "output") =>
+    request<TestDataFilePreview>(`/api/problems/${problemId}/test-data/${testCaseId}/preview${queryString({ kind })}`),
+  problemAttachments: (problemId: number) =>
+    request<ProblemAttachment[]>(`/api/problems/${problemId}/attachments`),
+  uploadProblemAttachment: (problemId: number, file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    return request<ProblemAttachment>(`/api/problems/${problemId}/attachments`, { method: "POST", body });
+  },
 
   submit: (payload: {
     problemId: number;

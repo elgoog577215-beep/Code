@@ -3,6 +3,7 @@ package com.onlinejudge.submission.application;
 import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.execution.CodeExecutor;
 import com.onlinejudge.execution.ContestLanguageRegistry;
+import com.onlinejudge.problem.application.TestCaseContentService;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.domain.TestCase;
 import com.onlinejudge.problem.persistence.ProblemRepository;
@@ -42,6 +43,7 @@ class JudgeServiceCpp17Test {
     private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService = mock(StudentAiFeedbackAsyncService.class);
     private final ExecutorStatusService executorStatusService = mock(ExecutorStatusService.class);
     private final StudentRecommendationEventService recommendationEventService = mock(StudentRecommendationEventService.class);
+    private final TestCaseContentService testCaseContentService = mock(TestCaseContentService.class);
     private final AtomicLong submissionIds = new AtomicLong(100L);
 
     private JudgeService judgeService;
@@ -56,7 +58,8 @@ class JudgeServiceCpp17Test {
                 submissionAnalysisService,
                 studentAiFeedbackAsyncService,
                 executorStatusService,
-                recommendationEventService
+                recommendationEventService,
+                testCaseContentService
         );
         when(problemRepository.findById(1L)).thenReturn(Optional.of(problem()));
         when(submissionRepository.save(any(Submission.class))).thenAnswer(invocation -> {
@@ -67,6 +70,8 @@ class JudgeServiceCpp17Test {
             return submission;
         });
         when(executorStatusService.getStatus()).thenReturn(status(true));
+        when(testCaseContentService.input(any(TestCase.class))).thenAnswer(invocation -> invocation.<TestCase>getArgument(0).getInput());
+        when(testCaseContentService.expectedOutput(any(TestCase.class))).thenAnswer(invocation -> invocation.<TestCase>getArgument(0).getExpectedOutput());
         when(submissionAnalysisService.finalizeSubmission(any(Problem.class), any(Submission.class), anyList()))
                 .thenAnswer(invocation -> response(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2)));
     }

@@ -1,0 +1,4 @@
+id: add-zip-test-data-import-workbench
+status: proposed
+created: 2026-07-25
+description: Add a tabbed problem authoring workbench with Markdown statement import and zip-based .in/.out test data import.

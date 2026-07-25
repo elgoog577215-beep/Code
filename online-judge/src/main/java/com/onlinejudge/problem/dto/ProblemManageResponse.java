@@ -19,6 +19,18 @@ public class ProblemManageResponse {
     private Integer memoryLimit;
     private String aiPromptDirection;
     private String starterCode;
+    private Problem.ProblemStatus status;
+    private String statementBackground;
+    private String statementDescription;
+    private String statementInputFormat;
+    private String statementOutputFormat;
+    private String statementSamples;
+    private String statementHints;
+    private String provider;
+    private String attachments;
+    private List<String> tags;
+    private Boolean dataDownloadEnabled;
+    private Problem.ScoreDisplayMode scoreDisplayMode;
     private List<String> knowledgePoints;
     private List<String> algorithmStrategies;
     private List<String> commonMistakes;
@@ -34,6 +46,22 @@ public class ProblemManageResponse {
         private String expectedOutput;
         private Boolean hidden;
         private Integer orderIndex;
+        private String inputStorageType;
+        private String outputStorageType;
+        private String inputFilePath;
+        private String outputFilePath;
+        private String inputFileName;
+        private String outputFileName;
+        private Long inputSizeBytes;
+        private Long outputSizeBytes;
+        private String inputSha256;
+        private String outputSha256;
+        private Integer timeLimitMs;
+        private Integer memoryLimitKib;
+        private Integer subtaskIndex;
+        private Integer score;
+        private Boolean publicExample;
+        private String importBatchId;
     }
 
     public static ProblemManageResponse from(Problem problem, List<TestCase> testCases) {
@@ -46,6 +74,18 @@ public class ProblemManageResponse {
                 .memoryLimit(problem.getMemoryLimit())
                 .aiPromptDirection(problem.getAiPromptDirection())
                 .starterCode(problem.getStarterCode())
+                .status(problem.getStatus())
+                .statementBackground(problem.getStatementBackground())
+                .statementDescription(problem.getStatementDescription())
+                .statementInputFormat(problem.getStatementInputFormat())
+                .statementOutputFormat(problem.getStatementOutputFormat())
+                .statementSamples(problem.getStatementSamples())
+                .statementHints(problem.getStatementHints())
+                .provider(problem.getProvider())
+                .attachments(problem.getAttachments())
+                .tags(safeList(problem.getTags()))
+                .dataDownloadEnabled(Boolean.TRUE.equals(problem.getDataDownloadEnabled()))
+                .scoreDisplayMode(problem.getScoreDisplayMode())
                 .knowledgePoints(safeList(problem.getKnowledgePoints()))
                 .algorithmStrategies(safeList(problem.getAlgorithmStrategies()))
                 .commonMistakes(safeList(problem.getCommonMistakes()))
@@ -58,6 +98,22 @@ public class ProblemManageResponse {
                                 .expectedOutput(testCase.getExpectedOutput())
                                 .hidden(Boolean.TRUE.equals(testCase.getIsHidden()))
                                 .orderIndex(testCase.getOrderIndex())
+                                .inputStorageType(storageName(testCase.getInputStorageType()))
+                                .outputStorageType(storageName(testCase.getOutputStorageType()))
+                                .inputFilePath(testCase.getInputFilePath())
+                                .outputFilePath(testCase.getOutputFilePath())
+                                .inputFileName(testCase.getInputFileName())
+                                .outputFileName(testCase.getOutputFileName())
+                                .inputSizeBytes(testCase.getInputSizeBytes())
+                                .outputSizeBytes(testCase.getOutputSizeBytes())
+                                .inputSha256(testCase.getInputSha256())
+                                .outputSha256(testCase.getOutputSha256())
+                                .timeLimitMs(testCase.getTimeLimitMs())
+                                .memoryLimitKib(testCase.getMemoryLimitKib())
+                                .subtaskIndex(testCase.getSubtaskIndex())
+                                .score(testCase.getScore())
+                                .publicExample(Boolean.TRUE.equals(testCase.getPublicExample()))
+                                .importBatchId(testCase.getImportBatchId())
                                 .build())
                         .toList())
                 .build();
@@ -65,5 +121,9 @@ public class ProblemManageResponse {
 
     private static List<String> safeList(List<String> values) {
         return values == null ? List.of() : values;
+    }
+
+    private static String storageName(TestCase.StorageType storageType) {
+        return storageType == null ? TestCase.StorageType.INLINE.name() : storageType.name();
     }
 }

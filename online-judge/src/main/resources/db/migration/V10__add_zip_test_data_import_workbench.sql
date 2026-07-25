@@ -1,0 +1,34 @@
+ALTER TABLE problems
+    ADD COLUMN IF NOT EXISTS status VARCHAR(40) NOT NULL DEFAULT 'HIDDEN',
+    ADD COLUMN IF NOT EXISTS statement_background TEXT,
+    ADD COLUMN IF NOT EXISTS statement_description TEXT,
+    ADD COLUMN IF NOT EXISTS statement_input_format TEXT,
+    ADD COLUMN IF NOT EXISTS statement_output_format TEXT,
+    ADD COLUMN IF NOT EXISTS statement_samples TEXT,
+    ADD COLUMN IF NOT EXISTS statement_hints TEXT,
+    ADD COLUMN IF NOT EXISTS provider VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS attachments TEXT,
+    ADD COLUMN IF NOT EXISTS tags TEXT,
+    ADD COLUMN IF NOT EXISTS data_download_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS score_display_mode VARCHAR(40) NOT NULL DEFAULT 'ICPC';
+
+ALTER TABLE test_cases
+    ADD COLUMN IF NOT EXISTS input_storage_type VARCHAR(20) NOT NULL DEFAULT 'INLINE',
+    ADD COLUMN IF NOT EXISTS output_storage_type VARCHAR(20) NOT NULL DEFAULT 'INLINE',
+    ADD COLUMN IF NOT EXISTS input_file_path TEXT,
+    ADD COLUMN IF NOT EXISTS output_file_path TEXT,
+    ADD COLUMN IF NOT EXISTS input_file_name VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS output_file_name VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS input_size_bytes BIGINT,
+    ADD COLUMN IF NOT EXISTS output_size_bytes BIGINT,
+    ADD COLUMN IF NOT EXISTS input_sha256 VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS output_sha256 VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS time_limit_ms INTEGER,
+    ADD COLUMN IF NOT EXISTS memory_limit_kib INTEGER,
+    ADD COLUMN IF NOT EXISTS subtask_index INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS score INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS public_example BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS import_batch_id VARCHAR(80);
+
+CREATE INDEX IF NOT EXISTS idx_test_cases_problem_storage
+    ON test_cases (problem_id, input_storage_type, order_index);

@@ -34,6 +34,30 @@ public class CreateProblemRequest {
 
     private String starterCode;
 
+    private Problem.ProblemStatus status;
+
+    private String statementBackground;
+
+    private String statementDescription;
+
+    private String statementInputFormat;
+
+    private String statementOutputFormat;
+
+    private String statementSamples;
+
+    private String statementHints;
+
+    private String provider;
+
+    private String attachments;
+
+    private List<String> tags;
+
+    private Boolean dataDownloadEnabled;
+
+    private Problem.ScoreDisplayMode scoreDisplayMode;
+
     private List<String> knowledgePoints;
 
     private List<String> algorithmStrategies;
@@ -56,5 +80,39 @@ public class CreateProblemRequest {
 
         @NotNull(message = "请指定测试点是否隐藏")
         private Boolean hidden;
+
+        private Long id;
+
+        private String inputStorageType;
+
+        private String outputStorageType;
+
+        private String inputFilePath;
+
+        private String outputFilePath;
+
+        private String inputFileName;
+
+        private String outputFileName;
+
+        private Long inputSizeBytes;
+
+        private Long outputSizeBytes;
+
+        private String inputSha256;
+
+        private String outputSha256;
+
+        private Integer timeLimitMs;
+
+        private Integer memoryLimitKib;
+
+        private Integer subtaskIndex;
+
+        private Integer score;
+
+        private Boolean publicExample;
+
+        private String importBatchId;
     }
 }

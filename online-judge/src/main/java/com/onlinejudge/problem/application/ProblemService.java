@@ -32,6 +32,7 @@ public class ProblemService {
     private final SubmissionRepository submissionRepository;
     private final SubmissionCaseResultRepository submissionCaseResultRepository;
     private final SubmissionAnalysisRepository submissionAnalysisRepository;
+    private final TestCaseContentService testCaseContentService;
 
     public List<ProblemResponse> getAllProblems() {
         return problemRepository.findAllByOrderByIdAsc()
@@ -62,7 +63,9 @@ public class ProblemService {
         List<TestCase> visibleTestCases = testCaseRepository
                 .findByProblemIdAndIsHiddenFalseOrderByOrderIndexAsc(id);
         
-        return ProblemResponse.from(problem, visibleTestCases);
+        return ProblemResponse.from(problem, visibleTestCases,
+                testCase -> testCaseContentService.previewInput(testCase, 20_000),
+                testCase -> testCaseContentService.previewExpectedOutput(testCase, 20_000));
     }
 
     public ProblemManageResponse getProblemForManage(Long id) {
@@ -79,12 +82,24 @@ public class ProblemService {
 
         Problem problem = problemRepository.save(Problem.builder()
                 .title(request.getTitle().trim())
-                .description(request.getDescription().trim())
+                .description(composeDescription(request))
+                .status(request.getStatus() == null ? Problem.ProblemStatus.HIDDEN : request.getStatus())
                 .difficulty(request.getDifficulty())
                 .timeLimit(request.getTimeLimit())
                 .memoryLimit(request.getMemoryLimit())
                 .aiPromptDirection(normalizePromptDirection(request.getAiPromptDirection()))
                 .starterCode(normalizeStarterCode(request.getStarterCode()))
+                .statementBackground(normalizeOptionalText(request.getStatementBackground()))
+                .statementDescription(normalizeOptionalText(request.getStatementDescription()))
+                .statementInputFormat(normalizeOptionalText(request.getStatementInputFormat()))
+                .statementOutputFormat(normalizeOptionalText(request.getStatementOutputFormat()))
+                .statementSamples(normalizeOptionalText(request.getStatementSamples()))
+                .statementHints(normalizeOptionalText(request.getStatementHints()))
+                .provider(normalizePromptDirection(request.getProvider()))
+                .attachments(normalizeOptionalText(request.getAttachments()))
+                .tags(normalizeList(request.getTags()))
+                .dataDownloadEnabled(Boolean.TRUE.equals(request.getDataDownloadEnabled()))
+                .scoreDisplayMode(request.getScoreDisplayMode() == null ? Problem.ScoreDisplayMode.ICPC : request.getScoreDisplayMode())
                 .knowledgePoints(normalizeList(request.getKnowledgePoints()))
                 .algorithmStrategies(normalizeList(request.getAlgorithmStrategies()))
                 .commonMistakes(normalizeList(request.getCommonMistakes()))
@@ -97,7 +112,9 @@ public class ProblemService {
                 .filter(testCase -> !Boolean.TRUE.equals(testCase.getIsHidden()))
                 .toList();
 
-        return ProblemResponse.from(problem, visibleTestCases);
+        return ProblemResponse.from(problem, visibleTestCases,
+                testCase -> testCaseContentService.previewInput(testCase, 20_000),
+                testCase -> testCaseContentService.previewExpectedOutput(testCase, 20_000));
     }
 
     @Transactional
@@ -108,12 +125,24 @@ public class ProblemService {
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + problemId));
 
         problem.setTitle(request.getTitle().trim());
-        problem.setDescription(request.getDescription().trim());
+        problem.setDescription(composeDescription(request));
+        problem.setStatus(request.getStatus() == null ? Problem.ProblemStatus.HIDDEN : request.getStatus());
         problem.setDifficulty(request.getDifficulty());
         problem.setTimeLimit(request.getTimeLimit());
         problem.setMemoryLimit(request.getMemoryLimit());
         problem.setAiPromptDirection(normalizePromptDirection(request.getAiPromptDirection()));
         problem.setStarterCode(normalizeStarterCode(request.getStarterCode()));
+        problem.setStatementBackground(normalizeOptionalText(request.getStatementBackground()));
+        problem.setStatementDescription(normalizeOptionalText(request.getStatementDescription()));
+        problem.setStatementInputFormat(normalizeOptionalText(request.getStatementInputFormat()));
+        problem.setStatementOutputFormat(normalizeOptionalText(request.getStatementOutputFormat()));
+        problem.setStatementSamples(normalizeOptionalText(request.getStatementSamples()));
+        problem.setStatementHints(normalizeOptionalText(request.getStatementHints()));
+        problem.setProvider(normalizePromptDirection(request.getProvider()));
+        problem.setAttachments(normalizeOptionalText(request.getAttachments()));
+        problem.setTags(normalizeList(request.getTags()));
+        problem.setDataDownloadEnabled(Boolean.TRUE.equals(request.getDataDownloadEnabled()));
+        problem.setScoreDisplayMode(request.getScoreDisplayMode() == null ? Problem.ScoreDisplayMode.ICPC : request.getScoreDisplayMode());
         problem.setKnowledgePoints(normalizeList(request.getKnowledgePoints()));
         problem.setAlgorithmStrategies(normalizeList(request.getAlgorithmStrategies()));
         problem.setCommonMistakes(normalizeList(request.getCommonMistakes()));
@@ -127,7 +156,9 @@ public class ProblemService {
                 .filter(testCase -> !Boolean.TRUE.equals(testCase.getIsHidden()))
                 .toList();
 
-        return ProblemResponse.from(savedProblem, visibleTestCases);
+        return ProblemResponse.from(savedProblem, visibleTestCases,
+                testCase -> testCaseContentService.previewInput(testCase, 20_000),
+                testCase -> testCaseContentService.previewExpectedOutput(testCase, 20_000));
     }
 
     @Transactional
@@ -165,10 +196,28 @@ public class ProblemService {
         return IntStream.range(0, request.getTestCases().size())
                 .mapToObj(index -> {
                     CreateProblemRequest.TestCaseRequest testCase = request.getTestCases().get(index);
+                    TestCase.StorageType inputStorageType = parseStorageType(testCase.getInputStorageType());
+                    TestCase.StorageType outputStorageType = parseStorageType(testCase.getOutputStorageType());
                     return TestCase.builder()
                             .problemId(problemId)
-                            .input(testCase.getInput())
-                            .expectedOutput(testCase.getExpectedOutput())
+                            .input(testCase.getInput() == null ? "" : testCase.getInput())
+                            .expectedOutput(testCase.getExpectedOutput() == null ? "" : testCase.getExpectedOutput())
+                            .inputStorageType(inputStorageType)
+                            .outputStorageType(outputStorageType)
+                            .inputFilePath(testCase.getInputFilePath())
+                            .outputFilePath(testCase.getOutputFilePath())
+                            .inputFileName(testCase.getInputFileName())
+                            .outputFileName(testCase.getOutputFileName())
+                            .inputSizeBytes(testCase.getInputSizeBytes())
+                            .outputSizeBytes(testCase.getOutputSizeBytes())
+                            .inputSha256(testCase.getInputSha256())
+                            .outputSha256(testCase.getOutputSha256())
+                            .timeLimitMs(testCase.getTimeLimitMs())
+                            .memoryLimitKib(testCase.getMemoryLimitKib())
+                            .subtaskIndex(testCase.getSubtaskIndex() == null ? 0 : testCase.getSubtaskIndex())
+                            .score(testCase.getScore() == null ? 0 : testCase.getScore())
+                            .publicExample(Boolean.TRUE.equals(testCase.getPublicExample()))
+                            .importBatchId(testCase.getImportBatchId())
                             .isHidden(Boolean.TRUE.equals(testCase.getHidden()))
                             .orderIndex(index)
                             .build();
@@ -200,6 +249,59 @@ public class ProblemService {
 
         String trimmed = promptDirection.trim();
         return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private String normalizeOptionalText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.replace("\r\n", "\n").replace('\r', '\n').strip();
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private String composeDescription(CreateProblemRequest request) {
+        List<String> sections = List.of(
+                section("## 题目背景", request.getStatementBackground(), false),
+                section("## 题目描述", firstNonBlank(request.getStatementDescription(), request.getDescription()), true),
+                section("## 输入格式", request.getStatementInputFormat(), false),
+                section("## 输出格式", request.getStatementOutputFormat(), false),
+                section("## 样例", request.getStatementSamples(), false),
+                section("## 提示说明", request.getStatementHints(), false)
+        ).stream().filter(value -> !value.isBlank()).toList();
+
+        if (!sections.isEmpty()) {
+            return String.join("\n\n", sections).trim();
+        }
+        return request.getDescription() == null ? "" : request.getDescription().trim();
+    }
+
+    private String section(String heading, String value, boolean allowBareFallback) {
+        String normalized = normalizeOptionalText(value);
+        if (normalized == null) {
+            return "";
+        }
+        if (allowBareFallback && normalized.startsWith("#")) {
+            return normalized;
+        }
+        return heading + "\n\n" + normalized;
+    }
+
+    private String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        return fallback;
+    }
+
+    private TestCase.StorageType parseStorageType(String value) {
+        if (value == null || value.isBlank()) {
+            return TestCase.StorageType.INLINE;
+        }
+        try {
+            return TestCase.StorageType.valueOf(value.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            return TestCase.StorageType.INLINE;
+        }
     }
 
     private String normalizeStarterCode(String starterCode) {

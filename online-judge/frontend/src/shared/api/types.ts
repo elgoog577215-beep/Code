@@ -303,11 +303,23 @@ export interface Problem {
   id: number;
   title: string;
   description: string;
+  status?: "HIDDEN" | "PUBLIC" | "PARTIAL" | "CONTEST" | string;
   difficulty: Difficulty | string;
   timeLimit: number;
   memoryLimit: number;
   aiPromptDirection?: string | null;
   starterCode?: string | null;
+  statementBackground?: string | null;
+  statementDescription?: string | null;
+  statementInputFormat?: string | null;
+  statementOutputFormat?: string | null;
+  statementSamples?: string | null;
+  statementHints?: string | null;
+  provider?: string | null;
+  attachments?: string | null;
+  tags?: string[];
+  dataDownloadEnabled?: boolean;
+  scoreDisplayMode?: "OI" | "ICPC" | string;
   knowledgePoints?: string[];
   algorithmStrategies?: string[];
   commonMistakes?: string[];
@@ -333,7 +345,77 @@ export interface ProblemManage extends Problem {
     expectedOutput: string;
     hidden: boolean;
     orderIndex?: number;
+    inputStorageType?: "INLINE" | "FILE" | string;
+    outputStorageType?: "INLINE" | "FILE" | string;
+    inputFilePath?: string | null;
+    outputFilePath?: string | null;
+    inputFileName?: string | null;
+    outputFileName?: string | null;
+    inputSizeBytes?: number | null;
+    outputSizeBytes?: number | null;
+    inputSha256?: string | null;
+    outputSha256?: string | null;
+    timeLimitMs?: number | null;
+    memoryLimitKib?: number | null;
+    subtaskIndex?: number | null;
+    score?: number | null;
+    publicExample?: boolean | null;
+    importBatchId?: string | null;
   }>;
+}
+
+export interface StatementImportResult {
+  title?: string | null;
+  statementBackground?: string | null;
+  statementDescription?: string | null;
+  statementInputFormat?: string | null;
+  statementOutputFormat?: string | null;
+  statementSamples?: string | null;
+  statementHints?: string | null;
+}
+
+export interface ProblemAttachment {
+  id: string;
+  fileName: string;
+  sizeBytes: number;
+  contentType?: string | null;
+  downloadUrl: string;
+}
+
+export interface TestDataImportPreview {
+  valid: boolean;
+  message?: string;
+  compressedBytes: number;
+  uncompressedBytes: number;
+  pairCount: number;
+  rows: Array<{
+    displayIndex: number;
+    number: number;
+    inputFileName: string;
+    outputFileName: string;
+    inputSizeBytes: number;
+    outputSizeBytes: number;
+    inputSha256?: string;
+    outputSha256?: string;
+  }>;
+  issues: Array<{ severity: string; message: string; fileName?: string }>;
+}
+
+export interface TestDataImportCommit {
+  importBatchId: string;
+  testCaseCount: number;
+  uncompressedBytes: number;
+  testCaseIds: number[];
+  preview: TestDataImportPreview;
+}
+
+export interface TestDataFilePreview {
+  testCaseId: number;
+  kind: string;
+  fileName?: string | null;
+  sizeBytes: number;
+  lines: string[];
+  truncated: boolean;
 }
 
 export interface StudentHintPlan {
