@@ -33,6 +33,8 @@ const StudentLoginPage = lazy(() => import("./features/student/StudentLoginPage"
 const StudentAssignmentPage = lazy(() => import("./features/student/StudentAssignmentPage"));
 const StudentAssignmentRankingPage = lazy(() => import("./features/student/StudentAssignmentRankingPage"));
 const StudentAssignmentSubmissionsPage = lazy(() => import("./features/student/StudentAssignmentSubmissionsPage"));
+const StudentSubmissionComparisonPage = lazy(() => import("./features/student/StudentSubmissionComparisonPage"));
+const StudentProblemSubmissionsPage = lazy(() => import("./features/student/StudentProblemSubmissionsPage"));
 const ProblemPage = lazy(() => import("./features/problem/ProblemPage"));
 const AssignmentCreatePage = lazy(() => import("./features/teacher/AssignmentCreatePage"));
 const TeacherManagementPage = lazy(() => import("./features/teacher/TeacherManagementPage"));
@@ -337,6 +339,8 @@ export default function App() {
             <Route path="/app/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
             <Route path="/app/student/assignments/:assignmentId/ranking" element={<StudentAssignmentRankingPage />} />
             <Route path="/app/student/assignments/:assignmentId/submissions" element={<StudentAssignmentSubmissionsPage />} />
+            <Route path="/app/student/assignments/:assignmentId/problems/:problemId/submissions" element={<StudentProblemSubmissionsPage />} />
+            <Route path="/app/student/assignments/:assignmentId/problems/:problemId/compare" element={<StudentSubmissionComparisonPage />} />
             <Route path="/app/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
             <Route path="/app/teacher" element={<TeacherRoute><Navigate to="/app/teacher/classes" replace /></TeacherRoute>} />
             <Route path="/app/teacher/classes" element={<TeacherRoute><TeacherAnalyticsLandingPage /></TeacherRoute>} />

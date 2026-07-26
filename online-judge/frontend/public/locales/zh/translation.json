@@ -81,6 +81,69 @@
       "uncomparable": "不可比"
     }
   },
+  "studentAssignmentNav": {
+    "overview": "概览",
+    "problems": "题目",
+    "submissionsGrowth": "提交与成长",
+    "ranking": "排名"
+  },
+  "submissionSelection": {
+    "title": "选择同一道题的两次提交进行成长对比",
+    "summary": "基线：{{baseline}} · 目标：{{target}}",
+    "unselected": "未选择",
+    "start": "开始对比",
+    "clear": "清除",
+    "setBaseline": "设为基线",
+    "setTarget": "设为目标",
+    "setBaselineAria": "将提交 #{{id}} 设为基线版本",
+    "setTargetAria": "将提交 #{{id}} 设为目标版本"
+  },
+  "submissionComparison": {
+    "back": "返回提交与成长",
+    "eyebrow": "双版本成长对比",
+    "intro": "选择同一道题的两次提交，查看评测、问题证据和代码分别发生了什么变化。",
+    "chooseVersions": "选择对比版本",
+    "baseline": "基线版本（修改前）",
+    "target": "目标版本（修改后）",
+    "selectBaseline": "选择基线版本",
+    "selectTarget": "选择目标版本",
+    "swap": "交换方向",
+    "systemBaseline": "系统成长基线",
+    "manualComparison": "自选对比",
+    "restoreRecommended": "恢复系统基线 #{{id}}",
+    "loading": "正在读取提交对比",
+    "loadFailed": "提交对比加载失败",
+    "assignmentMissing": "作业不存在",
+    "problemFallback": "提交对比",
+    "needTwo": "至少需要两次同题提交才能进行对比",
+    "choosePrompt": "请选择两个不同版本开始对比",
+    "summaryAria": "提交变化摘要",
+    "resultChange": "判题结果",
+    "testChange": "通过测试点",
+    "issueChange": "当前未解决问题",
+    "evidence": "证据完整性",
+    "complete": "完整",
+    "incomplete": "不完整",
+    "growthEvidence": "成长与问题证据",
+    "incompleteNote": "部分历史诊断证据不完整。当前仅展示可验证事实，不会把缺失问题解释为已经解决。",
+    "unnamedIssue": "未命名问题",
+    "codeDiff": "代码变化",
+    "codeDiffAria": "基线与目标版本逐行代码差异",
+    "unchanged": "{{count}} 行未变化",
+    "issueStatus": {
+      "persisted": "持续存在",
+      "new": "本次新增",
+      "recurred": "再次出现",
+      "not_observed": "本次未再观察到",
+      "recovered": "已有恢复证据",
+      "uncomparable": "暂不可比较"
+    },
+    "diffType": {
+      "same": "未变化",
+      "add": "目标版本新增",
+      "remove": "目标版本删除"
+    }
+  },
   "growthTimeline": {
     "aria": "本题提交成长轨迹",
     "issueDelta": "改善 {{improved}} · 风险 {{risk}}"
@@ -221,7 +284,10 @@
     }
   },
   "problemHistory": {
-    "title": "最近提交",
+    "viewAll": "查看全部提交",
+    "compareVersions": "对比两个版本",
+    "emptyGrowth": "完成首次提交后，这里会形成历史与成长记录。",
+    "title": "提交记录",
     "aria": "本题历史提交",
     "submission": "提交 #{{id}}",
     "submittedCode": "本次提交代码",

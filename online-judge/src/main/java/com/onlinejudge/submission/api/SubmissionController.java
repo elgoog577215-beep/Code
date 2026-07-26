@@ -168,10 +168,19 @@ public class SubmissionController {
     }
 
     private void requireComparisonAccess(HttpServletRequest request, Long leftId, Long rightId) {
+        if (leftId.equals(rightId)) {
+            throw new IllegalArgumentException("不能将同一次提交与自身进行对比");
+        }
         Submission left = submissionRepository.findById(leftId)
                 .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + leftId));
         Submission right = submissionRepository.findById(rightId)
                 .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + rightId));
+        if (!left.getProblemId().equals(right.getProblemId())) {
+            throw new IllegalArgumentException("只能对比同一道题目的两次提交");
+        }
+        if (!java.util.Objects.equals(left.getAssignmentId(), right.getAssignmentId())) {
+            throw new IllegalArgumentException("只能对比同一作业上下文中的两次提交");
+        }
         Long leftStudent = left.getStudentProfileId();
         Long rightStudent = right.getStudentProfileId();
         if (leftStudent == null && rightStudent == null) {

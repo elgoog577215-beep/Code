@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, AssignmentTask, StudentProfile, StudentTrajectory } from "../../shared/api/types";
 import { loadStudent, saveStudent } from "../../shared/storage";
+import { useTranslation } from "../../shared/i18n";
 
 export type StudentAssignmentTab = "assignment" | "tasks" | "ranking" | "submissions";
 
@@ -137,12 +138,13 @@ export function StudentAssignmentHeader({ assignment, student, className = "" }:
 }
 
 export function StudentAssignmentNavigation({ assignmentId, taskPath, activeTab }: StudentAssignmentNavigationProps) {
+  const { t } = useTranslation();
   const basePath = `/app/student/assignments/${assignmentId}`;
   const navItems = [
-    { key: "assignment", label: "概览", to: basePath, icon: LayoutGrid },
-    { key: "tasks", label: "题目", to: taskPath, icon: ClipboardList },
-    { key: "submissions", label: "提交", to: `${basePath}/submissions`, icon: FileCheck2 },
-    { key: "ranking", label: "排名", to: `${basePath}/ranking`, icon: BarChart3 }
+    { key: "assignment", label: t("studentAssignmentNav.overview"), to: basePath, icon: LayoutGrid },
+    { key: "tasks", label: t("studentAssignmentNav.problems"), to: taskPath, icon: ClipboardList },
+    { key: "submissions", label: t("studentAssignmentNav.submissionsGrowth"), to: `${basePath}/submissions`, icon: FileCheck2 },
+    { key: "ranking", label: t("studentAssignmentNav.ranking"), to: `${basePath}/ranking`, icon: BarChart3 }
   ] as const;
 
   return (

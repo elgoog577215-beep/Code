@@ -19,6 +19,10 @@ public class SubmissionComparisonResponse {
     private SubmissionSnapshot target;
     private String progressSummary;
     private List<String> causeChanges;
+    private String comparisonMode;
+    private Comparability comparability;
+    private JudgeDelta judgeDelta;
+    private SubmissionGrowthSummaryResponse issueDelta;
     private DiffStats diffStats;
     private List<DiffLine> diffLines;
 
@@ -53,6 +57,29 @@ public class SubmissionComparisonResponse {
         private Integer leftLineNumber;
         private Integer rightLineNumber;
         private String content;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Comparability {
+        private boolean comparable;
+        private String dataCompletenessStatus;
+        private String reason;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class JudgeDelta {
+        private String baselineVerdict;
+        private String targetVerdict;
+        private Integer baselinePassedTestCases;
+        private Integer targetPassedTestCases;
+        private Integer totalTestCases;
+        private Integer passedTestCaseDelta;
     }
 }
 

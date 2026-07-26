@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ChevronLeft, ChevronRight, Search, Sparkles } from "lucide-react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { ArrowDown, ChevronLeft, ChevronRight, GitCompareArrows, Search, Sparkles } from "lucide-react";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { StudentAssignmentSubmissionPage } from "../../shared/api/types";
 import { EmptyState } from "../../shared/ui/EmptyState";
+import { useTranslation } from "../../shared/i18n";
 import { formatRelativeTime, StudentAssignmentShell, useStudentAssignmentWorkspace } from "./StudentAssignmentWorkspace";
 
 function verdictCode(value: string) {
@@ -37,10 +38,12 @@ function paginationNumbers(totalPages: number, currentPage: number) {
 }
 
 export default function StudentAssignmentSubmissionsPage() {
+  const { t } = useTranslation();
   const { assignmentId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const numericAssignmentId = Number(assignmentId);
   const workspace = useStudentAssignmentWorkspace(numericAssignmentId);
-  const [problemId, setProblemId] = useState("");
+  const [problemId, setProblemId] = useState(() => searchParams.get("problemId") || "");
   const [accepted, setAccepted] = useState<"" | "true" | "false">("");
   const [languageName, setLanguageName] = useState("");
   const [submissionId, setSubmissionId] = useState("");
@@ -48,8 +51,27 @@ export default function StudentAssignmentSubmissionsPage() {
   const [data, setData] = useState<StudentAssignmentSubmissionPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState<string | null>(null);
+  const [baseline, setBaseline] = useState<{ id: number; problemId: number } | null>(null);
+  const [target, setTarget] = useState<{ id: number; problemId: number } | null>(null);
+
+  useEffect(() => {
+    setProblemId(searchParams.get("problemId") || "");
+  }, [searchParams]);
 
   useEffect(() => setPage(0), [problemId, accepted, languageName, submissionId]);
+
+  function changeProblemFilter(value: string) {
+    setProblemId(value);
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      if (value) {
+        next.set("problemId", value);
+      } else {
+        next.delete("problemId");
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     let ignore = false;
@@ -101,7 +123,7 @@ export default function StudentAssignmentSubmissionsPage() {
         <div className="student-submission-filters">
           <label className="student-submission-filter student-submission-filter--problem">
             <span className="sr-only">按题目筛选</span>
-            <select value={problemId} onChange={event => setProblemId(event.target.value)}>
+            <select value={problemId} onChange={event => changeProblemFilter(event.target.value)}>
               <option value="">全部题目</option>
               {workspace.assignment.tasks.map(task => <option value={task.problemId} key={task.problemId}>{task.title}</option>)}
             </select>
@@ -129,6 +151,22 @@ export default function StudentAssignmentSubmissionsPage() {
           </label>
         </div>
 
+        <div className="student-submission-compare-bar" aria-live="polite">
+          <span><GitCompareArrows size={18} />{t("submissionSelection.title")}</span>
+          <strong>{t("submissionSelection.summary", {
+            baseline: baseline ? `起点 #${baseline.id}` : t("submissionSelection.unselected"),
+            target: target ? `目标 #${target.id}` : t("submissionSelection.unselected")
+          })}</strong>
+          {baseline && target && baseline.problemId === target.problemId ? (
+            <Link to={`/app/student/assignments/${numericAssignmentId}/problems/${target.problemId}/compare?leftId=${baseline.id}&rightId=${target.id}`}>
+              {t("submissionSelection.start")}
+            </Link>
+          ) : (
+            <button type="button" disabled>{t("submissionSelection.start")}</button>
+          )}
+          {(baseline || target) && <button type="button" onClick={() => { setBaseline(null); setTarget(null); }}>{t("submissionSelection.clear")}</button>}
+        </div>
+
         {failed ? <EmptyState title={failed} /> : loading ? <EmptyState title="正在读取提交记录" live /> : data?.items.length ? (
           <>
             <div className="student-submission-table">
@@ -145,10 +183,35 @@ export default function StudentAssignmentSubmissionsPage() {
                   <span>{runtimeText(item.executionTime)}</span>
                   <span>{memoryText(item.memoryUsed)}</span>
                   <span className="student-submission-actions">
+                    <button
+                      type="button"
+                      className={baseline?.id === item.id ? "is-active" : ""}
+                      onClick={() => {
+                        setBaseline({ id: item.id, problemId: item.problemId });
+                        if (target?.problemId !== item.problemId) setTarget(null);
+                      }}
+                      aria-label={t("submissionSelection.setBaselineAria", { id: item.id })}
+                      title={t("submissionSelection.setBaseline")}
+                    >
+                      起点
+                    </button>
+                    <button
+                      type="button"
+                      className={target?.id === item.id ? "is-active" : ""}
+                      onClick={() => {
+                        setTarget({ id: item.id, problemId: item.problemId });
+                        if (baseline?.problemId !== item.problemId) setBaseline(null);
+                      }}
+                      aria-label={t("submissionSelection.setTargetAria", { id: item.id })}
+                      title={t("submissionSelection.setTarget")}
+                    >
+                      目标
+                    </button>
                     <Link
+                      className="student-submission-ai-button"
                       to={`/app/student/assignments/${numericAssignmentId}/problems/${item.problemId}?submissionId=${item.id}`}
-                      aria-label="查看 AI 评测"
-                      title="查看 AI 评测"
+                      aria-label="查看 AI 分析"
+                      title="查看 AI 分析"
                     >
                       <Sparkles size={18} />
                     </Link>

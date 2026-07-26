@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, CalendarCheck2, Check, Clock3, Minus, Search, X, XCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarCheck2, Check, Clock3, History, Minus, Search, X, XCircle } from "lucide-react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import type { Assignment, ProblemCatalogItem, StudentProfile, StudentTrajectory } from "../../shared/api/types";
@@ -389,21 +389,41 @@ export default function StudentAssignmentPage() {
                   const attempted = (state?.attemptCount || 0) > 0;
                   const selected = nextTask?.problemId === task.problemId && !passed;
                   return (
-                    <Link
+                    <div
                       className={`student-assignment-progress-row${selected ? " is-next" : ""}`}
-                      to={`/app/student/assignments/${assignment.id}/problems/${task.problemId}?studentProfileId=${student.id}`}
-                      aria-label={task.title}
                       key={task.problemId}
                     >
-                      <span className="student-assignment-progress-main"><b>{index + 1}</b><strong>{task.title}</strong></span>
-                      <span>{difficultyLabel(task.difficulty)}</span>
+                      <Link
+                        className="student-assignment-progress-open"
+                        to={`/app/student/assignments/${assignment.id}/problems/${task.problemId}?studentProfileId=${student.id}`}
+                        aria-label={task.title}
+                      >
+                        <span className="student-assignment-progress-main"><b>{index + 1}</b><strong>{task.title}</strong></span>
+                      </Link>
+                      <span className="student-assignment-difficulty-stack">
+                        <span>{difficultyLabel(task.difficulty)}</span>
+                        <Link
+                          className="student-assignment-submission-link"
+                          to={`/app/student/assignments/${assignment.id}/submissions?problemId=${task.problemId}`}
+                          aria-label={`查看 ${task.title} 的提交记录`}
+                        >
+                          <History size={14} aria-hidden="true" />
+                          提交记录
+                        </Link>
+                      </span>
                       <span className={passed ? "is-passed" : attempted ? "is-failed" : "is-pending"}>
                         {passed ? <Check size={17} /> : attempted ? <XCircle size={17} /> : <Clock3 size={17} />}
                         {passed ? "已通过" : "未通过"}
                       </span>
                       <span className="student-assignment-attempts">{state?.attemptCount || 0}</span>
-                      <ArrowRight size={17} aria-hidden="true" />
-                    </Link>
+                      <Link
+                        className="student-assignment-progress-enter"
+                        to={`/app/student/assignments/${assignment.id}/problems/${task.problemId}?studentProfileId=${student.id}`}
+                        aria-label={`进入 ${task.title}`}
+                      >
+                        <ArrowRight size={17} aria-hidden="true" />
+                      </Link>
+                    </div>
                   );
                 })}
               </nav>

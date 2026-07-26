@@ -40,6 +40,7 @@ import type {
   StudentAiFeedbackObservability,
   SubmissionAnalysisLookup,
   SubmissionHistorySummary,
+  SubmissionComparison,
   SubmissionResult,
   TestDataFilePreview,
   TestDataImportCommit,
@@ -236,6 +237,8 @@ export const api = {
     request<SubmissionHistorySummary[]>(
       `/api/submissions/problem/${problemId}/history-summary${queryString({ assignmentId })}`
     ),
+  compareSubmissions: (leftId: number, rightId: number) =>
+    request<SubmissionComparison>(`/api/submissions/compare${queryString({ leftId, rightId })}`),
 
   classes: () => request<ClassGroup[]>("/api/teacher/classes"),
   createClass: (payload: { name: string; grade?: string; teacherName?: string }) =>

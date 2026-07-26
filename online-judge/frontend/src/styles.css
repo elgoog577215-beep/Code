@@ -23638,6 +23638,81 @@ button.standard-library-governance-path {
   text-decoration: none;
 }
 
+.student-assignment-progress-open {
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.student-assignment-difficulty-stack {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+
+.student-assignment-submission-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  min-height: 28px;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 32%, var(--line));
+  border-radius: 6px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 58%, var(--surface-strong));
+  font-size: 0.72rem;
+  font-weight: 820;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.student-assignment-submission-link:hover {
+  background: color-mix(in srgb, var(--brand-soft) 78%, var(--surface-strong));
+}
+
+.student-assignment-progress-enter {
+  justify-self: end;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  min-height: 34px;
+  border-radius: 6px;
+  color: var(--brand-strong);
+  text-decoration: none;
+}
+
+.student-assignment-progress-enter:hover {
+  background: color-mix(in srgb, var(--brand-soft) 72%, transparent);
+}
+
+.problem-statement-actions {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: stretch;
+  min-width: 112px;
+}
+
+.problem-statement-submission-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0.34rem 0.78rem;
+  border: 1px solid var(--brand-strong);
+  border-radius: 6px;
+  color: #fff;
+  background: var(--brand-strong);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--brand-strong) 16%, transparent);
+  font-size: 0.8rem;
+  font-weight: 850;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.problem-statement-submission-link:hover {
+  background: color-mix(in srgb, var(--brand-strong) 86%, #000);
+}
+
 .student-assignment-progress-row.is-next {
   background: color-mix(in srgb, var(--brand-soft) 27%, var(--surface-strong));
 }
@@ -24687,6 +24762,7 @@ button.standard-library-governance-path {
   background: color-mix(in srgb, var(--surface-muted) 42%, var(--surface-strong));
 }
 .student-assignment-progress-row { min-height: 78px; }
+.student-assignment-difficulty-stack { align-content: center; }
 .student-assignment-progress-row.is-next {
   background: color-mix(in srgb, var(--brand-soft) 38%, var(--surface-strong));
 }
@@ -24726,8 +24802,9 @@ button.standard-library-governance-path {
   .student-assignment-insights-context .student-assignment-insights-meta:first-child { padding-left: 0; border-left: 0; }
   .student-assignment-continue { grid-column: auto; grid-row: auto; }
   .student-assignment-progress-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .student-assignment-progress-row > span:nth-child(2),
+  .student-assignment-difficulty-stack,
   .student-assignment-progress-row > span:nth-child(4) { display: none; }
+  .student-assignment-progress-enter { grid-column: 2; grid-row: 1 / span 2; }
 }
 
 /* Single-problem growth: data-first dashboard and submission timeline. */
@@ -26281,3 +26358,6 @@ button.standard-library-governance-path {
     padding: 0.62rem 0.72rem;
   }
 }
+.student-submission-compare-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;margin:12px 0;border:1px solid var(--border);border-radius:12px;background:var(--surface)}.student-submission-compare-bar>span{display:flex;align-items:center;gap:7px}.student-submission-compare-bar strong{color:var(--muted);font-size:.85rem}.student-submission-compare-bar>a,.student-submission-compare-bar>button{padding:7px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}.student-submission-compare-bar>a{background:var(--primary);color:white;border-color:var(--primary)}.student-submission-actions button,.student-submission-actions a.student-submission-ai-button{min-width:30px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text);font-size:.76rem;white-space:nowrap}.student-submission-actions button.is-active{background:var(--primary);border-color:var(--primary);color:white}.student-submission-actions .student-submission-ai-button{display:inline-grid;place-items:center;min-width:30px;width:30px;padding:0;color:var(--brand-strong);text-decoration:none}
+.problem-history-panel__actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}.problem-history-panel__actions a{padding:8px 12px;border:1px solid var(--border);border-radius:9px}.problem-history-panel__empty{margin:0;color:var(--muted);font-size:.9rem}
+.student-problem-submissions-page{display:grid;gap:18px;padding:1.4rem}.student-problem-submissions-hero{display:flex;align-items:flex-start;gap:18px}.student-problem-submissions-hero>a{display:inline-flex;align-items:center;gap:6px;color:var(--brand-strong);text-decoration:none;white-space:nowrap}.student-problem-submissions-hero span{color:var(--ink-soft);font-size:.82rem}.student-problem-submissions-hero h1{margin:.2rem 0 0;font-size:1.45rem}.student-problem-growth-summary__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.student-problem-growth-summary__grid article{padding:14px;border:1px solid var(--line);border-radius:7px;background:var(--surface-strong)}.student-problem-growth-summary__grid span{display:block;color:var(--ink-soft);font-size:.78rem}.student-problem-growth-summary__grid strong{font-size:1.25rem}.student-problem-submission-table{border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--surface-strong)}.student-problem-submission-table__header,.student-problem-submission-row{display:grid;grid-template-columns:96px minmax(150px,1fr) 110px 96px 80px 90px 132px;align-items:center;gap:10px;padding:12px 14px}.student-problem-submission-table__header{color:var(--ink-soft);font-size:.74rem;font-weight:800;background:color-mix(in srgb,var(--surface-muted) 45%,var(--surface-strong))}.student-problem-submission-row{border-top:1px solid var(--line);font-size:.82rem}@media(max-width:760px){.student-problem-submissions-page{padding:1rem}.student-problem-submissions-hero{display:grid}.student-problem-growth-summary__grid{grid-template-columns:1fr}.student-problem-submission-table__header{display:none}.student-problem-submission-row{grid-template-columns:1fr;gap:6px}.student-submission-actions{justify-content:flex-start}}

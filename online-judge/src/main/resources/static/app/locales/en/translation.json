@@ -81,6 +81,69 @@
       "uncomparable": "N/A"
     }
   },
+  "studentAssignmentNav": {
+    "overview": "Overview",
+    "problems": "Problems",
+    "submissionsGrowth": "Submissions & growth",
+    "ranking": "Ranking"
+  },
+  "submissionSelection": {
+    "title": "Choose two submissions for the same problem to compare growth",
+    "summary": "Baseline: {{baseline}} · Target: {{target}}",
+    "unselected": "Not selected",
+    "start": "Compare",
+    "clear": "Clear",
+    "setBaseline": "Set as baseline",
+    "setTarget": "Set as target",
+    "setBaselineAria": "Set submission #{{id}} as the baseline",
+    "setTargetAria": "Set submission #{{id}} as the target"
+  },
+  "submissionComparison": {
+    "back": "Back to submissions and growth",
+    "eyebrow": "Two-version growth comparison",
+    "intro": "Choose two submissions for the same problem to see changes in judging, issue evidence, and code.",
+    "chooseVersions": "Choose versions",
+    "baseline": "Baseline (before)",
+    "target": "Target (after)",
+    "selectBaseline": "Select a baseline",
+    "selectTarget": "Select a target",
+    "swap": "Swap direction",
+    "systemBaseline": "System growth baseline",
+    "manualComparison": "Manual comparison",
+    "restoreRecommended": "Restore system baseline #{{id}}",
+    "loading": "Loading submission comparison",
+    "loadFailed": "Failed to load submission comparison",
+    "assignmentMissing": "Assignment not found",
+    "problemFallback": "Submission comparison",
+    "needTwo": "At least two submissions for the same problem are required",
+    "choosePrompt": "Choose two different versions to start comparing",
+    "summaryAria": "Submission change summary",
+    "resultChange": "Judge result",
+    "testChange": "Passed test cases",
+    "issueChange": "Current unresolved issues",
+    "evidence": "Evidence completeness",
+    "complete": "Complete",
+    "incomplete": "Incomplete",
+    "growthEvidence": "Growth and issue evidence",
+    "incompleteNote": "Some historical diagnosis evidence is incomplete. Only verified facts are shown; missing issues are not treated as resolved.",
+    "unnamedIssue": "Unnamed issue",
+    "codeDiff": "Code changes",
+    "codeDiffAria": "Line-by-line code differences between baseline and target",
+    "unchanged": "{{count}} unchanged lines",
+    "issueStatus": {
+      "persisted": "Persisted",
+      "new": "New",
+      "recurred": "Recurred",
+      "not_observed": "Not observed this time",
+      "recovered": "Recovery evidenced",
+      "uncomparable": "Not comparable"
+    },
+    "diffType": {
+      "same": "Unchanged",
+      "add": "Added in target",
+      "remove": "Removed from target"
+    }
+  },
   "growthTimeline": {
     "aria": "Submission growth timeline for this problem",
     "issueDelta": "Improved {{improved}} · Risks {{risk}}"
@@ -221,7 +284,10 @@
     }
   },
   "problemHistory": {
-    "title": "Recent submissions",
+    "viewAll": "View all submissions",
+    "compareVersions": "Compare two versions",
+    "emptyGrowth": "Your history and growth record will appear here after the first submission.",
+    "title": "Submission records",
     "aria": "Submission history for this problem",
     "submission": "Submission #{{id}}",
     "submittedCode": "Submitted code",

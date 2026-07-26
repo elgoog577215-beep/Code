@@ -69,7 +69,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       }
     },
     problemHistory: {
-      title: "最近提交",
+      title: "提交记录",
       aria: "本题历史提交",
       submission: "提交 #{{id}}",
       submittedCode: "本次提交代码",
@@ -1049,7 +1049,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       }
     },
     problemHistory: {
-      title: "Recent submissions",
+      title: "Submission records",
       aria: "Submission history for this problem",
       submission: "Submission #{{id}}",
       submittedCode: "Submitted code",

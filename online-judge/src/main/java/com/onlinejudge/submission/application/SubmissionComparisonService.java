@@ -3,6 +3,7 @@ package com.onlinejudge.submission.application;
 import com.onlinejudge.submission.dto.SubmissionAnalysisResponse;
 import com.onlinejudge.submission.dto.SubmissionComparisonResponse;
 import com.onlinejudge.submission.dto.SubmissionResponse;
+import com.onlinejudge.submission.dto.SubmissionGrowthSummaryResponse;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.problem.persistence.ProblemRepository;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -20,8 +22,12 @@ public class SubmissionComparisonService {
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
     private final SubmissionAnalysisService submissionAnalysisService;
+    private final SubmissionGrowthSummaryService growthSummaryService;
 
     public SubmissionComparisonResponse compare(Long leftId, Long rightId) {
+        if (Objects.equals(leftId, rightId)) {
+            throw new IllegalArgumentException("不能将同一次提交与自身进行对比");
+        }
         Submission leftSubmission = submissionRepository.findById(leftId)
                 .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + leftId));
         Submission rightSubmission = submissionRepository.findById(rightId)
@@ -29,6 +35,12 @@ public class SubmissionComparisonService {
 
         if (!leftSubmission.getProblemId().equals(rightSubmission.getProblemId())) {
             throw new IllegalArgumentException("只能对比同一道题目的两次提交");
+        }
+        if (!Objects.equals(leftSubmission.getAssignmentId(), rightSubmission.getAssignmentId())) {
+            throw new IllegalArgumentException("只能对比同一作业上下文中的两次提交");
+        }
+        if (!Objects.equals(leftSubmission.getStudentProfileId(), rightSubmission.getStudentProfileId())) {
+            throw new IllegalArgumentException("只能对比同一学生的两次提交");
         }
 
         Problem problem = problemRepository.findById(leftSubmission.getProblemId())
@@ -44,6 +56,10 @@ public class SubmissionComparisonService {
 
         List<String> causeChanges = buildCauseChanges(baseline, target, diffBundle.stats);
         String progressSummary = buildProgressSummary(baseline, target, diffBundle.stats);
+        SubmissionGrowthSummaryResponse growth = growthSummaryService.summarizeSubmission(rightSubmission);
+        boolean systemBaseline = growth != null && Objects.equals(growth.getComparisonSubmissionId(), leftId);
+        boolean comparable = growth != null && growth.isComparable();
+        String completeness = growth == null ? "ANALYSIS_MISSING" : growth.getDataCompletenessStatus();
 
         return SubmissionComparisonResponse.builder()
                 .problemId(problem.getId())
@@ -52,6 +68,21 @@ public class SubmissionComparisonService {
                 .target(buildSnapshot(target))
                 .progressSummary(progressSummary)
                 .causeChanges(causeChanges)
+                .comparisonMode(systemBaseline ? "SYSTEM_BASELINE" : "MANUAL")
+                .comparability(SubmissionComparisonResponse.Comparability.builder()
+                        .comparable(comparable)
+                        .dataCompletenessStatus(completeness)
+                        .reason(comparable ? null : "DIAGNOSIS_EVIDENCE_INCOMPLETE")
+                        .build())
+                .judgeDelta(SubmissionComparisonResponse.JudgeDelta.builder()
+                        .baselineVerdict(submissionAnalysisService.formatVerdict(baseline.getVerdict()))
+                        .targetVerdict(submissionAnalysisService.formatVerdict(target.getVerdict()))
+                        .baselinePassedTestCases(growth == null ? null : growth.getPreviousPassedTestCases())
+                        .targetPassedTestCases(growth == null ? null : growth.getPassedTestCases())
+                        .totalTestCases(growth == null ? null : growth.getTotalTestCases())
+                        .passedTestCaseDelta(growth == null ? null : growth.getPassedTestCaseDelta())
+                        .build())
+                .issueDelta(systemBaseline ? growth : null)
                 .diffStats(diffBundle.stats)
                 .diffLines(diffBundle.lines)
                 .build();

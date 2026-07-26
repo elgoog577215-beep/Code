@@ -25,7 +25,7 @@ import { Panel } from "../../shared/ui/Panel";
 import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusPill";
 import { StudentAssignmentHeader, StudentAssignmentNavigation } from "../student/StudentAssignmentWorkspace";
 import { CONTEST_LANGUAGES, DEFAULT_CONTEST_LANGUAGE_ID, contestLanguageById } from "./languages";
-import { GrowthTimeline, SingleProblemGrowthDashboard } from "../growth/SingleProblemGrowthDashboard";
+import { SingleProblemGrowthDashboard } from "../growth/SingleProblemGrowthDashboard";
 import { FeedbackRepairWorkbench } from "./FeedbackRepairWorkbench";
 
 const CodeEditor = lazy(() => import("./CodeEditor"));
@@ -614,7 +614,7 @@ export default function ProblemPage() {
   const [assignmentContext, setAssignmentContext] = useState<Assignment | null>(null);
   const [workbenchTasks, setWorkbenchTasks] = useState<WorkbenchTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
-  const [resultOpen, setResultOpen] = useState(false);
+  const [resultOpen, setResultOpen] = useState(Boolean(requestedSubmissionId));
   const [resultView, setResultView] = useState<ResultView>("repair");
   const [coachPrompt, setCoachPrompt] = useState<CoachPrompt | null>(null);
   const [coachAnswer, setCoachAnswer] = useState("");
@@ -654,7 +654,7 @@ export default function ProblemPage() {
   }, [resultOpen]);
 
   useEffect(() => {
-    if (!resultOpen || !latest) {
+    if (!resultOpen) {
       return;
     }
     const root = document.documentElement;
@@ -686,7 +686,7 @@ export default function ProblemPage() {
     async function load() {
       try {
         setLatest(null);
-        setResultOpen(false);
+        setResultOpen(Boolean(requestedSubmissionId));
         setCoachPrompt(null);
         setCoachAnswer("");
         setAlert(null);
@@ -1389,7 +1389,18 @@ export default function ProblemPage() {
         <Panel
           title={problem.title}
           className="panel--statement"
-          action={<DifficultyPill difficulty={problem.difficulty} />}
+          action={
+            <div className="problem-statement-actions">
+              <DifficultyPill difficulty={problem.difficulty} />
+              <Link
+                className="problem-statement-submission-link"
+                to={`${assignmentBasePath}/problems/${problem.id}/submissions`}
+                aria-label={`查看 ${problem.title} 的提交记录`}
+              >
+                提交记录
+              </Link>
+            </div>
+          }
           description={
             <span className="problem-statement-meta">
               <span>{assignmentTitle}</span>
@@ -1536,14 +1547,31 @@ export default function ProblemPage() {
         </section>
       </div>
 
-      {history.length > 0 && (
-        <Panel title={t("problemHistory.title")} className="problem-history-panel">
-          <GrowthTimeline
-            history={history}
-            selectedSubmissionId={latest?.id}
-            onSelectSubmission={item => void openHistorySubmission(item)}
-          />
-        </Panel>
+      {requestedSubmissionId && resultOpen && !latest && (
+        <div className="problem-result-modal-backdrop" role="presentation" onClick={closeResult}>
+          <section className="problem-result-modal" role="dialog" aria-modal="true" aria-labelledby="problem-result-loading-title" onClick={event => event.stopPropagation()}>
+            <div className="problem-result-modal__header">
+              <div className="problem-result-modal__summary">
+                <Link className="problem-result-modal__back" to={`${assignmentBasePath}/submissions`}>
+                  <ArrowLeft size={16} />
+                  <span>{t("problemResultViews.returnToSubmissions")}</span>
+                </Link>
+                <div className="problem-result-modal__title-row">
+                  <h2 id="problem-result-loading-title">正在打开 AI 分析</h2>
+                  <span>{requestedSubmissionId ? `#${requestedSubmissionId}` : ""}</span>
+                </div>
+              </div>
+              <div className="problem-result-modal__status">
+                <button type="button" aria-label="关闭结果" onClick={closeResult}>
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="problem-result-modal__body">
+              <FeedbackLoadingPanel mode="repair" state="checking" progress={diagnosisProgress} />
+            </div>
+          </section>
+        </div>
       )}
 
       {feedbackReady && resultOpen && latest && (

@@ -996,6 +996,51 @@ export interface SubmissionHistorySummary {
   dataCompletenessStatus?: "COMPLETE" | "IDENTITY_MISSING" | "ANALYSIS_MISSING" | "FEEDBACK_MISSING" | string | null;
 }
 
+export interface SubmissionComparisonSnapshot {
+  submissionId: number;
+  languageName?: string | null;
+  verdict?: string | null;
+  submittedAt?: string | null;
+  analysisSummary?: string | null;
+}
+
+export interface SubmissionComparisonDiffLine {
+  type: "same" | "add" | "remove" | string;
+  leftLineNumber?: number | null;
+  rightLineNumber?: number | null;
+  content: string;
+}
+
+export interface SubmissionComparison {
+  problemId: number;
+  problemTitle?: string | null;
+  baseline: SubmissionComparisonSnapshot;
+  target: SubmissionComparisonSnapshot;
+  progressSummary?: string | null;
+  causeChanges?: string[];
+  comparisonMode?: "SYSTEM_BASELINE" | "MANUAL" | string;
+  comparability?: {
+    comparable: boolean;
+    dataCompletenessStatus?: string | null;
+    reason?: string | null;
+  } | null;
+  judgeDelta?: {
+    baselineVerdict?: string | null;
+    targetVerdict?: string | null;
+    baselinePassedTestCases?: number | null;
+    targetPassedTestCases?: number | null;
+    totalTestCases?: number | null;
+    passedTestCaseDelta?: number | null;
+  } | null;
+  issueDelta?: SubmissionGrowthSummary | null;
+  diffStats?: {
+    addedLines: number;
+    removedLines: number;
+    unchangedLines: number;
+  } | null;
+  diffLines?: SubmissionComparisonDiffLine[];
+}
+
 export interface StudentAssignmentLeaderboard {
   assignmentId: number;
   totalStudents: number;
