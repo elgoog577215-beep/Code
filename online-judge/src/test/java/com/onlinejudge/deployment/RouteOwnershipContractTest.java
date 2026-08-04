@@ -99,6 +99,7 @@ class RouteOwnershipContractTest {
 
         String dockerfile = Files.readString(Path.of("Dockerfile"));
         assertThat(dockerfile)
+                .contains("COPY config/route-ownership.json /workspace/config/route-ownership.json")
                 .contains("/workspace/src/main/resources/static src/main/resources/static")
                 .doesNotContain("static/code src/main/resources/static/code");
     }

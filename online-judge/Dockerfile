@@ -8,6 +8,7 @@ FROM ${NODE_BASE_IMAGE} AS frontend-build
 WORKDIR /workspace/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
+COPY config/route-ownership.json /workspace/config/route-ownership.json
 COPY frontend ./
 RUN npm run build
 
