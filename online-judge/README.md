@@ -80,6 +80,12 @@ https://tuotuzju.com/code/
 
 生产环境不得使用 `code.tuotuzju.com`。Online Judge 的页面、静态资源和浏览器 API 原生位于主域 `/code/` 命名空间，Caddy 使用标准 `reverse_proxy` 转发到应用；主平台继续拥有 `/app/`、`/download/` 和根级 `/api/`。生产验收与对外文档都必须使用 `/code/`。
 
+跨层路径的唯一管理入口是 `config/route-ownership.json`。它声明正式域名、Online Judge 页面/API/资源前缀、upstream 标记、平台保留路径和旧路径兼容策略。Vite 构建、React Router `basename`、后端路径常量、Docker 打包和生产部署门禁必须与这份合同一致；修改公开路径时先改合同，再运行 `RouteOwnershipContractTest`，不得分别手改多份散落配置。服务器命令 `/usr/local/bin/deploy-online-judge` 应链接到仓库脚本，避免流水线长期运行旧副本：
+
+```bash
+ln -sfn /opt/Code/online-judge/scripts/deploy-online-judge.sh /usr/local/bin/deploy-online-judge
+```
+
 Caddy 的 `/code/` handler 必须放在主站兜底 `handle` 之前，且不需要第三方插件或响应体替换：
 
 ```caddyfile

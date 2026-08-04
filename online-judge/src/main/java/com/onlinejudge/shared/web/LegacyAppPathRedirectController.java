@@ -11,14 +11,14 @@ import java.net.URI;
 
 @Controller
 public class LegacyAppPathRedirectController {
-
-    private static final String LEGACY_PREFIX = "/app";
-    private static final String PUBLIC_PREFIX = "/code";
-
-    @GetMapping({"/app", "/app/", "/app/**"})
+    @GetMapping({
+            OnlineJudgeWebPaths.LEGACY_APP_PREFIX,
+            OnlineJudgeWebPaths.LEGACY_APP_PREFIX + "/",
+            OnlineJudgeWebPaths.LEGACY_APP_PREFIX + "/**"
+    })
     public ResponseEntity<Void> redirectToCodePath(HttpServletRequest request) {
-        String suffix = request.getRequestURI().substring(LEGACY_PREFIX.length());
-        String target = PUBLIC_PREFIX + suffix;
+        String suffix = request.getRequestURI().substring(OnlineJudgeWebPaths.LEGACY_APP_PREFIX.length());
+        String target = OnlineJudgeWebPaths.PUBLIC_PREFIX + suffix;
         if (request.getQueryString() != null) {
             target += "?" + request.getQueryString();
         }

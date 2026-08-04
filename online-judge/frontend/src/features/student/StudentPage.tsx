@@ -168,16 +168,16 @@ export default function StudentPage() {
   }, [publicProblems]);
   const starterProblems = useMemo(() => pickStarterProblems(publicProblems || []), [publicProblems]);
   const publicStartPath = starterProblems[0]
-    ? `/code/student/assignments/public/problems/${starterProblems[0].id}`
-    : "/code/student/assignments/public";
+    ? `/student/assignments/public/problems/${starterProblems[0].id}`
+    : "/student/assignments/public";
 
   function recommendationPath(item: StudentRecommendationItem) {
     if (!student) return null;
     const query = new URLSearchParams({ studentProfileId: String(student.id) });
     if (item.recommendationToken) query.set("recommendationToken", item.recommendationToken);
-    if (item.problemId && item.assignmentId) return `/code/student/assignments/${item.assignmentId}/problems/${item.problemId}?${query}`;
-    if (item.problemId) return `/code/student/assignments/public/problems/${item.problemId}?${query}`;
-    if (item.assignmentId) return `/code/student/assignments/${item.assignmentId}`;
+    if (item.problemId && item.assignmentId) return `/student/assignments/${item.assignmentId}/problems/${item.problemId}?${query}`;
+    if (item.problemId) return `/student/assignments/public/problems/${item.problemId}?${query}`;
+    if (item.assignmentId) return `/student/assignments/${item.assignmentId}`;
     return null;
   }
 
@@ -217,7 +217,7 @@ export default function StudentPage() {
     const items = recommendation?.recommendations || [];
     const primary = items[0];
     const fallbackAssignment = visibleAssignments[0];
-    const fallbackPath = fallbackAssignment ? `/code/student/assignments/${fallbackAssignment.id}` : "/code/student/assignments/public";
+    const fallbackPath = fallbackAssignment ? `/student/assignments/${fallbackAssignment.id}` : "/student/assignments/public";
     return (
       <section className="student-home-zone student-next-learning" data-home-zone="continue" aria-labelledby="student-next-learning-heading">
         <header className="student-next-learning__head">
@@ -258,7 +258,7 @@ export default function StudentPage() {
         <header className="student-home-zone__head">
           <h2 id="student-self-practice-heading">{t("studentHome.selfPractice.title")}</h2>
         </header>
-        <Link className="student-self-practice-row" to="/code/student/assignments/public">
+        <Link className="student-self-practice-row" to="/student/assignments/public">
           <span className="student-self-practice-row__icon" aria-hidden="true"><BookOpen size={19} /></span>
           <span className="student-self-practice-row__main">
             <strong>{t("studentHome.public.title")}</strong>
@@ -313,7 +313,7 @@ export default function StudentPage() {
                 <Play size={15} fill="currentColor" aria-hidden="true" />
                 {t("studentHome.public.cta")}
               </Link>
-              <Link className="student-guest-practice__action student-guest-practice__action--secondary" to="/code/student/assignments/public">
+              <Link className="student-guest-practice__action student-guest-practice__action--secondary" to="/student/assignments/public">
                 {t("studentHome.guestPreview.viewAll")}
               </Link>
             </span>
@@ -328,7 +328,7 @@ export default function StudentPage() {
                   return (
                     <Link
                       className={`student-guest-starter-card is-${difficultyKey}`}
-                      to={`/code/student/assignments/public/problems/${problem.id}`}
+                      to={`/student/assignments/public/problems/${problem.id}`}
                       key={problem.id}
                     >
                       <span className="student-guest-starter-card__badge">{t(`studentPublic.difficulty.${difficultyKey}`)}</span>
@@ -361,7 +361,7 @@ export default function StudentPage() {
               <p>{t("studentHome.login.description")}</p>
               <small>{t("studentHome.login.meta")}</small>
             </div>
-            <Link className="student-guest-login-action" to="/code/student/login">
+            <Link className="student-guest-login-action" to="/student/login">
               <LogIn size={16} aria-hidden="true" />
               {t("studentHome.login.cta")}
             </Link>
@@ -396,7 +396,7 @@ export default function StudentPage() {
                   return (
                     <Link
                       className="student-entry-link student-assignment-row student-assignment-row--direct"
-                      to={`/code/student/assignments/${assignment.id}`}
+                      to={`/student/assignments/${assignment.id}`}
                       key={assignment.id}
                       aria-label={visibleAssignmentTitle(assignment)}
                     >

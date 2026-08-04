@@ -93,11 +93,11 @@ function RouteHubPage() {
           <p className="route-hub-summary">{t("routeHub.summary")}</p>
 
           <nav className="route-hub-role-actions" aria-label={t("routeHub.roleAria")}>
-            <NavLink to="/code/student" className="route-hub-role-action route-hub-role-action--primary">
+            <NavLink to="/student" className="route-hub-role-action route-hub-role-action--primary">
               <BookOpenCheck size={19} aria-hidden="true" />
               <span>{t("routeHub.studentCta")}</span>
             </NavLink>
-            <NavLink to="/code/teacher" className="route-hub-role-action">
+            <NavLink to="/teacher" className="route-hub-role-action">
               <UsersRound size={19} aria-hidden="true" />
               <span>{t("routeHub.teacherCta")}</span>
             </NavLink>
@@ -175,17 +175,17 @@ function TeacherRoute({ children }: { children: ReactNode }) {
 
 function LegacyAssignmentRedirect({ level }: { level: "assignment" | "problem" | "student" }) {
   const location = useLocation();
-  const match = location.pathname.match(/\/code\/teacher\/assignment\/([^/]+)(?:\/problems\/([^/]+))?(?:\/students\/([^/]+))?/);
+  const match = location.pathname.match(/\/teacher\/assignment\/([^/]+)(?:\/problems\/([^/]+))?(?:\/students\/([^/]+))?/);
   const assignmentId = match?.[1];
   const problemId = match?.[2];
   const search = location.search || "";
   if (!assignmentId) {
-    return <Navigate to="/code/teacher/classes" replace />;
+    return <Navigate to="/teacher/classes" replace />;
   }
   if (level !== "assignment" && problemId) {
-    return <Navigate to={`/code/teacher/classes/0/assignments/${assignmentId}/problems/${problemId}${search}`} replace />;
+    return <Navigate to={`/teacher/classes/0/assignments/${assignmentId}/problems/${problemId}${search}`} replace />;
   }
-  return <Navigate to={`/code/teacher/classes/0/assignments/${assignmentId}${search}`} replace />;
+  return <Navigate to={`/teacher/classes/0/assignments/${assignmentId}${search}`} replace />;
 }
 
 function Header() {
@@ -195,21 +195,21 @@ function Header() {
   const [student, setStudent] = useState(() => loadStudent());
   const location = useLocation();
   const isProblemPage =
-    /^\/code\/student\/assignments\/[^/]+\/problems\//.test(location.pathname);
-  const isStudentContext = location.pathname.startsWith("/code/student") || isProblemPage;
-  const isTeacherContext = location.pathname.startsWith("/code/teacher") || location.pathname.startsWith("/code/task-editor");
+    /^\/student\/assignments\/[^/]+\/problems\//.test(location.pathname);
+  const isStudentContext = location.pathname.startsWith("/student") || isProblemPage;
+  const isTeacherContext = location.pathname.startsWith("/teacher") || location.pathname.startsWith("/task-editor");
   const navItems: NavItem[] = [
     {
-      to: "/code/student",
+      to: "/student",
       label: t("common.studentSide"),
       icon: BookOpenCheck,
-      activeWhen: (pathname: string) => pathname.startsWith("/code/student")
+      activeWhen: (pathname: string) => pathname.startsWith("/student")
     },
     {
-      to: "/code/teacher",
+      to: "/teacher",
       label: t("common.teacherSide"),
       icon: UsersRound,
-      activeWhen: (pathname: string) => pathname.startsWith("/code/teacher") || pathname.startsWith("/code/task-editor")
+      activeWhen: (pathname: string) => pathname.startsWith("/teacher") || pathname.startsWith("/task-editor")
     }
   ];
 
@@ -238,7 +238,7 @@ function Header() {
 
   return (
     <header className={headerClassName}>
-      <NavLink to="/code" className="brand" aria-label={t("common.appName")}>
+      <NavLink to="/" className="brand" aria-label={t("common.appName")}>
         <span className="brand__mark">
           <BookOpenCheck size={24} />
         </span>
@@ -278,7 +278,7 @@ function Header() {
         {isStudentContext ? (
           student ? (
             <div className="header-student-menu" aria-label="学生身份">
-              <NavLink to="/code/student/login" className="header-student-chip">
+              <NavLink to="/student/login" className="header-student-chip">
                 <UserRound size={16} />
                 <span>{student.displayName}</span>
               </NavLink>
@@ -287,7 +287,7 @@ function Header() {
               </Button>
             </div>
           ) : (
-            <NavLink to="/code/student/login" className="header-login-link">
+            <NavLink to="/student/login" className="header-login-link">
               <LogIn size={17} />
               <span>{t("common.login")}</span>
             </NavLink>
@@ -329,33 +329,31 @@ export default function App() {
       <main className="main-shell" id="main-content">
         <Suspense fallback={<EmptyState title={t("common.loadingPage")} live />}>
           <Routes>
-            <Route path="/" element={<Navigate to="/code" replace />} />
-            <Route path="/code" element={<RouteHubPage />} />
-            <Route path="/code/" element={<RouteHubPage />} />
-            <Route path="/code/student" element={<StudentPage />} />
-            <Route path="/code/student/login" element={<StudentLoginPage />} />
-            <Route path="/code/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
-            <Route path="/code/student/assignments/:assignmentId/ranking" element={<StudentAssignmentRankingPage />} />
-            <Route path="/code/student/assignments/:assignmentId/submissions" element={<StudentAssignmentSubmissionsPage />} />
-            <Route path="/code/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
-            <Route path="/code/teacher" element={<TeacherRoute><Navigate to="/code/teacher/classes" replace /></TeacherRoute>} />
-            <Route path="/code/teacher/classes" element={<TeacherRoute><TeacherAnalyticsLandingPage /></TeacherRoute>} />
-            <Route path="/code/teacher/classes/:classId" element={<TeacherRoute><ClassAnalyticsPage /></TeacherRoute>} />
-            <Route path="/code/teacher/classes/:classId/assignments/:assignmentId" element={<TeacherRoute><AssignmentAnalyticsPage /></TeacherRoute>} />
-            <Route path="/code/teacher/classes/:classId/assignments/:assignmentId/problems/:problemId" element={<TeacherRoute><ProblemAnalyticsPage /></TeacherRoute>} />
-            <Route path="/code/teacher/manage" element={<TeacherRoute><Navigate to="/code/teacher/manage/classes" replace /></TeacherRoute>} />
-            <Route path="/code/teacher/manage/classes" element={<TeacherRoute><TeacherManagementPage section="classes" /></TeacherRoute>} />
-            <Route path="/code/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
-            <Route path="/code/teacher/manage/ai-library" element={<TeacherRoute><TeacherManagementPage section="ai-library" /></TeacherRoute>} />
-            <Route path="/code/teacher/manage/system" element={<TeacherRoute><TeacherManagementPage section="system" /></TeacherRoute>} />
-            <Route path="/code/teacher-management" element={<Navigate to="/code/teacher/manage/classes" replace />} />
-            <Route path="/code/class-overview" element={<Navigate to="/code/teacher/classes" replace />} />
-            <Route path="/code/task-editor" element={<TeacherRoute><TaskEditorPage /></TeacherRoute>} />
-            <Route path="/code/teacher/assignment/new" element={<TeacherRoute><AssignmentCreatePage /></TeacherRoute>} />
-            <Route path="/code/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherRoute><LegacyAssignmentRedirect level="student" /></TeacherRoute>} />
-            <Route path="/code/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherRoute><LegacyAssignmentRedirect level="problem" /></TeacherRoute>} />
-            <Route path="/code/teacher/assignment/:assignmentId" element={<TeacherRoute><LegacyAssignmentRedirect level="assignment" /></TeacherRoute>} />
-            <Route path="*" element={<Navigate to="/code" replace />} />
+            <Route path="/" element={<RouteHubPage />} />
+            <Route path="/student" element={<StudentPage />} />
+            <Route path="/student/login" element={<StudentLoginPage />} />
+            <Route path="/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
+            <Route path="/student/assignments/:assignmentId/ranking" element={<StudentAssignmentRankingPage />} />
+            <Route path="/student/assignments/:assignmentId/submissions" element={<StudentAssignmentSubmissionsPage />} />
+            <Route path="/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
+            <Route path="/teacher" element={<TeacherRoute><Navigate to="/teacher/classes" replace /></TeacherRoute>} />
+            <Route path="/teacher/classes" element={<TeacherRoute><TeacherAnalyticsLandingPage /></TeacherRoute>} />
+            <Route path="/teacher/classes/:classId" element={<TeacherRoute><ClassAnalyticsPage /></TeacherRoute>} />
+            <Route path="/teacher/classes/:classId/assignments/:assignmentId" element={<TeacherRoute><AssignmentAnalyticsPage /></TeacherRoute>} />
+            <Route path="/teacher/classes/:classId/assignments/:assignmentId/problems/:problemId" element={<TeacherRoute><ProblemAnalyticsPage /></TeacherRoute>} />
+            <Route path="/teacher/manage" element={<TeacherRoute><Navigate to="/teacher/manage/classes" replace /></TeacherRoute>} />
+            <Route path="/teacher/manage/classes" element={<TeacherRoute><TeacherManagementPage section="classes" /></TeacherRoute>} />
+            <Route path="/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
+            <Route path="/teacher/manage/ai-library" element={<TeacherRoute><TeacherManagementPage section="ai-library" /></TeacherRoute>} />
+            <Route path="/teacher/manage/system" element={<TeacherRoute><TeacherManagementPage section="system" /></TeacherRoute>} />
+            <Route path="/teacher-management" element={<Navigate to="/teacher/manage/classes" replace />} />
+            <Route path="/class-overview" element={<Navigate to="/teacher/classes" replace />} />
+            <Route path="/task-editor" element={<TeacherRoute><TaskEditorPage /></TeacherRoute>} />
+            <Route path="/teacher/assignment/new" element={<TeacherRoute><AssignmentCreatePage /></TeacherRoute>} />
+            <Route path="/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherRoute><LegacyAssignmentRedirect level="student" /></TeacherRoute>} />
+            <Route path="/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherRoute><LegacyAssignmentRedirect level="problem" /></TeacherRoute>} />
+            <Route path="/teacher/assignment/:assignmentId" element={<TeacherRoute><LegacyAssignmentRedirect level="assignment" /></TeacherRoute>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </main>

@@ -8,10 +8,12 @@ import "./styles.css";
 
 applyYingqiRuntimeSignature();
 
+const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <I18nProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={routerBasename}>
         <App />
       </BrowserRouter>
     </I18nProvider>

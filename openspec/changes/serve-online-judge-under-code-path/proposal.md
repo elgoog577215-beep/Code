@@ -9,6 +9,7 @@
 - Spring Boot 将构建产物原生发布到 `/code/`，并为 `/code/` 深层 SPA 路由提供入口回退。
 - 部署脚本与回归测试改为验证 Caddy、`/code/` 页面、`/code/assets/` 静态资源、`/code/api/` readiness 和 SPA 深链，不再依赖 Nginx 或旧子域。
 - 保留根级 `/api/` 作为容器内部与后端测试的接口路径；主域平台的根级 `/api/` 继续归平台所有。
+- 新增机器可读的路由所有权合同，统一管理正式域名、OJ 页面/API/资源前缀、平台保留路径与旧入口策略；构建、前端路由、后端常量和部署门禁必须消费或校验该合同。
 
 ## Capabilities
 
@@ -22,7 +23,7 @@
 
 ## Impact
 
-- 前端：Vite `base`、React 路由、导航链接、浏览器 API 基路径、Playwright/smoke 脚本。
-- 后端：静态资源目录与映射、SPA forward、缓存头、相关 MVC/部署回归测试。
+- 前端：Vite `base`、React Router `basename`、应用内相对导航、浏览器 API 基路径、Playwright/smoke 脚本。
+- 后端：集中路径常量、静态资源目录与映射、SPA forward、缓存头、相关 MVC/部署回归测试。
 - 部署：`deploy-online-judge.sh`、Caddy 主域配置、生产探针、README 与项目决策。
 - 不涉及数据库迁移，不改变 Java 控制器的根级 `/api/` 合同，不需要 Caddy 插件，也不切回 Nginx。

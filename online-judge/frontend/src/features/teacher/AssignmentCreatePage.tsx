@@ -203,7 +203,7 @@ export default function AssignmentCreatePage() {
       };
       const saved = await api.createAssignment(payload);
       setAlert({ type: "success", message: `${cleanAssignmentTitle(saved.title)} 已保存。` });
-      navigate(`/code/teacher/classes/${classGroupId}/assignments/${saved.id}`);
+      navigate(`/teacher/classes/${classGroupId}/assignments/${saved.id}`);
     } catch (error) {
       setAlert({ type: "error", message: teacherErrorMessage(error, "作业保存失败。") });
     } finally {
@@ -234,7 +234,7 @@ export default function AssignmentCreatePage() {
 
       <section className="teacher-workflow-header">
         <div>
-          <ButtonLink to="/code/teacher/classes" variant="ghost" icon={<ArrowLeft size={17} />}>
+          <ButtonLink to="/teacher/classes" variant="ghost" icon={<ArrowLeft size={17} />}>
             {t("teacherAnalytics.actions.backToAnalytics")}
           </ButtonLink>
           <p className="eyebrow">新建作业</p>

@@ -102,11 +102,11 @@ export default function ProblemAnalyticsPage() {
     <div className="teacher-analytics-page">
       <AnalyticsBreadcrumbs
         items={[
-          { label: t("teacherAnalytics.breadcrumb.classes"), to: "/code/teacher/classes" },
-          { label: snapshot.scope.className, to: `/code/teacher/classes/${snapshot.scope.classId}` },
+          { label: t("teacherAnalytics.breadcrumb.classes"), to: "/teacher/classes" },
+          { label: snapshot.scope.className, to: `/teacher/classes/${snapshot.scope.classId}` },
           {
             label: snapshot.scope.assignmentTitle || t("teacherAnalytics.scope.assignment"),
-            to: `/code/teacher/classes/${snapshot.scope.classId}/assignments/${snapshot.scope.assignmentId}`
+            to: `/teacher/classes/${snapshot.scope.classId}/assignments/${snapshot.scope.assignmentId}`
           },
           { label: snapshot.scope.problemTitle || t("teacherAnalytics.scope.problem") }
         ]}

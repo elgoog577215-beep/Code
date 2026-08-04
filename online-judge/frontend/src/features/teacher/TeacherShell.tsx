@@ -17,49 +17,49 @@ export function TeacherShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const location = useLocation();
   const pathname = location.pathname;
-  const inManagement = pathname === "/code/teacher/manage" || pathname.startsWith("/code/teacher/manage") || pathname.startsWith("/code/task-editor");
+  const inManagement = pathname === "/teacher/manage" || pathname.startsWith("/teacher/manage") || pathname.startsWith("/task-editor");
   const primaryItems: TeacherNavItem[] = [
     {
-      to: "/code/teacher/classes",
+      to: "/teacher/classes",
       label: t("teacherShell.nav.analytics"),
       description: t("teacherShell.nav.analyticsDescription"),
       icon: BarChart3,
       activeWhen: current =>
-        current === "/code/teacher" ||
-        current.startsWith("/code/teacher/classes") ||
-        current.startsWith("/code/teacher/assignment")
+        current === "/teacher" ||
+        current.startsWith("/teacher/classes") ||
+        current.startsWith("/teacher/assignment")
     }
   ];
   const managementItems: TeacherNavItem[] = [
     {
-      to: "/code/teacher/manage/classes",
+      to: "/teacher/manage/classes",
       label: t("teacherShell.nav.roster"),
       description: t("teacherShell.nav.rosterDescription"),
       icon: UsersRound,
-      activeWhen: current => current.startsWith("/code/teacher/manage/classes")
+      activeWhen: current => current.startsWith("/teacher/manage/classes")
     },
     {
-      to: "/code/teacher/manage/problems",
+      to: "/teacher/manage/problems",
       label: t("teacherShell.nav.problemBank"),
       description: t("teacherShell.nav.problemBankDescription"),
       icon: Database,
       activeWhen: current =>
-        current.startsWith("/code/teacher/manage/problems") ||
-        current.startsWith("/code/task-editor")
+        current.startsWith("/teacher/manage/problems") ||
+        current.startsWith("/task-editor")
     },
     {
-      to: "/code/teacher/manage/ai-library",
+      to: "/teacher/manage/ai-library",
       label: t("teacherShell.nav.aiLibrary"),
       description: t("teacherShell.nav.aiLibraryDescription"),
       icon: BrainCircuit,
-      activeWhen: current => current.startsWith("/code/teacher/manage/ai-library")
+      activeWhen: current => current.startsWith("/teacher/manage/ai-library")
     },
     {
-      to: "/code/teacher/manage/system",
+      to: "/teacher/manage/system",
       label: t("teacherShell.nav.system"),
       description: t("teacherShell.nav.systemDescription"),
       icon: Power,
-      activeWhen: current => current.startsWith("/code/teacher/manage/system")
+      activeWhen: current => current.startsWith("/teacher/manage/system")
     }
   ];
 

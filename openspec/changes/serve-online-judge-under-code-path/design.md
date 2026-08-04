@@ -40,9 +40,15 @@ Spring 对旧页面入口返回到等价 `/code/...` 的重定向。生产 Caddy
 
 部署脚本在容器启动后先检查直连 `/code/` 与内部 `/api/system/readiness`，再运行 `caddy validate --config /etc/caddy/Caddyfile`，最后检查正式 HTTPS 的 `/code/`、从 HTML 解析出的 `/code/assets/...`、`/code/api/system/readiness` 和 `/code/student`。不再调用 `nginx -t`。
 
+### 5. 路径所有权使用机器合同统一管理
+
+`config/route-ownership.json` 统一声明正式域名、Online Judge 页面/API/资源前缀、upstream 标记、平台保留路径和旧入口兼容策略。Vite 与构建清理直接读取合同；React Router 使用 Vite `BASE_URL` 作为 `basename`，业务组件只维护应用内部相对路由；Java 端只从 `OnlineJudgeWebPaths` 使用集中常量，并由合同测试确保常量与 JSON 一致；部署脚本通过 `jq` 读取合同，动态生成正式探针和平台保留路径检查。
+
+服务器的稳定命令使用指向仓库脚本的符号链接，不保留独立脚本副本。部署脚本在拉取后比较自身哈希；若脚本刚被更新，则在持有同一部署锁的前提下重新执行新版本，避免发布门禁落后一版。
+
 ## Risks / Trade-offs
 
-- [旧链接仍指向 `/app/...`] → 后端保留等价重定向；主域 `/app/` 属于平台，正式文档和外链统一改为 `/code/...`。
+- [旧链接仍指向 `/app/...`] → 后端仅在请求实际到达 OJ 时保留等价重定向；主域 `/app/` 属于平台，正式文档和外链统一改为 `/code/...`。
 - [API 前缀适配绕过鉴权过滤器] → 使用请求路径包装后继续原过滤器链，而不是在适配器内自行调用控制器；增加受保护 API 回归测试。
 - [Caddy 配置错误导致主站受影响] → 修改前保留时间戳备份，先 `caddy validate`，再原子替换并 reload；失败立即恢复备份。
 - [服务器仓库有本地改动与环境备份] → 部署脚本现有 `pull --ff-only` 可能被阻塞；部署前只读核对差异，不覆盖本地安全配置，必要时仅在确认无冲突后执行受控部署。

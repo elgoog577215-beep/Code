@@ -163,8 +163,8 @@ export default function TeacherPage() {
         const evidence = targetStudent?.attentionEvidence?.find(item => item.problemId) || targetStudent?.attentionEvidence?.[0] || null;
         const href =
           targetStudent && evidence?.problemId
-            ? `/code/teacher/assignment/${assignment.id}/problems/${evidence.problemId}/students/${targetStudent.studentProfileId}`
-            : `/code/teacher/assignment/${assignment.id}`;
+            ? `/teacher/assignment/${assignment.id}/problems/${evidence.problemId}/students/${targetStudent.studentProfileId}`
+            : `/teacher/assignment/${assignment.id}`;
         return {
           assignment,
           overview,
@@ -183,10 +183,10 @@ export default function TeacherPage() {
     return recommendationInterventions.slice(0, 5).map(signal => {
       const assignment = signal.assignmentId ? assignmentById.get(signal.assignmentId) : null;
       const href = signal.assignmentId && signal.problemId && signal.studentProfileId
-        ? `/code/teacher/assignment/${signal.assignmentId}/problems/${signal.problemId}/students/${signal.studentProfileId}`
+        ? `/teacher/assignment/${signal.assignmentId}/problems/${signal.problemId}/students/${signal.studentProfileId}`
         : signal.assignmentId
-          ? `/code/teacher/assignment/${signal.assignmentId}`
-          : "/code/teacher/classes";
+          ? `/teacher/assignment/${signal.assignmentId}`
+          : "/teacher/classes";
       return { signal, assignment, href };
     });
   }, [cleanAssignments, recommendationInterventions]);
@@ -240,10 +240,10 @@ export default function TeacherPage() {
           <p>{t("teacherHome.console.description")}</p>
         </div>
         <div className="teacher-console-header__actions">
-          <ButtonLink to="/code/teacher/classes" variant="secondary" icon={<UsersRound size={16} />}>
+          <ButtonLink to="/teacher/classes" variant="secondary" icon={<UsersRound size={16} />}>
             {t("teacherHome.classProgress")}
           </ButtonLink>
-          <ButtonLink to="/code/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
+          <ButtonLink to="/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
             {t("teacherHome.newAssignment")}
           </ButtonLink>
         </div>
@@ -291,7 +291,7 @@ export default function TeacherPage() {
                 const status = assignmentStatusText(assignment.status, t);
                 const issue = topSharedIssue(overview);
                 return (
-                  <Link className="teacher-console-table__row" to={`/code/teacher/assignment/${assignment.id}`} key={assignment.id}>
+                  <Link className="teacher-console-table__row" to={`/teacher/assignment/${assignment.id}`} key={assignment.id}>
                     <span className="teacher-console-table__title">
                       <strong>{assignment.title}</strong>
                       <small>{issue ? issueLabel(issue) : t("teacherHome.console.noSharedIssue")}</small>

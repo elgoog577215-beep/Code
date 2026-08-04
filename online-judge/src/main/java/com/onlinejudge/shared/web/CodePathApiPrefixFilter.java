@@ -15,9 +15,6 @@ import java.io.IOException;
 @Order(10)
 public class CodePathApiPrefixFilter extends OncePerRequestFilter {
 
-    private static final String PUBLIC_PREFIX = "/code";
-    private static final String PUBLIC_API_PATH = "/code/api";
-
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -32,7 +29,8 @@ public class CodePathApiPrefixFilter extends OncePerRequestFilter {
     }
 
     private boolean isPublicApiPath(String path) {
-        return PUBLIC_API_PATH.equals(path) || path.startsWith(PUBLIC_API_PATH + "/");
+        return OnlineJudgeWebPaths.PUBLIC_API_PREFIX.equals(path)
+                || path.startsWith(OnlineJudgeWebPaths.PUBLIC_API_PREFIX + "/");
     }
 
     private static final class PrefixStrippingRequest extends HttpServletRequestWrapper {
@@ -64,8 +62,8 @@ public class CodePathApiPrefixFilter extends OncePerRequestFilter {
         }
 
         private static String stripPublicPrefix(String path) {
-            return path != null && path.startsWith(PUBLIC_PREFIX)
-                    ? path.substring(PUBLIC_PREFIX.length())
+            return path != null && path.startsWith(OnlineJudgeWebPaths.PUBLIC_PREFIX)
+                    ? path.substring(OnlineJudgeWebPaths.PUBLIC_PREFIX.length())
                     : path;
         }
     }

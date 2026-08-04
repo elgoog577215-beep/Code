@@ -58,17 +58,21 @@ class SchoolDeploymentScriptSafetyTest {
                 "git -C \"${REPO_ROOT}\" fetch origin main",
                 "bash scripts/build-school-images.sh --confirm-build",
                 "bash scripts/start-school.sh",
-                "PUBLIC_HOST=\"${OJ_PUBLIC_HOST:-tuotuzju.com}\"",
-                "PUBLIC_PATH=\"${OJ_PUBLIC_PATH:-/code/}\"",
+                "ROUTE_CONTRACT=\"${OJ_ROUTE_CONTRACT:-${APP_ROOT}/config/route-ownership.json}\"",
+                "SCRIPT_SHA_BEFORE=",
+                "SCRIPT_SHA_AFTER=",
+                "OJ_DEPLOY_REFRESHED=true OJ_DEPLOY_LOCK_HELD=true",
+                "PUBLIC_HOST=\"$(jq -er '.productionHost' \"${ROUTE_CONTRACT}\")\"",
+                "PUBLIC_PATH=\"$(jq -er '.onlineJudge.publicPath' \"${ROUTE_CONTRACT}\")\"",
                 "CADDY_CONFIG=\"${OJ_CADDY_CONFIG:-/etc/caddy/Caddyfile}\"",
                 "caddy validate --config \"${CADDY_CONFIG}\"",
-                "http://127.0.0.1:${SERVER_PORT:-8081}/code/",
-                "http://127.0.0.1:${SERVER_PORT:-8081}/code/api/system/readiness",
+                "http://127.0.0.1:${SERVER_PORT:-8081}${PUBLIC_PATH}",
+                "http://127.0.0.1:${SERVER_PORT:-8081}${PUBLIC_API_PREFIX}/system/readiness",
                 "--resolve \"${PUBLIC_HOST}:443:127.0.0.1\"",
-                "\"https://${PUBLIC_HOST}${PUBLIC_PATH}api/system/readiness\"",
-                "\"https://${PUBLIC_HOST}${PUBLIC_PATH}student\"",
-                "/code/assets/",
-                "for platform_path in /app/ /download/"
+                "\"https://${PUBLIC_HOST}${PUBLIC_API_PREFIX}/system/readiness\"",
+                "\"https://${PUBLIC_HOST}${PUBLIC_PREFIX}/student\"",
+                "jq -er '.platform.reservedPaths[]'",
+                "x-proxy-source: ${PROXY_MARKER}"
         );
         assertThat(deploy.indexOf("--confirm-build"))
                 .isLessThan(deploy.indexOf("git -C \"${REPO_ROOT}\" fetch origin main"));
