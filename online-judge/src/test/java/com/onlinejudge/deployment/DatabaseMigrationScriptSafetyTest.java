@@ -67,7 +67,7 @@ class DatabaseMigrationScriptSafetyTest {
     void productionDeployWaitsForApplicationMigrationBeforeDatabaseGates() throws IOException {
         String script = read("deploy-online-judge.sh");
 
-        int applicationProbe = script.indexOf("\"http://127.0.0.1:${SERVER_PORT:-8081}/app/\"");
+        int applicationProbe = script.indexOf("\"http://127.0.0.1:${SERVER_PORT:-8081}/code/\"");
         int schemaGate = script.indexOf("bash scripts/check-database-schema-readiness.sh");
         int disciplineGate = script.indexOf("bash scripts/check-discipline-data-quality.sh");
         int semanticGate = script.indexOf("bash scripts/check-test-case-semantic-quality.sh");

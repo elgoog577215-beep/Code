@@ -28,14 +28,14 @@ public class StaticCacheHeaderFilter extends OncePerRequestFilter {
 
         if (path.equals("/") || path.endsWith(".html") || path.equals("/student") || path.equals("/teacher")
                 || path.equals("/task-editor") || path.equals("/class-overview") || path.startsWith("/problem/")
-                || (path.startsWith("/app/") && !path.startsWith("/app/assets/"))) {
+                || (path.startsWith("/code/") && !path.startsWith("/code/assets/"))) {
             response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
             response.setHeader("Pragma", "no-cache");
             response.setDateHeader("Expires", 0);
             return;
         }
 
-        if (path.startsWith("/assets/") || path.startsWith("/app/assets/")) {
+        if (path.startsWith("/assets/") || path.startsWith("/code/assets/")) {
             response.setHeader("Cache-Control", "public, max-age=" + ONE_YEAR_SECONDS + ", immutable");
         }
     }

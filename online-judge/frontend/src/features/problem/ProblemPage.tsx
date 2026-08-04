@@ -598,7 +598,7 @@ export default function ProblemPage() {
   const studentProfileId = normalizeNumber(searchParams.get("studentProfileId")) ?? currentStudent?.id ?? null;
   const recommendationToken = searchParams.get("recommendationToken");
   const requestedSubmissionId = normalizeNumber(searchParams.get("submissionId"));
-  const assignmentBasePath = assignmentId ? `/app/student/assignments/${assignmentId}` : "/app/student/assignments/public";
+  const assignmentBasePath = assignmentId ? `/code/student/assignments/${assignmentId}` : "/code/student/assignments/public";
   const backTo = assignmentBasePath;
   const backLabel = isPublicWorkbench ? "返回题目列表" : "返回学生端";
 
@@ -877,9 +877,9 @@ export default function ProblemPage() {
   function buildTaskLink(nextProblemId: number) {
     const studentParam = studentProfileId ? `?studentProfileId=${studentProfileId}` : "";
     if (assignmentId) {
-      return `/app/student/assignments/${assignmentId}/problems/${nextProblemId}${studentParam}`;
+      return `/code/student/assignments/${assignmentId}/problems/${nextProblemId}${studentParam}`;
     }
-    return `/app/student/assignments/public/problems/${nextProblemId}${studentParam}`;
+    return `/code/student/assignments/public/problems/${nextProblemId}${studentParam}`;
   }
 
   function updateStatementShare(clientX: number) {
@@ -1321,7 +1321,7 @@ export default function ProblemPage() {
           <StudentAssignmentNavigation assignmentId={assignmentContext.id} taskPath={buildTaskLink(problemId)} activeTab="tasks" />
         ) : !isPublicWorkbench ? (
           <nav className="problem-workbench-rail" aria-label="作业页面导航">
-            <Link to="/app/student">
+            <Link to="/code/student">
               <LayoutGrid size={22} aria-hidden="true" /><span>概览</span>
             </Link>
             <Link className="is-active" aria-current="page" to={buildTaskLink(problemId)}>

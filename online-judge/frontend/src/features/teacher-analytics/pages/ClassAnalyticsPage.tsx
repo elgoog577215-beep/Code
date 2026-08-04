@@ -66,7 +66,7 @@ export default function ClassAnalyticsPage() {
 
   return (
     <div className="teacher-analytics-page">
-      <AnalyticsBreadcrumbs items={[{ label: t("teacherAnalytics.breadcrumb.classes"), to: "/app/teacher/classes" }, { label: snapshot.scope.className }]} />
+      <AnalyticsBreadcrumbs items={[{ label: t("teacherAnalytics.breadcrumb.classes"), to: "/code/teacher/classes" }, { label: snapshot.scope.className }]} />
       <section className="teacher-analytics-hero">
         <div>
           <span>{t("teacherAnalytics.scope.class")}</span>

@@ -6,7 +6,7 @@ const yingqiBanner =
 const backendTarget = process.env.VITE_API_TARGET || process.env.API_TARGET || "http://localhost:8081";
 
 export default defineConfig({
-  base: "/app/",
+  base: "/code/",
   plugins: [
     {
       name: "app-root-redirect",
@@ -15,18 +15,18 @@ export default defineConfig({
           const requestUrl = req.url || "";
           const [pathname, suffix = ""] = requestUrl.split(/(?=[?#])/);
           const redirectMap = new Map([
-            ["/", "/app/"],
-            ["/app", "/app/"],
-            ["/student", "/app/student"],
-            ["/teacher", "/app/teacher"],
-            ["/teacher-management", "/app/teacher/manage"],
-            ["/task-editor", "/app/task-editor"],
-            ["/class-overview", "/app/teacher/classes"],
-            ["/problems", "/app/student/assignments/public"]
+            ["/", "/code/"],
+            ["/code", "/code/"],
+            ["/student", "/code/student"],
+            ["/teacher", "/code/teacher"],
+            ["/teacher-management", "/code/teacher/manage"],
+            ["/task-editor", "/code/task-editor"],
+            ["/class-overview", "/code/teacher/classes"],
+            ["/problems", "/code/student/assignments/public"]
           ]);
           let target = redirectMap.get(pathname);
-          target ||= pathname.startsWith("/teacher/assignment/") ? `/app${pathname}` : undefined;
-          target ||= pathname.startsWith("/problem/") ? `/app${pathname}` : undefined;
+          target ||= pathname.startsWith("/teacher/assignment/") ? `/code${pathname}` : undefined;
+          target ||= pathname.startsWith("/problem/") ? `/code${pathname}` : undefined;
 
           if (target) {
             res.statusCode = 302;
@@ -45,12 +45,16 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      "/code/api": {
+        target: backendTarget,
+        rewrite: path => path.replace(/^\/code/, "")
+      },
       "/api": backendTarget,
       "/h2-console": backendTarget
     }
   },
   build: {
-    outDir: "../src/main/resources/static/app",
+    outDir: "../src/main/resources/static/code",
     emptyOutDir: false,
     sourcemap: false,
     rollupOptions: {

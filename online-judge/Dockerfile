@@ -17,7 +17,7 @@ WORKDIR /workspace
 COPY pom.xml mvnw mvnw.cmd ./
 COPY .mvn .mvn
 COPY src src
-COPY --from=frontend-build /workspace/src/main/resources/static/app src/main/resources/static/app
+COPY --from=frontend-build /workspace/src/main/resources/static/code src/main/resources/static/code
 RUN ./mvnw -Dmaven.test.skip=true -Dskip.frontend=true package
 
 FROM ${DOCKER_CLI_IMAGE} AS docker-cli

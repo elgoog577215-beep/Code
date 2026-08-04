@@ -50,10 +50,10 @@ bash scripts/start-school.sh
 访问：
 
 ```text
-http://服务器局域网IP:8081/app/
+http://服务器局域网IP:8081/code/
 ```
 
-教师进入 `/app/teacher-management`，输入教师口令，查看“开课状态”。只有 `READY` 或明确接受 `DEGRADED` 时才上课。
+教师进入 `/code/teacher-management`，输入教师口令，查看“开课状态”。只有 `READY` 或明确接受 `DEGRADED` 时才上课。
 
 ## 3. AI 数据外发
 
@@ -77,7 +77,7 @@ AI_ENABLED=false
 学生提交 -> 初步诊断 -> AI 标准库导航 -> 最终诊断 -> 学生三段反馈 -> 库外发现进入扩库候选池
 ```
 
-教师端 `/app/teacher/manage/ai-library` 会显示两类内容：
+教师端 `/code/teacher/manage/ai-library` 会显示两类内容：
 
 - 正式标准库：当前 AI 可用的能力点、易错点和知识锚点。
 - 扩库候选：AI 在 `PARTIAL` 或 `MISS` 场景发现的新细颗粒错因。

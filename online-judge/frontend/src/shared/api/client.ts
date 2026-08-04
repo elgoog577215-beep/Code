@@ -57,6 +57,12 @@ export class ApiError extends Error {
   }
 }
 
+const publicBasePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+export function publicApiUrl(url: string): string {
+  return url === "/api" || url.startsWith("/api/") ? `${publicBasePath}${url}` : url;
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   const text = await response.text();
   const payload = text ? JSON.parse(text) : null;
@@ -87,7 +93,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   if (studentToken && !headers.has("X-Student-Token")) {
     headers.set("X-Student-Token", studentToken);
   }
-  const response = await fetch(url, { ...init, headers, credentials: "same-origin" });
+  const response = await fetch(publicApiUrl(url), { ...init, headers, credentials: "same-origin" });
   return readJson<T>(response);
 }
 

@@ -78,17 +78,27 @@ powershell -ExecutionPolicy Bypass -File scripts/start-school.ps1
 https://tuotuzju.com/code/
 ```
 
-生产环境不得使用 `code.tuotuzju.com`。`/app/` 是 Online Judge 容器内部的前端路径，Nginx 负责把主域名 `/code/` 下的页面、静态资源和 `/code/api/` 请求改写到应用；生产验收与对外文档都必须使用 `/code/`。
+生产环境不得使用 `code.tuotuzju.com`。Online Judge 的页面、静态资源和浏览器 API 原生位于主域 `/code/` 命名空间，Caddy 使用标准 `reverse_proxy` 转发到应用；主平台继续拥有 `/app/`、`/download/` 和根级 `/api/`。生产验收与对外文档都必须使用 `/code/`。
+
+Caddy 的 `/code/` handler 必须放在主站兜底 `handle` 之前，且不需要第三方插件或响应体替换：
+
+```caddyfile
+@online_judge path /code /code/*
+handle @online_judge {
+    header X-Proxy-Source "Code-8081"
+    reverse_proxy 127.0.0.1:8081
+}
+```
 
 启动后访问：
 
 ```text
-http://localhost:8081/app/
+http://localhost:8081/code/
 ```
 
 如果要在局域网给学生访问，把 `localhost` 换成运行服务器的局域网 IP。
 
-教师端第一次进入会要求输入 `.env` 中的 `TEACHER_PASSWORD`。教师可在 `/app/teacher-management` 查看“开课状态”，包括 Docker、C++17 runner、数据库、教师口令、学生令牌密钥和 AI smoke 状态。
+教师端第一次进入会要求输入 `.env` 中的 `TEACHER_PASSWORD`。教师可在 `/code/teacher-management` 查看“开课状态”，包括 Docker、C++17 runner、数据库、教师口令、学生令牌密钥和 AI smoke 状态。
 
 如果学校网络无法访问 Docker Hub，请先让网管配置 Docker 镜像加速，或在 `.env` 中把基础镜像变量改成学校内网仓库里的兼容镜像。应用镜像构建使用的 Node、Maven、JRE、Docker CLI 镜像和 C++17 runner 的 GCC 镜像都可以替换。本机已验证 C++17 runner 可用备用源：
 

@@ -71,12 +71,12 @@ const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
 
-  const legacyManagementRoute = await inspect(page, "/app/teacher/manage");
-  assert(legacyManagementRoute.url.includes("/app/teacher/manage/classes"), "management root should redirect to class roster");
+  const legacyManagementRoute = await inspect(page, "/code/teacher/manage");
+  assert(legacyManagementRoute.url.includes("/code/teacher/manage/classes"), "management root should redirect to class roster");
   assert(legacyManagementRoute.h1 === "班级名单", "management root should open class roster");
   assert(legacyManagementRoute.objectWorkbench === 1, "management root should render the class roster workbench");
 
-  const classes = await inspect(page, "/app/teacher/manage/classes");
+  const classes = await inspect(page, "/code/teacher/manage/classes");
   assert(classes.objectWorkbench === 1, "classes page should render one object workbench");
   assert(classes.objectList === 1, "classes page should render class object list");
   assert(!classes.classEmptyOption, "classes import should not offer 不指定班级 as primary option");
@@ -85,7 +85,7 @@ try {
   assertMax(classes.importSummaryMaxHeight, 32, "class create/import drawer summary should be compact");
   assertMax(classes.controlMaxHeight, 38, "class form controls should stay compact");
 
-  const problems = await inspect(page, "/app/teacher/manage/problems");
+  const problems = await inspect(page, "/code/teacher/manage/problems");
   assert(problems.objectWorkbench === 1, "problems page should render one object workbench");
   assert(problems.objectList === 1, "problems page should render problem object list");
   assert(problems.importDrawer, "problems page should keep import in a compact drawer");
@@ -95,7 +95,7 @@ try {
   assertMax(problems.embeddedTextareaMaxHeight, 150, "embedded problem editor textareas should be shorter than standalone editor");
   assertMax(problems.buttonMaxHeight, 38, "problem manager buttons should stay compact");
 
-  const aiLibrary = await inspect(page, "/app/teacher/manage/ai-library");
+  const aiLibrary = await inspect(page, "/code/teacher/manage/ai-library");
   assert(aiLibrary.objectWorkbench === 1, "AI library page should render one object workbench");
   assert(aiLibrary.objectList === 1, "AI library page should render item object list");
   assert(aiLibrary.aiEditorSectionCount >= 2, "AI library editor should be grouped into compact sections");
@@ -105,7 +105,7 @@ try {
   assertMax(aiLibrary.objectRowMaxHeight, 58, "AI list rows should stay scan-friendly");
 
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/app/teacher/manage", "/app/teacher/manage/classes", "/app/teacher/manage/problems", "/app/teacher/manage/ai-library"]) {
+  for (const path of ["/code/teacher/manage", "/code/teacher/manage/classes", "/code/teacher/manage/problems", "/code/teacher/manage/ai-library"]) {
     const result = await inspect(page, path);
     assert(result.overflowX === 0, `${path} should not have page-level horizontal overflow`);
     assertMax(result.teacherHeader.height, 154, `${path} mobile management header should not consume the first screen`);

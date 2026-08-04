@@ -90,7 +90,7 @@ export default function StudentAssignmentSubmissionsPage() {
     return [...values];
   }, [data]);
 
-  if (!workspace.student) return <Navigate to="/app/student/login" replace />;
+  if (!workspace.student) return <Navigate to="/code/student/login" replace />;
   if (workspace.loading) return <EmptyState title="正在读取作业" live />;
   if (!workspace.assignment) return <EmptyState title={workspace.failed || "作业不存在"} />;
 
@@ -146,7 +146,7 @@ export default function StudentAssignmentSubmissionsPage() {
                   <span>{memoryText(item.memoryUsed)}</span>
                   <span className="student-submission-actions">
                     <Link
-                      to={`/app/student/assignments/${numericAssignmentId}/problems/${item.problemId}?submissionId=${item.id}`}
+                      to={`/code/student/assignments/${numericAssignmentId}/problems/${item.problemId}?submissionId=${item.id}`}
                       aria-label="查看 AI 评测"
                       title="查看 AI 评测"
                     >

@@ -7,31 +7,35 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class FrontendForwardController {
 
     @GetMapping({
-            "/student",
-            "/teacher",
-            "/teacher-management",
-            "/task-editor",
-            "/class-overview",
-            "/problem/{id:[0-9]+}",
-            "/teacher/assignment/new",
-            "/teacher/assignment/{assignmentId:[0-9]+}",
-            "/app",
-            "/app/",
-            "/app/student",
-            "/app/student/login",
-            "/app/student/assignments/{assignmentId:[0-9]+}",
-            "/app/student/assignments/{assignmentId:[0-9]+}/problems/{problemId:[0-9]+}",
-            "/app/student/assignments/public",
-            "/app/student/assignments/public/problems/{problemId:[0-9]+}",
-            "/app/teacher",
-            "/app/teacher/assignment/new",
-            "/app/teacher/assignment/{assignmentId:[0-9]+}",
-            "/app/teacher-management",
-            "/app/task-editor",
-            "/app/class-overview",
-            "/app/problem/{id:[0-9]+}"
+            "/code",
+            "/code/",
+            "/code/student",
+            "/code/student/login",
+            "/code/student/assignments/{assignmentId:[0-9]+}",
+            "/code/student/assignments/{assignmentId:[0-9]+}/ranking",
+            "/code/student/assignments/{assignmentId:[0-9]+}/submissions",
+            "/code/student/assignments/{assignmentId:[0-9]+}/problems/{problemId:[0-9]+}",
+            "/code/student/assignments/public",
+            "/code/student/assignments/public/problems/{problemId:[0-9]+}",
+            "/code/teacher",
+            "/code/teacher/classes",
+            "/code/teacher/classes/{classId:[0-9]+}",
+            "/code/teacher/classes/{classId:[0-9]+}/assignments/{assignmentId:[0-9]+}",
+            "/code/teacher/classes/{classId:[0-9]+}/assignments/{assignmentId:[0-9]+}/problems/{problemId:[0-9]+}",
+            "/code/teacher/manage",
+            "/code/teacher/manage/classes",
+            "/code/teacher/manage/problems",
+            "/code/teacher/manage/ai-library",
+            "/code/teacher/manage/system",
+            "/code/teacher/assignment/new",
+            "/code/teacher/assignment/{assignmentId:[0-9]+}",
+            "/code/teacher/assignment/{assignmentId:[0-9]+}/problems/{problemId:[0-9]+}",
+            "/code/teacher/assignment/{assignmentId:[0-9]+}/problems/{problemId:[0-9]+}/students/{studentProfileId:[0-9]+}",
+            "/code/teacher-management",
+            "/code/task-editor",
+            "/code/class-overview"
     })
     public String forwardToApp() {
-        return "forward:/app/index.html";
+        return "forward:/code/index.html";
     }
 }

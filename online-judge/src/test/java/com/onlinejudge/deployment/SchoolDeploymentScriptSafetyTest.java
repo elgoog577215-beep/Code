@@ -60,13 +60,20 @@ class SchoolDeploymentScriptSafetyTest {
                 "bash scripts/start-school.sh",
                 "PUBLIC_HOST=\"${OJ_PUBLIC_HOST:-tuotuzju.com}\"",
                 "PUBLIC_PATH=\"${OJ_PUBLIC_PATH:-/code/}\"",
+                "CADDY_CONFIG=\"${OJ_CADDY_CONFIG:-/etc/caddy/Caddyfile}\"",
+                "caddy validate --config \"${CADDY_CONFIG}\"",
+                "http://127.0.0.1:${SERVER_PORT:-8081}/code/",
+                "http://127.0.0.1:${SERVER_PORT:-8081}/code/api/system/readiness",
                 "--resolve \"${PUBLIC_HOST}:443:127.0.0.1\"",
-                "\"https://${PUBLIC_HOST}${PUBLIC_PATH}api/system/readiness\""
+                "\"https://${PUBLIC_HOST}${PUBLIC_PATH}api/system/readiness\"",
+                "\"https://${PUBLIC_HOST}${PUBLIC_PATH}student\"",
+                "/code/assets/",
+                "for platform_path in /app/ /download/"
         );
         assertThat(deploy.indexOf("--confirm-build"))
                 .isLessThan(deploy.indexOf("git -C \"${REPO_ROOT}\" fetch origin main"));
         assertThat(deploy)
-                .doesNotContain("docker compose up", "docker compose build", "code.tuotuzju.com");
+                .doesNotContain("docker compose up", "docker compose build", "code.tuotuzju.com", "nginx -t");
     }
 
     @Test

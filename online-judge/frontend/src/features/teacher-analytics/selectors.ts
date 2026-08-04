@@ -242,7 +242,7 @@ export function problemRows(overview: AssignmentOverview, classId: number, assig
     .map(problem => ({
       id: problem.problemId,
       title: problem.title,
-      href: `/app/teacher/classes/${classId}/assignments/${assignmentId}/problems/${problem.problemId}`,
+      href: `/code/teacher/classes/${classId}/assignments/${assignmentId}/problems/${problem.problemId}`,
       difficulty: problem.difficulty,
       submittedStudentCount: problem.submittedStudentCount,
       passedStudentCount: problem.passedStudentCount,
@@ -257,7 +257,7 @@ function assignmentRow(assignment: AssignmentAnalyticsRecord, overview: Assignme
     id: assignment.id,
     title: assignment.title,
     status: localizedAssignmentStatus(assignment.status, t),
-    href: `/app/teacher/classes/${classId}/assignments/${assignment.id}`,
+    href: `/code/teacher/classes/${classId}/assignments/${assignment.id}`,
     problemCount: assignment.tasks?.length || overview?.problemSummaries?.length || 0,
     submittedStudentCount: latestSubmittedStudentCount(overview),
     participantCount: overview?.rosterStudentCount || overview?.participantCount || 0,
@@ -548,7 +548,7 @@ function studentEvidence(
     aiFeedbackImpact: student.latestAiFeedbackImpact || null,
     href:
       classId && assignmentId && problem?.problemId && student.studentProfileId
-        ? `/app/teacher/classes/${classId}/assignments/${assignmentId}/problems/${problem.problemId}#student-${student.studentProfileId}`
+        ? `/code/teacher/classes/${classId}/assignments/${assignmentId}/problems/${problem.problemId}#student-${student.studentProfileId}`
         : undefined
   };
 }

@@ -90,8 +90,8 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     window.sessionStorage.setItem("wzai:student", JSON.stringify(value));
     window.sessionStorage.setItem("wzai:student:7", JSON.stringify(value));
   }, student);
-  await context.route("**/api/**", async route => {
-    const path = new URL(route.request().url()).pathname;
+  await context.route("**/code/api/**", async route => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/code/, "");
     const body = path === "/api/problems/101"
       ? problem
       : path === "/api/student/profile/41/assignments"
@@ -111,7 +111,7 @@ test("problem workbench has persistent navigation, resizable split panels, and c
       if (message.type() === "error") browserErrors.push(message.text());
     });
     page.on("pageerror", error => browserErrors.push(error.message));
-    await page.goto(`${baseUrl}/app/student/assignments/7/problems/101?studentProfileId=41`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/code/student/assignments/7/problems/101?studentProfileId=41`, { waitUntil: "domcontentloaded" });
     await page.locator(".problem-main-split").waitFor({ state: "visible", timeout: 10000 });
     await page.locator(".problem-page > .student-assignment-insights-header").waitFor({ state: "visible", timeout: 10000 });
 
@@ -135,7 +135,7 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     assert.equal(await page.locator(".problem-workbench-shell > .student-assignment-side-nav").count(), 1);
     const problemChrome = await readWorkspaceChrome(page, ".student-assignment-insights-header", ".student-assignment-side-nav");
     const overviewPage = await context.newPage();
-    await overviewPage.goto(`${baseUrl}/app/student/assignments/7?studentProfileId=41`, { waitUntil: "domcontentloaded" });
+    await overviewPage.goto(`${baseUrl}/code/student/assignments/7?studentProfileId=41`, { waitUntil: "domcontentloaded" });
     await overviewPage.locator(".student-assignment-overview-layout").waitFor({ state: "visible", timeout: 10000 });
     const overviewChrome = await readWorkspaceChrome(
       overviewPage,

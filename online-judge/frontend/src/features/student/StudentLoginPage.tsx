@@ -64,7 +64,7 @@ export default function StudentLoginPage() {
         studentNo: studentNo.trim()
       });
       saveActiveStudent(student);
-      navigate("/app/student", { replace: true });
+      navigate("/code/student", { replace: true });
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "登录失败。" });
     } finally {
@@ -79,7 +79,7 @@ export default function StudentLoginPage() {
           <p className="eyebrow">学生登录</p>
           <h1>确认班级和姓名</h1>
         </div>
-        <ButtonLink to="/app/student" variant="ghost" icon={<ArrowLeft size={17} />}>
+        <ButtonLink to="/code/student" variant="ghost" icon={<ArrowLeft size={17} />}>
           返回
         </ButtonLink>
       </section>

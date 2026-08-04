@@ -214,7 +214,7 @@ export default function StudentAssignmentPage() {
             <h1>{t("studentPublic.title")}</h1>
             <p>{t("studentPublic.subtitle", { count: problems.length })}</p>
           </div>
-          <ButtonLink to="/app/student" reloadDocument variant="secondary" icon={<ArrowLeft size={17} />}>
+          <ButtonLink to="/code/student" reloadDocument variant="secondary" icon={<ArrowLeft size={17} />}>
             {t("studentPublic.back")}
           </ButtonLink>
         </section>
@@ -281,7 +281,7 @@ export default function StudentAssignmentPage() {
             {lastPublicProblem ? (
               <Link
                 className="student-entry-link public-problem-link public-problem-link--resume"
-                to={`/app/student/assignments/public/problems/${lastPublicProblem.id}${studentParam}`}
+                to={`/code/student/assignments/public/problems/${lastPublicProblem.id}${studentParam}`}
               >
                 <span className="student-entry-link__main">
                   <strong>{t("studentPublic.resume", { title: lastPublicProblem.title })}</strong>
@@ -300,7 +300,7 @@ export default function StudentAssignmentPage() {
                 {visiblePublicProblems.map(problem => (
                   <Link
                     className="student-entry-link public-problem-link public-problem-card"
-                    to={`/app/student/assignments/public/problems/${problem.id}${studentParam}`}
+                    to={`/code/student/assignments/public/problems/${problem.id}${studentParam}`}
                     key={problem.id}
                   >
                     <span className="public-problem-card__main">
@@ -337,7 +337,7 @@ export default function StudentAssignmentPage() {
   }
 
   if (!student && !isPublic) {
-    return <Navigate to="/app/student/login" replace />;
+    return <Navigate to="/code/student/login" replace />;
   }
 
   if (!isPublic && student && assignment) {
@@ -370,7 +370,7 @@ export default function StudentAssignmentPage() {
               <div className="student-assignment-overview-action">
                 <span>总提交 <strong>{totalAttempts}</strong></span>
                 {nextTask ? (
-                  <Link className="student-assignment-continue" to={`/app/student/assignments/${assignment.id}/problems/${nextTask.problemId}?studentProfileId=${student.id}`}>
+                  <Link className="student-assignment-continue" to={`/code/student/assignments/${assignment.id}/problems/${nextTask.problemId}?studentProfileId=${student.id}`}>
                     继续作业 <ArrowRight size={19} aria-hidden="true" />
                   </Link>
                 ) : null}
@@ -391,7 +391,7 @@ export default function StudentAssignmentPage() {
                   return (
                     <Link
                       className={`student-assignment-progress-row${selected ? " is-next" : ""}`}
-                      to={`/app/student/assignments/${assignment.id}/problems/${task.problemId}?studentProfileId=${student.id}`}
+                      to={`/code/student/assignments/${assignment.id}/problems/${task.problemId}?studentProfileId=${student.id}`}
                       aria-label={task.title}
                       key={task.problemId}
                     >
@@ -438,7 +438,7 @@ export default function StudentAssignmentPage() {
         <div>
           <h1>{isPublic ? t("studentPublic.title") : t("studentPublic.assignmentTitle")}</h1>
         </div>
-        <ButtonLink to="/app/student" variant="secondary" icon={<ArrowLeft size={17} />}>
+        <ButtonLink to="/code/student" variant="secondary" icon={<ArrowLeft size={17} />}>
         {t("studentPublic.back")}
       </ButtonLink>
       </section>

@@ -117,7 +117,7 @@ export function StudentAssignmentHeader({ assignment, student, className = "" }:
   const studentInitials = student.displayName.trim().slice(0, 2).toUpperCase() || "ST";
   return (
     <header className={`student-assignment-insights-header${className ? ` ${className}` : ""}`}>
-      <Link className="student-assignment-back" to="/app/student" aria-label="返回学生端">
+      <Link className="student-assignment-back" to="/code/student" aria-label="返回学生端">
         <ArrowLeft size={21} aria-hidden="true" />
       </Link>
       <div className="student-assignment-insights-title">
@@ -137,7 +137,7 @@ export function StudentAssignmentHeader({ assignment, student, className = "" }:
 }
 
 export function StudentAssignmentNavigation({ assignmentId, taskPath, activeTab }: StudentAssignmentNavigationProps) {
-  const basePath = `/app/student/assignments/${assignmentId}`;
+  const basePath = `/code/student/assignments/${assignmentId}`;
   const navItems = [
     { key: "assignment", label: "概览", to: basePath, icon: LayoutGrid },
     { key: "tasks", label: "题目", to: taskPath, icon: ClipboardList },
@@ -162,7 +162,7 @@ export function StudentAssignmentNavigation({ assignmentId, taskPath, activeTab 
 }
 
 export function StudentAssignmentShell({ assignment, student, nextTask, activeTab, children }: StudentAssignmentShellProps) {
-  const basePath = `/app/student/assignments/${assignment.id}`;
+  const basePath = `/code/student/assignments/${assignment.id}`;
   const nextTaskPath = nextTask
     ? `${basePath}/problems/${nextTask.problemId}?studentProfileId=${student.id}`
     : basePath;

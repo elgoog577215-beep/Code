@@ -72,8 +72,8 @@ async function withSignedInPage(run, viewport = { width: 1600, height: 1000 }) {
   await context.addInitScript(value => {
     window.sessionStorage.setItem("wzai:student", JSON.stringify(value));
   }, student);
-  await context.route("**/api/**", async route => {
-    const path = new URL(route.request().url()).pathname;
+  await context.route("**/code/api/**", async route => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/code/, "");
     let body = {};
     if (path === "/api/problems/catalog") body = publicProblems;
     if (path === "/api/student/profile/41/assignments") body = assignments;
@@ -90,7 +90,7 @@ async function withSignedInPage(run, viewport = { width: 1600, height: 1000 }) {
 
   try {
     const page = await context.newPage();
-    await page.goto(`${baseUrl}/app/student`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/code/student`, { waitUntil: "domcontentloaded" });
     await page.locator(".student-home-sections").waitFor({ state: "visible" });
     await run(page);
   } finally {
@@ -134,7 +134,7 @@ test("primary action preserves student identity and recommendation token", async
     const href = await action.getAttribute("href");
     assert.ok(href);
     const url = new URL(href, baseUrl);
-    assert.equal(url.pathname, "/app/student/assignments/7/problems/102");
+    assert.equal(url.pathname, "/code/student/assignments/7/problems/102");
     assert.equal(url.searchParams.get("studentProfileId"), "41");
     assert.equal(url.searchParams.get("recommendationToken"), "rec-primary-41");
   });
@@ -146,7 +146,7 @@ test("each classroom assignment opens directly without selection", async () => {
     assert.equal(await firstAssignment.evaluate(element => element.tagName), "A");
     assert.equal(await page.locator('.student-assignment-row input[type="radio"]').count(), 0);
     await Promise.all([
-      page.waitForURL(url => url.pathname === "/app/student/assignments/7"),
+      page.waitForURL(url => url.pathname === "/code/student/assignments/7"),
       firstAssignment.click()
     ]);
   });

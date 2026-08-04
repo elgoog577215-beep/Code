@@ -10,7 +10,7 @@ test("guest public practice and classroom login are stacked on wide screens", as
 
   try {
     const page = await context.newPage();
-    await page.goto(`${baseUrl}/app/student`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/code/student`, { waitUntil: "domcontentloaded" });
     await page.evaluate(() => {
       Object.keys(window.sessionStorage)
         .filter(key => key.startsWith("wzai:student"))

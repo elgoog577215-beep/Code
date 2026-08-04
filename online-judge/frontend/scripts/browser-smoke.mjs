@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 
 const frontendDir = resolve(import.meta.dirname, "..");
 const repoDir = resolve(frontendDir, "..");
-const appDir = resolve(import.meta.dirname, process.env.BROWSER_SMOKE_APP_DIR || "../../src/main/resources/static/app");
+const appDir = resolve(import.meta.dirname, process.env.BROWSER_SMOKE_APP_DIR || "../../src/main/resources/static/code");
 const indexPath = join(appDir, "index.html");
 const artifactDir = resolve(repoDir, "output/playwright");
 const viteBin = join(frontendDir, "node_modules/vite/bin/vite.js");
@@ -1095,7 +1095,7 @@ const aiStandardLibraryGrowthGovernanceSummary = {
 const scenarios = [
   {
     name: "app-entry",
-    path: "/app/",
+    path: "/code/",
     selectors: [
       [".route-hub-page", "route hub page"],
       [".route-hub-hero-copy", "route hub hero copy"],
@@ -1104,7 +1104,7 @@ const scenarios = [
     ],
     afterChecks: async (page, viewport) => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      const roleActions = page.locator('.route-hub-role-actions a[href="/app/student"], .route-hub-role-actions a[href="/app/teacher"]');
+      const roleActions = page.locator('.route-hub-role-actions a[href="/code/student"], .route-hub-role-actions a[href="/code/teacher"]');
       const canonicalHrefs = await roleActions.evaluateAll(elements =>
         elements.map(element => element.getAttribute("href"))
       );
@@ -1117,12 +1117,12 @@ const scenarios = [
       }));
       const learningSteps = await page.locator(".route-hub-loop-step").count();
       const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-      record("app root is explicit route hub", page.url().endsWith("/app") || page.url().endsWith("/app/"), page.url());
+      record("app root is explicit route hub", page.url().endsWith("/code") || page.url().endsWith("/code/"), page.url());
       record("app root leads with the selected concept message", hubText.includes("从一道题开始") && hubText.includes("看见真正的进步"), hubText.slice(0, 700));
       record("app root presents the code experience as a static screenshot", previewText === "界面截图" && previewImage.naturalWidth >= 700 && previewImage.naturalHeight >= 400, JSON.stringify({ previewText, previewImage }));
       record("app root screenshot has explicit alternative text", Boolean(previewImage.alt?.includes("编程与评测界面预览")), previewImage.alt || "");
       record("app root explains the learning loop", learningSteps === 3 && hubText.includes("练习") && hubText.includes("评测") && hubText.includes("复盘"), `steps ${learningSteps}; ${hubText.slice(0, 500)}`);
-      record("app root exposes canonical paths", canonicalHrefs.includes("/app/student") && canonicalHrefs.includes("/app/teacher"), canonicalHrefs.join("|"));
+      record("app root exposes canonical paths", canonicalHrefs.includes("/code/student") && canonicalHrefs.includes("/code/teacher"), canonicalHrefs.join("|"));
       record("app root keeps one action per role", await roleActions.count() === 2, `role actions ${await roleActions.count()}`);
       record("app root keeps top nav simple", navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("app root fits the viewport", documentWidth <= viewport.width, `document ${documentWidth}; viewport ${viewport.width}`);
@@ -1130,7 +1130,7 @@ const scenarios = [
   },
   {
     name: "student-default",
-    path: "/app/student",
+    path: "/code/student",
     beforeChecks: async page => {
       await page.evaluate(() => {
         Object.keys(window.sessionStorage)
@@ -1151,44 +1151,44 @@ const scenarios = [
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const loginActions = await page.locator(".student-guest-login-action").count();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-      record("student direct URL opens entry", page.url().includes("/app/student"), page.url());
+      record("student direct URL opens entry", page.url().includes("/code/student"), page.url());
       record("student entry keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("student guest page keeps one login action", loginActions === 1, `login actions ${loginActions}`);
       record("student guest page has no horizontal overflow", overflow <= 1, `overflow ${overflow}; viewport ${viewport.width}`);
-      const publicCatalogAction = page.locator('.student-guest-practice__action[href="/app/student/assignments/public"]');
+      const publicCatalogAction = page.locator('.student-guest-practice__action[href="/code/student/assignments/public"]');
       if (await publicCatalogAction.isVisible()) {
         await publicCatalogAction.click();
       } else {
         await publicCatalogAction.evaluate(element => element.click());
       }
-      await page.waitForURL(url => url.pathname === "/app/student/assignments/public", { timeout: 5000 });
-      record("student guest public practice action opens the catalog", page.url().includes("/app/student/assignments/public"), page.url());
+      await page.waitForURL(url => url.pathname === "/code/student/assignments/public", { timeout: 5000 });
+      record("student guest public practice action opens the catalog", page.url().includes("/code/student/assignments/public"), page.url());
       await page.goBack({ waitUntil: "domcontentloaded" });
       await page.locator(".student-guest-practice").first().waitFor({ state: "visible", timeout: 5000 });
       await page.locator(".student-guest-login-action").click();
-      await page.waitForURL(url => url.pathname === "/app/student/login", { timeout: 5000 });
-      record("student guest assignment action opens login", page.url().includes("/app/student/login"), page.url());
+      await page.waitForURL(url => url.pathname === "/code/student/login", { timeout: 5000 });
+      record("student guest assignment action opens login", page.url().includes("/code/student/login"), page.url());
       await page.goBack({ waitUntil: "domcontentloaded" });
       await page.locator(".student-guest-practice").first().waitFor({ state: "visible", timeout: 5000 });
     }
   },
   {
     name: "public-assignment",
-    path: "/app/student/assignments/public",
+    path: "/code/student/assignments/public",
     beforeChecks: async page => {
       let returnDocumentRequests = 0;
       const countReturnDocumentRequest = request => {
         const url = new URL(request.url());
-        if (request.isNavigationRequest() && request.resourceType() === "document" && url.pathname === "/app/student") {
+        if (request.isNavigationRequest() && request.resourceType() === "document" && url.pathname === "/code/student") {
           returnDocumentRequests += 1;
         }
       };
       page.on("request", countReturnDocumentRequest);
-      await page.locator('.student-home-command--entry a[href="/app/student"]').click();
-      await page.waitForURL(url => url.pathname === "/app/student", { timeout: 5000 });
+      await page.locator('.student-home-command--entry a[href="/code/student"]').click();
+      await page.waitForURL(url => url.pathname === "/code/student", { timeout: 5000 });
       record("public catalog back action performs a full navigation", returnDocumentRequests === 1, `document requests ${returnDocumentRequests}`);
       page.off("request", countReturnDocumentRequest);
-      await page.goto(new URL("/app/student/assignments/public", page.url()).href, { waitUntil: "domcontentloaded" });
+      await page.goto(new URL("/code/student/assignments/public", page.url()).href, { waitUntil: "domcontentloaded" });
       await page.locator(".public-problem-link").filter({ hasText: "求和边界" }).first().click();
       await page.locator(".problem-workbench").first().waitFor({ state: "visible", timeout: 10000 });
     },
@@ -1199,7 +1199,7 @@ const scenarios = [
       const navigationRailCount = await page.locator(".problem-workbench-rail").count();
       const shellColumns = await page.locator(".problem-workbench-shell").first().evaluate(element => window.getComputedStyle(element).gridTemplateColumns);
       record("public assignment keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
-      record("public assignment opens workbench", page.url().includes("/app/student/assignments/public/problems/101"), page.url());
+      record("public assignment opens workbench", page.url().includes("/code/student/assignments/public/problems/101"), page.url());
       record("public assignment keeps the problem list", taskSidebarCount === 1, `task sidebar count ${taskSidebarCount}`);
       record("public assignment omits the navigation rail", navigationRailCount === 0, `navigation rail count ${navigationRailCount}`);
       record("public assignment shell uses the full width", shellColumns.trim().split(/\s+/).length === 1, shellColumns);
@@ -1215,7 +1215,7 @@ const scenarios = [
   },
   {
     name: "student",
-    path: "/app/student",
+    path: "/code/student",
     afterChecks: async (page, viewport) => {
       await page.locator(".student-assignment-board").first().waitFor({ state: "visible", timeout: 10000 });
       const navCount = await page.locator(".top-nav__link").count();
@@ -1264,25 +1264,25 @@ const scenarios = [
   },
   {
     name: "student-assignment",
-    path: "/app/student/assignments/7",
+    path: "/code/student/assignments/7",
     afterChecks: async page => {
       const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
       const tabHrefs = await page.locator("[data-student-assignment-navigation] a").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
       const rowCount = await page.locator(".student-assignment-progress-row").count();
       const continueHref = await page.locator(".student-assignment-continue").getAttribute("href");
-      record("student assignment stays on assignment overview", page.url().endsWith("/app/student/assignments/7"), page.url());
+      record("student assignment stays on assignment overview", page.url().endsWith("/code/student/assignments/7"), page.url());
       record(
         "student assignment has canonical four destination navigation",
         tabHrefs.length === 4
-          && tabHrefs[0] === "/app/student/assignments/7"
-          && tabHrefs[1]?.startsWith("/app/student/assignments/7/problems/")
-          && tabHrefs[2] === "/app/student/assignments/7/submissions"
-          && tabHrefs[3] === "/app/student/assignments/7/ranking",
+          && tabHrefs[0] === "/code/student/assignments/7"
+          && tabHrefs[1]?.startsWith("/code/student/assignments/7/problems/")
+          && tabHrefs[2] === "/code/student/assignments/7/submissions"
+          && tabHrefs[3] === "/code/student/assignments/7/ranking",
         tabHrefs.join("|")
       );
       record("student assignment summary uses trajectory facts", pageText.includes("进度1/2") && pageText.includes("已通过1题") && pageText.includes("总提交4"), pageText);
       record("student assignment lists every task", rowCount === assignment.tasks.length, `rows ${rowCount}`);
-      record("student assignment continue action opens coding page", continueHref?.startsWith("/app/student/assignments/7/problems/") === true, continueHref || "missing");
+      record("student assignment continue action opens coding page", continueHref?.startsWith("/code/student/assignments/7/problems/") === true, continueHref || "missing");
     },
     selectors: [
       [".student-assignment-insights-page", "student assignment overview"],
@@ -1292,13 +1292,13 @@ const scenarios = [
   },
   {
     name: "student-assignment-ranking",
-    path: "/app/student/assignments/7/ranking",
+    path: "/code/student/assignments/7/ranking",
     afterChecks: async page => {
       const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
       const currentRows = await page.locator(".student-ranking-row.is-current").count();
       const currentText = ((await page.locator(".student-ranking-row.is-current").textContent()) || "").replace(/\s+/g, "");
       const tabHrefs = await page.locator("[data-student-assignment-navigation] a").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
-      record("student ranking route is stable", page.url().endsWith("/app/student/assignments/7/ranking"), page.url());
+      record("student ranking route is stable", page.url().endsWith("/code/student/assignments/7/ranking"), page.url());
       record("student ranking highlights current student", currentRows === 1 && currentText.includes("学生甲（我）") && currentText.includes("4"), currentText);
       record("student ranking masks classmates", pageText.includes("王同学") && !pageText.includes("王小明"), pageText);
       record("student ranking explains progress-only ties", pageText.includes("按已通过题数排名") && pageText.includes("同完成度并列") && pageText.includes("不按运行时间或提交速度"), pageText);
@@ -1313,7 +1313,7 @@ const scenarios = [
   },
   {
     name: "student-assignment-submissions",
-    path: "/app/student/assignments/7/submissions",
+    path: "/code/student/assignments/7/submissions",
     afterChecks: async (page, viewport) => {
       const rowCount = await page.locator(".student-submission-row").count();
       const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
@@ -1324,7 +1324,7 @@ const scenarios = [
       }));
       const visibleFilterLabels = await page.locator(".student-submission-filter-label").allTextContents();
       const languageOptions = await page.locator(".student-submission-filter--language option").allTextContents();
-      record("student submissions route is stable", page.url().endsWith("/app/student/assignments/7/submissions"), page.url());
+      record("student submissions route is stable", page.url().endsWith("/code/student/assignments/7/submissions"), page.url());
       record("student submissions omit the redundant summary band", await page.locator(".student-submission-summary").count() === 0);
       record("student submissions paginate first page", rowCount === 8, `rows ${rowCount}`);
       record("student submissions hides assistive-only labels", hiddenLabelMetrics.length === 4 && hiddenLabelMetrics.every(item => item.width <= 1 && item.height <= 1 && item.position === "absolute"), JSON.stringify(hiddenLabelMetrics));
@@ -1361,7 +1361,7 @@ const scenarios = [
       await page.getByRole("button", { name: "全部", exact: true }).click();
       await page.waitForFunction(() => document.querySelectorAll(".student-submission-row").length === 8);
       await page.getByRole("link", { name: "查看 AI 评测" }).first().click();
-      await page.waitForURL(url => url.pathname === "/app/student/assignments/7/problems/101" && url.searchParams.get("submissionId") === "9001", { timeout: 5000 });
+      await page.waitForURL(url => url.pathname === "/code/student/assignments/7/problems/101" && url.searchParams.get("submissionId") === "9001", { timeout: 5000 });
       await page.locator(".problem-result-modal").waitFor({ state: "visible", timeout: 10000 });
       await page.waitForFunction(() => document.querySelector(".problem-result-modal")?.textContent?.includes("输入没有完整读取"), null, { timeout: 10000 });
       const returnToSubmissions = page.getByRole("link", { name: "返回提交记录" });
@@ -1373,7 +1373,7 @@ const scenarios = [
         `${page.url()} | ${linkedReviewText}`
       );
       await page.getByRole("button", { name: "关闭结果" }).click();
-      await page.waitForURL("**/app/student/assignments/7/submissions", { timeout: 5000 });
+      await page.waitForURL("**/code/student/assignments/7/submissions", { timeout: 5000 });
       await page.locator(".student-submission-history").waitFor({ state: "visible", timeout: 10000 });
     },
     selectors: [
@@ -1384,7 +1384,7 @@ const scenarios = [
   },
   {
     name: "problem",
-    path: "/app/student/assignments/7/problems/101?studentProfileId=41&recommendationToken=rec-next-101",
+    path: "/code/student/assignments/7/problems/101?studentProfileId=41&recommendationToken=rec-next-101",
     beforeChecks: async page => {
       await page.locator(".panel--editor button.ui-button--primary").first().click();
       await page.locator(".problem-result-modal").first().waitFor({ state: "visible", timeout: 10000 });
@@ -1718,14 +1718,14 @@ const scenarios = [
   },
   {
     name: "teacher",
-    path: "/app/teacher",
+    path: "/code/teacher",
     afterChecks: async (page, viewport) => {
       const shellText = ((await page.locator(".teacher-shell-nav").first().textContent()) || "").replace(/\s+/g, "");
       const teacherText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
       record("teacher shell nav uses analytics entry", shellText.includes("教学分析") && !shellText.includes("作业中心班级学情"), shellText);
       record("teacher root redirects to class chooser", teacherText.includes("选择班级") && teacherText.includes("高一1班"), teacherText.slice(0, 800));
       record("teacher analytics avoids decision copy", !teacherText.includes("下一步") && !teacherText.includes("建议") && !teacherText.includes("讲评"), teacherText.slice(0, 800));
-      record("teacher create action goes to dedicated page", await page.locator('a[href="/app/teacher/assignment/new"]').first().isVisible(), teacherText.slice(0, 800));
+      record("teacher create action goes to dedicated page", await page.locator('a[href="/code/teacher/assignment/new"]').first().isVisible(), teacherText.slice(0, 800));
       record(
         "teacher main copy hides engineering tokens",
         !/BLOCKED|RECOVERED|NOT_COMPARABLE|fallback|smoke|profile/i.test(teacherText),
@@ -1747,7 +1747,7 @@ const scenarios = [
   },
   {
     name: "assignment-analytics",
-    path: "/app/teacher/classes/3/assignments/7",
+    path: "/code/teacher/classes/3/assignments/7",
     afterChecks: async (page, viewport) => {
       const assignmentText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
       record("assignment analytics exposes objective metrics", assignmentText.includes("提交人数") && assignmentText.includes("正确率") && assignmentText.includes("平均提交"), assignmentText.slice(0, 900));
@@ -1772,7 +1772,7 @@ const scenarios = [
   },
   {
     name: "assignment-create",
-    path: "/app/teacher/assignment/new",
+    path: "/code/teacher/assignment/new",
     afterChecks: async page => {
       const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
       const createText = ((await page.locator(".assignment-builder-page").first().textContent()) || "").replace(/\s+/g, "");
@@ -1793,11 +1793,11 @@ const scenarios = [
   },
   {
     name: "teacher-management",
-    path: "/app/teacher/manage",
+    path: "/code/teacher/manage",
     afterChecks: async (page, viewport) => {
       const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
       const managementText = ((await page.locator(".teacher-manage-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher management redirects to class roster", page.url().includes("/app/teacher/manage/classes"), page.url());
+      record("teacher management redirects to class roster", page.url().includes("/code/teacher/manage/classes"), page.url());
       record("teacher management belongs to roster nav", activeNav.join("|").includes("班级名单"), activeNav.join("|"));
       record("teacher management does not also mark analytics", !activeNav.join("|").includes("教学分析"), activeNav.join("|"));
       record("teacher management shows class roster only", managementText.includes("班级名单") && managementText.includes("名单维护") && managementText.includes("创建班级") && managementText.includes("导入名单"), managementText.slice(0, 900));
@@ -1823,7 +1823,7 @@ const scenarios = [
   },
   {
     name: "teacher-management-system",
-    path: "/app/teacher/manage/system",
+    path: "/code/teacher/manage/system",
     afterChecks: async (page, viewport) => {
       const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
       const systemText = ((await page.locator(".teacher-manage-page").first().textContent()) || "").replace(/\s+/g, "");
@@ -1845,7 +1845,7 @@ const scenarios = [
   },
   {
     name: "class-analytics",
-    path: "/app/teacher/classes/3",
+    path: "/code/teacher/classes/3",
     beforeChecks: async (page) => {
       await checkVisible(page, ".teacher-analytics-board", "class analytics board");
     },
@@ -1870,7 +1870,7 @@ const scenarios = [
   },
   {
     name: "problem-analytics",
-    path: "/app/teacher/classes/3/assignments/7/problems/101",
+    path: "/code/teacher/classes/3/assignments/7/problems/101",
     afterChecks: async page => {
       const problemText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
       record("problem analytics shows problem objective results", problemText.includes("求和边界") && problemText.includes("未通过人数") && problemText.includes("证据样本"), problemText.slice(0, 900));
@@ -1987,7 +1987,7 @@ async function empty(route, status = 204) {
 async function routeApi(route) {
   const request = route.request();
   const url = new URL(request.url());
-  const path = url.pathname;
+  const path = url.pathname.replace(/^\/code/, "");
   const method = request.method();
 
   if (path === "/api/invites/resolve" && method === "POST") return json(route, assignment);
@@ -2253,7 +2253,7 @@ async function runScenario(baseUrl, browser, viewport, scenario) {
     window.sessionStorage.setItem("wzai:student", studentJson);
     window.sessionStorage.setItem("wzai:student:7", studentJson);
   }, { studentJson: JSON.stringify(student) });
-  await context.route("**/api/**", routeApi);
+  await context.route("**/code/api/**", routeApi);
 
   const page = await context.newPage();
   const pageErrors = [];
@@ -2327,7 +2327,7 @@ async function main() {
 
   let browser;
   try {
-    await waitForServer(`${baseUrl}/app/`, child, previewOutput);
+    await waitForServer(`${baseUrl}/code/`, child, previewOutput);
     try {
       browser = await chromium.launch({
         headless: true,

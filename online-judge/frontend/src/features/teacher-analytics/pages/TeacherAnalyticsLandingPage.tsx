@@ -37,7 +37,7 @@ export default function TeacherAnalyticsLandingPage() {
           <h1>{t("teacherAnalytics.landing.title")}</h1>
           <p>{t("teacherAnalytics.landing.description")}</p>
         </div>
-        <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
+        <ButtonLink to="/code/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
           {t("teacherAnalytics.actions.newAssignment")}
         </ButtonLink>
       </section>
@@ -50,7 +50,7 @@ export default function TeacherAnalyticsLandingPage() {
         ) : classes.length ? (
           <div className="teacher-analytics-class-grid">
             {classes.map(classGroup => (
-              <Link className="teacher-analytics-class-card" to={`/app/teacher/classes/${classGroup.id}`} key={classGroup.id}>
+              <Link className="teacher-analytics-class-card" to={`/code/teacher/classes/${classGroup.id}`} key={classGroup.id}>
                 <span>{classGroup.grade || t("teacherAnalytics.landing.classFallback")}</span>
                 <strong>{classGroup.name}</strong>
                 <small>{classGroup.teacherName || t("teacherAnalytics.landing.noTeacherName")}</small>

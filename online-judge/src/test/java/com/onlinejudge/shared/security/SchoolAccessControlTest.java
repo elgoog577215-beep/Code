@@ -87,6 +87,21 @@ class SchoolAccessControlTest {
     }
 
     @Test
+    void codeApiPrefixPreservesTeacherAuthenticationAndPublicApiRouting() throws Exception {
+        mockMvc.perform(get("/code/api/teacher/assignments"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/code/api/teacher/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"test-teacher-password\"}"))
+                .andExpect(status().isOk())
+                .andExpect(cookie().exists(TeacherSessionService.COOKIE_NAME));
+
+        mockMvc.perform(get("/code/api/system/readiness"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void loggedTeacherCanQueryEditDisableAndEnableStandardLibraryItems() throws Exception {
         String cookie = loginTeacherCookie();
 

@@ -63,7 +63,7 @@ export default function StudentAssignmentRankingPage() {
   }, [numericAssignmentId, workspace.student]);
 
   const rows = useMemo(() => visibleRankingRows(leaderboard), [leaderboard]);
-  if (!workspace.student) return <Navigate to="/app/student/login" replace />;
+  if (!workspace.student) return <Navigate to="/code/student/login" replace />;
   if (workspace.loading || rankingLoading) return <EmptyState title="正在读取班内排名" live />;
   if (!workspace.assignment) return <EmptyState title={workspace.failed || "作业不存在"} />;
 

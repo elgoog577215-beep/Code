@@ -55,8 +55,8 @@ function studentIssue(student: AssignmentOverview["students"][number]) {
 function makeCell(assignment: ClassAssignment, student: AssignmentOverview["students"][number]): ProgressCell {
   const evidence = student.attentionEvidence?.find(item => item.problemId) || student.attentionEvidence?.[0];
   const href = evidence?.problemId
-    ? `/app/teacher/assignment/${assignment.id}/problems/${evidence.problemId}/students/${student.studentProfileId}`
-    : `/app/teacher/assignment/${assignment.id}`;
+    ? `/code/teacher/assignment/${assignment.id}/problems/${evidence.problemId}/students/${student.studentProfileId}`
+    : `/code/teacher/assignment/${assignment.id}`;
   if (student.needsAttention) {
     return {
       assignmentId: assignment.id,
@@ -98,7 +98,7 @@ function emptyCell(assignmentId: number): ProgressCell {
 }
 
 function firstStudentHref(row: ProgressRow) {
-  return row.cells.find(cell => cell.tone === "attention" && cell.href)?.href || row.cells.find(cell => cell.href)?.href || "/app/teacher/classes";
+  return row.cells.find(cell => cell.tone === "attention" && cell.href)?.href || row.cells.find(cell => cell.href)?.href || "/code/teacher/classes";
 }
 
 export default function ClassOverviewPage() {
@@ -203,16 +203,16 @@ export default function ClassOverviewPage() {
     <div className="stack class-overview-page class-progress-page">
       <section className="overview-command class-progress-command">
         <div className="overview-command__main">
-          <Link to="/app/teacher" className="teacher-page-breadcrumb">
+          <Link to="/code/teacher" className="teacher-page-breadcrumb">
             <ArrowLeft size={15} /> {t("classOverview.breadcrumb")}
           </Link>
           <h1>{t("classOverview.title")}</h1>
         </div>
         <div className="teacher-home-actions">
-          <ButtonLink to="/app/teacher" variant="secondary" icon={<ArrowLeft size={16} />}>
+          <ButtonLink to="/code/teacher" variant="secondary" icon={<ArrowLeft size={16} />}>
             {t("classOverview.backAssignments")}
           </ButtonLink>
-          <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={16} />}>
+          <ButtonLink to="/code/teacher/assignment/new" variant="primary" icon={<Plus size={16} />}>
             {t("classOverview.newAssignment")}
           </ButtonLink>
         </div>
@@ -288,7 +288,7 @@ export default function ClassOverviewPage() {
               <div className="class-progress-grid class-progress-grid--head" style={gridStyle}>
                 <span>学生</span>
                 {columns.map(assignment => (
-                  <Link to={`/app/teacher/assignment/${assignment.id}`} key={assignment.id}>
+                  <Link to={`/code/teacher/assignment/${assignment.id}`} key={assignment.id}>
                     <strong>{assignment.title}</strong>
                     <small>{assignmentStatusLabel(assignment.status)}</small>
                   </Link>
