@@ -14,6 +14,7 @@ APP_ROOT="${REPO_ROOT}/online-judge"
 LOCK_FILE="${OJ_DEPLOY_LOCK_FILE:-/var/lock/online-judge-deploy.lock}"
 CADDY_CONFIG="${OJ_CADDY_CONFIG:-/etc/caddy/Caddyfile}"
 ROUTE_CONTRACT="${OJ_ROUTE_CONTRACT:-${APP_ROOT}/config/route-ownership.json}"
+APP_START_TIMEOUT_SECONDS="${OJ_APP_START_TIMEOUT_SECONDS:-120}"
 
 if [[ ! -d "${REPO_ROOT}/.git" || ! -d "${APP_ROOT}" ]]; then
   echo "部署目录不存在：${APP_ROOT}" >&2
@@ -59,6 +60,10 @@ if [[ ! -f "${ROUTE_CONTRACT}" ]]; then
   echo "路由所有权合同不存在：${ROUTE_CONTRACT}" >&2
   exit 2
 fi
+if [[ ! "${APP_START_TIMEOUT_SECONDS}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "OJ_APP_START_TIMEOUT_SECONDS 必须是正整数秒数。" >&2
+  exit 2
+fi
 
 PUBLIC_HOST="$(jq -er '.productionHost' "${ROUTE_CONTRACT}")"
 PUBLIC_PATH="$(jq -er '.onlineJudge.publicPath' "${ROUTE_CONTRACT}")"
@@ -83,15 +88,16 @@ bash scripts/start-school.sh
 
 docker compose ps
 
-for attempt in $(seq 1 30); do
+APP_START_DEADLINE=$((SECONDS + APP_START_TIMEOUT_SECONDS))
+while true; do
   if curl --fail --silent --show-error --max-time 5 \
     "http://127.0.0.1:${SERVER_PORT:-8081}${PUBLIC_PATH}" >/dev/null \
     && curl --fail --silent --show-error --max-time 5 \
       "http://127.0.0.1:${SERVER_PORT:-8081}${PUBLIC_API_PREFIX}/system/readiness" >/dev/null; then
     break
   fi
-  if [[ "${attempt}" == "30" ]]; then
-    echo "应用在等待窗口内未通过 ${PUBLIC_PATH} 页面或 API 前缀探针。" >&2
+  if ((SECONDS >= APP_START_DEADLINE)); then
+    echo "应用在 ${APP_START_TIMEOUT_SECONDS} 秒内未通过 ${PUBLIC_PATH} 页面或 API 前缀探针。" >&2
     exit 1
   fi
   sleep 2

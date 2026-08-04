@@ -64,6 +64,8 @@ class SchoolDeploymentScriptSafetyTest {
                 "OJ_DEPLOY_REFRESHED=true OJ_DEPLOY_LOCK_HELD=true",
                 "PUBLIC_HOST=\"$(jq -er '.productionHost' \"${ROUTE_CONTRACT}\")\"",
                 "PUBLIC_PATH=\"$(jq -er '.onlineJudge.publicPath' \"${ROUTE_CONTRACT}\")\"",
+                "APP_START_TIMEOUT_SECONDS=\"${OJ_APP_START_TIMEOUT_SECONDS:-120}\"",
+                "APP_START_DEADLINE=$((SECONDS + APP_START_TIMEOUT_SECONDS))",
                 "CADDY_CONFIG=\"${OJ_CADDY_CONFIG:-/etc/caddy/Caddyfile}\"",
                 "caddy validate --config \"${CADDY_CONFIG}\"",
                 "http://127.0.0.1:${SERVER_PORT:-8081}${PUBLIC_PATH}",
