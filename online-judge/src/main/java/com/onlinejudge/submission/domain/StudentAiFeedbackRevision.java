@@ -67,6 +67,12 @@ public class StudentAiFeedbackRevision {
     @Column(name = "feedback_json", columnDefinition = "TEXT")
     private String feedbackJson;
 
+    @Column(name = "analysis_json", columnDefinition = "TEXT")
+    private String analysisJson;
+
+    @Column(name = "evidence_json", columnDefinition = "TEXT")
+    private String evidenceJson;
+
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 

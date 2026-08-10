@@ -14,6 +14,8 @@ public class AssignmentOverviewResponse {
     private long participantCount;
     private long submittedStudentCount;
     private long unsubmittedStudentCount;
+    private long completedRequiredStudentCount;
+    private long requiredProblemCount;
     private long attemptCount;
     private long passedAttemptCount;
     private Double studentPassRate;
@@ -121,13 +123,16 @@ public class AssignmentOverviewResponse {
         private Long classStudentCount;
         private long submittedStudentCount;
         private long submissionCount;
+        private long effectiveAttemptCount;
         private long passedStudentCount;
+        private long firstPassStudentCount;
         private long passedAttemptCount;
         private Double submissionRate;
         private Double passRate;
         private Double studentPassRate;
         private Double attemptPassRate;
         private Double averageAttempts;
+        private Double medianEffectiveAttempts;
         private long attentionStudentCount;
         private String statusLabel;
         private DataCompleteness dataCompleteness;
@@ -146,6 +151,7 @@ public class AssignmentOverviewResponse {
         private String displayName;
         private String studentNo;
         private long attemptCount;
+        private long effectiveAttemptCount;
         private long passedCount;
         private Long latestSubmissionId;
         private String latestVerdict;
@@ -158,6 +164,7 @@ public class AssignmentOverviewResponse {
         private String latestHintAction;
         private String latestProgressSignal;
         private Double latestConfidence;
+        private com.onlinejudge.submission.dto.SubmissionGrowthSummaryResponse latestGrowthSummary;
         private StudentTrajectoryResponse.AiFeedbackImpact latestAiFeedbackImpact;
         private StudentRecentState recentLearningState;
         private boolean needsAttention;
@@ -214,6 +221,7 @@ public class AssignmentOverviewResponse {
         private long affectedProblemCount;
         private List<Long> affectedStudentIds;
         private List<Long> repeatedStudentIds;
+        private List<Long> resolvedStudentIds;
         private List<Long> affectedProblemIds;
         private List<Long> evidenceSubmissionIds;
         private List<SubmissionEvidenceRef> evidenceSamples;

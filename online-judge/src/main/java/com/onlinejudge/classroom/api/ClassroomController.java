@@ -13,8 +13,10 @@ import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.classroom.application.StudentRecommendationService;
 import com.onlinejudge.classroom.application.StudentAiFeedbackObservabilityService;
 import com.onlinejudge.classroom.application.StudentTrajectoryService;
+import com.onlinejudge.classroom.application.TeacherSubmissionEvidenceService;
 import com.onlinejudge.submission.application.SubmissionEvidenceBackfillService;
 import com.onlinejudge.submission.application.SubmissionAnalysisService;
+import com.onlinejudge.submission.application.StudentAiFeedbackAsyncService;
 import com.onlinejudge.submission.dto.SubmissionEvidenceBackfillResponse;
 import com.onlinejudge.submission.dto.SubmissionHistorySummaryResponse;
 import com.onlinejudge.classroom.dto.*;
@@ -51,6 +53,8 @@ public class ClassroomController {
     private final StudentAccessTokenService studentAccessTokenService;
     private final SubmissionEvidenceBackfillService submissionEvidenceBackfillService;
     private final SubmissionAnalysisService submissionAnalysisService;
+    private final TeacherSubmissionEvidenceService teacherSubmissionEvidenceService;
+    private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
 
     @GetMapping("/api/teacher/classes")
     public ResponseEntity<List<ClassGroupResponse>> getClasses() {
@@ -152,6 +156,22 @@ public class ClassroomController {
                 assignmentId,
                 studentProfileId
         ));
+    }
+
+    @GetMapping("/api/teacher/assignments/{assignmentId}/submissions/{submissionId}/evidence")
+    public ResponseEntity<TeacherSubmissionEvidenceResponse> getTeacherSubmissionEvidence(
+            @PathVariable Long assignmentId,
+            @PathVariable Long submissionId) {
+        return ResponseEntity.ok(teacherSubmissionEvidenceService.getEvidence(assignmentId, submissionId));
+    }
+
+    @PostMapping("/api/teacher/assignments/{assignmentId}/submissions/{submissionId}/analysis/regenerate")
+    public ResponseEntity<Void> regenerateTeacherSubmissionAnalysis(
+            @PathVariable Long assignmentId,
+            @PathVariable Long submissionId) {
+        teacherSubmissionEvidenceService.requireSubmissionAccess(assignmentId, submissionId);
+        studentAiFeedbackAsyncService.enqueueRegeneration(submissionId);
+        return ResponseEntity.accepted().build();
     }
 
     @GetMapping("/api/teacher/submission-evidence/backfill-preview")

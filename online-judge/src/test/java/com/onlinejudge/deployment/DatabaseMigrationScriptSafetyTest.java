@@ -67,7 +67,7 @@ class DatabaseMigrationScriptSafetyTest {
     void productionDeployWaitsForApplicationMigrationBeforeDatabaseGates() throws IOException {
         String script = read("deploy-online-judge.sh");
 
-        int applicationProbe = script.indexOf("\"http://127.0.0.1:${SERVER_PORT:-8081}/code/\"");
+        int applicationProbe = script.indexOf("\"http://127.0.0.1:${SERVER_PORT:-8081}${PUBLIC_PATH}\"");
         int schemaGate = script.indexOf("bash scripts/check-database-schema-readiness.sh");
         int disciplineGate = script.indexOf("bash scripts/check-discipline-data-quality.sh");
         int semanticGate = script.indexOf("bash scripts/check-test-case-semantic-quality.sh");
@@ -76,6 +76,25 @@ class DatabaseMigrationScriptSafetyTest {
         assertThat(schemaGate).isGreaterThan(applicationProbe);
         assertThat(disciplineGate).isGreaterThan(applicationProbe);
         assertThat(semanticGate).isGreaterThan(applicationProbe);
+    }
+
+    @Test
+    void teacherAnalysisVersionMigrationIsCoveredByDeploymentGates() throws IOException {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V10__preserve_teacher_analysis_versions.sql"));
+        String readiness = read("check-database-schema-readiness.sh");
+        String migrationTest = read("test-postgres-migrations.sh");
+
+        assertThat(migration)
+                .contains("analysis_json", "evidence_json", "feedback_revision_id")
+                .contains("idx_teacher_corrections_feedback_revision")
+                .doesNotContain("DROP TABLE", "TRUNCATE", "DELETE FROM");
+        assertThat(readiness)
+                .contains("student_ai_feedback_revisions', 'analysis_json")
+                .contains("student_ai_feedback_revisions', 'evidence_json")
+                .contains("teacher_diagnosis_corrections', 'feedback_revision_id")
+                .contains("idx_teacher_corrections_feedback_revision");
+        assertThat(migrationTest).contains("V1-V10", "${VERSION}\" == \"10", "${LEGACY_VERSION}\" == \"10");
     }
 
     @Test
@@ -162,8 +181,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("library_fit_invalid")
                 .contains("post_v5_fact_rows");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"9\" ]]")
-                .contains("V1-V9");
+                .contains("[[ \"${VERSION}\" == \"10\" ]]")
+                .contains("V1-V10");
     }
 
     @Test
@@ -271,8 +290,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("uk_test_case_semantic_code")
                 .contains("idx_submission_case_results_test_case");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"9\" ]]")
-                .contains("V1-V9")
+                .contains("[[ \"${VERSION}\" == \"10\" ]]")
+                .contains("V1-V10")
                 .contains("check-test-case-semantic-quality.sh");
         assertThat(deploy).contains("check-test-case-semantic-quality.sh");
     }

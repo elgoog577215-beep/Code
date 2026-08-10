@@ -105,16 +105,25 @@ public class StudentAiFeedbackService {
 
     @Transactional
     public StudentAiFeedbackLookupResponse markGenerating(Long submissionId) {
+        return markGenerating(submissionId, false);
+    }
+
+    @Transactional
+    public StudentAiFeedbackLookupResponse startNewGeneration(Long submissionId) {
+        return markGenerating(submissionId, true);
+    }
+
+    private StudentAiFeedbackLookupResponse markGenerating(Long submissionId, boolean forceNewVersion) {
         ensureSubmissionExists(submissionId);
         StudentAiFeedback entity = studentAiFeedbackRepository.findBySubmissionId(submissionId)
                 .orElse(StudentAiFeedback.builder()
                         .submissionId(submissionId)
                         .source(SOURCE_MODEL)
                         .build());
-        if ("READY".equals(entity.getStatus()) && !needsContractRefresh(entity)) {
+        if (!forceNewVersion && "READY".equals(entity.getStatus()) && !needsContractRefresh(entity)) {
             return toLookup(entity);
         }
-        if ("GENERATING".equals(entity.getStatus()) && !isGeneratingExpired(entity)) {
+        if (!forceNewVersion && "GENERATING".equals(entity.getStatus()) && !isGeneratingExpired(entity)) {
             return toLookup(entity);
         }
         entity.setGenerationKey(UUID.randomUUID().toString());
@@ -1065,6 +1074,8 @@ public class StudentAiFeedbackService {
                             .status(statusOrFailed(entity.getStatus()))
                             .source(hasText(entity.getSource()) ? entity.getSource() : SOURCE_AI_UNAVAILABLE)
                             .feedbackJson(entity.getFeedbackJson())
+                            .analysisJson(analysisResponse == null || analysis == null ? null : analysis.getReportJson())
+                            .evidenceJson(analysisResponse == null || analysis == null ? null : analysis.getEvidenceJson())
                             .failureReason(entity.getFailureReason())
                             .provider(invocation == null ? null : invocation.getProvider())
                             .model(invocation == null ? null : invocation.getModel())

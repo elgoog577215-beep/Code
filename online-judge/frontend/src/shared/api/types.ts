@@ -999,6 +999,7 @@ export interface TeacherKnowledgePathStat {
   affectedProblemCount: number;
   affectedStudentIds?: number[];
   repeatedStudentIds?: number[];
+  resolvedStudentIds?: number[];
   affectedProblemIds?: number[];
   evidenceSubmissionIds: number[];
   evidenceSamples?: Array<{
@@ -1075,6 +1076,8 @@ export interface AssignmentOverview {
   participantCount: number;
   submittedStudentCount: number;
   unsubmittedStudentCount: number;
+  completedRequiredStudentCount: number;
+  requiredProblemCount: number;
   attemptCount: number;
   passedAttemptCount: number;
   studentPassRate?: number | null;
@@ -1178,13 +1181,16 @@ export interface AssignmentOverview {
     classStudentCount?: number | null;
     submittedStudentCount: number;
     submissionCount: number;
+    effectiveAttemptCount: number;
     passedStudentCount: number;
+    firstPassStudentCount: number;
     passedAttemptCount: number;
     submissionRate?: number | null;
     passRate?: number | null;
     studentPassRate?: number | null;
     attemptPassRate?: number | null;
     averageAttempts?: number | null;
+    medianEffectiveAttempts?: number | null;
     attentionStudentCount: number;
     statusLabel?: string | null;
     dataCompleteness?: TeacherDataCompleteness | null;
@@ -1209,6 +1215,7 @@ export interface AssignmentOverview {
       displayName: string;
       studentNo?: string | null;
       attemptCount: number;
+      effectiveAttemptCount: number;
       passedCount: number;
       latestSubmissionId?: number | null;
       latestVerdict?: string | null;
@@ -1221,6 +1228,7 @@ export interface AssignmentOverview {
       latestHintAction?: string | null;
       latestProgressSignal?: string | null;
       latestConfidence?: number | null;
+      latestGrowthSummary?: SubmissionGrowthSummary | null;
       latestAiFeedbackImpact?: AiFeedbackImpact | null;
       recentLearningState?: TeacherStudentRecentState | null;
       needsAttention: boolean;
@@ -1899,6 +1907,7 @@ export interface TeacherDiagnosisCorrection {
   id: number;
   assignmentId: number;
   submissionId: number;
+  feedbackRevisionId?: number | null;
   studentProfileId?: number | null;
   originalIssueTag?: string | null;
   originalFineGrainedTag?: string | null;
@@ -1912,6 +1921,32 @@ export interface TeacherDiagnosisCorrection {
   evalCandidate: boolean;
   correctedBy?: string | null;
   correctedAt?: string;
+}
+
+export interface TeacherSubmissionAnalysisVersion {
+  id: number;
+  versionNumber: number;
+  generationKey?: string | null;
+  status: string;
+  source?: string | null;
+  officialVersion: boolean;
+  diagnosisRunId?: number | null;
+  diagnosisRunVersion?: number | null;
+  provider?: string | null;
+  model?: string | null;
+  promptVersion?: string | null;
+  schemaVersion?: string | null;
+  generatedAt?: string | null;
+  failureReason?: string | null;
+  analysis?: SubmissionAnalysis | null;
+  feedback?: StudentAiFeedback | null;
+  evidence?: unknown;
+}
+
+export interface TeacherSubmissionEvidence {
+  submission: SubmissionResult;
+  analysisVersions: TeacherSubmissionAnalysisVersion[];
+  corrections: TeacherDiagnosisCorrection[];
 }
 
 export interface DiagnosisTag {

@@ -40,7 +40,8 @@ import type {
   SubmissionHistorySummary,
   SubmissionResult,
   StudentAiFeedbackLookup,
-  TeacherDiagnosisCorrection
+  TeacherDiagnosisCorrection,
+  TeacherSubmissionEvidence
 } from "./types";
 import { YINGQI_SIGNATURE } from "../identity/yingqiSignature";
 import { loadStudentToken } from "../storage";
@@ -251,6 +252,10 @@ export const api = {
     request<SubmissionHistorySummary[]>(
       `/api/teacher/assignments/${assignmentId}/problems/${problemId}/students/${studentProfileId}/growth`
     ),
+  teacherSubmissionEvidence: (assignmentId: number, submissionId: number) =>
+    request<TeacherSubmissionEvidence>(`/api/teacher/assignments/${assignmentId}/submissions/${submissionId}/evidence`),
+  regenerateTeacherSubmissionAnalysis: (assignmentId: number, submissionId: number) =>
+    request<void>(`/api/teacher/assignments/${assignmentId}/submissions/${submissionId}/analysis/regenerate`, { method: "POST" }),
   aiQualityOverview: (id: number) => request<AiQualityOverview>(`/api/teacher/assignments/${id}/ai-quality`),
   studentAiFeedbackObservability: (id: number) =>
     request<StudentAiFeedbackObservability>(`/api/teacher/assignments/${id}/student-ai-feedback-observability`),
@@ -283,6 +288,7 @@ export const api = {
     assignmentId: number,
     payload: {
       submissionId: number;
+      feedbackRevisionId?: number | null;
       correctedIssueTag: string;
       correctedFineGrainedTag?: string | null;
       correctionType?: "DIAGNOSIS" | "KNOWLEDGE_PATH" | "EVIDENCE" | "ADVICE";

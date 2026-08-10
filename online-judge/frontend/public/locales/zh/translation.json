@@ -447,13 +447,13 @@
       "problem": "题目"
     },
     "class": {
-      "description": "查看这个班级跨作业的提交、正确率、错误分布和知识路径。"
+      "description": "先看班级的作业参与情况，再进入作业和题目查看具体学生证据。"
     },
     "assignment": {
-      "description": "查看这次作业的题目结果、错误分布和 AI 知识归因。"
+      "description": "只看提交、完成全部必做题和各题一次通过、最终通过情况。"
     },
     "problem": {
-      "description": "查看这道题的提交情况、错因分布、知识路径和证据样本。"
+      "description": "按问题查看多少学生遇到过、反复出现和后来解决，再进入学生成长轨迹。"
     },
     "actions": {
       "newAssignment": "新建作业",
@@ -497,6 +497,95 @@
       "lowPassProblems": "低通过题",
       "passedStudents": "通过人数",
       "failedStudents": "未通过人数"
+      ,"completedRequiredStudents": "完成全部必做题"
+      ,"firstPassStudents": "一次通过人数"
+      ,"effectiveAttempts": "有效修改"
+      ,"medianEffectiveAttempts": "有效修改中位数"
+      ,"requiredProblemNote": "共 {{count}} 道必做题"
+    },
+    "focus": {
+      "assignmentList": "作业完成情况",
+      "assignmentListDescription": "选择一项作业，继续查看必做题完成情况。",
+      "problemList": "题目完成情况",
+      "problemListDescription": "一次通过与最终通过分开统计；重复点击不会放大有效修改。",
+      "problemCount": "{{count}} 道题",
+      "submitted": "已提交",
+      "submittedOfRoster": "{{submitted}} / {{roster}} 人已提交",
+      "completedRequired": "完成必做题",
+      "firstPass": "一次通过",
+      "eventualPass": "最终通过",
+      "medianEffective": "有效修改中位数",
+      "issueOverview": "全班问题",
+      "issueOverviewDescription": "三个数字可以重叠，不表示百分比组成。",
+      "issueCountsAria": "问题涉及、反复和解决人数",
+      "affected": "遇到过",
+      "repeated": "反复出现",
+      "resolved": "后来解决",
+      "studentList": "学生提交情况",
+      "studentListDescription": "进入学生后查看每次有效修改、问题变化和原始提交证据。",
+      "filteredStudents": "{{issue}}相关学生",
+      "groupDescription": {
+        "affected": "至少一次有效提交出现过这个问题。",
+        "repeated": "这个问题在后续有效修改中持续或复发。",
+        "resolved": "这个问题后来形成了通过或恢复证据。"
+      },
+      "rawSubmissions": "原始提交",
+      "effectiveEdits": "有效修改",
+      "noCurrentIssue": "当前没有可确认的问题信号"
+    },
+    "pattern": {
+      "commonRepeated": "多人遇到，而且部分学生反复卡住",
+      "commonQuick": "多人遇到，但目前没有形成反复证据",
+      "individualRepeated": "人数不多，但需要关注反复出现的学生",
+      "occasional": "目前属于个别一次性问题"
+    },
+    "student": {
+      "loading": "正在读取学生成长轨迹",
+      "notFound": "学生题目记录未找到",
+      "notFoundDescription": "返回题目页面重新选择学生。",
+      "kicker": "学生单题成长",
+      "description": "查看 {{problem}} 的逐次提交、问题变化和保存的 AI 分析版本。",
+      "yes": "是",
+      "no": "否",
+      "latestResult": "最新结果",
+      "verdict": {
+        "accepted": "通过",
+        "wrong_answer": "答案需修正",
+        "compilation_error": "编译失败",
+        "runtime_error": "运行错误",
+        "time_limit_exceeded": "运行超时",
+        "memory_limit_exceeded": "内存超限",
+        "internal_error": "系统环境提示",
+        "pending": "等待评测",
+        "unknown": "未知结果"
+      },
+      "fullTimeline": "全部提交时间线",
+      "timelineCount": "当前显示 {{visible}} / {{total}} 次提交",
+      "loadEarlier": "继续显示更早提交",
+      "submissionEvidence": "提交证据",
+      "loadingEvidence": "正在读取提交证据",
+      "evidenceLoadFailed": "提交证据读取失败。",
+      "sourceCode": "原始代码",
+      "testEvidence": "评测证据",
+      "testPassed": "通过",
+      "testFailed": "未通过",
+      "analysisVersions": "AI 分析版本",
+      "version": "版本 {{version}}",
+      "official": "当前正式版本",
+      "noSavedVersions": "这次提交还没有保存的 AI 分析版本。",
+      "savedAnalysis": "保存的分析",
+      "legacyVersionNoAnalysis": "这个旧版本只保存了学生反馈，无法恢复当时的完整分析；系统不会用当前结果伪造历史。",
+      "regenerate": "重新生成并保留旧版本",
+      "regenerationStarted": "已开始生成新版本，旧版本会继续保留。",
+      "regenerationFailed": "新版本启动失败。",
+      "correctionForVersion": "针对当前版本校正",
+      "selectIssue": "选择主要错因",
+      "optional": "不指定",
+      "correctionSaved": "教师校正已保存，并绑定当前分析版本。",
+      "correctionFailed": "教师校正保存失败。",
+      "savedCorrections": "教师校正记录",
+      "boundVersion": "绑定分析修订 #{{id}}",
+      "unboundLegacyCorrection": "旧校正未绑定分析版本"
     },
     "sections": {
       "metrics": "基础指标",
@@ -653,7 +742,9 @@
       "noInsight": "暂无可归因数据。",
       "noEvidence": "暂无提交证据样本。",
       "noKnowledgePath": "暂无知识路径。",
-      "noIssue": "暂无集中错因"
+      "noIssue": "暂无集中错因",
+      "noNormalizedIssues": "当前没有形成可用于班级统计的规范问题；已有判题和提交记录仍可从学生列表查看。",
+      "noMatchingStudents": "当前分组没有学生。"
     }
   },
   "teacherHome": {

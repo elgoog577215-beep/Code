@@ -64,6 +64,25 @@ public class SubmissionGrowthSummaryService {
         List<Submission> submissions = safe(input).stream()
                 .filter(Objects::nonNull)
                 .filter(item -> item.getId() != null)
+                .toList();
+        if (submissions.isEmpty()) {
+            return Map.of();
+        }
+        Map<ScopeKey, List<Submission>> byScope = submissions.stream()
+                .collect(Collectors.groupingBy(
+                        item -> new ScopeKey(item.getStudentProfileId(), item.getProblemId(), item.getAssignmentId()),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+        Map<Long, SubmissionGrowthSummaryResponse> result = new LinkedHashMap<>();
+        byScope.values().forEach(scope -> result.putAll(summarizeScope(scope)));
+        return result;
+    }
+
+    private Map<Long, SubmissionGrowthSummaryResponse> summarizeScope(Collection<Submission> input) {
+        List<Submission> submissions = safe(input).stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getId() != null)
                 .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(Submission::getId))
                 .toList();
@@ -452,5 +471,8 @@ public class SubmissionGrowthSummaryService {
     }
 
     private record Priority(String title, String status) {
+    }
+
+    private record ScopeKey(Long studentProfileId, Long problemId, Long assignmentId) {
     }
 }

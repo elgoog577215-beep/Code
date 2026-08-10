@@ -54,6 +54,10 @@ export type InsightBucket = {
   unresolvedStudentCount?: number;
   recurringStudentCount?: number;
   recoveredStudentCount?: number;
+  resolvedStudentCount?: number;
+  affectedStudentIds?: number[];
+  repeatedStudentIds?: number[];
+  resolvedStudentIds?: number[];
   recoveryRate?: number | null;
   difficultyClassification?: string | null;
   pathStatus?: "FORMAL" | "PROVISIONAL" | "INFERRED" | "UNCLASSIFIED" | string;
@@ -90,6 +94,7 @@ export type AssignmentRow = {
   problemCount: number;
   submittedStudentCount: number;
   participantCount: number;
+  completedRequiredStudentCount: number;
   passRate: number | null;
   topIssue?: string | null;
 };
@@ -101,6 +106,9 @@ export type ProblemRow = {
   difficulty?: string | null;
   submittedStudentCount: number;
   passedStudentCount: number;
+  firstPassStudentCount: number;
+  effectiveAttemptCount: number;
+  medianEffectiveAttempts?: number | null;
   participantCount: number;
   passRate: number | null;
   topIssue?: string | null;

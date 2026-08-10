@@ -41,6 +41,7 @@ const TeacherAnalyticsLandingPage = lazy(() => import("./features/teacher-analyt
 const ClassAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ClassAnalyticsPage"));
 const AssignmentAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/AssignmentAnalyticsPage"));
 const ProblemAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ProblemAnalyticsPage"));
+const StudentProblemAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/StudentProblemAnalyticsPage"));
 
 type Theme = "light" | "dark";
 type NavItem = {
@@ -178,11 +179,15 @@ function LegacyAssignmentRedirect({ level }: { level: "assignment" | "problem" |
   const match = location.pathname.match(/\/teacher\/assignment\/([^/]+)(?:\/problems\/([^/]+))?(?:\/students\/([^/]+))?/);
   const assignmentId = match?.[1];
   const problemId = match?.[2];
+  const studentProfileId = match?.[3];
   const search = location.search || "";
   if (!assignmentId) {
     return <Navigate to="/teacher/classes" replace />;
   }
   if (level !== "assignment" && problemId) {
+    if (level === "student" && studentProfileId) {
+      return <Navigate to={`/teacher/classes/0/assignments/${assignmentId}/problems/${problemId}/students/${studentProfileId}${search}`} replace />;
+    }
     return <Navigate to={`/teacher/classes/0/assignments/${assignmentId}/problems/${problemId}${search}`} replace />;
   }
   return <Navigate to={`/teacher/classes/0/assignments/${assignmentId}${search}`} replace />;
@@ -341,6 +346,7 @@ export default function App() {
             <Route path="/teacher/classes/:classId" element={<TeacherRoute><ClassAnalyticsPage /></TeacherRoute>} />
             <Route path="/teacher/classes/:classId/assignments/:assignmentId" element={<TeacherRoute><AssignmentAnalyticsPage /></TeacherRoute>} />
             <Route path="/teacher/classes/:classId/assignments/:assignmentId/problems/:problemId" element={<TeacherRoute><ProblemAnalyticsPage /></TeacherRoute>} />
+            <Route path="/teacher/classes/:classId/assignments/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherRoute><StudentProblemAnalyticsPage /></TeacherRoute>} />
             <Route path="/teacher/manage" element={<TeacherRoute><Navigate to="/teacher/manage/classes" replace /></TeacherRoute>} />
             <Route path="/teacher/manage/classes" element={<TeacherRoute><TeacherManagementPage section="classes" /></TeacherRoute>} />
             <Route path="/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />

@@ -115,7 +115,7 @@ public class SubmissionEvidenceAnalyticsService {
                 effectiveFacts,
                 submittedStudentCount
         );
-        RecoveryResult recovery = buildRecovery(legal, effectiveFacts, events);
+        RecoveryResult recovery = buildRecovery(legal, effectiveFacts, events, analyses == null ? Map.of() : analyses);
         Map<Long, AssignmentOverviewResponse.StudentRecentState> recentStates = buildRecentStates(legal, effectiveFacts, recovery.evidence());
         AssignmentOverviewResponse.DataCompleteness completeness = buildCompleteness(
                 submissions,
@@ -319,10 +319,22 @@ public class SubmissionEvidenceAnalyticsService {
                     if (effectiveAttempt) {
                         metric.effectiveOccurrenceCount++;
                     }
-                    if (seen.contains(key) && !previousKeys.contains(key)) {
+                    if (effectiveAttempt && previousKeys.contains(key)) {
+                        metric.repeatedStudentIds.add(current.getStudentProfileId());
+                    }
+                    if (effectiveAttempt && seen.contains(key) && !previousKeys.contains(key)) {
                         metric.recurringStudentIds.add(current.getStudentProfileId());
+                        metric.repeatedStudentIds.add(current.getStudentProfileId());
                     }
                     seen.add(key);
+                }
+                if (effectiveAttempt && current.getVerdict() == Submission.Verdict.ACCEPTED) {
+                    for (String key : seen) {
+                        if (!currentKeys.contains(key)) {
+                            metrics.computeIfAbsent(key, ignored -> new BucketLifecycle())
+                                    .recoveredStudentIds.add(current.getStudentProfileId());
+                        }
+                    }
                 }
                 previous = current;
                 previousKeys = currentKeys;
@@ -363,7 +375,8 @@ public class SubmissionEvidenceAnalyticsService {
     private RecoveryResult buildRecovery(
             List<Submission> legal,
             Map<Long, List<EffectiveFact>> effectiveFacts,
-            List<StudentAiFeedbackEvent> events
+            List<StudentAiFeedbackEvent> events,
+            Map<Long, SubmissionAnalysis> analyses
     ) {
         Map<Long, List<StudentAiFeedbackEvent>> eventsBySubmission = safe(events).stream()
                 .filter(event -> event.getSubmissionId() != null)
@@ -380,21 +393,37 @@ public class SubmissionEvidenceAnalyticsService {
             List<Submission> ordered = group.stream()
                     .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo)))
                     .toList();
-            for (int index = 0; index < ordered.size(); index++) {
-                Submission before = ordered.get(index);
-                Set<String> beforeIssues = issueIds(effectiveFacts.get(before.getId()));
-                if (beforeIssues.isEmpty() || before.getVerdict() == Submission.Verdict.ACCEPTED) {
+            Submission previousEffective = null;
+            Set<String> previousIssues = Set.of();
+            for (Submission current : ordered) {
+                if (!analyses.containsKey(current.getId())) {
                     continue;
                 }
-                if (index + 1 >= ordered.size()) {
-                    changes.add(change(before, null, beforeIssues, Set.of(), "AWAITING_FOLLOWUP", false));
+                Set<String> currentIssues = issueIds(effectiveFacts.get(current.getId()));
+                boolean effectiveAttempt = previousEffective == null
+                        || !Objects.equals(previousEffective.getSourceCode(), current.getSourceCode())
+                        || !Objects.equals(previousEffective.getVerdict(), current.getVerdict())
+                        || !Objects.equals(previousIssues, currentIssues);
+                if (!effectiveAttempt) {
                     continue;
                 }
-                Submission after = ordered.get(index + 1);
-                Set<String> afterIssues = issueIds(effectiveFacts.get(after.getId()));
-                boolean viewed = feedbackViewedBefore(eventsBySubmission.get(before.getId()), after.getSubmittedAt());
-                String status = compare(before, after, beforeIssues, afterIssues);
-                changes.add(change(before, after, beforeIssues, afterIssues, status, viewed));
+                if (previousEffective != null
+                        && !previousIssues.isEmpty()
+                        && previousEffective.getVerdict() != Submission.Verdict.ACCEPTED) {
+                    boolean viewed = feedbackViewedBefore(
+                            eventsBySubmission.get(previousEffective.getId()),
+                            current.getSubmittedAt()
+                    );
+                    String status = compare(previousEffective, current, previousIssues, currentIssues);
+                    changes.add(change(previousEffective, current, previousIssues, currentIssues, status, viewed));
+                }
+                previousEffective = current;
+                previousIssues = currentIssues;
+            }
+            if (previousEffective != null
+                    && !previousIssues.isEmpty()
+                    && previousEffective.getVerdict() != Submission.Verdict.ACCEPTED) {
+                changes.add(change(previousEffective, null, previousIssues, Set.of(), "AWAITING_FOLLOWUP", false));
             }
         }
         long comparable = changes.stream().filter(this::isComparableChange).count();
@@ -843,6 +872,7 @@ public class SubmissionEvidenceAnalyticsService {
 
     private static final class BucketLifecycle {
         private long effectiveOccurrenceCount;
+        private final Set<Long> repeatedStudentIds = new LinkedHashSet<>();
         private final Set<Long> unresolvedStudentIds = new LinkedHashSet<>();
         private final Set<Long> recurringStudentIds = new LinkedHashSet<>();
         private final Set<Long> recoveredStudentIds = new LinkedHashSet<>();
@@ -966,10 +996,7 @@ public class SubmissionEvidenceAnalyticsService {
         }
 
         private AssignmentOverviewResponse.KnowledgePathStat toResponse() {
-            List<Long> repeatedStudentIds = submissionIdsByStudent.entrySet().stream()
-                    .filter(item -> item.getValue().size() >= 2)
-                    .map(Map.Entry::getKey)
-                    .toList();
+            List<Long> repeatedStudentIds = lifecycle.repeatedStudentIds.stream().toList();
             List<AssignmentOverviewResponse.KnowledgePathNode> scopedPath = fact.path().subList(0, nodeIndex + 1);
             String pathKey = scopedPath.stream().map(AssignmentOverviewResponse.KnowledgePathNode::getLabel)
                     .collect(Collectors.joining("/"));
@@ -1019,6 +1046,7 @@ public class SubmissionEvidenceAnalyticsService {
                     .affectedProblemCount(problems.size())
                     .affectedStudentIds(students.stream().toList())
                     .repeatedStudentIds(repeatedStudentIds)
+                    .resolvedStudentIds(lifecycle.recoveredStudentIds.stream().toList())
                     .affectedProblemIds(problems.stream().toList())
                     .evidenceSubmissionIds(submissions.stream().limit(20).toList())
                     .evidenceSamples(submissionSamples.values().stream()

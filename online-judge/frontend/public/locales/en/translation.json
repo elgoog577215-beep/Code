@@ -447,13 +447,13 @@
       "problem": "Problem"
     },
     "class": {
-      "description": "Review cross-assignment submissions, accuracy, error distribution, and knowledge paths."
+      "description": "Start with assignment participation, then drill into problems and student evidence."
     },
     "assignment": {
-      "description": "Review problem results, error distribution, and AI knowledge attribution for this assignment."
+      "description": "Review submissions, completion of all required problems, first-pass results, and eventual passes."
     },
     "problem": {
-      "description": "Review submissions, error distribution, knowledge path, and evidence samples for this problem."
+      "description": "See who encountered, repeated, or later resolved each issue, then open a student's trajectory."
     },
     "actions": {
       "newAssignment": "New assignment",
@@ -497,6 +497,95 @@
       "lowPassProblems": "Low-pass problems",
       "passedStudents": "Passed",
       "failedStudents": "Failed"
+      ,"completedRequiredStudents": "Completed all required"
+      ,"firstPassStudents": "First-pass students"
+      ,"effectiveAttempts": "Effective edits"
+      ,"medianEffectiveAttempts": "Median effective edits"
+      ,"requiredProblemNote": "{{count}} required problems"
+    },
+    "focus": {
+      "assignmentList": "Assignment completion",
+      "assignmentListDescription": "Choose an assignment to review required-problem completion.",
+      "problemList": "Problem completion",
+      "problemListDescription": "First-pass and eventual passes are separate; duplicate clicks do not inflate effective edits.",
+      "problemCount": "{{count}} problems",
+      "submitted": "Submitted",
+      "submittedOfRoster": "{{submitted}} / {{roster}} submitted",
+      "completedRequired": "Completed required",
+      "firstPass": "First pass",
+      "eventualPass": "Eventual pass",
+      "medianEffective": "Median effective edits",
+      "issueOverview": "Class issues",
+      "issueOverviewDescription": "These three counts may overlap and are not parts of a percentage.",
+      "issueCountsAria": "Affected, repeated, and resolved student counts",
+      "affected": "Encountered",
+      "repeated": "Repeated",
+      "resolved": "Later resolved",
+      "studentList": "Student submissions",
+      "studentListDescription": "Open a student to review effective edits, issue changes, and raw submission evidence.",
+      "filteredStudents": "Students related to {{issue}}",
+      "groupDescription": {
+        "affected": "The issue appeared in at least one effective submission.",
+        "repeated": "The issue persisted or recurred after an effective edit.",
+        "resolved": "Later submissions provide accepted or recovery evidence for this issue."
+      },
+      "rawSubmissions": "Raw submissions",
+      "effectiveEdits": "Effective edits",
+      "noCurrentIssue": "No confirmed current issue signal"
+    },
+    "pattern": {
+      "commonRepeated": "Many students encountered it, and some remain stuck",
+      "commonQuick": "Many students encountered it, but no repeated pattern is established",
+      "individualRepeated": "Few students are affected, but repeated cases need attention",
+      "occasional": "Currently an isolated one-time issue"
+    },
+    "student": {
+      "loading": "Loading the student trajectory",
+      "notFound": "Student problem record not found",
+      "notFoundDescription": "Return to the problem page and select the student again.",
+      "kicker": "Student problem trajectory",
+      "description": "Review each submission, issue change, and saved AI analysis version for {{problem}}.",
+      "yes": "Yes",
+      "no": "No",
+      "latestResult": "Latest result",
+      "verdict": {
+        "accepted": "Accepted",
+        "wrong_answer": "Wrong answer",
+        "compilation_error": "Compilation error",
+        "runtime_error": "Runtime error",
+        "time_limit_exceeded": "Time limit exceeded",
+        "memory_limit_exceeded": "Memory limit exceeded",
+        "internal_error": "System judge issue",
+        "pending": "Pending",
+        "unknown": "Unknown result"
+      },
+      "fullTimeline": "Complete submission timeline",
+      "timelineCount": "Showing {{visible}} of {{total}} submissions",
+      "loadEarlier": "Show earlier submissions",
+      "submissionEvidence": "Submission evidence",
+      "loadingEvidence": "Loading submission evidence",
+      "evidenceLoadFailed": "Failed to load submission evidence.",
+      "sourceCode": "Source code",
+      "testEvidence": "Judge evidence",
+      "testPassed": "Passed",
+      "testFailed": "Failed",
+      "analysisVersions": "AI analysis versions",
+      "version": "Version {{version}}",
+      "official": "Current official version",
+      "noSavedVersions": "No saved AI analysis version exists for this submission yet.",
+      "savedAnalysis": "Saved analysis",
+      "legacyVersionNoAnalysis": "This legacy version saved only student feedback. The original full analysis cannot be recovered, so the current result is not used to fabricate history.",
+      "regenerate": "Regenerate and keep history",
+      "regenerationStarted": "A new version is being generated; older versions remain available.",
+      "regenerationFailed": "Failed to start a new version.",
+      "correctionForVersion": "Correct the selected version",
+      "selectIssue": "Select the primary issue",
+      "optional": "Not specified",
+      "correctionSaved": "The teacher correction was saved and linked to this analysis version.",
+      "correctionFailed": "Failed to save the teacher correction.",
+      "savedCorrections": "Teacher corrections",
+      "boundVersion": "Linked to analysis revision #{{id}}",
+      "unboundLegacyCorrection": "Legacy correction without a linked analysis version"
     },
     "sections": {
       "metrics": "Core metrics",
@@ -653,7 +742,9 @@
       "noInsight": "No attribution data yet.",
       "noEvidence": "No evidence samples yet.",
       "noKnowledgePath": "No knowledge path yet.",
-      "noIssue": "No shared issue yet"
+      "noIssue": "No shared issue yet",
+      "noNormalizedIssues": "No normalized issue is ready for class statistics. Judge facts and submissions remain available from the student list.",
+      "noMatchingStudents": "No students in this group."
     }
   },
   "teacherHome": {

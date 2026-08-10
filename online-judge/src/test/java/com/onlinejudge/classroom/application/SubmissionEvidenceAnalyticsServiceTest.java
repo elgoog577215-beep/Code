@@ -103,7 +103,8 @@ class SubmissionEvidenceAnalyticsServiceTest {
                     assertThat(item.getRawOccurrenceCount()).isEqualTo(2);
                     assertThat(item.getEffectiveWeightedOccurrenceCount()).isEqualTo(1);
                     assertThat(item.getAffectedStudentCount()).isEqualTo(1);
-                    assertThat(item.getRepeatedStudentCount()).isEqualTo(1);
+                    assertThat(item.getRepeatedStudentCount()).isZero();
+                    assertThat(item.getRepeatedStudentIds()).isEmpty();
                     assertThat(item.getAffectedProblemCount()).isEqualTo(1);
                     assertThat(item.getRecoveredStudentCount()).isEqualTo(1);
                     assertThat(item.getUnresolvedStudentCount()).isZero();
@@ -111,10 +112,10 @@ class SubmissionEvidenceAnalyticsServiceTest {
                     assertThat(item.getDifficultyClassification()).isEqualTo("OCCASIONAL_INDIVIDUAL");
                 });
         assertThat(summary.recoverySummary().getRecoveryNumerator()).isEqualTo(1);
-        assertThat(summary.recoverySummary().getRecoveryDenominator()).isEqualTo(2);
-        assertThat(summary.recoverySummary().getSameIssueCount()).isEqualTo(1);
+        assertThat(summary.recoverySummary().getRecoveryDenominator()).isEqualTo(1);
+        assertThat(summary.recoverySummary().getSameIssueCount()).isZero();
         assertThat(summary.recoverySummary().getRecoveredCount()).isEqualTo(1);
-        assertThat(summary.recoverySummary().getFeedbackViewedRecoveredCount()).isEqualTo(1);
+        assertThat(summary.recoverySummary().getFeedbackViewedRecoveredCount()).isZero();
         assertThat(summary.recentStates().get(11L).getStatus()).isEqualTo("RECENTLY_RECOVERED");
     }
 

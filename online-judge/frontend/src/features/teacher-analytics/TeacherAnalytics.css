@@ -567,6 +567,512 @@
   }
 }
 
+.teacher-analytics-dashboard--focused {
+  display: grid;
+  gap: 0.82rem;
+}
+
+.teacher-analytics-focus-panel {
+  min-width: 0;
+  padding: 0.92rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.teacher-analytics-focus-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.68rem;
+  margin-bottom: 0.78rem;
+}
+
+.teacher-analytics-focus-title > span,
+.teacher-evidence-section-title > div > span {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: white;
+  background: var(--brand);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.teacher-analytics-focus-title h2,
+.teacher-analytics-focus-title p,
+.teacher-evidence-section-title h2 {
+  margin: 0;
+}
+
+.teacher-analytics-focus-title h2,
+.teacher-evidence-section-title h2 {
+  font-size: 1.08rem;
+}
+
+.teacher-analytics-focus-title p {
+  margin-top: 0.18rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.teacher-analytics-focus-list,
+.teacher-student-growth-list,
+.teacher-issue-overview-list {
+  display: grid;
+  gap: 0.52rem;
+}
+
+.teacher-analytics-focus-row {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(105px, 0.28fr)) auto;
+  align-items: center;
+  gap: 0.72rem;
+  padding: 0.64rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface-strong);
+  text-decoration: none;
+}
+
+.teacher-analytics-focus-row--problem {
+  grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(105px, 0.25fr)) auto;
+}
+
+.teacher-analytics-focus-row:hover,
+.teacher-student-growth-row:hover {
+  border-color: color-mix(in srgb, var(--brand) 46%, var(--line));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--brand) 8%, transparent);
+}
+
+.teacher-analytics-focus-row > div:first-child,
+.teacher-student-growth-row__identity,
+.teacher-student-growth-row__state {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.teacher-analytics-focus-row small,
+.teacher-student-growth-row small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-analytics-inline-metric {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.teacher-analytics-inline-metric span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 820;
+}
+
+.teacher-analytics-inline-metric strong {
+  font-size: 1rem;
+}
+
+.teacher-problem-evidence-layout {
+  display: grid;
+  gap: 0.82rem;
+}
+
+.teacher-issue-overview {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(340px, 0.9fr);
+  align-items: center;
+  gap: 0.72rem;
+  padding: 0.62rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+}
+
+.teacher-issue-overview.is-selected {
+  border-color: color-mix(in srgb, var(--brand) 46%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 28%, var(--surface-strong));
+}
+
+.teacher-issue-overview__title {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teacher-issue-overview__title span {
+  font-weight: 900;
+}
+
+.teacher-issue-overview__title small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.teacher-issue-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.38rem;
+}
+
+.teacher-issue-counts button {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.34rem;
+  padding: 0.42rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.teacher-issue-counts button.is-active {
+  color: var(--brand-strong);
+  border-color: color-mix(in srgb, var(--brand) 54%, var(--line));
+  background: var(--brand-soft);
+}
+
+.teacher-issue-counts button span {
+  font-size: 0.75rem;
+  font-weight: 850;
+}
+
+.teacher-issue-counts button strong {
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+.teacher-student-growth-row {
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.72fr) repeat(2, minmax(92px, 0.22fr)) minmax(220px, 1fr) auto;
+  align-items: center;
+  gap: 0.66rem;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface-strong);
+  text-decoration: none;
+}
+
+.teacher-student-growth-row__state span {
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.teacher-student-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.54rem;
+}
+
+.teacher-student-timeline-panel {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.teacher-student-timeline-panel > .button {
+  justify-self: center;
+}
+
+.teacher-student-timeline-panel .teacher-evidence-section-title > small {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+.teacher-student-summary-strip article {
+  min-height: 76px;
+  display: grid;
+  align-content: center;
+  gap: 0.28rem;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+}
+
+.teacher-student-summary-strip span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 830;
+}
+
+.teacher-student-summary-strip strong {
+  font-size: 1.24rem;
+}
+
+.teacher-submission-evidence-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(330px, 0.65fr);
+  gap: 0.82rem;
+}
+
+.teacher-submission-evidence-main,
+.teacher-analysis-version-panel {
+  min-width: 0;
+  padding: 0.88rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.teacher-evidence-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 0.72rem;
+}
+
+.teacher-evidence-section-title > div {
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+}
+
+.teacher-submission-facts,
+.teacher-analysis-version-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  margin-bottom: 0.62rem;
+}
+
+.teacher-submission-facts span,
+.teacher-analysis-version-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.24rem 0.42rem;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: var(--surface-muted);
+  font-size: 0.75rem;
+  font-weight: 830;
+}
+
+.teacher-code-evidence,
+.teacher-test-evidence {
+  margin-top: 0.62rem;
+}
+
+.teacher-code-evidence h3,
+.teacher-test-evidence h3,
+.teacher-analysis-version-panel h2,
+.teacher-analysis-version-panel h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.36rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.94rem;
+}
+
+.teacher-code-evidence pre {
+  max-height: 440px;
+  margin: 0;
+  padding: 0.78rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface-muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.teacher-test-evidence > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.36rem;
+}
+
+.teacher-test-evidence span {
+  padding: 0.28rem 0.44rem;
+  border-radius: 7px;
+  font-size: 0.75rem;
+  font-weight: 850;
+}
+
+.teacher-test-evidence .is-passed {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+
+.teacher-test-evidence .is-failed {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 11%, var(--surface));
+}
+
+.teacher-analysis-version-tabs {
+  display: flex;
+  gap: 0.38rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+
+.teacher-analysis-version-tabs button {
+  min-width: 112px;
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.46rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface-strong);
+  text-align: left;
+  cursor: pointer;
+}
+
+.teacher-analysis-version-tabs button.is-active {
+  border-color: color-mix(in srgb, var(--brand) 52%, var(--line));
+  background: var(--brand-soft);
+}
+
+.teacher-analysis-version-tabs small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.teacher-analysis-version-detail,
+.teacher-version-correction,
+.teacher-version-corrections {
+  margin-top: 0.68rem;
+  padding-top: 0.68rem;
+  border-top: 1px solid var(--line);
+}
+
+.teacher-analysis-version-detail > p,
+.teacher-analysis-version-items p,
+.teacher-version-corrections p {
+  margin: 0.24rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.48;
+}
+
+.teacher-analysis-version-items,
+.teacher-version-corrections {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.teacher-analysis-version-items > div,
+.teacher-version-corrections article {
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.teacher-version-correction {
+  display: grid;
+  gap: 0.48rem;
+}
+
+.teacher-version-correction label {
+  display: grid;
+  gap: 0.22rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 850;
+}
+
+.teacher-version-correction select,
+.teacher-version-correction textarea {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.teacher-version-correction textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.teacher-version-corrections article {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.teacher-version-corrections small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 980px) {
+  .teacher-submission-evidence-grid,
+  .teacher-issue-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-analytics-focus-row,
+  .teacher-analytics-focus-row--problem,
+  .teacher-student-growth-row {
+    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(88px, auto)) auto;
+  }
+
+  .teacher-analytics-focus-row--problem .teacher-analytics-inline-metric:nth-of-type(3),
+  .teacher-student-growth-row__state {
+    grid-column: 1 / -2;
+  }
+}
+
+@media (max-width: 640px) {
+  .teacher-student-summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-analytics-focus-row,
+  .teacher-analytics-focus-row--problem,
+  .teacher-student-growth-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-analytics-focus-row > div:first-child,
+  .teacher-student-growth-row__identity,
+  .teacher-student-growth-row__state {
+    grid-column: 1 / -1;
+  }
+
+  .teacher-analytics-focus-row > svg,
+  .teacher-student-growth-row > svg {
+    display: none;
+  }
+
+  .teacher-issue-counts {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-evidence-section-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .teacher-analytics-board__controls {
   display: flex;
   flex-wrap: wrap;

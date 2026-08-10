@@ -24,7 +24,20 @@ public class StudentAiFeedbackAsyncService {
     }
 
     public void enqueueRecovered(Long submissionId) {
-        enqueue(submissionId, true);
+        enqueueRegeneration(submissionId);
+    }
+
+    public void enqueueRegeneration(Long submissionId) {
+        if (submissionId == null || !runningSubmissionIds.add(submissionId)) {
+            return;
+        }
+        try {
+            studentAiFeedbackService.startNewGeneration(submissionId);
+            selfProvider.getObject().generate(submissionId);
+        } catch (RuntimeException exception) {
+            runningSubmissionIds.remove(submissionId);
+            throw exception;
+        }
     }
 
     private void enqueue(Long submissionId, boolean recovery) {

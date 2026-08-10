@@ -76,6 +76,9 @@ BEGIN
     ('student_recommendation_events', 'focus_test_semantic_codes'),
     ('student_recommendation_events', 'followup_point_keys'),
     ('student_recommendation_events', 'followup_failed_test_semantic_codes'),
+    ('student_ai_feedback_revisions', 'analysis_json'),
+    ('student_ai_feedback_revisions', 'evidence_json'),
+    ('teacher_diagnosis_corrections', 'feedback_revision_id'),
     ('submissions', 'problem_id'), ('student_ai_feedbacks', 'submission_id'),
     ('ai_diagnosis_runs', 'submission_id')
   )
@@ -105,7 +108,7 @@ BEGIN
     ('idx_test_case_semantic_skill'), ('idx_submission_case_results_test_case'),
     ('idx_submissions_problem_submitted_at'), ('idx_ai_diagnosis_run_submission'),
     ('idx_issue_transition_student_point'), ('idx_diagnosis_fact_provisional')
-    , ('idx_reco_events_source_submission')
+    , ('idx_reco_events_source_submission'), ('idx_teacher_corrections_feedback_revision')
   )
   SELECT string_agg(e.name, ', ' ORDER BY e.name) INTO missing
   FROM expected e

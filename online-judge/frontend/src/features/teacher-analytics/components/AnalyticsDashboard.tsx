@@ -1,270 +1,217 @@
 import { useMemo, useState } from "react";
+import { ArrowRight, CheckCircle2, CircleDot, Repeat2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { DiagnosisTag } from "../../../shared/api/types";
-import { AnalyticsBarChart } from "../charts/AnalyticsBarChart";
-import { AnalyticsPieChart } from "../charts/AnalyticsPieChart";
-import type { AnalyticsGranularity, AnalyticsSnapshot, InsightBucket } from "../model";
-import { formatPercent } from "../selectors";
-import { AiKnowledgeInsightPanel } from "./AiKnowledgeInsightPanel";
+import type { AssignmentOverview, SubmissionGrowthSummary } from "../../../shared/api/types";
+import type { AnalyticsSnapshot, InsightBucket } from "../model";
 import { AnalyticsSummaryCards } from "./AnalyticsSummaryCards";
-import { EvidenceSamples } from "./EvidenceSamples";
-import { GranularitySelector } from "./GranularitySelector";
 
 type Props = {
   snapshot: AnalyticsSnapshot;
   t: (key: string, params?: Record<string, string | number>) => string;
-  correction?: {
-    tags: DiagnosisTag[];
-    onSubmit: (
-      sample: InsightBucket["evidence"][number],
-      payload: {
-        correctedIssueTag: string;
-        correctedFineGrainedTag: string;
-        correctionType: "DIAGNOSIS" | "KNOWLEDGE_PATH" | "EVIDENCE" | "ADVICE";
-        targetIssueId: string;
-        correctedKnowledgePath: string;
-        targetEvidenceRef: string;
-        teacherNote: string;
-      }
-    ) => Promise<void>;
-  };
 };
 
-export function AnalyticsDashboard({ snapshot, t, correction }: Props) {
-  const [granularity, setGranularity] = useState<AnalyticsGranularity>("chapter");
-  const [metricMode, setMetricMode] = useState<"distinct" | "weighted">("distinct");
-  const sourceBuckets = snapshot.insightBuckets[granularity] || [];
-  const buckets = useMemo(() => {
-    const ranked = sourceBuckets.map(item => ({
-      ...item,
-      count: metricMode === "distinct"
-        ? item.affectedStudentCount || 0
-        : item.effectiveWeightedOccurrenceCount ?? item.count
-    }));
-    const total = ranked.reduce((sum, item) => sum + item.count, 0);
-    return ranked
-      .map(item => ({ ...item, rate: total ? item.count / total : null }))
-      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "zh-Hans-CN"));
-  }, [metricMode, sourceBuckets]);
-  const selected = useMemo(() => buckets[0] || null, [buckets]);
-  const granularityLabels = {
-    chapter: t("teacherAnalytics.granularity.chapter"),
-    knowledgePoint: t("teacherAnalytics.granularity.knowledgePoint"),
-    skillUnit: t("teacherAnalytics.granularity.skillUnit"),
-    mistakePoint: t("teacherAnalytics.granularity.mistakePoint")
-  };
-  const activePath = selected?.path.map(node => node.label).join(" > ") || t("teacherAnalytics.empty.noKnowledgePath");
+type ProblemStudent = NonNullable<NonNullable<AssignmentOverview["problemSummaries"]>[number]["students"]>[number];
+type StudentGroup = "affected" | "repeated" | "resolved";
+
+export function AnalyticsDashboard({ snapshot, t }: Props) {
+  return (
+    <div className="teacher-analytics-dashboard teacher-analytics-dashboard--focused">
+      <AnalyticsSummaryCards metrics={snapshot.metrics} labelFor={t} />
+      {snapshot.scope.type === "class" ? <ClassAssignments snapshot={snapshot} t={t} /> : null}
+      {snapshot.scope.type === "assignment" ? <AssignmentProblems snapshot={snapshot} t={t} /> : null}
+      {snapshot.scope.type === "problem" ? <ProblemEvidence snapshot={snapshot} t={t} /> : null}
+    </div>
+  );
+}
+
+function ClassAssignments({ snapshot, t }: Props) {
+  return (
+    <section className="teacher-analytics-focus-panel">
+      <SectionTitle step="1" title={t("teacherAnalytics.focus.assignmentList")} description={t("teacherAnalytics.focus.assignmentListDescription")} />
+      <div className="teacher-analytics-focus-list">
+        {snapshot.assignmentRows.map(row => (
+          <Link className="teacher-analytics-focus-row" to={row.href} key={row.id}>
+            <div>
+              <strong>{row.title}</strong>
+              <small>{row.status} · {t("teacherAnalytics.focus.problemCount", { count: row.problemCount })}</small>
+            </div>
+            <Metric label={t("teacherAnalytics.focus.submitted")} value={`${row.submittedStudentCount}/${row.participantCount || "-"}`} />
+            <Metric label={t("teacherAnalytics.focus.completedRequired")} value={row.completedRequiredStudentCount} />
+            <ArrowRight size={18} aria-hidden="true" />
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AssignmentProblems({ snapshot, t }: Props) {
+  return (
+    <section className="teacher-analytics-focus-panel">
+      <SectionTitle step="2" title={t("teacherAnalytics.focus.problemList")} description={t("teacherAnalytics.focus.problemListDescription")} />
+      <div className="teacher-analytics-focus-list">
+        {snapshot.problemRows.map(row => (
+          <Link className="teacher-analytics-focus-row teacher-analytics-focus-row--problem" to={row.href} key={row.id}>
+            <div>
+              <strong>{row.title}</strong>
+              <small>{t("teacherAnalytics.focus.submittedOfRoster", { submitted: row.submittedStudentCount, roster: row.participantCount || "-" })}</small>
+            </div>
+            <Metric label={t("teacherAnalytics.focus.firstPass")} value={row.firstPassStudentCount} />
+            <Metric label={t("teacherAnalytics.focus.eventualPass")} value={row.passedStudentCount} />
+            <Metric label={t("teacherAnalytics.focus.medianEffective")} value={row.medianEffectiveAttempts ?? "-"} />
+            <ArrowRight size={18} aria-hidden="true" />
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProblemEvidence({ snapshot, t }: Props) {
+  const problem = snapshot.overview?.problemSummaries?.find(item => item.problemId === snapshot.scope.problemId);
+  const issues = useMemo(
+    () => [...(snapshot.insightBuckets.mistakePoint || [])]
+      .sort((left, right) => (right.affectedStudentCount || 0) - (left.affectedStudentCount || 0) || (right.repeatedStudentCount || 0) - (left.repeatedStudentCount || 0)),
+    [snapshot.insightBuckets.mistakePoint]
+  );
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [studentGroup, setStudentGroup] = useState<StudentGroup>("affected");
+  const selectedIssue = issues.find(item => item.id === selectedIssueId) || null;
+  const studentIds = selectedIssue ? idsForGroup(selectedIssue, studentGroup) : [];
+  const students = (problem?.students || []).filter(student => !selectedIssue || studentIds.includes(student.studentProfileId));
 
   return (
-    <div className="teacher-analytics-dashboard">
-      <AnalyticsSummaryCards metrics={snapshot.metrics} labelFor={t} />
-
-      <section className="teacher-analytics-main-grid">
-        <main className="teacher-analytics-board">
-          <div className="teacher-analytics-board__head">
-            <div>
-              <span>{t("teacherAnalytics.sections.visualization")}</span>
-              <h2>{t("teacherAnalytics.scopeTitle", { scope: t(`teacherAnalytics.scope.${snapshot.scope.type}`) })}</h2>
-            </div>
-            <div className="teacher-analytics-board__controls">
-              <div className="teacher-analytics-metric-mode" role="group" aria-label={t("teacherAnalytics.metricMode.aria")}>
-                {(["distinct", "weighted"] as const).map(mode => (
-                  <button
-                    type="button"
-                    className={metricMode === mode ? "is-active" : ""}
-                    onClick={() => setMetricMode(mode)}
-                    aria-pressed={metricMode === mode}
-                    key={mode}
-                  >
-                    {t(`teacherAnalytics.metricMode.${mode}`)}
-                  </button>
-                ))}
-              </div>
-              <GranularitySelector value={granularity} labels={granularityLabels} onChange={setGranularity} />
-            </div>
+    <div className="teacher-problem-evidence-layout">
+      <section className="teacher-analytics-focus-panel">
+        <SectionTitle step="3" title={t("teacherAnalytics.focus.issueOverview")} description={t("teacherAnalytics.focus.issueOverviewDescription")} />
+        {issues.length ? (
+          <div className="teacher-issue-overview-list">
+            {issues.map(issue => (
+              <article className={selectedIssue?.id === issue.id ? "teacher-issue-overview is-selected" : "teacher-issue-overview"} key={issue.id}>
+                <button
+                  type="button"
+                  className="teacher-issue-overview__title"
+                  onClick={() => setSelectedIssueId(selectedIssue?.id === issue.id ? null : issue.id)}
+                  aria-expanded={selectedIssue?.id === issue.id}
+                >
+                  <span>{issue.label}</span>
+                  <small>{t(`teacherAnalytics.pattern.${patternKey(issue, problem?.submittedStudentCount || 0)}`)}</small>
+                </button>
+                <div className="teacher-issue-counts" aria-label={t("teacherAnalytics.focus.issueCountsAria")}>
+                  <IssueCount
+                    icon={CircleDot}
+                    label={t("teacherAnalytics.focus.affected")}
+                    value={issue.affectedStudentCount || 0}
+                    active={selectedIssue?.id === issue.id && studentGroup === "affected"}
+                    onClick={() => selectIssue(issue.id, "affected", setSelectedIssueId, setStudentGroup)}
+                  />
+                  <IssueCount
+                    icon={Repeat2}
+                    label={t("teacherAnalytics.focus.repeated")}
+                    value={issue.repeatedStudentCount || 0}
+                    active={selectedIssue?.id === issue.id && studentGroup === "repeated"}
+                    onClick={() => selectIssue(issue.id, "repeated", setSelectedIssueId, setStudentGroup)}
+                  />
+                  <IssueCount
+                    icon={CheckCircle2}
+                    label={t("teacherAnalytics.focus.resolved")}
+                    value={issue.resolvedStudentCount || 0}
+                    active={selectedIssue?.id === issue.id && studentGroup === "resolved"}
+                    onClick={() => selectIssue(issue.id, "resolved", setSelectedIssueId, setStudentGroup)}
+                  />
+                </div>
+              </article>
+            ))}
           </div>
+        ) : (
+          <p className="teacher-analytics-empty-copy">{t("teacherAnalytics.empty.noNormalizedIssues")}</p>
+        )}
+      </section>
 
-          <div className="teacher-analytics-chart-grid">
-            <section className="teacher-analytics-chart-panel">
-              <div className="teacher-analytics-section-head">
-                <span>{granularityLabels[granularity]}</span>
-                <h3>{t("teacherAnalytics.sections.ranking")}</h3>
-              </div>
-              <AnalyticsBarChart
-                items={buckets}
-                emptyText={t(emptyKey(snapshot.emptyReason))}
-                countLabel={t(metricMode === "distinct" ? "teacherAnalytics.units.students" : "teacherAnalytics.units.effectiveAttempts")}
-              />
-            </section>
-            <section className="teacher-analytics-chart-panel">
-              <div className="teacher-analytics-section-head">
-                <span>{granularityLabels[granularity]}</span>
-                <h3>{t("teacherAnalytics.sections.share")}</h3>
-              </div>
-              <AnalyticsPieChart items={buckets} emptyText={t(emptyKey(snapshot.emptyReason))} />
-            </section>
-          </div>
-
-          <section className="teacher-analytics-path-card">
-            <span>{t("teacherAnalytics.sections.currentPath")}</span>
-            <strong>{activePath}</strong>
-            {selected ? (
-              <>
-                <p>
-                  {t("teacherAnalytics.pathMetaDual", {
-                    raw: selected.rawOccurrenceCount ?? selected.count,
-                    weighted: selected.effectiveWeightedOccurrenceCount ?? selected.count,
-                    students: selected.affectedStudentCount || 0,
-                    repeated: selected.repeatedStudentCount || 0,
-                    unresolved: selected.unresolvedStudentCount || 0,
-                    recurring: selected.recurringStudentCount || 0,
-                    problems: selected.affectedProblemCount || 0,
-                    recovery: formatPercent(selected.recoveryRate)
-                  })}
-                </p>
-                <small>
-                  {t(`teacherAnalytics.difficulty.${difficultyKey(selected.difficultyClassification)}`)} · {t(`teacherAnalytics.pathStatus.${pathStatusKey(selected.pathStatus)}`)} · {t(`teacherAnalytics.fit.${selected.fit}`)}
-                </small>
-              </>
-            ) : (
-              <p>{t("teacherAnalytics.empty.noKnowledgePath")}</p>
-            )}
-          </section>
-
-          {snapshot.assignmentRows.length && snapshot.scope.type === "class" ? (
-            <section className="teacher-analytics-table-panel">
-              <div className="teacher-analytics-section-head">
-                <span>{t("teacherAnalytics.sections.assignments")}</span>
-                <h3>{t("teacherAnalytics.tables.assignmentTitle")}</h3>
-              </div>
-              <div className="teacher-analytics-table">
-                {snapshot.assignmentRows.map(row => (
-                  <Link className="teacher-analytics-table-row" to={row.href} key={row.id}>
-                    <strong>{row.title}</strong>
-                    <span>{t("teacherAnalytics.tableLabels.status")} {row.status}</span>
-                    <span>{t("teacherAnalytics.tableLabels.problemCount")} {row.problemCount} {t("teacherAnalytics.units.problem")}</span>
-                    <span>{t("teacherAnalytics.tableLabels.submissions")} {row.submittedStudentCount}/{row.participantCount || "-"}</span>
-                    <span>{t("teacherAnalytics.tableLabels.accuracy")} {formatPercent(row.passRate)}</span>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {snapshot.problemRows.length && snapshot.scope.type !== "problem" ? (
-            <section className="teacher-analytics-table-panel">
-              <div className="teacher-analytics-section-head">
-                <span>{t("teacherAnalytics.sections.problems")}</span>
-                <h3>{t("teacherAnalytics.tables.problemTitle")}</h3>
-              </div>
-              <div className="teacher-analytics-table">
-                {snapshot.problemRows.map(row => (
-                  <Link className="teacher-analytics-table-row" to={row.href} key={row.id}>
-                    <strong>{row.title}</strong>
-                    <span>{t("teacherAnalytics.tableLabels.submissions")} {row.submittedStudentCount}/{row.participantCount || "-"}</span>
-                    <span>{t("teacherAnalytics.tableLabels.passed")} {row.passedStudentCount} {t("teacherAnalytics.units.passed")}</span>
-                    <span>{t("teacherAnalytics.tableLabels.accuracy")} {formatPercent(row.passRate)}</span>
-                    <span>{t("teacherAnalytics.tableLabels.issue")} {row.topIssue || t("teacherAnalytics.empty.noIssue")}</span>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </main>
-
-        <div className="teacher-analytics-side">
-          <AiKnowledgeInsightPanel
-            title={t("teacherAnalytics.ai.title")}
-            subtitle={t(`teacherAnalytics.ai.${snapshot.scope.type}`)}
-            items={buckets}
-            emptyText={t(emptyKey(snapshot.emptyReason))}
-            fitLabel={fit => t(`teacherAnalytics.fit.${fit}`)}
-          />
-          <EvidenceSamples
-            title={t("teacherAnalytics.evidence.title")}
-            emptyText={t("teacherAnalytics.empty.noEvidence")}
-            samples={selected?.evidence.length ? selected.evidence : snapshot.evidenceSamples}
-            correction={
-              correction
-                ? {
-                    title: t("teacherAnalytics.correction.title"),
-                    issueLabel: t("teacherAnalytics.correction.issue"),
-                    fineIssueLabel: t("teacherAnalytics.correction.fineIssue"),
-                    typeLabel: t("teacherAnalytics.correction.type"),
-                    diagnosisTypeLabel: t("teacherAnalytics.correction.types.diagnosis"),
-                    knowledgePathTypeLabel: t("teacherAnalytics.correction.types.knowledgePath"),
-                    evidenceTypeLabel: t("teacherAnalytics.correction.types.evidence"),
-                    adviceTypeLabel: t("teacherAnalytics.correction.types.advice"),
-                    knowledgePathLabel: t("teacherAnalytics.correction.knowledgePath"),
-                    knowledgePathPlaceholder: t("teacherAnalytics.correction.knowledgePathPlaceholder"),
-                    evidenceRefLabel: t("teacherAnalytics.correction.evidenceRef"),
-                    evidenceRefPlaceholder: t("teacherAnalytics.correction.evidenceRefPlaceholder"),
-                    noteLabel: t("teacherAnalytics.correction.note"),
-                    submitLabel: t("teacherAnalytics.correction.submit"),
-                    unavailableText: t("teacherAnalytics.correction.unavailable"),
-                    tags: correction.tags,
-                    onSubmit: correction.onSubmit
-                  }
-                : undefined
-            }
-            impactLabels={{
-              title: t("teacherAnalytics.aiLoop.title"),
-              noObservation: t("teacherAnalytics.aiLoop.noObservation"),
-              noObservationDescription: t("teacherAnalytics.aiLoop.noObservationDescription"),
-              followupEvidence: id => t("teacherAnalytics.aiLoop.followupEvidence", { id }),
-              statusLabel: status => t(`teacherAnalytics.aiLoop.status.${feedbackImpactKey(status)}`),
-              summary: status => t(`teacherAnalytics.aiLoop.summary.${feedbackImpactKey(status)}`)
-            }}
-          />
+      <section className="teacher-analytics-focus-panel">
+        <SectionTitle
+          step="4"
+          title={selectedIssue ? t("teacherAnalytics.focus.filteredStudents", { issue: selectedIssue.label }) : t("teacherAnalytics.focus.studentList")}
+          description={selectedIssue ? t(`teacherAnalytics.focus.groupDescription.${studentGroup}`) : t("teacherAnalytics.focus.studentListDescription")}
+        />
+        <div className="teacher-student-growth-list">
+          {students.length ? students.map(student => (
+            <StudentGrowthRow student={student} snapshot={snapshot} t={t} key={student.studentProfileId} />
+          )) : <p className="teacher-analytics-empty-copy">{t("teacherAnalytics.empty.noMatchingStudents")}</p>}
         </div>
       </section>
     </div>
   );
 }
 
-function emptyKey(reason?: string) {
-  if (reason === "noAssignments") {
-    return "teacherAnalytics.empty.noAssignments";
-  }
-  if (reason === "noSubmissions") {
-    return "teacherAnalytics.empty.noSubmissions";
-  }
-  return "teacherAnalytics.empty.noInsight";
+function StudentGrowthRow({ student, snapshot, t }: { student: ProblemStudent; snapshot: AnalyticsSnapshot; t: Props["t"] }) {
+  const href = `/teacher/classes/${snapshot.scope.classId}/assignments/${snapshot.scope.assignmentId}/problems/${snapshot.scope.problemId}/students/${student.studentProfileId}`;
+  const growth = student.latestGrowthSummary;
+  const issueSignals = (growth?.issueSignals || [])
+    .filter(item => ["PERSISTED", "NEW", "RECURRED"].includes(String(item.changeStatus || "").toUpperCase()))
+    .slice(0, 2);
+  return (
+    <Link className="teacher-student-growth-row" to={href}>
+      <div className="teacher-student-growth-row__identity">
+        <strong>{student.displayName}</strong>
+        <small>{student.studentNo || t("teacherAnalytics.defaultLabels.studentWithId", { id: student.studentProfileId })}</small>
+      </div>
+      <Metric label={t("teacherAnalytics.focus.rawSubmissions")} value={student.attemptCount} />
+      <Metric label={t("teacherAnalytics.focus.effectiveEdits")} value={student.effectiveAttemptCount || 0} />
+      <div className="teacher-student-growth-row__state">
+        <span>{growthStateLabel(growth, t)}</span>
+        <small>{issueSignals.length ? issueSignals.map(item => item.title).filter(Boolean).join(" · ") : t("teacherAnalytics.focus.noCurrentIssue")}</small>
+      </div>
+      <ArrowRight size={18} aria-hidden="true" />
+    </Link>
+  );
 }
 
-function feedbackImpactKey(status?: string | null) {
-  switch (status) {
-    case "IMPROVED_AFTER_AI":
-      return "improved";
-    case "SHIFTED_AFTER_AI":
-      return "shifted";
-    case "SAME_ISSUE_AFTER_AI":
-      return "sameIssue";
-    case "REGRESSED_AFTER_AI":
-      return "regressed";
-    case "VERDICT_CHANGED_AFTER_AI":
-      return "verdictChanged";
-    case "NO_CLEAR_CHANGE_AFTER_AI":
-      return "noClearChange";
-    default:
-      return "awaiting";
-  }
+function SectionTitle({ step, title, description }: { step: string; title: string; description: string }) {
+  return (
+    <header className="teacher-analytics-focus-title">
+      <span>{step}</span>
+      <div><h2>{title}</h2><p>{description}</p></div>
+    </header>
+  );
 }
 
-function pathStatusKey(status?: string | null) {
-  const normalized = String(status || "UNCLASSIFIED").toLowerCase();
-  return ["formal", "provisional", "inferred", "unclassified"].includes(normalized) ? normalized : "unclassified";
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return <div className="teacher-analytics-inline-metric"><span>{label}</span><strong>{value}</strong></div>;
 }
 
-function difficultyKey(value?: string | null) {
-  switch (value) {
-    case "CLASS_DIFFICULTY":
-      return "classDifficulty";
-    case "INDIVIDUAL_PERSISTENT":
-      return "individualPersistent";
-    case "COMMON_ERROR":
-      return "commonError";
-    default:
-      return "occasional";
-  }
+function IssueCount({ icon: Icon, label, value, active, onClick }: { icon: typeof CircleDot; label: string; value: number; active: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className={active ? "is-active" : ""} onClick={onClick}>
+      <Icon size={16} aria-hidden="true" />
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </button>
+  );
+}
+
+function selectIssue(id: string, group: StudentGroup, setIssue: (id: string) => void, setGroup: (group: StudentGroup) => void) {
+  setIssue(id);
+  setGroup(group);
+}
+
+function idsForGroup(issue: InsightBucket, group: StudentGroup) {
+  if (group === "repeated") return issue.repeatedStudentIds || [];
+  if (group === "resolved") return issue.resolvedStudentIds || [];
+  return issue.affectedStudentIds || [];
+}
+
+function patternKey(issue: InsightBucket, submittedStudents: number) {
+  const affected = issue.affectedStudentCount || 0;
+  const repeated = issue.repeatedStudentCount || 0;
+  const threshold = Math.max(2, Math.ceil(submittedStudents * 0.4));
+  if (affected >= threshold && repeated > 0) return "commonRepeated";
+  if (affected >= threshold) return "commonQuick";
+  if (repeated > 0) return "individualRepeated";
+  return "occasional";
+}
+
+function growthStateLabel(growth: SubmissionGrowthSummary | null | undefined, t: Props["t"]) {
+  const key = String(growth?.growthState || "UNCOMPARABLE").toLowerCase();
+  return t(`growthDashboard.state.${key}`);
 }

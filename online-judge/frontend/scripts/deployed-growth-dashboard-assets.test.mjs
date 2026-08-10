@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const deployedAppRoot = resolve(frontendRoot, "..", "src", "main", "resources", "static", "app");
+const deployedAppRoot = resolve(frontendRoot, "..", "src", "main", "resources", "static", "code");
 const deployedAssetsRoot = join(deployedAppRoot, "assets");
 
 test("deployed app contains the redesigned growth dashboard assets", () => {
