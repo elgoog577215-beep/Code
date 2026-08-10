@@ -88,7 +88,7 @@ class StudentRecommendationServiceTest {
     );
 
     @Test
-    void recommendsRedoThenNewPracticeAndReviewFromAbilityProfile() {
+    void returnsOnlyTheMostRecentUnfinishedProblem() {
         studentProfileRepository.items.put(1L, student(1L, 9L, "张三", "08"));
         problemRepository.items.put(101L, problem(101L, "旧题：数组边界", List.of("数组"), List.of("边界漏判"), List.of("单元素")));
         problemRepository.items.put(102L, problem(102L, "新题：边界统计", List.of("数组"), List.of("边界漏判"), List.of("最大规模")));
@@ -97,28 +97,14 @@ class StudentRecommendationServiceTest {
 
         var response = service.recommend(1L);
 
-        assertThat(response.getSummary()).contains("循环与边界");
+        assertThat(response.getSummary()).contains("最近未通过");
         assertThat(response.getRecommendations()).extracting("type")
-                .containsExactly("REDO", "NEXT_PROBLEM", "REVIEW");
+                .containsExactly("REDO");
         assertThat(response.getRecommendations().get(0).getProblemId()).isEqualTo(101L);
         assertThat(response.getRecommendations().get(0).getAssignmentId()).isEqualTo(7L);
-        assertThat(response.getRecommendations().get(1).getProblemId()).isEqualTo(102L);
-        assertThat(response.getRecommendations().get(1).getFocusTags()).contains("数组", "边界漏判");
-        assertThat(response.getRecommendations().get(2)).satisfies(item -> {
-            assertThat(item.getProblemId()).isEqualTo(101L);
-            assertThat(item.getProblemTitle()).contains("数组边界");
-            assertThat(item.getReason()).contains("OFF_BY_ONE", "先复盘本题");
-            assertThat(item.getFocusTags()).contains("OFF_BY_ONE", "BOUNDARY_CONDITION");
-        });
-        assertThat(response.getRecommendations()).allSatisfy(item -> {
-            assertThat(item.getLearningHypothesis()).isNotBlank();
-            assertThat(item.getExpectedCompletionSignal()).isNotBlank();
-            assertThat(item.getStrategy()).isNotBlank();
-            assertThat(item.getRiskLevel()).isNotBlank();
-            assertThat(item.getFallbackAction()).isNotBlank();
-        });
-        assertThat(response.getRecommendations()).extracting("strategy")
-                .containsExactly("REPAIR_SAME_PROBLEM", "TRANSFER_TO_NEW_PROBLEM", "REFLECTION_EVIDENCE");
+        assertThat(response.getRecommendations().get(0).getReason()).contains("诊断");
+        assertThat(response.getRecommendations().get(0).getExpectedCompletionSignal()).isNotBlank();
+        assertThat(response.getRecommendations().get(0).getStrategy()).isEqualTo("REPAIR_SAME_PROBLEM");
     }
 
     @Test
@@ -141,7 +127,7 @@ class StudentRecommendationServiceTest {
         assertThat(response.getRecommendations()).allSatisfy(item -> assertThat(item.getRecommendationToken()).isNotBlank());
         assertThat(recommendationEventRepository.items)
                 .filteredOn(item -> StudentRecommendationEventService.EVENT_EXPOSED.equals(item.getEventType()))
-                .hasSize(3);
+                .hasSize(1);
         assertThat(recommendationEventRepository.items)
                 .extracting(StudentRecommendationEvent::getEventType)
                 .contains(
@@ -158,14 +144,14 @@ class StudentRecommendationServiceTest {
                     assertThat(item.getFollowupVerdict()).isEqualTo(Submission.Verdict.ACCEPTED.name());
                     assertThat(item.getFollowupFineGrainedTag()).isEqualTo("OFF_BY_ONE");
                     assertThat(item.getStrategy()).isEqualTo("REPAIR_SAME_PROBLEM");
-                    assertThat(item.getLearningHypothesis()).contains("同题重做");
-                    assertThat(item.getExpectedCompletionSignal()).contains("同题后续提交通过");
-                    assertThat(item.getFallbackAction()).contains("降级");
+                    assertThat(item.getLearningHypothesis()).isNull();
+                    assertThat(item.getExpectedCompletionSignal()).contains("再次提交后通过");
+                    assertThat(item.getFallbackAction()).isNull();
                 });
     }
 
     @Test
-    void unresolvedRecommendationOutcomeStepsDownToReviewBeforeMorePractice() {
+    void olderRecommendationOutcomeDoesNotOverrideCurrentUnfinishedProblem() {
         studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
         problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
         problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
@@ -190,18 +176,16 @@ class StudentRecommendationServiceTest {
 
         var response = service.recommend(1L);
 
-        assertThat(response.getSummary()).contains("先降级到复盘");
+        assertThat(response.getSummary()).contains("最近未通过");
         assertThat(response.getRecommendations().get(0)).satisfies(item -> {
-            assertThat(item.getType()).isEqualTo("REVIEW");
-            assertThat(item.getStrategy()).isEqualTo("STEP_DOWN_REVIEW");
-            assertThat(item.getRiskLevel()).isEqualTo("HIGH");
-            assertThat(item.getLearningHypothesis()).contains("仍卡在同类错因");
-            assertThat(item.getFallbackAction()).contains("教师介入");
+            assertThat(item.getType()).isEqualTo("REDO");
+            assertThat(item.getStrategy()).isEqualTo("REPAIR_SAME_PROBLEM");
+            assertThat(item.getProblemId()).isEqualTo(101L);
         });
     }
 
     @Test
-    void acceptedProblemWithoutReflectionEvidenceGetsPostAcRecommendation() {
+    void allAttemptedProblemsPassedMovesToNewProblem() {
         studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
         problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
         problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
@@ -213,18 +197,14 @@ class StudentRecommendationServiceTest {
 
         assertThat(response.getRecommendations()).first()
                 .satisfies(item -> {
-                    assertThat(item.getType()).isEqualTo("POST_AC_REFLECTION");
-                    assertThat(item.getStrategy()).isEqualTo("POST_AC_REFLECTION");
-                    assertThat(item.getProblemId()).isEqualTo(101L);
-                    assertThat(item.getLearningHypothesis()).contains("AC");
-                    assertThat(item.getExpectedCompletionSignal()).contains("边界样例");
+                    assertThat(item.getType()).isEqualTo("NEXT_PROBLEM");
+                    assertThat(item.getStrategy()).isEqualTo("START_NEW_PROBLEM");
+                    assertThat(item.getProblemId()).isEqualTo(102L);
                 });
-        assertThat(response.getRecommendations()).extracting("strategy")
-                .doesNotContain("REPAIR_SAME_PROBLEM");
     }
 
     @Test
-    void recurringMisconceptionSignalGeneratesRepairRecommendation() {
+    void crossProblemSignalsDoNotOverrideLatestUnfinishedProblem() {
         studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
         problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
         problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
@@ -238,15 +218,13 @@ class StudentRecommendationServiceTest {
 
         assertThat(response.getRecommendations()).first()
                 .satisfies(item -> {
-                    assertThat(item.getStrategy()).isEqualTo("TEACHING_ACTION_TEACHER_REVIEW");
-                    assertThat(item.getRiskLevel()).isEqualTo("HIGH");
-                    assertThat(item.getFocusTags()).contains("recurring_misconception:ESCALATE", "循环与边界");
-                    assertThat(item.getLearningHypothesis()).contains("编排");
+                    assertThat(item.getStrategy()).isEqualTo("REPAIR_SAME_PROBLEM");
+                    assertThat(item.getProblemId()).isEqualTo(102L);
                 });
     }
 
     @Test
-    void selfExplanationGapGeneratesPracticeRecommendation() {
+    void coachAnswersDoNotOverrideLatestUnfinishedProblem() {
         studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
         problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
         problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
@@ -261,16 +239,13 @@ class StudentRecommendationServiceTest {
 
         assertThat(response.getRecommendations()).first()
                 .satisfies(item -> {
-                    assertThat(item.getStrategy()).isEqualTo("TEACHING_ACTION_SELF_EXPLANATION_PRACTICE");
-                    assertThat(item.getFocusTags()).contains("self_explanation:NEEDS_COACHING");
-                    assertThat(item.getLearningHypothesis()).contains("编排");
-                    assertThat(item.getExpectedCompletionSignal()).contains("最小样例");
+                    assertThat(item.getStrategy()).isEqualTo("REPAIR_SAME_PROBLEM");
+                    assertThat(item.getProblemId()).isEqualTo(101L);
                 });
-        assertThat(response.getSummary()).contains("解释证据");
     }
 
     @Test
-    void aiDependencyRiskGeneratesIndependentAttemptRecommendation() {
+    void aiUsageSignalsDoNotOverrideLatestUnfinishedProblem() {
         studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
         problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
         problemRepository.items.put(102L, problem(102L, "new boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
@@ -288,16 +263,13 @@ class StudentRecommendationServiceTest {
 
         assertThat(response.getRecommendations()).first()
                 .satisfies(item -> {
-                    assertThat(item.getStrategy()).isEqualTo("TEACHING_ACTION_INDEPENDENT_ATTEMPT");
-                    assertThat(item.getFocusTags()).contains("ai_dependency:DEPENDENCY_RISK");
-                    assertThat(item.getLearningHypothesis()).contains("编排");
-                    assertThat(item.getExpectedCompletionSignal()).contains("不新增 Coach");
+                    assertThat(item.getStrategy()).isEqualTo("REPAIR_SAME_PROBLEM");
+                    assertThat(item.getProblemId()).isEqualTo(101L);
                 });
-        assertThat(response.getSummary()).contains("支架风险");
     }
 
     @Test
-    void masteryGrowthRiskGeneratesSpiralReviewRecommendation() {
+    void abilityTrendDoesNotOverrideLatestUnfinishedProblem() {
         studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
         problemRepository.items.put(101L, problem(101L, "old boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("single")));
         problemRepository.items.put(102L, problem(102L, "second boundary task", List.of("array"), List.of("OFF_BY_ONE"), List.of("large")));
@@ -313,11 +285,9 @@ class StudentRecommendationServiceTest {
 
         assertThat(response.getRecommendations()).first()
                 .satisfies(item -> {
-                    assertThat(item.getStrategy()).isEqualTo("TEACHING_ACTION_SPIRAL_REVIEW");
-                    assertThat(item.getFocusTags()).contains("mastery_growth:SPIRAL_REVIEW_NEEDED", "循环与边界");
-                    assertThat(item.getExpectedCompletionSignal()).contains("共同失败条件");
+                    assertThat(item.getStrategy()).isEqualTo("REPAIR_SAME_PROBLEM");
+                    assertThat(item.getProblemId()).isEqualTo(103L);
                 });
-        assertThat(response.getSummary()).contains("螺旋复习");
     }
 
     @Test
@@ -335,6 +305,33 @@ class StudentRecommendationServiceTest {
 
         assertThat(response.getRecommendations()).extracting("strategy")
                 .doesNotContain("POST_AC_REFLECTION");
+        assertThat(response.getRecommendations()).first().extracting("strategy", "problemId")
+                .containsExactly("START_NEW_PROBLEM", 103L);
+    }
+
+    @Test
+    void returnsNoActionWhenThereIsNoSafeProblemOrSubmissionTarget() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+
+        var response = service.recommend(1L);
+
+        assertThat(response.getRecommendations()).isEmpty();
+        assertThat(response.getSummary()).contains("没有需要处理");
+    }
+
+    @Test
+    void reviewsLatestSubmissionWhenEverythingAvailableWasCompleted() {
+        studentProfileRepository.items.put(1L, student(1L, 9L, "student-a", "08"));
+        problemRepository.items.put(101L, problem(101L, "completed", List.of("array"), List.of("boundary"), List.of("single")));
+        submissionRepository.items.add(submission(11L, 1L, 101L, 7L, Submission.Verdict.ACCEPTED, 1));
+
+        var response = service.recommend(1L);
+
+        assertThat(response.getRecommendations()).singleElement().satisfies(item -> {
+            assertThat(item.getType()).isEqualTo("REVIEW");
+            assertThat(item.getProblemId()).isEqualTo(101L);
+            assertThat(item.getAssignmentId()).isEqualTo(7L);
+        });
     }
 
     @Test

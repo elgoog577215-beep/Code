@@ -14,6 +14,7 @@ import com.onlinejudge.classroom.application.StudentRecommendationService;
 import com.onlinejudge.classroom.application.StudentAiFeedbackObservabilityService;
 import com.onlinejudge.classroom.application.StudentTrajectoryService;
 import com.onlinejudge.classroom.application.TeacherSubmissionEvidenceService;
+import com.onlinejudge.classroom.application.TeacherLearningAnalysisService;
 import com.onlinejudge.submission.application.SubmissionEvidenceBackfillService;
 import com.onlinejudge.submission.application.SubmissionAnalysisService;
 import com.onlinejudge.submission.application.StudentAiFeedbackAsyncService;
@@ -54,6 +55,7 @@ public class ClassroomController {
     private final SubmissionEvidenceBackfillService submissionEvidenceBackfillService;
     private final SubmissionAnalysisService submissionAnalysisService;
     private final TeacherSubmissionEvidenceService teacherSubmissionEvidenceService;
+    private final TeacherLearningAnalysisService teacherLearningAnalysisService;
     private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
 
     @GetMapping("/api/teacher/classes")
@@ -74,6 +76,11 @@ public class ClassroomController {
     @GetMapping("/api/teacher/classes/{classGroupId}/identity-audit")
     public ResponseEntity<StudentIdentityAuditResponse> getStudentIdentityAudit(@PathVariable Long classGroupId) {
         return ResponseEntity.ok(studentIdentityAuditService.auditClass(classGroupId));
+    }
+
+    @GetMapping("/api/teacher/classes/{classGroupId}/learning-overview")
+    public ResponseEntity<ClassLearningOverviewResponse> getClassLearningOverview(@PathVariable Long classGroupId) {
+        return ResponseEntity.ok(teacherLearningAnalysisService.getClassOverview(classGroupId));
     }
 
     @PostMapping("/api/teacher/classes/{classGroupId}/identity-merge")

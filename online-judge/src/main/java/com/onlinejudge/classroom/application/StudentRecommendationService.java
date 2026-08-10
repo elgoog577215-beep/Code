@@ -123,11 +123,15 @@ public class StudentRecommendationService {
     }
 
     public StudentRecommendationResponse recommend(Long studentProfileId) {
-        StudentAbilityProfileResponse profile = abilityProfileService.buildProfile(studentProfileId);
-        List<Long> profileIds = profile.getMergedStudentProfileIds() == null ? List.of() : profile.getMergedStudentProfileIds();
+        StudentAbilityProfileService.StudentScope scope = abilityProfileService.resolveStudentScope(studentProfileId);
+        List<Long> profileIds = scope.profileIds();
         List<Submission> submissions = profileIds.isEmpty()
                 ? List.of()
-                : submissionRepository.findByStudentProfileIdInOrderBySubmittedAtDesc(profileIds);
+                : submissionRepository.findByStudentProfileIdInOrderBySubmittedAtDesc(profileIds).stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(java.time.LocalDateTime::compareTo)).reversed()
+                        .thenComparing(Submission::getId, Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
         List<Long> submissionIds = submissions.stream()
                 .map(Submission::getId)
                 .filter(Objects::nonNull)
@@ -137,13 +141,10 @@ public class StudentRecommendationService {
                 : submissionAnalysisRepository.findBySubmissionIdIn(submissionIds)
                 .stream()
                 .collect(Collectors.toMap(SubmissionAnalysis::getSubmissionId, Function.identity()));
-        Map<Long, CoachInteractionSummaryResponse> coachInteractions = coachInteractionAnalyzer.summarize(submissionIds);
         List<StudentRecommendationEvent> recommendationEvents = recommendationEvents(profileIds);
         List<RecommendationEffectivenessResponse.ActionEvidenceSignal> actionEvidenceSignals =
                 recommendationActionEvidenceAnalyzer.analyze(recommendationEvents);
-        boolean hasUnresolvedLearningSignal = hasUnresolvedLearningSignal(actionEvidenceSignals, recommendationEvents);
         Set<Long> attemptedProblemIds = new LinkedHashSet<>();
-        Long latestAssignmentId = latestAssignmentId(submissions);
         Map<Long, Submission> latestByProblem = new LinkedHashMap<>();
         submissions.stream()
                 .filter(Objects::nonNull)
@@ -153,62 +154,26 @@ public class StudentRecommendationService {
                         latestByProblem.putIfAbsent(submission.getProblemId(), submission);
                     }
                 });
-        Set<Long> failedProblemIds = latestByProblem.values()
+        Submission latestFailed = latestByProblem.values()
                 .stream()
                 .filter(submission -> submission.getVerdict() != Submission.Verdict.ACCEPTED)
-                .map(Submission::getProblemId)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+                .findFirst()
+                .orElse(null);
         List<Problem> problems = problemRepository.findAllByOrderByIdAsc();
         Map<Long, Problem> problemMap = problems.stream()
                 .filter(problem -> problem.getId() != null)
                 .collect(Collectors.toMap(Problem::getId, Function.identity()));
-        List<StudentTrajectoryResponse.PostAcTransferSignal> postAcTransferSignals =
-                postAcTransferAnalyzer.analyzeTasks(
-                                submissions,
-                                analyses,
-                                coachInteractions,
-                                problemMap,
-                                recommendationEvents
-                        )
-                        .values()
-                        .stream()
-                        .toList();
-        StudentTrajectoryResponse.PostAcTransferSignal postAcTransferSignal =
-                postAcTransferAnalyzer.summarize(postAcTransferSignals);
-        StudentAbilityProfileResponse.RecurringMisconceptionSignal recurringMisconceptionSignal =
-                profile.getRecurringMisconceptionSignal();
-        StudentAbilityProfileResponse.SelfExplanationMasterySignal selfExplanationMasterySignal =
-                profile.getSelfExplanationMasterySignal();
-        StudentAbilityProfileResponse.AiDependencySignal aiDependencySignal = profile.getAiDependencySignal();
-        StudentAbilityProfileResponse.MasteryGrowthSignal masteryGrowthSignal = profile.getMasteryGrowthSignal();
-        StudentAbilityProfileResponse.TeachingActionDecision teachingActionDecision = profile.getTeachingActionDecision();
-        List<StudentRecommendationResponse.RecommendationItem> items = new ArrayList<>();
-
-        addTeachingActionRecommendation(profile, teachingActionDecision, latestAssignmentId, items);
-        if (!coversSource(teachingActionDecision, "recurring_misconception")) {
-            addRecurringMisconceptionRecommendation(recurringMisconceptionSignal, latestAssignmentId, items);
+        StudentRecommendationResponse.RecommendationItem primary = latestFailed != null
+                ? redoCurrentProblem(latestFailed, problemMap.get(latestFailed.getProblemId()), analyses.get(latestFailed.getId()))
+                : nextUnattemptedProblem(problems, attemptedProblemIds);
+        if (primary == null && !submissions.isEmpty()) {
+            Submission latest = submissions.get(0);
+            primary = reviewLatestSubmission(latest, problemMap.get(latest.getProblemId()));
         }
-        if (!coversSource(teachingActionDecision, "self_explanation")) {
-            addSelfExplanationRecommendation(selfExplanationMasterySignal, latestAssignmentId, items);
-        }
-        if (!coversSource(teachingActionDecision, "ai_dependency")) {
-            addAiDependencyRecommendation(aiDependencySignal, latestAssignmentId, items);
-        }
-        if (!coversSource(teachingActionDecision, "mastery_growth")) {
-            addMasteryGrowthRecommendation(masteryGrowthSignal, latestAssignmentId, items);
-        }
-        if (!coversSource(teachingActionDecision, "post_ac_transfer")) {
-            addPostAcTransferRecommendation(postAcTransferSignal, postAcTransferSignals, latestAssignmentId, items);
-        }
-        addRedoRecommendation(profile, problems, failedProblemIds, latestAssignmentId, items);
-        addNewPracticeRecommendation(profile, problems, attemptedProblemIds, latestAssignmentId, items);
-        addReviewRecommendation(profile, latestAssignmentId, items, hasUnresolvedLearningSignal);
-
-        List<StudentRecommendationResponse.RecommendationItem> recommendations = items.stream()
-                .sorted(Comparator.comparing(StudentRecommendationResponse.RecommendationItem::getPriority))
-                .limit(3)
-                .peek(item -> item.setRecommendationToken(recommendationEventService.tokenFor(studentProfileId, item)))
-                .toList();
+        List<StudentRecommendationResponse.RecommendationItem> recommendations = primary == null
+                ? List.of()
+                : List.of(primary);
+        recommendations.forEach(item -> item.setRecommendationToken(recommendationEventService.tokenFor(studentProfileId, item)));
         Map<String, RecommendationEffectivenessResponse.ActionEvidenceSignal> actionEvidenceByToken =
                 actionEvidenceSignals.stream()
                         .filter(signal -> signal.getRecommendationToken() != null)
@@ -230,10 +195,92 @@ public class StudentRecommendationService {
         recommendations.forEach(item -> recommendationEventService.recordExposure(studentProfileId, item));
 
         return StudentRecommendationResponse.builder()
-                .student(profile.getStudent())
-                .summary(buildSummary(profile, recommendations))
+                .student(scope.student())
+                .summary(simpleSummary(recommendations))
                 .recommendations(recommendations)
                 .build();
+    }
+
+    private StudentRecommendationResponse.RecommendationItem redoCurrentProblem(
+            Submission submission,
+            Problem problem,
+            SubmissionAnalysis analysis
+    ) {
+        String problemTitle = problem == null ? null : problem.getTitle();
+        String diagnosis = analysis == null ? null : analysis.getHeadline();
+        return StudentRecommendationResponse.RecommendationItem.builder()
+                .type("REDO")
+                .title("继续处理最近未通过的题")
+                .reason(diagnosis == null || diagnosis.isBlank()
+                        ? "最近一次提交还没有通过，先根据判题结果继续修改。"
+                        : "最近一次提交还没有通过，当前需要处理：" + diagnosis)
+                .actionLabel("继续修改")
+                .assignmentId(submission.getAssignmentId())
+                .problemId(submission.getProblemId())
+                .problemTitle(problemTitle)
+                .focusTags(List.of())
+                .evidenceProblemIds(submission.getProblemId() == null ? List.of() : List.of(submission.getProblemId()))
+                .expectedCompletionSignal("再次提交后通过，或当前问题不再出现。")
+                .strategy(STRATEGY_REPAIR_SAME_PROBLEM)
+                .priority(1)
+                .build();
+    }
+
+    private StudentRecommendationResponse.RecommendationItem nextUnattemptedProblem(
+            List<Problem> problems,
+            Set<Long> attemptedProblemIds
+    ) {
+        Problem problem = problems.stream()
+                .filter(item -> item.getId() != null && !attemptedProblemIds.contains(item.getId()))
+                .findFirst()
+                .orElse(null);
+        if (problem == null) {
+            return null;
+        }
+        return StudentRecommendationResponse.RecommendationItem.builder()
+                .type("NEXT_PROBLEM")
+                .title("开始一题新题")
+                .reason("当前没有未完成的题，可以继续下一题。")
+                .actionLabel("开始做题")
+                .problemId(problem.getId())
+                .problemTitle(problem.getTitle())
+                .focusTags(List.of())
+                .evidenceProblemIds(List.of())
+                .expectedCompletionSignal("完成一次独立提交。")
+                .strategy("START_NEW_PROBLEM")
+                .priority(1)
+                .build();
+    }
+
+    private StudentRecommendationResponse.RecommendationItem reviewLatestSubmission(
+            Submission submission,
+            Problem problem
+    ) {
+        return StudentRecommendationResponse.RecommendationItem.builder()
+                .type("REVIEW")
+                .title("回看最近一次提交")
+                .reason("当前已尝试的题目都已通过，可以简单回看关键修改。")
+                .actionLabel("查看提交")
+                .assignmentId(submission.getAssignmentId())
+                .problemId(submission.getProblemId())
+                .problemTitle(problem == null ? null : problem.getTitle())
+                .focusTags(List.of())
+                .evidenceProblemIds(submission.getProblemId() == null ? List.of() : List.of(submission.getProblemId()))
+                .expectedCompletionSignal("能说清这次通过前改动了什么。")
+                .strategy("REVIEW_LAST_SUBMISSION")
+                .priority(1)
+                .build();
+    }
+
+    private String simpleSummary(List<StudentRecommendationResponse.RecommendationItem> recommendations) {
+        if (recommendations == null || recommendations.isEmpty()) {
+            return "当前没有需要处理的学习任务。";
+        }
+        return switch (recommendations.get(0).getType()) {
+            case "REDO" -> "先完成最近未通过的题。";
+            case "NEXT_PROBLEM" -> "当前题目已处理完，可以开始下一题。";
+            default -> "回看最近一次提交。";
+        };
     }
 
     private void addTeachingActionRecommendation(StudentAbilityProfileResponse profile,

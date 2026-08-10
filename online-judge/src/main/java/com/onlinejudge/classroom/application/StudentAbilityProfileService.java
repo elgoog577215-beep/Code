@@ -51,6 +51,17 @@ public class StudentAbilityProfileService {
     private final TeachingActionOrchestrator teachingActionOrchestrator;
     private final DiagnosisReportReader diagnosisReportReader;
 
+    public StudentScope resolveStudentScope(Long studentProfileId) {
+        StudentProfile student = studentProfileRepository.findById(studentProfileId)
+                .orElseThrow(() -> new IllegalArgumentException("学生画像不存在: " + studentProfileId));
+        List<Long> profileIds = findMergedProfiles(student).stream()
+                .map(StudentProfile::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        return new StudentScope(StudentProfileResponse.from(student), profileIds);
+    }
+
     public StudentAbilityProfileResponse buildProfile(Long studentProfileId) {
         StudentProfile student = studentProfileRepository.findById(studentProfileId)
                 .orElseThrow(() -> new IllegalArgumentException("学生画像不存在: " + studentProfileId));
@@ -158,6 +169,9 @@ public class StudentAbilityProfileService {
                 .fineGrainedProfile(buildFineGrainedProfile(submissions, analyses))
                 .reviewCards(buildReviewCards(submissions, analyses, problems))
                 .build();
+    }
+
+    public record StudentScope(StudentProfileResponse student, List<Long> profileIds) {
     }
 
     private List<StudentProfile> findMergedProfiles(StudentProfile student) {

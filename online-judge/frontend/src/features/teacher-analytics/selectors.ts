@@ -1,4 +1,4 @@
-import type { Assignment, AssignmentOverview, ClassGroup, TeacherKnowledgePathStat } from "../../shared/api/types";
+import type { Assignment, AssignmentOverview, ClassGroup, ClassLearningOverview, TeacherKnowledgePathStat } from "../../shared/api/types";
 import { assignmentStatusLabel, displayText, issueLabel } from "../../shared/format";
 import type {
   AnalyticsEvidenceSample,
@@ -78,40 +78,41 @@ export function formatRatio(left: number, right: number) {
 }
 
 export function buildClassAnalyticsSnapshot(input: {
-  classGroup: ClassGroup;
-  assignments: Assignment[];
-  overviewByAssignment: AssignmentOverviewMap;
+  overview: ClassLearningOverview;
   t?: AnalyticsTranslator;
 }): AnalyticsSnapshot {
-  const assignments = classAssignments(input.assignments, input.classGroup.id, input.classGroup.name, input.t);
-  const overviews = assignments.map(assignment => input.overviewByAssignment[assignment.id]).filter(Boolean) as AssignmentOverview[];
-  const rosterStudentCount = overviews.length
-    ? Math.max(...overviews.map(overview => overview.rosterStudentCount || overview.participantCount || 0))
-    : 0;
-  const submittedStudentIds = new Set<number>();
-  overviews.forEach(overview => overview.students.forEach(student => {
-    if (student.attemptCount > 0) {
-      submittedStudentIds.add(student.studentProfileId);
-    }
+  const classGroup = input.overview.classGroup;
+  const rows = input.overview.assignments.map(assignment => ({
+    id: assignment.assignmentId,
+    title: displayText(assignment.title, input.t?.("teacherAnalytics.defaultLabels.assignmentFallbackWithId", { id: assignment.assignmentId }) || `Class Assignment #${assignment.assignmentId}`),
+    status: localizedAssignmentStatus(assignment.status, input.t),
+    href: `/teacher/classes/${classGroup.id}/assignments/${assignment.assignmentId}`,
+    problemCount: assignment.problemCount,
+    submittedStudentCount: assignment.submittedStudentCount,
+    participantCount: assignment.rosterStudentCount,
+    completedRequiredStudentCount: assignment.completedRequiredStudentCount,
+    passRate: null,
+    topIssue: null
   }));
-  const rows = assignments.map(assignment => assignmentRow(assignment, input.overviewByAssignment[assignment.id], input.classGroup.id, input.t));
-  const allProblems = overviews.flatMap(overview => problemRows(overview, input.classGroup.id));
-  const evidence = collectClassEvidence(assignments, input.overviewByAssignment, input.classGroup.id, input.t);
   return {
-    scope: { type: "class", classId: input.classGroup.id, className: input.classGroup.name },
-    classGroup: input.classGroup,
+    scope: { type: "class", classId: classGroup.id, className: classGroup.name },
+    classGroup,
     metrics: [
-      metric("assignments", assignments.length),
-      metric("rosterStudents", rosterStudentCount),
-      metric("submittedStudents", submittedStudentIds.size),
-      metric("unsubmittedStudents", Math.max(0, rosterStudentCount - submittedStudentIds.size))
+      metric("assignments", input.overview.assignmentCount),
+      metric("rosterStudents", input.overview.rosterStudentCount),
+      metric("submittedStudents", input.overview.submittedStudentCount),
+      metric("unsubmittedStudents", input.overview.unsubmittedStudentCount)
     ],
-    insightBuckets: buildBucketsFromOverviews(overviews, evidence, input.t),
+    insightBuckets: emptyInsightBuckets(),
     assignmentRows: rows,
-    problemRows: allProblems,
-    evidenceSamples: evidence,
-    emptyReason: assignments.length ? undefined : "noAssignments"
+    problemRows: [],
+    evidenceSamples: [],
+    emptyReason: input.overview.assignmentCount ? undefined : "noAssignments"
   };
+}
+
+function emptyInsightBuckets(): Record<AnalyticsGranularity, InsightBucket[]> {
+  return { chapter: [], knowledgePoint: [], skillUnit: [], mistakePoint: [] };
 }
 
 export function buildAssignmentAnalyticsSnapshot(input: {

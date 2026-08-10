@@ -13,6 +13,7 @@ import type {
   AiQualityTrend,
   AuthSession,
   ClassGroup,
+  ClassLearningOverview,
   CoachPrompt,
   DiagnosisEvalCandidates,
   DiagnosisEvalFixtureDraft,
@@ -219,6 +220,7 @@ export const api = {
     ),
 
   classes: () => request<ClassGroup[]>("/api/teacher/classes"),
+  classLearningOverview: (id: number) => request<ClassLearningOverview>(`/api/teacher/classes/${id}/learning-overview`),
   createClass: (payload: { name: string; grade?: string; teacherName?: string }) =>
     request<ClassGroup>("/api/teacher/classes", { method: "POST", body: jsonBody(payload) }),
   studentIdentityAudit: (classGroupId: number) =>

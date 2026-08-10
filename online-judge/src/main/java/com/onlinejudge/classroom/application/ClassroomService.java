@@ -328,12 +328,6 @@ public class ClassroomService {
                             return right.getCorrectedAt().isAfter(left.getCorrectedAt()) ? right : left;
                         }
                 ));
-        Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts =
-                studentAiFeedbackImpactAnalyzer.summarizeByFeedbackSubmission(
-                        submissions,
-                        analyses,
-                        studentAiFeedbackEventRepository.findByAssignmentIdOrderByCreatedAtDesc(assignmentId)
-                );
         Map<Long, CoachInteractionSummaryResponse> coachInteractions = coachInteractionAnalyzer.summarize(submissionIds);
         Map<Long, CoachImpactResponse> coachImpacts = coachImpactAnalyzer.summarizeByCoachedSubmission(
                 submissions,
@@ -526,7 +520,7 @@ public class ClassroomService {
         ));
         List<AssignmentOverviewResponse.ProblemSummary> problemSummaries =
                 buildProblemSummaries(assignmentResponse, assignmentProblems, submissions, analyses,
-                        aiFeedbackImpacts, classStudents, classStudentCount);
+                        classStudents, classStudentCount);
 
         return AssignmentOverviewResponse.builder()
                 .assignment(assignmentResponse)
@@ -1169,7 +1163,6 @@ public class ClassroomService {
             Map<Long, Problem> problems,
             List<Submission> submissions,
             Map<Long, SubmissionAnalysis> analyses,
-            Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts,
             List<StudentProfile> classStudents,
             long classStudentCount) {
         if (assignment == null || assignment.getTasks() == null || assignment.getTasks().isEmpty()) {
@@ -1192,7 +1185,6 @@ public class ClassroomService {
                         problems == null ? null : problems.get(task.getProblemId()),
                         submissionsByProblem.getOrDefault(task.getProblemId(), List.of()),
                         analyses,
-                        aiFeedbackImpacts,
                         classStudentById,
                         classStudentCount,
                         submissionEvidenceAnalyticsService.summarize(
@@ -1209,7 +1201,6 @@ public class ClassroomService {
             Problem problem,
             List<Submission> problemSubmissions,
             Map<Long, SubmissionAnalysis> analyses,
-            Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts,
             Map<Long, StudentProfile> classStudentById,
             long classStudentCount,
             SubmissionEvidenceAnalyticsService.EvidenceSummary evidenceSummary) {
@@ -1242,7 +1233,7 @@ public class ClassroomService {
         Double medianEffectiveAttempts = medianEffectiveAttempts(byStudent, growthBySubmission);
         List<AssignmentOverviewResponse.ProblemStudentSummary> students = byStudent.entrySet().stream()
                 .map(entry -> buildProblemStudentSummary(entry.getKey(), classStudentById.get(entry.getKey()),
-                        entry.getValue(), analyses, aiFeedbackImpacts,
+                        entry.getValue(), analyses,
                         evidenceSummary.recentStates().get(entry.getKey()), growthBySubmission))
                 .sorted(Comparator.comparing(AssignmentOverviewResponse.ProblemStudentSummary::isNeedsAttention).reversed()
                         .thenComparing(AssignmentOverviewResponse.ProblemStudentSummary::getDisplayName, Comparator.nullsLast(String::compareTo)))
@@ -1272,7 +1263,7 @@ public class ClassroomService {
                 .dataCompleteness(evidenceSummary.dataCompleteness())
                 .knowledgePathStats(evidenceSummary.knowledgePathStats())
                 .recoverySummary(evidenceSummary.recoverySummary())
-                .topIssues(buildProblemIssueStats(ordered, analyses))
+                .topIssues(buildProblemIssueStats(evidenceSummary.knowledgePathStats(), ordered, analyses))
                 .abilityWeaknesses(buildProblemAbilityStats(ordered, analyses))
                 .hintLevelDistribution(buildHintLevelStats(ordered, analyses))
                 .students(students)
@@ -1284,7 +1275,6 @@ public class ClassroomService {
             StudentProfile student,
             List<Submission> submissions,
             Map<Long, SubmissionAnalysis> analyses,
-            Map<Long, StudentTrajectoryResponse.AiFeedbackImpact> aiFeedbackImpacts,
             AssignmentOverviewResponse.StudentRecentState recentLearningState,
             Map<Long, SubmissionGrowthSummaryResponse> growthBySubmission) {
         List<Submission> ordered = safeList(submissions).stream()
@@ -1304,14 +1294,10 @@ public class ClassroomService {
         String issueTag = resolveLatestIssueTag(latestAnalysis);
         String primaryTag = fineTag == null ? issueTag : fineTag;
         String abilityPoint = resolveAbilityPoint(primaryTag);
-        StudentTrajectoryResponse.AiFeedbackImpact latestAiFeedbackImpact =
-                studentAiFeedbackImpactAnalyzer.latestForOrderedSubmissions(
-                        ordered.stream().map(Submission::getId).toList(),
-                        aiFeedbackImpacts
-                );
-        boolean needsAttention = passedCount == 0 && ordered.size() >= 2
-                || (latest != null && latest.getVerdict() != Submission.Verdict.ACCEPTED && primaryTag != null)
-                || latestAiFeedbackImpact != null && latestAiFeedbackImpact.isNeedsTeacherAttention();
+        SubmissionGrowthSummaryResponse latestGrowth = latest == null ? null : growthBySubmission.get(latest.getId());
+        boolean latestNotAccepted = latest != null && latest.getVerdict() != Submission.Verdict.ACCEPTED;
+        boolean needsAttention = latestNotAccepted && (effectiveAttemptCount >= 2
+                || latestGrowth != null && latestGrowth.getUnresolvedCount() > 0);
         return AssignmentOverviewResponse.ProblemStudentSummary.builder()
                 .studentProfileId(studentId)
                 .displayName(resolveStudentDisplayName(student, studentId))
@@ -1322,16 +1308,18 @@ public class ClassroomService {
                 .latestSubmissionId(latest == null ? null : latest.getId())
                 .latestVerdict(latest == null || latest.getVerdict() == null ? "暂无" : latest.getVerdict().name())
                 .latestSubmittedAt(latest == null ? null : latest.getSubmittedAt())
-                .latestIssue(latestAnalysis == null ? "" : latestAnalysis.getHeadline())
+                .latestIssue(latestGrowth != null && latestGrowth.getPriorityIssueTitle() != null
+                        ? latestGrowth.getPriorityIssueTitle()
+                        : latestAnalysis == null ? "" : latestAnalysis.getHeadline())
                 .latestIssueTag(issueTag)
                 .latestFineGrainedIssue(fineTag)
                 .abilityPoint(abilityPoint)
                 .latestHintLevel(resolveHintLevel(latestAnalysis))
                 .latestHintAction(resolveHintAction(latestAnalysis))
-                .latestProgressSignal(resolveProgressSignal(latestAnalysis, resolveRepeatedIssue(ordered, analyses), resolveRepeatedFineIssue(ordered, analyses)))
+                .latestProgressSignal(latestGrowth == null ? null : latestGrowth.getGrowthState())
                 .latestConfidence(diagnosisReportReader.confidence(latestAnalysis))
-                .latestGrowthSummary(latest == null ? null : growthBySubmission.get(latest.getId()))
-                .latestAiFeedbackImpact(latestAiFeedbackImpact)
+                .latestGrowthSummary(latestGrowth)
+                .latestAiFeedbackImpact(null)
                 .recentLearningState(recentLearningState)
                 .needsAttention(needsAttention)
                 .build();
@@ -1399,9 +1387,29 @@ public class ClassroomService {
         return roundOneDecimal(value);
     }
 
-    private List<AssignmentOverviewResponse.IssueStat> buildProblemIssueStats(List<Submission> submissions,
-                                                                              Map<Long, SubmissionAnalysis> analyses) {
-        Map<String, Long> counts = new LinkedHashMap<>();
+    private List<AssignmentOverviewResponse.IssueStat> buildProblemIssueStats(
+            List<AssignmentOverviewResponse.KnowledgePathStat> pathStats,
+            List<Submission> submissions,
+            Map<Long, SubmissionAnalysis> analyses
+    ) {
+        List<AssignmentOverviewResponse.IssueStat> projected = safeList(pathStats).stream()
+                .filter(item -> "mistakePoint".equals(item.getGranularity()))
+                .sorted(Comparator.comparingLong(AssignmentOverviewResponse.KnowledgePathStat::getAffectedStudentCount)
+                        .reversed()
+                        .thenComparing(AssignmentOverviewResponse.KnowledgePathStat::getEffectiveWeightedOccurrenceCount,
+                                Comparator.reverseOrder()))
+                .limit(5)
+                .map(item -> AssignmentOverviewResponse.IssueStat.builder()
+                        .label(item.getLabel())
+                        .count(item.getRawOccurrenceCount())
+                        .affectedStudentCount(item.getAffectedStudentCount())
+                        .repeatedStudentCount(item.getRepeatedStudentCount())
+                        .build())
+                .toList();
+        if (!projected.isEmpty()) {
+            return projected;
+        }
+        Map<String, Long> legacyCounts = new LinkedHashMap<>();
         safeList(submissions).stream()
                 .map(submission -> analyses.get(submission.getId()))
                 .filter(Objects::nonNull)
@@ -1410,18 +1418,14 @@ public class ClassroomService {
                     if (tags.isEmpty()) {
                         tags = diagnosisReportReader.issueTags(analysis);
                     }
-                    tags.forEach(tag -> counts.put(tag, counts.getOrDefault(tag, 0L) + 1));
+                    tags.forEach(tag -> legacyCounts.put(tag, legacyCounts.getOrDefault(tag, 0L) + 1));
                 });
-        return counts.entrySet().stream()
+        return legacyCounts.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(5)
                 .map(entry -> AssignmentOverviewResponse.IssueStat.builder()
                         .label(entry.getKey())
                         .count(entry.getValue())
-                        .explanation(resolveTeacherExplanation(entry.getKey()))
-                        .abilityPoint(resolveAbilityPoint(entry.getKey()))
-                        .recommendedHintPolicy(resolveRecommendedHintPolicy(entry.getKey()))
-                        .interventionSuggestion(resolveInterventionSuggestion(entry.getKey()))
                         .affectedStudentCount(countAffectedStudents(submissions, analyses, entry.getKey()))
                         .build())
                 .toList();

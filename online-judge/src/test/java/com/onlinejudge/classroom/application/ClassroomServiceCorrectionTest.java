@@ -183,9 +183,8 @@ class ClassroomServiceCorrectionTest {
                     assertThat(problem.getStudents()).filteredOn(student -> student.getStudentProfileId().equals(1L))
                             .singleElement()
                             .satisfies(student -> {
-                                assertThat(student.getLatestAiFeedbackImpact()).isNotNull();
-                                assertThat(student.getLatestAiFeedbackImpact().getStatus()).isEqualTo("IMPROVED_AFTER_AI");
-                                assertThat(student.getLatestAiFeedbackImpact().getStatusLabel()).contains("查看建议后");
+                                assertThat(student.getLatestAiFeedbackImpact()).isNull();
+                                assertThat(student.getLatestVerdict()).isEqualTo("ACCEPTED");
                             });
                 });
         assertThat(overview.getProblemSummaries().get(1))

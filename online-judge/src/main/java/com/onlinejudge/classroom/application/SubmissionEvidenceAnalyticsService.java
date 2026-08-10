@@ -13,6 +13,8 @@ import com.onlinejudge.submission.domain.SubmissionDiagnosisFact;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import com.onlinejudge.submission.persistence.SubmissionDiagnosisFactRepository;
 import com.onlinejudge.submission.application.SubmissionEvidenceProperties;
+import com.onlinejudge.submission.application.SubmissionGrowthSummaryService;
+import com.onlinejudge.submission.dto.SubmissionGrowthSummaryResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +42,7 @@ public class SubmissionEvidenceAnalyticsService {
     private final StudentAiFeedbackEventRepository feedbackEventRepository;
     private final ObjectMapper objectMapper;
     private final SubmissionEvidenceProperties properties;
+    private SubmissionGrowthSummaryService growthSummaryService;
 
     @Autowired
     public SubmissionEvidenceAnalyticsService(
@@ -63,6 +66,11 @@ public class SubmissionEvidenceAnalyticsService {
             ObjectMapper objectMapper
     ) {
         this(factRepository, correctionRepository, feedbackEventRepository, objectMapper, new SubmissionEvidenceProperties());
+    }
+
+    @Autowired(required = false)
+    void setGrowthSummaryService(SubmissionGrowthSummaryService growthSummaryService) {
+        this.growthSummaryService = growthSummaryService;
     }
 
     @Transactional(readOnly = true)
@@ -110,13 +118,22 @@ public class SubmissionEvidenceAnalyticsService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .count();
+        Map<Long, SubmissionGrowthSummaryResponse> growthBySubmission = growthSummaryService == null
+                ? Map.of()
+                : growthSummaryService.summarize(legal);
         List<AssignmentOverviewResponse.KnowledgePathStat> pathStats = buildPathStats(
                 legal,
                 effectiveFacts,
-                submittedStudentCount
+                submittedStudentCount,
+                growthBySubmission
         );
         RecoveryResult recovery = buildRecovery(legal, effectiveFacts, events, analyses == null ? Map.of() : analyses);
-        Map<Long, AssignmentOverviewResponse.StudentRecentState> recentStates = buildRecentStates(legal, effectiveFacts, recovery.evidence());
+        Map<Long, AssignmentOverviewResponse.StudentRecentState> recentStates = buildRecentStates(
+                legal,
+                effectiveFacts,
+                recovery.evidence(),
+                growthBySubmission
+        );
         AssignmentOverviewResponse.DataCompleteness completeness = buildCompleteness(
                 submissions,
                 legal,
@@ -259,10 +276,11 @@ public class SubmissionEvidenceAnalyticsService {
     private List<AssignmentOverviewResponse.KnowledgePathStat> buildPathStats(
             List<Submission> legal,
             Map<Long, List<EffectiveFact>> effectiveFacts,
-            long submittedStudentCount
+            long submittedStudentCount,
+            Map<Long, SubmissionGrowthSummaryResponse> growthBySubmission
     ) {
         Map<String, PathAccumulator> buckets = new LinkedHashMap<>();
-        Map<String, BucketLifecycle> lifecycle = buildBucketLifecycle(legal, effectiveFacts);
+        Map<String, BucketLifecycle> lifecycle = buildBucketLifecycle(legal, effectiveFacts, growthBySubmission);
         for (Submission submission : legal) {
             for (EffectiveFact fact : effectiveFacts.getOrDefault(submission.getId(), List.of())) {
                 for (int index = 0; index < fact.path().size(); index++) {
@@ -290,6 +308,72 @@ public class SubmissionEvidenceAnalyticsService {
 
     private Map<String, BucketLifecycle> buildBucketLifecycle(
             List<Submission> legal,
+            Map<Long, List<EffectiveFact>> effectiveFacts,
+            Map<Long, SubmissionGrowthSummaryResponse> growthBySubmission
+    ) {
+        if (growthBySubmission == null || growthBySubmission.isEmpty()) {
+            return buildLegacyBucketLifecycle(legal, effectiveFacts);
+        }
+        Map<String, BucketLifecycle> metrics = new LinkedHashMap<>();
+        Map<String, List<Submission>> scopes = legal.stream()
+                .filter(item -> item.getStudentProfileId() != null && item.getProblemId() != null)
+                .collect(Collectors.groupingBy(
+                        item -> item.getStudentProfileId() + ":" + item.getAssignmentId() + ":" + item.getProblemId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+        for (List<Submission> scope : scopes.values()) {
+            List<Submission> ordered = scope.stream()
+                    .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(LocalDateTime::compareTo))
+                            .thenComparing(Submission::getId))
+                    .toList();
+            Map<String, Set<String>> bucketKeysByPoint = new LinkedHashMap<>();
+            for (Submission submission : ordered) {
+                for (EffectiveFact fact : effectiveFacts.getOrDefault(submission.getId(), List.of())) {
+                    bucketKeysByPoint.computeIfAbsent(fact.normalizedPointKey(), ignored -> new LinkedHashSet<>())
+                            .addAll(bucketKeys(List.of(fact)));
+                }
+            }
+            Set<String> latestEffectiveKeys = Set.of();
+            Long studentId = ordered.isEmpty() ? null : ordered.get(0).getStudentProfileId();
+            for (Submission current : ordered) {
+                SubmissionGrowthSummaryResponse growth = growthBySubmission.get(current.getId());
+                Set<String> currentKeys = bucketKeys(effectiveFacts.getOrDefault(current.getId(), List.of()));
+                boolean effectiveAttempt = growth != null && growth.isEffectiveAttempt();
+                for (String key : currentKeys) {
+                    BucketLifecycle metric = metrics.computeIfAbsent(key, ignored -> new BucketLifecycle());
+                    if (effectiveAttempt) {
+                        metric.effectiveOccurrenceCount++;
+                    }
+                }
+                if (growth != null && effectiveAttempt) {
+                    for (SubmissionGrowthSummaryResponse.IssueSignal signal : safe(growth.getIssueSignals())) {
+                        Set<String> signalBuckets = bucketKeysByPoint.getOrDefault(signal.getNormalizedPointKey(), Set.of());
+                        if ("PERSISTED".equals(signal.getChangeStatus())) {
+                            signalBuckets.forEach(key -> metrics.computeIfAbsent(key, ignored -> new BucketLifecycle())
+                                    .repeatedStudentIds.add(studentId));
+                        } else if ("RECURRED".equals(signal.getChangeStatus())) {
+                            signalBuckets.forEach(key -> {
+                                BucketLifecycle metric = metrics.computeIfAbsent(key, ignored -> new BucketLifecycle());
+                                metric.repeatedStudentIds.add(studentId);
+                                metric.recurringStudentIds.add(studentId);
+                            });
+                        } else if ("RECOVERED".equals(signal.getChangeStatus())) {
+                            signalBuckets.forEach(key -> metrics.computeIfAbsent(key, ignored -> new BucketLifecycle())
+                                    .recoveredStudentIds.add(studentId));
+                        }
+                    }
+                    latestEffectiveKeys = currentKeys;
+                }
+            }
+            latestEffectiveKeys.forEach(key -> metrics.computeIfAbsent(key, ignored -> new BucketLifecycle())
+                    .unresolvedStudentIds.add(studentId));
+        }
+        return metrics;
+    }
+
+    private Map<String, BucketLifecycle> buildLegacyBucketLifecycle(
+            List<Submission> legal,
             Map<Long, List<EffectiveFact>> effectiveFacts
     ) {
         Map<String, BucketLifecycle> metrics = new LinkedHashMap<>();
@@ -307,28 +391,28 @@ public class SubmissionEvidenceAnalyticsService {
                     .toList();
             Set<String> seen = new LinkedHashSet<>();
             Set<String> previousKeys = Set.of();
-            Submission previous = null;
+            Submission previousEffective = null;
             for (Submission current : ordered) {
                 Set<String> currentKeys = bucketKeys(effectiveFacts.getOrDefault(current.getId(), List.of()));
-                boolean effectiveAttempt = previous == null
-                        || !Objects.equals(previous.getSourceCode(), current.getSourceCode())
-                        || !Objects.equals(previous.getVerdict(), current.getVerdict())
+                boolean effectiveAttempt = previousEffective == null
+                        || !Objects.equals(previousEffective.getSourceCode(), current.getSourceCode())
+                        || !Objects.equals(previousEffective.getVerdict(), current.getVerdict())
                         || !Objects.equals(previousKeys, currentKeys);
+                if (!effectiveAttempt) {
+                    continue;
+                }
                 for (String key : currentKeys) {
                     BucketLifecycle metric = metrics.computeIfAbsent(key, ignored -> new BucketLifecycle());
-                    if (effectiveAttempt) {
-                        metric.effectiveOccurrenceCount++;
-                    }
-                    if (effectiveAttempt && previousKeys.contains(key)) {
+                    metric.effectiveOccurrenceCount++;
+                    if (previousKeys.contains(key)) {
                         metric.repeatedStudentIds.add(current.getStudentProfileId());
-                    }
-                    if (effectiveAttempt && seen.contains(key) && !previousKeys.contains(key)) {
+                    } else if (seen.contains(key)) {
                         metric.recurringStudentIds.add(current.getStudentProfileId());
                         metric.repeatedStudentIds.add(current.getStudentProfileId());
                     }
                     seen.add(key);
                 }
-                if (effectiveAttempt && current.getVerdict() == Submission.Verdict.ACCEPTED) {
+                if (current.getVerdict() == Submission.Verdict.ACCEPTED) {
                     for (String key : seen) {
                         if (!currentKeys.contains(key)) {
                             metrics.computeIfAbsent(key, ignored -> new BucketLifecycle())
@@ -336,19 +420,12 @@ public class SubmissionEvidenceAnalyticsService {
                         }
                     }
                 }
-                previous = current;
+                previousEffective = current;
                 previousKeys = currentKeys;
             }
-            if (!ordered.isEmpty()) {
-                Submission latest = ordered.get(ordered.size() - 1);
-                for (String key : seen) {
-                    BucketLifecycle metric = metrics.computeIfAbsent(key, ignored -> new BucketLifecycle());
-                    if (previousKeys.contains(key)) {
-                        metric.unresolvedStudentIds.add(latest.getStudentProfileId());
-                    } else if (latest.getVerdict() == Submission.Verdict.ACCEPTED) {
-                        metric.recoveredStudentIds.add(latest.getStudentProfileId());
-                    }
-                }
+            for (String key : previousKeys) {
+                metrics.computeIfAbsent(key, ignored -> new BucketLifecycle())
+                        .unresolvedStudentIds.add(ordered.get(ordered.size() - 1).getStudentProfileId());
             }
         }
         return metrics;
@@ -529,7 +606,8 @@ public class SubmissionEvidenceAnalyticsService {
     private Map<Long, AssignmentOverviewResponse.StudentRecentState> buildRecentStates(
             List<Submission> legal,
             Map<Long, List<EffectiveFact>> facts,
-            List<AssignmentOverviewResponse.SubmissionChange> changes
+            List<AssignmentOverviewResponse.SubmissionChange> changes,
+            Map<Long, SubmissionGrowthSummaryResponse> growthBySubmission
     ) {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(RECENT_WINDOW_DAYS);
         Map<Long, List<Submission>> byStudent = legal.stream()
@@ -545,6 +623,11 @@ public class SubmissionEvidenceAnalyticsService {
             Map<String, Set<Long>> submissionIdsByIssue = new LinkedHashMap<>();
             Map<String, Set<Long>> problemIdsByIssue = new LinkedHashMap<>();
             for (Submission submission : ordered) {
+                SubmissionGrowthSummaryResponse growth = growthBySubmission.get(submission.getId());
+                if (growthBySubmission != null && !growthBySubmission.isEmpty()
+                        && (growth == null || !growth.isEffectiveAttempt())) {
+                    continue;
+                }
                 for (EffectiveFact fact : facts.getOrDefault(submission.getId(), List.of())) {
                     submissionIdsByIssue.computeIfAbsent(fact.normalizedPointKey(), ignored -> new LinkedHashSet<>()).add(submission.getId());
                     if (submission.getProblemId() != null) {
@@ -566,7 +649,14 @@ public class SubmissionEvidenceAnalyticsService {
             result.put(entry.getKey(), AssignmentOverviewResponse.StudentRecentState.builder()
                     .status(status)
                     .evidenceStatus(ordered.size() <= 1 ? "EVIDENCE_INSUFFICIENT" : "OBSERVED")
-                    .independentSubmissionCount(ordered.size())
+                    .independentSubmissionCount(growthBySubmission == null || growthBySubmission.isEmpty()
+                            ? ordered.size()
+                            : ordered.stream()
+                            .map(Submission::getId)
+                            .map(growthBySubmission::get)
+                            .filter(Objects::nonNull)
+                            .filter(SubmissionGrowthSummaryResponse::isEffectiveAttempt)
+                            .count())
                     .problemCount(ordered.stream().map(Submission::getProblemId).filter(Objects::nonNull).distinct().count())
                     .repeatedIssueId(repeatedIssue)
                     .repeatedIssueCount(repeatedIssue == null ? 0 : submissionIdsByIssue.get(repeatedIssue).size())

@@ -1966,6 +1966,25 @@ export interface ClassGroup {
   createdAt?: string;
 }
 
+export interface ClassLearningOverview {
+  classGroup: ClassGroup;
+  assignmentCount: number;
+  rosterStudentCount: number;
+  submittedStudentCount: number;
+  unsubmittedStudentCount: number;
+  assignments: Array<{
+    assignmentId: number;
+    title: string;
+    status: string;
+    createdAt?: string | null;
+    problemCount: number;
+    rosterStudentCount: number;
+    submittedStudentCount: number;
+    unsubmittedStudentCount: number;
+    completedRequiredStudentCount: number;
+  }>;
+}
+
 export interface StudentIdentityAudit {
   classGroupId: number;
   className?: string | null;

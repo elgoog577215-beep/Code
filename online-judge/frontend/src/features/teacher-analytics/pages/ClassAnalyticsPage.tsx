@@ -1,21 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ApiError, api } from "../../../shared/api/client";
-import type { Assignment, AssignmentOverview, ClassGroup } from "../../../shared/api/types";
+import type { ClassLearningOverview } from "../../../shared/api/types";
 import { useTranslation } from "../../../shared/i18n";
 import { EmptyState } from "../../../shared/ui/EmptyState";
 import { AnalyticsBreadcrumbs } from "../components/AnalyticsBreadcrumbs";
 import { AnalyticsDashboard } from "../components/AnalyticsDashboard";
 import { AnalyticsPageBar } from "../components/AnalyticsPageBar";
-import { buildClassAnalyticsSnapshot, classAssignments, findClass } from "../selectors";
+import { buildClassAnalyticsSnapshot } from "../selectors";
 
 export default function ClassAnalyticsPage() {
   const { t } = useTranslation();
   const { classId = "" } = useParams();
   const classIdNumber = Number(classId);
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [overviewByAssignment, setOverviewByAssignment] = useState<Record<number, AssignmentOverview | null>>({});
+  const [overview, setOverview] = useState<ClassLearningOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,21 +28,7 @@ export default function ClassAnalyticsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [classResult, assignmentResult] = await Promise.all([api.classes(), api.assignments()]);
-      const currentClass = findClass(classResult, classIdNumber);
-      const scopedAssignments = currentClass ? classAssignments(assignmentResult, currentClass.id, currentClass.name, t) : [];
-      const overviewEntries = await Promise.all(
-        scopedAssignments.map(async assignment => {
-          try {
-            return [assignment.id, await api.assignmentOverview(assignment.id)] as const;
-          } catch {
-            return [assignment.id, null] as const;
-          }
-        })
-      );
-      setClasses(classResult);
-      setAssignments(assignmentResult);
-      setOverviewByAssignment(Object.fromEntries(overviewEntries));
+      setOverview(await api.classLearningOverview(classIdNumber));
     } catch (currentError) {
       setError(currentError instanceof ApiError || currentError instanceof Error ? currentError.message : t("teacherAnalytics.errors.load"));
     } finally {
@@ -53,9 +37,8 @@ export default function ClassAnalyticsPage() {
   }
 
   const snapshot = useMemo(() => {
-    const currentClass = findClass(classes, classIdNumber);
-    return currentClass ? buildClassAnalyticsSnapshot({ classGroup: currentClass, assignments, overviewByAssignment, t }) : null;
-  }, [assignments, classIdNumber, classes, overviewByAssignment, t]);
+    return overview ? buildClassAnalyticsSnapshot({ overview, t }) : null;
+  }, [overview, t]);
 
   if (loading && !snapshot) {
     return <EmptyState title={t("teacherAnalytics.loading.class")} live />;

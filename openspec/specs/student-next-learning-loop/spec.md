@@ -4,12 +4,22 @@
 TBD - created by archiving change productize-student-next-learning-loop. Update Purpose after archive.
 ## Requirements
 ### Requirement: 学生首页必须展示单一主学习行动
-系统 SHALL 在登录学生首页使用后端返回的推荐顺序展示一个最高优先级主行动；前端 MUST NOT 根据标签文本、通过率或本地规则重新计算推荐优先级。其他有效建议 SHALL 保留在推荐响应和证据链中，但 MUST NOT 在首页默认展开为并列或次级行动列表。
+系统 SHALL 在登录学生首页使用后端返回的唯一主行动；前端 MUST NOT 根据标签文本、通过率或本地规则重新计算推荐优先级。后端 MUST NOT 同时返回多条竞争主行动，也不得让跨题迁移、AI 依赖、自解释、掌握度或教学动作分析覆盖当前未完成题目。
 
-#### Scenario: 存在多条推荐
-- **WHEN** 推荐接口返回两条或以上有效建议
-- **THEN** 页面 SHALL 只将第一条展示为本轮主行动
-- **AND** 其余建议 MUST NOT 增加首页默认信息密度
+#### Scenario: 存在最近未通过题目
+- **WHEN** 学生至少有一道最近状态为未通过的题目
+- **THEN** 后端 SHALL 只返回继续处理最近未通过题目的主行动
+- **AND** 系统 MUST NOT 同时把新题、迁移练习或抽象复盘排在该行动之前
+
+#### Scenario: 所有已尝试题目均已通过
+- **WHEN** 学生不存在最近未通过题目且存在安全可进入的未做题
+- **THEN** 后端 SHALL 返回开始一题新题的主行动
+- **AND** 主行动 SHALL 包含可验证的题目入口
+
+#### Scenario: 没有安全行动目标
+- **WHEN** 学生没有未通过题目且没有可安全进入的新题
+- **THEN** 后端 SHALL 返回至多一条短复盘行动
+- **AND** 系统 MUST NOT 构造错误作业或题目入口
 
 ### Requirement: 学习行动必须说明理由与完成标准
 首页主行动 SHALL 展示行动目标、一个推荐理由和操作入口，并在后端提供时以轻量文本展示预期完成信号；知识标签、学习假设、风险和回退动作 SHALL 保留在后端契约与相关反馈页面中，但 MUST NOT 在首页默认展开。页面 MUST NOT 为缺失字段编造已经掌握或完成的结论。
@@ -87,3 +97,11 @@ TBD - created by archiving change productize-student-next-learning-loop. Update 
 - **WHEN** 历史推荐只能通过旧标签比较
 - **THEN** 后端 SHALL 明确返回兼容匹配依据或证据不足
 - **AND** 页面 MUST NOT 把弱匹配伪装成稳定问题验收
+
+### Requirement: 学生主行动必须保留验证链而不暴露内部策略
+主行动 SHALL 保留推荐 token、目标题目、来源问题和后续提交事件，以便后端验证行动结果；学生可见理由 SHALL 使用当前任务和提交事实，不得出现系统编排、能力迁移、支架依赖或风险分层等内部术语。
+
+#### Scenario: 学生从主行动再次提交
+- **WHEN** 学生点击主行动、进入题目并再次提交
+- **THEN** 系统 SHALL 继续记录同一推荐 token 的行动事件
+- **AND** 学生页面 SHALL 只显示当前要做什么和完成标准
