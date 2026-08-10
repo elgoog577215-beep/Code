@@ -29,7 +29,7 @@ TBD - created by archiving change add-teaching-contest-scenario-layer. Update Pu
 - **THEN** 质量门禁 MUST 阻断迁移或发布
 
 ### Requirement: 场景内容必须可观察、可检查、可迁移
-每个正式场景 SHALL 分别保存任务情境、学生任务、可观察证据、常见失败、教师检查动作、学生自检、约束画像、成功标准和迁移说明；课堂场景 MUST 体现教学活动与形成性检查，竞赛场景 MUST 体现题面约束、评测边界或复杂度梯度。
+每个正式场景 SHALL 分别保存任务情境、学生任务、可观察证据、常见失败、教师检查动作、学生自检、约束画像、成功标准和迁移说明；课堂场景 MUST 体现教学活动与形成性检查，竞赛场景 MUST 体现题面约束、评测边界或复杂度梯度。同一迁移对的课堂与竞赛场景 MUST 使用与各自语境相符的不同检查动作，不得机械复用同一句教师动作。
 
 #### Scenario: 教师读取课堂场景
 - **WHEN** 教师展开知识点诊断层
@@ -40,6 +40,11 @@ TBD - created by archiving change add-teaching-contest-scenario-layer. Update Pu
 - **WHEN** AI 为已选能力生成提高建议
 - **THEN** 场景 SHALL 提供数据范围、失败类型、边界或部分分梯度等竞赛语境
 - **AND** 场景 MUST NOT 直接提供完整解法或覆盖当前提交证据
+
+#### Scenario: 课堂与竞赛动作机械复用
+- **WHEN** 同一迁移对的课堂场景和竞赛场景具有完全相同的教师动作
+- **THEN** 质量门禁 MUST 阻断迁移或发布
+- **AND** 竞赛动作 SHALL 改为核对约束、复杂度、对拍、边界或评测证据
 
 ### Requirement: 场景引用必须闭合且可审计
 启用场景引用的易错点和提升点 MUST 属于同一能力点；来源框架、来源链接、审校状态和库版本 MUST 可审计。所有首批正式能力点 SHALL 至少拥有一条提升路径，历史兼容能力 MUST NOT 承载新增正式提升点。

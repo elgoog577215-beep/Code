@@ -822,6 +822,88 @@ raw_metrics(metric, severity, value, direction, target, definition) AS (
            'MIN', 100000,
            '第六批五层有效文本总字符数，不以空字段或模板占位凑体积'
     UNION ALL
+    SELECT 'v12_enabled_knowledge_duplicate_names', 'BLOCKER',
+           COALESCE(sum(copies - 1), 0), 'MAX', 0,
+           'V12 治理后启用知识节点仍使用相同展示名的额外记录数'
+    FROM (
+        SELECT name, count(*) AS copies
+        FROM informatics_knowledge_nodes
+        WHERE enabled = true
+        GROUP BY name
+        HAVING count(*) > 1
+    ) duplicate_knowledge_names
+    UNION ALL
+    SELECT 'v12_enabled_mistake_duplicate_names', 'BLOCKER',
+           COALESCE(sum(copies - 1), 0), 'MAX', 0,
+           'V12 治理后启用易错点仍使用相同展示名的额外记录数'
+    FROM (
+        SELECT name, count(*) AS copies
+        FROM ai_standard_mistake_points
+        WHERE enabled = true
+        GROUP BY name
+        HAVING count(*) > 1
+    ) duplicate_mistake_names
+    UNION ALL
+    SELECT 'v12_meta_repair_instructions', 'BLOCKER', count(*), 'MAX', 0,
+           '启用易错点仍把具体修正建议重新交给 AI 生成的元说明数量'
+    FROM ai_standard_mistake_points
+    WHERE enabled = true
+      AND repair_strategy LIKE '%具体诊断、修正建议和提高建议由 AI%'
+    UNION ALL
+    SELECT 'v12_actionable_legacy_repairs', 'BLOCKER', count(*), 'MIN', 348,
+           'V12 已补成可复现、可修改、可复测协议的旧版正式易错点数'
+    FROM ai_standard_mistake_points
+    WHERE enabled = true
+      AND skill_unit_code NOT LIKE 'SK_COMPAT_%'
+      AND library_version = 'standard-library-v3-skill-mistake'
+      AND (repair_strategy LIKE '针对“%'
+        OR code IN ('MP_V7_STRING_OVERLAPPING_MATCH_SKIPPED',
+                    'MP_V8_STRING_OVERLAP_MATCH_SKIPPED'))
+    UNION ALL
+    SELECT 'v12_compatibility_routing_contracts', 'BLOCKER', count(*), 'MIN', 10,
+           'V12 明确只作旧 ID 路由、不生成正式教学结论的兼容易错点数'
+    FROM ai_standard_mistake_points
+    WHERE enabled = true
+      AND skill_unit_code LIKE 'SK_COMPAT_%'
+      AND repair_strategy LIKE '该条目只保留旧版 code 兼容%'
+    UNION ALL
+    SELECT 'v12_repaired_flat_snapshot_mismatch', 'BLOCKER', count(*), 'MAX', 0,
+           'V12 已治理规范错因与平铺快照在名称、描述、误区、提示或症状上不一致的数量'
+    FROM ai_standard_mistake_points m
+    LEFT JOIN ai_standard_library_items item
+      ON item.layer = 'MISTAKE_POINT' AND item.code = m.code
+    WHERE m.enabled = true
+      AND (m.repair_strategy LIKE '针对“%'
+        OR m.repair_strategy LIKE '该条目只保留旧版 code 兼容%'
+        OR m.code IN ('MP_V7_STRING_OVERLAPPING_MATCH_SKIPPED',
+                      'MP_V8_STRING_OVERLAP_MATCH_SKIPPED'))
+      AND (item.id IS NULL
+        OR item.name IS DISTINCT FROM m.name
+        OR item.description IS DISTINCT FROM m.description
+        OR item.common_misconception IS DISTINCT FROM m.misconception
+        OR item.hintl3 IS DISTINCT FROM left(m.repair_strategy, 800)
+        OR item.evidence_signals IS DISTINCT FROM m.symptom)
+    UNION ALL
+    SELECT 'v12_v11_transfer_pair_same_teacher_move', 'BLOCKER', count(*), 'MAX', 0,
+           '第六批同一迁移对的课堂与竞赛场景机械复用相同教师动作的数量'
+    FROM (
+        SELECT transfer_pair_code
+        FROM ai_standard_application_scenarios
+        WHERE enabled = true
+          AND library_version = 'informatics-discipline-application-v2'
+        GROUP BY transfer_pair_code
+        HAVING count(*) = 2
+           AND count(DISTINCT context_type) = 2
+           AND max(teacher_move) FILTER (WHERE context_type = 'CLASSROOM')
+               = max(teacher_move) FILTER (WHERE context_type = 'CONTEST')
+    ) same_teacher_move_pairs
+    UNION ALL
+    SELECT 'template_knowledge_descriptions_v12_limit', 'BLOCKER', count(*), 'MAX', 384,
+           'V12 存量治理后模板化知识点描述的允许上限'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND description LIKE '细颗粒知识点：%'
+    UNION ALL
     SELECT 'template_knowledge_descriptions_batch_6_limit', 'BLOCKER', count(*), 'MAX', 406,
            '第六批发布后模板化知识点描述的允许上限'
     FROM informatics_knowledge_nodes

@@ -94,7 +94,7 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("student_ai_feedback_revisions', 'evidence_json")
                 .contains("teacher_diagnosis_corrections', 'feedback_revision_id")
                 .contains("idx_teacher_corrections_feedback_revision");
-        assertThat(migrationTest).contains("V1-V11", "${VERSION}\" == \"11", "${LEGACY_VERSION}\" == \"11");
+        assertThat(migrationTest).contains("V1-V12", "${VERSION}\" == \"12", "${LEGACY_VERSION}\" == \"12");
     }
 
     @Test
@@ -181,8 +181,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("library_fit_invalid")
                 .contains("post_v5_fact_rows");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"11\" ]]")
-                .contains("V1-V11");
+                .contains("[[ \"${VERSION}\" == \"12\" ]]")
+                .contains("V1-V12");
     }
 
     @Test
@@ -290,8 +290,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("uk_test_case_semantic_code")
                 .contains("idx_submission_case_results_test_case");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"11\" ]]")
-                .contains("V1-V11")
+                .contains("[[ \"${VERSION}\" == \"12\" ]]")
+                .contains("V1-V12")
                 .contains("check-test-case-semantic-quality.sh");
         assertThat(deploy).contains("check-test-case-semantic-quality.sh");
     }
@@ -351,6 +351,37 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("discipline_v6_missing_flat_or_mapping")
                 .contains("discipline_v6_effective_text_chars")
                 .contains("template_knowledge_descriptions_batch_6_limit");
+    }
+
+    @Test
+    void standardLibraryV12GovernsExistingContentWithoutChangingStableFacts() throws IOException {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V12__govern_standard_knowledge_library_quality.sql"));
+        String qualityGate = read("check-discipline-data-quality.sh");
+        String integration = read("test-postgres-migrations.sh");
+
+        assertThat(migration)
+                .contains("standard_library_v12_knowledge_curations")
+                .contains("standard_library_v12_repair_targets")
+                .contains("该条目只保留旧版 code 兼容")
+                .contains("未确认重叠语义就按模式长度推进")
+                .contains("匹配后按完整模式长度推进导致漏计重叠")
+                .contains("V12 meta repair instructions remain")
+                .contains("V12 normalized mistakes and flat snapshots diverged")
+                .contains("V12 changed business facts")
+                .doesNotContain("DELETE FROM", "TRUNCATE TABLE", "DROP TABLE public");
+        assertThat(qualityGate)
+                .contains("v12_enabled_knowledge_duplicate_names")
+                .contains("v12_enabled_mistake_duplicate_names")
+                .contains("v12_meta_repair_instructions")
+                .contains("v12_actionable_legacy_repairs")
+                .contains("v12_compatibility_routing_contracts")
+                .contains("v12_repaired_flat_snapshot_mismatch")
+                .contains("v12_v11_transfer_pair_same_teacher_move")
+                .contains("template_knowledge_descriptions_v12_limit");
+        assertThat(integration)
+                .contains("[[ \"${VERSION}\" == \"12\" ]]")
+                .contains("V1-V12");
     }
 
     private String read(String name) throws IOException {
