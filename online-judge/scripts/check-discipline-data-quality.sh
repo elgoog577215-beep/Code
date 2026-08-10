@@ -647,6 +647,187 @@ raw_metrics(metric, severity, value, direction, target, definition) AS (
           WHERE i.enabled = true AND i.skill_unit_code = s.code
       )
     UNION ALL
+    SELECT 'discipline_v6_curated_knowledge', 'BLOCKER', count(*), 'MIN', 48,
+           '第六批跨六领域精修的启用知识点数'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND library_version = 'informatics-knowledge-discipline-v6'
+      AND description NOT LIKE '细颗粒知识点：%'
+    UNION ALL
+    SELECT 'discipline_v6_domain_count', 'BLOCKER', count(DISTINCT split_part(code, '.', 1)), 'MIN', 6,
+           '第六批覆盖的 ALGO、BASIC、CONTEST、DS、ENG、MATH 领域数'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND library_version = 'informatics-knowledge-discipline-v6'
+    UNION ALL
+    SELECT 'discipline_v6_unbalanced_domains', 'BLOCKER', count(*), 'MAX', 0,
+           '第六批精修知识点数量不是每领域 8 个的领域数'
+    FROM (
+        SELECT split_part(code, '.', 1) AS domain_code
+        FROM informatics_knowledge_nodes
+        WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+          AND library_version = 'informatics-knowledge-discipline-v6'
+        GROUP BY split_part(code, '.', 1)
+        HAVING count(*) <> 8
+    ) unbalanced_v6
+    UNION ALL
+    SELECT 'discipline_v6_skill_units', 'BLOCKER', count(*), 'MIN', 48,
+           '第六批新增且启用的正式能力点数'
+    FROM ai_standard_skill_units
+    WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6'
+    UNION ALL
+    SELECT 'discipline_v6_mistake_points', 'BLOCKER', count(*), 'MIN', 144,
+           '第六批新增且启用的细颗粒易错点数'
+    FROM ai_standard_mistake_points
+    WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6'
+    UNION ALL
+    SELECT 'discipline_v6_improvement_points', 'BLOCKER', count(*), 'MIN', 48,
+           '第六批新增且启用的可执行提升点数'
+    FROM ai_standard_improvement_points
+    WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6'
+    UNION ALL
+    SELECT 'discipline_v6_application_scenarios', 'BLOCKER', count(*), 'MIN', 96,
+           '第六批新增且启用的课堂—竞赛应用场景数'
+    FROM ai_standard_application_scenarios
+    WHERE enabled = true AND library_version = 'informatics-discipline-application-v2'
+    UNION ALL
+    SELECT 'discipline_v6_incomplete_theme_packs', 'BLOCKER', count(*), 'MAX', 0,
+           '第六批缺少 3 个错因、1 个提升点或成对场景的主题包数'
+    FROM (
+        SELECT s.code
+        FROM ai_standard_skill_units s
+        LEFT JOIN ai_standard_mistake_points m
+          ON m.skill_unit_code = s.code AND m.enabled = true
+         AND m.library_version = 'informatics-discipline-quality-v6'
+        LEFT JOIN ai_standard_improvement_points i
+          ON i.skill_unit_code = s.code AND i.enabled = true
+         AND i.library_version = 'informatics-discipline-quality-v6'
+        LEFT JOIN ai_standard_application_scenarios a
+          ON a.skill_unit_code = s.code AND a.enabled = true
+         AND a.library_version = 'informatics-discipline-application-v2'
+        WHERE s.enabled = true AND s.library_version = 'informatics-discipline-quality-v6'
+        GROUP BY s.code
+        HAVING count(DISTINCT m.code) <> 3
+            OR count(DISTINCT i.code) <> 1
+            OR count(DISTINCT a.code) <> 2
+            OR count(DISTINCT a.context_type) <> 2
+    ) incomplete_v6
+    UNION ALL
+    SELECT 'discipline_v6_duplicate_mistake_content', 'BLOCKER', count(*), 'MAX', 0,
+           '第六批同一能力下易错点名称、症状或修复动作重复的能力数'
+    FROM (
+        SELECT skill_unit_code
+        FROM ai_standard_mistake_points
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6'
+        GROUP BY skill_unit_code
+        HAVING count(*) <> count(DISTINCT regexp_replace(lower(name), '[[:space:]（）()_-]+', '', 'g'))
+            OR count(*) <> count(DISTINCT symptom)
+            OR count(*) <> count(DISTINCT repair_strategy)
+    ) duplicate_v6
+    UNION ALL
+    SELECT 'discipline_v6_invalid_content', 'BLOCKER', count(*), 'MAX', 0,
+           '第六批规范条目缺少具体对象、症状、修复、练习或教师验收文本的数量'
+    FROM (
+        SELECT code
+        FROM ai_standard_skill_units
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6'
+          AND (length(btrim(description)) < 60 OR length(btrim(learning_goal)) < 25)
+        UNION ALL
+        SELECT code
+        FROM ai_standard_mistake_points
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6'
+          AND (length(btrim(symptom)) < 15 OR length(btrim(repair_strategy)) < 15
+            OR description LIKE '%理解或应用偏差%')
+        UNION ALL
+        SELECT code
+        FROM ai_standard_improvement_points
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6'
+          AND (length(btrim(practice_strategy)) < 30 OR length(btrim(teacher_explanation)) < 30
+            OR practice_strategy LIKE '%多做练习%')
+        UNION ALL
+        SELECT code
+        FROM ai_standard_application_scenarios
+        WHERE enabled = true AND library_version = 'informatics-discipline-application-v2'
+          AND (length(btrim(student_task)) < 22 OR length(btrim(observable_evidence)) < 25
+            OR length(btrim(success_criteria)) < 25)
+    ) invalid_v6_content
+    UNION ALL
+    SELECT 'discipline_v6_missing_flat_or_mapping', 'BLOCKER', count(*), 'MAX', 0,
+           '第六批规范条目缺少同 code 启用平铺快照或 MAPPED 兼容映射的数量'
+    FROM (
+        SELECT code, 'SKILL_UNIT'::text AS target_type
+        FROM ai_standard_skill_units
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6'
+        UNION ALL
+        SELECT code, 'MISTAKE_POINT'
+        FROM ai_standard_mistake_points
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6'
+        UNION ALL
+        SELECT code, 'IMPROVEMENT_POINT'
+        FROM ai_standard_improvement_points
+        WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6'
+    ) normalized_v6
+    WHERE NOT EXISTS (
+              SELECT 1 FROM ai_standard_library_items flat
+              WHERE flat.enabled = true AND flat.code = normalized_v6.code
+                AND flat.layer = normalized_v6.target_type
+                AND flat.library_version = 'informatics-discipline-quality-v6'
+          )
+       OR NOT EXISTS (
+              SELECT 1 FROM ai_standard_library_legacy_mappings mapping
+              WHERE mapping.legacy_code = normalized_v6.code
+                AND mapping.legacy_layer = normalized_v6.target_type
+                AND mapping.target_code = normalized_v6.code
+                AND mapping.target_type = normalized_v6.target_type
+                AND mapping.migration_status = 'MAPPED'
+                AND mapping.source_version = 'informatics-discipline-quality-v6'
+          )
+    UNION ALL
+    SELECT 'discipline_v6_effective_text_chars', 'BLOCKER',
+           (SELECT COALESCE(sum(length(COALESCE(description, ''))
+                              + length(COALESCE(learning_objectives, ''))
+                              + length(COALESCE(typical_problems, ''))
+                              + length(COALESCE(aliases, ''))), 0)
+            FROM informatics_knowledge_nodes
+            WHERE enabled = true AND library_version = 'informatics-knowledge-discipline-v6')
+         + (SELECT COALESCE(sum(length(COALESCE(description, ''))
+                              + length(COALESCE(learning_goal, ''))
+                              + length(COALESCE(knowledge_node_codes, ''))), 0)
+            FROM ai_standard_skill_units
+            WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6')
+         + (SELECT COALESCE(sum(length(COALESCE(description, ''))
+                              + length(COALESCE(misconception, ''))
+                              + length(COALESCE(symptom, ''))
+                              + length(COALESCE(repair_strategy, ''))), 0)
+            FROM ai_standard_mistake_points
+            WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6')
+         + (SELECT COALESCE(sum(length(COALESCE(description, ''))
+                              + length(COALESCE(improvement_goal, ''))
+                              + length(COALESCE(practice_strategy, ''))
+                              + length(COALESCE(student_benefit, ''))
+                              + length(COALESCE(teacher_explanation, ''))), 0)
+            FROM ai_standard_improvement_points
+            WHERE enabled = true AND library_version = 'informatics-discipline-quality-v6')
+         + (SELECT COALESCE(sum(length(COALESCE(task_context, ''))
+                              + length(COALESCE(student_task, ''))
+                              + length(COALESCE(observable_evidence, ''))
+                              + length(COALESCE(common_failure, ''))
+                              + length(COALESCE(teacher_move, ''))
+                              + length(COALESCE(student_check, ''))
+                              + length(COALESCE(constraint_profile, ''))
+                              + length(COALESCE(success_criteria, ''))
+                              + length(COALESCE(transfer_note, ''))), 0)
+            FROM ai_standard_application_scenarios
+            WHERE enabled = true AND library_version = 'informatics-discipline-application-v2'),
+           'MIN', 100000,
+           '第六批五层有效文本总字符数，不以空字段或模板占位凑体积'
+    UNION ALL
+    SELECT 'template_knowledge_descriptions_batch_6_limit', 'BLOCKER', count(*), 'MAX', 406,
+           '第六批发布后模板化知识点描述的允许上限'
+    FROM informatics_knowledge_nodes
+    WHERE enabled = true AND type = 'KNOWLEDGE_POINT'
+      AND description LIKE '细颗粒知识点：%'
+    UNION ALL
     SELECT 'template_knowledge_descriptions_batch_4_limit', 'BLOCKER', count(*), 'MAX', 454,
            '第四批发布后模板化知识点描述的允许上限'
     FROM informatics_knowledge_nodes

@@ -730,6 +730,97 @@ class AiStandardLibraryNavigationServiceTest {
     }
 
     @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void returnsBatchSixClosedThemePacksAcrossAllSixDomains() {
+        List<String> domains = List.of("BASIC", "DS", "ALGO", "MATH", "ENG", "CONTEST");
+        knowledgeRepository.saveAllAndFlush(domains.stream()
+                .map(domain -> knowledgeNode(
+                        domain + ".DQ6.POINT",
+                        domain,
+                        InformaticsKnowledgeNodeType.KNOWLEDGE_POINT,
+                        domain + " 第六批测试点",
+                        domain + " / 第六批测试点",
+                        95))
+                .toList());
+
+        for (String domain : domains) {
+            String pointCode = domain + ".DQ6.POINT";
+            String skillCode = "SK_DQ6_" + domain + "_FIXTURE";
+            String improvementCode = "IP_DQ6_" + domain + "_FIXTURE";
+            String pairCode = "PAIR_DQ6_" + domain + "_FIXTURE";
+            List<String> mistakeCodes = List.of(
+                    "MP_DQ6_" + domain + "_SEMANTIC_FIXTURE",
+                    "MP_DQ6_" + domain + "_STATE_FIXTURE",
+                    "MP_DQ6_" + domain + "_VERIFY_FIXTURE");
+
+            skillUnitRepository.saveAndFlush(AiStandardSkillUnit.builder()
+                    .code(skillCode)
+                    .category("第六批导航测试")
+                    .name(domain + " 第六批能力")
+                    .description("验证主能力、三类错因、改进路径和迁移场景能够成套读取。")
+                    .learningGoal("能从语义、状态和验证三个角度完成复盘。")
+                    .primaryKnowledgeNodeCode(pointCode)
+                    .knowledgeNodeCodes(pointCode)
+                    .masteryLevel("MEDIUM")
+                    .applicableLanguages("PYTHON\nCPP17")
+                    .enabled(true)
+                    .libraryVersion("informatics-discipline-quality-v6")
+                    .build());
+
+            mistakePointRepository.saveAllAndFlush(List.of(
+                    batchSixMistake(mistakeCodes.get(0), skillCode, pointCode, "SEMANTIC", "误读问题条件"),
+                    batchSixMistake(mistakeCodes.get(1), skillCode, pointCode, "STATE", "状态更新顺序错位"),
+                    batchSixMistake(mistakeCodes.get(2), skillCode, pointCode, "VERIFY", "没有覆盖边界反例")));
+
+            improvementPointRepository.saveAndFlush(AiStandardImprovementPoint.builder()
+                    .code(improvementCode)
+                    .category("第六批导航测试")
+                    .name(domain + " 第六批闭环练习")
+                    .description("用一次可观察练习串起语义、状态和验证三类错因。")
+                    .skillUnitCode(skillCode)
+                    .primaryKnowledgeNodeCode(pointCode)
+                    .knowledgeNodeCodes(pointCode)
+                    .relatedMistakeCodes(String.join("\n", mistakeCodes))
+                    .improvementGoal("建立从条件到状态再到反例的完整检查链。")
+                    .practiceStrategy("先写最小样例状态表，再增加边界反例并定位第一处偏差。")
+                    .studentBenefit("能把模糊的做错了转换成可修复的具体证据。")
+                    .teacherExplanation("检查学生是否能说清三类错因的触发条件和验证方法。")
+                    .applicableLanguages("PYTHON\nCPP17")
+                    .enabled(true)
+                    .libraryVersion("informatics-discipline-quality-v6")
+                    .build());
+
+            applicationScenarioRepository.saveAllAndFlush(List.of(
+                    applicationScenario(
+                            "SC_DQ6_" + domain + "_CLASSROOM_FIXTURE", pairCode, "CLASSROOM",
+                            "GUIDED_PRACTICE", "课堂：" + domain + " 状态表复盘", skillCode,
+                            pointCode, String.join("\n", mistakeCodes), improvementCode, 10),
+                    applicationScenario(
+                            "SC_DQ6_" + domain + "_CONTEST_FIXTURE", pairCode, "CONTEST",
+                            "PROBLEM_READING", "竞赛：" + domain + " 边界反例核对", skillCode,
+                            pointCode, String.join("\n", mistakeCodes), improvementCode, 20)));
+
+            AiStandardLibraryDiagnosticLayerResponse layer = service.expandDiagnosticLayer(pointCode);
+            assertThat(layer.getSkillUnits())
+                    .filteredOn(skill -> skillCode.equals(skill.getCode()))
+                    .singleElement()
+                    .satisfies(skill -> {
+                        assertThat(skill.getMistakePoints())
+                                .extracting(AiStandardLibraryDiagnosticLayerResponse.MistakePoint::getCode)
+                                .containsExactlyElementsOf(mistakeCodes);
+                        assertThat(skill.getImprovementPoints())
+                                .extracting(AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint::getCode)
+                                .containsExactly(improvementCode);
+                        assertThat(skill.getApplicationScenarios())
+                                .extracting(AiStandardLibraryDiagnosticLayerResponse.ApplicationScenario::getContextType)
+                                .containsExactly("CLASSROOM", "CONTEST");
+                        assertThat(skill.getApplicationScenarios())
+                                .allSatisfy(scenario -> assertThat(scenario.getTransferPairCode()).isEqualTo(pairCode));
+                    });
+        }
+    }
+
+    @Test
     void refusesDiagnosticLayerForNonKnowledgePoint() {
         assertThatThrownBy(() -> service.expandDiagnosticLayer("BASIC.IO.MULTI_CASE"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -765,9 +856,24 @@ class AiStandardLibraryNavigationServiceTest {
             String mistakeCode,
             String improvementCode,
             int sortOrder) {
+        return applicationScenario(code, "PAIR_MULTI_CASE_FIXTURE", contextType, learningPhase, title,
+                skillCode, knowledgePointCode, mistakeCode, improvementCode, sortOrder);
+    }
+
+    private AiStandardApplicationScenario applicationScenario(
+            String code,
+            String pairCode,
+            String contextType,
+            String learningPhase,
+            String title,
+            String skillCode,
+            String knowledgePointCode,
+            String mistakeCode,
+            String improvementCode,
+            int sortOrder) {
         return AiStandardApplicationScenario.builder()
                 .code(code)
-                .transferPairCode("PAIR_MULTI_CASE_FIXTURE")
+                .transferPairCode(pairCode)
                 .contextType(contextType)
                 .learningPhase(learningPhase)
                 .title(title)
@@ -794,6 +900,30 @@ class AiStandardLibraryNavigationServiceTest {
                 .sortOrder(sortOrder)
                 .enabled(true)
                 .libraryVersion("test-fixture")
+                .build();
+    }
+
+    private AiStandardMistakePoint batchSixMistake(String code,
+                                                   String skillCode,
+                                                   String pointCode,
+                                                   String mistakeType,
+                                                   String name) {
+        return AiStandardMistakePoint.builder()
+                .code(code)
+                .category("第六批导航测试")
+                .name(name)
+                .description("记录可从提交轨迹中观察到的第一处偏差。")
+                .skillUnitCode(skillCode)
+                .mistakeType(mistakeType)
+                .misconception("没有显式写出本环节应保持的条件。")
+                .symptom("在最小反例中出现第一处可重现的状态偏差。")
+                .repairStrategy("回到触发条件和状态表，修正后重跑原反例与相邻边界。")
+                .severity("HIGH")
+                .primaryKnowledgeNodeCode(pointCode)
+                .knowledgeNodeCodes(pointCode)
+                .applicableLanguages("PYTHON\nCPP17")
+                .enabled(true)
+                .libraryVersion("informatics-discipline-quality-v6")
                 .build();
     }
 

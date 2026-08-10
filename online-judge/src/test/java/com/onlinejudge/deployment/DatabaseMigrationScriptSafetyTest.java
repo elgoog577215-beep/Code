@@ -94,7 +94,7 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("student_ai_feedback_revisions', 'evidence_json")
                 .contains("teacher_diagnosis_corrections', 'feedback_revision_id")
                 .contains("idx_teacher_corrections_feedback_revision");
-        assertThat(migrationTest).contains("V1-V10", "${VERSION}\" == \"10", "${LEGACY_VERSION}\" == \"10");
+        assertThat(migrationTest).contains("V1-V11", "${VERSION}\" == \"11", "${LEGACY_VERSION}\" == \"11");
     }
 
     @Test
@@ -181,8 +181,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("library_fit_invalid")
                 .contains("post_v5_fact_rows");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"10\" ]]")
-                .contains("V1-V10");
+                .contains("[[ \"${VERSION}\" == \"11\" ]]")
+                .contains("V1-V11");
     }
 
     @Test
@@ -290,8 +290,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("uk_test_case_semantic_code")
                 .contains("idx_submission_case_results_test_case");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"10\" ]]")
-                .contains("V1-V10")
+                .contains("[[ \"${VERSION}\" == \"11\" ]]")
+                .contains("V1-V11")
                 .contains("check-test-case-semantic-quality.sh");
         assertThat(deploy).contains("check-test-case-semantic-quality.sh");
     }
@@ -314,6 +314,43 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("student_recommendation_events', 'focus_point_keys")
                 .contains("student_recommendation_events', 'followup_failed_test_semantic_codes")
                 .contains("idx_reco_events_source_submission");
+    }
+
+    @Test
+    void disciplineBatchSixAddsBalancedClosedThemePacksWithoutDestructiveChanges() throws IOException {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V11__expand_discipline_library_batch_6.sql"));
+        String qualityGate = read("check-discipline-data-quality.sh");
+
+        assertThat(migration)
+                .contains("informatics-knowledge-discipline-v6")
+                .contains("informatics-discipline-quality-v6")
+                .contains("informatics-discipline-application-v2")
+                .contains("expected exactly 48 theme packs")
+                .contains("expected exactly 48 curated knowledge points")
+                .contains("normalized theme pack counts are incomplete")
+                .contains("effective text volume")
+                .contains("INSERT INTO public.ai_standard_skill_units")
+                .contains("INSERT INTO public.ai_standard_mistake_points")
+                .contains("INSERT INTO public.ai_standard_improvement_points")
+                .contains("INSERT INTO public.ai_standard_library_items")
+                .contains("INSERT INTO public.ai_standard_library_legacy_mappings")
+                .contains("INSERT INTO public.ai_standard_application_scenarios")
+                .doesNotContain("DELETE FROM", "TRUNCATE TABLE", "DROP TABLE public");
+        assertThat(qualityGate)
+                .contains("discipline_v6_curated_knowledge")
+                .contains("discipline_v6_domain_count")
+                .contains("discipline_v6_unbalanced_domains")
+                .contains("discipline_v6_skill_units")
+                .contains("discipline_v6_mistake_points")
+                .contains("discipline_v6_improvement_points")
+                .contains("discipline_v6_application_scenarios")
+                .contains("discipline_v6_incomplete_theme_packs")
+                .contains("discipline_v6_duplicate_mistake_content")
+                .contains("discipline_v6_invalid_content")
+                .contains("discipline_v6_missing_flat_or_mapping")
+                .contains("discipline_v6_effective_text_chars")
+                .contains("template_knowledge_descriptions_batch_6_limit");
     }
 
     private String read(String name) throws IOException {
