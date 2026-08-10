@@ -24,6 +24,55 @@
       "dark": "夜间"
     }
   },
+  "learningProof": {
+    "title": "学习证明",
+    "error": "学习证明暂时无法更新。",
+    "stage": {
+      "repair": "关键修改",
+      "explain": "学生说明",
+      "verify": "换题验证"
+    },
+    "repair": {
+      "repaired": "关键修改已形成",
+      "inProgress": "仍在修正",
+      "notObserved": "尚未观察到关键修改",
+      "submissions": "提交 #{{before}} → #{{after}}",
+      "tests": "多通过 {{count}} 个测试点"
+    },
+    "explanation": {
+      "question": "这次真正改变结果的修改是什么？请说明改了哪里、原来为什么会失败，并写出一个可以验证这次修改的样例或边界。",
+      "notReady": "形成关键修改后再说明",
+      "waiting": "尚未说明",
+      "provided": "说明已保存",
+      "checkable": "说明可核验",
+      "providedHint": "再补充一个具体输入、边界或前后结果，会更容易核验。",
+      "checkableHint": "这段说明已经包含可检查的修改或样例，可以继续用另一道题验证。"
+    },
+    "verify": {
+      "notReady": "完成说明后再换题",
+      "notAvailable": "尚未安排换题验证",
+      "available": "可以换一题验证",
+      "needsSupport": "换题仍需继续处理",
+      "verified": "换题已验证",
+      "submission": "验证提交 #{{id}}"
+    },
+    "action": {
+      "explain": "说明一下",
+      "save": "保存说明",
+      "verify": "去验证"
+    },
+    "teacher": {
+      "aria": "学习过程阶段筛选",
+      "failed": "曾未通过",
+      "repaired": "已修正",
+      "explained": "已说明",
+      "verified": "换题已验证",
+      "failedStudents": "曾未通过的学生",
+      "repairedStudents": "已经修正的学生",
+      "explainedStudents": "已经说明的学生",
+      "verifiedStudents": "换题已验证的学生"
+    }
+  },
   "growthDashboard": {
     "title": "单题成长仪表盘",
     "latestSubmission": "当前 #{{id}}",

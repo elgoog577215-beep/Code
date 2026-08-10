@@ -1,23 +1,25 @@
 import { useMemo, useState } from "react";
 import { ArrowRight, CheckCircle2, CircleDot, Repeat2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { AssignmentOverview, SubmissionGrowthSummary } from "../../../shared/api/types";
+import type { AssignmentOverview, SubmissionGrowthSummary, TeacherProblemLearningProof } from "../../../shared/api/types";
 import type { AnalyticsSnapshot, InsightBucket } from "../model";
 
 type Props = {
   snapshot: AnalyticsSnapshot;
   t: (key: string, params?: Record<string, string | number>) => string;
+  learningProof?: TeacherProblemLearningProof | null;
 };
 
 type ProblemStudent = NonNullable<NonNullable<AssignmentOverview["problemSummaries"]>[number]["students"]>[number];
 type StudentGroup = "affected" | "repeated" | "resolved";
+type LearningStage = "failed" | "repaired" | "explained" | "verified";
 
-export function AnalyticsDashboard({ snapshot, t }: Props) {
+export function AnalyticsDashboard({ snapshot, t, learningProof }: Props) {
   return (
     <div className="teacher-analytics-dashboard teacher-analytics-dashboard--focused">
       {snapshot.scope.type === "class" ? <ClassAssignments snapshot={snapshot} t={t} /> : null}
       {snapshot.scope.type === "assignment" ? <AssignmentProblems snapshot={snapshot} t={t} /> : null}
-      {snapshot.scope.type === "problem" ? <ProblemEvidence snapshot={snapshot} t={t} /> : null}
+      {snapshot.scope.type === "problem" ? <ProblemEvidence snapshot={snapshot} t={t} learningProof={learningProof} /> : null}
     </div>
   );
 }
@@ -65,7 +67,7 @@ function AssignmentProblems({ snapshot, t }: Props) {
   );
 }
 
-function ProblemEvidence({ snapshot, t }: Props) {
+function ProblemEvidence({ snapshot, t, learningProof }: Props) {
   const problem = snapshot.overview?.problemSummaries?.find(item => item.problemId === snapshot.scope.problemId);
   const issues = useMemo(
     () => [...(snapshot.insightBuckets.mistakePoint || [])]
@@ -74,22 +76,38 @@ function ProblemEvidence({ snapshot, t }: Props) {
   );
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(() => issues[0]?.id || null);
   const [studentGroup, setStudentGroup] = useState<StudentGroup>("affected");
-  const selectedIssue = issues.find(item => item.id === selectedIssueId) || issues[0] || null;
-  const studentIds = selectedIssue ? idsForGroup(selectedIssue, studentGroup) : [];
-  const students = (problem?.students || []).filter(student => !selectedIssue || studentIds.includes(student.studentProfileId));
+  const [learningStage, setLearningStage] = useState<LearningStage | null>(null);
+  const selectedIssue = selectedIssueId ? issues.find(item => item.id === selectedIssueId) || null : null;
+  const studentIds = learningStage
+    ? studentIdsForLearningStage(learningProof, learningStage)
+    : selectedIssue ? idsForGroup(selectedIssue, studentGroup) : [];
+  const students = (problem?.students || []).filter(student =>
+    !selectedIssue && !learningStage || studentIds.includes(student.studentProfileId)
+  );
+  const proofByStudent = new Map((learningProof?.students || []).map(item => [item.studentProfileId, item]));
 
   return (
-    <div className="teacher-problem-evidence-layout">
-      <aside className="teacher-analytics-focus-panel teacher-problem-issue-sidebar">
+    <>
+      {learningProof ? (
+        <nav className="teacher-learning-stagebar" aria-label={t("learningProof.teacher.aria")}>
+          <LearningStageButton label={t("learningProof.teacher.failed")} value={learningProof.failedStudentCount} active={learningStage === "failed"} onClick={() => selectLearningStage("failed", setLearningStage, setSelectedIssueId)} />
+          <LearningStageButton label={t("learningProof.teacher.repaired")} value={learningProof.repairedStudentCount} active={learningStage === "repaired"} onClick={() => selectLearningStage("repaired", setLearningStage, setSelectedIssueId)} />
+          <LearningStageButton label={t("learningProof.teacher.explained")} value={learningProof.explainedStudentCount} active={learningStage === "explained"} onClick={() => selectLearningStage("explained", setLearningStage, setSelectedIssueId)} />
+          <LearningStageButton label={t("learningProof.teacher.verified")} value={learningProof.independentVerifiedStudentCount} active={learningStage === "verified"} onClick={() => selectLearningStage("verified", setLearningStage, setSelectedIssueId)} />
+        </nav>
+      ) : null}
+      <div className={issues.length
+        ? "teacher-problem-evidence-layout"
+        : "teacher-problem-evidence-layout teacher-problem-evidence-layout--students-only"}>
+      {issues.length ? <aside className="teacher-analytics-focus-panel teacher-problem-issue-sidebar">
         <SectionTitle title={t("teacherAnalytics.focus.issueOverview")} count={issues.length} />
-        {issues.length ? (
-          <div className="teacher-issue-overview-list">
+        <div className="teacher-issue-overview-list">
             {issues.map(issue => (
               <article className={selectedIssue?.id === issue.id ? "teacher-issue-overview is-selected" : "teacher-issue-overview"} key={issue.id}>
                 <button
                   type="button"
                   className="teacher-issue-overview__title"
-                  onClick={() => selectIssue(issue.id, "affected", setSelectedIssueId, setStudentGroup)}
+                  onClick={() => selectIssue(issue.id, "affected", setSelectedIssueId, setStudentGroup, setLearningStage)}
                   aria-expanded={selectedIssue?.id === issue.id}
                 >
                   <span>{issue.label}</span>
@@ -100,47 +118,47 @@ function ProblemEvidence({ snapshot, t }: Props) {
                     label={t("teacherAnalytics.focus.affected")}
                     value={issue.affectedStudentCount || 0}
                     active={selectedIssue?.id === issue.id && studentGroup === "affected"}
-                    onClick={() => selectIssue(issue.id, "affected", setSelectedIssueId, setStudentGroup)}
+                    onClick={() => selectIssue(issue.id, "affected", setSelectedIssueId, setStudentGroup, setLearningStage)}
                   />
                   <IssueCount
                     icon={Repeat2}
                     label={t("teacherAnalytics.focus.repeated")}
                     value={issue.repeatedStudentCount || 0}
                     active={selectedIssue?.id === issue.id && studentGroup === "repeated"}
-                    onClick={() => selectIssue(issue.id, "repeated", setSelectedIssueId, setStudentGroup)}
+                    onClick={() => selectIssue(issue.id, "repeated", setSelectedIssueId, setStudentGroup, setLearningStage)}
                   />
                   <IssueCount
                     icon={CheckCircle2}
                     label={t("teacherAnalytics.focus.resolved")}
                     value={issue.resolvedStudentCount || 0}
                     active={selectedIssue?.id === issue.id && studentGroup === "resolved"}
-                    onClick={() => selectIssue(issue.id, "resolved", setSelectedIssueId, setStudentGroup)}
+                    onClick={() => selectIssue(issue.id, "resolved", setSelectedIssueId, setStudentGroup, setLearningStage)}
                   />
                 </div>
               </article>
             ))}
           </div>
-        ) : (
-          <p className="teacher-analytics-empty-copy">{t("teacherAnalytics.empty.noNormalizedIssues")}</p>
-        )}
-      </aside>
+      </aside> : null}
 
       <section className="teacher-analytics-focus-panel teacher-problem-students">
         <SectionTitle
-          title={selectedIssue ? t("teacherAnalytics.focus.filteredStudents", { issue: selectedIssue.label }) : t("teacherAnalytics.focus.studentList")}
+          title={selectedIssue
+            ? t("teacherAnalytics.focus.filteredStudents", { issue: selectedIssue.label })
+            : learningStage ? t(`learningProof.teacher.${learningStage}Students`) : t("teacherAnalytics.focus.studentList")}
           meta={selectedIssue ? t(`teacherAnalytics.focus.${studentGroup}`) : undefined}
         />
         <div className="teacher-student-growth-list">
           {students.length ? students.map(student => (
-            <StudentGrowthRow student={student} snapshot={snapshot} t={t} key={student.studentProfileId} />
+            <StudentGrowthRow student={student} proof={proofByStudent.get(student.studentProfileId)} snapshot={snapshot} t={t} key={student.studentProfileId} />
           )) : <p className="teacher-analytics-empty-copy">{t("teacherAnalytics.empty.noMatchingStudents")}</p>}
         </div>
       </section>
-    </div>
+      </div>
+    </>
   );
 }
 
-function StudentGrowthRow({ student, snapshot, t }: { student: ProblemStudent; snapshot: AnalyticsSnapshot; t: Props["t"] }) {
+function StudentGrowthRow({ student, proof, snapshot, t }: { student: ProblemStudent; proof?: TeacherProblemLearningProof["students"][number]; snapshot: AnalyticsSnapshot; t: Props["t"] }) {
   const href = `/teacher/classes/${snapshot.scope.classId}/assignments/${snapshot.scope.assignmentId}/problems/${snapshot.scope.problemId}/students/${student.studentProfileId}`;
   const growth = student.latestGrowthSummary;
   const issueSignals = (growth?.issueSignals || [])
@@ -155,7 +173,7 @@ function StudentGrowthRow({ student, snapshot, t }: { student: ProblemStudent; s
       <Metric label={t("teacherAnalytics.focus.rawSubmissions")} value={student.attemptCount} />
       <Metric label={t("teacherAnalytics.focus.effectiveEdits")} value={student.effectiveAttemptCount || 0} />
       <div className="teacher-student-growth-row__state">
-        <span>{growthStateLabel(growth, t)}</span>
+        <span>{proof ? learningProofLabel(proof, t) : growthStateLabel(growth, t)}</span>
         <small>{issueSignals.length ? issueSignals.map(item => item.title).filter(Boolean).join(" · ") : t("teacherAnalytics.focus.noCurrentIssue")}</small>
       </div>
       <ArrowRight size={18} aria-hidden="true" />
@@ -186,9 +204,42 @@ function IssueCount({ icon: Icon, label, value, active, onClick }: { icon: typeo
   );
 }
 
-function selectIssue(id: string, group: StudentGroup, setIssue: (id: string) => void, setGroup: (group: StudentGroup) => void) {
+function LearningStageButton({ label, value, active, onClick }: { label: string; value: number; active: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className={active ? "is-active" : ""} aria-pressed={active} onClick={onClick}>
+      <span>{label}</span><strong>{value}</strong>
+    </button>
+  );
+}
+
+function selectIssue(
+  id: string,
+  group: StudentGroup,
+  setIssue: (id: string) => void,
+  setGroup: (group: StudentGroup) => void,
+  setLearningStage: (stage: LearningStage | null) => void
+) {
   setIssue(id);
   setGroup(group);
+  setLearningStage(null);
+}
+
+function selectLearningStage(
+  stage: LearningStage,
+  setStage: (stage: LearningStage | null) => void,
+  setIssue: (id: string | null) => void
+) {
+  setStage(stage);
+  setIssue(null);
+}
+
+function studentIdsForLearningStage(proof: TeacherProblemLearningProof | null | undefined, stage: LearningStage) {
+  return (proof?.students || []).filter(item => {
+    if (stage === "failed") return item.hadFailure;
+    if (stage === "repaired") return item.repaired;
+    if (stage === "explained") return item.explained;
+    return item.independentVerified;
+  }).map(item => item.studentProfileId);
 }
 
 function idsForGroup(issue: InsightBucket, group: StudentGroup) {
@@ -200,4 +251,12 @@ function idsForGroup(issue: InsightBucket, group: StudentGroup) {
 function growthStateLabel(growth: SubmissionGrowthSummary | null | undefined, t: Props["t"]) {
   const key = String(growth?.growthState || "UNCOMPARABLE").toLowerCase();
   return t(`growthDashboard.state.${key}`);
+}
+
+function learningProofLabel(proof: TeacherProblemLearningProof["students"][number], t: Props["t"]) {
+  if (proof.independentVerified) return t("learningProof.teacher.verified");
+  if (proof.explained) return t("learningProof.teacher.explained");
+  if (proof.repaired) return t("learningProof.teacher.repaired");
+  if (proof.hadFailure) return t("learningProof.teacher.failed");
+  return t("learningProof.repair.notObserved");
 }

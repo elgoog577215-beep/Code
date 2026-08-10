@@ -7,6 +7,7 @@ import type {
   AssignmentOverview,
   ClassGroup,
   DiagnosisTag,
+  LearningProof,
   SubmissionHistorySummary,
   TeacherSubmissionAnalysisVersion,
   TeacherSubmissionEvidence
@@ -16,6 +17,7 @@ import { useTranslation } from "../../../shared/i18n";
 import { Button } from "../../../shared/ui/Button";
 import { EmptyState } from "../../../shared/ui/EmptyState";
 import { GrowthTimeline, SingleProblemGrowthDashboard } from "../../growth/SingleProblemGrowthDashboard";
+import { LearningProofPanel } from "../../growth/LearningProofPanel";
 import { AnalyticsBreadcrumbs } from "../components/AnalyticsBreadcrumbs";
 import { AnalyticsPageBar } from "../components/AnalyticsPageBar";
 
@@ -38,6 +40,7 @@ export default function StudentProblemAnalyticsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [overview, setOverview] = useState<AssignmentOverview | null>(null);
   const [history, setHistory] = useState<SubmissionHistorySummary[]>([]);
+  const [learningProof, setLearningProof] = useState<LearningProof | null>(null);
   const [diagnosisTags, setDiagnosisTags] = useState<DiagnosisTag[]>([]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<StudentWorkspace>("growth");
@@ -62,12 +65,13 @@ export default function StudentProblemAnalyticsPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const [classResult, assignmentResult, overviewResult, growthResult, tagsResult] = await Promise.all([
+      const [classResult, assignmentResult, overviewResult, growthResult, tagsResult, learningProofResult] = await Promise.all([
         api.classes(),
         api.assignments(),
         api.assignmentOverview(assignmentIdNumber),
         api.teacherStudentProblemGrowth(assignmentIdNumber, problemIdNumber, studentIdNumber),
-        api.diagnosisTags()
+        api.diagnosisTags(),
+        api.teacherProblemLearningProof(assignmentIdNumber, problemIdNumber).catch(() => null)
       ]);
       setClasses(classResult);
       setAssignments(assignmentResult);
@@ -75,6 +79,7 @@ export default function StudentProblemAnalyticsPage() {
       setHistory(growthResult);
       setVisibleHistoryCount(10);
       setDiagnosisTags(tagsResult);
+      setLearningProof(learningProofResult?.students.find(item => item.studentProfileId === studentIdNumber)?.proof || null);
       const latest = [...growthResult].sort((left, right) => Date.parse(right.submittedAt || "") - Date.parse(left.submittedAt || "") || right.id - left.id)[0];
       setSelectedSubmissionId(current => current && growthResult.some(item => item.id === current) ? current : latest?.id || null);
     } catch (error) {
@@ -200,6 +205,7 @@ export default function StudentProblemAnalyticsPage() {
 
       {workspace === "growth" ? (
         <div className="teacher-student-workspace teacher-student-workspace--growth" role="tabpanel">
+          {learningProof ? <LearningProofPanel proof={learningProof} /> : null}
           <section className="teacher-student-timeline-panel">
             <header className="teacher-evidence-section-title">
               <h2>{t("teacherAnalytics.student.fullTimeline")}</h2>

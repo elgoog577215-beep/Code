@@ -2275,3 +2275,61 @@ export interface LeaderboardEntry {
   bestAcceptedTime?: number | null;
   lastSubmittedAt?: string | null;
 }
+
+export interface LearningProof {
+  studentProfileId?: number | null;
+  assignmentId?: number | null;
+  problemId: number;
+  problemTitle?: string | null;
+  latestSubmissionId: number;
+  repair: {
+    status: "NOT_OBSERVED" | "IN_PROGRESS" | "REPAIRED" | string;
+    baselineSubmissionId?: number | null;
+    targetSubmissionId?: number | null;
+    passedTestCaseDelta?: number | null;
+    recoveredIssueCount: number;
+    recoveredIssues: string[];
+    evidenceRefs: string[];
+  };
+  explanation: {
+    status: "NOT_READY" | "TO_EXPLAIN" | "WAITING" | "PROVIDED" | "CHECKABLE" | string;
+    promptId?: number | null;
+    submissionId?: number | null;
+    question?: string | null;
+    answer?: string | null;
+    feedback?: string | null;
+    checkable: boolean;
+    evidenceTypes: string[];
+    evidenceRefs: string[];
+  };
+  independentUse: {
+    status: "NOT_READY" | "NOT_AVAILABLE" | "TARGET_AVAILABLE" | "NEEDS_SUPPORT" | "VERIFIED" | string;
+    sourceSubmissionId?: number | null;
+    targetProblemId?: number | null;
+    targetProblemTitle?: string | null;
+    targetSubmissionId?: number | null;
+    evidenceRefs: string[];
+  };
+}
+
+export interface TeacherProblemLearningProof {
+  assignmentId: number;
+  problemId: number;
+  problemTitle: string;
+  failedStudentCount: number;
+  repairedStudentCount: number;
+  explainedStudentCount: number;
+  independentVerifiedStudentCount: number;
+  students: Array<{
+    studentProfileId: number;
+    displayName: string;
+    studentNo?: string | null;
+    latestSubmissionId: number;
+    hadFailure: boolean;
+    repaired: boolean;
+    explained: boolean;
+    explanationCheckable: boolean;
+    independentVerified: boolean;
+    proof: LearningProof;
+  }>;
+}

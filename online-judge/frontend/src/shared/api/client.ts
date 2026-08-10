@@ -23,6 +23,7 @@ import type {
   ImportCommit,
   ImportPreview,
   LeaderboardEntry,
+  LearningProof,
   Problem,
   ProblemCatalogItem,
   ProblemManage,
@@ -42,6 +43,7 @@ import type {
   SubmissionResult,
   StudentAiFeedbackLookup,
   TeacherDiagnosisCorrection,
+  TeacherProblemLearningProof,
   TeacherSubmissionEvidence
 } from "./types";
 import { YINGQI_SIGNATURE } from "../identity/yingqiSignature";
@@ -214,6 +216,14 @@ export const api = {
       method: "POST",
       body: jsonBody({ answer })
     }),
+  learningProof: (id: number) => request<LearningProof>(`/api/submissions/${id}/learning-proof`),
+  createLearningReflection: (id: number) =>
+    request<LearningProof>(`/api/submissions/${id}/learning-reflection`, { method: "POST" }),
+  answerLearningReflection: (id: number, answer: string) =>
+    request<LearningProof>(`/api/submissions/${id}/learning-reflection-answer`, {
+      method: "POST",
+      body: jsonBody({ answer })
+    }),
   history: (problemId: number, assignmentId?: number | null) =>
     request<SubmissionHistorySummary[]>(
       `/api/submissions/problem/${problemId}/history-summary${queryString({ assignmentId })}`
@@ -253,6 +263,10 @@ export const api = {
   teacherStudentProblemGrowth: (assignmentId: number, problemId: number, studentProfileId: number) =>
     request<SubmissionHistorySummary[]>(
       `/api/teacher/assignments/${assignmentId}/problems/${problemId}/students/${studentProfileId}/growth`
+    ),
+  teacherProblemLearningProof: (assignmentId: number, problemId: number) =>
+    request<TeacherProblemLearningProof>(
+      `/api/teacher/assignments/${assignmentId}/problems/${problemId}/learning-proof`
     ),
   teacherSubmissionEvidence: (assignmentId: number, submissionId: number) =>
     request<TeacherSubmissionEvidence>(`/api/teacher/assignments/${assignmentId}/submissions/${submissionId}/evidence`),

@@ -24,6 +24,55 @@
       "dark": "Dark"
     }
   },
+  "learningProof": {
+    "title": "Learning evidence",
+    "error": "Learning evidence could not be updated.",
+    "stage": {
+      "repair": "Key change",
+      "explain": "Student explanation",
+      "verify": "New-problem check"
+    },
+    "repair": {
+      "repaired": "Key change identified",
+      "inProgress": "Still revising",
+      "notObserved": "No key change observed yet",
+      "submissions": "Submission #{{before}} → #{{after}}",
+      "tests": "{{count}} more tests passed"
+    },
+    "explanation": {
+      "question": "What change actually altered the result? Explain what changed, why the original failed, and give one test case or boundary that checks the change.",
+      "notReady": "Explain after a key change is observed",
+      "waiting": "Not explained yet",
+      "provided": "Explanation saved",
+      "checkable": "Explanation is checkable",
+      "providedHint": "Add a concrete input, boundary, or before-and-after result to make this easier to check.",
+      "checkableHint": "This explanation includes a checkable change or example and is ready for another-problem verification."
+    },
+    "verify": {
+      "notReady": "Explain the change before trying another problem",
+      "notAvailable": "No verification problem assigned yet",
+      "available": "Ready to verify on another problem",
+      "needsSupport": "The verification problem still needs work",
+      "verified": "Verified on another problem",
+      "submission": "Verification submission #{{id}}"
+    },
+    "action": {
+      "explain": "Explain the change",
+      "save": "Save explanation",
+      "verify": "Verify now"
+    },
+    "teacher": {
+      "aria": "Filter by learning stage",
+      "failed": "Previously failed",
+      "repaired": "Repaired",
+      "explained": "Explained",
+      "verified": "Verified on another problem",
+      "failedStudents": "Students who previously failed",
+      "repairedStudents": "Students who repaired the problem",
+      "explainedStudents": "Students who explained the change",
+      "verifiedStudents": "Students verified on another problem"
+    }
+  },
   "growthDashboard": {
     "title": "Single-problem growth dashboard",
     "latestSubmission": "Current #{{id}}",

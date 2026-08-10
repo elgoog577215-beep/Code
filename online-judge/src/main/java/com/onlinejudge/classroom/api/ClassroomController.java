@@ -15,6 +15,7 @@ import com.onlinejudge.classroom.application.StudentAiFeedbackObservabilityServi
 import com.onlinejudge.classroom.application.StudentTrajectoryService;
 import com.onlinejudge.classroom.application.TeacherSubmissionEvidenceService;
 import com.onlinejudge.classroom.application.TeacherLearningAnalysisService;
+import com.onlinejudge.classroom.application.LearningProofService;
 import com.onlinejudge.submission.application.SubmissionEvidenceBackfillService;
 import com.onlinejudge.submission.application.SubmissionAnalysisService;
 import com.onlinejudge.submission.application.StudentAiFeedbackAsyncService;
@@ -57,6 +58,7 @@ public class ClassroomController {
     private final TeacherSubmissionEvidenceService teacherSubmissionEvidenceService;
     private final TeacherLearningAnalysisService teacherLearningAnalysisService;
     private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
+    private final LearningProofService learningProofService;
 
     @GetMapping("/api/teacher/classes")
     public ResponseEntity<List<ClassGroupResponse>> getClasses() {
@@ -163,6 +165,13 @@ public class ClassroomController {
                 assignmentId,
                 studentProfileId
         ));
+    }
+
+    @GetMapping("/api/teacher/assignments/{assignmentId}/problems/{problemId}/learning-proof")
+    public ResponseEntity<TeacherProblemLearningProofResponse> getTeacherProblemLearningProof(
+            @PathVariable Long assignmentId,
+            @PathVariable Long problemId) {
+        return ResponseEntity.ok(learningProofService.getTeacherProblemProof(assignmentId, problemId));
     }
 
     @GetMapping("/api/teacher/assignments/{assignmentId}/submissions/{submissionId}/evidence")

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ApiError, api } from "../../../shared/api/client";
-import type { Assignment, AssignmentOverview, ClassGroup } from "../../../shared/api/types";
+import type { Assignment, AssignmentOverview, ClassGroup, TeacherProblemLearningProof } from "../../../shared/api/types";
 import { useTranslation } from "../../../shared/i18n";
 import { EmptyState } from "../../../shared/ui/EmptyState";
 import { AnalyticsBreadcrumbs } from "../components/AnalyticsBreadcrumbs";
@@ -18,6 +18,7 @@ export default function ProblemAnalyticsPage() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [overview, setOverview] = useState<AssignmentOverview | null>(null);
+  const [learningProof, setLearningProof] = useState<TeacherProblemLearningProof | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,14 +30,16 @@ export default function ProblemAnalyticsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [classResult, assignmentResult, overviewResult] = await Promise.all([
+      const [classResult, assignmentResult, overviewResult, learningProofResult] = await Promise.all([
         api.classes(),
         api.assignments(),
-        api.assignmentOverview(assignmentIdNumber)
+        api.assignmentOverview(assignmentIdNumber),
+        api.teacherProblemLearningProof(assignmentIdNumber, problemIdNumber).catch(() => null)
       ]);
       setClasses(classResult);
       setAssignments(assignmentResult);
       setOverview(overviewResult);
+      setLearningProof(learningProofResult);
     } catch (currentError) {
       setError(currentError instanceof ApiError || currentError instanceof Error ? currentError.message : t("teacherAnalytics.errors.load"));
     } finally {
@@ -80,7 +83,7 @@ export default function ProblemAnalyticsPage() {
       />
       <AnalyticsPageBar title={snapshot.scope.problemTitle || t("teacherAnalytics.scope.problem")} metrics={snapshot.metrics} t={t} />
       {error ? <div className="alert alert--error">{error}</div> : null}
-      <AnalyticsDashboard snapshot={snapshot} t={t} />
+      <AnalyticsDashboard snapshot={snapshot} t={t} learningProof={learningProof} />
     </div>
   );
 }

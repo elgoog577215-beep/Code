@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -88,7 +89,7 @@ public class CoachPromptService {
     }
 
     public CoachPromptResponse getLatestPrompt(Long submissionId) {
-        return coachPromptRepository.findTopBySubmissionIdOrderByCreatedAtDesc(submissionId)
+        return latestNonReflectionPrompt(submissionId)
                 .map(this::responseWithTurns)
                 .orElse(null);
     }
@@ -99,7 +100,7 @@ public class CoachPromptService {
                 .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + submissionId));
         SubmissionAnalysis analysis = submissionAnalysisRepository.findBySubmissionId(submissionId)
                 .orElseThrow(() -> new IllegalStateException("请先等待本次 AI 诊断生成后再回答追问。"));
-        CoachPrompt current = coachPromptRepository.findTopBySubmissionIdOrderByCreatedAtDesc(submissionId)
+        CoachPrompt current = latestNonReflectionPrompt(submissionId)
                 .orElseThrow(() -> new IllegalStateException("请先生成一个 AI 追问。"));
         if (hasText(current.getStudentAnswer())) {
             return responseWithTurns(current);
@@ -628,7 +629,10 @@ public class CoachPromptService {
     }
 
     private CoachPromptResponse responseWithTurns(CoachPrompt prompt) {
-        List<CoachPrompt> turns = coachPromptRepository.findBySubmissionIdOrderByTurnIndexAscCreatedAtAsc(prompt.getSubmissionId());
+        List<CoachPrompt> turns = coachPromptRepository.findBySubmissionIdOrderByTurnIndexAscCreatedAtAsc(prompt.getSubmissionId())
+                .stream()
+                .filter(turn -> !LearningProofService.REFLECTION_PROMPT_TYPE.equals(turn.getPromptType()))
+                .toList();
         List<CoachPromptResponse> turnResponses = turns.stream()
                 .map(turn -> {
                     List<String> refs = parseRefs(turn.getEvidenceRefs());
@@ -744,9 +748,17 @@ public class CoachPromptService {
         return first == null || first.isBlank() ? defaultValue : first;
     }
 
+    private Optional<CoachPrompt> latestNonReflectionPrompt(Long submissionId) {
+        return coachPromptRepository.findBySubmissionIdOrderByTurnIndexAscCreatedAtAsc(submissionId)
+                .stream()
+                .filter(prompt -> !LearningProofService.REFLECTION_PROMPT_TYPE.equals(prompt.getPromptType()))
+                .reduce((left, right) -> right);
+    }
+
     private int nextTurnIndex(Long submissionId) {
         return coachPromptRepository.findBySubmissionIdOrderByTurnIndexAscCreatedAtAsc(submissionId)
                 .stream()
+                .filter(prompt -> !LearningProofService.REFLECTION_PROMPT_TYPE.equals(prompt.getPromptType()))
                 .map(CoachPrompt::getTurnIndex)
                 .filter(Objects::nonNull)
                 .max(Integer::compareTo)

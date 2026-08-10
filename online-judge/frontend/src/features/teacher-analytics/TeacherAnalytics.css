@@ -255,6 +255,51 @@
   border-bottom: 1px solid var(--line);
 }
 
+.teacher-problem-evidence-layout--students-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.teacher-problem-evidence-layout--students-only .teacher-problem-students {
+  padding-left: 0;
+}
+
+.teacher-learning-stagebar {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.teacher-learning-stagebar button {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0 0.8rem;
+  border-left: 1px solid var(--line);
+  color: var(--ink-soft);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.teacher-learning-stagebar button:first-child {
+  border-left: 0;
+}
+
+.teacher-learning-stagebar button.is-active {
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 45%, transparent);
+}
+
+.teacher-learning-stagebar strong {
+  color: currentColor;
+  font-size: 1rem;
+}
+
 .teacher-problem-issue-sidebar {
   padding-right: 0.78rem;
   border-right: 1px solid var(--line);
@@ -667,6 +712,15 @@
 }
 
 @media (max-width: 720px) {
+  .teacher-learning-stagebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-learning-stagebar button {
+    min-height: 42px;
+    border-bottom: 1px solid var(--line);
+  }
+
   .teacher-analytics-page {
     gap: 0.5rem;
   }
