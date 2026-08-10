@@ -3,7 +3,6 @@ import { ArrowRight, CheckCircle2, CircleDot, Repeat2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { AssignmentOverview, SubmissionGrowthSummary } from "../../../shared/api/types";
 import type { AnalyticsSnapshot, InsightBucket } from "../model";
-import { AnalyticsSummaryCards } from "./AnalyticsSummaryCards";
 
 type Props = {
   snapshot: AnalyticsSnapshot;
@@ -16,7 +15,6 @@ type StudentGroup = "affected" | "repeated" | "resolved";
 export function AnalyticsDashboard({ snapshot, t }: Props) {
   return (
     <div className="teacher-analytics-dashboard teacher-analytics-dashboard--focused">
-      <AnalyticsSummaryCards metrics={snapshot.metrics} labelFor={t} />
       {snapshot.scope.type === "class" ? <ClassAssignments snapshot={snapshot} t={t} /> : null}
       {snapshot.scope.type === "assignment" ? <AssignmentProblems snapshot={snapshot} t={t} /> : null}
       {snapshot.scope.type === "problem" ? <ProblemEvidence snapshot={snapshot} t={t} /> : null}
@@ -27,7 +25,7 @@ export function AnalyticsDashboard({ snapshot, t }: Props) {
 function ClassAssignments({ snapshot, t }: Props) {
   return (
     <section className="teacher-analytics-focus-panel">
-      <SectionTitle step="1" title={t("teacherAnalytics.focus.assignmentList")} description={t("teacherAnalytics.focus.assignmentListDescription")} />
+      <SectionTitle title={t("teacherAnalytics.focus.assignmentList")} count={snapshot.assignmentRows.length} />
       <div className="teacher-analytics-focus-list">
         {snapshot.assignmentRows.map(row => (
           <Link className="teacher-analytics-focus-row" to={row.href} key={row.id}>
@@ -48,7 +46,7 @@ function ClassAssignments({ snapshot, t }: Props) {
 function AssignmentProblems({ snapshot, t }: Props) {
   return (
     <section className="teacher-analytics-focus-panel">
-      <SectionTitle step="2" title={t("teacherAnalytics.focus.problemList")} description={t("teacherAnalytics.focus.problemListDescription")} />
+      <SectionTitle title={t("teacherAnalytics.focus.problemList")} count={snapshot.problemRows.length} />
       <div className="teacher-analytics-focus-list">
         {snapshot.problemRows.map(row => (
           <Link className="teacher-analytics-focus-row teacher-analytics-focus-row--problem" to={row.href} key={row.id}>
@@ -74,16 +72,16 @@ function ProblemEvidence({ snapshot, t }: Props) {
       .sort((left, right) => (right.affectedStudentCount || 0) - (left.affectedStudentCount || 0) || (right.repeatedStudentCount || 0) - (left.repeatedStudentCount || 0)),
     [snapshot.insightBuckets.mistakePoint]
   );
-  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(() => issues[0]?.id || null);
   const [studentGroup, setStudentGroup] = useState<StudentGroup>("affected");
-  const selectedIssue = issues.find(item => item.id === selectedIssueId) || null;
+  const selectedIssue = issues.find(item => item.id === selectedIssueId) || issues[0] || null;
   const studentIds = selectedIssue ? idsForGroup(selectedIssue, studentGroup) : [];
   const students = (problem?.students || []).filter(student => !selectedIssue || studentIds.includes(student.studentProfileId));
 
   return (
     <div className="teacher-problem-evidence-layout">
-      <section className="teacher-analytics-focus-panel">
-        <SectionTitle step="3" title={t("teacherAnalytics.focus.issueOverview")} description={t("teacherAnalytics.focus.issueOverviewDescription")} />
+      <aside className="teacher-analytics-focus-panel teacher-problem-issue-sidebar">
+        <SectionTitle title={t("teacherAnalytics.focus.issueOverview")} count={issues.length} />
         {issues.length ? (
           <div className="teacher-issue-overview-list">
             {issues.map(issue => (
@@ -91,11 +89,10 @@ function ProblemEvidence({ snapshot, t }: Props) {
                 <button
                   type="button"
                   className="teacher-issue-overview__title"
-                  onClick={() => setSelectedIssueId(selectedIssue?.id === issue.id ? null : issue.id)}
+                  onClick={() => selectIssue(issue.id, "affected", setSelectedIssueId, setStudentGroup)}
                   aria-expanded={selectedIssue?.id === issue.id}
                 >
                   <span>{issue.label}</span>
-                  <small>{t(`teacherAnalytics.pattern.${patternKey(issue, problem?.submittedStudentCount || 0)}`)}</small>
                 </button>
                 <div className="teacher-issue-counts" aria-label={t("teacherAnalytics.focus.issueCountsAria")}>
                   <IssueCount
@@ -126,13 +123,12 @@ function ProblemEvidence({ snapshot, t }: Props) {
         ) : (
           <p className="teacher-analytics-empty-copy">{t("teacherAnalytics.empty.noNormalizedIssues")}</p>
         )}
-      </section>
+      </aside>
 
-      <section className="teacher-analytics-focus-panel">
+      <section className="teacher-analytics-focus-panel teacher-problem-students">
         <SectionTitle
-          step="4"
           title={selectedIssue ? t("teacherAnalytics.focus.filteredStudents", { issue: selectedIssue.label }) : t("teacherAnalytics.focus.studentList")}
-          description={selectedIssue ? t(`teacherAnalytics.focus.groupDescription.${studentGroup}`) : t("teacherAnalytics.focus.studentListDescription")}
+          meta={selectedIssue ? t(`teacherAnalytics.focus.${studentGroup}`) : undefined}
         />
         <div className="teacher-student-growth-list">
           {students.length ? students.map(student => (
@@ -167,11 +163,11 @@ function StudentGrowthRow({ student, snapshot, t }: { student: ProblemStudent; s
   );
 }
 
-function SectionTitle({ step, title, description }: { step: string; title: string; description: string }) {
+function SectionTitle({ title, count, meta }: { title: string; count?: number; meta?: string }) {
   return (
     <header className="teacher-analytics-focus-title">
-      <span>{step}</span>
-      <div><h2>{title}</h2><p>{description}</p></div>
+      <h2>{title}</h2>
+      {typeof count === "number" ? <span>{count}</span> : meta ? <span>{meta}</span> : null}
     </header>
   );
 }
@@ -199,16 +195,6 @@ function idsForGroup(issue: InsightBucket, group: StudentGroup) {
   if (group === "repeated") return issue.repeatedStudentIds || [];
   if (group === "resolved") return issue.resolvedStudentIds || [];
   return issue.affectedStudentIds || [];
-}
-
-function patternKey(issue: InsightBucket, submittedStudents: number) {
-  const affected = issue.affectedStudentCount || 0;
-  const repeated = issue.repeatedStudentCount || 0;
-  const threshold = Math.max(2, Math.ceil(submittedStudents * 0.4));
-  if (affected >= threshold && repeated > 0) return "commonRepeated";
-  if (affected >= threshold) return "commonQuick";
-  if (repeated > 0) return "individualRepeated";
-  return "occasional";
 }
 
 function growthStateLabel(growth: SubmissionGrowthSummary | null | undefined, t: Props["t"]) {

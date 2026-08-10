@@ -407,6 +407,7 @@
   },
   "teacherShell": {
     "aria": "Teacher workbench navigation",
+    "workspaceTitle": "Teacher Workbench",
     "kicker": "Teacher",
     "title": "Teaching Analytics",
     "managementTitle": "Management Tools",
@@ -499,6 +500,7 @@
       "failedStudents": "Failed"
       ,"completedRequiredStudents": "Completed all required"
       ,"firstPassStudents": "First-pass students"
+      ,"eventualPassStudents": "Eventually passed"
       ,"effectiveAttempts": "Effective edits"
       ,"medianEffectiveAttempts": "Median effective edits"
       ,"requiredProblemNote": "{{count}} required problems"
@@ -548,6 +550,12 @@
       "yes": "Yes",
       "no": "No",
       "latestResult": "Latest result",
+      "workspaceAria": "Student problem analysis sections",
+      "workspace": {
+        "growth": "Growth",
+        "evidence": "Submission evidence",
+        "analysis": "AI analysis"
+      },
       "verdict": {
         "accepted": "Accepted",
         "wrong_answer": "Wrong answer",

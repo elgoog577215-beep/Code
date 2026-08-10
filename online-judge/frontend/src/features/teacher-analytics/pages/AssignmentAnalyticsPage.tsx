@@ -6,6 +6,7 @@ import { useTranslation } from "../../../shared/i18n";
 import { EmptyState } from "../../../shared/ui/EmptyState";
 import { AnalyticsBreadcrumbs } from "../components/AnalyticsBreadcrumbs";
 import { AnalyticsDashboard } from "../components/AnalyticsDashboard";
+import { AnalyticsPageBar } from "../components/AnalyticsPageBar";
 import { buildAssignmentAnalyticsSnapshot, findAssignment, findClass } from "../selectors";
 
 export default function AssignmentAnalyticsPage() {
@@ -70,13 +71,7 @@ export default function AssignmentAnalyticsPage() {
           { label: snapshot.scope.assignmentTitle || t("teacherAnalytics.scope.assignment") }
         ]}
       />
-      <section className="teacher-analytics-hero">
-        <div>
-          <span>{t("teacherAnalytics.scope.assignment")}</span>
-          <h1>{snapshot.scope.assignmentTitle}</h1>
-          <p>{t("teacherAnalytics.assignment.description")}</p>
-        </div>
-      </section>
+      <AnalyticsPageBar title={snapshot.scope.assignmentTitle || t("teacherAnalytics.scope.assignment")} metrics={snapshot.metrics} t={t} />
       {error ? <div className="alert alert--error">{error}</div> : null}
       <AnalyticsDashboard snapshot={snapshot} t={t} />
     </div>

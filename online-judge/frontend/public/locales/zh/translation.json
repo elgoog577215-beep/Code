@@ -407,6 +407,7 @@
   },
   "teacherShell": {
     "aria": "教师工作台导航",
+    "workspaceTitle": "教师工作台",
     "kicker": "教师端",
     "title": "教学分析",
     "managementTitle": "管理工具",
@@ -499,6 +500,7 @@
       "failedStudents": "未通过人数"
       ,"completedRequiredStudents": "完成全部必做题"
       ,"firstPassStudents": "一次通过人数"
+      ,"eventualPassStudents": "最终通过人数"
       ,"effectiveAttempts": "有效修改"
       ,"medianEffectiveAttempts": "有效修改中位数"
       ,"requiredProblemNote": "共 {{count}} 道必做题"
@@ -548,6 +550,12 @@
       "yes": "是",
       "no": "否",
       "latestResult": "最新结果",
+      "workspaceAria": "学生题目分析分类",
+      "workspace": {
+        "growth": "成长轨迹",
+        "evidence": "提交证据",
+        "analysis": "AI 分析"
+      },
       "verdict": {
         "accepted": "通过",
         "wrong_answer": "答案需修正",

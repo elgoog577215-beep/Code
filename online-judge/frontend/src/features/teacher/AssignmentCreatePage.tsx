@@ -237,7 +237,6 @@ export default function AssignmentCreatePage() {
           <ButtonLink to="/teacher/classes" variant="ghost" icon={<ArrowLeft size={17} />}>
             {t("teacherAnalytics.actions.backToAnalytics")}
           </ButtonLink>
-          <p className="eyebrow">新建作业</p>
           <h1>布置课堂练习</h1>
         </div>
         <Button

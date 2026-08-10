@@ -255,18 +255,23 @@ try {
     console.error("desktop body:", (await page.locator("body").innerText()).slice(0, 4000));
     throw error;
   }
-  await page.getByText("遇到过", { exact: true }).waitFor();
-  await page.getByText("反复出现", { exact: true }).click();
+  await page.getByRole("button", { name: /遇到过/ }).first().waitFor();
+  await page.getByRole("button", { name: /反复出现/ }).first().click();
+  await page.screenshot({ path: `${screenshotDir}/problem-workspace.png`, fullPage: true });
   await page.getByText("林同学", { exact: true }).click();
-  await page.getByRole("heading", { name: "提交证据" }).waitFor();
-  await page.getByText("当前正式版本", { exact: true }).waitFor();
-  await page.getByText("循环结束条件多执行了一次", { exact: true }).waitFor();
+  await page.getByRole("heading", { name: "全部提交时间线" }).waitFor();
   await page.getByRole("button", { name: "继续显示更早提交" }).click();
   const firstTimelineNode = page.locator(".growth-timeline__node").first();
   await firstTimelineNode.focus();
   if (!(await firstTimelineNode.evaluate(element => element === document.activeElement))) {
     throw new Error("timeline node is not keyboard focusable");
   }
+  await page.getByRole("tab", { name: "提交证据" }).click();
+  await page.getByRole("heading", { name: "提交证据" }).waitFor();
+  await page.getByText("原始代码", { exact: true }).waitFor();
+  await page.getByRole("tab", { name: "AI 分析" }).click();
+  await page.getByText("当前正式版本", { exact: true }).waitFor();
+  await page.getByText("循环结束条件多执行了一次", { exact: true }).waitFor();
   await page.screenshot({ path: `${screenshotDir}/desktop.png`, fullPage: true });
   await desktop.close();
 
@@ -278,7 +283,9 @@ try {
   const mobilePage = await mobile.newPage();
   await installApiMock(mobilePage);
   await mobilePage.goto(`${baseUrl}/teacher/classes/1/assignments/7/problems/21/students/11`, { waitUntil: "networkidle" });
+  await mobilePage.getByRole("tab", { name: "Submission evidence" }).click();
   await mobilePage.getByRole("heading", { name: "Submission evidence" }).waitFor();
+  await mobilePage.getByRole("tab", { name: "AI analysis" }).click();
   await mobilePage.getByText("Current official version", { exact: true }).waitFor();
   const mobileText = await mobilePage.locator("body").innerText();
   if (mobileText.includes("答案需修正")) throw new Error("English teacher UI still contains the Chinese verdict label");

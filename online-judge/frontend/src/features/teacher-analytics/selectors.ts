@@ -134,11 +134,12 @@ export function buildAssignmentAnalyticsSnapshot(input: {
     assignment: input.assignment,
     overview: input.overview,
     metrics: [
+      metric("rosterStudents", input.overview.rosterStudentCount || input.overview.participantCount || 0),
       metric("submittedStudents", latestSubmittedStudentCount(input.overview)),
       metric("unsubmittedStudents", input.overview.unsubmittedStudentCount ?? Math.max(0, input.overview.participantCount - latestSubmittedStudentCount(input.overview))),
       metric(
         "completedRequiredStudents",
-        input.overview.completedRequiredStudentCount,
+        input.overview.completedRequiredStudentCount || 0,
         input.overview.requiredProblemCount
           ? input.t?.("teacherAnalytics.metrics.requiredProblemNote", { count: input.overview.requiredProblemCount })
           : undefined
@@ -183,9 +184,8 @@ export function buildProblemAnalyticsSnapshot(input: {
     metrics: [
       metric("submittedStudents", submitted),
       metric("firstPassStudents", problem.firstPassStudentCount || 0),
-      metric("passedStudents", passed),
-      metric("effectiveAttempts", problem.effectiveAttemptCount || 0),
-      metric("medianEffectiveAttempts", problem.medianEffectiveAttempts ?? "-")
+      metric("eventualPassStudents", passed),
+      metric("effectiveAttempts", problem.effectiveAttemptCount || 0)
     ],
     insightBuckets: buildBucketsFromProblem(problem, evidence, input.t),
     assignmentRows: [assignmentRow(input.assignment, input.overview, input.classGroup.id, input.t)],

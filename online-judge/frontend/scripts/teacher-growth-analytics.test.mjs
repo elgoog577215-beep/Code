@@ -34,6 +34,20 @@ test("student evidence page connects growth, saved analysis versions, and versio
   assert.match(page, /analysisVersions/);
   assert.match(page, /feedbackRevisionId: selectedVersionId/);
   assert.match(page, /regenerateTeacherSubmissionAnalysis/);
+  assert.match(page, /StudentWorkspace = "growth" \| "evidence" \| "analysis"/);
+  assert.match(page, /teacher-student-workspace-tabs/);
+  assert.doesNotMatch(page, /teacher-analytics-hero/);
   assert.match(client, /teacherSubmissionEvidence/);
   assert.match(client, /analysis\/regenerate/);
+});
+
+test("teacher analytics starts with a compact page bar instead of hero cards", async () => {
+  const pageBar = await source("features/teacher-analytics/components/AnalyticsPageBar.tsx");
+  const summary = await source("features/teacher-analytics/components/AnalyticsSummaryCards.tsx");
+  const dashboard = await source("features/teacher-analytics/components/AnalyticsDashboard.tsx");
+  assert.match(pageBar, /teacher-analytics-pagebar/);
+  assert.match(summary, /teacher-analytics-summary/);
+  assert.match(dashboard, /teacher-problem-issue-sidebar/);
+  assert.match(dashboard, /teacher-problem-students/);
+  assert.doesNotMatch(dashboard, /SectionTitle step=/);
 });

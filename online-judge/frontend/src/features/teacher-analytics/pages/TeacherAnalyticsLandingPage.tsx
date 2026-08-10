@@ -6,6 +6,7 @@ import type { ClassGroup } from "../../../shared/api/types";
 import { useTranslation } from "../../../shared/i18n";
 import { ButtonLink } from "../../../shared/ui/Button";
 import { EmptyState } from "../../../shared/ui/EmptyState";
+import { AnalyticsPageBar } from "../components/AnalyticsPageBar";
 
 export default function TeacherAnalyticsLandingPage() {
   const { t } = useTranslation();
@@ -31,16 +32,13 @@ export default function TeacherAnalyticsLandingPage() {
 
   return (
     <div className="teacher-analytics-page">
-      <section className="teacher-analytics-hero">
-        <div>
-          <span>{t("teacherAnalytics.kicker")}</span>
-          <h1>{t("teacherAnalytics.landing.title")}</h1>
-          <p>{t("teacherAnalytics.landing.description")}</p>
-        </div>
-        <ButtonLink to="/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
+      <AnalyticsPageBar
+        title={t("teacherAnalytics.landing.title")}
+        t={t}
+        action={<ButtonLink to="/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
           {t("teacherAnalytics.actions.newAssignment")}
-        </ButtonLink>
-      </section>
+        </ButtonLink>}
+      />
 
       {error ? <div className="alert alert--error">{error}</div> : null}
 
@@ -51,9 +49,11 @@ export default function TeacherAnalyticsLandingPage() {
           <div className="teacher-analytics-class-grid">
             {classes.map(classGroup => (
               <Link className="teacher-analytics-class-card" to={`/teacher/classes/${classGroup.id}`} key={classGroup.id}>
-                <span>{classGroup.grade || t("teacherAnalytics.landing.classFallback")}</span>
-                <strong>{classGroup.name}</strong>
-                <small>{classGroup.teacherName || t("teacherAnalytics.landing.noTeacherName")}</small>
+                <div>
+                  <strong>{classGroup.name}</strong>
+                  <small>{classGroup.grade || t("teacherAnalytics.landing.classFallback")}</small>
+                </div>
+                <span>{classGroup.teacherName || t("teacherAnalytics.landing.noTeacherName")}</span>
                 <ArrowRight size={18} />
               </Link>
             ))}

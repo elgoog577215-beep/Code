@@ -17,12 +17,15 @@ import { Button } from "../../../shared/ui/Button";
 import { EmptyState } from "../../../shared/ui/EmptyState";
 import { GrowthTimeline, SingleProblemGrowthDashboard } from "../../growth/SingleProblemGrowthDashboard";
 import { AnalyticsBreadcrumbs } from "../components/AnalyticsBreadcrumbs";
+import { AnalyticsPageBar } from "../components/AnalyticsPageBar";
 
 type CorrectionDraft = {
   issueTag: string;
   fineIssueTag: string;
   note: string;
 };
+
+type StudentWorkspace = "growth" | "evidence" | "analysis";
 
 export default function StudentProblemAnalyticsPage() {
   const { t } = useTranslation();
@@ -37,6 +40,7 @@ export default function StudentProblemAnalyticsPage() {
   const [history, setHistory] = useState<SubmissionHistorySummary[]>([]);
   const [diagnosisTags, setDiagnosisTags] = useState<DiagnosisTag[]>([]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null);
+  const [workspace, setWorkspace] = useState<StudentWorkspace>("growth");
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(10);
   const [evidence, setEvidence] = useState<TeacherSubmissionEvidence | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
@@ -166,55 +170,67 @@ export default function StudentProblemAnalyticsPage() {
         { label: student.displayName }
       ]} />
 
-      <section className="teacher-analytics-hero">
-        <div>
-          <span>{t("teacherAnalytics.student.kicker")}</span>
-          <h1>{student.displayName}</h1>
-          <p>{t("teacherAnalytics.student.description", { problem: problem.title })}</p>
-        </div>
-      </section>
+      <AnalyticsPageBar
+        title={student.displayName}
+        t={t}
+        metrics={[
+          { key: "rawSubmissions", labelKey: "teacherAnalytics.focus.rawSubmissions", value: student.attemptCount },
+          { key: "effectiveEdits", labelKey: "teacherAnalytics.focus.effectiveEdits", value: student.effectiveAttemptCount || 0 },
+          { key: "eventualPass", labelKey: "teacherAnalytics.focus.eventualPass", value: student.passedCount > 0 ? t("teacherAnalytics.student.yes") : t("teacherAnalytics.student.no") },
+          { key: "latestResult", labelKey: "teacherAnalytics.student.latestResult", value: teacherVerdictLabel(student.latestVerdict, t) }
+        ]}
+      />
 
       {message ? <div className={`alert alert--${message.tone}`}>{message.text}</div> : null}
 
-      <section className="teacher-student-summary-strip">
-        <SummaryMetric label={t("teacherAnalytics.focus.rawSubmissions")} value={student.attemptCount} />
-        <SummaryMetric label={t("teacherAnalytics.focus.effectiveEdits")} value={student.effectiveAttemptCount || 0} />
-        <SummaryMetric label={t("teacherAnalytics.focus.eventualPass")} value={student.passedCount > 0 ? t("teacherAnalytics.student.yes") : t("teacherAnalytics.student.no")} />
-        <SummaryMetric label={t("teacherAnalytics.student.latestResult")} value={teacherVerdictLabel(student.latestVerdict, t)} />
-      </section>
+      <nav className="teacher-student-workspace-tabs" role="tablist" aria-label={t("teacherAnalytics.student.workspaceAria")}>
+        {(["growth", "evidence", "analysis"] as StudentWorkspace[]).map(item => (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workspace === item}
+            className={workspace === item ? "is-active" : ""}
+            onClick={() => setWorkspace(item)}
+            key={item}
+          >
+            {t(`teacherAnalytics.student.workspace.${item}`)}
+          </button>
+        ))}
+      </nav>
 
-      <section className="teacher-student-timeline-panel">
-        <header className="teacher-evidence-section-title">
-          <div><span>4</span><h2>{t("teacherAnalytics.student.fullTimeline")}</h2></div>
-          <small>{t("teacherAnalytics.student.timelineCount", { visible: visibleHistory.length, total: orderedHistory.length })}</small>
-        </header>
-        <GrowthTimeline
-          history={visibleHistory}
-          selectedSubmissionId={selectedSubmissionId}
-          onSelectSubmission={item => setSelectedSubmissionId(item.id)}
-        />
-        {visibleHistory.length < orderedHistory.length ? (
-          <Button type="button" variant="secondary" onClick={() => setVisibleHistoryCount(count => count + 10)}>
-            {t("teacherAnalytics.student.loadEarlier")}
-          </Button>
-        ) : null}
-      </section>
+      {workspace === "growth" ? (
+        <div className="teacher-student-workspace teacher-student-workspace--growth" role="tabpanel">
+          <section className="teacher-student-timeline-panel">
+            <header className="teacher-evidence-section-title">
+              <h2>{t("teacherAnalytics.student.fullTimeline")}</h2>
+              <small>{t("teacherAnalytics.student.timelineCount", { visible: visibleHistory.length, total: orderedHistory.length })}</small>
+            </header>
+            <GrowthTimeline
+              history={visibleHistory}
+              selectedSubmissionId={selectedSubmissionId}
+              onSelectSubmission={item => setSelectedSubmissionId(item.id)}
+            />
+            {visibleHistory.length < orderedHistory.length ? (
+              <Button type="button" variant="secondary" onClick={() => setVisibleHistoryCount(count => count + 10)}>
+                {t("teacherAnalytics.student.loadEarlier")}
+              </Button>
+            ) : null}
+          </section>
 
-      <SingleProblemGrowthDashboard
-        history={history}
-        selectedSubmissionId={selectedSubmissionId}
-        currentSummary={selectedHistory?.growthSummary}
-        mode="teacher"
-        onSelectSubmission={item => setSelectedSubmissionId(item.id)}
-      />
+          <SingleProblemGrowthDashboard
+            history={history}
+            selectedSubmissionId={selectedSubmissionId}
+            currentSummary={selectedHistory?.growthSummary}
+            mode="teacher"
+            onSelectSubmission={item => setSelectedSubmissionId(item.id)}
+          />
+        </div>
+      ) : null}
 
-      <section className="teacher-submission-evidence-grid">
+      {workspace === "evidence" ? (
         <main className="teacher-submission-evidence-main">
           <header className="teacher-evidence-section-title">
-            <div><span>5</span><h2>{t("teacherAnalytics.student.submissionEvidence")}</h2></div>
-            <Button type="button" variant="secondary" icon={<RefreshCw size={15} />} disabled={saving || !selectedSubmissionId} onClick={regenerate}>
-              {t("teacherAnalytics.student.regenerate")}
-            </Button>
+            <h2>{t("teacherAnalytics.student.submissionEvidence")}</h2>
           </header>
 
           {evidenceLoading ? <EmptyState title={t("teacherAnalytics.student.loadingEvidence")} live /> : null}
@@ -242,9 +258,17 @@ export default function StudentProblemAnalyticsPage() {
             </>
           ) : null}
         </main>
+      ) : null}
 
-        <aside className="teacher-analysis-version-panel">
-          <h2>{t("teacherAnalytics.student.analysisVersions")}</h2>
+      {workspace === "analysis" ? (
+        <section className="teacher-analysis-version-panel" role="tabpanel">
+          <header className="teacher-evidence-section-title">
+            <h2>{t("teacherAnalytics.student.analysisVersions")}</h2>
+            <Button type="button" variant="secondary" icon={<RefreshCw size={15} />} disabled={saving || !selectedSubmissionId} onClick={regenerate}>
+              {t("teacherAnalytics.student.regenerate")}
+            </Button>
+          </header>
+          {evidenceLoading ? <EmptyState title={t("teacherAnalytics.student.loadingEvidence")} live /> : null}
           {evidence?.analysisVersions.length ? (
             <>
               <div className="teacher-analysis-version-tabs">
@@ -293,8 +317,8 @@ export default function StudentProblemAnalyticsPage() {
               ))}
             </div>
           ) : null}
-        </aside>
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -332,10 +356,6 @@ function teacherVerdictLabel(
   const key = String(verdict || "UNKNOWN").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "").toLowerCase();
   const supported = ["accepted", "wrong_answer", "compilation_error", "runtime_error", "time_limit_exceeded", "memory_limit_exceeded", "internal_error", "pending", "unknown"];
   return t(`teacherAnalytics.student.verdict.${supported.includes(key) ? key : "unknown"}`);
-}
-
-function SummaryMetric({ label, value }: { label: string; value: string | number }) {
-  return <article><span>{label}</span><strong>{value}</strong></article>;
 }
 
 function errorMessage(error: unknown, fallback: string) {

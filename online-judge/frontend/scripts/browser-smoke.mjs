@@ -1222,8 +1222,8 @@ const scenarios = [
       const inviteFormCount = await page.locator("text=输入邀请码").count();
       const homeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
       const taskRows = page.locator(".student-learning-task-list > .student-entry-link");
-      const assignmentRows = page.locator(".student-learning-task-list > .student-assignment-row:not(.student-public-task-row)");
-      const publicRows = page.locator(".student-public-task-row");
+      const assignmentRows = page.locator(".student-learning-task-list > .student-assignment-row");
+      const selfPracticeRows = page.locator(".student-self-practice-row");
       const taskRowCount = await taskRows.count();
       const assignmentRowCount = await assignmentRows.count();
       const progressCount = await assignmentRows.locator(".student-assignment-row__progress").count();
@@ -1232,10 +1232,10 @@ const scenarios = [
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       record("student home keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("student identity lives in header", headerLoginCount >= 1, `header identity count ${headerLoginCount}`);
-      record("student home uses one learning task board", homeText.includes("学习任务") && await page.locator(".student-assignment-board").count() === 1, homeText);
-      record("student home pins public practice as the first task", await publicRows.count() === 1 && await taskRows.first().evaluate(element => element.classList.contains("student-public-task-row")), `public rows ${await publicRows.count()}; task rows ${taskRowCount}`);
-      record("student home merges public practice with classroom assignments", taskRowCount === assignmentRowCount + 1 && await page.locator(".student-guest-practice").count() === 0, `tasks ${taskRowCount}; assignments ${assignmentRowCount}`);
-      record("student home keeps public catalog details", homeText.includes("公开练习") && homeText.includes("公共题库") && homeText.includes("基础") && homeText.includes("提高") && homeText.includes("挑战"), homeText);
+      record("student home keeps one classroom task board", homeText.includes("课堂作业") && await page.locator(".student-assignment-board").count() === 1, homeText);
+      record("student home keeps every classroom assignment in the board", taskRowCount === assignmentRowCount && assignmentRowCount === 4, `tasks ${taskRowCount}; assignments ${assignmentRowCount}`);
+      record("student home separates autonomous practice from classroom tasks", await selfPracticeRows.count() === 1 && await page.locator(".student-self-practice").count() === 1, `self practice rows ${await selfPracticeRows.count()}`);
+      record("student home keeps public catalog details", homeText.includes("自主练习") && homeText.includes("公共题库") && homeText.includes("2道题") && homeText.includes("查看题库"), homeText);
       record("student home shows assignment details", homeText.includes("课堂编程作业"), homeText);
       record("student home shows truthful progress for every assignment", progressCount === assignmentRowCount && homeText.includes("1/2") && homeText.includes("3/3"), `progress rows ${progressCount}; ${homeText}`);
       record("student home distinguishes learning states", homeText.includes("待开始") && homeText.includes("进行中") && homeText.includes("已完成") && !homeText.includes("信息技术老师"), homeText);
@@ -1258,8 +1258,8 @@ const scenarios = [
     selectors: [
       [".header-login-link, .header-student-chip", "student header identity"],
       [".student-assignment-board", "student assignment board"],
-      [".student-learning-task-list", "student unified learning task list"],
-      [".student-public-task-row", "student pinned public task"]
+      [".student-learning-task-list", "student classroom task list"],
+      [".student-self-practice-row", "student self practice entry"]
     ]
   },
   {
@@ -1735,13 +1735,13 @@ const scenarios = [
         await checkElementMaxWidth(page, ".teacher-analytics-page", 1440, "teacher desktop analytics width");
       }
       if (viewport.name === "mobile") {
-        await checkMinControlHeight(page, ".teacher-analytics-hero .ui-button", 36, "teacher mobile primary action");
+        await checkMinControlHeight(page, ".teacher-analytics-pagebar .ui-button", 36, "teacher mobile primary action");
       }
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],
       [".teacher-analytics-page", "teacher analytics page"],
-      [".teacher-analytics-hero", "teacher analytics hero"],
+      [".teacher-analytics-pagebar", "teacher analytics page bar"],
       [".teacher-analytics-class-card", "teacher class card"]
     ]
   },
@@ -1750,24 +1750,19 @@ const scenarios = [
     path: "/code/teacher/classes/3/assignments/7",
     afterChecks: async (page, viewport) => {
       const assignmentText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("assignment analytics exposes objective metrics", assignmentText.includes("提交人数") && assignmentText.includes("正确率") && assignmentText.includes("平均提交"), assignmentText.slice(0, 900));
+      record("assignment analytics exposes only decision-ready status", assignmentText.includes("在册人数") && assignmentText.includes("提交人数") && assignmentText.includes("未提交人数") && assignmentText.includes("完成全部必做题0"), assignmentText.slice(0, 900));
       record("assignment analytics lists problems", assignmentText.includes("求和边界") && assignmentText.includes("循环边界"), assignmentText.slice(0, 900));
-      record("assignment analytics has AI attribution", assignmentText.includes("AI知识归因") && assignmentText.includes("当前知识路径"), assignmentText.slice(0, 900));
       record("assignment analytics avoids teacher decision language", !assignmentText.includes("下一步") && !assignmentText.includes("讲评"), assignmentText.slice(0, 900));
-      record("assignment analytics normalizes percent fields", assignmentText.includes("40%") && assignmentText.includes("83%") && !assignmentText.includes("4000%") && !assignmentText.includes("8330%"), assignmentText.slice(0, 900));
       if (viewport.name === "desktop") {
         await checkElementMaxWidth(page, ".teacher-analytics-page", 1440, "assignment desktop analytics width");
-      }
-      if (viewport.name === "mobile") {
-        await checkMinControlHeight(page, ".teacher-analytics-granularity button", 32, "assignment mobile granularity controls");
       }
     },
     selectors: [
       [".teacher-analytics-page", "assignment analytics page"],
+      [".teacher-analytics-pagebar", "assignment page bar"],
       [".teacher-analytics-summary", "assignment analytics metrics"],
-      [".teacher-analytics-board", "assignment analytics board"],
-      [".teacher-analytics-ai-panel", "assignment AI attribution"],
-      [".teacher-analytics-table-row", "assignment problem rows"]
+      [".teacher-analytics-focus-panel", "assignment problem workspace"],
+      [".teacher-analytics-focus-row--problem", "assignment problem rows"]
     ]
   },
   {
@@ -1847,25 +1842,20 @@ const scenarios = [
     name: "class-analytics",
     path: "/code/teacher/classes/3",
     beforeChecks: async (page) => {
-      await checkVisible(page, ".teacher-analytics-board", "class analytics board");
+      await checkVisible(page, ".teacher-analytics-focus-panel", "class assignment workspace");
     },
     afterChecks: async page => {
       const classText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("class analytics keeps class assignment problem hierarchy", classText.includes("高一1班") && classText.includes("作业列表") && classText.includes("课堂编程作业"), classText.slice(0, 900));
-      record("class analytics shows knowledge attribution", classText.includes("AI知识归因") && classText.includes("知识路径"), classText.slice(0, 900));
-      record(
-        "class analytics exposes distinct and weighted issue metrics",
-        classText.includes("按涉及人数") && classText.includes("按有效次数") && classText.includes("原始8次") && classText.includes("有效6次") && classText.includes("班级重难点"),
-        classText.slice(0, 1100)
-      );
-      record("class analytics normalizes percent fields", classText.includes("40%") && classText.includes("83%") && !classText.includes("4000%") && !classText.includes("8330%"), classText.slice(0, 900));
+      record("class analytics keeps class assignment hierarchy", classText.includes("高一1班") && classText.includes("作业完成情况") && classText.includes("课堂编程作业"), classText.slice(0, 900));
+      record("class analytics exposes compact participation status", classText.includes("作业数") && classText.includes("在册人数") && classText.includes("提交人数") && classText.includes("未提交人数"), classText.slice(0, 900));
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],
       [".teacher-analytics-page", "class analytics page"],
+      [".teacher-analytics-pagebar", "class analytics page bar"],
       [".teacher-analytics-summary", "class metrics"],
-      [".teacher-analytics-board", "class analytics board"],
-      [".teacher-analytics-ai-panel", "class AI attribution"]
+      [".teacher-analytics-focus-panel", "class assignment workspace"],
+      [".teacher-analytics-focus-row", "class assignment rows"]
     ]
   },
   {
@@ -1873,26 +1863,20 @@ const scenarios = [
     path: "/code/teacher/classes/3/assignments/7/problems/101",
     afterChecks: async page => {
       const problemText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("problem analytics shows problem objective results", problemText.includes("求和边界") && problemText.includes("未通过人数") && problemText.includes("证据样本"), problemText.slice(0, 900));
-      record("problem analytics exposes correction in evidence layer", problemText.includes("校正归因") && !problemText.includes("教师动作"), problemText.slice(0, 900));
-      record("problem analytics shows observational feedback impact", problemText.includes("查看反馈后的表现") && problemText.includes("查看反馈后改善") && problemText.includes("不能单独证明"), problemText.slice(0, 900));
-      record("problem analytics exposes four correction types", problemText.includes("错因判断") && problemText.includes("知识路径") && problemText.includes("证据引用") && problemText.includes("反馈内容"), problemText.slice(0, 900));
+      record("problem analytics shows objective status", problemText.includes("求和边界") && problemText.includes("提交人数") && problemText.includes("一次通过人数") && problemText.includes("最终通过人数") && problemText.includes("有效修改"), problemText.slice(0, 900));
+      record("problem analytics exposes issue-to-student workspace", problemText.includes("全班问题") && problemText.includes("遇到过") && problemText.includes("反复出现") && problemText.includes("后来解决") && problemText.includes("相关学生"), problemText.slice(0, 900));
       record("problem analytics avoids decision copy", !problemText.includes("下一步") && !problemText.includes("讲评"), problemText.slice(0, 900));
-      record("problem analytics normalizes percent fields", problemText.includes("40%") && !problemText.includes("4000%"), problemText.slice(0, 900));
       await page.locator(".language-toggle").dispatchEvent("click");
       await page.waitForTimeout(80);
-      const englishProblemText = ((await page.locator(".teacher-analytics-evidence").first().textContent()) || "").replace(/\s+/g, "");
+      const englishProblemText = ((await page.locator(".teacher-problem-evidence-layout").first().textContent()) || "").replace(/\s+/g, "");
       record(
-        "problem analytics renders feedback loop and correction fields in English",
-        englishProblemText.includes("Performanceafterviewingfeedback") &&
-          englishProblemText.includes("Improvedafterviewingfeedback") &&
-          englishProblemText.includes("Correctiontype") &&
-          englishProblemText.includes("Issuediagnosis") &&
-          englishProblemText.includes("Knowledgepath") &&
-          englishProblemText.includes("Evidencereference") &&
-          englishProblemText.includes("Feedbackcontent") &&
-          !englishProblemText.includes("查看建议后") &&
-          !englishProblemText.includes("学生查看建议后"),
+        "problem analytics renders issue-to-student workspace in English",
+        englishProblemText.includes("Classissues") &&
+          englishProblemText.includes("Encountered") &&
+          englishProblemText.includes("Repeated") &&
+          englishProblemText.includes("Laterresolved") &&
+          !englishProblemText.includes("全班问题") &&
+          !englishProblemText.includes("反复出现"),
         englishProblemText.slice(0, 900)
       );
       await page.screenshot({
@@ -1904,9 +1888,11 @@ const scenarios = [
     },
     selectors: [
       [".teacher-analytics-page", "problem analytics page"],
+      [".teacher-analytics-pagebar", "problem page bar"],
       [".teacher-analytics-summary", "problem metrics"],
-      [".teacher-analytics-evidence", "problem evidence samples"],
-      [".teacher-analytics-correction", "problem correction layer"]
+      [".teacher-problem-evidence-layout", "problem issue and student workspace"],
+      [".teacher-issue-counts", "problem issue groups"],
+      [".teacher-student-growth-row", "problem student evidence row"]
     ]
   }
 ];
