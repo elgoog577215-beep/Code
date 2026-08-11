@@ -1231,10 +1231,12 @@ public class ClassroomService {
                 .filter(items -> firstEffectiveAccepted(items, growthBySubmission))
                 .count();
         Double medianEffectiveAttempts = medianEffectiveAttempts(byStudent, growthBySubmission);
-        List<AssignmentOverviewResponse.ProblemStudentSummary> students = byStudent.entrySet().stream()
-                .map(entry -> buildProblemStudentSummary(entry.getKey(), classStudentById.get(entry.getKey()),
-                        entry.getValue(), analyses,
-                        evidenceSummary.recentStates().get(entry.getKey()), growthBySubmission))
+        Set<Long> visibleStudentIds = new LinkedHashSet<>(classStudentById.keySet());
+        visibleStudentIds.addAll(byStudent.keySet());
+        List<AssignmentOverviewResponse.ProblemStudentSummary> students = visibleStudentIds.stream()
+                .map(studentId -> buildProblemStudentSummary(studentId, classStudentById.get(studentId),
+                        byStudent.getOrDefault(studentId, List.of()), analyses,
+                        evidenceSummary.recentStates().get(studentId), growthBySubmission))
                 .sorted(Comparator.comparing(AssignmentOverviewResponse.ProblemStudentSummary::isNeedsAttention).reversed()
                         .thenComparing(AssignmentOverviewResponse.ProblemStudentSummary::getDisplayName, Comparator.nullsLast(String::compareTo)))
                 .toList();

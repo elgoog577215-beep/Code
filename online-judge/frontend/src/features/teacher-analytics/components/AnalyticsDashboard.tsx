@@ -74,27 +74,63 @@ function ProblemEvidence({ snapshot, t, learningProof }: Props) {
       .sort((left, right) => (right.affectedStudentCount || 0) - (left.affectedStudentCount || 0) || (right.repeatedStudentCount || 0) - (left.repeatedStudentCount || 0)),
     [snapshot.insightBuckets.mistakePoint]
   );
-  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(() => issues[0]?.id || null);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [studentGroup, setStudentGroup] = useState<StudentGroup>("affected");
   const [learningStage, setLearningStage] = useState<LearningStage | null>(null);
   const selectedIssue = selectedIssueId ? issues.find(item => item.id === selectedIssueId) || null : null;
   const studentIds = learningStage
     ? studentIdsForLearningStage(learningProof, learningStage)
     : selectedIssue ? idsForGroup(selectedIssue, studentGroup) : [];
-  const students = (problem?.students || []).filter(student =>
-    !selectedIssue && !learningStage || studentIds.includes(student.studentProfileId)
-  );
+  const rosterStudents = problem?.students || [];
   const proofByStudent = new Map((learningProof?.students || []).map(item => [item.studentProfileId, item]));
+  const students = rosterStudents
+    .filter(student => !selectedIssue && !learningStage || studentIds.includes(student.studentProfileId))
+    .sort((left, right) => studentAttentionOrder(left) - studentAttentionOrder(right));
+  const rosterCount = problem?.classStudentCount || rosterStudents.length;
+  const submittedCount = problem?.submittedStudentCount || rosterStudents.filter(student => student.attemptCount > 0).length;
+  const unsubmittedCount = Math.max(0, rosterCount - submittedCount);
+  const hasFilter = Boolean(selectedIssue || learningStage);
+
+  function selectIssueGroup(id: string, group: StudentGroup) {
+    if (selectedIssueId === id && studentGroup === group) {
+      setSelectedIssueId(null);
+    } else {
+      setSelectedIssueId(id);
+      setStudentGroup(group);
+    }
+    setLearningStage(null);
+  }
+
+  function selectStage(stage: LearningStage) {
+    setLearningStage(current => current === stage ? null : stage);
+    setSelectedIssueId(null);
+  }
+
+  function clearFilters() {
+    setLearningStage(null);
+    setSelectedIssueId(null);
+  }
 
   return (
     <>
       {learningProof ? (
-        <nav className="teacher-learning-stagebar" aria-label={t("learningProof.teacher.aria")}>
-          <LearningStageButton label={t("learningProof.teacher.failed")} value={learningProof.failedStudentCount} active={learningStage === "failed"} onClick={() => selectLearningStage("failed", setLearningStage, setSelectedIssueId)} />
-          <LearningStageButton label={t("learningProof.teacher.repaired")} value={learningProof.repairedStudentCount} active={learningStage === "repaired"} onClick={() => selectLearningStage("repaired", setLearningStage, setSelectedIssueId)} />
-          <LearningStageButton label={t("learningProof.teacher.explained")} value={learningProof.explainedStudentCount} active={learningStage === "explained"} onClick={() => selectLearningStage("explained", setLearningStage, setSelectedIssueId)} />
-          <LearningStageButton label={t("learningProof.teacher.verified")} value={learningProof.independentVerifiedStudentCount} active={learningStage === "verified"} onClick={() => selectLearningStage("verified", setLearningStage, setSelectedIssueId)} />
-        </nav>
+        <section className="teacher-learning-flow" aria-label={t("learningProof.teacher.aria")}>
+          <button
+            type="button"
+            className={!selectedIssue && !learningStage ? "teacher-learning-flow__all is-active" : "teacher-learning-flow__all"}
+            aria-pressed={!selectedIssue && !learningStage}
+            onClick={clearFilters}
+          >
+            <span>{t("learningProof.teacher.allStudents")}</span>
+            <strong>{rosterCount}</strong>
+          </button>
+          <nav className="teacher-learning-stagebar">
+            <LearningStageButton label={t("learningProof.teacher.failed")} value={learningProof.failedStudentCount} active={learningStage === "failed"} onClick={() => selectStage("failed")} />
+            <LearningStageButton label={t("learningProof.teacher.repaired")} value={learningProof.repairedStudentCount} active={learningStage === "repaired"} onClick={() => selectStage("repaired")} />
+            <LearningStageButton label={t("learningProof.teacher.explained")} value={learningProof.explainedStudentCount} active={learningStage === "explained"} onClick={() => selectStage("explained")} />
+            <LearningStageButton label={t("learningProof.teacher.verified")} value={learningProof.independentVerifiedStudentCount} active={learningStage === "verified"} onClick={() => selectStage("verified")} />
+          </nav>
+        </section>
       ) : null}
       <div className={issues.length
         ? "teacher-problem-evidence-layout"
@@ -107,7 +143,7 @@ function ProblemEvidence({ snapshot, t, learningProof }: Props) {
                 <button
                   type="button"
                   className="teacher-issue-overview__title"
-                  onClick={() => selectIssue(issue.id, "affected", setSelectedIssueId, setStudentGroup, setLearningStage)}
+                  onClick={() => selectIssueGroup(issue.id, "affected")}
                   aria-expanded={selectedIssue?.id === issue.id}
                 >
                   <span>{issue.label}</span>
@@ -118,21 +154,21 @@ function ProblemEvidence({ snapshot, t, learningProof }: Props) {
                     label={t("teacherAnalytics.focus.affected")}
                     value={issue.affectedStudentCount || 0}
                     active={selectedIssue?.id === issue.id && studentGroup === "affected"}
-                    onClick={() => selectIssue(issue.id, "affected", setSelectedIssueId, setStudentGroup, setLearningStage)}
+                    onClick={() => selectIssueGroup(issue.id, "affected")}
                   />
                   <IssueCount
                     icon={Repeat2}
                     label={t("teacherAnalytics.focus.repeated")}
                     value={issue.repeatedStudentCount || 0}
                     active={selectedIssue?.id === issue.id && studentGroup === "repeated"}
-                    onClick={() => selectIssue(issue.id, "repeated", setSelectedIssueId, setStudentGroup, setLearningStage)}
+                    onClick={() => selectIssueGroup(issue.id, "repeated")}
                   />
                   <IssueCount
                     icon={CheckCircle2}
                     label={t("teacherAnalytics.focus.resolved")}
                     value={issue.resolvedStudentCount || 0}
                     active={selectedIssue?.id === issue.id && studentGroup === "resolved"}
-                    onClick={() => selectIssue(issue.id, "resolved", setSelectedIssueId, setStudentGroup, setLearningStage)}
+                    onClick={() => selectIssueGroup(issue.id, "resolved")}
                   />
                 </div>
               </article>
@@ -145,12 +181,20 @@ function ProblemEvidence({ snapshot, t, learningProof }: Props) {
           title={selectedIssue
             ? t("teacherAnalytics.focus.filteredStudents", { issue: selectedIssue.label })
             : learningStage ? t(`learningProof.teacher.${learningStage}Students`) : t("teacherAnalytics.focus.studentList")}
-          meta={selectedIssue ? t(`teacherAnalytics.focus.${studentGroup}`) : undefined}
+          count={hasFilter ? students.length : undefined}
+          meta={selectedIssue
+            ? t(`teacherAnalytics.focus.${studentGroup}`)
+            : t("teacherAnalytics.focus.rosterMeta", { submitted: submittedCount, unsubmitted: unsubmittedCount })}
         />
         <div className="teacher-student-growth-list">
           {students.length ? students.map(student => (
             <StudentGrowthRow student={student} proof={proofByStudent.get(student.studentProfileId)} snapshot={snapshot} t={t} key={student.studentProfileId} />
-          )) : <p className="teacher-analytics-empty-copy">{t("teacherAnalytics.empty.noMatchingStudents")}</p>}
+          )) : (
+            <div className="teacher-analytics-empty-copy">
+              <span>{rosterCount ? t("teacherAnalytics.empty.noMatchingStudents") : t("teacherAnalytics.empty.noRosterStudents")}</span>
+              {hasFilter ? <button type="button" onClick={clearFilters}>{t("teacherAnalytics.actions.showRoster")}</button> : null}
+            </div>
+          )}
         </div>
       </section>
       </div>
@@ -161,31 +205,55 @@ function ProblemEvidence({ snapshot, t, learningProof }: Props) {
 function StudentGrowthRow({ student, proof, snapshot, t }: { student: ProblemStudent; proof?: TeacherProblemLearningProof["students"][number]; snapshot: AnalyticsSnapshot; t: Props["t"] }) {
   const href = `/teacher/classes/${snapshot.scope.classId}/assignments/${snapshot.scope.assignmentId}/problems/${snapshot.scope.problemId}/students/${student.studentProfileId}`;
   const growth = student.latestGrowthSummary;
+  const submitted = student.attemptCount > 0 && Boolean(student.latestSubmissionId);
   const issueSignals = (growth?.issueSignals || [])
     .filter(item => ["PERSISTED", "NEW", "RECURRED"].includes(String(item.changeStatus || "").toUpperCase()))
     .slice(0, 2);
-  return (
-    <Link className="teacher-student-growth-row" to={href}>
+  const stateLabel = submitted
+    ? proof ? learningProofLabel(proof, t) : growthStateLabel(growth, t)
+    : t("teacherAnalytics.focus.notSubmitted");
+  const stateDetail = submitted
+    ? issueSignals.length
+      ? issueSignals.map(item => item.title).filter(Boolean).join(" · ")
+      : proof?.repaired
+        ? t("teacherAnalytics.focus.repairedAfterFailure")
+        : student.latestVerdict === "ACCEPTED"
+          ? t("teacherAnalytics.focus.accepted")
+          : t("teacherAnalytics.focus.noCurrentIssue")
+    : "";
+  const tone = !submitted
+    ? "idle"
+    : student.latestVerdict === "ACCEPTED"
+      ? "success"
+      : student.needsAttention ? "warning" : "active";
+  const content = (
+    <>
       <div className="teacher-student-growth-row__identity">
         <strong>{student.displayName}</strong>
         <small>{student.studentNo || t("teacherAnalytics.defaultLabels.studentWithId", { id: student.studentProfileId })}</small>
       </div>
+      <div className={`teacher-student-growth-row__state is-${tone}`}>
+        <span><i aria-hidden="true" />{stateLabel}</span>
+        {stateDetail ? <small>{stateDetail}</small> : null}
+      </div>
       <Metric label={t("teacherAnalytics.focus.rawSubmissions")} value={student.attemptCount} />
       <Metric label={t("teacherAnalytics.focus.effectiveEdits")} value={student.effectiveAttemptCount || 0} />
-      <div className="teacher-student-growth-row__state">
-        <span>{proof ? learningProofLabel(proof, t) : growthStateLabel(growth, t)}</span>
-        <small>{issueSignals.length ? issueSignals.map(item => item.title).filter(Boolean).join(" · ") : t("teacherAnalytics.focus.noCurrentIssue")}</small>
-      </div>
-      <ArrowRight size={18} aria-hidden="true" />
-    </Link>
+      {submitted ? <ArrowRight size={18} aria-hidden="true" /> : null}
+    </>
   );
+  return submitted
+    ? <Link className="teacher-student-growth-row is-clickable" to={href}>{content}</Link>
+    : <div className="teacher-student-growth-row is-unsubmitted">{content}</div>;
 }
 
 function SectionTitle({ title, count, meta }: { title: string; count?: number; meta?: string }) {
   return (
     <header className="teacher-analytics-focus-title">
-      <h2>{title}</h2>
-      {typeof count === "number" ? <span>{count}</span> : meta ? <span>{meta}</span> : null}
+      <div>
+        <h2>{title}</h2>
+        {meta ? <small>{meta}</small> : null}
+      </div>
+      {typeof count === "number" ? <span>{count}</span> : null}
     </header>
   );
 }
@@ -194,9 +262,15 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   return <div className="teacher-analytics-inline-metric"><span>{label}</span><strong>{value}</strong></div>;
 }
 
+function studentAttentionOrder(student: ProblemStudent) {
+  if (student.attemptCount <= 0) return 3;
+  if (student.needsAttention || student.latestVerdict !== "ACCEPTED") return 0;
+  return 1;
+}
+
 function IssueCount({ icon: Icon, label, value, active, onClick }: { icon: typeof CircleDot; label: string; value: number; active: boolean; onClick: () => void }) {
   return (
-    <button type="button" className={active ? "is-active" : ""} onClick={onClick}>
+    <button type="button" className={active ? "is-active" : ""} onClick={onClick} disabled={value === 0}>
       <Icon size={16} aria-hidden="true" />
       <span>{label}</span>
       <strong>{value}</strong>
@@ -206,31 +280,10 @@ function IssueCount({ icon: Icon, label, value, active, onClick }: { icon: typeo
 
 function LearningStageButton({ label, value, active, onClick }: { label: string; value: number; active: boolean; onClick: () => void }) {
   return (
-    <button type="button" className={active ? "is-active" : ""} aria-pressed={active} onClick={onClick}>
+    <button type="button" className={active ? "is-active" : ""} aria-pressed={active} onClick={onClick} disabled={value === 0}>
       <span>{label}</span><strong>{value}</strong>
     </button>
   );
-}
-
-function selectIssue(
-  id: string,
-  group: StudentGroup,
-  setIssue: (id: string) => void,
-  setGroup: (group: StudentGroup) => void,
-  setLearningStage: (stage: LearningStage | null) => void
-) {
-  setIssue(id);
-  setGroup(group);
-  setLearningStage(null);
-}
-
-function selectLearningStage(
-  stage: LearningStage,
-  setStage: (stage: LearningStage | null) => void,
-  setIssue: (id: string | null) => void
-) {
-  setStage(stage);
-  setIssue(null);
 }
 
 function studentIdsForLearningStage(proof: TeacherProblemLearningProof | null | undefined, stage: LearningStage) {

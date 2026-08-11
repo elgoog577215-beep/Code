@@ -168,6 +168,7 @@ export function buildProblemAnalyticsSnapshot(input: {
   const students = problem.students || [];
   const submitted = problem.submittedStudentCount || students.filter(student => student.attemptCount > 0).length;
   const passed = problem.passedStudentCount || students.filter(student => student.passedCount > 0).length;
+  const roster = problem.classStudentCount || input.overview.rosterStudentCount || students.length;
   const evidence = collectProblemEvidence(input.classGroup.id, input.assignment.id, problem, input.t);
   return {
     scope: {
@@ -183,7 +184,7 @@ export function buildProblemAnalyticsSnapshot(input: {
     assignment: input.assignment,
     overview: input.overview,
     metrics: [
-      metric("submittedStudents", submitted),
+      metric("submittedStudents", roster ? `${submitted}/${roster}` : submitted),
       metric("firstPassStudents", problem.firstPassStudentCount || 0),
       metric("eventualPassStudents", passed),
       metric("effectiveAttempts", problem.effectiveAttemptCount || 0)

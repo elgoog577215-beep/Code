@@ -63,6 +63,7 @@
     },
     "teacher": {
       "aria": "学习过程阶段筛选",
+      "allStudents": "全班学生",
       "failed": "曾未通过",
       "repaired": "已修正",
       "explained": "已说明",
@@ -507,7 +508,8 @@
     },
     "actions": {
       "newAssignment": "新建作业",
-      "backToAnalytics": "返回教学分析"
+      "backToAnalytics": "返回教学分析",
+      "showRoster": "查看全班"
     },
     "loading": {
       "classes": "正在读取班级",
@@ -575,6 +577,7 @@
       "studentList": "学生提交情况",
       "studentListDescription": "进入学生后查看每次有效修改、问题变化和原始提交证据。",
       "filteredStudents": "{{issue}}相关学生",
+      "rosterMeta": "已提交 {{submitted}} · 未提交 {{unsubmitted}}",
       "groupDescription": {
         "affected": "至少一次有效提交出现过这个问题。",
         "repeated": "这个问题在后续有效修改中持续或复发。",
@@ -582,6 +585,9 @@
       },
       "rawSubmissions": "原始提交",
       "effectiveEdits": "有效修改",
+      "notSubmitted": "未提交",
+      "repairedAfterFailure": "曾未通过，现已修正",
+      "accepted": "已通过本题",
       "noCurrentIssue": "当前没有可确认的问题信号"
     },
     "pattern": {
@@ -801,7 +807,8 @@
       "noKnowledgePath": "暂无知识路径。",
       "noIssue": "暂无集中错因",
       "noNormalizedIssues": "当前没有形成可用于班级统计的规范问题；已有判题和提交记录仍可从学生列表查看。",
-      "noMatchingStudents": "当前分组没有学生。"
+      "noMatchingStudents": "当前筛选没有学生。",
+      "noRosterStudents": "班级还没有学生。"
     }
   },
   "teacherHome": {

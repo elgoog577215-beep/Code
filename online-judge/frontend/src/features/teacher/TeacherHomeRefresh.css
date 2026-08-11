@@ -402,7 +402,7 @@
 
 /* Teacher console redesign: sidebar + task-first workbench. */
 .teacher-console-shell.teacher-shell {
-  --teacher-console-sidebar: 184px;
+  --teacher-console-sidebar: 204px;
   width: min(100%, 1480px);
   display: grid;
   grid-template-columns: var(--teacher-console-sidebar) minmax(0, 1fr);
@@ -1092,7 +1092,7 @@
 
 @media (max-width: 1180px) {
   .teacher-console-shell.teacher-shell {
-    --teacher-console-sidebar: 176px;
+    --teacher-console-sidebar: 196px;
   }
 
   .teacher-assignment-center-table .teacher-console-table__row,

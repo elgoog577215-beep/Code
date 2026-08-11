@@ -63,6 +63,7 @@
     },
     "teacher": {
       "aria": "Filter by learning stage",
+      "allStudents": "All students",
       "failed": "Previously failed",
       "repaired": "Repaired",
       "explained": "Explained",
@@ -507,7 +508,8 @@
     },
     "actions": {
       "newAssignment": "New assignment",
-      "backToAnalytics": "Back to analytics"
+      "backToAnalytics": "Back to analytics",
+      "showRoster": "Show all students"
     },
     "loading": {
       "classes": "Loading classes",
@@ -575,6 +577,7 @@
       "studentList": "Student submissions",
       "studentListDescription": "Open a student to review effective edits, issue changes, and raw submission evidence.",
       "filteredStudents": "Students related to {{issue}}",
+      "rosterMeta": "{{submitted}} submitted · {{unsubmitted}} not submitted",
       "groupDescription": {
         "affected": "The issue appeared in at least one effective submission.",
         "repeated": "The issue persisted or recurred after an effective edit.",
@@ -582,6 +585,9 @@
       },
       "rawSubmissions": "Raw submissions",
       "effectiveEdits": "Effective edits",
+      "notSubmitted": "Not submitted",
+      "repairedAfterFailure": "Previously failed, now repaired",
+      "accepted": "Problem passed",
       "noCurrentIssue": "No confirmed current issue signal"
     },
     "pattern": {
@@ -801,7 +807,8 @@
       "noKnowledgePath": "No knowledge path yet.",
       "noIssue": "No shared issue yet",
       "noNormalizedIssues": "No normalized issue is ready for class statistics. Judge facts and submissions remain available from the student list.",
-      "noMatchingStudents": "No students in this group."
+      "noMatchingStudents": "No students match this filter.",
+      "noRosterStudents": "No students in this class yet."
     }
   },
   "teacherHome": {
