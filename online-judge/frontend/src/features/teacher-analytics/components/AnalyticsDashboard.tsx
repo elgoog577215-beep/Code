@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, CircleDot, Repeat2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { AssignmentOverview, SubmissionGrowthSummary, TeacherProblemLearningProof } from "../../../shared/api/types";
 import type { AnalyticsSnapshot, InsightBucket } from "../model";
+import { AnalyticsSubmissionProgress } from "./AnalyticsSubmissionProgress";
 
 type Props = {
   snapshot: AnalyticsSnapshot;
@@ -35,8 +36,12 @@ function ClassAssignments({ snapshot, t }: Props) {
               <strong>{row.title}</strong>
               <small>{row.status} · {t("teacherAnalytics.focus.problemCount", { count: row.problemCount })}</small>
             </div>
+            <AnalyticsSubmissionProgress
+              label={t("teacherAnalytics.focus.submitted")}
+              submitted={row.submittedStudentCount}
+              total={row.participantCount}
+            />
             <div className="teacher-analytics-row-metrics teacher-analytics-row-metrics--assignment">
-              <Metric label={t("teacherAnalytics.focus.submitted")} value={`${row.submittedStudentCount}/${row.participantCount || "-"}`} />
               <Metric label={t("teacherAnalytics.focus.completedRequired")} value={row.completedRequiredStudentCount} />
             </div>
             <ArrowRight size={18} aria-hidden="true" />
@@ -56,8 +61,12 @@ function AssignmentProblems({ snapshot, t }: Props) {
           <Link className="teacher-analytics-focus-row teacher-analytics-focus-row--problem" to={row.href} key={row.id}>
             <div>
               <strong>{row.title}</strong>
-              <small>{t("teacherAnalytics.focus.submittedOfRoster", { submitted: row.submittedStudentCount, roster: row.participantCount || "-" })}</small>
             </div>
+            <AnalyticsSubmissionProgress
+              label={t("teacherAnalytics.focus.submitted")}
+              submitted={row.submittedStudentCount}
+              total={row.participantCount}
+            />
             <div className="teacher-analytics-row-metrics teacher-analytics-row-metrics--problem">
               <Metric label={t("teacherAnalytics.focus.firstPass")} value={row.firstPassStudentCount} />
               <Metric label={t("teacherAnalytics.focus.eventualPass")} value={row.passedStudentCount} />

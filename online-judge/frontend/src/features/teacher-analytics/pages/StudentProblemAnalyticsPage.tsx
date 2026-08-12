@@ -31,7 +31,7 @@ type StudentWorkspace = "growth" | "evidence" | "analysis";
 const STUDENT_WORKSPACES: StudentWorkspace[] = ["growth", "evidence", "analysis"];
 
 export default function StudentProblemAnalyticsPage() {
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   const { classId = "", assignmentId = "", problemId = "", studentProfileId = "" } = useParams();
   const classIdNumber = Number(classId);
   const assignmentIdNumber = Number(assignmentId);
@@ -206,42 +206,44 @@ export default function StudentProblemAnalyticsPage() {
 
       {message ? <div className={`alert alert--${message.tone}`}>{message.text}</div> : null}
 
-      <nav className="teacher-student-workspace-tabs" role="tablist" aria-label={t("teacherAnalytics.student.workspaceAria")}>
-        {STUDENT_WORKSPACES.map(item => (
-          <button
-            type="button"
-            role="tab"
-            id={`teacher-student-tab-${item}`}
-            aria-controls={`teacher-student-panel-${item}`}
-            aria-selected={workspace === item}
-            tabIndex={workspace === item ? 0 : -1}
-            className={workspace === item ? "is-active" : ""}
-            onClick={() => setWorkspace(item)}
-            onKeyDown={event => handleWorkspaceKeyDown(event, item)}
-            key={item}
-          >
-            {t(`teacherAnalytics.student.workspace.${item}`)}
-          </button>
-        ))}
-      </nav>
+      <div className="teacher-student-toolbar">
+        <nav className="teacher-student-workspace-tabs" role="tablist" aria-label={t("teacherAnalytics.student.workspaceAria")}>
+          {STUDENT_WORKSPACES.map(item => (
+            <button
+              type="button"
+              role="tab"
+              id={`teacher-student-tab-${item}`}
+              aria-controls={`teacher-student-panel-${item}`}
+              aria-selected={workspace === item}
+              tabIndex={workspace === item ? 0 : -1}
+              className={workspace === item ? "is-active" : ""}
+              onClick={() => setWorkspace(item)}
+              onKeyDown={event => handleWorkspaceKeyDown(event, item)}
+              key={item}
+            >
+              {t(`teacherAnalytics.student.workspace.${item}`)}
+            </button>
+          ))}
+        </nav>
 
-      {selectedHistory ? (
-        <section className="teacher-submission-context" aria-label={t("teacherAnalytics.student.submissionContextAria")}>
-          <div>
-            <span>{t("teacherAnalytics.student.currentSubmission")}</span>
-            <strong>#{selectedHistory.id} · {teacherVerdictLabel(selectedHistory.verdict, t)}</strong>
-            <time dateTime={selectedHistory.submittedAt || undefined}>{formatDateTime(selectedHistory.submittedAt)}</time>
-          </div>
-          <label>
-            <span>{t("teacherAnalytics.student.switchSubmission")}</span>
-            <select value={selectedHistory.id} onChange={event => setSelectedSubmissionId(Number(event.target.value))}>
-              {orderedHistory.map(item => (
-                <option value={item.id} key={item.id}>#{item.id} · {teacherVerdictLabel(item.verdict, t)} · {formatDateTime(item.submittedAt)}</option>
-              ))}
-            </select>
-          </label>
-        </section>
-      ) : null}
+        {selectedHistory ? (
+          <section className="teacher-submission-context" aria-label={t("teacherAnalytics.student.submissionContextAria")}>
+            <div>
+              <span>{t("teacherAnalytics.student.currentSubmission")}</span>
+              <strong>#{selectedHistory.id} · {teacherVerdictLabel(selectedHistory.verdict, t)}</strong>
+              <time dateTime={selectedHistory.submittedAt || undefined}>{formatDateTime(selectedHistory.submittedAt, locale)}</time>
+            </div>
+            <label>
+              <span>{t("teacherAnalytics.student.switchSubmission")}</span>
+              <select value={selectedHistory.id} onChange={event => setSelectedSubmissionId(Number(event.target.value))}>
+                {orderedHistory.map(item => (
+                  <option value={item.id} key={item.id}>#{item.id} · {teacherVerdictLabel(item.verdict, t)} · {formatDateTime(item.submittedAt, locale)}</option>
+                ))}
+              </select>
+            </label>
+          </section>
+        ) : null}
+      </div>
 
       {workspace === "growth" ? (
         <div

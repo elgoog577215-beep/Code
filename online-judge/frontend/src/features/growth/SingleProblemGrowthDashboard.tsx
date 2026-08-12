@@ -24,6 +24,7 @@ import type {
   SubmissionGrowthSummary,
   SubmissionHistorySummary
 } from "../../shared/api/types";
+import { formatFullDateTime } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
 import "./SingleProblemGrowthDashboard.css";
 
@@ -363,7 +364,7 @@ export function GrowthTimeline({
   selectedSubmissionId?: number | null;
   onSelectSubmission: (item: SubmissionHistorySummary) => void;
 }) {
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   return (
     <div className="growth-timeline" aria-label={t("growthTimeline.aria")}>
       {history.map(item => {
@@ -393,7 +394,7 @@ export function GrowthTimeline({
               {summary?.comparisonSubmissionId ? (
                 <small>{t("growthDashboard.comparedWith", { id: summary.comparisonSubmissionId })}</small>
               ) : null}
-              <time>{item.submittedAt ? new Date(item.submittedAt).toLocaleString() : "-"}</time>
+              <time dateTime={item.submittedAt || undefined}>{formatFullDateTime(item.submittedAt, locale)}</time>
             </span>
           </button>
         );

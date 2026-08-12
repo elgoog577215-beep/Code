@@ -1392,3 +1392,337 @@
     border-left: 0;
   }
 }
+
+/* Desktop teacher analysis: one work rail, aligned progress columns, evidence-first density. */
+.teacher-analytics-pagebar__object,
+.teacher-student-toolbar {
+  min-width: 0;
+}
+
+.teacher-analytics-submission-progress {
+  min-width: 0;
+  display: grid;
+  gap: 0.34rem;
+}
+
+.teacher-analytics-class-card > .teacher-analytics-submission-progress {
+  display: grid;
+  align-items: stretch;
+  gap: 0.34rem;
+}
+
+.teacher-analytics-submission-progress > span {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.teacher-analytics-submission-progress small {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-analytics-submission-progress strong {
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.teacher-analytics-submission-progress progress {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ink-soft) 14%, transparent);
+  appearance: none;
+}
+
+.teacher-analytics-submission-progress progress::-webkit-progress-bar {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ink-soft) 14%, transparent);
+}
+
+.teacher-analytics-submission-progress progress::-webkit-progress-value {
+  border-radius: 2px;
+  background: var(--brand);
+}
+
+.teacher-analytics-submission-progress progress::-moz-progress-bar {
+  border-radius: 2px;
+  background: var(--brand);
+}
+
+.teacher-student-toolbar {
+  display: grid;
+}
+
+@media (min-width: 1181px) {
+  .teacher-analytics-page {
+    max-width: 1240px;
+  }
+
+  .teacher-analytics-breadcrumbs {
+    padding-top: 0.1rem;
+  }
+
+  .teacher-analytics-pagebar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 62px;
+    gap: 1rem;
+    padding: 0.22rem 0 0.68rem;
+  }
+
+  .teacher-analytics-pagebar__object {
+    display: flex;
+    align-items: baseline;
+    gap: clamp(1.25rem, 2.2vw, 2.2rem);
+  }
+
+  .teacher-analytics-pagebar__object h1 {
+    flex: 0 1 auto;
+  }
+
+  .teacher-analytics-pagebar__object .teacher-analytics-summary {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+  }
+
+  .teacher-analytics-pagebar__object .teacher-analytics-metric:first-child {
+    padding-left: 0;
+  }
+
+  .teacher-analytics-list-panel,
+  .teacher-analytics-focus-panel {
+    min-width: 0;
+  }
+
+  .teacher-analytics-class-card {
+    grid-template-columns: minmax(300px, 1.15fr) minmax(190px, 0.7fr) minmax(180px, 0.52fr) 18px;
+    gap: 1.25rem;
+    min-height: 74px;
+    padding: 0.7rem 0.42rem;
+  }
+
+  .teacher-analytics-class-card > .teacher-analytics-class-card__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-analytics-class-card__metrics > span {
+    justify-content: space-between;
+  }
+
+  .teacher-analytics-focus-title {
+    min-height: 48px;
+    padding-inline: 0.42rem;
+  }
+
+  .teacher-analytics-focus-row {
+    grid-template-columns: minmax(300px, 1.15fr) minmax(190px, 0.7fr) minmax(150px, 0.45fr) 18px;
+    gap: 1.25rem;
+    min-height: 70px;
+    padding: 0.62rem 0.42rem;
+  }
+
+  .teacher-analytics-focus-row--problem {
+    grid-template-columns: minmax(260px, 0.95fr) minmax(190px, 0.62fr) minmax(320px, 0.95fr) 18px;
+  }
+
+  .teacher-analytics-row-metrics--assignment {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-analytics-row-metrics--problem {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .teacher-analytics-row-metrics .teacher-analytics-inline-metric {
+    justify-content: space-between;
+  }
+
+  .teacher-learning-flow {
+    min-height: 62px;
+    grid-template-columns: minmax(150px, 0.34fr) minmax(0, 1.66fr);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+
+  .teacher-learning-flow__all,
+  .teacher-learning-stagebar button {
+    position: relative;
+  }
+
+  .teacher-learning-flow__all.is-active::after,
+  .teacher-learning-stagebar button.is-active::after {
+    position: absolute;
+    right: 0.72rem;
+    bottom: 0;
+    left: 0.72rem;
+    height: 2px;
+    background: currentColor;
+    content: "";
+  }
+
+  .teacher-learning-stagebar button:disabled {
+    background: color-mix(in srgb, var(--surface-muted) 52%, transparent);
+  }
+
+  .teacher-problem-evidence-layout {
+    gap: 1.6rem;
+  }
+
+  .teacher-problem-evidence-layout--students-only {
+    max-width: 1060px;
+  }
+
+  .teacher-student-toolbar {
+    grid-template-columns: minmax(300px, auto) minmax(0, 1fr);
+    align-items: center;
+    border-block: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface-muted) 52%, transparent);
+  }
+
+  .teacher-student-workspace-tabs {
+    align-self: stretch;
+    padding-left: 0.18rem;
+    border-bottom: 0;
+  }
+
+  .teacher-student-workspace-tabs button {
+    min-height: 48px;
+  }
+
+  .teacher-submission-context {
+    min-height: 48px;
+    grid-template-columns: minmax(220px, 1fr) minmax(300px, auto);
+    gap: 1rem;
+    padding: 0.34rem 0.5rem 0.34rem 1rem;
+    border-bottom: 0;
+    border-left: 1px solid var(--line);
+  }
+
+  .teacher-submission-context select {
+    min-height: 34px;
+  }
+
+  .teacher-student-workspace--growth {
+    grid-template-columns: minmax(0, 1.45fr) minmax(330px, 0.72fr);
+    align-items: start;
+    column-gap: 1.25rem;
+  }
+
+  .teacher-student-workspace--growth > .learning-proof {
+    grid-column: 1 / -1;
+  }
+
+  .teacher-student-workspace--growth > .teacher-student-timeline-panel {
+    grid-column: 1;
+  }
+
+  .teacher-student-workspace--growth > .teacher-submission-comparison {
+    grid-column: 2;
+    margin-top: 0.22rem;
+  }
+
+  .teacher-submission-evidence-main {
+    grid-template-columns: minmax(520px, 780px) minmax(220px, 1fr);
+    align-items: start;
+    column-gap: 1.35rem;
+    max-width: 1080px;
+  }
+
+  .teacher-submission-evidence-main > .teacher-evidence-section-title,
+  .teacher-submission-evidence-main > .ui-empty-state {
+    grid-column: 1 / -1;
+  }
+
+  .teacher-code-evidence {
+    grid-column: 1;
+  }
+
+  .teacher-test-evidence {
+    grid-column: 2;
+  }
+
+  .teacher-test-evidence > div {
+    align-content: flex-start;
+  }
+
+  .teacher-analysis-version-panel {
+    max-width: 1080px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .teacher-analytics-pagebar__object {
+    min-width: 0;
+    display: grid;
+    gap: 0.42rem;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  .teacher-analytics-pagebar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .teacher-analytics-pagebar__object {
+    display: flex;
+    align-items: baseline;
+    gap: 0.9rem;
+  }
+
+  .teacher-analytics-pagebar__object .teacher-analytics-summary {
+    justify-content: flex-start;
+  }
+
+  .teacher-analytics-pagebar__action {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .teacher-analytics-class-card {
+    grid-template-columns: minmax(220px, 1fr) minmax(170px, 0.55fr) minmax(190px, 0.62fr) 18px;
+  }
+
+  .teacher-analytics-class-card > .teacher-analytics-class-card__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-analytics-focus-row,
+  .teacher-analytics-focus-row--problem {
+    grid-template-columns: minmax(220px, 1fr) minmax(170px, 0.55fr) minmax(220px, 0.7fr) 18px;
+  }
+
+  .teacher-analytics-row-metrics--assignment {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .teacher-analytics-class-card > .teacher-analytics-submission-progress,
+  .teacher-analytics-focus-row > .teacher-analytics-submission-progress {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .teacher-analytics-class-card > .teacher-analytics-class-card__metrics,
+  .teacher-analytics-focus-row > .teacher-analytics-row-metrics {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .teacher-analytics-submission-progress progress {
+    display: none;
+  }
+
+  .teacher-analytics-submission-progress > span {
+    justify-content: flex-start;
+    gap: 0.35rem;
+  }
+}

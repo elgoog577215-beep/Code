@@ -7,6 +7,7 @@ import { useTranslation } from "../../../shared/i18n";
 import { ButtonLink } from "../../../shared/ui/Button";
 import { EmptyState } from "../../../shared/ui/EmptyState";
 import { AnalyticsPageBar } from "../components/AnalyticsPageBar";
+import { AnalyticsSubmissionProgress } from "../components/AnalyticsSubmissionProgress";
 
 export default function TeacherAnalyticsLandingPage() {
   const { t } = useTranslation();
@@ -63,11 +64,17 @@ export default function TeacherAnalyticsLandingPage() {
                     <small>{classGroup.grade || t("teacherAnalytics.landing.classFallback")}</small>
                   </div>
                   {overview ? (
-                    <div className="teacher-analytics-class-card__metrics">
-                      <span><small>{t("teacherAnalytics.metrics.rosterStudents")}</small><strong>{overview.rosterStudentCount}</strong></span>
-                      <span><small>{t("teacherAnalytics.metrics.submittedStudents")}</small><strong>{overview.submittedStudentCount}</strong></span>
-                      <span><small>{t("teacherAnalytics.metrics.unsubmittedStudents")}</small><strong>{overview.unsubmittedStudentCount}</strong></span>
-                    </div>
+                    <>
+                      <AnalyticsSubmissionProgress
+                        label={t("teacherAnalytics.metrics.submittedStudents")}
+                        submitted={overview.submittedStudentCount}
+                        total={overview.rosterStudentCount}
+                      />
+                      <div className="teacher-analytics-class-card__metrics">
+                        <span><small>{t("teacherAnalytics.metrics.rosterStudents")}</small><strong>{overview.rosterStudentCount}</strong></span>
+                        <span><small>{t("teacherAnalytics.metrics.unsubmittedStudents")}</small><strong>{overview.unsubmittedStudentCount}</strong></span>
+                      </div>
+                    </>
                   ) : <span>{classGroup.teacherName || t("teacherAnalytics.landing.noTeacherName")}</span>}
                   <ArrowRight size={18} aria-hidden="true" />
                 </Link>

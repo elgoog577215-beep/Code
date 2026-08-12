@@ -1739,3 +1739,39 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Desktop console rail: navigation and content read as one workbench. */
+@media (min-width: 1181px) {
+  .teacher-console-shell.teacher-shell {
+    --teacher-console-sidebar: 196px;
+    width: min(100%, 1520px);
+    gap: clamp(1.15rem, 1.8vw, 1.7rem);
+  }
+
+  .teacher-console-shell .teacher-shell-sidebar {
+    top: 0;
+    min-height: calc(100vh - 92px);
+    align-content: start;
+    gap: 0.72rem;
+    padding: 0.24rem 1rem 1rem 0;
+    border: 0;
+    border-right: 1px solid color-mix(in srgb, var(--line) 92%, transparent);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .teacher-console-shell .teacher-shell-sidebar__head {
+    min-height: 42px;
+    padding: 0 0.48rem 0.55rem;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__item {
+    min-height: 44px;
+  }
+
+  .teacher-console-shell .teacher-shell-main {
+    width: 100%;
+    max-width: 1240px;
+    padding-right: clamp(0.2rem, 1vw, 0.8rem);
+  }
+}
