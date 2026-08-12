@@ -22,6 +22,7 @@ public class FrontendForwardController {
             OnlineJudgeWebPaths.PUBLIC_PREFIX + "/teacher/classes/{classId:[0-9]+}",
             OnlineJudgeWebPaths.PUBLIC_PREFIX + "/teacher/classes/{classId:[0-9]+}/assignments/{assignmentId:[0-9]+}",
             OnlineJudgeWebPaths.PUBLIC_PREFIX + "/teacher/classes/{classId:[0-9]+}/assignments/{assignmentId:[0-9]+}/problems/{problemId:[0-9]+}",
+            OnlineJudgeWebPaths.PUBLIC_PREFIX + "/teacher/classes/{classId:[0-9]+}/assignments/{assignmentId:[0-9]+}/problems/{problemId:[0-9]+}/students/{studentProfileId:[0-9]+}",
             OnlineJudgeWebPaths.PUBLIC_PREFIX + "/teacher/manage",
             OnlineJudgeWebPaths.PUBLIC_PREFIX + "/teacher/manage/classes",
             OnlineJudgeWebPaths.PUBLIC_PREFIX + "/teacher/manage/problems",

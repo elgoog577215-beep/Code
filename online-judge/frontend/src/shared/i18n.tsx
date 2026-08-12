@@ -1411,15 +1411,15 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         management: "Management tools"
       },
       nav: {
-        analytics: "Teaching Analytics",
+        analytics: "Analytics",
         analyticsDescription: "Class, assignment, and problem results",
-        roster: "Class Roster",
+        roster: "Roster",
         rosterDescription: "Student import and class setup",
-        problemBank: "Problem Bank",
+        problemBank: "Problems",
         problemBankDescription: "Problem list and editor",
         aiLibrary: "AI Library",
         aiLibraryDescription: "Approved library and governance",
-        system: "System Status",
+        system: "System",
         systemDescription: "AI checks and runtime state"
       }
     },

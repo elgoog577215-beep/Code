@@ -35,8 +35,10 @@ function ClassAssignments({ snapshot, t }: Props) {
               <strong>{row.title}</strong>
               <small>{row.status} · {t("teacherAnalytics.focus.problemCount", { count: row.problemCount })}</small>
             </div>
-            <Metric label={t("teacherAnalytics.focus.submitted")} value={`${row.submittedStudentCount}/${row.participantCount || "-"}`} />
-            <Metric label={t("teacherAnalytics.focus.completedRequired")} value={row.completedRequiredStudentCount} />
+            <div className="teacher-analytics-row-metrics teacher-analytics-row-metrics--assignment">
+              <Metric label={t("teacherAnalytics.focus.submitted")} value={`${row.submittedStudentCount}/${row.participantCount || "-"}`} />
+              <Metric label={t("teacherAnalytics.focus.completedRequired")} value={row.completedRequiredStudentCount} />
+            </div>
             <ArrowRight size={18} aria-hidden="true" />
           </Link>
         ))}
@@ -56,9 +58,11 @@ function AssignmentProblems({ snapshot, t }: Props) {
               <strong>{row.title}</strong>
               <small>{t("teacherAnalytics.focus.submittedOfRoster", { submitted: row.submittedStudentCount, roster: row.participantCount || "-" })}</small>
             </div>
-            <Metric label={t("teacherAnalytics.focus.firstPass")} value={row.firstPassStudentCount} />
-            <Metric label={t("teacherAnalytics.focus.eventualPass")} value={row.passedStudentCount} />
-            <Metric label={t("teacherAnalytics.focus.medianEffective")} value={row.medianEffectiveAttempts ?? "-"} />
+            <div className="teacher-analytics-row-metrics teacher-analytics-row-metrics--problem">
+              <Metric label={t("teacherAnalytics.focus.firstPass")} value={row.firstPassStudentCount} />
+              <Metric label={t("teacherAnalytics.focus.eventualPass")} value={row.passedStudentCount} />
+              <Metric label={t("teacherAnalytics.focus.unsubmitted")} value={row.unsubmittedStudentCount} />
+            </div>
             <ArrowRight size={18} aria-hidden="true" />
           </Link>
         ))}
@@ -90,6 +94,8 @@ function ProblemEvidence({ snapshot, t, learningProof }: Props) {
   const submittedCount = problem?.submittedStudentCount || rosterStudents.filter(student => student.attemptCount > 0).length;
   const unsubmittedCount = Math.max(0, rosterCount - submittedCount);
   const hasFilter = Boolean(selectedIssue || learningStage);
+  const submittedStudents = students.filter(student => student.attemptCount > 0);
+  const unsubmittedStudents = students.filter(student => student.attemptCount <= 0);
 
   function selectIssueGroup(id: string, group: StudentGroup) {
     if (selectedIssueId === id && studentGroup === group) {
@@ -187,9 +193,20 @@ function ProblemEvidence({ snapshot, t, learningProof }: Props) {
             : t("teacherAnalytics.focus.rosterMeta", { submitted: submittedCount, unsubmitted: unsubmittedCount })}
         />
         <div className="teacher-student-growth-list">
-          {students.length ? students.map(student => (
-            <StudentGrowthRow student={student} proof={proofByStudent.get(student.studentProfileId)} snapshot={snapshot} t={t} key={student.studentProfileId} />
-          )) : (
+          {students.length ? hasFilter ? students.map(student => (
+              <StudentGrowthRow student={student} proof={proofByStudent.get(student.studentProfileId)} snapshot={snapshot} t={t} key={student.studentProfileId} />
+            )) : (
+              <>
+                {submittedStudents.length ? <StudentListGroupLabel label={t("teacherAnalytics.focus.submittedGroup")} count={submittedStudents.length} /> : null}
+                {submittedStudents.map(student => (
+                  <StudentGrowthRow student={student} proof={proofByStudent.get(student.studentProfileId)} snapshot={snapshot} t={t} key={student.studentProfileId} />
+                ))}
+                {unsubmittedStudents.length ? <StudentListGroupLabel label={t("teacherAnalytics.focus.unsubmittedGroup")} count={unsubmittedStudents.length} /> : null}
+                {unsubmittedStudents.map(student => (
+                  <StudentGrowthRow student={student} proof={proofByStudent.get(student.studentProfileId)} snapshot={snapshot} t={t} key={student.studentProfileId} />
+                ))}
+              </>
+            ) : (
             <div className="teacher-analytics-empty-copy">
               <span>{rosterCount ? t("teacherAnalytics.empty.noMatchingStudents") : t("teacherAnalytics.empty.noRosterStudents")}</span>
               {hasFilter ? <button type="button" onClick={clearFilters}>{t("teacherAnalytics.actions.showRoster")}</button> : null}
@@ -236,14 +253,20 @@ function StudentGrowthRow({ student, proof, snapshot, t }: { student: ProblemStu
         <span><i aria-hidden="true" />{stateLabel}</span>
         {stateDetail ? <small>{stateDetail}</small> : null}
       </div>
-      <Metric label={t("teacherAnalytics.focus.rawSubmissions")} value={student.attemptCount} />
-      <Metric label={t("teacherAnalytics.focus.effectiveEdits")} value={student.effectiveAttemptCount || 0} />
+      {submitted ? <>
+        <Metric label={t("teacherAnalytics.focus.rawSubmissions")} value={student.attemptCount} />
+        <Metric label={t("teacherAnalytics.focus.effectiveEdits")} value={student.effectiveAttemptCount || 0} />
+      </> : null}
       {submitted ? <ArrowRight size={18} aria-hidden="true" /> : null}
     </>
   );
   return submitted
     ? <Link className="teacher-student-growth-row is-clickable" to={href}>{content}</Link>
     : <div className="teacher-student-growth-row is-unsubmitted">{content}</div>;
+}
+
+function StudentListGroupLabel({ label, count }: { label: string; count: number }) {
+  return <div className="teacher-student-growth-list__group"><span>{label}</span><strong>{count}</strong></div>;
 }
 
 function SectionTitle({ title, count, meta }: { title: string; count?: number; meta?: string }) {

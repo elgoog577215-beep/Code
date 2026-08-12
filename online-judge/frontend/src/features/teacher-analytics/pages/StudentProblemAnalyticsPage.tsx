@@ -1,5 +1,5 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { Code2, History, RefreshCw, Save, TestTube2 } from "lucide-react";
+import { type FormEvent, type KeyboardEvent, useEffect, useMemo, useState } from "react";
+import { Code2, RefreshCw, Save, TestTube2 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { ApiError, api } from "../../../shared/api/client";
 import type {
@@ -16,7 +16,7 @@ import { formatDateTime } from "../../../shared/format";
 import { useTranslation } from "../../../shared/i18n";
 import { Button } from "../../../shared/ui/Button";
 import { EmptyState } from "../../../shared/ui/EmptyState";
-import { GrowthTimeline, SingleProblemGrowthDashboard } from "../../growth/SingleProblemGrowthDashboard";
+import { GrowthTimeline, growthStateKey } from "../../growth/SingleProblemGrowthDashboard";
 import { LearningProofPanel } from "../../growth/LearningProofPanel";
 import { AnalyticsBreadcrumbs } from "../components/AnalyticsBreadcrumbs";
 import { AnalyticsPageBar } from "../components/AnalyticsPageBar";
@@ -28,6 +28,7 @@ type CorrectionDraft = {
 };
 
 type StudentWorkspace = "growth" | "evidence" | "analysis";
+const STUDENT_WORKSPACES: StudentWorkspace[] = ["growth", "evidence", "analysis"];
 
 export default function StudentProblemAnalyticsPage() {
   const { t } = useTranslation();
@@ -154,6 +155,9 @@ export default function StudentProblemAnalyticsPage() {
     [history]
   );
   const visibleHistory = orderedHistory.slice(0, visibleHistoryCount);
+  const comparisonHistory = selectedHistory?.growthSummary?.comparisonSubmissionId
+    ? history.find(item => item.id === selectedHistory.growthSummary?.comparisonSubmissionId) || null
+    : null;
   const coarseTags = diagnosisTags.filter(tag => !tag.fineGrained);
   const fineTags = diagnosisTags.filter(tag => tag.fineGrained);
 
@@ -164,6 +168,20 @@ export default function StudentProblemAnalyticsPage() {
 
   const resolvedClassId = classGroup?.id || classIdNumber;
   const problemHref = `/teacher/classes/${resolvedClassId}/assignments/${assignment.id}/problems/${problem.problemId}`;
+
+  function handleWorkspaceKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: StudentWorkspace) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") return;
+    event.preventDefault();
+    const currentIndex = STUDENT_WORKSPACES.indexOf(current);
+    const nextIndex = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? STUDENT_WORKSPACES.length - 1
+        : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + STUDENT_WORKSPACES.length) % STUDENT_WORKSPACES.length;
+    const nextWorkspace = STUDENT_WORKSPACES[nextIndex];
+    setWorkspace(nextWorkspace);
+    requestAnimationFrame(() => document.getElementById(`teacher-student-tab-${nextWorkspace}`)?.focus());
+  }
 
   return (
     <div className="teacher-analytics-page teacher-student-trajectory-page">
@@ -189,13 +207,17 @@ export default function StudentProblemAnalyticsPage() {
       {message ? <div className={`alert alert--${message.tone}`}>{message.text}</div> : null}
 
       <nav className="teacher-student-workspace-tabs" role="tablist" aria-label={t("teacherAnalytics.student.workspaceAria")}>
-        {(["growth", "evidence", "analysis"] as StudentWorkspace[]).map(item => (
+        {STUDENT_WORKSPACES.map(item => (
           <button
             type="button"
             role="tab"
+            id={`teacher-student-tab-${item}`}
+            aria-controls={`teacher-student-panel-${item}`}
             aria-selected={workspace === item}
+            tabIndex={workspace === item ? 0 : -1}
             className={workspace === item ? "is-active" : ""}
             onClick={() => setWorkspace(item)}
+            onKeyDown={event => handleWorkspaceKeyDown(event, item)}
             key={item}
           >
             {t(`teacherAnalytics.student.workspace.${item}`)}
@@ -203,8 +225,31 @@ export default function StudentProblemAnalyticsPage() {
         ))}
       </nav>
 
+      {selectedHistory ? (
+        <section className="teacher-submission-context" aria-label={t("teacherAnalytics.student.submissionContextAria")}>
+          <div>
+            <span>{t("teacherAnalytics.student.currentSubmission")}</span>
+            <strong>#{selectedHistory.id} · {teacherVerdictLabel(selectedHistory.verdict, t)}</strong>
+            <time dateTime={selectedHistory.submittedAt || undefined}>{formatDateTime(selectedHistory.submittedAt)}</time>
+          </div>
+          <label>
+            <span>{t("teacherAnalytics.student.switchSubmission")}</span>
+            <select value={selectedHistory.id} onChange={event => setSelectedSubmissionId(Number(event.target.value))}>
+              {orderedHistory.map(item => (
+                <option value={item.id} key={item.id}>#{item.id} · {teacherVerdictLabel(item.verdict, t)} · {formatDateTime(item.submittedAt)}</option>
+              ))}
+            </select>
+          </label>
+        </section>
+      ) : null}
+
       {workspace === "growth" ? (
-        <div className="teacher-student-workspace teacher-student-workspace--growth" role="tabpanel">
+        <div
+          className="teacher-student-workspace teacher-student-workspace--growth"
+          role="tabpanel"
+          id="teacher-student-panel-growth"
+          aria-labelledby="teacher-student-tab-growth"
+        >
           {learningProof ? <LearningProofPanel proof={learningProof} /> : null}
           <section className="teacher-student-timeline-panel">
             <header className="teacher-evidence-section-title">
@@ -223,18 +268,17 @@ export default function StudentProblemAnalyticsPage() {
             ) : null}
           </section>
 
-          <SingleProblemGrowthDashboard
-            history={history}
-            selectedSubmissionId={selectedSubmissionId}
-            currentSummary={selectedHistory?.growthSummary}
-            mode="teacher"
-            onSelectSubmission={item => setSelectedSubmissionId(item.id)}
-          />
+          <TeacherSubmissionComparison selected={selectedHistory} comparison={comparisonHistory} t={t} />
         </div>
       ) : null}
 
       {workspace === "evidence" ? (
-        <main className="teacher-submission-evidence-main">
+        <section
+          className="teacher-submission-evidence-main"
+          role="tabpanel"
+          id="teacher-student-panel-evidence"
+          aria-labelledby="teacher-student-tab-evidence"
+        >
           <header className="teacher-evidence-section-title">
             <h2>{t("teacherAnalytics.student.submissionEvidence")}</h2>
           </header>
@@ -242,11 +286,6 @@ export default function StudentProblemAnalyticsPage() {
           {evidenceLoading ? <EmptyState title={t("teacherAnalytics.student.loadingEvidence")} live /> : null}
           {!evidenceLoading && evidence ? (
             <>
-              <div className="teacher-submission-facts">
-                <span><History size={15} />#{evidence.submission.id}</span>
-                <span>{teacherVerdictLabel(evidence.submission.verdict, t)}</span>
-                <span>{formatDateTime(evidence.submission.submittedAt)}</span>
-              </div>
               <article className="teacher-code-evidence">
                 <h3><Code2 size={17} />{t("teacherAnalytics.student.sourceCode")}</h3>
                 <pre><code>{evidence.submission.sourceCode}</code></pre>
@@ -263,11 +302,16 @@ export default function StudentProblemAnalyticsPage() {
               </article>
             </>
           ) : null}
-        </main>
+        </section>
       ) : null}
 
       {workspace === "analysis" ? (
-        <section className="teacher-analysis-version-panel" role="tabpanel">
+        <section
+          className="teacher-analysis-version-panel"
+          role="tabpanel"
+          id="teacher-student-panel-analysis"
+          aria-labelledby="teacher-student-tab-analysis"
+        >
           <header className="teacher-evidence-section-title">
             <h2>{t("teacherAnalytics.student.analysisVersions")}</h2>
             <Button type="button" variant="secondary" icon={<RefreshCw size={15} />} disabled={saving || !selectedSubmissionId} onClick={regenerate}>
@@ -326,6 +370,56 @@ export default function StudentProblemAnalyticsPage() {
         </section>
       ) : null}
     </div>
+  );
+}
+
+function TeacherSubmissionComparison({
+  selected,
+  comparison,
+  t
+}: {
+  selected: SubmissionHistorySummary | null;
+  comparison: SubmissionHistorySummary | null;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  if (!selected) return null;
+  const summary = selected.growthSummary;
+  const currentPassed = summary?.passedTestCases ?? selected.passedTestCases ?? 0;
+  const currentTotal = summary?.totalTestCases ?? selected.totalTestCases ?? 0;
+  const previousPassed = summary?.previousPassedTestCases ?? comparison?.passedTestCases ?? 0;
+  const previousTotal = summary?.previousTotalTestCases ?? comparison?.totalTestCases ?? 0;
+  const signals = (summary?.issueSignals || []).filter(item => ["NEW", "PERSISTED", "RECURRED", "RECOVERED", "NOT_OBSERVED"].includes(String(item.changeStatus || "").toUpperCase()));
+  const testChange = comparison || summary?.comparisonSubmissionId
+    ? `${previousTotal ? `${previousPassed}/${previousTotal}` : "-"} → ${currentTotal ? `${currentPassed}/${currentTotal}` : "-"}`
+    : currentTotal ? `${currentPassed}/${currentTotal}` : "-";
+
+  return (
+    <section className="teacher-submission-comparison" aria-labelledby="teacher-submission-comparison-title">
+      <header>
+        <div>
+          <h2 id="teacher-submission-comparison-title">{t("teacherAnalytics.student.selectedChange")}</h2>
+          <small>{summary?.comparisonSubmissionId
+            ? t("teacherAnalytics.student.comparedSubmission", { id: summary.comparisonSubmissionId })
+            : t("teacherAnalytics.student.firstRecordedSubmission")}</small>
+        </div>
+        {summary ? <strong>{t(`growthDashboard.state.${growthStateKey(summary.growthState)}`)}</strong> : null}
+      </header>
+      <div className="teacher-submission-comparison__facts">
+        <span><small>{t("teacherAnalytics.student.testPointChange")}</small><strong>{testChange}</strong></span>
+        <span><small>{t("teacherAnalytics.student.unresolvedIssues")}</small><strong>{summary?.unresolvedCount ?? "-"}</strong></span>
+        <span><small>{t("teacherAnalytics.student.resolvedIssues")}</small><strong>{summary?.recoveredCount ?? 0}</strong></span>
+      </div>
+      {signals.length ? (
+        <ul>
+          {signals.map((item, index) => (
+            <li key={`${item.normalizedPointKey || item.title || "issue"}-${index}`}>
+              <strong>{item.title || t("growthDashboard.unnamedIssue")}</strong>
+              <span>{t(`growthDashboard.issueStatus.${String(item.changeStatus || "uncomparable").toLowerCase()}`)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : <p>{t("teacherAnalytics.student.noIssueChange")}</p>}
+    </section>
   );
 }
 

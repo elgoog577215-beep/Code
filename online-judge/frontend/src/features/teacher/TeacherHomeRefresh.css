@@ -3,6 +3,102 @@
   gap: 0.54rem;
 }
 
+/* Keep the teacher task frame complete and compact on phones. */
+@media (max-width: 760px) {
+  .app-header.app-header--teacher-context {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .app-header.app-header--teacher-context .header-actions {
+    grid-column: auto;
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .teacher-console-shell .teacher-shell-sidebar {
+    padding: 0.38rem;
+  }
+
+  .teacher-console-shell .teacher-shell-nav {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.28rem;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section--primary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section--management {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.24rem;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__item,
+  .teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__item {
+    min-width: 0;
+    min-height: 40px;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__item {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    padding: 0.32rem 0.2rem;
+    text-align: center;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__icon {
+    display: none;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__item strong {
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .teacher-console-shell.teacher-shell .teacher-shell-sidebar .teacher-shell-nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.2rem;
+    overflow: visible;
+  }
+
+  .teacher-console-shell.teacher-shell .teacher-shell-sidebar .teacher-shell-nav__section {
+    display: contents;
+  }
+
+  .teacher-console-shell.teacher-shell .teacher-shell-sidebar .teacher-shell-nav__item,
+  .teacher-console-shell.teacher-shell .teacher-shell-sidebar .teacher-shell-nav__section--management .teacher-shell-nav__item {
+    min-width: 0;
+    min-height: 40px;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    padding: 0.32rem 0.12rem;
+    text-align: center;
+  }
+
+  .teacher-console-shell.teacher-shell .teacher-shell-sidebar .teacher-shell-nav__icon {
+    display: none;
+  }
+
+  .teacher-console-shell.teacher-shell .teacher-shell-sidebar .teacher-shell-nav__item strong {
+    overflow: visible;
+    font-size: 0.7rem;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 340px) {
+  .teacher-console-shell.teacher-shell .teacher-shell-sidebar .teacher-shell-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .teacher-shell-nav--compact {
   width: min(100%, 1380px);
   min-height: 38px;
@@ -1577,5 +1673,69 @@
 
   .teacher-manage-page .management-readiness--compact .management-readiness__actions .ui-button {
     width: 100%;
+  }
+}
+
+/* Final mobile cascade: no hidden teacher destinations and no second header row. */
+@media (max-width: 760px) {
+  .app-header.app-header--teacher-context {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .app-header.app-header--teacher-context .header-actions {
+    grid-column: auto;
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .teacher-console-shell .teacher-shell-sidebar {
+    padding: 0.38rem;
+  }
+
+  .teacher-console-shell .teacher-shell-nav {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.28rem;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section--primary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section--management {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.24rem;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__item,
+  .teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__item {
+    min-width: 0;
+    min-height: 40px;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__item {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    padding: 0.32rem 0.2rem;
+    text-align: center;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__icon {
+    display: none;
+  }
+
+  .teacher-console-shell .teacher-shell-nav__section--management .teacher-shell-nav__item strong {
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 340px) {
+  .teacher-console-shell .teacher-shell-nav__section--management {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

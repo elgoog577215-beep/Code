@@ -468,15 +468,15 @@
       "management": "Management tools"
     },
     "nav": {
-      "analytics": "Teaching Analytics",
+      "analytics": "Analytics",
       "analyticsDescription": "Class, assignment, and problem results",
-      "roster": "Class Roster",
+      "roster": "Roster",
       "rosterDescription": "Student import and class setup",
-      "problemBank": "Problem Bank",
+      "problemBank": "Problems",
       "problemBankDescription": "Problem list and editor",
       "aiLibrary": "AI Library",
       "aiLibraryDescription": "Approved library and governance",
-      "system": "System Status",
+      "system": "System",
       "systemDescription": "AI checks and runtime state"
     }
   },
@@ -490,7 +490,8 @@
       "noTeacherName": "No teacher name"
     },
     "breadcrumb": {
-      "classes": "Classes"
+      "classes": "Classes",
+      "aria": "Current analytics path"
     },
     "scope": {
       "class": "Class",
@@ -563,6 +564,7 @@
       "problemListDescription": "First-pass and eventual passes are separate; duplicate clicks do not inflate effective edits.",
       "problemCount": "{{count}} problems",
       "submitted": "Submitted",
+      "unsubmitted": "Not submitted",
       "submittedOfRoster": "{{submitted}} / {{roster}} submitted",
       "completedRequired": "Completed required",
       "firstPass": "First pass",
@@ -575,6 +577,8 @@
       "repeated": "Repeated",
       "resolved": "Later resolved",
       "studentList": "Student submissions",
+      "submittedGroup": "Submitted students",
+      "unsubmittedGroup": "Students not submitted",
       "studentListDescription": "Open a student to review effective edits, issue changes, and raw submission evidence.",
       "filteredStudents": "Students related to {{issue}}",
       "rosterMeta": "{{submitted}} submitted · {{unsubmitted}} not submitted",
@@ -606,6 +610,9 @@
       "no": "No",
       "latestResult": "Latest result",
       "workspaceAria": "Student problem analysis sections",
+      "submissionContextAria": "Currently selected submission",
+      "currentSubmission": "Current submission",
+      "switchSubmission": "Submission",
       "workspace": {
         "growth": "Growth",
         "evidence": "Submission evidence",
@@ -625,6 +632,13 @@
       "fullTimeline": "Complete submission timeline",
       "timelineCount": "Showing {{visible}} of {{total}} submissions",
       "loadEarlier": "Show earlier submissions",
+      "selectedChange": "Selected submission change",
+      "comparedSubmission": "Compared with effective submission #{{id}}",
+      "firstRecordedSubmission": "First record with no earlier comparison",
+      "testPointChange": "Test-point change",
+      "unresolvedIssues": "Unresolved issues",
+      "resolvedIssues": "Resolved now",
+      "noIssueChange": "No issue change is available for this submission.",
       "submissionEvidence": "Submission evidence",
       "loadingEvidence": "Loading submission evidence",
       "evidenceLoadFailed": "Failed to load submission evidence.",

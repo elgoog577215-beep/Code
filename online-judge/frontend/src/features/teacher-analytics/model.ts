@@ -105,6 +105,7 @@ export type ProblemRow = {
   href: string;
   difficulty?: string | null;
   submittedStudentCount: number;
+  unsubmittedStudentCount: number;
   passedStudentCount: number;
   firstPassStudentCount: number;
   effectiveAttemptCount: number;

@@ -206,6 +206,10 @@ export function problemRows(overview: AssignmentOverview, classId: number, assig
       href: `/teacher/classes/${classId}/assignments/${assignmentId}/problems/${problem.problemId}`,
       difficulty: problem.difficulty,
       submittedStudentCount: problem.submittedStudentCount,
+      unsubmittedStudentCount: Math.max(
+        0,
+        (problem.classStudentCount || overview.rosterStudentCount || overview.participantCount) - problem.submittedStudentCount
+      ),
       passedStudentCount: problem.passedStudentCount,
       firstPassStudentCount: problem.firstPassStudentCount || 0,
       effectiveAttemptCount: problem.effectiveAttemptCount || 0,

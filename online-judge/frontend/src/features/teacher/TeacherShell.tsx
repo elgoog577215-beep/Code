@@ -73,7 +73,7 @@ export function TeacherShell({ children }: { children: ReactNode }) {
           </div>
         </nav>
       </aside>
-      <main className="teacher-shell-main">{children}</main>
+      <div className="teacher-shell-main">{children}</div>
     </div>
   );
 }

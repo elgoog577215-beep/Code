@@ -490,7 +490,8 @@
       "noTeacherName": "未设置教师"
     },
     "breadcrumb": {
-      "classes": "班级"
+      "classes": "班级",
+      "aria": "当前分析路径"
     },
     "scope": {
       "class": "班级",
@@ -563,6 +564,7 @@
       "problemListDescription": "一次通过与最终通过分开统计；重复点击不会放大有效修改。",
       "problemCount": "{{count}} 道题",
       "submitted": "已提交",
+      "unsubmitted": "未提交",
       "submittedOfRoster": "{{submitted}} / {{roster}} 人已提交",
       "completedRequired": "完成必做题",
       "firstPass": "一次通过",
@@ -575,6 +577,8 @@
       "repeated": "反复出现",
       "resolved": "后来解决",
       "studentList": "学生提交情况",
+      "submittedGroup": "已提交学生",
+      "unsubmittedGroup": "未提交学生",
       "studentListDescription": "进入学生后查看每次有效修改、问题变化和原始提交证据。",
       "filteredStudents": "{{issue}}相关学生",
       "rosterMeta": "已提交 {{submitted}} · 未提交 {{unsubmitted}}",
@@ -606,6 +610,9 @@
       "no": "否",
       "latestResult": "最新结果",
       "workspaceAria": "学生题目分析分类",
+      "submissionContextAria": "当前查看的提交",
+      "currentSubmission": "当前提交",
+      "switchSubmission": "切换提交",
       "workspace": {
         "growth": "成长轨迹",
         "evidence": "提交证据",
@@ -625,6 +632,13 @@
       "fullTimeline": "全部提交时间线",
       "timelineCount": "当前显示 {{visible}} / {{total}} 次提交",
       "loadEarlier": "继续显示更早提交",
+      "selectedChange": "所选提交变化",
+      "comparedSubmission": "对比有效提交 #{{id}}",
+      "firstRecordedSubmission": "首次记录，没有可比较的前次提交",
+      "testPointChange": "测试点变化",
+      "unresolvedIssues": "未解决问题",
+      "resolvedIssues": "本次解决",
+      "noIssueChange": "这次提交没有可展示的问题变化。",
       "submissionEvidence": "提交证据",
       "loadingEvidence": "正在读取提交证据",
       "evidenceLoadFailed": "提交证据读取失败。",
