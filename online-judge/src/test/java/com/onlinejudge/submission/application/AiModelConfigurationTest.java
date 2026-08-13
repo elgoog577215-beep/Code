@@ -9,9 +9,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AiModelConfigurationTest {
 
-    private static final String PRIMARY_MODEL = "Qwen/Qwen3.5-397B-A17B";
+    private static final String PRIMARY_MODEL = "Qwen/Qwen3.5-35B-A3B";
     private static final String VERIFIED_MODEL_POOL =
-            "Qwen/Qwen3.5-397B-A17B,Qwen/Qwen3.5-35B-A3B,Qwen/Qwen3-235B-A22B-Instruct-2507";
+            "Qwen/Qwen3.5-35B-A3B,Qwen/Qwen3.5-397B-A17B,Qwen/Qwen3-235B-A22B-Instruct-2507";
 
     @Test
     void applicationConfigDefaultsToVerifiedQwenModelButKeepsEnvironmentOverride() throws Exception {
