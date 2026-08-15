@@ -1387,7 +1387,21 @@ const scenarios = [
     path: "/app/student/assignments/7/problems/101?studentProfileId=41&recommendationToken=rec-next-101",
     beforeChecks: async page => {
       const runPanel = page.locator(".code-run-panel");
-      await runPanel.getByRole("button", { name: "载入首个样例" }).click();
+      const runToggle = runPanel.getByRole("button", { name: "展开测试运行" });
+      record("problem custom run starts collapsed", await runToggle.getAttribute("aria-expanded") === "false");
+      await runToggle.click();
+      const loadSample = runPanel.getByRole("button", { name: "载入首个样例" });
+      const sampleFrame = await loadSample.boundingBox();
+      const latestFrame = await page.locator(".problem-last-result").boundingBox();
+      record(
+        "problem custom run controls do not overlap the latest result",
+        Boolean(sampleFrame && latestFrame && (
+          sampleFrame.y + sampleFrame.height <= latestFrame.y
+          || sampleFrame.y >= latestFrame.y + latestFrame.height
+        )),
+        JSON.stringify({ sampleFrame, latestFrame })
+      );
+      await loadSample.click();
       const customInput = runPanel.getByRole("textbox", { name: /自定义输入/ });
       record("problem custom run loads the first public sample", await customInput.inputValue() === "3\n1 2 3\n");
       await runPanel.getByRole("button", { name: "运行代码", exact: true }).click();

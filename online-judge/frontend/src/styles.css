@@ -6512,7 +6512,7 @@ button.list-row:hover {
 
 .problem-layout--workbench .panel--editor .stack {
   min-height: 100%;
-  grid-template-rows: minmax(320px, 1fr) auto auto;
+  grid-template-rows: minmax(320px, 1fr) max-content auto auto;
 }
 
 .problem-layout--workbench .editor-shell {
@@ -11995,7 +11995,7 @@ tr:last-child td {
 
 .problem-main-split .panel--editor .stack {
   min-height: 0;
-  grid-template-rows: minmax(360px, 1fr) auto auto;
+  grid-template-rows: minmax(360px, 1fr) max-content auto auto;
 }
 
 .problem-main-split .editor-shell,
@@ -18228,7 +18228,7 @@ summary:focus-visible {
   }
 
   .problem-layout--workbench .panel--editor .stack {
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto max-content auto auto;
   }
 
   .problem-mobile-jump {
@@ -24163,7 +24163,7 @@ button.standard-library-governance-path {
   }
 
   .problem-layout--workbench .panel--editor .stack {
-    grid-template-rows: minmax(360px, 1fr) auto auto;
+    grid-template-rows: minmax(360px, 1fr) max-content auto auto;
   }
 }
 
