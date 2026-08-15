@@ -201,7 +201,20 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     await page.getByRole("button", { name: "展开代码" }).click();
     await page.locator(".problem-main-split > .panel--editor").waitFor({ state: "visible" });
     assert.equal(await page.getByRole("button", { name: "提交代码" }).count(), 1);
+    const codeRunToggle = page.getByRole("button", { name: "展开测试运行" });
+    assert.equal(await codeRunToggle.getAttribute("aria-expanded", { timeout: 5000 }), "false");
+    assert.equal(await page.getByText("快速验证", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("自定义输入运行", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("用一组输入运行当前代码，不计入正式提交和学习记录。", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("临时运行", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("内容会作为程序的标准输入 stdin。", { exact: true }).count(), 0);
+    await codeRunToggle.click();
+    assert.equal(
+      await page.getByRole("button", { name: "收起测试运行" }).getAttribute("aria-expanded"),
+      "true"
+    );
     const customInput = page.getByRole("textbox", { name: /自定义输入/ });
+    await customInput.waitFor({ state: "visible" });
     assert.equal(await customInput.inputValue(), "");
     await page.getByRole("button", { name: "载入首个样例" }).click();
     assert.equal(await customInput.inputValue(), "3 5");
