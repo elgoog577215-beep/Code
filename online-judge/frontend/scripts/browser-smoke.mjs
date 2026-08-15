@@ -1827,8 +1827,37 @@ const scenarios = [
       record("teacher management does not also mark analytics", !activeNav.join("|").includes("教学分析"), activeNav.join("|"));
       record("teacher management shows class roster only", managementText.includes("班级名单") && managementText.includes("名单维护") && managementText.includes("创建班级") && managementText.includes("导入名单"), managementText.slice(0, 900));
       record("teacher management hides unrelated modules", !managementText.includes("AI标准库") && !managementText.includes("检测AI") && !managementText.includes("开课状态") && !managementText.includes("导入题目"), managementText.slice(0, 900));
+      const rosterRows = await page.locator(".management-roster-row").evaluateAll(elements => elements.map(element => {
+        const rowRect = element.getBoundingClientRect();
+        const actionRect = element.querySelector("button")?.getBoundingClientRect();
+        return {
+          rowWidth: Math.round(rowRect.width),
+          rowHeight: Math.round(rowRect.height),
+          actionWidth: Math.round(actionRect?.width ?? 0)
+        };
+      }));
+      record(
+        `teacher roster keeps student actions compact at ${viewport.name}`,
+        rosterRows.length > 0 && rosterRows.every(row => row.rowHeight <= (viewport.name === "mobile" ? 96 : 80) && row.actionWidth > 0 && row.actionWidth <= 160 && row.actionWidth < row.rowWidth * 0.45),
+        JSON.stringify(rosterRows)
+      );
       if (viewport.name === "desktop") {
         await checkVisible(page, ".management-object-main", "teacher management desktop roster workspace");
+        const accountLayout = await page.locator(".teacher-shell-sidebar__foot").evaluate(element => {
+          const footRect = element.getBoundingClientRect();
+          const buttonRect = element.querySelector(".teacher-shell-logout")?.getBoundingClientRect();
+          return {
+            footWidth: Math.round(footRect.width),
+            footHeight: Math.round(footRect.height),
+            buttonWidth: Math.round(buttonRect?.width ?? 0),
+            buttonHeight: Math.round(buttonRect?.height ?? 0)
+          };
+        });
+        record(
+          "teacher sidebar account action stays compact",
+          accountLayout.footHeight <= 72 && accountLayout.buttonWidth > 0 && accountLayout.buttonWidth <= 120 && accountLayout.buttonHeight <= 44 && accountLayout.buttonWidth < accountLayout.footWidth * 0.6,
+          JSON.stringify(accountLayout)
+        );
       }
       if (viewport.name === "tablet") {
         await checkVisible(page, ".management-object-main", "teacher management tablet roster workspace");
