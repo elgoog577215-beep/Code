@@ -5,6 +5,8 @@ import com.onlinejudge.identity.domain.TeacherAccount;
 import com.onlinejudge.identity.domain.TeacherSession;
 import com.onlinejudge.identity.persistence.TeacherAccountRepository;
 import com.onlinejudge.identity.persistence.TeacherSessionRepository;
+import com.onlinejudge.organization.domain.School;
+import com.onlinejudge.organization.persistence.SchoolRepository;
 import com.onlinejudge.shared.web.PlatformApiException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -32,6 +34,7 @@ public class TeacherSessionService {
     private final SchoolSecurityProperties properties;
     private final TeacherAccountRepository accounts;
     private final TeacherSessionRepository sessions;
+    private final SchoolRepository schools;
     private final PasswordEncoder passwordEncoder;
 
     @Autowired(required = false)
@@ -52,6 +55,12 @@ public class TeacherSessionService {
 
     @Transactional(noRollbackFor = PlatformApiException.class)
     public TeacherPrincipal login(String username, String password, HttpServletRequest request, HttpServletResponse response) {
+        return login(username, password, null, request, response);
+    }
+
+    @Transactional(noRollbackFor = PlatformApiException.class)
+    public TeacherPrincipal login(String username, String password, String portal,
+                                  HttpServletRequest request, HttpServletResponse response) {
         Instant now = Instant.now();
         TeacherAccount account = accounts.findByUsernameNormalized(TeacherAccount.normalizeUsername(username))
                 .orElseThrow(() -> new PlatformApiException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "用户名或密码不正确"));
@@ -64,6 +73,8 @@ public class TeacherSessionService {
             if (trialMetrics != null) trialMetrics.loginFailed();
             throw new PlatformApiException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "用户名或密码不正确");
         }
+        validatePortal(account, portal);
+        validateSchool(account);
         account.recordSuccessfulLogin(now);
         String token = randomToken();
         long maxAge = properties.teacherSessionTtlHours() * 3600;
@@ -90,19 +101,20 @@ public class TeacherSessionService {
     public Optional<TeacherPrincipal> resolve(HttpServletRequest request) {
         if (properties.teacherDevAutoAuth()) {
             return Optional.of(new TeacherPrincipal(TeacherAccount.BOOTSTRAP_ADMIN_ID, "dev-admin", "开发管理员",
-                    TeacherAccount.Role.ADMIN, false));
+                    TeacherAccount.Role.PLATFORM_ADMIN, false));
         }
         String token = cookieValue(request);
         if (token.isBlank()) return Optional.empty();
         if (!properties.schoolProfile() && validLegacyToken(token)) {
             return Optional.of(new TeacherPrincipal(TeacherAccount.BOOTSTRAP_ADMIN_ID, "legacy-dev-admin", "开发管理员",
-                    TeacherAccount.Role.ADMIN, false));
+                    TeacherAccount.Role.PLATFORM_ADMIN, false));
         }
         TeacherSession session = sessions.findByTokenHash(CryptoSupport.sha256(token)).orElse(null);
         Instant now = Instant.now();
         if (session == null || !session.validAt(now)) return Optional.empty();
         TeacherAccount account = accounts.findById(session.getTeacherId()).orElse(null);
         if (account == null || !account.canAuthenticateAt(now)) return Optional.empty();
+        if (!schoolActive(account)) return Optional.empty();
         session.setLastSeenAt(now);
         return Optional.of(principal(account));
     }
@@ -117,14 +129,41 @@ public class TeacherSessionService {
     }
 
     public static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) return limit(forwarded.split(",")[0].trim(), 80);
+        // Do not trust a client-supplied forwarding header here: login and registration
+        // throttles use this value. A deployment behind a reverse proxy must configure
+        // the servlet container's trusted-proxy support so getRemoteAddr() is rewritten.
         return limit(request.getRemoteAddr(), 80);
     }
 
     private TeacherPrincipal principal(TeacherAccount account) {
         return new TeacherPrincipal(account.getId(), account.getUsernameNormalized(), account.getDisplayName(),
-                account.getRole(), account.isMustChangePassword());
+                account.getRole(), account.isMustChangePassword(), account.getSchoolId(), account.getSchoolName());
+    }
+
+    private void validatePortal(TeacherAccount account, String portal) {
+        if (portal == null || portal.isBlank()) return;
+        TeacherAccount.Role expected;
+        try {
+            expected = TeacherAccount.Role.valueOf(portal.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException invalidPortal) {
+            throw new PlatformApiException(HttpStatus.BAD_REQUEST, "INVALID_PORTAL", "登录入口无效");
+        }
+        if (account.getRole() != expected) {
+            throw statusError("PORTAL_ROLE_MISMATCH", "账号角色与当前登录入口不匹配");
+        }
+    }
+
+    private void validateSchool(TeacherAccount account) {
+        if (!schoolActive(account)) throw statusError("SCHOOL_SUSPENDED", "学校已停用");
+    }
+
+    private boolean schoolActive(TeacherAccount account) {
+        if (account.getRole() == TeacherAccount.Role.PLATFORM_ADMIN) return true;
+        return account.getSchoolId() != null && schools.findById(account.getSchoolId())
+                .map(school -> school.getStatus() == School.Status.ACTIVE
+                        && (account.getRole() != TeacherAccount.Role.SCHOOL_ADMIN
+                        || account.getId().equals(school.getAdminAccountId())))
+                .orElse(false);
     }
 
     private PlatformApiException statusError(String code, String message) {

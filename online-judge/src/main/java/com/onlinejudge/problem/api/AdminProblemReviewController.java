@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/admin/problem-reviews")
+@RequestMapping({"/api/admin/problem-reviews", "/api/platform-admin/problem-reviews"})
 @RequiredArgsConstructor
 public class AdminProblemReviewController {
     private final ProblemGovernanceService governance;

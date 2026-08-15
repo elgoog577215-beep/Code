@@ -6300,6 +6300,52 @@ button.list-row:hover {
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.admin-workspace {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.admin-workspace code {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.admin-readonly-detail {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.admin-readonly-detail h4 {
+  margin: 1rem 0 0.5rem;
+}
+
+.admin-readonly-detail pre {
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.875rem;
+  border-radius: 0.75rem;
+  background: #111827;
+  color: #f8fafc;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.portal-auth-page .teacher-auth-panel {
+  width: min(480px, calc(100vw - 32px));
+}
+
+@media (max-width: 720px) {
+  .admin-workspace .teacher-workflow-header,
+  .admin-workspace .actions,
+  .admin-workspace .form-grid {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .code-run-panel {
   min-width: 0;
   align-self: start;

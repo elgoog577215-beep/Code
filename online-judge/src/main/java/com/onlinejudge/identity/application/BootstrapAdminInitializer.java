@@ -56,7 +56,7 @@ public class BootstrapAdminInitializer implements ApplicationRunner {
                 .usernameNormalized("__bootstrap_admin__")
                 .passwordHash("!BOOTSTRAP_REQUIRED!")
                 .displayName("平台管理员").schoolName("平台")
-                .role(TeacherAccount.Role.ADMIN).status(TeacherAccount.Status.BOOTSTRAP_REQUIRED)
+                .role(TeacherAccount.Role.PLATFORM_ADMIN).status(TeacherAccount.Status.BOOTSTRAP_REQUIRED)
                 .mustChangePassword(true).createdAt(Instant.now()).updatedAt(Instant.now()).build();
     }
 }

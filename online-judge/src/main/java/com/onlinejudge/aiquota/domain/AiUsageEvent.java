@@ -21,6 +21,8 @@ public class AiUsageEvent {
     private Long id;
     @Column(name = "teacher_id", nullable = false)
     private UUID teacherId;
+    @Column(name = "school_id", nullable = false)
+    private UUID schoolId;
     @Column(name = "student_profile_id")
     private Long studentProfileId;
     @Column(name = "assignment_id")

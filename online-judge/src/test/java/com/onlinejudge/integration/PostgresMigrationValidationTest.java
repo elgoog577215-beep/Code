@@ -48,12 +48,14 @@ class PostgresMigrationValidationTest {
     @Autowired MockMvc mockMvc;
 
     @Test
-    void emptyPostgresMigratesToV5AndHibernateValidatesTheSchema() throws Exception {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("5");
+    void emptyPostgresMigratesToV8AndHibernateValidatesTheSchema() throws Exception {
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("8");
         try (var connection = dataSource.getConnection(); var statement = connection.createStatement()) {
             assertThat(count(statement, "select count(*) from information_schema.tables where table_schema='public' and table_name='teacher_accounts'"))
                     .isEqualTo(1);
-            assertThat(count(statement, "select count(*) from teacher_accounts where status='ACTIVE' and role='ADMIN' and username_normalized='bootstrap-admin'"))
+            assertThat(count(statement, "select count(*) from teacher_accounts where status='ACTIVE' and role='PLATFORM_ADMIN' and username_normalized='bootstrap-admin'"))
+                    .isEqualTo(1);
+            assertThat(count(statement, "select count(*) from information_schema.tables where table_schema='public' and table_name='schools'"))
                     .isEqualTo(1);
         }
     }
@@ -77,7 +79,7 @@ class PostgresMigrationValidationTest {
                 .baselineOnMigrate(true).baselineVersion("1").load();
         existing.migrate();
 
-        assertThat(existing.info().current().getVersion().getVersion()).isEqualTo("5");
+        assertThat(existing.info().current().getVersion().getVersion()).isEqualTo("8");
         try (var connection = dataSource.getConnection(); var statement = connection.createStatement()) {
             statement.execute("set search_path to legacy_copy");
             assertThat(count(statement, "select count(*) from class_groups where name='保留班级'")) .isEqualTo(1);
@@ -89,21 +91,22 @@ class PostgresMigrationValidationTest {
     }
 
     @Test
-    void schoolProfileRequiresCsrfForAuthenticatedTeacherMutations() throws Exception {
-        MvcResult login = mockMvc.perform(post("/api/auth/teacher/login")
+    void schoolProfileRequiresCsrfForAuthenticatedPlatformMutations() throws Exception {
+        MvcResult login = mockMvc.perform(post("/api/auth/account/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"bootstrap-admin\",\"password\":\"Bootstrap123\"}"))
+                        .content("{\"username\":\"bootstrap-admin\",\"password\":\"Bootstrap123\",\"portal\":\"PLATFORM_ADMIN\"}"))
                 .andExpect(status().isOk()).andReturn();
         String teacherCookie = login.getResponse().getHeaders("Set-Cookie").stream()
                 .map(value -> value.split(";", 2)[0])
                 .filter(value -> value.startsWith("OJ_TEACHER_SESSION="))
                 .findFirst().orElseThrow();
 
-        mockMvc.perform(post("/api/teacher/classes").header("Cookie", teacherCookie)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"CSRF班\"}"))
+        String schoolJson = "{\"schoolName\":\"CSRF学校\",\"adminUsername\":\"csrf-admin\",\"adminDisplayName\":\"校管\",\"monthlyAiUnits\":10}";
+        mockMvc.perform(post("/api/platform-admin/schools").header("Cookie", teacherCookie)
+                        .contentType(MediaType.APPLICATION_JSON).content(schoolJson))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(post("/api/teacher/classes").with(csrf()).header("Cookie", teacherCookie)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"CSRF班\"}"))
+        mockMvc.perform(post("/api/platform-admin/schools").with(csrf()).header("Cookie", teacherCookie)
+                        .contentType(MediaType.APPLICATION_JSON).content(schoolJson))
                 .andExpect(status().isOk());
     }
 

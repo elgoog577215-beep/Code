@@ -14,6 +14,9 @@ import com.onlinejudge.shared.security.StudentAccessTokenService;
 import com.onlinejudge.identity.application.CurrentTeacherContext;
 import com.onlinejudge.identity.domain.TeacherAccount;
 import com.onlinejudge.identity.application.AuditService;
+import com.onlinejudge.identity.persistence.TeacherAccountRepository;
+import com.onlinejudge.organization.domain.School;
+import com.onlinejudge.organization.persistence.SchoolRepository;
 import com.onlinejudge.shared.security.CryptoSupport;
 import com.onlinejudge.shared.web.PlatformApiException;
 import com.onlinejudge.submission.domain.Submission;
@@ -93,6 +96,10 @@ public class ClassroomService {
     private ProblemGovernanceService problemGovernanceService;
     @Autowired(required = false)
     private AuditService auditService;
+    @Autowired(required = false)
+    private TeacherAccountRepository teacherAccountRepository;
+    @Autowired(required = false)
+    private SchoolRepository schoolRepository;
 
     public List<ClassGroupResponse> getClassGroups() {
         return classGroupRepository.findByOwnerTeacherIdOrderByCreatedAtDesc(currentTeacherId())
@@ -261,6 +268,7 @@ public class ClassroomService {
                 .filter(group -> matchesJoinCode(classCode, group.getJoinCodeHash()))
                 .findFirst()
                 .orElseThrow(this::rosterMismatch);
+        ensureSchoolActive(classGroup);
         String displayName = normalizeRequired(request.getDisplayName(), "姓名不能为空");
         String studentNo = normalizeRequired(request.getStudentNo(), "学号不能为空");
         StudentProfile student = studentProfileRepository.findFirstByClassGroupIdAndStudentNoIgnoreCase(classGroup.getId(), studentNo)
@@ -3411,6 +3419,16 @@ public class ClassroomService {
         if (auditService != null) auditService.record(currentTeacherId(), "STUDENT_ROSTER_STATUS_CHANGED", "STUDENT",
                 studentProfileId, "status=" + status, null);
         return StudentProfileResponse.from(student, classGroup.getName());
+    }
+
+    private void ensureSchoolActive(ClassGroup classGroup) {
+        if (teacherAccountRepository == null || schoolRepository == null) return;
+        boolean active = teacherAccountRepository.findById(classGroup.getOwnerTeacherId())
+                .filter(owner -> owner.getSchoolId() != null)
+                .flatMap(owner -> schoolRepository.findById(owner.getSchoolId()))
+                .map(school -> school.getStatus() == School.Status.ACTIVE)
+                .orElse(false);
+        if (!active) throw new PlatformApiException(HttpStatus.FORBIDDEN, "SCHOOL_SUSPENDED", "学校已停用");
     }
 
     private void saveAssignmentRecipients(Assignment assignment, List<Long> studentIds) {

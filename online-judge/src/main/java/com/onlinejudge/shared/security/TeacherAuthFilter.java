@@ -51,11 +51,39 @@ public class TeacherAuthFilter extends OncePerRequestFilter {
             writeError(response, HttpServletResponse.SC_FORBIDDEN, "PASSWORD_CHANGE_REQUIRED", "请先修改临时密码");
             return;
         }
-        if ((request.getRequestURI().startsWith("/api/admin/")
-                || request.getRequestURI().equals("/actuator/prometheus"))
-                && resolved.get().role() != com.onlinejudge.identity.domain.TeacherAccount.Role.ADMIN) {
+        String path = request.getRequestURI();
+        if (requiresPlatformRole(path)
+                && resolved.get().role() != com.onlinejudge.identity.domain.TeacherAccount.Role.PLATFORM_ADMIN) {
             if (trialMetrics != null) trialMetrics.accessDenied();
-            writeError(response, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "需要平台管理员权限");
+            writeError(response, HttpServletResponse.SC_FORBIDDEN, "PLATFORM_ADMIN_REQUIRED", "需要平台管理员权限");
+            return;
+        }
+        if (path.startsWith("/api/admin/problem-reviews")
+                && resolved.get().role() != com.onlinejudge.identity.domain.TeacherAccount.Role.PLATFORM_ADMIN) {
+            writeError(response, HttpServletResponse.SC_FORBIDDEN, "PLATFORM_ADMIN_REQUIRED", "需要平台管理员权限");
+            return;
+        }
+        if (path.startsWith("/api/admin/") && !path.startsWith("/api/admin/problem-reviews")
+                && resolved.get().role() != com.onlinejudge.identity.domain.TeacherAccount.Role.SCHOOL_ADMIN) {
+            writeError(response, HttpServletResponse.SC_FORBIDDEN, "SCHOOL_ADMIN_REQUIRED", "需要学校管理员权限");
+            return;
+        }
+        if (path.startsWith("/api/school-admin/")
+                && resolved.get().role() != com.onlinejudge.identity.domain.TeacherAccount.Role.SCHOOL_ADMIN) {
+            if (trialMetrics != null) trialMetrics.accessDenied();
+            writeError(response, HttpServletResponse.SC_FORBIDDEN, "SCHOOL_ADMIN_REQUIRED", "需要学校管理员权限");
+            return;
+        }
+        if (path.startsWith("/api/teacher/") && !path.startsWith("/api/teacher/auth/")
+                && resolved.get().role() != com.onlinejudge.identity.domain.TeacherAccount.Role.TEACHER) {
+            if (trialMetrics != null) trialMetrics.accessDenied();
+            writeError(response, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "需要教师权限");
+            return;
+        }
+        if (requiresTeacherRole(request)
+                && resolved.get().role() != com.onlinejudge.identity.domain.TeacherAccount.Role.TEACHER) {
+            if (trialMetrics != null) trialMetrics.accessDenied();
+            writeError(response, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "需要教师权限");
             return;
         }
         filterChain.doFilter(request, response);
@@ -73,6 +101,7 @@ public class TeacherAuthFilter extends OncePerRequestFilter {
         String method = request.getMethod();
         if (path == null) return false;
         if (path.startsWith("/api/admin/")) return true;
+        if (path.startsWith("/api/platform-admin/") || path.startsWith("/api/school-admin/")) return true;
         if (path.equals("/actuator/prometheus")) return true;
         if (path.startsWith("/api/teacher/")) return !path.startsWith("/api/teacher/auth/");
         if (path.matches("/api/problems/\\d+/manage")) return true;
@@ -81,5 +110,19 @@ public class TeacherAuthFilter extends OncePerRequestFilter {
         return path.equals("/api/problems") && "POST".equalsIgnoreCase(method)
                 || path.matches("/api/problems/\\d+") && !"GET".equalsIgnoreCase(method)
                 || path.startsWith("/api/system/ai-smoke");
+    }
+
+    private boolean requiresPlatformRole(String path) {
+        return path.startsWith("/api/platform-admin/") || path.startsWith("/api/system/ai-smoke")
+                || path.equals("/api/system/readiness") || path.equals("/actuator/prometheus");
+    }
+
+    private boolean requiresTeacherRole(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+        if (path.startsWith("/api/leaderboard/") || path.matches("/api/problems/\\d+/manage")
+                || path.matches("/api/problems/\\d+/growth-report.*")) return true;
+        return path.equals("/api/problems") && "POST".equalsIgnoreCase(method)
+                || path.matches("/api/problems/\\d+") && !"GET".equalsIgnoreCase(method);
     }
 }

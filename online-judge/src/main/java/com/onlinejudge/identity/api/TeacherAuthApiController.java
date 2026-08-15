@@ -48,7 +48,7 @@ public class TeacherAuthApiController {
         String ip = TeacherSessionService.clientIp(httpRequest);
         rateLimiter.check("teacher-login", ip, 30, 900);
         return ResponseEntity.ok(TeacherSessionResponse.from(
-                sessions.login(request.username(), request.password(), httpRequest, response)));
+                sessions.login(request.username(), request.password(), "TEACHER", httpRequest, response)));
     }
 
     @GetMapping("/session")

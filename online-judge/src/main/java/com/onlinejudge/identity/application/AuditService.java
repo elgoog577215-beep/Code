@@ -4,6 +4,8 @@ import com.onlinejudge.identity.domain.PlatformAuditEvent;
 import com.onlinejudge.identity.persistence.PlatformAuditEventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -12,6 +14,7 @@ import java.util.UUID;
 public class AuditService {
     private final PlatformAuditEventRepository repository;
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(UUID actorId, String eventType, String targetType, Object targetId, String detail, String ipAddress) {
         repository.save(PlatformAuditEvent.builder()
                 .actorTeacherId(actorId)
@@ -29,4 +32,3 @@ public class AuditService {
         return sanitized.length() > 1000 ? sanitized.substring(0, 1000) : sanitized;
     }
 }
-

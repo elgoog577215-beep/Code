@@ -15,6 +15,9 @@ import com.onlinejudge.classroom.persistence.ClassGroupRepository;
 import com.onlinejudge.classroom.persistence.StudentProfileRepository;
 import com.onlinejudge.aiquota.application.AiProviderGateway;
 import com.onlinejudge.aiquota.persistence.TeacherAiQuotaRepository;
+import com.onlinejudge.aiquota.persistence.SchoolAiQuotaRepository;
+import com.onlinejudge.organization.domain.School;
+import com.onlinejudge.organization.persistence.SchoolRepository;
 import com.onlinejudge.system.dto.AiSmokeResponse;
 import com.onlinejudge.system.dto.ExecutorStatusResponse;
 import com.onlinejudge.system.dto.ReadinessResponse;
@@ -49,6 +52,10 @@ public class ReadinessService {
     private final TeacherAiQuotaRepository teacherAiQuotaRepository;
     private final AiProviderGateway aiProviderGateway;
     private final Flyway flyway;
+    @Autowired(required = false)
+    private SchoolRepository schoolRepository;
+    @Autowired(required = false)
+    private SchoolAiQuotaRepository schoolAiQuotaRepository;
 
     public ReadinessService(ExecutorStatusService executorStatusService,
                             AiSmokeService aiSmokeService,
@@ -173,6 +180,7 @@ public class ReadinessService {
         if (flyway != null) {
             checks.add(flywayCheck());
             checks.add(activeAdminCheck());
+            checks.add(schoolTenantCheck());
             checks.add(ownershipCheck());
             checks.add(rosterCheck());
             checks.add(publicProblemCheck());
@@ -300,9 +308,9 @@ public class ReadinessService {
         try {
             var current = flyway.info().current();
             String version = current == null ? "none" : current.getVersion().getVersion();
-            boolean ready = current != null && current.getVersion().compareTo(org.flywaydb.core.api.MigrationVersion.fromVersion("5")) >= 0;
+            boolean ready = current != null && current.getVersion().compareTo(org.flywaydb.core.api.MigrationVersion.fromVersion("8")) >= 0;
             return check("flyway-version", "数据库迁移版本", ready ? "PASS" : "FAIL", true,
-                    "当前 Flyway 版本：" + version + "。", "部署前必须完成 V1-V5 迁移并验证校验和。");
+                    "当前 Flyway 版本：" + version + "。", "部署前必须完成 V1-V8 迁移并验证校验和。");
         } catch (RuntimeException failure) {
             return check("flyway-version", "数据库迁移版本", "FAIL", true,
                     "无法读取 Flyway 版本：" + failure.getMessage(), "检查迁移历史表和数据库权限。");
@@ -310,9 +318,25 @@ public class ReadinessService {
     }
 
     private ReadinessResponse.Check activeAdminCheck() {
-        long count = teacherAccountRepository.countByRoleAndStatus(TeacherAccount.Role.ADMIN, TeacherAccount.Status.ACTIVE);
+        long count = teacherAccountRepository.countByRoleAndStatus(TeacherAccount.Role.PLATFORM_ADMIN, TeacherAccount.Status.ACTIVE);
         return check("active-admin", "有效平台管理员", count > 0 ? "PASS" : "FAIL", true,
                 "当前有效管理员数量：" + count + "。", "使用 BOOTSTRAP_ADMIN_* 环境变量完成首次管理员激活。");
+    }
+
+    private ReadinessResponse.Check schoolTenantCheck() {
+        if (schoolRepository == null || schoolAiQuotaRepository == null) {
+            return check("school-tenants", "学校租户", "FAIL", true, "学校租户组件未加载。", "检查 V6-V8 与学校额度组件。");
+        }
+        long invalid = schoolRepository.findAll().stream().filter(school ->
+                teacherAccountRepository.findById(school.getAdminAccountId())
+                        .filter(admin -> admin.getRole() == TeacherAccount.Role.SCHOOL_ADMIN)
+                        .filter(admin -> school.getId().equals(admin.getSchoolId()))
+                        .filter(admin -> admin.getStatus() == TeacherAccount.Status.ACTIVE || school.getStatus() == School.Status.SUSPENDED)
+                        .isEmpty()).count();
+        try { schoolAiQuotaRepository.count(); }
+        catch (RuntimeException failure) { invalid++; }
+        return check("school-tenants", "学校租户与额度池", invalid == 0 ? "PASS" : "FAIL", true,
+                "无效学校管理员或额度结构数量：" + invalid + "。", "修复学校管理员关联并确认 school_ai_quotas 可用。");
     }
 
     private ReadinessResponse.Check ownershipCheck() {

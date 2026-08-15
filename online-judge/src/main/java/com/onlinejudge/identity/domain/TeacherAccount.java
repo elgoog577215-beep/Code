@@ -43,6 +43,9 @@ public class TeacherAccount {
     @Column(name = "school_name", nullable = false, length = 200)
     private String schoolName;
 
+    @Column(name = "school_id")
+    private UUID schoolId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Role role;
@@ -77,9 +80,25 @@ public class TeacherAccount {
 
     public static TeacherAccount pending(UUID id, String username, String passwordHash,
                                          String displayName, String schoolName, Instant now) {
+        return pending(id, username, passwordHash, displayName, null, schoolName, now);
+    }
+
+    public static TeacherAccount pending(UUID id, String username, String passwordHash,
+                                         String displayName, UUID schoolId, String schoolName, Instant now) {
         return base(id, username, passwordHash, displayName, schoolName, now)
+                .schoolId(schoolId)
                 .status(Status.PENDING)
                 .role(Role.TEACHER)
+                .build();
+    }
+
+    public static TeacherAccount schoolAdmin(UUID id, String username, String passwordHash,
+                                             String displayName, UUID schoolId, String schoolName, Instant now) {
+        return base(id, username, passwordHash, displayName, schoolName, now)
+                .schoolId(schoolId)
+                .status(Status.ACTIVE)
+                .role(Role.SCHOOL_ADMIN)
+                .mustChangePassword(true)
                 .build();
     }
 
@@ -180,8 +199,7 @@ public class TeacherAccount {
         return value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
-    public enum Role { TEACHER, ADMIN }
+    public enum Role { PLATFORM_ADMIN, SCHOOL_ADMIN, TEACHER }
 
     public enum Status { BOOTSTRAP_REQUIRED, PENDING, ACTIVE, REJECTED, SUSPENDED }
 }
-

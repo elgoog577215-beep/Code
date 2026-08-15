@@ -1968,19 +1968,107 @@ export interface AuthSession {
   teacherId?: string | null;
   username?: string | null;
   displayName?: string | null;
-  role?: "TEACHER" | "ADMIN" | null;
+  role?: "TEACHER" | "SCHOOL_ADMIN" | "PLATFORM_ADMIN" | null;
   mustChangePassword: boolean;
+  schoolId?: string | null;
+  schoolName?: string | null;
 }
 
 export interface TeacherAccount {
   id: string;
   username: string;
   displayName: string;
+  schoolId?: string | null;
   schoolName: string;
-  role: "TEACHER" | "ADMIN";
+  role: "TEACHER" | "SCHOOL_ADMIN" | "PLATFORM_ADMIN";
   status: "BOOTSTRAP_REQUIRED" | "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
   mustChangePassword: boolean;
   createdAt?: string;
+}
+
+export interface SchoolQuotaSummary {
+  schoolId: string;
+  month: string;
+  totalUnits: number;
+  allocatedUnits: number;
+  usedUnits: number;
+  availableUnits: number;
+  resetsAt: string;
+}
+
+export interface SchoolSummary {
+  id: string;
+  name: string;
+  status: "ACTIVE" | "SUSPENDED";
+  adminAccountId: string;
+  monthlyAiUnits: number;
+  allocatedAiUnits: number;
+  usedAiUnits: number;
+  createdAt: string;
+}
+
+export interface CreatedSchool {
+  school: SchoolSummary;
+  temporaryPassword?: string | null;
+  schoolRegistrationCode?: string | null;
+}
+
+export interface SchoolTeachingClass {
+  id: number;
+  teacherId: string;
+  teacherName: string;
+  name: string;
+  grade?: string | null;
+  createdAt: string;
+  studentCount: number;
+  assignmentCount: number;
+}
+
+export interface SchoolTeachingStudent {
+  id: number;
+  displayName: string;
+  studentNo?: string | null;
+  status: "ACTIVE" | "INACTIVE" | "NEEDS_REVIEW";
+  createdAt: string;
+  lastSeenAt: string;
+}
+
+export interface SchoolTeachingAssignment {
+  id: number;
+  teacherId: string;
+  title: string;
+  description?: string | null;
+  classGroupId: number;
+  targetMode: AssignmentTargetMode;
+  status: AssignmentStatus;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  createdAt: string;
+}
+
+export interface SchoolTeachingSubmission {
+  id: number;
+  assignmentId: number;
+  problemId: number;
+  studentProfileId: number;
+  languageName: string;
+  sourceCode: string;
+  verdict: Verdict | string;
+  executionTime?: number | null;
+  memoryUsed?: number | null;
+  compileOutput?: string | null;
+  errorMessage?: string | null;
+  submittedAt: string;
+  analysis?: unknown;
+}
+
+export interface SchoolAdminOverview {
+  schoolId: string;
+  schoolName: string;
+  quota: SchoolQuotaSummary;
+  teachers: TeacherAccount[];
+  teacherQuotas: Record<string, TeacherAiUsage>;
+  pendingApplications: number;
 }
 
 export interface TeacherAiUsage {

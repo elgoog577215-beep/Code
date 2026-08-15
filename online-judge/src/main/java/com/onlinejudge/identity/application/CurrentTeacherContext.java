@@ -22,7 +22,7 @@ public class CurrentTeacherContext {
         }
         if (properties.teacherDevAutoAuth()) {
             return new TeacherPrincipal(TeacherAccount.BOOTSTRAP_ADMIN_ID, "dev-admin", "开发管理员",
-                    TeacherAccount.Role.ADMIN, false);
+                    TeacherAccount.Role.PLATFORM_ADMIN, false);
         }
         throw new AuthenticationRequiredException("AUTH_REQUIRED");
     }
@@ -32,11 +32,30 @@ public class CurrentTeacherContext {
     }
 
     public TeacherPrincipal requireAdmin() {
+        return requirePlatformAdmin();
+    }
+
+    public TeacherPrincipal requirePlatformAdmin() {
         TeacherPrincipal principal = require();
-        if (principal.role() != TeacherAccount.Role.ADMIN) {
+        if (principal.role() != TeacherAccount.Role.PLATFORM_ADMIN) {
+            throw new com.onlinejudge.shared.security.AccessDeniedException("PLATFORM_ADMIN_REQUIRED");
+        }
+        return principal;
+    }
+
+    public TeacherPrincipal requireSchoolAdmin() {
+        TeacherPrincipal principal = require();
+        if (principal.role() != TeacherAccount.Role.SCHOOL_ADMIN || principal.schoolId() == null) {
+            throw new com.onlinejudge.shared.security.AccessDeniedException("SCHOOL_ADMIN_REQUIRED");
+        }
+        return principal;
+    }
+
+    public TeacherPrincipal requireTeacher() {
+        TeacherPrincipal principal = require();
+        if (principal.role() != TeacherAccount.Role.TEACHER || principal.schoolId() == null) {
             throw new com.onlinejudge.shared.security.AccessDeniedException("FORBIDDEN");
         }
         return principal;
     }
 }
-

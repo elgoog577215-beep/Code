@@ -14,6 +14,7 @@ import {
   Menu,
   Moon,
   RotateCcw,
+  ShieldCheck,
   Sun,
   UserRound,
   UsersRound,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import routeHubCodePreview from "./assets/route-hub-code-preview.png";
 import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
+import PortalAuthGate from "./features/admin/PortalAuthGate";
 import { TeacherShell } from "./features/teacher/TeacherShell";
 import { api } from "./shared/api/client";
 import { useTranslation } from "./shared/i18n";
@@ -42,7 +44,8 @@ const TeacherAnalyticsLandingPage = lazy(() => import("./features/teacher-analyt
 const ClassAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ClassAnalyticsPage"));
 const AssignmentAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/AssignmentAnalyticsPage"));
 const ProblemAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ProblemAnalyticsPage"));
-const AdminConsolePage = lazy(() => import("./features/teacher/AdminConsolePage"));
+const PlatformAdminPage = lazy(() => import("./features/admin/PlatformAdminPage"));
+const SchoolAdminPage = lazy(() => import("./features/admin/SchoolAdminPage"));
 
 type Theme = "light" | "dark";
 type NavItem = {
@@ -102,6 +105,10 @@ function RouteHubPage() {
             <NavLink to="/app/teacher" className="route-hub-role-action">
               <UsersRound size={19} aria-hidden="true" />
               <span>{t("routeHub.teacherCta")}</span>
+            </NavLink>
+            <NavLink to="/app/school-admin/login" className="route-hub-role-action">
+              <ShieldCheck size={19} aria-hidden="true" />
+              <span>{t("routeHub.schoolAdminCta")}</span>
             </NavLink>
           </nav>
 
@@ -173,6 +180,10 @@ function TeacherRoute({ children }: { children: ReactNode }) {
       <TeacherShell>{children}</TeacherShell>
     </TeacherAuthGate>
   );
+}
+
+function AdminRoute({ portal, children }: { portal: "PLATFORM_ADMIN" | "SCHOOL_ADMIN"; children: ReactNode }) {
+  return <PortalAuthGate portal={portal}>{children}</PortalAuthGate>;
 }
 
 function LegacyAssignmentRedirect({ level }: { level: "assignment" | "problem" | "student" }) {
@@ -352,6 +363,7 @@ export default function App() {
             <Route path="/app/student/assignments/:assignmentId/submissions" element={<StudentAssignmentSubmissionsPage />} />
             <Route path="/app/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
             <Route path="/app/teacher" element={<TeacherRoute><Navigate to="/app/teacher/classes" replace /></TeacherRoute>} />
+            <Route path="/app/teacher/login" element={<TeacherRoute><Navigate to="/app/teacher/classes" replace /></TeacherRoute>} />
             <Route path="/app/teacher/classes" element={<TeacherRoute><TeacherAnalyticsLandingPage /></TeacherRoute>} />
             <Route path="/app/teacher/classes/:classId" element={<TeacherRoute><ClassAnalyticsPage /></TeacherRoute>} />
             <Route path="/app/teacher/classes/:classId/assignments/:assignmentId" element={<TeacherRoute><AssignmentAnalyticsPage /></TeacherRoute>} />
@@ -361,7 +373,10 @@ export default function App() {
             <Route path="/app/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
             <Route path="/app/teacher/manage/ai-library" element={<TeacherRoute><TeacherManagementPage section="ai-library" /></TeacherRoute>} />
             <Route path="/app/teacher/manage/system" element={<TeacherRoute><TeacherManagementPage section="system" /></TeacherRoute>} />
-            <Route path="/app/teacher/admin" element={<TeacherRoute><AdminConsolePage /></TeacherRoute>} />
+            <Route path="/app/platform-admin/login" element={<AdminRoute portal="PLATFORM_ADMIN"><Navigate to="/app/platform-admin" replace /></AdminRoute>} />
+            <Route path="/app/platform-admin/*" element={<AdminRoute portal="PLATFORM_ADMIN"><PlatformAdminPage /></AdminRoute>} />
+            <Route path="/app/school-admin/login" element={<AdminRoute portal="SCHOOL_ADMIN"><Navigate to="/app/school-admin" replace /></AdminRoute>} />
+            <Route path="/app/school-admin/*" element={<AdminRoute portal="SCHOOL_ADMIN"><SchoolAdminPage /></AdminRoute>} />
             <Route path="/app/teacher-management" element={<Navigate to="/app/teacher/manage/classes" replace />} />
             <Route path="/app/class-overview" element={<Navigate to="/app/teacher/classes" replace />} />
             <Route path="/app/task-editor" element={<TeacherRoute><TaskEditorPage /></TeacherRoute>} />

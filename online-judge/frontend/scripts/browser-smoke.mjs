@@ -1104,7 +1104,7 @@ const scenarios = [
     ],
     afterChecks: async (page, viewport) => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      const roleActions = page.locator('.route-hub-role-actions a[href="/app/student"], .route-hub-role-actions a[href="/app/teacher"]');
+      const roleActions = page.locator('.route-hub-role-actions a[href="/app/student"], .route-hub-role-actions a[href="/app/teacher"], .route-hub-role-actions a[href="/app/school-admin/login"]');
       const canonicalHrefs = await roleActions.evaluateAll(elements =>
         elements.map(element => element.getAttribute("href"))
       );
@@ -1122,8 +1122,8 @@ const scenarios = [
       record("app root presents the code experience as a static screenshot", previewText === "界面截图" && previewImage.naturalWidth >= 700 && previewImage.naturalHeight >= 400, JSON.stringify({ previewText, previewImage }));
       record("app root screenshot has explicit alternative text", Boolean(previewImage.alt?.includes("编程与评测界面预览")), previewImage.alt || "");
       record("app root explains the learning loop", learningSteps === 3 && hubText.includes("练习") && hubText.includes("评测") && hubText.includes("复盘"), `steps ${learningSteps}; ${hubText.slice(0, 500)}`);
-      record("app root exposes canonical paths", canonicalHrefs.includes("/app/student") && canonicalHrefs.includes("/app/teacher"), canonicalHrefs.join("|"));
-      record("app root keeps one action per role", await roleActions.count() === 2, `role actions ${await roleActions.count()}`);
+      record("app root exposes canonical paths", canonicalHrefs.includes("/app/student") && canonicalHrefs.includes("/app/teacher") && canonicalHrefs.includes("/app/school-admin/login"), canonicalHrefs.join("|"));
+      record("app root keeps one action per visible role", await roleActions.count() === 3, `role actions ${await roleActions.count()}`);
       record("app root keeps top nav simple", navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("app root fits the viewport", documentWidth <= viewport.width, `document ${documentWidth}; viewport ${viewport.width}`);
     }
@@ -1933,6 +1933,42 @@ const scenarios = [
       [".teacher-analytics-evidence", "problem evidence samples"],
       [".teacher-analytics-correction", "problem correction layer"]
     ]
+  },
+  {
+    name: "platform-admin",
+    path: "/app/platform-admin",
+    afterChecks: async page => {
+      const text = ((await page.locator(".admin-workspace").textContent()) || "").replace(/\s+/g, "");
+      record("platform workspace only shows school and platform governance", text.includes("平台管理工作台") && text.includes("创建学校与校管") && text.includes("共建与公共题审核"), text.slice(0, 900));
+      record("platform workspace omits teacher and student detail controls", !text.includes("学生代码") && !text.includes("名单详情"), text.slice(0, 900));
+    },
+    selectors: [
+      [".admin-workspace", "platform admin workspace"],
+      [".management-step-list", "platform admin panels"],
+      [".management-step", "platform school summary"]
+    ]
+  },
+  {
+    name: "school-admin",
+    path: "/app/school-admin",
+    afterChecks: async page => {
+      const text = ((await page.locator(".admin-workspace").textContent()) || "").replace(/\s+/g, "");
+      record("school workspace shows delegated governance", text.includes("温州试点中学") && text.includes("教师申请") && text.includes("教师额度分配"), text.slice(0, 900));
+      record("school teaching view is explicitly read only", text.includes("校内教学数据") && text.includes("只读"), text.slice(0, 900));
+      await page.getByRole("button", { name: "查看明细" }).first().click();
+      await page.waitForTimeout(80);
+      const detailText = ((await page.locator(".admin-readonly-detail").first().textContent()) || "").replace(/\s+/g, "");
+      record("school admin can drill into roster and assignments without edit controls", detailText.includes("张同学") && detailText.includes("第一周作业"), detailText.slice(0, 900));
+      await page.getByRole("button", { name: "查看提交" }).first().click();
+      await page.waitForTimeout(80);
+      const submissionText = ((await page.locator(".admin-readonly-detail").last().textContent()) || "").replace(/\s+/g, "");
+      record("school admin can inspect submission evidence read only", submissionText.includes("ACCEPTED") && submissionText.includes("intmain"), submissionText.slice(0, 900));
+    },
+    selectors: [
+      [".admin-workspace", "school admin workspace"],
+      [".management-step-list", "school admin panels"],
+      [".management-step", "school teacher or class row"]
+    ]
   }
 ];
 
@@ -2016,19 +2052,36 @@ async function routeApi(route) {
   const method = request.method();
 
   if (path === "/api/invites/resolve" && method === "POST") return json(route, assignment);
-  if (path === "/api/auth/teacher/session") {
+  if (path === "/api/auth/account/session" || path === "/api/auth/teacher/session") {
+    const referer = request.headers()["referer"] || "";
+    const role = referer.includes("/app/platform-admin") ? "PLATFORM_ADMIN" : referer.includes("/app/school-admin") ? "SCHOOL_ADMIN" : "TEACHER";
     return json(route, {
       authenticated: true,
       teacherId: "00000000-0000-0000-0000-000000000101",
-      username: "smoke-teacher",
-      displayName: "信息技术老师",
-      role: "TEACHER",
-      mustChangePassword: false
+      username: role === "TEACHER" ? "smoke-teacher" : "smoke-admin",
+      displayName: role === "TEACHER" ? "信息技术老师" : "管理员",
+      role,
+      mustChangePassword: false,
+      schoolId: role === "PLATFORM_ADMIN" ? null : "00000000-0000-0000-0000-000000000201",
+      schoolName: role === "PLATFORM_ADMIN" ? null : "温州试点中学"
     });
   }
   if (path === "/api/auth/student/session") return json(route, student);
   if (path === "/api/auth/student/logout" && method === "POST") return empty(route);
-  if (path === "/api/auth/teacher/logout" && method === "POST") return empty(route);
+  if ((path === "/api/auth/teacher/logout" || path === "/api/auth/account/logout") && method === "POST") return empty(route);
+  if (path === "/api/platform-admin/schools") return json(route, [{ id: "00000000-0000-0000-0000-000000000201", name: "温州试点中学", status: "ACTIVE", adminAccountId: "00000000-0000-0000-0000-000000000202", monthlyAiUnits: 1000, allocatedAiUnits: 500, usedAiUnits: 120, createdAt: "2026-08-15T12:00:00Z" }]);
+  if (path === "/api/platform-admin/problem-reviews") return json(route, []);
+  if (path === "/api/school-admin/overview") return json(route, {
+    schoolId: "00000000-0000-0000-0000-000000000201", schoolName: "温州试点中学", pendingApplications: 1,
+    quota: { schoolId: "00000000-0000-0000-0000-000000000201", month: "2026-08", totalUnits: 1000, allocatedUnits: 500, usedUnits: 120, availableUnits: 500, resetsAt: "2026-09-01T00:00:00+08:00" },
+    teachers: [{ id: "00000000-0000-0000-0000-000000000101", username: "smoke-teacher", displayName: "信息技术老师", schoolId: "00000000-0000-0000-0000-000000000201", schoolName: "温州试点中学", role: "TEACHER", status: "ACTIVE", mustChangePassword: false }],
+    teacherQuotas: { "00000000-0000-0000-0000-000000000101": { teacherId: "00000000-0000-0000-0000-000000000101", month: "2026-08", baseUnits: 500, additionalUnits: 0, usedUnits: 120, reservedUnits: 0, remainingUnits: 380, resetsAt: "2026-09-01T00:00:00+08:00" } }
+  });
+  if (path === "/api/school-admin/teacher-applications") return json(route, [{ id: "00000000-0000-0000-0000-000000000102", username: "pending-teacher", displayName: "待审教师", schoolId: "00000000-0000-0000-0000-000000000201", schoolName: "温州试点中学", role: "TEACHER", status: "PENDING", mustChangePassword: false }]);
+  if (path === "/api/school-admin/teaching/classes") return json(route, [{ id: 3, teacherId: "00000000-0000-0000-0000-000000000101", teacherName: "信息技术老师", name: "高一1班", grade: "高一", createdAt: "2026-08-15T12:00:00", studentCount: 40, assignmentCount: 3 }]);
+  if (path === "/api/school-admin/teaching/classes/3/students") return json(route, [{ id: 41, displayName: "张同学", studentNo: "S001", status: "ACTIVE", createdAt: "2026-08-15T12:00:00", lastSeenAt: "2026-08-15T12:30:00" }]);
+  if (path === "/api/school-admin/teaching/classes/3/assignments") return json(route, [{ id: 7, teacherId: "00000000-0000-0000-0000-000000000101", title: "第一周作业", classGroupId: 3, targetMode: "CLASS", status: "ACTIVE", createdAt: "2026-08-15T12:00:00" }]);
+  if (path === "/api/school-admin/teaching/assignments/7/submissions") return json(route, [{ id: 9001, assignmentId: 7, problemId: 101, studentProfileId: 41, languageName: "cpp", sourceCode: "int main() { return 0; }", verdict: "ACCEPTED", submittedAt: "2026-08-15T12:30:00" }]);
   if (path === "/api/teacher/auth/session") return json(route, { authenticated: true });
   if (path === "/api/teacher/auth/login" && method === "POST") return json(route, { authenticated: true });
   if (path === "/api/student/identity" && method === "POST") return json(route, student);

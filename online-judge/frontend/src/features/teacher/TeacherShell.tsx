@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { BarChart3, BrainCircuit, Database, LogOut, Power, ShieldCheck, UsersRound } from "lucide-react";
+import { BarChart3, BrainCircuit, Database, LogOut, Power, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "../../shared/i18n";
 import { api } from "../../shared/api/client";
@@ -66,16 +66,6 @@ export function TeacherShell({ children }: { children: ReactNode }) {
       activeWhen: current => current.startsWith("/app/teacher/manage/system")
     }
   ];
-  if (session?.role === "ADMIN") {
-    managementItems.push({
-      to: "/app/teacher/admin",
-      label: t("teacherShell.nav.admin"),
-      description: t("teacherShell.nav.adminDescription"),
-      icon: ShieldCheck,
-      activeWhen: current => current.startsWith("/app/teacher/admin")
-    });
-  }
-
   return (
     <div className="teacher-shell teacher-console-shell">
       <aside className="teacher-shell-sidebar" aria-label={t("teacherShell.aria")}>

@@ -92,9 +92,18 @@ public class TeacherAiQuota {
         updatedAt = Instant.now();
     }
 
+    public void allocate(int units) {
+        int normalized = Math.max(0, units);
+        if (normalized < usedUnits + reservedUnits) {
+            throw new IllegalArgumentException("额度不能低于已用或预留数量");
+        }
+        baseUnits = normalized;
+        additionalUnits = 0;
+        updatedAt = Instant.now();
+    }
+
     @PrePersist
     void initialize() {
         if (updatedAt == null) updatedAt = Instant.now();
     }
 }
-

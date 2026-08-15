@@ -5,6 +5,9 @@ import com.onlinejudge.identity.dto.TeacherAccountResponse;
 import com.onlinejudge.identity.dto.TeacherRegisterRequest;
 import com.onlinejudge.identity.persistence.TeacherAccountRepository;
 import com.onlinejudge.identity.persistence.TeacherSessionRepository;
+import com.onlinejudge.organization.application.SchoolRegistrationCodeService;
+import com.onlinejudge.organization.domain.School;
+import com.onlinejudge.organization.persistence.SchoolRepository;
 import com.onlinejudge.shared.web.PlatformApiException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,6 +30,8 @@ public class TeacherAccountService {
     private final TeacherSessionRepository sessions;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final SchoolRepository schools;
+    private final SchoolRegistrationCodeService registrationCodes;
 
     @Transactional
     public TeacherAccountResponse register(TeacherRegisterRequest request, String ipAddress) {
@@ -35,9 +40,12 @@ public class TeacherAccountService {
         if (accounts.existsByUsernameNormalized(username)) {
             throw new PlatformApiException(HttpStatus.CONFLICT, "USERNAME_TAKEN", "用户名已被使用");
         }
+        School school = schools.findByRegistrationCodeHash(registrationCodes.hash(request.schoolRegistrationCode()))
+                .filter(candidate -> candidate.getStatus() == School.Status.ACTIVE)
+                .orElseThrow(() -> new PlatformApiException(HttpStatus.BAD_REQUEST, "INVALID_SCHOOL_CODE", "学校注册码无效或已轮换"));
         TeacherAccount account = TeacherAccount.pending(UUID.randomUUID(), username,
                 passwordEncoder.encode(request.password()), normalizeRequired(request.displayName(), "姓名不能为空"),
-                normalizeRequired(request.schoolName(), "学校不能为空"), Instant.now());
+                school.getId(), school.getName(), Instant.now());
         accounts.save(account);
         auditService.record(account.getId(), "TEACHER_REGISTERED", "TEACHER", account.getId(), "PENDING", ipAddress);
         return TeacherAccountResponse.from(account);
@@ -48,9 +56,20 @@ public class TeacherAccountService {
                 .stream().map(TeacherAccountResponse::from).toList();
     }
 
+    public List<TeacherAccountResponse> schoolApplications(UUID schoolId, TeacherAccount.Status status) {
+        return accounts.findBySchoolIdAndRoleAndStatusOrderByCreatedAtAsc(schoolId, TeacherAccount.Role.TEACHER,
+                        status == null ? TeacherAccount.Status.PENDING : status)
+                .stream().map(TeacherAccountResponse::from).toList();
+    }
+
+    public List<TeacherAccountResponse> schoolTeachers(UUID schoolId) {
+        return accounts.findBySchoolIdAndRoleOrderByCreatedAtAsc(schoolId, TeacherAccount.Role.TEACHER)
+                .stream().map(TeacherAccountResponse::from).toList();
+    }
+
     @Transactional
     public TeacherAccountResponse approve(UUID id, TeacherPrincipal admin, String ipAddress) {
-        TeacherAccount account = require(id);
+        TeacherAccount account = requireSchoolTeacher(id, admin);
         account.approve(admin.id(), Instant.now());
         auditService.record(admin.id(), "TEACHER_APPROVED", "TEACHER", id, null, ipAddress);
         return TeacherAccountResponse.from(account);
@@ -58,7 +77,7 @@ public class TeacherAccountService {
 
     @Transactional
     public TeacherAccountResponse reject(UUID id, String reason, TeacherPrincipal admin, String ipAddress) {
-        TeacherAccount account = require(id);
+        TeacherAccount account = requireSchoolTeacher(id, admin);
         account.reject(admin.id(), normalizeReason(reason), Instant.now());
         sessions.revokeAll(id, Instant.now());
         auditService.record(admin.id(), "TEACHER_REJECTED", "TEACHER", id, normalizeReason(reason), ipAddress);
@@ -67,7 +86,7 @@ public class TeacherAccountService {
 
     @Transactional
     public TeacherAccountResponse suspend(UUID id, TeacherPrincipal admin, String ipAddress) {
-        TeacherAccount account = requireNonBootstrap(id);
+        TeacherAccount account = requireSchoolTeacher(id, admin);
         account.suspend(Instant.now());
         sessions.revokeAll(id, Instant.now());
         auditService.record(admin.id(), "TEACHER_SUSPENDED", "TEACHER", id, null, ipAddress);
@@ -76,7 +95,7 @@ public class TeacherAccountService {
 
     @Transactional
     public TeacherAccountResponse restore(UUID id, TeacherPrincipal admin, String ipAddress) {
-        TeacherAccount account = require(id);
+        TeacherAccount account = requireSchoolTeacher(id, admin);
         account.restore(Instant.now());
         auditService.record(admin.id(), "TEACHER_RESTORED", "TEACHER", id, null, ipAddress);
         return TeacherAccountResponse.from(account);
@@ -84,7 +103,7 @@ public class TeacherAccountService {
 
     @Transactional
     public String resetPassword(UUID id, TeacherPrincipal admin, String ipAddress) {
-        TeacherAccount account = requireNonBootstrap(id);
+        TeacherAccount account = requireSchoolTeacher(id, admin);
         String temporaryPassword = generateTemporaryPassword();
         account.replacePassword(passwordEncoder.encode(temporaryPassword), true, Instant.now());
         sessions.revokeAll(id, Instant.now());
@@ -114,6 +133,17 @@ public class TeacherAccountService {
             throw new PlatformApiException(HttpStatus.BAD_REQUEST, "BOOTSTRAP_ADMIN_PROTECTED", "bootstrap 管理员不能执行该操作");
         }
         return require(id);
+    }
+
+    private TeacherAccount requireSchoolTeacher(UUID id, TeacherPrincipal admin) {
+        if (admin.role() != TeacherAccount.Role.SCHOOL_ADMIN || admin.schoolId() == null) {
+            throw new PlatformApiException(HttpStatus.FORBIDDEN, "SCHOOL_ADMIN_REQUIRED", "需要学校管理员权限");
+        }
+        TeacherAccount account = requireNonBootstrap(id);
+        if (account.getRole() != TeacherAccount.Role.TEACHER || !admin.schoolId().equals(account.getSchoolId())) {
+            throw new PlatformApiException(HttpStatus.NOT_FOUND, "CROSS_SCHOOL_FORBIDDEN", "教师账号不存在");
+        }
+        return account;
     }
 
     private String normalizeAndValidateUsername(String value) {

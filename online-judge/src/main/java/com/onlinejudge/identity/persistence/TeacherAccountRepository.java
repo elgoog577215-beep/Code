@@ -11,6 +11,10 @@ public interface TeacherAccountRepository extends JpaRepository<TeacherAccount, 
     Optional<TeacherAccount> findByUsernameNormalized(String usernameNormalized);
     boolean existsByUsernameNormalized(String usernameNormalized);
     List<TeacherAccount> findByStatusOrderByCreatedAtAsc(TeacherAccount.Status status);
+    List<TeacherAccount> findBySchoolIdAndRoleAndStatusOrderByCreatedAtAsc(
+            UUID schoolId, TeacherAccount.Role role, TeacherAccount.Status status);
+    List<TeacherAccount> findBySchoolIdAndRoleOrderByCreatedAtAsc(UUID schoolId, TeacherAccount.Role role);
+    List<TeacherAccount> findBySchoolId(UUID schoolId);
 
     default long countByStatus(TeacherAccount.Status status) {
         return findByStatusOrderByCreatedAtAsc(status).size();

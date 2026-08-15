@@ -9,9 +9,14 @@ import com.onlinejudge.classroom.persistence.StudentProfileRepository;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
 import com.onlinejudge.learning.standardlibrary.application.StandardLibraryGrowthProposal;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
+import com.onlinejudge.identity.domain.TeacherAccount;
+import com.onlinejudge.identity.persistence.TeacherAccountRepository;
+import com.onlinejudge.organization.domain.School;
+import com.onlinejudge.organization.persistence.SchoolRepository;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,6 +30,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,6 +56,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.content-seed.enabled=true"
 })
 class SchoolAccessControlTest {
+    private static final UUID SCHOOL_ID = UUID.fromString("00000000-0000-0000-0000-000000000410");
+    private static final UUID SCHOOL_ADMIN_ID = UUID.fromString("00000000-0000-0000-0000-000000000411");
+    private static final UUID TEACHER_ID = UUID.fromString("00000000-0000-0000-0000-000000000412");
+    private static final String TEACHER_USERNAME = "school-access-teacher";
+    private static final String TEACHER_PASSWORD = "TeacherAccess123";
 
     @Autowired
     MockMvc mockMvc;
@@ -71,6 +83,29 @@ class SchoolAccessControlTest {
     @Autowired
     AiStandardLibraryGrowthAgentService growthAgentService;
 
+    @Autowired
+    TeacherAccountRepository teacherAccounts;
+
+    @Autowired
+    SchoolRepository schools;
+
+    @BeforeEach
+    void ensureSchoolTeacher() {
+        if (schools.findById(SCHOOL_ID).isEmpty()) {
+            Instant now = Instant.now();
+            schools.save(School.create(SCHOOL_ID, "权限测试学校", "a".repeat(64), SCHOOL_ADMIN_ID,
+                    TeacherAccount.BOOTSTRAP_ADMIN_ID, now));
+            teacherAccounts.save(TeacherAccount.schoolAdmin(SCHOOL_ADMIN_ID, "school-access-admin",
+                    passwordEncoder.encode("SchoolAdmin123"), "测试校管", SCHOOL_ID, "权限测试学校", now));
+        }
+        if (teacherAccounts.findById(TEACHER_ID).isEmpty()) {
+            TeacherAccount teacher = TeacherAccount.active(TEACHER_ID, TEACHER_USERNAME,
+                    passwordEncoder.encode(TEACHER_PASSWORD), "测试教师", "权限测试学校", Instant.now());
+            teacher.setSchoolId(SCHOOL_ID);
+            teacherAccounts.save(teacher);
+        }
+    }
+
     @Test
     void teacherApisRequireSessionAndLoginSetsCookie() throws Exception {
         mockMvc.perform(get("/api/teacher/assignments"))
@@ -88,9 +123,9 @@ class SchoolAccessControlTest {
         mockMvc.perform(get("/api/teacher/informatics-knowledge/tree"))
                 .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(post("/api/teacher/auth/login")
+        mockMvc.perform(post("/api/auth/account/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"password\":\"test-teacher-password\"}"))
+                        .content("{\"username\":\"" + TEACHER_USERNAME + "\",\"password\":\"" + TEACHER_PASSWORD + "\",\"portal\":\"TEACHER\"}"))
                 .andExpect(status().isOk())
                 .andExpect(cookie().exists(TeacherSessionService.COOKIE_NAME));
     }
@@ -281,6 +316,7 @@ class SchoolAccessControlTest {
                 .name("高一试点班")
                 .grade("高一")
                 .teacherName("老师")
+                .ownerTeacherId(TEACHER_ID)
                 .joinCodeHash(passwordEncoder.encode(classCode))
                 .build());
         StudentProfile rosterStudent = studentProfileRepository.save(StudentProfile.builder()
@@ -333,9 +369,9 @@ class SchoolAccessControlTest {
     }
 
     private String loginTeacherCookie() throws Exception {
-        MvcResult login = mockMvc.perform(post("/api/teacher/auth/login")
+        MvcResult login = mockMvc.perform(post("/api/auth/account/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"password\":\"test-teacher-password\"}"))
+                        .content("{\"username\":\"" + TEACHER_USERNAME + "\",\"password\":\"" + TEACHER_PASSWORD + "\",\"portal\":\"TEACHER\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         String cookie = login.getResponse().getHeader("Set-Cookie");

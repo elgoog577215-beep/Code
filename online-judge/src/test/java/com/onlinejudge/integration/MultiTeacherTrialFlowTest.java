@@ -12,6 +12,9 @@ import com.onlinejudge.aiquota.persistence.AiUsageEventRepository;
 import com.onlinejudge.aiquota.persistence.TeacherAiQuotaRepository;
 import com.onlinejudge.identity.domain.TeacherAccount;
 import com.onlinejudge.identity.persistence.TeacherAccountRepository;
+import com.onlinejudge.organization.domain.School;
+import com.onlinejudge.organization.persistence.SchoolRepository;
+import com.onlinejudge.shared.security.CryptoSupport;
 import com.onlinejudge.problem.domain.Problem;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.submission.domain.Submission;
@@ -66,12 +69,13 @@ class MultiTeacherTrialFlowTest {
     @Autowired AiQuotaService quotaService;
     @Autowired TeacherAiQuotaRepository quotas;
     @Autowired AiUsageEventRepository usageEvents;
+    @Autowired SchoolRepository schools;
 
     @Test
     void twoTeachersCannotReadEachOthersClassesOrAssignments() throws Exception {
         TeacherAccount teacherA = activeTeacher("isolation-a");
         TeacherAccount teacherB = activeTeacher("isolation-b");
-        teacherB.setRole(TeacherAccount.Role.ADMIN);
+        teacherB.setRole(TeacherAccount.Role.TEACHER);
         accounts.save(teacherB);
         String cookieA = login(teacherA.getUsernameNormalized(), PASSWORD);
         String cookieB = login(teacherB.getUsernameNormalized(), PASSWORD);
@@ -108,10 +112,12 @@ class MultiTeacherTrialFlowTest {
         assertThat(problemEntry(leaderboardB, problem.getId()).path("totalSubmissions").asInt()).isEqualTo(1);
         assertThat(problemEntry(leaderboardB, problem.getId()).path("acceptedSubmissions").asInt()).isZero();
 
-        postJson("/api/admin/teachers/" + teacherA.getId() + "/transfer-ownership", cookieB,
-                Map.of("targetTeacherId", teacherB.getId()));
+        mockMvc.perform(post("/api/admin/teachers/{id}/transfer-ownership", teacherA.getId())
+                        .header("Cookie", cookieB).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("targetTeacherId", teacherB.getId()))))
+                .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/teacher/classes/{id}/students", classA.path("id").asLong()).header("Cookie", cookieB))
-                .andExpect(status().isOk());
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -210,13 +216,17 @@ class MultiTeacherTrialFlowTest {
     @Test
     void administratorApprovalSuspensionAndTemporaryPasswordRevokeSessions() throws Exception {
         TeacherAccount admin = activeTeacher("trial-admin");
-        admin.setRole(TeacherAccount.Role.ADMIN);
+        admin.setRole(TeacherAccount.Role.SCHOOL_ADMIN);
         accounts.save(admin);
+        School adminSchool = testSchool();
+        adminSchool.setAdminAccountId(admin.getId());
+        schools.save(adminSchool);
         String adminCookie = login(admin.getUsernameNormalized(), PASSWORD);
         String username = "pending-" + UUID.randomUUID().toString().substring(0, 8);
 
         JsonNode application = postJson("/api/auth/teacher/register", null, Map.of(
-                "username", username, "password", PASSWORD, "displayName", "待审教师", "schoolName", "试点学校"));
+                "username", username, "password", PASSWORD, "displayName", "待审教师",
+                "schoolRegistrationCode", "TRIAL-SCHOOL-CODE"));
         mockMvc.perform(post("/api/auth/teacher/login").contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("username", username, "password", PASSWORD))))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ACCOUNT_PENDING"));
@@ -256,7 +266,7 @@ class MultiTeacherTrialFlowTest {
 
     @Test
     void aiQuotaChargesOnlySuccessfulIdempotentActionsAndNeverOverReserves() throws Exception {
-        UUID teacherId = UUID.randomUUID();
+        UUID teacherId = activeTeacher("quota-teacher").getId();
         YearMonth month = YearMonth.now(AiQuotaService.BILLING_ZONE);
         quotas.saveAndFlush(TeacherAiQuota.forMonth(teacherId, month, 2));
 
@@ -274,7 +284,7 @@ class MultiTeacherTrialFlowTest {
         assertThat(afterIdempotentRetry.getUsedUnits()).isEqualTo(1);
         assertThat(usageEvents.findAll().stream().filter(event -> teacherId.equals(event.getTeacherId()) && event.isCharged())).hasSize(1);
 
-        UUID concurrentTeacher = UUID.randomUUID();
+        UUID concurrentTeacher = activeTeacher("quota-concurrent").getId();
         quotas.saveAndFlush(TeacherAiQuota.forMonth(concurrentTeacher, month, 2));
         var executor = Executors.newFixedThreadPool(6);
         try {
@@ -311,7 +321,9 @@ class MultiTeacherTrialFlowTest {
         TeacherAccount owner = activeTeacher("problem-owner");
         TeacherAccount observer = activeTeacher("problem-observer");
         TeacherAccount admin = activeTeacher("problem-admin");
-        admin.setRole(TeacherAccount.Role.ADMIN);
+        admin.setRole(TeacherAccount.Role.PLATFORM_ADMIN);
+        admin.setSchoolId(null);
+        admin.setSchoolName("平台");
         accounts.save(admin);
         String ownerCookie = login(owner.getUsernameNormalized(), PASSWORD);
         String observerCookie = login(observer.getUsernameNormalized(), PASSWORD);
@@ -354,8 +366,17 @@ class MultiTeacherTrialFlowTest {
 
     private TeacherAccount activeTeacher(String prefix) {
         String username = prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
-        return accounts.save(TeacherAccount.active(UUID.randomUUID(), username, passwordEncoder.encode(PASSWORD),
-                prefix, "试点学校", Instant.now()));
+        School school = testSchool();
+        TeacherAccount account = TeacherAccount.active(UUID.randomUUID(), username, passwordEncoder.encode(PASSWORD),
+                prefix, school.getName(), Instant.now());
+        account.setSchoolId(school.getId());
+        return accounts.save(account);
+    }
+
+    private School testSchool() {
+        return schools.findByNameIgnoreCase("试点学校").orElseGet(() -> schools.save(School.create(UUID.randomUUID(),
+                "试点学校", CryptoSupport.sha256("TRIAL-SCHOOL-CODE"), UUID.randomUUID(),
+                TeacherAccount.BOOTSTRAP_ADMIN_ID, Instant.now())));
     }
 
     private Problem publicProblem(String title) {
@@ -397,8 +418,10 @@ class MultiTeacherTrialFlowTest {
     }
 
     private String login(String username, String password) throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/auth/teacher/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("username", username, "password", password))))
+        TeacherAccount account = accounts.findByUsernameNormalized(username).orElseThrow();
+        MvcResult result = mockMvc.perform(post("/api/auth/account/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("username", username, "password", password,
+                                "portal", account.getRole().name()))))
                 .andExpect(status().isOk()).andReturn();
         return cookie(result, TeacherSessionService.COOKIE_NAME);
     }

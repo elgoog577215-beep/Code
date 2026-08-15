@@ -96,6 +96,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       roleAria: "选择使用身份",
       studentCta: "我是学生",
       teacherCta: "我是教师",
+      schoolAdminCta: "学校管理员",
       preview: {
         badge: "界面截图",
         alt: "学生端编程与评测界面预览截图，展示两数之和代码和全部通过的评测结果"
@@ -141,6 +142,47 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         review: "复盘",
         reviewDetail: "查看解析与建议，巩固提升",
         reviewEvidence: "时间复杂度"
+      }
+    },
+    portals: {
+      checking: "正在核验账号",
+      secureWorkspace: "独立安全工作台",
+      loginFailed: "登录失败",
+      loadFailed: "数据加载失败",
+      actionFailed: "操作未完成",
+      registerFailed: "注册申请未提交",
+      registrationPending: "申请已提交，请等待本校管理员审核。",
+      passwordChanged: "密码已修改，请重新登录。",
+      passwordFailed: "密码修改失败",
+      changePassword: "首次登录请修改密码",
+      changeHint: "临时密码只使用一次，新密码至少 10 位并包含字母和数字。",
+      roleMismatch: "当前已登录账号不属于这个工作台，请先退出。",
+      oneTimeSecret: "以下信息仅显示一次，请立即安全保存。",
+      temporaryPassword: "临时密码",
+      schoolCode: "学校注册码",
+      quotaLine: "总额度 {{total}} · 已分配 {{allocated}} · 已消耗 {{used}}",
+      teacher: { eyebrow: "教师入口", title: "教师工作台登录", description: "使用学校注册码申请账号，审核通过后管理自己的教学数据。" },
+      platform: {
+        eyebrow: "平台管理员", title: "平台管理登录", description: "仅用于学校、学校管理员、学校额度池及全平台题目治理。",
+        workspaceTitle: "平台管理工作台", workspaceDescription: "管理学校边界与平台内容，不进入普通教师和学生明细。",
+        createSchool: "创建学校与校管", schoolGovernance: "学校治理", schools: "学校列表", schoolSummary: "学校级汇总",
+        problemReviews: "共建与公共题审核", contentGovernance: "全平台内容治理", noSchools: "还没有学校", noReviews: "暂无待审题目", created: "学校已创建"
+      },
+      school: {
+        eyebrow: "学校管理员", title: "学校管理登录", description: "审核本校教师、分配学校额度并只读查看校内教学数据。",
+        workspaceTitle: "学校管理工作台", workspaceDescription: "教师账号与额度由学校自主管理；教学内容仅可查看和导出。",
+        overview: "学校概览", quotaPool: "本月 AI 额度池", applications: "教师申请", pending: "项待审核", noApplications: "暂无待审申请",
+        teachers: "本校教师", quotaAllocation: "教师额度分配", noTeachers: "暂无教师", teachingData: "校内教学数据", readOnly: "只读",
+        students: "名学生", assignmentsCount: "份作业", noTeachingData: "暂无教学数据", teacherUsage: "已分配 {{allocated}} · 已消耗 {{used}} · 已预留 {{reserved}}",
+        studentsTitle: "学生名单", assignmentsTitle: "作业", submissionsTitle: "提交明细", noStudents: "暂无学生", noAssignments: "暂无作业", noSubmissions: "暂无提交"
+      },
+      fields: {
+        schoolName: "学校名称", adminUsername: "校管用户名", adminDisplayName: "校管姓名", monthlyQuota: "学校月额度",
+        totalQuota: "总额度", allocatedQuota: "已分配", availableQuota: "可分配", teacherQuota: "教师本月额度", replacementUsername: "新校管用户名", replacementDisplayName: "新校管姓名"
+      },
+      actions: {
+        create: "创建学校", refresh: "刷新", resetPassword: "重置密码", suspend: "停用", restore: "恢复", saveQuota: "保存额度",
+        approve: "批准", reject: "拒绝", publishPublic: "发布为公共题", rotateCode: "轮换注册码", allocate: "分配额度", replaceAdmin: "更换校管", inspect: "查看明细", viewSubmissions: "查看提交", exportCsv: "导出 CSV"
       }
     },
     studentHome: {
@@ -1058,6 +1100,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       roleAria: "Choose your role",
       studentCta: "I'm a student",
       teacherCta: "I'm a teacher",
+      schoolAdminCta: "School admin",
       preview: {
         badge: "Interface screenshot",
         alt: "Student coding and judge interface screenshot showing Two Sum code and an all-passed result"
@@ -1103,6 +1146,47 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         review: "Review",
         reviewDetail: "Study explanations and reinforce learning",
         reviewEvidence: "Time complexity"
+      }
+    },
+    portals: {
+      checking: "Checking account",
+      secureWorkspace: "Independent secure workspace",
+      loginFailed: "Sign-in failed",
+      loadFailed: "Failed to load data",
+      actionFailed: "Action not completed",
+      registerFailed: "Registration was not submitted",
+      registrationPending: "Application submitted. Your school administrator will review it.",
+      passwordChanged: "Password changed. Please sign in again.",
+      passwordFailed: "Could not change password",
+      changePassword: "Change your temporary password",
+      changeHint: "The temporary password works once. Use at least 10 characters with letters and numbers.",
+      roleMismatch: "The signed-in account belongs to another portal. Sign out first.",
+      oneTimeSecret: "These credentials are shown once. Store them securely now.",
+      temporaryPassword: "Temporary password",
+      schoolCode: "School registration code",
+      quotaLine: "Total {{total}} · Allocated {{allocated}} · Used {{used}}",
+      teacher: { eyebrow: "Teacher portal", title: "Teacher workbench sign-in", description: "Apply with a school registration code, then manage only your own teaching data after approval." },
+      platform: {
+        eyebrow: "Platform admin", title: "Platform administration sign-in", description: "For schools, school administrators, school quota pools, and platform problem governance only.",
+        workspaceTitle: "Platform Administration", workspaceDescription: "Manage school boundaries and platform content without opening teacher or student details.",
+        createSchool: "Create school and admin", schoolGovernance: "School governance", schools: "Schools", schoolSummary: "School-level summary",
+        problemReviews: "Shared and public problem reviews", contentGovernance: "Platform content governance", noSchools: "No schools yet", noReviews: "No pending problem reviews", created: "School created"
+      },
+      school: {
+        eyebrow: "School admin", title: "School administration sign-in", description: "Review your teachers, allocate school quota, and inspect school teaching data in read-only mode.",
+        workspaceTitle: "School Administration", workspaceDescription: "The school manages teacher accounts and quota; teaching content remains read-only and exportable.",
+        overview: "School overview", quotaPool: "Monthly AI quota pool", applications: "Teacher applications", pending: "pending", noApplications: "No pending applications",
+        teachers: "School teachers", quotaAllocation: "Teacher quota allocation", noTeachers: "No teachers", teachingData: "School teaching data", readOnly: "Read only",
+        students: "students", assignmentsCount: "assignments", noTeachingData: "No teaching data", teacherUsage: "Allocated {{allocated}} · Used {{used}} · Reserved {{reserved}}",
+        studentsTitle: "Student roster", assignmentsTitle: "Assignments", submissionsTitle: "Submission details", noStudents: "No students", noAssignments: "No assignments", noSubmissions: "No submissions"
+      },
+      fields: {
+        schoolName: "School name", adminUsername: "Admin username", adminDisplayName: "Admin name", monthlyQuota: "Monthly school quota",
+        totalQuota: "Total", allocatedQuota: "Allocated", availableQuota: "Available", teacherQuota: "Teacher monthly quota", replacementUsername: "New admin username", replacementDisplayName: "New admin name"
+      },
+      actions: {
+        create: "Create school", refresh: "Refresh", resetPassword: "Reset password", suspend: "Suspend", restore: "Restore", saveQuota: "Save quota",
+        approve: "Approve", reject: "Reject", publishPublic: "Publish public", rotateCode: "Rotate registration code", allocate: "Allocate", replaceAdmin: "Replace admin", inspect: "Inspect", viewSubmissions: "View submissions", exportCsv: "Export CSV"
       }
     },
     studentHome: {

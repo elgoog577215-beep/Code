@@ -4,6 +4,10 @@ import com.onlinejudge.classroom.domain.StudentProfile;
 import com.onlinejudge.classroom.domain.StudentSession;
 import com.onlinejudge.classroom.persistence.StudentProfileRepository;
 import com.onlinejudge.classroom.persistence.StudentSessionRepository;
+import com.onlinejudge.classroom.persistence.ClassGroupRepository;
+import com.onlinejudge.identity.persistence.TeacherAccountRepository;
+import com.onlinejudge.organization.domain.School;
+import com.onlinejudge.organization.persistence.SchoolRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,18 +29,27 @@ public class StudentAccessTokenService {
     private final SchoolSecurityProperties properties;
     private final StudentSessionRepository sessions;
     private final StudentProfileRepository students;
+    private final ClassGroupRepository classes;
+    private final TeacherAccountRepository accounts;
+    private final SchoolRepository schools;
 
     public StudentAccessTokenService(SchoolSecurityProperties properties) {
-        this(properties, null, null);
+        this(properties, null, null, null, null, null);
     }
 
     @Autowired
     public StudentAccessTokenService(SchoolSecurityProperties properties,
                                      StudentSessionRepository sessions,
-                                     StudentProfileRepository students) {
+                                     StudentProfileRepository students,
+                                     ClassGroupRepository classes,
+                                     TeacherAccountRepository accounts,
+                                     SchoolRepository schools) {
         this.properties = properties;
         this.sessions = sessions;
         this.students = students;
+        this.classes = classes;
+        this.accounts = accounts;
+        this.schools = schools;
     }
 
     /** Development compatibility token; the production frontend uses only the HttpOnly cookie. */
@@ -83,7 +96,7 @@ public class StudentAccessTokenService {
             Instant now = Instant.now();
             if (session != null && session.validAt(now)) {
                 StudentProfile student = students.findById(session.getStudentProfileId()).orElse(null);
-                if (student != null && student.getStatus() == StudentProfile.RosterStatus.ACTIVE) {
+                if (student != null && student.getStatus() == StudentProfile.RosterStatus.ACTIVE && activeSchool(student)) {
                     session.setLastSeenAt(now);
                     return student.getId();
                 }
@@ -128,7 +141,8 @@ public class StudentAccessTokenService {
             if (Instant.now().getEpochSecond() > expiresAt) return null;
             if (students == null) return new ParsedToken(studentProfileId);
             StudentProfile student = students.findById(studentProfileId).orElse(null);
-            return student != null && student.getStatus() == StudentProfile.RosterStatus.ACTIVE ? new ParsedToken(studentProfileId) : null;
+            return student != null && student.getStatus() == StudentProfile.RosterStatus.ACTIVE && activeSchool(student)
+                    ? new ParsedToken(studentProfileId) : null;
         } catch (RuntimeException exception) {
             return null;
         }
@@ -153,6 +167,14 @@ public class StudentAccessTokenService {
     private String limit(String value, int max) {
         String normalized = value == null ? "" : value;
         return normalized.length() > max ? normalized.substring(0, max) : normalized;
+    }
+
+    private boolean activeSchool(StudentProfile student) {
+        if (classes == null || accounts == null || schools == null) return true;
+        return classes.findById(student.getClassGroupId()).flatMap(group -> accounts.findById(group.getOwnerTeacherId()))
+                .map(account -> account.getSchoolId() != null && schools.findById(account.getSchoolId())
+                        .map(school -> school.getStatus() == School.Status.ACTIVE).orElse(false))
+                .orElse(false);
     }
 
     private record ParsedToken(Long studentProfileId) { }

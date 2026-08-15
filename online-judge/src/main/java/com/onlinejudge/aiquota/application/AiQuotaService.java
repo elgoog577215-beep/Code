@@ -7,6 +7,11 @@ import com.onlinejudge.aiquota.dto.TeacherAiUsageResponse;
 import com.onlinejudge.aiquota.persistence.AiUsageEventRepository;
 import com.onlinejudge.aiquota.persistence.TeacherAiQuotaRepository;
 import com.onlinejudge.identity.application.CurrentTeacherContext;
+import com.onlinejudge.identity.persistence.TeacherAccountRepository;
+import com.onlinejudge.organization.domain.School;
+import com.onlinejudge.organization.persistence.SchoolRepository;
+import com.onlinejudge.shared.web.PlatformApiException;
+import org.springframework.http.HttpStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -19,18 +24,27 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AiQuotaService {
-    public static final int DEFAULT_MONTHLY_UNITS = 500;
+    public static final int DEFAULT_MONTHLY_UNITS = 0;
     public static final ZoneId BILLING_ZONE = ZoneId.of("Asia/Shanghai");
 
     private final TeacherAiQuotaRepository quotas;
     private final AiUsageEventRepository events;
     private final CurrentTeacherContext currentTeacher;
+    private final TeacherAccountRepository accounts;
+    private final SchoolRepository schools;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Reservation reserve(AiInvocationContext context) {
         if (context == null || context.teacherId() == null) {
             throw new PaidAiNotAllowedException();
         }
+        UUID schoolId = context.schoolId() != null ? context.schoolId()
+                : accounts.findById(context.teacherId()).map(account -> account.getSchoolId()).orElse(null);
+        if (schoolId == null || schools.findById(schoolId).map(school -> school.getStatus() != School.Status.ACTIVE).orElse(true)) {
+            throw new PlatformApiException(HttpStatus.FORBIDDEN, "SCHOOL_SUSPENDED", "学校已停用或不存在");
+        }
+        context = new AiInvocationContext(context.teacherId(), schoolId, context.studentProfileId(), context.assignmentId(),
+                context.submissionId(), context.purpose(), context.idempotencyKey());
         String key = normalizedKey(context.idempotencyKey());
         if (events.existsByTeacherIdAndIdempotencyKeyAndChargedTrue(context.teacherId(), key)) {
             return new Reservation(context, currentMonth(), false);
@@ -76,14 +90,6 @@ public class AiQuotaService {
         return usage(currentTeacher.requireTeacherId(), currentMonth());
     }
 
-    @Transactional
-    public TeacherAiUsageResponse adjust(UUID teacherId, int base, int additional) {
-        currentTeacher.requireAdmin();
-        TeacherAiQuota quota = lockedQuota(teacherId, currentMonth());
-        quota.adjust(base, additional);
-        return response(quotas.save(quota));
-    }
-
     @Transactional(readOnly = true)
     public TeacherAiUsageResponse usage(UUID teacherId, YearMonth month) {
         return quotas.findByTeacherIdAndQuotaMonth(teacherId, month.toString())
@@ -105,7 +111,7 @@ public class AiQuotaService {
 
     private AiUsageEvent event(AiInvocationContext context, String provider, String model, boolean success,
                                boolean charged, Integer inputTokens, Integer outputTokens, String failure) {
-        return AiUsageEvent.builder().teacherId(context.teacherId()).studentProfileId(context.studentProfileId())
+        return AiUsageEvent.builder().teacherId(context.teacherId()).schoolId(context.schoolId()).studentProfileId(context.studentProfileId())
                 .assignmentId(context.assignmentId()).submissionId(context.submissionId())
                 .usagePurpose(limit(context.purpose(), 60)).idempotencyKey(normalizedKey(context.idempotencyKey()))
                 .provider(limit(provider, 80)).model(limit(model, 160))
