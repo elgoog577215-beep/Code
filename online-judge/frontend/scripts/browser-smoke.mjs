@@ -1965,10 +1965,33 @@ const scenarios = [
   {
     name: "school-admin",
     path: "/app/school-admin",
-    afterChecks: async page => {
+    afterChecks: async (page, viewport) => {
       const text = ((await page.locator(".admin-workspace").textContent()) || "").replace(/\s+/g, "");
       record("school workspace shows delegated governance", text.includes("温州试点中学") && text.includes("教师申请") && text.includes("教师额度分配"), text.slice(0, 900));
       record("school teaching view is explicitly read only", text.includes("校内教学数据") && text.includes("只读"), text.slice(0, 900));
+      const quotaLayout = await page.locator(".school-admin-quota-grid > *").evaluateAll(elements => {
+        const rects = elements.map(element => element.getBoundingClientRect());
+        return {
+          count: rects.length,
+          columns: new Set(rects.map(rect => Math.round(rect.x))).size,
+          widths: rects.map(rect => Math.round(rect.width))
+        };
+      });
+      const expectedQuotaColumns = viewport.width >= 700 ? 4 : 2;
+      record(
+        `school quota metrics use ${expectedQuotaColumns} compact columns at ${viewport.name}`,
+        quotaLayout.count === 4 && quotaLayout.columns === expectedQuotaColumns && quotaLayout.widths.every(width => width >= 120),
+        JSON.stringify(quotaLayout)
+      );
+      const teacherCardLayout = await page.locator(".school-admin-teacher-card").evaluateAll(elements => ({
+        count: elements.length,
+        heights: elements.map(element => Math.round(element.getBoundingClientRect().height))
+      }));
+      record(
+        `school teacher controls stay compact at ${viewport.name}`,
+        teacherCardLayout.count > 0 && (viewport.name !== "desktop" || teacherCardLayout.heights.every(height => height <= 180)),
+        JSON.stringify(teacherCardLayout)
+      );
       await page.getByRole("button", { name: "查看明细" }).first().click();
       await page.waitForTimeout(80);
       const detailText = ((await page.locator(".admin-readonly-detail").first().textContent()) || "").replace(/\s+/g, "");
