@@ -1,5 +1,6 @@
 export type HintPolicy = "L1" | "L2" | "L3" | "L4";
 export type AssignmentStatus = "DRAFT" | "ACTIVE" | "CLOSED";
+export type AssignmentTargetMode = "CLASS" | "STUDENTS";
 export type Difficulty = "EASY" | "MEDIUM" | "HARD";
 export type Verdict =
   | "PENDING"
@@ -31,6 +32,9 @@ export interface Assignment {
   endsAt?: string | null;
   createdAt?: string;
   inviteCode?: string | null;
+  targetMode: AssignmentTargetMode;
+  targetCount: number;
+  currentVisibleCount: number;
   tasks: AssignmentTask[];
 }
 
@@ -40,7 +44,7 @@ export interface StudentProfile {
   className?: string | null;
   displayName: string;
   studentNo?: string | null;
-  studentAccessToken?: string | null;
+  status?: "ACTIVE" | "INACTIVE" | "NEEDS_REVIEW";
 }
 
 export interface StudentTrajectoryIssue {
@@ -300,6 +304,13 @@ export interface ProblemCatalogItem {
 }
 
 export interface ProblemManage extends Problem {
+  ownerTeacherId?: string | null;
+  scope: "PUBLIC" | "SHARED" | "PRIVATE";
+  versionState: "DRAFT" | "REVIEW_PENDING" | "PUBLISHED" | "FROZEN" | "REJECTED" | "ARCHIVED";
+  seriesId?: string | null;
+  versionNo: number;
+  sourceProblemId?: number | null;
+  archivedAt?: string | null;
   testCases: Array<{
     id?: number;
     input: string;
@@ -1270,6 +1281,8 @@ export interface AssignmentOverview {
     studentProfileId: number;
     displayName: string;
     studentNo?: string | null;
+    currentRoster?: boolean;
+    rosterHistoryLabel?: string | null;
     attemptCount: number;
     passedCount: number;
     latestSubmissionId?: number | null;
@@ -1913,6 +1926,8 @@ export interface ClassGroup {
   name: string;
   grade?: string | null;
   teacherName?: string | null;
+  joinCode?: string | null;
+  activeStudentCount: number;
   createdAt?: string;
 }
 
@@ -1950,6 +1965,33 @@ export interface ExecutorStatus {
 
 export interface AuthSession {
   authenticated: boolean;
+  teacherId?: string | null;
+  username?: string | null;
+  displayName?: string | null;
+  role?: "TEACHER" | "ADMIN" | null;
+  mustChangePassword: boolean;
+}
+
+export interface TeacherAccount {
+  id: string;
+  username: string;
+  displayName: string;
+  schoolName: string;
+  role: "TEACHER" | "ADMIN";
+  status: "BOOTSTRAP_REQUIRED" | "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
+  mustChangePassword: boolean;
+  createdAt?: string;
+}
+
+export interface TeacherAiUsage {
+  teacherId: string;
+  month: string;
+  baseUnits: number;
+  additionalUnits: number;
+  usedUnits: number;
+  reservedUnits: number;
+  remainingUnits: number;
+  resetsAt: string;
 }
 
 export type ReadinessStatus = "READY" | "DEGRADED" | "BLOCKED" | string;

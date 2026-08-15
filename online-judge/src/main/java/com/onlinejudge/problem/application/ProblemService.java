@@ -15,6 +15,11 @@ import com.onlinejudge.problem.persistence.TestCaseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.onlinejudge.identity.application.CurrentTeacherContext;
+import com.onlinejudge.identity.domain.TeacherAccount;
+import com.onlinejudge.shared.web.PlatformApiException;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -33,9 +38,15 @@ public class ProblemService {
     private final SubmissionCaseResultRepository submissionCaseResultRepository;
     private final SubmissionAnalysisRepository submissionAnalysisRepository;
 
+    @Autowired(required = false)
+    private CurrentTeacherContext currentTeacherContext;
+    @Autowired(required = false)
+    private ProblemAccessPolicy problemAccessPolicy;
+
     public List<ProblemResponse> getAllProblems() {
         return problemRepository.findAllByOrderByIdAsc()
                 .stream()
+                .filter(this::publicVisible)
                 .map(p -> ProblemResponse.from(p, List.of()))
                 .toList();
     }
@@ -58,6 +69,9 @@ public class ProblemService {
     public ProblemResponse getProblemById(Long id) {
         Problem problem = problemRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + id));
+        if (!publicVisible(problem)) {
+            throw new PlatformApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "题目不存在");
+        }
         
         List<TestCase> visibleTestCases = testCaseRepository
                 .findByProblemIdAndIsHiddenFalseOrderByOrderIndexAsc(id);
@@ -68,6 +82,7 @@ public class ProblemService {
     public ProblemManageResponse getProblemForManage(Long id) {
         Problem problem = problemRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + id));
+        requireEditableOrVisible(problem);
 
         List<TestCase> testCases = testCaseRepository.findByProblemIdOrderByOrderIndexAsc(id);
         return ProblemManageResponse.from(problem, testCases);
@@ -78,6 +93,9 @@ public class ProblemService {
         validateVisibleSamples(request);
 
         Problem problem = problemRepository.save(Problem.builder()
+                .ownerTeacherId(currentTeacherId())
+                .scope(Problem.Scope.PRIVATE)
+                .versionState(Problem.VersionState.DRAFT)
                 .title(request.getTitle().trim())
                 .description(request.getDescription().trim())
                 .difficulty(request.getDifficulty())
@@ -106,6 +124,9 @@ public class ProblemService {
 
         Problem problem = problemRepository.findById(problemId)
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + problemId));
+        if (problemAccessPolicy != null && !problemAccessPolicy.canEdit(currentTeacherId(), problem)) {
+            throw new PlatformApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "只能编辑自己的私有草稿");
+        }
 
         problem.setTitle(request.getTitle().trim());
         problem.setDescription(request.getDescription().trim());
@@ -134,21 +155,30 @@ public class ProblemService {
     public Problem deleteProblem(Long problemId) {
         Problem problem = problemRepository.findById(problemId)
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + problemId));
-
-        List<Long> submissionIds = submissionRepository.findByProblemIdOrderBySubmittedAtDesc(problemId)
-                .stream()
-                .map(Submission::getId)
-                .toList();
-
-        if (!submissionIds.isEmpty()) {
-            submissionAnalysisRepository.deleteBySubmissionIdIn(submissionIds);
-            submissionCaseResultRepository.deleteBySubmissionIdIn(submissionIds);
+        if (!java.util.Objects.equals(problem.getOwnerTeacherId(), currentTeacherId())
+                || problem.getScope() != Problem.Scope.PRIVATE) {
+            throw new PlatformApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "只能归档自己的私有题目");
         }
-
-        submissionRepository.deleteByProblemId(problemId);
-        testCaseRepository.deleteByProblemId(problemId);
-        problemRepository.delete(problem);
+        problem.setVersionState(Problem.VersionState.ARCHIVED);
+        problem.setArchivedAt(java.time.LocalDateTime.now());
+        problemRepository.save(problem);
         return problem;
+    }
+
+    private boolean publicVisible(Problem problem) {
+        if (problemAccessPolicy != null) return problemAccessPolicy.isAnonymousCatalogVisible(problem);
+        return problem.getArchivedAt() == null && problem.getScope() == Problem.Scope.PUBLIC
+                && problem.getVersionState() == Problem.VersionState.PUBLISHED;
+    }
+
+    private void requireEditableOrVisible(Problem problem) {
+        if (problemAccessPolicy != null && !problemAccessPolicy.isTeacherVisible(currentTeacherId(), problem)) {
+            throw new PlatformApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "题目不存在");
+        }
+    }
+
+    private java.util.UUID currentTeacherId() {
+        return currentTeacherContext == null ? TeacherAccount.BOOTSTRAP_ADMIN_ID : currentTeacherContext.requireTeacherId();
     }
 
     private void validateVisibleSamples(CreateProblemRequest request) {

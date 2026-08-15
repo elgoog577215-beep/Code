@@ -3,7 +3,9 @@ package com.onlinejudge.shared.security;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.ClassGroup;
+import com.onlinejudge.classroom.domain.StudentProfile;
 import com.onlinejudge.classroom.persistence.ClassGroupRepository;
+import com.onlinejudge.classroom.persistence.StudentProfileRepository;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
 import com.onlinejudge.learning.standardlibrary.application.StandardLibraryGrowthProposal;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
@@ -14,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -55,6 +58,12 @@ class SchoolAccessControlTest {
 
     @Autowired
     ClassGroupRepository classGroupRepository;
+
+    @Autowired
+    StudentProfileRepository studentProfileRepository;
+
+    @Autowired
+    PasswordEncoder passwordEncoder;
 
     @Autowired
     SubmissionRepository submissionRepository;
@@ -267,32 +276,42 @@ class SchoolAccessControlTest {
 
     @Test
     void studentTokenGuardsStudentScopedApis() throws Exception {
+        String classCode = "CLASS101";
         ClassGroup group = classGroupRepository.save(ClassGroup.builder()
                 .name("高一试点班")
                 .grade("高一")
                 .teacherName("老师")
+                .joinCodeHash(passwordEncoder.encode(classCode))
+                .build());
+        StudentProfile rosterStudent = studentProfileRepository.save(StudentProfile.builder()
+                .classGroupId(group.getId())
+                .displayName("张三")
+                .studentNo("01")
+                .identityKey("class:" + group.getId() + "|student:01")
+                .status(StudentProfile.RosterStatus.ACTIVE)
                 .build());
 
-        MvcResult login = mockMvc.perform(post("/api/student/login")
+        MvcResult login = mockMvc.perform(post("/api/auth/student/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"classGroupId\":" + group.getId() + ",\"displayName\":\"张三\",\"studentNo\":\"01\"}"))
+                        .content("{\"classCode\":\"" + classCode + "\",\"displayName\":\"张三\",\"studentNo\":\"01\"}"))
                 .andExpect(status().isOk())
+                .andExpect(cookie().exists(StudentAccessTokenService.COOKIE_NAME))
                 .andReturn();
 
         JsonNode student = objectMapper.readTree(login.getResponse().getContentAsString());
         long studentId = student.path("id").asLong();
-        String token = student.path("studentAccessToken").asText();
-        assertThat(token).isNotBlank();
+        assertThat(studentId).isEqualTo(rosterStudent.getId());
+        String cookie = login.getResponse().getHeader("Set-Cookie").split(";", 2)[0];
 
         mockMvc.perform(get("/api/student/profile/" + studentId + "/assignments"))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/api/student/profile/" + studentId + "/assignments")
-                        .header(StudentAccessTokenService.HEADER_NAME, token))
+                        .header("Cookie", cookie))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/student/profile/" + (studentId + 1) + "/assignments")
-                        .header(StudentAccessTokenService.HEADER_NAME, token))
+                        .header("Cookie", cookie))
                 .andExpect(status().isForbidden());
     }
 

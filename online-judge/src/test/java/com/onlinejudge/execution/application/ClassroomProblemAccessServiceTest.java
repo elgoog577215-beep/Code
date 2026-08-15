@@ -71,10 +71,13 @@ class ClassroomProblemAccessServiceTest {
     }
 
     private StudentProfile student(Long id, Long classId) {
-        return StudentProfile.builder().id(id).classGroupId(classId).displayName("学生").identityKey("student:" + id).build();
+        return StudentProfile.builder().id(id).classGroupId(classId).displayName("学生")
+                .status(StudentProfile.RosterStatus.ACTIVE)
+                .identityKey("student:" + id).build();
     }
 
     private Assignment assignment(Long id, Long classId) {
-        return Assignment.builder().id(id).classGroupId(classId).title("课堂作业").build();
+        return Assignment.builder().id(id).classGroupId(classId).title("课堂作业")
+                .status(Assignment.AssignmentStatus.ACTIVE).build();
     }
 }

@@ -24,6 +24,114 @@
       "dark": "夜间"
     }
   },
+  "teacherAuth": {
+    "eyebrow": "教师端",
+    "checking": "正在确认教师身份",
+    "loginTitle": "教师账号登录",
+    "loginDescription": "使用经管理员审核的用户名和密码进入自己的教学空间。",
+    "registerTitle": "申请教师账号",
+    "registerDescription": "提交后需由平台管理员审核，审核通过后才能登录。",
+    "changeTitle": "首次登录请修改密码",
+    "changeDescription": "临时密码只能使用一次，修改后请重新登录。",
+    "username": "用户名",
+    "password": "密码",
+    "currentPassword": "当前密码",
+    "newPassword": "新密码",
+    "displayName": "姓名",
+    "schoolName": "学校",
+    "loginAction": "进入教师端",
+    "registerAction": "提交申请",
+    "changeAction": "修改密码",
+    "processing": "处理中",
+    "toRegister": "还没有账号？申请教师账号",
+    "toLogin": "已有账号？返回登录",
+    "registrationPending": "申请已提交，管理员审核通过后即可登录。",
+    "passwordChanged": "密码已修改，请使用新密码重新登录。",
+    "loginFailed": "登录失败。",
+    "registerFailed": "注册申请提交失败。",
+    "passwordChangeFailed": "密码修改失败。",
+    "validation": {
+      "loginRequired": "请输入用户名和密码。",
+      "registerRequired": "请填写完整信息，密码至少 10 位。",
+      "passwordChange": "请输入当前密码，新密码至少 10 位。"
+    }
+  },
+  "studentLogin": {
+    "eyebrow": "学生登录",
+    "title": "匹配班级名单",
+    "back": "返回",
+    "panelTitle": "进入我的班级",
+    "panelEyebrow": "课堂身份",
+    "classCode": "班级码",
+    "classCodePlaceholder": "向老师获取 8 位班级码",
+    "displayName": "姓名",
+    "displayNamePlaceholder": "与老师导入的名单一致",
+    "studentNo": "学号/座号",
+    "studentNoPlaceholder": "必填，与名单一致",
+    "rosterHint": "三项信息必须同时匹配有效名单，系统不会在登录时自动创建学生。",
+    "validation": "请填写班级码、姓名和学号。",
+    "failed": "登录失败。",
+    "loggingIn": "登录中",
+    "action": "进入学生端"
+  },
+  "assignmentTarget": {
+    "label": "发布对象",
+    "classLabel": "班级",
+    "class": "全班（动态名单）",
+    "students": "指定学生",
+    "selectStudents": "选择有效名单中的学生",
+    "studentCount": "已选 {{count}} 人",
+    "emptyRoster": "当前班级没有有效名单",
+    "emptyRosterHint": "请先导入包含学号的学生名单。",
+    "validation": "至少选择 1 名学生"
+  },
+  "multiTeacher": {
+    "classCode": {
+      "title": "学生加入班级码",
+      "description": "明文只在创建或轮换后显示一次，请安全地发给本班学生。",
+      "hidden": "班级码已隐藏",
+      "studentCount": "有效名单 {{count}} 人",
+      "rotate": "轮换班级码",
+      "created": "班级已创建。一次性班级码：{{code}}",
+      "createdWithoutCode": "班级已创建。",
+      "rotated": "班级码已轮换，新班级码：{{code}}",
+      "rotateFailed": "班级码轮换失败。"
+    },
+    "roster": {
+      "title": "当前学生名单", "description": "停用后学生已有会话立即失效，历史提交仍会保留。", "empty": "还没有学生名单", "emptyHint": "通过下方两阶段导入添加学生。",
+      "deactivate": "停用", "activate": "恢复", "statusSaved": "名单状态已更新。", "statusFailed": "名单状态更新失败。",
+      "status": { "active": "有效", "inactive": "已停用", "needs_review": "待修复" }
+    },
+    "problem": {
+      "submitReview": "提交共建审核",
+      "revise": "创建修订草稿",
+      "reviewSubmitted": "已提交共建审核，新版本为 v{{version}}。",
+      "revisionCreated": "已创建可编辑的 v{{version}} 修订草稿。",
+      "actionFailed": "题目状态更新失败。",
+      "readOnlyTitle": "当前版本只读",
+      "readOnlyDescription": "已送审、已发布或作业快照不可直接修改；修订会创建新版本。",
+      "scope": { "public": "公共题库", "shared": "共建题库", "private": "我的题库" },
+      "state": {
+        "draft": "草稿", "review_pending": "待审核", "published": "已发布", "frozen": "作业快照", "rejected": "已拒绝", "archived": "已归档"
+      }
+    },
+    "quota": {
+      "remaining": "次课堂 AI 剩余",
+      "used": "本月已用 {{used}} / {{total}}",
+      "resets": "重置时间：{{time}}"
+    }
+  },
+  "adminConsole": {
+    "eyebrow": "平台管理员", "title": "试用治理中心", "description": "审核教师账号和共建题，并管理停用、临时密码与课堂 AI 额度。", "refresh": "刷新",
+    "loadFailed": "管理数据读取失败。", "actionFailed": "操作失败。", "accountsTitle": "教师账号", "accountsEyebrow": "账号审核与状态",
+    "reviewsTitle": "共建题审核", "reviewsEyebrow": "题库治理", "statusFilter": "账号状态", "reason": "审核或停用原因",
+    "status": { "pending": "待审核", "active": "正常", "suspended": "已停用", "rejected": "已拒绝", "bootstrap_required": "待激活" },
+    "approve": "审核通过", "reject": "拒绝", "suspend": "停用", "restore": "恢复", "resetPassword": "生成临时密码",
+    "temporaryPassword": "一次性临时密码：", "baseUnits": "月基础额度", "additionalUnits": "本月追加额度", "saveQuota": "保存额度",
+    "approved": "教师账号已通过审核。", "rejected": "教师账号已拒绝。", "suspended": "教师账号已停用，会话已撤销。", "restored": "教师账号已恢复。",
+    "passwordReset": "临时密码已生成，旧会话已撤销。", "quotaSaved": "课堂 AI 额度已更新。", "noAccounts": "当前状态没有教师账号", "noReviews": "没有待审核共建题",
+    "approveShared": "通过为共建题", "publishPublic": "通过并提升为公共题", "problemApproved": "共建题已发布。", "problemPublished": "公共版本已创建。", "problemRejected": "共建题已拒绝。"
+  },
   "codeRun": {
     "eyebrow": "快速验证",
     "title": "自定义输入运行",
@@ -433,7 +541,9 @@
       "aiLibrary": "AI 标准库",
       "aiLibraryDescription": "正式库与候选治理",
       "system": "系统状态",
-      "systemDescription": "AI 检测与运行状态"
+      "systemDescription": "AI 检测与运行状态",
+      "admin": "平台管理",
+      "adminDescription": "账号、题目审核与额度"
     }
   },
   "teacherAnalytics": {
@@ -704,6 +814,7 @@
     "notFound": "作业未找到",
     "notFoundDescription": "返回作业中心重新选择作业。",
     "backToAssignmentCenter": "返回作业中心",
+    "historicalRosterNotice": "保留了 {{count}} 名非当前名单学生的历史提交；他们不计入当前完成率。",
     "header": {
       "problemCount": "{{count}} 题",
       "submitted": "{{count}} 人已提交",

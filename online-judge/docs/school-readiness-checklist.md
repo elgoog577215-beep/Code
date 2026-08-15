@@ -15,9 +15,8 @@ cp .env.example .env
 - `APP_PROFILE=school`
 - `EXECUTOR_MODE=docker`
 - `POSTGRES_PASSWORD`
-- `TEACHER_PASSWORD`
-- `TEACHER_SESSION_SECRET`
-- `STUDENT_TOKEN_SECRET`
+- `BOOTSTRAP_ADMIN_USERNAME`
+- `BOOTSTRAP_ADMIN_PASSWORD`（仅首次激活，激活后从环境移除）
 - 如需外部 AI：`AI_ENABLED=true`、`OJ_MODELSCOPE_API_KEY`
 
 3. 运行预检。
@@ -51,13 +50,13 @@ bash scripts/start-school.sh
 http://服务器局域网IP:8081/app/
 ```
 
-教师进入 `/app/teacher-management`，输入教师口令，查看“开课状态”。只有 `READY` 或明确接受 `DEGRADED` 时才上课。
+平台管理员使用独立账号登录，教师注册后经管理员审核。教师进入 `/app/teacher-management` 查看“开课状态”；只有 `READY` 或明确接受 `DEGRADED` 时才上课。
 
 ## 3. AI 数据外发
 
 启用外部 AI 后，系统会把学生提交代码、题目信息、评测结果、测试点摘要和诊断证据发送到配置的模型服务，用于生成学生反馈。
 
-不发送教师口令、学生访问令牌、数据库密码或系统密钥。
+不发送教师密码、学生会话、数据库密码或系统密钥。
 
 如果外部 AI 返回 401、429、超时或格式错误，系统仍可判题，但不能宣称 AI 能力可用，也不建议作为高中 AI 试点版开课。
 
@@ -96,7 +95,7 @@ AI_ENABLED=false
 
 ## 5. 数据备份
 
-学校部署使用 Postgres。建议每天课后备份一次：
+启动脚本会在应用启动、Flyway 执行前强制备份；另建议每天课后备份一次：
 
 ```bash
 bash scripts/backup-postgres.sh
@@ -118,7 +117,7 @@ bash scripts/restore-postgres.sh backups/onlinejudge-YYYYMMDD-HHMMSS.sql
 - AI smoke 显示认证失败：检查 `OJ_MODELSCOPE_API_KEY`。
 - readiness 显示 `AI 诊断报告 v3` 失败：检查 `AI_DIAGNOSIS_REPORT_V3_ENABLED=true`。
 - readiness 显示成长 Agent 提醒：检查是否符合学校对自动扩库权限的要求。
-- 教师端无法进入：检查 `.env` 中 `TEACHER_PASSWORD` 是否已设置，并重新启动服务。
+- 管理员无法进入：首次部署检查 bootstrap 环境变量与 readiness；账号激活后使用数据库账号登录。
 
 ## 7. 最低验收
 

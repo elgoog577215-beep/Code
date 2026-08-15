@@ -21,6 +21,16 @@ public final class CryptoSupport {
         }
     }
 
+    public static String sha256(String payload) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest((payload == null ? "" : payload).getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(bytes);
+        } catch (Exception exception) {
+            throw new IllegalStateException("SHA-256 计算失败", exception);
+        }
+    }
+
     public static boolean constantTimeEquals(String left, String right) {
         if (left == null || right == null) {
             return false;

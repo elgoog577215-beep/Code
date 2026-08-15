@@ -95,10 +95,6 @@ export function loadStudent(assignmentId?: number | null): StudentProfile | null
   return null;
 }
 
-export function loadStudentToken(): string | null {
-  return loadStudent()?.studentAccessToken || null;
-}
-
 export function onActiveStudentChange(listener: () => void): () => void {
   if (typeof window === "undefined") {
     return () => undefined;

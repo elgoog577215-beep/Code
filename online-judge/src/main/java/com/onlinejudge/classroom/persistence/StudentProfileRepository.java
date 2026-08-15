@@ -16,4 +16,20 @@ public interface StudentProfileRepository extends JpaRepository<StudentProfile, 
     List<StudentProfile> findByClassGroupIdOrderByStudentNoAscDisplayNameAsc(Long classGroupId);
     List<StudentProfile> findByClassGroupIdAndStudentNoIgnoreCaseOrderByCreatedAtDesc(Long classGroupId, String studentNo);
     List<StudentProfile> findByClassGroupIdAndDisplayNameIgnoreCaseOrderByCreatedAtDesc(Long classGroupId, String displayName);
+    default Optional<StudentProfile> findFirstByClassGroupIdAndStudentNoIgnoreCase(Long classGroupId, String studentNo) {
+        return findByClassGroupIdAndStudentNoIgnoreCaseOrderByCreatedAtDesc(classGroupId, studentNo).stream().findFirst();
+    }
+    default long countByClassGroupIdAndStatus(Long classGroupId, StudentProfile.RosterStatus status) {
+        return findByClassGroupIdOrderByStudentNoAscDisplayNameAsc(classGroupId).stream()
+                .filter(student -> student.getStatus() == status)
+                .count();
+    }
+    default List<StudentProfile> findByClassGroupIdAndStatusOrderByStudentNoAscDisplayNameAsc(
+            Long classGroupId,
+            StudentProfile.RosterStatus status
+    ) {
+        return findByClassGroupIdOrderByStudentNoAscDisplayNameAsc(classGroupId).stream()
+                .filter(student -> student.getStatus() == status)
+                .toList();
+    }
 }

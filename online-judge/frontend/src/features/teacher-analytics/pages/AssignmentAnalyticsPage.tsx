@@ -48,7 +48,7 @@ export default function AssignmentAnalyticsPage() {
       findClass(classes, classIdNumber) ||
       (assignment?.classGroupId ? findClass(classes, assignment.classGroupId) : null) ||
       (assignment
-        ? { id: assignment.classGroupId || classIdNumber || 0, name: assignment.className, grade: null, teacherName: null }
+        ? { id: assignment.classGroupId || classIdNumber || 0, name: assignment.className, grade: null, teacherName: null, activeStudentCount: 0 }
         : null);
     return currentClass && assignment && overview ? buildAssignmentAnalyticsSnapshot({ classGroup: currentClass, assignment, overview, t }) : null;
   }, [assignmentIdNumber, assignments, classIdNumber, classes, overview, t]);

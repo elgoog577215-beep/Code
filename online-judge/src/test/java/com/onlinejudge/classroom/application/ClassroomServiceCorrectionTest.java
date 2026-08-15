@@ -1357,6 +1357,7 @@ class ClassroomServiceCorrectionTest {
                 .classGroupId(classGroupId)
                 .studentNo(studentNo)
                 .displayName(displayName)
+                .status(StudentProfile.RosterStatus.ACTIVE)
                 .identityKey("student-" + id)
                 .createdAt(LocalDateTime.of(2026, 5, 18, 9, 0))
                 .lastSeenAt(LocalDateTime.of(2026, 5, 18, 9, 0))
@@ -2191,6 +2192,12 @@ class ClassroomServiceCorrectionTest {
         @Override
         public Optional<Assignment> findById(Long id) {
             return Optional.ofNullable(items.get(id));
+        }
+
+        @Override
+        public Optional<Assignment> findByIdAndOwnerTeacherId(Long id, UUID ownerTeacherId) {
+            return findById(id).filter(assignment -> assignment.getOwnerTeacherId() == null
+                    || ownerTeacherId.equals(assignment.getOwnerTeacherId()));
         }
 
         @Override

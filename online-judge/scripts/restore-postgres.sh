@@ -18,5 +18,5 @@ fi
 DB_NAME="${POSTGRES_DB:-onlinejudge}"
 DB_USER="${POSTGRES_USER:-onlinejudge}"
 
-cat "${INPUT}" | docker compose exec -T postgres psql -U "${DB_USER}" "${DB_NAME}"
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "${DB_USER}" "${DB_NAME}" < "${INPUT}"
 echo "Postgres restore completed from ${INPUT}"

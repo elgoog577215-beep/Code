@@ -18,7 +18,9 @@ import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.persistence.SubmissionAnalysisRepository;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.onlinejudge.identity.application.CurrentTeacherContext;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -46,9 +48,13 @@ public class AiQualityTrendService {
     private final CoachPromptRepository coachPromptRepository;
     private final DiagnosisReportReader diagnosisReportReader;
     private final DiagnosisTaxonomy diagnosisTaxonomy;
+    @Autowired(required = false)
+    private CurrentTeacherContext currentTeacherContext;
 
     public AiQualityTrendResponse buildTrend() {
-        List<Assignment> assignments = assignmentRepository.findAllByOrderByCreatedAtDesc();
+        List<Assignment> assignments = currentTeacherContext == null
+                ? assignmentRepository.findAllByOrderByCreatedAtDesc()
+                : assignmentRepository.findByOwnerTeacherIdOrderByCreatedAtDesc(currentTeacherContext.requireTeacherId());
         List<Long> assignmentIds = assignments.stream()
                 .map(Assignment::getId)
                 .filter(Objects::nonNull)

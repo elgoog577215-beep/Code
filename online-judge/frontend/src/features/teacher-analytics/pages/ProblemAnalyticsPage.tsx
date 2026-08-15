@@ -83,7 +83,7 @@ export default function ProblemAnalyticsPage() {
       findClass(classes, classIdNumber) ||
       (assignment?.classGroupId ? findClass(classes, assignment.classGroupId) : null) ||
       (assignment
-        ? { id: assignment.classGroupId || classIdNumber || 0, name: assignment.className, grade: null, teacherName: null }
+        ? { id: assignment.classGroupId || classIdNumber || 0, name: assignment.className, grade: null, teacherName: null, activeStudentCount: 0 }
         : null);
     return currentClass && assignment && overview
       ? buildProblemAnalyticsSnapshot({ classGroup: currentClass, assignment, overview, problemId: problemIdNumber, t })

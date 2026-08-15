@@ -2002,6 +2002,19 @@ async function routeApi(route) {
   const method = request.method();
 
   if (path === "/api/invites/resolve" && method === "POST") return json(route, assignment);
+  if (path === "/api/auth/teacher/session") {
+    return json(route, {
+      authenticated: true,
+      teacherId: "00000000-0000-0000-0000-000000000101",
+      username: "smoke-teacher",
+      displayName: "信息技术老师",
+      role: "TEACHER",
+      mustChangePassword: false
+    });
+  }
+  if (path === "/api/auth/student/session") return json(route, student);
+  if (path === "/api/auth/student/logout" && method === "POST") return empty(route);
+  if (path === "/api/auth/teacher/logout" && method === "POST") return empty(route);
   if (path === "/api/teacher/auth/session") return json(route, { authenticated: true });
   if (path === "/api/teacher/auth/login" && method === "POST") return json(route, { authenticated: true });
   if (path === "/api/student/identity" && method === "POST") return json(route, student);
@@ -2032,6 +2045,7 @@ async function routeApi(route) {
   }
   if (path === "/api/problems") return json(route, [problem]);
   if (path === "/api/problems/catalog") return json(route, problemCatalog);
+  if (path === "/api/teacher/problems") return json(route, [problem]);
   if (path === "/api/leaderboard/problems") {
     return json(route, [
       { problemId: 101, problemTitle: "求和边界", difficulty: "EASY", totalSubmissions: 24, acceptedSubmissions: 8, acceptanceRate: 33.3 },
@@ -2105,6 +2119,19 @@ async function routeApi(route) {
   if (path === "/api/submissions/problem/101/history-summary") return json(route, history);
 
   if (path === "/api/teacher/classes") return json(route, classes);
+  if (path === "/api/teacher/classes/3/students") return json(route, [student]);
+  if (path === "/api/teacher/usage/current") {
+    return json(route, {
+      teacherId: "00000000-0000-0000-0000-000000000101",
+      month: "2026-08",
+      baseUnits: 500,
+      additionalUnits: 0,
+      usedUnits: 12,
+      reservedUnits: 0,
+      remainingUnits: 488,
+      resetsAt: "2026-09-01T00:00:00+08:00"
+    });
+  }
   if (path === "/api/teacher/classes/3/identity-audit") return json(route, identityAudit);
   if (path === "/api/teacher/classes/3/identity-merge" && method === "POST") return json(route, { ...identityAudit, manualIdentityCount: 2, duplicateGroupCount: 0, duplicateGroups: [] });
   if (path === "/api/teacher/classes/3/identity-split" && method === "POST") return json(route, { ...identityAudit, manualIdentityCount: 2, duplicateGroupCount: 0, duplicateGroups: [] });
@@ -2164,9 +2191,30 @@ async function checkImportantControlsVisible(page, label) {
     });
     const clipped = visibleControls.filter(element => {
       const rect = element.getBoundingClientRect();
-      return rect.right > window.innerWidth + 2 || rect.left < -2;
+      if (rect.right <= window.innerWidth + 2 && rect.left >= -2) return false;
+      let ancestor = element.parentElement;
+      while (ancestor) {
+        const style = window.getComputedStyle(ancestor);
+        if (/^(auto|scroll)$/.test(style.overflowX) && ancestor.scrollWidth > ancestor.clientWidth + 2) {
+          return false;
+        }
+        ancestor = ancestor.parentElement;
+      }
+      return true;
     });
-    return { visible: visibleControls.length, clipped: clipped.length };
+    return {
+      visible: visibleControls.length,
+      clipped: clipped.length,
+      clippedControls: clipped.map(element => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName,
+          text: (element.getAttribute("aria-label") || element.textContent || "").trim().slice(0, 80),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right)
+        };
+      })
+    };
   });
   record(`${label} controls visible`, result.visible > 0, JSON.stringify(result));
   record(`${label} controls not clipped`, result.clipped === 0, JSON.stringify(result));

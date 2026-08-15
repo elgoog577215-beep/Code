@@ -7,19 +7,30 @@ import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovemen
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
 import com.onlinejudge.problem.persistence.ProblemRepository;
+import com.onlinejudge.identity.domain.TeacherAccount;
+import com.onlinejudge.identity.persistence.TeacherAccountRepository;
+import com.onlinejudge.classroom.domain.StudentProfile;
+import com.onlinejudge.classroom.persistence.AssignmentRepository;
+import com.onlinejudge.classroom.persistence.ClassGroupRepository;
+import com.onlinejudge.classroom.persistence.StudentProfileRepository;
+import com.onlinejudge.aiquota.application.AiProviderGateway;
+import com.onlinejudge.aiquota.persistence.TeacherAiQuotaRepository;
 import com.onlinejudge.system.dto.AiSmokeResponse;
 import com.onlinejudge.system.dto.ExecutorStatusResponse;
 import com.onlinejudge.system.dto.ReadinessResponse;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.flywaydb.core.Flyway;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
 
 @Service
-@RequiredArgsConstructor
 public class ReadinessService {
 
     private final ExecutorStatusService executorStatusService;
@@ -31,6 +42,62 @@ public class ReadinessService {
     private final AiStandardSkillUnitRepository skillUnitRepository;
     private final AiStandardMistakePointRepository mistakePointRepository;
     private final AiStandardImprovementPointRepository improvementPointRepository;
+    private final TeacherAccountRepository teacherAccountRepository;
+    private final ClassGroupRepository classGroupRepository;
+    private final AssignmentRepository assignmentRepository;
+    private final StudentProfileRepository studentProfileRepository;
+    private final TeacherAiQuotaRepository teacherAiQuotaRepository;
+    private final AiProviderGateway aiProviderGateway;
+    private final Flyway flyway;
+
+    public ReadinessService(ExecutorStatusService executorStatusService,
+                            AiSmokeService aiSmokeService,
+                            SchoolSecurityProperties securityProperties,
+                            AiStandardLibraryGrowthProperties growthProperties,
+                            ProblemRepository problemRepository,
+                            InformaticsKnowledgeNodeRepository knowledgeNodeRepository,
+                            AiStandardSkillUnitRepository skillUnitRepository,
+                            AiStandardMistakePointRepository mistakePointRepository,
+                            AiStandardImprovementPointRepository improvementPointRepository) {
+        this(executorStatusService, aiSmokeService, securityProperties, growthProperties, problemRepository,
+                knowledgeNodeRepository, skillUnitRepository, mistakePointRepository, improvementPointRepository,
+                null, null, null, null, null, null, null);
+    }
+
+    @Autowired
+    public ReadinessService(ExecutorStatusService executorStatusService,
+                            AiSmokeService aiSmokeService,
+                            SchoolSecurityProperties securityProperties,
+                            AiStandardLibraryGrowthProperties growthProperties,
+                            ProblemRepository problemRepository,
+                            InformaticsKnowledgeNodeRepository knowledgeNodeRepository,
+                            AiStandardSkillUnitRepository skillUnitRepository,
+                            AiStandardMistakePointRepository mistakePointRepository,
+                            AiStandardImprovementPointRepository improvementPointRepository,
+                            TeacherAccountRepository teacherAccountRepository,
+                            ClassGroupRepository classGroupRepository,
+                            AssignmentRepository assignmentRepository,
+                            StudentProfileRepository studentProfileRepository,
+                            TeacherAiQuotaRepository teacherAiQuotaRepository,
+                            AiProviderGateway aiProviderGateway,
+                            Flyway flyway) {
+        this.executorStatusService = executorStatusService;
+        this.aiSmokeService = aiSmokeService;
+        this.securityProperties = securityProperties;
+        this.growthProperties = growthProperties;
+        this.problemRepository = problemRepository;
+        this.knowledgeNodeRepository = knowledgeNodeRepository;
+        this.skillUnitRepository = skillUnitRepository;
+        this.mistakePointRepository = mistakePointRepository;
+        this.improvementPointRepository = improvementPointRepository;
+        this.teacherAccountRepository = teacherAccountRepository;
+        this.classGroupRepository = classGroupRepository;
+        this.assignmentRepository = assignmentRepository;
+        this.studentProfileRepository = studentProfileRepository;
+        this.teacherAiQuotaRepository = teacherAiQuotaRepository;
+        this.aiProviderGateway = aiProviderGateway;
+        this.flyway = flyway;
+    }
 
     @Value("${spring.datasource.url:}")
     private String datasourceUrl;
@@ -103,35 +170,18 @@ public class ReadinessService {
 
         checks.add(databaseContentCheck());
 
-        checks.add(check(
-                "teacher-password",
-                "教师口令",
-                securityProperties.teacherPasswordConfigured() ? "PASS" : "FAIL",
-                true,
-                securityProperties.teacherPasswordConfigured() ? "教师口令已配置。" : "未配置教师口令，教师端不能正式开放。",
-                "设置 TEACHER_PASSWORD。"
-        ));
-
-        checks.add(check(
-                "teacher-session-secret",
-                "教师会话密钥",
-                securityProperties.teacherSessionSecretConfigured() ? "PASS" : "FAIL",
-                true,
-                securityProperties.teacherSessionSecretConfigured() ? "教师会话密钥已配置。" : "教师会话密钥仍是开发默认值。",
-                "设置随机 TEACHER_SESSION_SECRET。"
-        ));
-
-        checks.add(check(
-                "student-token-secret",
-                "学生令牌密钥",
-                securityProperties.studentTokenSecretConfigured() ? "PASS" : "FAIL",
-                true,
-                securityProperties.studentTokenSecretConfigured() ? "学生令牌密钥已配置。" : "学生令牌密钥仍是开发默认值。",
-                "设置随机 STUDENT_TOKEN_SECRET。"
-        ));
+        if (flyway != null) {
+            checks.add(flywayCheck());
+            checks.add(activeAdminCheck());
+            checks.add(ownershipCheck());
+            checks.add(rosterCheck());
+            checks.add(publicProblemCheck());
+            checks.add(quotaCheck());
+        }
 
         AiSmokeResponse smoke = aiSmokeService.latest();
-        boolean aiConfigured = aiEnabled && aiApiKey != null && !aiApiKey.isBlank();
+        boolean aiConfigured = aiEnabled && (aiProviderGateway == null
+                ? aiApiKey != null && !aiApiKey.isBlank() : aiProviderGateway.available());
         String aiStatus = !aiEnabled ? "WARN" : !aiConfigured ? "WARN" : "READY".equals(smoke.getStatus()) ? "PASS" : "FAILED".equals(smoke.getStatus()) ? "WARN" : "WARN";
         checks.add(check(
                 "ai-smoke",
@@ -244,6 +294,77 @@ public class ReadinessService {
                     "检查数据库连接、表结构迁移和内容迁移状态。"
             );
         }
+    }
+
+    private ReadinessResponse.Check flywayCheck() {
+        try {
+            var current = flyway.info().current();
+            String version = current == null ? "none" : current.getVersion().getVersion();
+            boolean ready = current != null && current.getVersion().compareTo(org.flywaydb.core.api.MigrationVersion.fromVersion("5")) >= 0;
+            return check("flyway-version", "数据库迁移版本", ready ? "PASS" : "FAIL", true,
+                    "当前 Flyway 版本：" + version + "。", "部署前必须完成 V1-V5 迁移并验证校验和。");
+        } catch (RuntimeException failure) {
+            return check("flyway-version", "数据库迁移版本", "FAIL", true,
+                    "无法读取 Flyway 版本：" + failure.getMessage(), "检查迁移历史表和数据库权限。");
+        }
+    }
+
+    private ReadinessResponse.Check activeAdminCheck() {
+        long count = teacherAccountRepository.countByRoleAndStatus(TeacherAccount.Role.ADMIN, TeacherAccount.Status.ACTIVE);
+        return check("active-admin", "有效平台管理员", count > 0 ? "PASS" : "FAIL", true,
+                "当前有效管理员数量：" + count + "。", "使用 BOOTSTRAP_ADMIN_* 环境变量完成首次管理员激活。");
+    }
+
+    private ReadinessResponse.Check ownershipCheck() {
+        Set<java.util.UUID> teacherIds = teacherAccountRepository.findAll().stream()
+                .map(TeacherAccount::getId).collect(java.util.stream.Collectors.toSet());
+        var classes = classGroupRepository.findAll();
+        Set<Long> classIds = classes.stream().map(item -> item.getId()).collect(java.util.stream.Collectors.toSet());
+        long orphanClasses = classes.stream().filter(item -> item.getOwnerTeacherId() == null || !teacherIds.contains(item.getOwnerTeacherId())).count();
+        long orphanAssignments = assignmentRepository.findAll().stream().filter(item -> item.getOwnerTeacherId() == null
+                || !teacherIds.contains(item.getOwnerTeacherId()) || item.getClassGroupId() == null || !classIds.contains(item.getClassGroupId())).count();
+        long orphanStudents = studentProfileRepository.findAll().stream()
+                .filter(item -> item.getClassGroupId() == null || !classIds.contains(item.getClassGroupId())).count();
+        long total = orphanClasses + orphanAssignments + orphanStudents;
+        return check("orphan-data", "孤立教学数据", total == 0 ? "PASS" : "FAIL", true,
+                "孤立班级=%d，孤立作业=%d，孤立学生=%d。".formatted(orphanClasses, orphanAssignments, orphanStudents),
+                "推广前将孤立数据转交给有效教师并重新运行检查。");
+    }
+
+    private ReadinessResponse.Check rosterCheck() {
+        long needsReview = studentProfileRepository.findAll().stream()
+                .filter(item -> item.getStatus() == StudentProfile.RosterStatus.NEEDS_REVIEW
+                        || item.getStudentNo() == null || item.getStudentNo().isBlank()).count();
+        Set<String> seen = new HashSet<>();
+        long duplicates = studentProfileRepository.findAll().stream()
+                .filter(item -> item.getClassGroupId() != null && item.getStudentNo() != null && !item.getStudentNo().isBlank())
+                .map(item -> item.getClassGroupId() + "|" + item.getStudentNo().trim().toLowerCase(Locale.ROOT))
+                .filter(key -> !seen.add(key)).count();
+        boolean ready = needsReview == 0 && duplicates == 0;
+        return check("roster-anomalies", "名单异常", ready ? "PASS" : "WARN", false,
+                "待修复名单=%d，重复学号=%d。".formatted(needsReview, duplicates),
+                "修复学号和重复身份后再允许对应学生登录。");
+    }
+
+    private ReadinessResponse.Check publicProblemCheck() {
+        long count = problemRepository.findCatalogItems().size();
+        return check("public-problems", "公共免费题", count > 0 ? "PASS" : "FAIL", true,
+                "当前公共已发布题目数量：" + count + "。", "确认现有正式题目已经迁移为 PUBLIC/PUBLISHED。");
+    }
+
+    private ReadinessResponse.Check quotaCheck() {
+        boolean tableReady;
+        try {
+            teacherAiQuotaRepository.count();
+            tableReady = true;
+        } catch (RuntimeException ignored) {
+            tableReady = false;
+        }
+        boolean providerReady = !aiEnabled || aiProviderGateway.available();
+        return check("ai-quota-system", "AI Provider 与额度", tableReady && providerReady ? "PASS" : "WARN",
+                aiBlocking && (!tableReady || !providerReady),
+                "额度表%s，AI Provider%s。".formatted(tableReady ? "可用" : "不可用", providerReady ? "可用" : "未配置"),
+                "检查 V5 迁移与平台统一模型密钥；不要向教师发放供应商密钥。");
     }
 
     private ReadinessResponse.Check check(String id,

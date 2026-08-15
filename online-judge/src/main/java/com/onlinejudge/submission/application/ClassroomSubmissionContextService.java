@@ -26,6 +26,7 @@ public class ClassroomSubmissionContextService {
         Long requestedStudentId = request.getStudentProfileId();
 
         if (request.getAssignmentId() == null) {
+            problemAccessService.requireAccess(null, request.getProblemId(), httpRequest);
             resolvePublicIdentity(request, httpRequest, tokenStudentId, requestedStudentId);
             return request;
         }

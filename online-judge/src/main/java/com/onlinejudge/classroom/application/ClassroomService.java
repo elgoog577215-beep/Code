@@ -8,8 +8,14 @@ import com.onlinejudge.classroom.persistence.*;
 import com.onlinejudge.learning.diagnosis.DiagnosisReportReader;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.problem.domain.Problem;
+import com.onlinejudge.problem.application.ProblemGovernanceService;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import com.onlinejudge.shared.security.StudentAccessTokenService;
+import com.onlinejudge.identity.application.CurrentTeacherContext;
+import com.onlinejudge.identity.domain.TeacherAccount;
+import com.onlinejudge.identity.application.AuditService;
+import com.onlinejudge.shared.security.CryptoSupport;
+import com.onlinejudge.shared.web.PlatformApiException;
 import com.onlinejudge.submission.domain.Submission;
 import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.domain.SubmissionCaseResult;
@@ -20,6 +26,9 @@ import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -72,32 +81,80 @@ public class ClassroomService {
     private final StudentAiFeedbackImpactAnalyzer studentAiFeedbackImpactAnalyzer;
     private final SubmissionEvidenceAnalyticsService submissionEvidenceAnalyticsService;
 
+    @Autowired(required = false)
+    private CurrentTeacherContext currentTeacherContext;
+    @Autowired(required = false)
+    private PasswordEncoder passwordEncoder;
+    @Autowired(required = false)
+    private AssignmentRecipientRepository assignmentRecipientRepository;
+    @Autowired(required = false)
+    private AssignmentTargetingPolicy assignmentTargetingPolicy;
+    @Autowired(required = false)
+    private ProblemGovernanceService problemGovernanceService;
+    @Autowired(required = false)
+    private AuditService auditService;
+
     public List<ClassGroupResponse> getClassGroups() {
-        return classGroupRepository.findAllByOrderByCreatedAtDesc()
+        return classGroupRepository.findByOwnerTeacherIdOrderByCreatedAtDesc(currentTeacherId())
                 .stream()
-                .map(ClassGroupResponse::from)
+                .map(group -> ClassGroupResponse.from(group, null,
+                        studentProfileRepository.countByClassGroupIdAndStatus(group.getId(), StudentProfile.RosterStatus.ACTIVE)))
                 .toList();
     }
 
     @Transactional
     public ClassGroupResponse createClassGroup(CreateClassGroupRequest request) {
+        String joinCode = generateClassJoinCode();
         ClassGroup classGroup = classGroupRepository.save(ClassGroup.builder()
+                .ownerTeacherId(currentTeacherId())
                 .name(normalizeRequired(request.getName(), "班级名称不能为空"))
                 .grade(normalizeNullable(request.getGrade()))
                 .teacherName(normalizeNullable(request.getTeacherName()))
+                .joinCodeHash(encodeJoinCode(joinCode))
                 .build());
-        return ClassGroupResponse.from(classGroup);
+        return ClassGroupResponse.from(classGroup, joinCode, 0);
+    }
+
+    @Transactional
+    public ClassGroupResponse rotateClassJoinCode(Long classGroupId) {
+        ClassGroup classGroup = findOwnedClass(classGroupId);
+        String joinCode = generateClassJoinCode();
+        classGroup.setJoinCodeHash(encodeJoinCode(joinCode));
+        classGroupRepository.save(classGroup);
+        if (auditService != null) auditService.record(currentTeacherId(), "CLASS_JOIN_CODE_ROTATED", "CLASS_GROUP",
+                classGroupId, null, null);
+        return ClassGroupResponse.from(classGroup, joinCode,
+                studentProfileRepository.countByClassGroupIdAndStatus(classGroupId, StudentProfile.RosterStatus.ACTIVE));
     }
 
     public List<AssignmentResponse> getAssignments() {
-        List<Assignment> assignments = assignmentRepository.findAllByOrderByCreatedAtDesc();
+        List<Assignment> assignments = assignmentRepository.findByOwnerTeacherIdOrderByCreatedAtDesc(currentTeacherId());
         return assignments.stream()
                 .map(this::toAssignmentResponse)
                 .toList();
     }
 
     public AssignmentResponse getAssignment(Long assignmentId) {
-        Assignment assignment = findAssignment(assignmentId);
+        Assignment assignment = findOwnedAssignment(assignmentId);
+        return toAssignmentResponse(assignment);
+    }
+
+    public AssignmentResponse getStudentAssignment(Long assignmentId, Long studentProfileId) {
+        StudentProfile student = studentProfileRepository.findById(studentProfileId)
+                .filter(item -> item.getStatus() == StudentProfile.RosterStatus.ACTIVE)
+                .orElseThrow(() -> new PlatformApiException(HttpStatus.UNAUTHORIZED, "ROSTER_MISMATCH", "学生不在有效名单中"));
+        Assignment assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new PlatformApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "作业不存在"));
+        LocalDateTime now = LocalDateTime.now();
+        boolean visible = Objects.equals(assignment.getClassGroupId(), student.getClassGroupId())
+                && assignment.getStatus() == Assignment.AssignmentStatus.ACTIVE
+                && (assignment.getStartsAt() == null || !assignment.getStartsAt().isAfter(now))
+                && (assignment.getEndsAt() == null || !assignment.getEndsAt().isBefore(now))
+                && (assignmentTargetingPolicy == null || assignmentTargetingPolicy.isTargeted(
+                        assignment, student, recipientIds(assignmentId)));
+        if (!visible) {
+            throw new PlatformApiException(HttpStatus.FORBIDDEN, "ASSIGNMENT_NOT_TARGETED", "该作业未布置给当前学生");
+        }
         return toAssignmentResponse(assignment);
     }
 
@@ -108,14 +165,15 @@ public class ClassroomService {
         }
 
         validateProblemsExist(request.getProblemIds());
-        if (request.getClassGroupId() != null && !classGroupRepository.existsById(request.getClassGroupId())) {
-            throw new IllegalArgumentException("班级不存在: " + request.getClassGroupId());
-        }
+        ClassGroup ownedClass = findOwnedClass(request.getClassGroupId());
+        validateAssignmentTargets(request, ownedClass);
 
         Assignment assignment = assignmentRepository.save(Assignment.builder()
+                .ownerTeacherId(currentTeacherId())
                 .title(normalizeRequired(request.getTitle(), "作业标题不能为空"))
                 .description(normalizeNullable(request.getDescription()))
                 .classGroupId(request.getClassGroupId())
+                .targetMode(request.getTargetMode() == null ? Assignment.TargetMode.CLASS : request.getTargetMode())
                 .hintPolicy(request.getHintPolicy() == null ? Assignment.HintPolicy.L2 : request.getHintPolicy())
                 .status(request.getStatus() == null ? Assignment.AssignmentStatus.ACTIVE : request.getStatus())
                 .startsAt(request.getStartsAt())
@@ -123,18 +181,22 @@ public class ClassroomService {
                 .build());
 
         saveAssignmentTasks(assignment.getId(), request.getProblemIds());
+        saveAssignmentRecipients(assignment, request.getStudentProfileIds());
         ensureInviteForAssignment(assignment);
         return toAssignmentResponse(assignment);
     }
 
     @Transactional
     public AssignmentResponse updateAssignment(Long assignmentId, CreateAssignmentRequest request) {
-        Assignment assignment = findAssignment(assignmentId);
+        Assignment assignment = findOwnedAssignment(assignmentId);
         validateProblemsExist(request.getProblemIds());
+        ClassGroup ownedClass = findOwnedClass(request.getClassGroupId());
+        validateAssignmentTargets(request, ownedClass);
 
         assignment.setTitle(normalizeRequired(request.getTitle(), "作业标题不能为空"));
         assignment.setDescription(normalizeNullable(request.getDescription()));
         assignment.setClassGroupId(request.getClassGroupId());
+        assignment.setTargetMode(request.getTargetMode() == null ? Assignment.TargetMode.CLASS : request.getTargetMode());
         assignment.setHintPolicy(request.getHintPolicy() == null ? Assignment.HintPolicy.L2 : request.getHintPolicy());
         assignment.setStatus(request.getStatus() == null ? Assignment.AssignmentStatus.ACTIVE : request.getStatus());
         assignment.setStartsAt(request.getStartsAt());
@@ -143,13 +205,15 @@ public class ClassroomService {
 
         assignmentTaskRepository.deleteByAssignmentId(saved.getId());
         saveAssignmentTasks(saved.getId(), request.getProblemIds());
+        if (assignmentRecipientRepository != null) assignmentRecipientRepository.deleteByAssignmentId(saved.getId());
+        saveAssignmentRecipients(saved, request.getStudentProfileIds());
         ensureInviteForAssignment(saved);
         return toAssignmentResponse(saved);
     }
 
     @Transactional
     public AssignmentResponse rotateInvite(Long assignmentId) {
-        Assignment assignment = findAssignment(assignmentId);
+        Assignment assignment = findOwnedAssignment(assignmentId);
         AssignmentInvite invite = assignmentInviteRepository.findAll()
                 .stream()
                 .filter(item -> Objects.equals(item.getAssignmentId(), assignmentId))
@@ -178,72 +242,32 @@ public class ClassroomService {
     public StudentProfileResponse bindStudentIdentity(StudentIdentityRequest request) {
         Assignment assignment = findAssignment(request.getAssignmentId());
         Long classGroupId = request.getClassGroupId() != null ? request.getClassGroupId() : assignment.getClassGroupId();
-        String identityKey = studentIdentityService.buildPreferredIdentityKey(
-                assignment.getId(),
-                classGroupId,
-                request.getClassName(),
-                request.getDisplayName(),
-                request.getStudentNo()
-        );
-        String legacyIdentityKey = studentIdentityService.buildLegacyAssignmentIdentityKey(
-                assignment.getId(),
-                classGroupId,
-                request.getClassName(),
-                request.getDisplayName(),
-                request.getStudentNo()
-        );
-
-        StudentProfile student = studentProfileRepository.findByIdentityKeyOrderByCreatedAtDesc(identityKey)
-                .stream()
-                .findFirst()
-                .or(() -> identityKey.equals(legacyIdentityKey)
-                        ? Optional.empty()
-                        : studentProfileRepository.findByIdentityKeyOrderByCreatedAtDesc(legacyIdentityKey).stream().findFirst())
-                .orElse(StudentProfile.builder()
-                        .identityKey(identityKey)
-                        .build());
-        student.setIdentityKey(identityKey);
-        student.setClassGroupId(classGroupId);
-        student.setDisplayName(normalizeRequired(request.getDisplayName(), "姓名不能为空"));
-        student.setStudentNo(normalizeNullable(request.getStudentNo()));
-        student.setNote(normalizeNullable(request.getNote()));
-
-        StudentProfile saved = studentProfileRepository.save(student);
+        String studentNo = normalizeRequired(request.getStudentNo(), "学号不能为空");
+        String displayName = normalizeRequired(request.getDisplayName(), "姓名不能为空");
+        StudentProfile saved = studentProfileRepository.findFirstByClassGroupIdAndStudentNoIgnoreCase(classGroupId, studentNo)
+                .filter(student -> student.getStatus() == StudentProfile.RosterStatus.ACTIVE)
+                .filter(student -> student.getDisplayName().equalsIgnoreCase(displayName))
+                .orElseThrow(this::rosterMismatch);
         String responseClassName = classGroupId == null
                 ? normalizeNullable(request.getClassName())
                 : classGroupRepository.findById(classGroupId).map(ClassGroup::getName).orElse(normalizeNullable(request.getClassName()));
-        return StudentProfileResponse.from(saved, responseClassName, studentAccessTokenService.issue(saved));
+        return StudentProfileResponse.from(saved, responseClassName);
     }
 
     @Transactional
     public StudentProfileResponse loginStudent(StudentLoginRequest request) {
-        ClassGroup classGroup = classGroupRepository.findById(request.getClassGroupId())
-                .orElseThrow(() -> new IllegalArgumentException("班级不存在: " + request.getClassGroupId()));
-        String displayName = normalizeRequired(request.getDisplayName(), "姓名不能为空");
-        String identityKey = studentIdentityService.buildStableIdentityKey(
-                classGroup.getId(),
-                classGroup.getName(),
-                displayName,
-                request.getStudentNo()
-        );
-        if (identityKey.isBlank()) {
-            throw new IllegalArgumentException("学生身份信息不完整");
-        }
-
-        StudentProfile student = studentProfileRepository.findByIdentityKeyOrderByCreatedAtDesc(identityKey)
-                .stream()
+        String classCode = normalizeRequired(request.getClassCode(), "班级码不能为空");
+        ClassGroup classGroup = classGroupRepository.findAll().stream()
+                .filter(group -> matchesJoinCode(classCode, group.getJoinCodeHash()))
                 .findFirst()
-                .orElse(StudentProfile.builder()
-                        .identityKey(identityKey)
-                        .build());
-        student.setIdentityKey(identityKey);
-        student.setClassGroupId(classGroup.getId());
-        student.setDisplayName(displayName);
-        student.setStudentNo(normalizeNullable(request.getStudentNo()));
-        student.setNote(normalizeNullable(request.getNote()));
-
-        StudentProfile saved = studentProfileRepository.save(student);
-        return StudentProfileResponse.from(saved, classGroup.getName(), studentAccessTokenService.issue(saved));
+                .orElseThrow(this::rosterMismatch);
+        String displayName = normalizeRequired(request.getDisplayName(), "姓名不能为空");
+        String studentNo = normalizeRequired(request.getStudentNo(), "学号不能为空");
+        StudentProfile student = studentProfileRepository.findFirstByClassGroupIdAndStudentNoIgnoreCase(classGroup.getId(), studentNo)
+                .filter(item -> item.getStatus() == StudentProfile.RosterStatus.ACTIVE)
+                .filter(item -> item.getDisplayName().equalsIgnoreCase(displayName))
+                .orElseThrow(this::rosterMismatch);
+        return StudentProfileResponse.from(student, classGroup.getName());
     }
 
     public List<AssignmentResponse> getStudentAssignments(Long studentProfileId) {
@@ -258,16 +282,21 @@ public class ClassroomService {
                 .filter(assignment -> assignment.getStatus() == Assignment.AssignmentStatus.ACTIVE)
                 .filter(assignment -> assignment.getStartsAt() == null || !assignment.getStartsAt().isAfter(now))
                 .filter(assignment -> assignment.getEndsAt() == null || !assignment.getEndsAt().isBefore(now))
+                .filter(assignment -> assignmentTargetingPolicy == null || assignmentTargetingPolicy.isTargeted(
+                        assignment, student, recipientIds(assignment.getId())))
                 .map(this::toAssignmentResponse)
                 .toList();
     }
 
     public AssignmentOverviewResponse getAssignmentOverview(Long assignmentId) {
-        Assignment assignment = findAssignment(assignmentId);
+        Assignment assignment = findOwnedAssignment(assignmentId);
         AssignmentResponse assignmentResponse = toAssignmentResponse(assignment);
         List<StudentProfile> classStudents = assignment.getClassGroupId() == null
                 ? List.of()
-                : studentProfileRepository.findByClassGroupIdOrderByStudentNoAscDisplayNameAsc(assignment.getClassGroupId());
+                : studentProfileRepository.findByClassGroupIdAndStatusOrderByStudentNoAscDisplayNameAsc(
+                        assignment.getClassGroupId(), StudentProfile.RosterStatus.ACTIVE).stream()
+                .filter(student -> assignmentTargetingPolicy == null || assignmentTargetingPolicy.isTargeted(
+                        assignment, student, recipientIds(assignmentId))).toList();
         Set<Long> classStudentIds = classStudents.stream()
                 .map(StudentProfile::getId)
                 .filter(Objects::nonNull)
@@ -331,7 +360,6 @@ public class ClassroomService {
 
         Map<Long, List<Submission>> byStudent = submissions.stream()
                 .filter(submission -> submission.getStudentProfileId() != null)
-                .filter(submission -> classStudentIds.isEmpty() || classStudentIds.contains(submission.getStudentProfileId()))
                 .collect(Collectors.groupingBy(Submission::getStudentProfileId));
         Map<Long, StudentProfile> students = studentProfileRepository.findAllById(byStudent.keySet())
                 .stream()
@@ -382,6 +410,7 @@ public class ClassroomService {
                 .map(entry -> toStudentSummary(
                         entry.getKey(),
                         students.get(entry.getKey()),
+                        classStudentIds.contains(entry.getKey()),
                         entry.getValue(),
                         submittedProblems,
                         analyses,
@@ -396,6 +425,13 @@ public class ClassroomService {
                 ))
                 .sorted(Comparator.comparing(AssignmentOverviewResponse.StudentProgressSummary::isNeedsAttention).reversed()
                         .thenComparing(AssignmentOverviewResponse.StudentProgressSummary::getDisplayName, Comparator.nullsLast(String::compareTo)))
+                .toList();
+        // Migrated legacy assignments may not have a class. Keep their historical analytics readable,
+        // while every class-bound assignment uses the strict current-roster denominator.
+        List<AssignmentOverviewResponse.StudentProgressSummary> currentStudentSummaries = assignment.getClassGroupId() == null
+                ? studentSummaries
+                : studentSummaries.stream()
+                .filter(AssignmentOverviewResponse.StudentProgressSummary::isCurrentRoster)
                 .toList();
 
         Map<String, Long> issueCounts = new LinkedHashMap<>();
@@ -445,38 +481,38 @@ public class ClassroomService {
                 classAbilityWeaknesses,
                 feedbackByKey
         );
-        long postAcTransferPendingCount = studentSummaries.stream()
+        long postAcTransferPendingCount = currentStudentSummaries.stream()
                 .map(AssignmentOverviewResponse.StudentProgressSummary::getPostAcTransferSignal)
                 .filter(postAcTransferAnalyzer::isPending)
                 .count();
-        long recurringMisconceptionStudentCount = studentSummaries.stream()
+        long recurringMisconceptionStudentCount = currentStudentSummaries.stream()
                 .map(AssignmentOverviewResponse.StudentProgressSummary::getRecurringMisconceptionSignal)
                 .filter(recurringMisconceptionAnalyzer::isActionable)
                 .count();
-        long selfExplanationWeakStudentCount = studentSummaries.stream()
+        long selfExplanationWeakStudentCount = currentStudentSummaries.stream()
                 .map(AssignmentOverviewResponse.StudentProgressSummary::getSelfExplanationMasterySignal)
                 .filter(selfExplanationMasteryAnalyzer::isWeak)
                 .count();
         AssignmentOverviewResponse.CoachAnswerQualityClassSummary coachAnswerQualitySummary =
-                buildCoachAnswerQualitySummary(studentSummaries);
+                buildCoachAnswerQualitySummary(currentStudentSummaries);
         AssignmentOverviewResponse.CoachFollowupImpactSummary coachFollowupImpactSummary =
                 buildCoachFollowupImpactSummary(coachImpacts);
-        long aiDependencyRiskStudentCount = studentSummaries.stream()
+        long aiDependencyRiskStudentCount = currentStudentSummaries.stream()
                 .map(AssignmentOverviewResponse.StudentProgressSummary::getAiDependencySignal)
                 .filter(aiDependencyAnalyzer::isRisk)
                 .count();
-        long masteryGrowthRiskStudentCount = studentSummaries.stream()
+        long masteryGrowthRiskStudentCount = currentStudentSummaries.stream()
                 .map(AssignmentOverviewResponse.StudentProgressSummary::getMasteryGrowthSignal)
                 .filter(masteryGrowthAnalyzer::isRisk)
                 .count();
-        long teachingActionRiskStudentCount = studentSummaries.stream()
+        long teachingActionRiskStudentCount = currentStudentSummaries.stream()
                 .map(AssignmentOverviewResponse.StudentProgressSummary::getTeachingActionDecision)
                 .filter(teachingActionOrchestrator::isRisk)
                 .count();
         AssignmentOverviewResponse.ClassTeachingStrategySignal classTeachingStrategySignal =
                 classTeachingStrategyAnalyzer.analyze(
                         assignmentId,
-                        studentSummaries,
+                        currentStudentSummaries,
                         topIssues,
                         classAbilityWeaknesses,
                         classReviewSuggestions
@@ -505,7 +541,7 @@ public class ClassroomService {
                 .dataCompleteness(evidenceSummary.dataCompleteness())
                 .knowledgePathStats(evidenceSummary.knowledgePathStats())
                 .recoverySummary(evidenceSummary.recoverySummary())
-                .strugglingStudentCount(studentSummaries.stream().filter(AssignmentOverviewResponse.StudentProgressSummary::isNeedsAttention).count())
+                .strugglingStudentCount(currentStudentSummaries.stream().filter(AssignmentOverviewResponse.StudentProgressSummary::isNeedsAttention).count())
                 .postAcTransferPendingCount(postAcTransferPendingCount)
                 .postAcTransferSummary(buildPostAcTransferSummary(studentSummaries, postAcTransferPendingCount))
                 .recurringMisconceptionStudentCount(recurringMisconceptionStudentCount)
@@ -1516,7 +1552,7 @@ public class ClassroomService {
 
     @Transactional
     public TeacherDiagnosisCorrectionResponse correctDiagnosis(Long assignmentId, TeacherDiagnosisCorrectionRequest request) {
-        findAssignment(assignmentId);
+        findOwnedAssignment(assignmentId);
         Submission submission = submissionRepository.findById(request.getSubmissionId())
                 .orElseThrow(() -> new IllegalArgumentException("提交记录不存在: " + request.getSubmissionId()));
         if (!Objects.equals(submission.getAssignmentId(), assignmentId)) {
@@ -1552,7 +1588,7 @@ public class ClassroomService {
     }
 
     public DiagnosisEvalCandidateResponse getDiagnosisEvalCandidates(Long assignmentId) {
-        findAssignment(assignmentId);
+        findOwnedAssignment(assignmentId);
         List<TeacherDiagnosisCorrection> corrections = teacherDiagnosisCorrectionRepository
                 .findByAssignmentIdAndEvalCandidateTrueOrderByCorrectedAtDesc(assignmentId);
         List<Long> submissionIds = corrections.stream()
@@ -1619,7 +1655,7 @@ public class ClassroomService {
     }
 
     public DiagnosisEvalFixtureDraftResponse exportDiagnosisEvalFixtureDraft(Long assignmentId) {
-        findAssignment(assignmentId);
+        findOwnedAssignment(assignmentId);
         List<TeacherDiagnosisCorrection> corrections = teacherDiagnosisCorrectionRepository
                 .findByAssignmentIdAndEvalCandidateTrueOrderByCorrectedAtDesc(assignmentId);
         List<Long> submissionIds = corrections.stream()
@@ -1760,6 +1796,7 @@ public class ClassroomService {
 
     private AssignmentOverviewResponse.StudentProgressSummary toStudentSummary(Long studentId,
                                                                                StudentProfile student,
+                                                                               boolean currentRoster,
                                                                                List<Submission> submissions,
                                                                                Map<Long, Problem> submittedProblems,
                                                                                Map<Long, SubmissionAnalysis> analyses,
@@ -1860,6 +1897,8 @@ public class ClassroomService {
                 .studentProfileId(studentId)
                 .displayName(resolveStudentDisplayName(student, studentId))
                 .studentNo(student == null ? "" : student.getStudentNo())
+                .currentRoster(currentRoster)
+                .rosterHistoryLabel(currentRoster ? null : "非当前名单历史记录")
                 .attemptCount(sorted.size())
                 .passedCount(passedCount)
                 .latestSubmissionId(latest == null ? null : latest.getId())
@@ -3297,7 +3336,14 @@ public class ClassroomService {
                 })
                 .toList();
 
-        return AssignmentResponse.from(assignment, className, invite, taskResponses);
+        long currentVisibleCount = assignment.getClassGroupId() == null ? 0
+                : studentProfileRepository.findByClassGroupIdAndStatusOrderByStudentNoAscDisplayNameAsc(
+                        assignment.getClassGroupId(), StudentProfile.RosterStatus.ACTIVE).stream()
+                .filter(student -> assignmentTargetingPolicy == null || assignmentTargetingPolicy.isTargeted(
+                        assignment, student, recipientIds(assignment.getId()))).count();
+        long targetCount = assignment.getTargetMode() == Assignment.TargetMode.STUDENTS
+                ? recipientIds(assignment.getId()).size() : currentVisibleCount;
+        return AssignmentResponse.from(assignment, className, invite, taskResponses, targetCount, currentVisibleCount);
     }
 
     private void validateProblemsExist(List<Long> problemIds) {
@@ -3317,14 +3363,86 @@ public class ClassroomService {
     }
 
     private void saveAssignmentTasks(Long assignmentId, List<Long> problemIds) {
+        UUID assignmentOwnerId = assignmentRepository.findById(assignmentId)
+                .map(Assignment::getOwnerTeacherId)
+                .orElse(TeacherAccount.BOOTSTRAP_ADMIN_ID);
         for (int index = 0; index < problemIds.size(); index++) {
+            Long assignedProblemId = problemIds.get(index);
+            if (problemGovernanceService != null) {
+                assignedProblemId = problemGovernanceService
+                        .freezeForAssignment(assignedProblemId, assignmentOwnerId)
+                        .getId();
+            }
             assignmentTaskRepository.save(AssignmentTask.builder()
                     .assignmentId(assignmentId)
-                    .problemId(problemIds.get(index))
+                    .problemId(assignedProblemId)
                     .orderIndex(index)
                     .required(true)
                     .build());
         }
+    }
+
+    public StudentProfileResponse getStudentProfile(Long studentProfileId) {
+        StudentProfile student = studentProfileRepository.findById(studentProfileId)
+                .filter(item -> item.getStatus() == StudentProfile.RosterStatus.ACTIVE)
+                .orElseThrow(this::rosterMismatch);
+        String className = student.getClassGroupId() == null ? null
+                : classGroupRepository.findById(student.getClassGroupId()).map(ClassGroup::getName).orElse(null);
+        return StudentProfileResponse.from(student, className);
+    }
+
+    public List<StudentProfileResponse> getClassRoster(Long classGroupId) {
+        ClassGroup classGroup = findOwnedClass(classGroupId);
+        return studentProfileRepository.findByClassGroupIdOrderByStudentNoAscDisplayNameAsc(classGroupId).stream()
+                .map(student -> StudentProfileResponse.from(student, classGroup.getName()))
+                .toList();
+    }
+
+    @Transactional
+    public StudentProfileResponse updateRosterStatus(Long classGroupId, Long studentProfileId,
+                                                     StudentProfile.RosterStatus status) {
+        ClassGroup classGroup = findOwnedClass(classGroupId);
+        StudentProfile student = studentProfileRepository.findById(studentProfileId)
+                .filter(item -> Objects.equals(item.getClassGroupId(), classGroupId))
+                .orElseThrow(() -> new PlatformApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "学生不存在"));
+        student.setStatus(Objects.requireNonNull(status, "名单状态不能为空"));
+        studentProfileRepository.save(student);
+        if (status != StudentProfile.RosterStatus.ACTIVE) studentAccessTokenService.revokeAll(studentProfileId);
+        if (auditService != null) auditService.record(currentTeacherId(), "STUDENT_ROSTER_STATUS_CHANGED", "STUDENT",
+                studentProfileId, "status=" + status, null);
+        return StudentProfileResponse.from(student, classGroup.getName());
+    }
+
+    private void saveAssignmentRecipients(Assignment assignment, List<Long> studentIds) {
+        if (assignmentRecipientRepository == null || assignment.getTargetMode() != Assignment.TargetMode.STUDENTS) return;
+        for (Long studentId : safeList(studentIds).stream().filter(Objects::nonNull).distinct().toList()) {
+            assignmentRecipientRepository.save(AssignmentRecipient.builder()
+                    .assignmentId(assignment.getId()).studentProfileId(studentId).build());
+        }
+    }
+
+    private void validateAssignmentTargets(CreateAssignmentRequest request, ClassGroup ownedClass) {
+        Assignment.TargetMode mode = request.getTargetMode() == null ? Assignment.TargetMode.CLASS : request.getTargetMode();
+        List<Long> studentIds = safeList(request.getStudentProfileIds()).stream().filter(Objects::nonNull).distinct().toList();
+        if (mode == Assignment.TargetMode.STUDENTS && studentIds.isEmpty()) {
+            throw new IllegalArgumentException("定向作业至少需要一名学生");
+        }
+        if (mode == Assignment.TargetMode.CLASS && !studentIds.isEmpty()) {
+            throw new IllegalArgumentException("全班作业不能提交指定学生集合");
+        }
+        if (mode == Assignment.TargetMode.STUDENTS) {
+            List<StudentProfile> students = studentProfileRepository.findAllById(studentIds);
+            boolean valid = students.size() == studentIds.size() && students.stream().allMatch(student ->
+                    Objects.equals(student.getClassGroupId(), ownedClass.getId())
+                            && student.getStatus() == StudentProfile.RosterStatus.ACTIVE);
+            if (!valid) throw new PlatformApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "指定学生必须属于当前班级有效名单");
+        }
+    }
+
+    private Set<Long> recipientIds(Long assignmentId) {
+        if (assignmentRecipientRepository == null || assignmentId == null) return Set.of();
+        return assignmentRecipientRepository.findByAssignmentId(assignmentId).stream()
+                .map(AssignmentRecipient::getStudentProfileId).collect(Collectors.toSet());
     }
 
     private AssignmentInvite ensureInviteForAssignment(Assignment assignment) {
@@ -3366,6 +3484,41 @@ public class ClassroomService {
     private Assignment findAssignment(Long assignmentId) {
         return assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new IllegalArgumentException("作业不存在: " + assignmentId));
+    }
+
+    public Assignment findOwnedAssignment(Long assignmentId) {
+        return assignmentRepository.findByIdAndOwnerTeacherId(assignmentId, currentTeacherId())
+                .orElseThrow(() -> new PlatformApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "作业不存在"));
+    }
+
+    public ClassGroup findOwnedClass(Long classGroupId) {
+        if (classGroupId == null) throw new IllegalArgumentException("必须选择班级");
+        return classGroupRepository.findByIdAndOwnerTeacherId(classGroupId, currentTeacherId())
+                .orElseThrow(() -> new PlatformApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "班级不存在"));
+    }
+
+    private UUID currentTeacherId() {
+        return currentTeacherContext == null ? TeacherAccount.BOOTSTRAP_ADMIN_ID : currentTeacherContext.requireTeacherId();
+    }
+
+    private PlatformApiException rosterMismatch() {
+        return new PlatformApiException(HttpStatus.UNAUTHORIZED, "ROSTER_MISMATCH", "班级码、姓名或学号与有效名单不匹配");
+    }
+
+    private String generateClassJoinCode() {
+        StringBuilder code = new StringBuilder();
+        for (int i = 0; i < 8; i++) code.append(INVITE_ALPHABET.charAt(RANDOM.nextInt(INVITE_ALPHABET.length())));
+        return code.toString();
+    }
+
+    private String encodeJoinCode(String code) {
+        return passwordEncoder == null ? "sha256$" + CryptoSupport.sha256(code) : passwordEncoder.encode(code);
+    }
+
+    private boolean matchesJoinCode(String code, String hash) {
+        if (hash == null || hash.isBlank()) return false;
+        if (hash.startsWith("sha256$")) return CryptoSupport.constantTimeEquals(hash.substring(7), CryptoSupport.sha256(code));
+        return passwordEncoder != null && passwordEncoder.matches(code, hash);
     }
 
     private String generateInviteCode() {

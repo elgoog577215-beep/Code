@@ -20260,6 +20260,7 @@ button.standard-library-governance-path {
 }
 
 .teacher-manage-page .management-object-list .management-object-row,
+.teacher-manage-page .management-problem-list .management-object-row,
 .teacher-manage-page .standard-library-tree .management-object-row {
   min-width: 0;
 }

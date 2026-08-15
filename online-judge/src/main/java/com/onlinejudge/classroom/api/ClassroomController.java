@@ -20,7 +20,9 @@ import com.onlinejudge.classroom.dto.*;
 import com.onlinejudge.classroom.importing.ClassroomImportService;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.shared.security.StudentAccessTokenService;
+import com.onlinejudge.identity.application.CurrentTeacherContext;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -49,14 +51,10 @@ public class ClassroomController {
     private final StudentAccessTokenService studentAccessTokenService;
     private final SubmissionEvidenceBackfillService submissionEvidenceBackfillService;
     private final SubmissionAnalysisService submissionAnalysisService;
+    private final CurrentTeacherContext currentTeacherContext;
 
     @GetMapping("/api/teacher/classes")
     public ResponseEntity<List<ClassGroupResponse>> getClasses() {
-        return ResponseEntity.ok(classroomService.getClassGroups());
-    }
-
-    @GetMapping("/api/student/classes")
-    public ResponseEntity<List<ClassGroupResponse>> getStudentClasses() {
         return ResponseEntity.ok(classroomService.getClassGroups());
     }
 
@@ -65,20 +63,40 @@ public class ClassroomController {
         return ResponseEntity.ok(classroomService.createClassGroup(request));
     }
 
+    @PostMapping("/api/teacher/classes/{classGroupId}/join-code/rotate")
+    public ResponseEntity<ClassGroupResponse> rotateClassJoinCode(@PathVariable Long classGroupId) {
+        return ResponseEntity.ok(classroomService.rotateClassJoinCode(classGroupId));
+    }
+
+    @GetMapping("/api/teacher/classes/{classGroupId}/students")
+    public ResponseEntity<List<StudentProfileResponse>> getClassRoster(@PathVariable Long classGroupId) {
+        return ResponseEntity.ok(classroomService.getClassRoster(classGroupId));
+    }
+
+    @PutMapping("/api/teacher/classes/{classGroupId}/students/{studentProfileId}/status")
+    public ResponseEntity<StudentProfileResponse> updateRosterStatus(@PathVariable Long classGroupId,
+                                                                      @PathVariable Long studentProfileId,
+                                                                      @Valid @RequestBody UpdateRosterStatusRequest request) {
+        return ResponseEntity.ok(classroomService.updateRosterStatus(classGroupId, studentProfileId, request.status()));
+    }
+
     @GetMapping("/api/teacher/classes/{classGroupId}/identity-audit")
     public ResponseEntity<StudentIdentityAuditResponse> getStudentIdentityAudit(@PathVariable Long classGroupId) {
+        classroomService.findOwnedClass(classGroupId);
         return ResponseEntity.ok(studentIdentityAuditService.auditClass(classGroupId));
     }
 
     @PostMapping("/api/teacher/classes/{classGroupId}/identity-merge")
     public ResponseEntity<StudentIdentityAuditResponse> mergeStudentIdentities(@PathVariable Long classGroupId,
                                                                                @Valid @RequestBody StudentIdentityMergeRequest request) {
+        classroomService.findOwnedClass(classGroupId);
         return ResponseEntity.ok(studentIdentityAdminService.mergeProfiles(classGroupId, request));
     }
 
     @PostMapping("/api/teacher/classes/{classGroupId}/identity-split")
     public ResponseEntity<StudentIdentityAuditResponse> splitStudentIdentity(@PathVariable Long classGroupId,
                                                                              @Valid @RequestBody StudentIdentitySplitRequest request) {
+        classroomService.findOwnedClass(classGroupId);
         return ResponseEntity.ok(studentIdentityAdminService.splitProfile(classGroupId, request));
     }
 
@@ -138,6 +156,7 @@ public class ClassroomController {
             @PathVariable Long assignmentId,
             @PathVariable Long problemId,
             @PathVariable Long studentProfileId) {
+        classroomService.findOwnedAssignment(assignmentId);
         return ResponseEntity.ok(submissionAnalysisService.getSubmissionHistorySummaries(
                 problemId,
                 assignmentId,
@@ -149,6 +168,7 @@ public class ClassroomController {
     public ResponseEntity<SubmissionEvidenceBackfillResponse> previewSubmissionEvidenceBackfill(
             @RequestParam(required = false) Long cursor,
             @RequestParam(required = false) Integer batchSize) {
+        currentTeacherContext.requireAdmin();
         return ResponseEntity.ok(submissionEvidenceBackfillService.preview(cursor, batchSize));
     }
 
@@ -156,6 +176,7 @@ public class ClassroomController {
     public ResponseEntity<SubmissionEvidenceBackfillResponse> backfillSubmissionEvidence(
             @RequestParam(required = false) Long cursor,
             @RequestParam(required = false) Integer batchSize) {
+        currentTeacherContext.requireAdmin();
         return ResponseEntity.ok(submissionEvidenceBackfillService.backfill(cursor, batchSize));
     }
 
@@ -165,11 +186,13 @@ public class ClassroomController {
      */
     @GetMapping("/api/teacher/assignments/{assignmentId}/ai-quality")
     public ResponseEntity<AiQualityOverviewResponse> getAiQualityOverview(@PathVariable Long assignmentId) {
+        classroomService.findOwnedAssignment(assignmentId);
         return ResponseEntity.ok(aiQualityOverviewService.buildOverview(assignmentId));
     }
 
     @GetMapping("/api/teacher/assignments/{assignmentId}/student-ai-feedback-observability")
     public ResponseEntity<StudentAiFeedbackObservabilityResponse> getStudentAiFeedbackObservability(@PathVariable Long assignmentId) {
+        classroomService.findOwnedAssignment(assignmentId);
         return ResponseEntity.ok(studentAiFeedbackObservabilityService.buildForAssignment(assignmentId));
     }
 
@@ -186,6 +209,7 @@ public class ClassroomController {
     @PostMapping("/api/teacher/assignments/{assignmentId}/class-review-feedback")
     public ResponseEntity<ClassReviewFeedbackResponse> recordClassReviewFeedback(@PathVariable Long assignmentId,
                                                                                  @Valid @RequestBody ClassReviewFeedbackRequest request) {
+        classroomService.findOwnedAssignment(assignmentId);
         return ResponseEntity.ok(classReviewFeedbackService.recordFeedback(assignmentId, request));
     }
 
@@ -229,8 +253,15 @@ public class ClassroomController {
     }
 
     @PostMapping("/api/student/login")
-    public ResponseEntity<StudentProfileResponse> loginStudent(@Valid @RequestBody StudentLoginRequest request) {
-        return ResponseEntity.ok(classroomService.loginStudent(request));
+    public ResponseEntity<StudentProfileResponse> loginStudent(@Valid @RequestBody StudentLoginRequest request,
+                                                               HttpServletRequest httpRequest,
+                                                               HttpServletResponse response) {
+        StudentProfileResponse student = classroomService.loginStudent(request);
+        var profile = new com.onlinejudge.classroom.domain.StudentProfile();
+        profile.setId(student.getId());
+        profile.setStatus(student.getStatus());
+        studentAccessTokenService.issueCookie(profile, httpRequest, response);
+        return ResponseEntity.ok(student);
     }
 
     @GetMapping("/api/student/profile/{studentProfileId}/assignments")

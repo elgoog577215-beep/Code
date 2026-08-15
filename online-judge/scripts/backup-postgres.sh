@@ -13,4 +13,9 @@ DB_NAME="${POSTGRES_DB:-onlinejudge}"
 DB_USER="${POSTGRES_USER:-onlinejudge}"
 
 docker compose exec -T postgres pg_dump -U "${DB_USER}" "${DB_NAME}" > "${OUT}"
+if [[ ! -s "${OUT}" ]]; then
+  rm -f -- "${OUT}"
+  echo "Postgres backup failed: output is empty" >&2
+  exit 1
+fi
 echo "Postgres backup saved to ${OUT}"

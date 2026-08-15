@@ -39,10 +39,11 @@ import type {
   SubmissionHistorySummary,
   SubmissionResult,
   StudentAiFeedbackLookup,
+  TeacherAccount,
+  TeacherAiUsage,
   TeacherDiagnosisCorrection
 } from "./types";
 import { YINGQI_SIGNATURE } from "../identity/yingqiSignature";
-import { loadStudentToken } from "../storage";
 
 export class ApiError extends Error {
   status: number;
@@ -82,9 +83,13 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   if (hasBody && !headers.has("Content-Type") && !(init?.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
-  const studentToken = loadStudentToken();
-  if (studentToken && !headers.has("X-Student-Token")) {
-    headers.set("X-Student-Token", studentToken);
+  const method = (init?.method || "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method) && !headers.has("X-XSRF-TOKEN")) {
+    const csrfToken = document.cookie.split(";")
+      .map(item => item.trim())
+      .find(item => item.startsWith("XSRF-TOKEN="))
+      ?.slice("XSRF-TOKEN=".length);
+    if (csrfToken) headers.set("X-XSRF-TOKEN", decodeURIComponent(csrfToken));
   }
   const response = await fetch(url, { ...init, headers, credentials: "same-origin" });
   return readJson<T>(response);
@@ -106,13 +111,19 @@ function queryString(params: Record<string, string | number | boolean | undefine
 }
 
 export const api = {
-  teacherSession: () => request<AuthSession>("/api/teacher/auth/session"),
-  teacherLogin: (password: string) =>
-    request<AuthSession>("/api/teacher/auth/login", {
+  teacherSession: () => request<AuthSession>("/api/auth/teacher/session"),
+  teacherRegister: (payload: { username: string; password: string; displayName: string; schoolName: string }) =>
+    request<TeacherAccount>("/api/auth/teacher/register", { method: "POST", body: jsonBody(payload) }),
+  teacherLogin: (username: string, password: string) =>
+    request<AuthSession>("/api/auth/teacher/login", {
       method: "POST",
-      body: jsonBody({ password })
+      body: jsonBody({ username, password })
     }),
-  teacherLogout: () => request<AuthSession>("/api/teacher/auth/logout", { method: "POST" }),
+  teacherLogout: () => request<AuthSession>("/api/auth/teacher/logout", { method: "POST" }),
+  teacherChangePassword: (currentPassword: string, newPassword: string) =>
+    request<AuthSession>("/api/auth/teacher/change-password", {
+      method: "POST", body: jsonBody({ currentPassword, newPassword })
+    }),
 
   resolveInvite: (code: string) =>
     request<Assignment>("/api/invites/resolve", {
@@ -132,13 +143,13 @@ export const api = {
       body: jsonBody(payload)
     }),
 
-  loginStudent: (payload: { classGroupId: number; displayName: string; studentNo?: string; note?: string }) =>
-    request<StudentProfile>("/api/student/login", {
+  loginStudent: (payload: { classCode: string; displayName: string; studentNo: string }) =>
+    request<StudentProfile>("/api/auth/student/login", {
       method: "POST",
       body: jsonBody(payload)
     }),
-
-  studentClasses: () => request<ClassGroup[]>("/api/student/classes"),
+  studentSession: () => request<StudentProfile>("/api/auth/student/session"),
+  studentLogout: () => request<void>("/api/auth/student/logout", { method: "POST" }),
   studentAssignments: (studentProfileId: number) => request<Assignment[]>(`/api/student/profile/${studentProfileId}/assignments`),
 
   studentTrajectory: (assignmentId: number, studentProfileId: number) =>
@@ -225,6 +236,14 @@ export const api = {
   classes: () => request<ClassGroup[]>("/api/teacher/classes"),
   createClass: (payload: { name: string; grade?: string; teacherName?: string }) =>
     request<ClassGroup>("/api/teacher/classes", { method: "POST", body: jsonBody(payload) }),
+  rotateClassJoinCode: (classGroupId: number) =>
+    request<ClassGroup>(`/api/teacher/classes/${classGroupId}/join-code/rotate`, { method: "POST" }),
+  classRoster: (classGroupId: number) =>
+    request<StudentProfile[]>(`/api/teacher/classes/${classGroupId}/students`),
+  updateRosterStatus: (classGroupId: number, studentProfileId: number, status: "ACTIVE" | "INACTIVE" | "NEEDS_REVIEW") =>
+    request<StudentProfile>(`/api/teacher/classes/${classGroupId}/students/${studentProfileId}/status`, {
+      method: "PUT", body: jsonBody({ status })
+    }),
   studentIdentityAudit: (classGroupId: number) =>
     request<StudentIdentityAudit>(`/api/teacher/classes/${classGroupId}/identity-audit`),
   mergeStudentIdentities: (classGroupId: number, payload: { studentProfileIds: number[]; targetStudentProfileId?: number | null }) =>
@@ -244,6 +263,37 @@ export const api = {
     request<Assignment>("/api/teacher/assignments", { method: "POST", body: jsonBody(payload) }),
   updateAssignment: (id: number, payload: unknown) =>
     request<Assignment>(`/api/teacher/assignments/${id}`, { method: "PUT", body: jsonBody(payload) }),
+  teacherProblems: () => request<ProblemManage[]>("/api/teacher/problems"),
+  submitProblemReview: (id: number) =>
+    request<ProblemManage>(`/api/teacher/problems/${id}/submit-review`, { method: "POST" }),
+  reviseProblem: (id: number) =>
+    request<ProblemManage>(`/api/teacher/problems/${id}/revise`, { method: "POST" }),
+  teacherUsage: () => request<TeacherAiUsage>("/api/teacher/usage/current"),
+  adminTeacherAccounts: (status: TeacherAccount["status"] = "PENDING") =>
+    request<TeacherAccount[]>(`/api/admin/teacher-applications${queryString({ status })}`),
+  approveTeacher: (id: string) =>
+    request<TeacherAccount>(`/api/admin/teacher-applications/${id}/approve`, { method: "POST" }),
+  rejectTeacher: (id: string, reason: string) =>
+    request<TeacherAccount>(`/api/admin/teacher-applications/${id}/reject`, { method: "POST", body: jsonBody({ reason }) }),
+  suspendTeacher: (id: string) =>
+    request<TeacherAccount>(`/api/admin/teachers/${id}/suspend`, { method: "POST" }),
+  restoreTeacher: (id: string) =>
+    request<TeacherAccount>(`/api/admin/teachers/${id}/restore`, { method: "POST" }),
+  resetTeacherPassword: (id: string) =>
+    request<{ temporaryPassword: string; mustChangePassword: boolean }>(`/api/admin/teachers/${id}/reset-password`, { method: "POST" }),
+  adjustTeacherQuota: (id: string, baseUnits: number, additionalUnits: number) =>
+    request<TeacherAiUsage>(`/api/admin/teachers/${id}/quota`, { method: "PUT", body: jsonBody({ baseUnits, additionalUnits }) }),
+  transferTeacherOwnership: (sourceId: string, targetTeacherId: string) =>
+    request<{ sourceTeacherId: string; targetTeacherId: string; classCount: number; assignmentCount: number; problemCount: number }>(
+      `/api/admin/teachers/${sourceId}/transfer-ownership`, { method: "POST", body: jsonBody({ targetTeacherId }) }
+    ),
+  adminProblemReviews: () => request<ProblemManage[]>("/api/admin/problem-reviews"),
+  approveProblemReview: (id: number) =>
+    request<ProblemManage>(`/api/admin/problem-reviews/${id}/approve`, { method: "POST" }),
+  rejectProblemReview: (id: number, reason: string) =>
+    request<ProblemManage>(`/api/admin/problem-reviews/${id}/reject`, { method: "POST", body: jsonBody({ reason }) }),
+  publishProblemPublic: (id: number) =>
+    request<ProblemManage>(`/api/admin/problem-reviews/${id}/publish-public`, { method: "POST" }),
   rotateInvite: (id: number) =>
     request<Assignment>(`/api/teacher/assignments/${id}/invite`, { method: "POST" }),
   assignmentOverview: (id: number) => request<AssignmentOverview>(`/api/teacher/assignments/${id}/overview`),

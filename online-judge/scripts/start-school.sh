@@ -9,6 +9,12 @@ if ! docker version --format '{{.Server.Version}}' >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! docker compose up --no-build -d --wait postgres; then
+  echo "Postgres failed to start; application startup has been stopped." >&2
+  exit 1
+fi
+bash scripts/backup-postgres.sh
+
 if ! docker compose up --no-build -d; then
   echo "School startup requires prebuilt images. Build them in a controlled environment with:" >&2
   echo "  bash scripts/build-school-images.sh --confirm-build" >&2

@@ -22,6 +22,7 @@ import {
 import routeHubCodePreview from "./assets/route-hub-code-preview.png";
 import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
 import { TeacherShell } from "./features/teacher/TeacherShell";
+import { api } from "./shared/api/client";
 import { useTranslation } from "./shared/i18n";
 import { clearActiveStudent, loadStudent, onActiveStudentChange } from "./shared/storage";
 import { Button } from "./shared/ui/Button";
@@ -41,6 +42,7 @@ const TeacherAnalyticsLandingPage = lazy(() => import("./features/teacher-analyt
 const ClassAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ClassAnalyticsPage"));
 const AssignmentAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/AssignmentAnalyticsPage"));
 const ProblemAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ProblemAnalyticsPage"));
+const AdminConsolePage = lazy(() => import("./features/teacher/AdminConsolePage"));
 
 type Theme = "light" | "dark";
 type NavItem = {
@@ -220,7 +222,18 @@ function Header() {
 
   useEffect(() => onActiveStudentChange(() => setStudent(loadStudent())), []);
 
+  useEffect(() => {
+    if (!isStudentContext || !student) return;
+    void api.studentSession()
+      .then(current => setStudent(current))
+      .catch(() => {
+        clearActiveStudent();
+        setStudent(null);
+      });
+  }, [isStudentContext, location.pathname, student?.id]);
+
   function signOut() {
+    void api.studentLogout().catch(() => undefined);
     clearActiveStudent();
     setStudent(null);
   }
@@ -348,6 +361,7 @@ export default function App() {
             <Route path="/app/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
             <Route path="/app/teacher/manage/ai-library" element={<TeacherRoute><TeacherManagementPage section="ai-library" /></TeacherRoute>} />
             <Route path="/app/teacher/manage/system" element={<TeacherRoute><TeacherManagementPage section="system" /></TeacherRoute>} />
+            <Route path="/app/teacher/admin" element={<TeacherRoute><AdminConsolePage /></TeacherRoute>} />
             <Route path="/app/teacher-management" element={<Navigate to="/app/teacher/manage/classes" replace />} />
             <Route path="/app/class-overview" element={<Navigate to="/app/teacher/classes" replace />} />
             <Route path="/app/task-editor" element={<TeacherRoute><TaskEditorPage /></TeacherRoute>} />

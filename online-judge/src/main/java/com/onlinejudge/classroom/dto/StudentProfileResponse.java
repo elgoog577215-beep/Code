@@ -17,6 +17,7 @@ public class StudentProfileResponse {
     private String note;
     private String identityKey;
     private String studentAccessToken;
+    private StudentProfile.RosterStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 
@@ -30,6 +31,7 @@ public class StudentProfileResponse {
                 .note(student.getNote())
                 .identityKey(student.getIdentityKey())
                 .studentAccessToken(null)
+                .status(student.getStatus())
                 .createdAt(student.getCreatedAt())
                 .lastSeenAt(student.getLastSeenAt())
                 .build();

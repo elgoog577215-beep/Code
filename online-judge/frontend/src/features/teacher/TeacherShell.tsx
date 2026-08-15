@@ -1,8 +1,10 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { BarChart3, BrainCircuit, Database, Power, UsersRound } from "lucide-react";
+import { BarChart3, BrainCircuit, Database, LogOut, Power, ShieldCheck, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "../../shared/i18n";
+import { api } from "../../shared/api/client";
+import type { AuthSession } from "../../shared/api/types";
 import "./TeacherHomeRefresh.css";
 
 type TeacherNavItem = {
@@ -17,6 +19,8 @@ export function TeacherShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const location = useLocation();
   const pathname = location.pathname;
+  const [session, setSession] = useState<AuthSession | null>(null);
+  useEffect(() => { api.teacherSession().then(setSession).catch(() => setSession(null)); }, []);
   const inManagement = pathname === "/app/teacher/manage" || pathname.startsWith("/app/teacher/manage") || pathname.startsWith("/app/task-editor");
   const primaryItems: TeacherNavItem[] = [
     {
@@ -62,6 +66,15 @@ export function TeacherShell({ children }: { children: ReactNode }) {
       activeWhen: current => current.startsWith("/app/teacher/manage/system")
     }
   ];
+  if (session?.role === "ADMIN") {
+    managementItems.push({
+      to: "/app/teacher/admin",
+      label: t("teacherShell.nav.admin"),
+      description: t("teacherShell.nav.adminDescription"),
+      icon: ShieldCheck,
+      activeWhen: current => current.startsWith("/app/teacher/admin")
+    });
+  }
 
   return (
     <div className="teacher-shell teacher-console-shell">
@@ -81,7 +94,10 @@ export function TeacherShell({ children }: { children: ReactNode }) {
           </div>
         </nav>
         <div className="teacher-shell-sidebar__foot">
-          <span>{inManagement ? t("teacherShell.managementFootnote") : t("teacherShell.footnote")}</span>
+          <span>{session?.displayName || (inManagement ? t("teacherShell.managementFootnote") : t("teacherShell.footnote"))}</span>
+          <button type="button" className="teacher-shell-nav__item" onClick={() => void api.teacherLogout().finally(() => window.location.assign("/app/teacher"))}>
+            <span className="teacher-shell-nav__icon"><LogOut size={17} /></span><span><strong>{t("common.logout")}</strong></span>
+          </button>
         </div>
       </aside>
       <main className="teacher-shell-main">{children}</main>

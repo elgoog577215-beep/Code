@@ -5,6 +5,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.Assignment;
+import com.onlinejudge.aiquota.application.AiInvocationContext;
+import com.onlinejudge.aiquota.application.AiInvocationContextResolver;
+import com.onlinejudge.aiquota.application.AiProviderGateway;
+import com.onlinejudge.aiquota.domain.QuotaExhaustedException;
 import com.onlinejudge.learning.diagnosis.DiagnosisTaxonomy;
 import com.onlinejudge.submission.application.ExternalModelChatRequestFactory;
 import com.onlinejudge.submission.application.ExternalModelFailureClassifier;
@@ -47,6 +51,22 @@ public class CoachAgentService {
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+    private final ThreadLocal<AiInvocationContext> activeInvocationContext = ThreadLocal.withInitial(
+            () -> AiInvocationContext.anonymous("COACH", "coach-unscoped"));
+    private final ThreadLocal<String> activeRequestBody = ThreadLocal.withInitial(() -> "{}");
+    private final ThreadLocal<String> activeRequestModel = ThreadLocal.withInitial(() -> "");
+    private AiProviderGateway aiProviderGateway;
+    private AiInvocationContextResolver aiInvocationContextResolver;
+
+    @Autowired(required = false)
+    void setAiProviderGateway(AiProviderGateway aiProviderGateway) {
+        this.aiProviderGateway = aiProviderGateway;
+    }
+
+    @Autowired(required = false)
+    void setAiInvocationContextResolver(AiInvocationContextResolver aiInvocationContextResolver) {
+        this.aiInvocationContextResolver = aiInvocationContextResolver;
+    }
 
     public CoachAgentService(ObjectMapper objectMapper, DiagnosisTaxonomy diagnosisTaxonomy) {
         this(objectMapper, diagnosisTaxonomy, new ExternalModelFailureClassifier());
@@ -75,7 +95,7 @@ public class CoachAgentService {
     @Value("${ai.base-url:https://api-inference.modelscope.cn/v1}")
     private String baseUrl;
 
-    @Value("${ai.api-key:}")
+    /** Test-only compatibility for directly constructed service instances; production keys live in AiProviderGateway. */
     private String apiKey;
 
     @Value("${ai.model:Qwen/Qwen3-235B-A22B-Instruct-2507}")
@@ -113,7 +133,9 @@ public class CoachAgentService {
                                               List<String> evidenceRefs) {
         Map<String, Object> context = baseContext(submission, analysis, primaryTag, hintPolicy, contextSummary, evidenceRefs);
         context.put("turnType", "INITIAL_QUESTION");
-        return generate(context, hintPolicy, evidenceRefs);
+        return generateForSubmission(submission, "COACH_INITIAL",
+                "coach-initial:" + (submission == null ? "unknown" : submission.getId()),
+                context, hintPolicy, evidenceRefs);
     }
 
     public CoachDraft generateFollowUpQuestion(Submission submission,
@@ -128,7 +150,27 @@ public class CoachAgentService {
         context.put("turnType", "FOLLOW_UP");
         context.put("studentAnswer", studentAnswer == null ? "" : studentAnswer);
         context.put("currentTurnIndex", currentTurnIndex == null ? 0 : currentTurnIndex);
-        return generate(context, hintPolicy, evidenceRefs);
+        return generateForSubmission(submission, "COACH_FOLLOW_UP",
+                "coach-follow-up:" + (submission == null ? "unknown" : submission.getId()) + ":"
+                        + (currentTurnIndex == null ? 0 : currentTurnIndex + 1),
+                context, hintPolicy, evidenceRefs);
+    }
+
+    private CoachDraft generateForSubmission(Submission submission, String purpose, String idempotencyKey,
+                                              Map<String, Object> context, Assignment.HintPolicy hintPolicy,
+                                              List<String> evidenceRefs) {
+        AiInvocationContext invocation = aiInvocationContextResolver == null
+                ? AiInvocationContext.anonymous(purpose, idempotencyKey)
+                : aiInvocationContextResolver.forSubmission(submission, purpose, idempotencyKey);
+        if (aiProviderGateway != null && invocation.teacherId() == null) {
+            return CoachDraft.unavailable("PAID_AI_NOT_ALLOWED");
+        }
+        activeInvocationContext.set(invocation);
+        try {
+            return generate(context, hintPolicy, evidenceRefs);
+        } finally {
+            activeInvocationContext.remove();
+        }
     }
 
     private CoachDraft generate(Map<String, Object> context,
@@ -155,6 +197,7 @@ public class CoachAgentService {
             return draft;
         } catch (Exception exception) {
             log.warn("Coach model generation failed. returning unavailable state. reason={}", exception.getMessage());
+            if (exception instanceof QuotaExhaustedException) return CoachDraft.unavailable("QUOTA_EXHAUSTED");
             return CoachDraft.unavailable(classifyFailure(exception));
         }
     }
@@ -296,8 +339,9 @@ public class CoachAgentService {
     private String doChatCompletion(String selectedModel, String systemPrompt, String userPrompt, boolean stream)
             throws IOException, InterruptedException {
         String effectiveModel = selectedModel == null || selectedModel.isBlank() ? model : selectedModel.trim();
+        String providerBaseUrl = providerBaseUrl();
         Map<String, Object> requestBody = chatRequestFactory.build(
-                baseUrl,
+                providerBaseUrl,
                 modelScopeCompatibleRequest,
                 enableThinking,
                 effectiveModel,
@@ -306,19 +350,38 @@ public class CoachAgentService {
                 stream,
                 null
         );
-        String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
+        String endpoint = providerBaseUrl.endsWith("/") ? providerBaseUrl + "chat/completions" : providerBaseUrl + "/chat/completions";
+        String serializedRequest = objectMapper.writeValueAsString(requestBody);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .timeout(Duration.ofSeconds(Math.max(timeoutSeconds, 5)))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody), StandardCharsets.UTF_8))
+                .header("Authorization", "Bearer " + (apiKey == null ? "gateway-managed" : apiKey))
+                .POST(HttpRequest.BodyPublishers.ofString(serializedRequest, StandardCharsets.UTF_8))
                 .build();
-
-        return sendChatCompletionRequest(request, stream);
+        activeRequestBody.set(serializedRequest);
+        activeRequestModel.set(effectiveModel);
+        try {
+            return sendChatCompletionRequest(request, stream);
+        } finally {
+            activeRequestBody.remove();
+            activeRequestModel.remove();
+        }
     }
 
     protected String sendChatCompletionRequest(HttpRequest request, boolean stream) throws IOException, InterruptedException {
+        if (aiProviderGateway != null) {
+            String responseBody = aiProviderGateway.invoke(activeInvocationContext.get(),
+                    new AiProviderGateway.AiProviderRequest(
+                            activeRequestBody.get(),
+                            stream,
+                            activeRequestModel.get())).responseBody();
+            String content = stream
+                    ? extractStreamingChatMessageContent(responseBody)
+                    : extractChatMessageContent(objectMapper.readTree(responseBody));
+            if (content.isBlank()) throw new IOException("AI response did not include message content");
+            return content;
+        }
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IOException("AI API returned status " + response.statusCode() + ": " + response.body());
@@ -520,7 +583,12 @@ public class CoachAgentService {
     }
 
     private boolean canCallAi() {
-        return enabled && apiKey != null && !apiKey.isBlank();
+        return enabled && ((aiProviderGateway != null && aiProviderGateway.available())
+                || (apiKey != null && !apiKey.isBlank()));
+    }
+
+    private String providerBaseUrl() {
+        return aiProviderGateway == null ? baseUrl : aiProviderGateway.baseUrl();
     }
 
     private String cleanup(String text) {

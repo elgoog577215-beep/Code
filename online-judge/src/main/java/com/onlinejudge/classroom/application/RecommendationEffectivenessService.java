@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.domain.StudentRecommendationEvent;
 import com.onlinejudge.classroom.dto.RecommendationEffectivenessResponse;
 import com.onlinejudge.classroom.persistence.StudentRecommendationEventRepository;
+import com.onlinejudge.classroom.persistence.AssignmentRepository;
+import com.onlinejudge.identity.application.CurrentTeacherContext;
 import com.onlinejudge.submission.domain.Submission;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,10 @@ public class RecommendationEffectivenessService {
     private final StudentRecommendationEventRepository eventRepository;
     private final ObjectMapper objectMapper;
     private final RecommendationActionEvidenceAnalyzer actionEvidenceAnalyzer;
+    @Autowired(required = false)
+    private AssignmentRepository assignmentRepository;
+    @Autowired(required = false)
+    private CurrentTeacherContext currentTeacherContext;
 
     @Autowired
     public RecommendationEffectivenessService(StudentRecommendationEventRepository eventRepository,
@@ -47,7 +53,14 @@ public class RecommendationEffectivenessService {
     }
 
     public RecommendationEffectivenessResponse buildOverview() {
-        return buildFrom(eventRepository.findTop500ByOrderByCreatedAtDesc());
+        List<StudentRecommendationEvent> recent = eventRepository.findTop500ByOrderByCreatedAtDesc();
+        if (assignmentRepository == null || currentTeacherContext == null) return buildFrom(recent);
+        Set<Long> ownedAssignmentIds = assignmentRepository
+                .findByOwnerTeacherIdOrderByCreatedAtDesc(currentTeacherContext.requireTeacherId()).stream()
+                .map(assignment -> assignment.getId()).filter(Objects::nonNull).collect(Collectors.toSet());
+        return buildFrom(recent.stream()
+                .filter(event -> event.getAssignmentId() != null && ownedAssignmentIds.contains(event.getAssignmentId()))
+                .toList());
     }
 
     public RecommendationEffectivenessResponse buildOverview(Long assignmentId) {

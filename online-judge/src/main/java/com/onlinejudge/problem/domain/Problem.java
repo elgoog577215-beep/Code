@@ -9,6 +9,7 @@ import com.onlinejudge.shared.persistence.StringListJsonConverter;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "problems")
@@ -21,6 +22,38 @@ public class Problem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "owner_teacher_id")
+    private UUID ownerTeacherId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Scope scope;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "version_state", nullable = false, length = 30)
+    private VersionState versionState;
+
+    @Column(name = "series_id", nullable = false)
+    private UUID seriesId;
+
+    @Column(name = "version_no", nullable = false)
+    private Integer versionNo;
+
+    @Column(name = "source_problem_id")
+    private Long sourceProblemId;
+
+    @Column(name = "reviewed_by")
+    private UUID reviewedBy;
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
+    @Column(name = "review_reason", length = 500)
+    private String reviewReason;
+
+    @Column(name = "archived_at")
+    private LocalDateTime archivedAt;
 
     @Column(nullable = false)
     private String title;
@@ -66,9 +99,21 @@ public class Problem {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+        if (scope == null) scope = Scope.PUBLIC;
+        if (versionState == null) versionState = VersionState.PUBLISHED;
+        if (seriesId == null) seriesId = UUID.randomUUID();
+        if (versionNo == null) versionNo = 1;
     }
 
     public enum Difficulty {
         EASY, MEDIUM, HARD
+    }
+
+    public enum Scope {
+        PUBLIC, SHARED, PRIVATE
+    }
+
+    public enum VersionState {
+        DRAFT, REVIEW_PENDING, PUBLISHED, FROZEN, REJECTED, ARCHIVED
     }
 }

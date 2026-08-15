@@ -7,6 +7,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @Builder
@@ -24,6 +25,13 @@ public class ProblemResponse {
     private List<String> commonMistakes;
     private List<String> boundaryTypes;
     private LocalDateTime createdAt;
+    private UUID ownerTeacherId;
+    private Problem.Scope scope;
+    private Problem.VersionState versionState;
+    private UUID seriesId;
+    private Integer versionNo;
+    private Long sourceProblemId;
+    private LocalDateTime archivedAt;
     private List<SampleTestCase> sampleTestCases;
 
     @Data
@@ -48,6 +56,13 @@ public class ProblemResponse {
                 .commonMistakes(safeList(problem.getCommonMistakes()))
                 .boundaryTypes(safeList(problem.getBoundaryTypes()))
                 .createdAt(problem.getCreatedAt())
+                .ownerTeacherId(problem.getOwnerTeacherId())
+                .scope(problem.getScope())
+                .versionState(problem.getVersionState())
+                .seriesId(problem.getSeriesId())
+                .versionNo(problem.getVersionNo())
+                .sourceProblemId(problem.getSourceProblemId())
+                .archivedAt(problem.getArchivedAt())
                 .sampleTestCases(visibleTestCases.stream()
                         .map(tc -> SampleTestCase.builder()
                                 .input(tc.getInput())

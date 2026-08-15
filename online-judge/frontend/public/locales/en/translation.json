@@ -24,6 +24,114 @@
       "dark": "Dark"
     }
   },
+  "teacherAuth": {
+    "eyebrow": "Teacher",
+    "checking": "Checking teacher session",
+    "loginTitle": "Teacher account sign-in",
+    "loginDescription": "Use an administrator-approved account to enter your private teaching workspace.",
+    "registerTitle": "Apply for a teacher account",
+    "registerDescription": "An administrator must approve your application before you can sign in.",
+    "changeTitle": "Change your temporary password",
+    "changeDescription": "A temporary password can only be used once. Sign in again after changing it.",
+    "username": "Username",
+    "password": "Password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "displayName": "Name",
+    "schoolName": "School",
+    "loginAction": "Enter teacher workspace",
+    "registerAction": "Submit application",
+    "changeAction": "Change password",
+    "processing": "Processing",
+    "toRegister": "Need an account? Apply here",
+    "toLogin": "Already registered? Back to sign-in",
+    "registrationPending": "Application submitted. You can sign in after administrator approval.",
+    "passwordChanged": "Password changed. Sign in again with your new password.",
+    "loginFailed": "Sign-in failed.",
+    "registerFailed": "Could not submit the application.",
+    "passwordChangeFailed": "Could not change the password.",
+    "validation": {
+      "loginRequired": "Enter your username and password.",
+      "registerRequired": "Complete every field and use a password of at least 10 characters.",
+      "passwordChange": "Enter your current password and a new password of at least 10 characters."
+    }
+  },
+  "studentLogin": {
+    "eyebrow": "Student sign-in",
+    "title": "Match your class roster",
+    "back": "Back",
+    "panelTitle": "Enter my class",
+    "panelEyebrow": "Classroom identity",
+    "classCode": "Class code",
+    "classCodePlaceholder": "Get the 8-character code from your teacher",
+    "displayName": "Name",
+    "displayNamePlaceholder": "Use the exact name on the imported roster",
+    "studentNo": "Student number",
+    "studentNoPlaceholder": "Required; must match the roster",
+    "rosterHint": "All three fields must match an active roster entry. Signing in never creates a new student.",
+    "validation": "Enter the class code, name, and student number.",
+    "failed": "Sign-in failed.",
+    "loggingIn": "Signing in",
+    "action": "Enter student workspace"
+  },
+  "assignmentTarget": {
+    "label": "Recipients",
+    "classLabel": "Class",
+    "class": "Whole class (dynamic roster)",
+    "students": "Selected students",
+    "selectStudents": "Select students from the active roster",
+    "studentCount": "{{count}} selected",
+    "emptyRoster": "No active roster entries",
+    "emptyRosterHint": "Import a student roster with student numbers first.",
+    "validation": "select at least one student"
+  },
+  "multiTeacher": {
+    "classCode": {
+      "title": "Student class code",
+      "description": "The plain code is shown only after creation or rotation. Share it only with this class.",
+      "hidden": "Class code hidden",
+      "studentCount": "{{count}} active students",
+      "rotate": "Rotate class code",
+      "created": "Class created. One-time class code: {{code}}",
+      "createdWithoutCode": "Class created.",
+      "rotated": "Class code rotated. New code: {{code}}",
+      "rotateFailed": "Could not rotate the class code."
+    },
+    "roster": {
+      "title": "Current roster", "description": "Deactivation immediately invalidates student sessions while preserving historical submissions.", "empty": "No roster entries yet", "emptyHint": "Use the two-step import below to add students.",
+      "deactivate": "Deactivate", "activate": "Restore", "statusSaved": "Roster status updated.", "statusFailed": "Could not update roster status.",
+      "status": { "active": "Active", "inactive": "Inactive", "needs_review": "Needs review" }
+    },
+    "problem": {
+      "submitReview": "Submit for shared review",
+      "revise": "Create revision draft",
+      "reviewSubmitted": "Submitted for review as version {{version}}.",
+      "revisionCreated": "Created editable revision v{{version}}.",
+      "actionFailed": "Could not update the problem state.",
+      "readOnlyTitle": "This version is read-only",
+      "readOnlyDescription": "Review, published, and assignment snapshot versions cannot be edited. Revising creates a new version.",
+      "scope": { "public": "Public", "shared": "Shared", "private": "My problems" },
+      "state": {
+        "draft": "Draft", "review_pending": "Review pending", "published": "Published", "frozen": "Assignment snapshot", "rejected": "Rejected", "archived": "Archived"
+      }
+    },
+    "quota": {
+      "remaining": "classroom AI units remaining",
+      "used": "Used {{used}} / {{total}} this month",
+      "resets": "Resets: {{time}}"
+    }
+  },
+  "adminConsole": {
+    "eyebrow": "Platform administrator", "title": "Trial governance center", "description": "Review teacher accounts and shared problems, manage suspension, temporary passwords, and classroom AI quotas.", "refresh": "Refresh",
+    "loadFailed": "Could not load administration data.", "actionFailed": "The action failed.", "accountsTitle": "Teacher accounts", "accountsEyebrow": "Review and account status",
+    "reviewsTitle": "Shared problem reviews", "reviewsEyebrow": "Problem governance", "statusFilter": "Account status", "reason": "Review or suspension reason",
+    "status": { "pending": "Pending", "active": "Active", "suspended": "Suspended", "rejected": "Rejected", "bootstrap_required": "Activation required" },
+    "approve": "Approve", "reject": "Reject", "suspend": "Suspend", "restore": "Restore", "resetPassword": "Create temporary password",
+    "temporaryPassword": "One-time temporary password:", "baseUnits": "Monthly base quota", "additionalUnits": "Additional units this month", "saveQuota": "Save quota",
+    "approved": "Teacher account approved.", "rejected": "Teacher account rejected.", "suspended": "Teacher account suspended and sessions revoked.", "restored": "Teacher account restored.",
+    "passwordReset": "Temporary password created and old sessions revoked.", "quotaSaved": "Classroom AI quota updated.", "noAccounts": "No teacher accounts have this status", "noReviews": "No shared problems are waiting for review",
+    "approveShared": "Approve as shared", "publishPublic": "Approve and publish a public version", "problemApproved": "Shared problem published.", "problemPublished": "Public version created.", "problemRejected": "Shared problem rejected."
+  },
   "codeRun": {
     "eyebrow": "Quick check",
     "title": "Run with custom input",
@@ -433,7 +541,9 @@
       "aiLibrary": "AI Library",
       "aiLibraryDescription": "Approved library and governance",
       "system": "System Status",
-      "systemDescription": "AI checks and runtime state"
+      "systemDescription": "AI checks and runtime state",
+      "admin": "Platform Admin",
+      "adminDescription": "Accounts, reviews, and quotas"
     }
   },
   "teacherAnalytics": {
@@ -704,6 +814,7 @@
     "notFound": "Assignment not found",
     "notFoundDescription": "Go back to assignments and choose another item.",
     "backToAssignmentCenter": "Back to assignments",
+    "historicalRosterNotice": "Historical submissions from {{count}} students outside the current roster are retained and excluded from the current completion rate.",
     "header": {
       "problemCount": "{{count}} problems",
       "submitted": "{{count}} submitted",

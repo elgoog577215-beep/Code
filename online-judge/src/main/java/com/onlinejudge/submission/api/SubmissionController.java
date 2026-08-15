@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.onlinejudge.submission.persistence.SubmissionRepository;
+import com.onlinejudge.system.application.TrialMetrics;
 
 import java.util.List;
 
@@ -41,12 +42,15 @@ public class SubmissionController {
     private final StudentAccessTokenService studentAccessTokenService;
     private final SubmissionRepository submissionRepository;
     private final ClassroomSubmissionContextService classroomSubmissionContextService;
+    private final TrialMetrics trialMetrics;
 
     @PostMapping
     public ResponseEntity<SubmissionResponse> submitCode(@Valid @RequestBody SubmissionRequest request,
                                                          HttpServletRequest httpRequest) {
         SubmissionRequest resolved = classroomSubmissionContextService.resolve(request, httpRequest);
-        return ResponseEntity.ok(judgeService.submitCode(resolved));
+        SubmissionResponse response = judgeService.submitCode(resolved);
+        trialMetrics.submissionSucceeded();
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")

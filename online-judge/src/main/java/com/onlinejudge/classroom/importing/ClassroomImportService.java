@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onlinejudge.classroom.application.StudentIdentityService;
+import com.onlinejudge.identity.application.CurrentTeacherContext;
+import com.onlinejudge.identity.domain.TeacherAccount;
 import com.onlinejudge.classroom.domain.ClassGroup;
 import com.onlinejudge.classroom.domain.StudentProfile;
 import com.onlinejudge.classroom.dto.ImportCommitResponse;
@@ -17,6 +19,7 @@ import com.onlinejudge.problem.dto.CreateProblemRequest;
 import com.onlinejudge.problem.persistence.ProblemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
@@ -47,6 +50,9 @@ public class ClassroomImportService {
     private final ObjectMapper objectMapper;
     private final StudentIdentityService studentIdentityService;
 
+    @Autowired(required = false)
+    private CurrentTeacherContext currentTeacherContext;
+
     public ImportPreviewResponse previewStudents(ImportRequest request) {
         List<ImportPreviewResponse.RowIssue> issues = new ArrayList<>();
         List<ImportPreviewResponse.StudentImportRow> rows = parseStudentRows(request, issues);
@@ -70,6 +76,7 @@ public class ClassroomImportService {
         List<ImportPreviewResponse.RowIssue> issues = new ArrayList<>(preview.getIssues());
         int skipped = 0;
         int failed = 0;
+        int updated = 0;
 
         for (ImportPreviewResponse.StudentImportRow row : preview.getStudents()) {
             if (!row.isValid() || row.isDuplicate()) {
@@ -79,17 +86,16 @@ public class ClassroomImportService {
             try {
                 ClassGroup classGroup = resolveClassGroup(row.getClassGroupId(), row.getClassName());
                 String identityKey = studentIdentityService.buildStableIdentityKey(classGroup.getId(), row.getClassName(), row.getDisplayName(), row.getStudentNo());
-                StudentProfile student = studentProfileRepository.findByIdentityKeyOrderByCreatedAtDesc(identityKey)
-                        .stream()
-                        .findFirst()
-                        .orElse(StudentProfile.builder()
-                                .identityKey(identityKey)
-                                .build());
+                StudentProfile existing = studentProfileRepository
+                        .findFirstByClassGroupIdAndStudentNoIgnoreCase(classGroup.getId(), row.getStudentNo()).orElse(null);
+                StudentProfile student = existing == null ? StudentProfile.builder().identityKey(identityKey).build() : existing;
                 student.setClassGroupId(classGroup.getId());
                 student.setDisplayName(row.getDisplayName());
                 student.setStudentNo(row.getStudentNo());
                 student.setNote(row.getNote());
+                student.setStatus(StudentProfile.RosterStatus.ACTIVE);
                 createdIds.add(studentProfileRepository.save(student).getId());
+                if (existing != null) updated++;
             } catch (Exception exception) {
                 failed++;
                 issues.add(issue(row.getRowNumber(), "error", exception.getMessage()));
@@ -99,7 +105,7 @@ public class ClassroomImportService {
         return ImportCommitResponse.builder()
                 .importType("students")
                 .createdCount(createdIds.size())
-                .updatedCount(0)
+                .updatedCount(updated)
                 .skippedCount(skipped)
                 .failedCount(failed)
                 .createdIds(createdIds)
@@ -187,11 +193,17 @@ public class ClassroomImportService {
                 displayName = get(cells, 0);
                 studentNo = get(cells, 1);
             }
+            studentNo = studentNo.trim().toUpperCase(Locale.ROOT);
             String message = "";
             boolean valid = true;
             if (displayName.isBlank()) {
                 valid = false;
                 message = "缺少姓名";
+                issues.add(issue(index + 1, "error", message));
+            }
+            if (studentNo.isBlank()) {
+                valid = false;
+                message = "缺少学号";
                 issues.add(issue(index + 1, "error", message));
             }
             String dedupeKey = (request.getClassGroupId() == null ? className : String.valueOf(request.getClassGroupId()))
@@ -438,20 +450,11 @@ public class ClassroomImportService {
     }
 
     private ClassGroup resolveClassGroup(Long classGroupId, String className) {
-        if (classGroupId != null) {
-            return classGroupRepository.findById(classGroupId)
-                    .orElseThrow(() -> new IllegalArgumentException("班级不存在: " + classGroupId));
-        }
-        String normalizedName = firstNonBlank(className, "温中信息技术试点班");
-        return classGroupRepository.findAllByOrderByCreatedAtDesc()
-                .stream()
-                .filter(classGroup -> classGroup.getName().equalsIgnoreCase(normalizedName))
-                .findFirst()
-                .orElseGet(() -> classGroupRepository.save(ClassGroup.builder()
-                        .name(normalizedName)
-                        .grade("")
-                        .teacherName("信息技术组")
-                        .build()));
+        if (classGroupId == null) throw new IllegalArgumentException("名单导入必须选择班级");
+        java.util.UUID teacherId = currentTeacherContext == null
+                ? TeacherAccount.BOOTSTRAP_ADMIN_ID : currentTeacherContext.requireTeacherId();
+        return classGroupRepository.findByIdAndOwnerTeacherId(classGroupId, teacherId)
+                .orElseThrow(() -> new IllegalArgumentException("班级不存在: " + classGroupId));
     }
 
     private boolean hasStudentHeader(String[] lines) {
