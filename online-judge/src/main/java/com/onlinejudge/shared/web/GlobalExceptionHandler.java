@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import com.onlinejudge.shared.security.AccessDeniedException;
 import com.onlinejudge.shared.security.AuthenticationRequiredException;
+import com.onlinejudge.execution.application.CodeRunLimitException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -99,6 +100,17 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 exception.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", exception.getMessage()));
+    }
+
+    @ExceptionHandler(CodeRunLimitException.class)
+    public ResponseEntity<Map<String, String>> handleCodeRunLimit(CodeRunLimitException exception,
+                                                                  HttpServletRequest request) {
+        log.warn("Code run limited. method={}, uri={}, message={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                exception.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(Map.of("error", exception.getMessage()));
     }
 

@@ -1386,6 +1386,14 @@ const scenarios = [
     name: "problem",
     path: "/app/student/assignments/7/problems/101?studentProfileId=41&recommendationToken=rec-next-101",
     beforeChecks: async page => {
+      const runPanel = page.locator(".code-run-panel");
+      await runPanel.getByRole("button", { name: "载入首个样例" }).click();
+      const customInput = runPanel.getByRole("textbox", { name: /自定义输入/ });
+      record("problem custom run loads the first public sample", await customInput.inputValue() === "3\n1 2 3\n");
+      await runPanel.getByRole("button", { name: "运行代码", exact: true }).click();
+      await runPanel.locator(".code-run-stdout").waitFor({ state: "visible", timeout: 10000 });
+      record("problem custom run displays stdout inline", ((await runPanel.locator(".code-run-stdout").textContent()) || "").trim() === "6");
+      record("problem custom run does not open the submission modal", await page.locator(".problem-result-modal").count() === 0);
       await page.locator(".panel--editor button.ui-button--primary").first().click();
       await page.locator(".problem-result-modal").first().waitFor({ state: "visible", timeout: 10000 });
     },
@@ -1706,6 +1714,9 @@ const scenarios = [
       }
     },
     selectors: [
+      [".code-run-panel", "custom code run panel"],
+      [".code-run-input", "custom code input"],
+      [".code-run-result", "custom code run result"],
       [".problem-layout", "problem main layout"],
       [".problem-task-sidebar", "problem task sidebar"],
       [".panel--statement", "problem statement panel"],
@@ -2026,6 +2037,18 @@ async function routeApi(route) {
       { problemId: 101, problemTitle: "求和边界", difficulty: "EASY", totalSubmissions: 24, acceptedSubmissions: 8, acceptanceRate: 33.3 },
       { problemId: 102, problemTitle: "循环边界", difficulty: "MEDIUM", totalSubmissions: 18, acceptedSubmissions: 15, acceptanceRate: 83.3 }
     ]);
+  }
+
+  if (path === "/api/code-runs" && method === "POST") {
+    return json(route, {
+      status: "SUCCESS",
+      stdout: "6\n",
+      stderr: "",
+      exitCode: 0,
+      executionTimeMs: 12,
+      stdoutTruncated: false,
+      stderrTruncated: false
+    });
   }
 
   if (path === "/api/submissions" && method === "POST") {

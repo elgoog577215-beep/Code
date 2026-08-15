@@ -69,6 +69,14 @@ ai:
     auto-merge-min-occurrences: ${AI_STANDARD_LIBRARY_AUTO_MERGE_MIN_OCCURRENCES:2}
 
 app:
+  code-run:
+    enabled: ${APP_CODE_RUN_ENABLED:true}
+    max-source-bytes: ${APP_CODE_RUN_MAX_SOURCE_BYTES:102400}
+    max-stdin-bytes: ${APP_CODE_RUN_MAX_STDIN_BYTES:65536}
+    max-output-bytes: ${APP_CODE_RUN_MAX_OUTPUT_BYTES:65536}
+    max-runs-per-minute: ${APP_CODE_RUN_MAX_RUNS_PER_MINUTE:10}
+    max-concurrent-per-key: ${APP_CODE_RUN_MAX_CONCURRENT_PER_KEY:1}
+    max-concurrent-global: ${APP_CODE_RUN_MAX_CONCURRENT_GLOBAL:4}
   submission-evidence:
     strict-classroom-context-enabled: ${APP_STRICT_CLASSROOM_SUBMISSION_ENABLED:true}
     analytics-read-enabled: ${APP_SUBMISSION_EVIDENCE_ANALYTICS_ENABLED:true}

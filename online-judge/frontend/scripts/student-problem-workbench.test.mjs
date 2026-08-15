@@ -201,7 +201,7 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     await page.getByRole("button", { name: "展开代码" }).click();
     await page.locator(".problem-main-split > .panel--editor").waitFor({ state: "visible" });
     assert.equal(await page.getByRole("button", { name: "提交代码" }).count(), 1);
-    const customInput = page.getByLabel("自定义输入");
+    const customInput = page.getByRole("textbox", { name: /自定义输入/ });
     assert.equal(await customInput.inputValue(), "");
     await page.getByRole("button", { name: "载入首个样例" }).click();
     assert.equal(await customInput.inputValue(), "3 5");

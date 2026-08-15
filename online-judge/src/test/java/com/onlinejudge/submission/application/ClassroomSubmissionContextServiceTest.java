@@ -8,6 +8,7 @@ import com.onlinejudge.classroom.persistence.StudentProfileRepository;
 import com.onlinejudge.shared.security.AccessDeniedException;
 import com.onlinejudge.shared.security.AuthenticationRequiredException;
 import com.onlinejudge.shared.security.StudentAccessTokenService;
+import com.onlinejudge.execution.application.ClassroomProblemAccessService;
 import com.onlinejudge.submission.dto.SubmissionRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +30,9 @@ class ClassroomSubmissionContextServiceTest {
     private final HttpServletRequest httpRequest = mock(HttpServletRequest.class);
     private final SubmissionEvidenceProperties properties = new SubmissionEvidenceProperties();
     private final ClassroomSubmissionContextService service = new ClassroomSubmissionContextService(
-            tokenService, studentRepository, assignmentRepository, taskRepository, properties
+            tokenService,
+            new ClassroomProblemAccessService(tokenService, studentRepository, assignmentRepository, taskRepository),
+            properties
     );
 
     @BeforeEach
@@ -71,7 +74,7 @@ class ClassroomSubmissionContextServiceTest {
         when(studentRepository.findById(41L)).thenReturn(Optional.of(student(41L, 3L)));
         when(taskRepository.existsByAssignmentIdAndProblemId(9L, 101L)).thenReturn(false);
         assertThatThrownBy(() -> service.resolve(request(9L, 101L, 41L), httpRequest))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("不属于当前作业");
     }
 

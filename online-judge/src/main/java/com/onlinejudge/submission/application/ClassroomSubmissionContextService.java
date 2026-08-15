@@ -1,10 +1,6 @@
 package com.onlinejudge.submission.application;
 
-import com.onlinejudge.classroom.domain.Assignment;
-import com.onlinejudge.classroom.domain.StudentProfile;
-import com.onlinejudge.classroom.persistence.AssignmentRepository;
-import com.onlinejudge.classroom.persistence.AssignmentTaskRepository;
-import com.onlinejudge.classroom.persistence.StudentProfileRepository;
+import com.onlinejudge.execution.application.ClassroomProblemAccessService;
 import com.onlinejudge.shared.security.AccessDeniedException;
 import com.onlinejudge.shared.security.AuthenticationRequiredException;
 import com.onlinejudge.shared.security.StudentAccessTokenService;
@@ -22,9 +18,7 @@ import java.util.Objects;
 public class ClassroomSubmissionContextService {
 
     private final StudentAccessTokenService studentAccessTokenService;
-    private final StudentProfileRepository studentProfileRepository;
-    private final AssignmentRepository assignmentRepository;
-    private final AssignmentTaskRepository assignmentTaskRepository;
+    private final ClassroomProblemAccessService problemAccessService;
     private final SubmissionEvidenceProperties properties;
 
     public SubmissionRequest resolve(SubmissionRequest request, HttpServletRequest httpRequest) {
@@ -51,21 +45,11 @@ public class ClassroomSubmissionContextService {
             throw new AccessDeniedException("提交学生与当前登录身份不一致");
         }
 
-        StudentProfile student = studentProfileRepository.findById(tokenStudentId)
-                .orElseThrow(() -> new AuthenticationRequiredException("学生身份不存在，请重新登录"));
-        Assignment assignment = assignmentRepository.findById(request.getAssignmentId())
-                .orElseThrow(() -> new IllegalArgumentException("作业不存在: " + request.getAssignmentId()));
-        if (assignment.getClassGroupId() == null
-                || student.getClassGroupId() == null
-                || !Objects.equals(assignment.getClassGroupId(), student.getClassGroupId())) {
-            reject("CLASS_ASSIGNMENT_MISMATCH", request);
-            throw new AccessDeniedException("当前学生不属于该作业班级");
-        }
-        if (!assignmentTaskRepository.existsByAssignmentIdAndProblemId(request.getAssignmentId(), request.getProblemId())) {
-            reject("PROBLEM_NOT_IN_ASSIGNMENT", request);
-            throw new IllegalArgumentException("该题目不属于当前作业");
-        }
-        request.setStudentProfileId(tokenStudentId);
+        request.setStudentProfileId(problemAccessService.requireAccess(
+                request.getAssignmentId(),
+                request.getProblemId(),
+                httpRequest
+        ));
         return request;
     }
 

@@ -6,6 +6,10 @@ package com.onlinejudge.execution;
  */
 public interface CodeExecutor {
 
+    int DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
+
+    ExecutionResult execute(CodeExecutionRequest request);
+
     /**
      * Execute code and return the result.
      * 
@@ -16,8 +20,17 @@ public interface CodeExecutor {
      * @param memoryLimitKb Maximum memory usage in KB
      * @return Execution result with stdout, stderr, and status
      */
-    ExecutionResult execute(String sourceCode, int languageId, String stdin, 
-                            int timeLimitMs, int memoryLimitKb);
+    default ExecutionResult execute(String sourceCode, int languageId, String stdin,
+                                    int timeLimitMs, int memoryLimitKb) {
+        return execute(new CodeExecutionRequest(
+                sourceCode,
+                languageId,
+                stdin,
+                timeLimitMs,
+                memoryLimitKb,
+                DEFAULT_MAX_OUTPUT_BYTES
+        ));
+    }
 
     /**
      * Check if this executor is available (e.g., Docker is installed).
@@ -41,6 +54,8 @@ public interface CodeExecutor {
         public long executionTimeMs;
         public ResultStatus status;
         public String errorMessage;
+        public boolean stdoutTruncated;
+        public boolean stderrTruncated;
 
         public ExecutionResult(String stdout, String stderr, int exitCode, long executionTimeMs) {
             this.stdout = stdout;
@@ -73,6 +88,24 @@ public interface CodeExecutor {
             ExecutionResult r = new ExecutionResult("", "", -1, 0);
             r.status = ResultStatus.TIME_LIMIT_EXCEEDED;
             return r;
+        }
+
+        public static ExecutionResult memoryLimitExceeded(String stdout, String stderr, int exitCode) {
+            ExecutionResult r = new ExecutionResult(stdout, stderr, exitCode, 0);
+            r.status = ResultStatus.MEMORY_LIMIT_EXCEEDED;
+            return r;
+        }
+
+        public ExecutionResult withOutput(String capturedStdout, String capturedStderr) {
+            this.stdout = capturedStdout == null ? "" : capturedStdout;
+            this.stderr = capturedStderr == null ? "" : capturedStderr;
+            return this;
+        }
+
+        public ExecutionResult withCapturedOutput(boolean stdoutWasTruncated, boolean stderrWasTruncated) {
+            this.stdoutTruncated = stdoutWasTruncated;
+            this.stderrTruncated = stderrWasTruncated;
+            return this;
         }
 
         public enum ResultStatus {
