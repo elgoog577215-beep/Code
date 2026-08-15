@@ -208,6 +208,9 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     assert.equal(await page.getByText("用一组输入运行当前代码，不计入正式提交和学习记录。", { exact: true }).count(), 0);
     assert.equal(await page.getByText("临时运行", { exact: true }).count(), 0);
     assert.equal(await page.getByText("内容会作为程序的标准输入 stdin。", { exact: true }).count(), 0);
+    if (process.env.STUDENT_PROBLEM_CODE_RUN_COLLAPSED_SCREENSHOT) {
+      await page.locator(".code-run-panel").screenshot({ path: process.env.STUDENT_PROBLEM_CODE_RUN_COLLAPSED_SCREENSHOT });
+    }
     await codeRunToggle.click();
     assert.equal(
       await page.getByRole("button", { name: "收起测试运行" }).getAttribute("aria-expanded"),
@@ -218,6 +221,9 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     assert.equal(await customInput.inputValue(), "");
     await page.getByRole("button", { name: "载入首个样例" }).click();
     assert.equal(await customInput.inputValue(), "3 5");
+    if (process.env.STUDENT_PROBLEM_CODE_RUN_EXPANDED_SCREENSHOT) {
+      await page.locator(".code-run-panel").screenshot({ path: process.env.STUDENT_PROBLEM_CODE_RUN_EXPANDED_SCREENSHOT });
+    }
     await page.getByRole("button", { name: "运行代码" }).click();
     await page.locator(".code-run-result").waitFor({ state: "visible", timeout: 5000 });
     assert.equal((await page.locator(".code-run-stdout").textContent())?.trim(), "8");
