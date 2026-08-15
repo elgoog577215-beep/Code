@@ -1937,10 +1937,24 @@ const scenarios = [
   {
     name: "platform-admin",
     path: "/app/platform-admin",
-    afterChecks: async page => {
+    afterChecks: async (page, viewport) => {
       const text = ((await page.locator(".admin-workspace").textContent()) || "").replace(/\s+/g, "");
       record("platform workspace only shows school and platform governance", text.includes("平台管理工作台") && text.includes("创建学校与校管") && text.includes("共建与公共题审核"), text.slice(0, 900));
       record("platform workspace omits teacher and student detail controls", !text.includes("学生代码") && !text.includes("名单详情"), text.slice(0, 900));
+      const schoolCardLayout = await page.locator(".management-step").first().evaluate(card => {
+        const body = card.querySelector(":scope > .management-step__body");
+        const cardRect = card.getBoundingClientRect();
+        const bodyRect = body?.getBoundingClientRect();
+        return {
+          cardWidth: Math.round(cardRect.width),
+          bodyWidth: Math.round(bodyRect?.width ?? 0)
+        };
+      });
+      record(
+        `platform school card uses the full content column at ${viewport.name}`,
+        schoolCardLayout.cardWidth > 0 && schoolCardLayout.bodyWidth >= schoolCardLayout.cardWidth * 0.8,
+        JSON.stringify(schoolCardLayout)
+      );
     },
     selectors: [
       [".admin-workspace", "platform admin workspace"],
