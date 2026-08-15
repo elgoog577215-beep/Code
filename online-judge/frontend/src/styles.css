@@ -6302,55 +6302,60 @@ button.list-row:hover {
 
 .code-run-panel {
   min-width: 0;
-  display: grid;
-  gap: 0.78rem;
-  padding: 0.88rem;
-  border: 1px solid color-mix(in srgb, var(--blue) 25%, var(--line));
+  align-self: start;
+  overflow: hidden;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--blue-soft) 34%, transparent), transparent 52%),
-    var(--surface-strong);
+  background: var(--surface-strong);
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 54%, transparent);
 }
 
-.code-run-panel__header {
-  min-width: 0;
+.code-run-panel__toggle {
+  width: 100%;
+  min-height: 46px;
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
-  gap: 0.8rem;
+  gap: 0.75rem;
+  padding: 0.68rem 0.88rem;
+  border: 0;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.code-run-panel__header > div {
-  min-width: 0;
+.code-run-panel__toggle:hover {
+  background: color-mix(in srgb, var(--blue-soft) 34%, var(--surface));
 }
 
-.code-run-panel__header h3,
-.code-run-panel__header p {
-  margin: 0;
+.code-run-panel__toggle:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -3px;
 }
 
-.code-run-panel__header h3 {
-  margin-top: 0.12rem;
-  font-size: 1rem;
-}
-
-.code-run-panel__header p {
-  margin-top: 0.22rem;
-  color: var(--ink-soft);
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
-.code-run-panel__temporary {
+.code-run-panel__toggle svg {
   flex: 0 0 auto;
-  padding: 0.22rem 0.48rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
   color: var(--ink-soft);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  font-size: 0.72rem;
+  transition: transform 160ms ease;
+}
+
+.code-run-panel[data-expanded="true"] .code-run-panel__toggle svg {
+  transform: rotate(180deg);
+}
+
+.code-run-panel__title {
+  font-size: 0.9rem;
   font-weight: 850;
+}
+
+.code-run-panel__body {
+  min-width: 0;
+  display: grid;
+  gap: 0.78rem;
+  padding: 0.88rem;
+  border-top: 1px solid var(--line);
 }
 
 .code-run-input {
@@ -6489,12 +6494,8 @@ button.list-row:hover {
 }
 
 @media (max-width: 640px) {
-  .code-run-panel__header {
-    display: grid;
-  }
-
-  .code-run-panel__temporary {
-    justify-self: start;
+  .code-run-panel__body {
+    padding: 0.78rem;
   }
 
   .code-run-actions {

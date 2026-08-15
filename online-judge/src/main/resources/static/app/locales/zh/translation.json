@@ -133,12 +133,10 @@
     "approveShared": "通过为共建题", "publishPublic": "通过并提升为公共题", "problemApproved": "共建题已发布。", "problemPublished": "公共版本已创建。", "problemRejected": "共建题已拒绝。"
   },
   "codeRun": {
-    "eyebrow": "快速验证",
-    "title": "自定义输入运行",
-    "description": "用一组输入运行当前代码，不计入正式提交和学习记录。",
-    "temporary": "临时运行",
+    "panelTitle": "测试运行",
+    "expandPanel": "展开测试运行",
+    "collapsePanel": "收起测试运行",
     "inputLabel": "自定义输入",
-    "inputHint": "内容会作为程序的标准输入 stdin。",
     "inputPlaceholder": "例如：3 5",
     "loadSample": "载入首个样例",
     "noSample": "本题没有可载入的公开样例",

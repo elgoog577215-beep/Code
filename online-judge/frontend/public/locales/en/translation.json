@@ -133,12 +133,10 @@
     "approveShared": "Approve as shared", "publishPublic": "Approve and publish a public version", "problemApproved": "Shared problem published.", "problemPublished": "Public version created.", "problemRejected": "Shared problem rejected."
   },
   "codeRun": {
-    "eyebrow": "Quick check",
-    "title": "Run with custom input",
-    "description": "Run the current code with one input without creating a submission or learning record.",
-    "temporary": "Temporary run",
+    "panelTitle": "Test run",
+    "expandPanel": "Expand test run",
+    "collapsePanel": "Collapse test run",
     "inputLabel": "Custom input",
-    "inputHint": "This content is passed to the program as standard input (stdin).",
     "inputPlaceholder": "For example: 3 5",
     "loadSample": "Load first sample",
     "noSample": "This problem has no public sample to load",
