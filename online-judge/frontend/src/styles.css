@@ -6337,6 +6337,102 @@ button.list-row:hover {
   min-height: 44px;
 }
 
+.school-admin-quota-panel .panel__header {
+  align-items: center;
+}
+
+.school-admin-quota-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0;
+}
+
+.school-admin-quota-grid > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.78rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--brand-soft) 18%, var(--surface-strong));
+}
+
+.school-admin-quota-grid dt,
+.school-admin-quota-grid dd {
+  margin: 0;
+}
+
+.school-admin-quota-grid dt {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.school-admin-quota-grid dd {
+  color: var(--ink);
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+  font-weight: 920;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.school-admin-inline-row .management-step__body {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.school-admin-inline-row .management-step__body > .actions {
+  justify-content: flex-end;
+}
+
+.school-admin-teacher-card .management-step__body {
+  grid-template-columns: minmax(230px, 1fr) auto minmax(300px, 0.9fr);
+  align-items: end;
+  gap: 1rem;
+}
+
+.school-admin-teacher-card__summary {
+  min-width: 0;
+  display: grid;
+  align-self: center;
+  gap: 0.34rem;
+}
+
+.school-admin-teacher-card__summary .management-step__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.school-admin-teacher-card__summary p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.school-admin-teacher-card__actions {
+  align-self: end;
+  flex-wrap: nowrap;
+}
+
+.school-admin-teacher-card__quota {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto;
+  align-items: end;
+  gap: 0.55rem;
+}
+
+.school-admin-teacher-card__quota .ui-button {
+  min-height: 44px;
+  white-space: nowrap;
+}
+
 .admin-workspace code {
   overflow-wrap: anywhere;
   user-select: all;
@@ -6369,6 +6465,16 @@ button.list-row:hover {
   width: min(480px, calc(100vw - 32px));
 }
 
+@media (max-width: 980px) {
+  .school-admin-teacher-card .management-step__body {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 1fr);
+  }
+
+  .school-admin-teacher-card__summary {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 720px) {
   .admin-workspace .teacher-workflow-header,
   .admin-workspace .actions {
@@ -6378,6 +6484,26 @@ button.list-row:hover {
 
   .admin-workspace .form-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .school-admin-inline-row .management-step__body,
+  .school-admin-teacher-card .management-step__body,
+  .school-admin-teacher-card__quota {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .school-admin-teacher-card__summary {
+    grid-column: auto;
+  }
+
+  .school-admin-teacher-card__quota .ui-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .school-admin-quota-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

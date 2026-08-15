@@ -178,7 +178,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       },
       fields: {
         schoolName: "学校名称", adminUsername: "校管用户名", adminDisplayName: "校管姓名", monthlyQuota: "学校月额度",
-        totalQuota: "总额度", allocatedQuota: "已分配", availableQuota: "可分配", teacherQuota: "教师本月额度", replacementUsername: "新校管用户名", replacementDisplayName: "新校管姓名"
+        totalQuota: "总额度", allocatedQuota: "已分配", usedQuota: "已消耗", availableQuota: "可分配", teacherQuota: "教师本月额度", replacementUsername: "新校管用户名", replacementDisplayName: "新校管姓名"
       },
       actions: {
         create: "创建学校", refresh: "刷新", resetPassword: "重置密码", suspend: "停用", restore: "恢复", saveQuota: "保存额度",
@@ -1182,7 +1182,7 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
       },
       fields: {
         schoolName: "School name", adminUsername: "Admin username", adminDisplayName: "Admin name", monthlyQuota: "Monthly school quota",
-        totalQuota: "Total", allocatedQuota: "Allocated", availableQuota: "Available", teacherQuota: "Teacher monthly quota", replacementUsername: "New admin username", replacementDisplayName: "New admin name"
+        totalQuota: "Total", allocatedQuota: "Allocated", usedQuota: "Used", availableQuota: "Available", teacherQuota: "Teacher monthly quota", replacementUsername: "New admin username", replacementDisplayName: "New admin name"
       },
       actions: {
         create: "Create school", refresh: "Refresh", resetPassword: "Reset password", suspend: "Suspend", restore: "Restore", saveQuota: "Save quota",
