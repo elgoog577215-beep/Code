@@ -6305,6 +6305,38 @@ button.list-row:hover {
   margin: 0 auto;
 }
 
+.admin-workspace .management-step-list {
+  gap: 1rem;
+  border-top: 0;
+}
+
+.admin-workspace .management-step {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.78rem 0.08rem;
+}
+
+.admin-workspace .management-step__body {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.admin-workspace .management-step__body > .actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.admin-workspace .form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+}
+
+.admin-workspace .form-grid > .ui-button {
+  width: 100%;
+  min-height: 44px;
+}
+
 .admin-workspace code {
   overflow-wrap: anywhere;
   user-select: all;
@@ -6339,10 +6371,13 @@ button.list-row:hover {
 
 @media (max-width: 720px) {
   .admin-workspace .teacher-workflow-header,
-  .admin-workspace .actions,
-  .admin-workspace .form-grid {
+  .admin-workspace .actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .admin-workspace .form-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
