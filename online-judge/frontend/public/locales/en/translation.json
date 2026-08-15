@@ -24,6 +24,37 @@
       "dark": "Dark"
     }
   },
+  "codeRun": {
+    "eyebrow": "Quick check",
+    "title": "Run with custom input",
+    "description": "Run the current code with one input without creating a submission or learning record.",
+    "temporary": "Temporary run",
+    "inputLabel": "Custom input",
+    "inputHint": "This content is passed to the program as standard input (stdin).",
+    "inputPlaceholder": "For example: 3 5",
+    "loadSample": "Load first sample",
+    "noSample": "This problem has no public sample to load",
+    "clearInput": "Clear input",
+    "run": "Run code",
+    "running": "Running",
+    "runningHint": "Compiling and running the current code…",
+    "requestFailed": "The run request failed.",
+    "duration": "{{value}} ms",
+    "stale": "Content changed; run again",
+    "stdout": "Standard output",
+    "stderr": "Standard error",
+    "noOutput": "The program produced no output",
+    "truncated": "Output truncated",
+    "status": {
+      "success": "Run succeeded",
+      "compilation_error": "Compilation error",
+      "runtime_error": "Runtime error",
+      "time_limit_exceeded": "Time limit exceeded",
+      "memory_limit_exceeded": "Memory limit exceeded",
+      "environment_unavailable": "Environment unavailable",
+      "internal_error": "Run failed"
+    }
+  },
   "growthDashboard": {
     "title": "Single-problem growth dashboard",
     "latestSubmission": "Current #{{id}}",

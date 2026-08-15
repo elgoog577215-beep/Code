@@ -309,6 +309,26 @@ export interface ProblemManage extends Problem {
   }>;
 }
 
+export type CodeRunStatus =
+  | "SUCCESS"
+  | "COMPILATION_ERROR"
+  | "RUNTIME_ERROR"
+  | "TIME_LIMIT_EXCEEDED"
+  | "MEMORY_LIMIT_EXCEEDED"
+  | "ENVIRONMENT_UNAVAILABLE"
+  | "INTERNAL_ERROR";
+
+export interface CodeRunResult {
+  status: CodeRunStatus | string;
+  stdout: string;
+  stderr: string;
+  exitCode?: number | null;
+  executionTimeMs: number;
+  stdoutTruncated: boolean;
+  stderrTruncated: boolean;
+  message?: string | null;
+}
+
 export interface StudentHintPlan {
   hintLevel?: string;
   problemType?: string;

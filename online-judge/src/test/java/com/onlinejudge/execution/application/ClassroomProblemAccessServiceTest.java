@@ -66,7 +66,7 @@ class ClassroomProblemAccessServiceTest {
         when(studentRepository.findById(41L)).thenReturn(Optional.of(student(41L, 3L)));
         when(taskRepository.existsByAssignmentIdAndProblemId(7L, 101L)).thenReturn(false);
         assertThatThrownBy(() -> service.requireAccess(7L, 101L, request))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("不属于当前作业");
     }
 

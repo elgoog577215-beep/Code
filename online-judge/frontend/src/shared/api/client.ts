@@ -13,6 +13,7 @@ import type {
   AuthSession,
   ClassGroup,
   CoachPrompt,
+  CodeRunResult,
   DiagnosisEvalCandidates,
   DiagnosisEvalFixtureDraft,
   DiagnosisTag,
@@ -173,6 +174,18 @@ export const api = {
     request<Problem>("/api/problems", { method: "POST", body: jsonBody(payload) }),
   updateProblem: (id: number, payload: unknown) =>
     request<Problem>(`/api/problems/${id}`, { method: "PUT", body: jsonBody(payload) }),
+
+  codeRun: (payload: {
+    problemId: number;
+    assignmentId?: number | null;
+    languageId: number;
+    sourceCode: string;
+    stdin: string;
+  }) =>
+    request<CodeRunResult>("/api/code-runs", {
+      method: "POST",
+      body: jsonBody(payload)
+    }),
 
   submit: (payload: {
     problemId: number;

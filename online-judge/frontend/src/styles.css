@@ -6300,6 +6300,215 @@ button.list-row:hover {
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.code-run-panel {
+  min-width: 0;
+  display: grid;
+  gap: 0.78rem;
+  padding: 0.88rem;
+  border: 1px solid color-mix(in srgb, var(--blue) 25%, var(--line));
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--blue-soft) 34%, transparent), transparent 52%),
+    var(--surface-strong);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 54%, transparent);
+}
+
+.code-run-panel__header {
+  min-width: 0;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.code-run-panel__header > div {
+  min-width: 0;
+}
+
+.code-run-panel__header h3,
+.code-run-panel__header p {
+  margin: 0;
+}
+
+.code-run-panel__header h3 {
+  margin-top: 0.12rem;
+  font-size: 1rem;
+}
+
+.code-run-panel__header p {
+  margin-top: 0.22rem;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.code-run-panel__temporary {
+  flex: 0 0 auto;
+  padding: 0.22rem 0.48rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.code-run-input {
+  min-height: 108px;
+  resize: vertical;
+  white-space: pre;
+  font-family: "JetBrains Mono", "Cascadia Code", monospace;
+  line-height: 1.45;
+}
+
+.code-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.code-run-submit {
+  margin-left: auto;
+  border-color: color-mix(in srgb, var(--blue) 48%, var(--line));
+  color: var(--blue-strong);
+  background: color-mix(in srgb, var(--blue-soft) 55%, var(--surface-strong));
+}
+
+.code-run-live:empty {
+  display: none;
+}
+
+.code-run-progress,
+.code-run-request-error,
+.code-run-message {
+  margin: 0;
+  padding: 0.62rem 0.7rem;
+  border-radius: var(--radius-sm);
+  line-height: 1.45;
+}
+
+.code-run-progress {
+  color: var(--blue-strong);
+  background: var(--blue-soft);
+}
+
+.code-run-request-error {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.code-run-result {
+  min-width: 0;
+  display: grid;
+  gap: 0.68rem;
+  padding-top: 0.72rem;
+  border-top: 1px solid var(--line);
+}
+
+.code-run-result[data-stale="true"] {
+  opacity: 0.78;
+}
+
+.code-run-result__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.code-run-result__meta em {
+  color: var(--warning);
+  font-style: normal;
+  font-weight: 850;
+}
+
+.code-run-status {
+  padding: 0.22rem 0.48rem;
+  border-radius: 999px;
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.code-run-status:not([data-status="SUCCESS"]) {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.code-run-message {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.code-run-streams {
+  min-width: 0;
+  display: grid;
+  gap: 0.62rem;
+}
+
+.code-run-streams > section {
+  min-width: 0;
+}
+
+.code-run-stream__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.32rem;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.code-run-stream__label span {
+  color: var(--warning);
+  font-weight: 850;
+}
+
+.code-run-stream {
+  max-width: 100%;
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--blue) 18%, transparent);
+  border-radius: var(--radius-sm);
+  color: #e2e8f0;
+  background: #0f172a;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: "JetBrains Mono", "Cascadia Code", monospace;
+  font-size: 0.84rem;
+  line-height: 1.48;
+}
+
+.code-run-stderr {
+  border-color: color-mix(in srgb, var(--danger) 42%, transparent);
+  color: #fecaca;
+}
+
+@media (max-width: 640px) {
+  .code-run-panel__header {
+    display: grid;
+  }
+
+  .code-run-panel__temporary {
+    justify-self: start;
+  }
+
+  .code-run-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .code-run-actions .ui-button,
+  .code-run-submit {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
 .problem-layout--workbench .panel--editor .stack {
   min-height: 100%;
   grid-template-rows: minmax(320px, 1fr) auto auto;

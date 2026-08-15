@@ -96,6 +96,7 @@ class CodeRunServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("源代码");
 
+        properties.setMaxSourceBytes(1024);
         CodeRunRequest oversizedInput = request("你好");
         assertThatThrownBy(() -> service.run(oversizedInput))
                 .isInstanceOf(IllegalArgumentException.class)

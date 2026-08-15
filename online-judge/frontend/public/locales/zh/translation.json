@@ -24,6 +24,37 @@
       "dark": "夜间"
     }
   },
+  "codeRun": {
+    "eyebrow": "快速验证",
+    "title": "自定义输入运行",
+    "description": "用一组输入运行当前代码，不计入正式提交和学习记录。",
+    "temporary": "临时运行",
+    "inputLabel": "自定义输入",
+    "inputHint": "内容会作为程序的标准输入 stdin。",
+    "inputPlaceholder": "例如：3 5",
+    "loadSample": "载入首个样例",
+    "noSample": "本题没有可载入的公开样例",
+    "clearInput": "清空输入",
+    "run": "运行代码",
+    "running": "运行中",
+    "runningHint": "正在编译并运行当前代码…",
+    "requestFailed": "运行请求失败。",
+    "duration": "{{value}} ms",
+    "stale": "内容已变化，请重新运行",
+    "stdout": "标准输出",
+    "stderr": "标准错误",
+    "noOutput": "程序没有输出",
+    "truncated": "输出已截断",
+    "status": {
+      "success": "运行成功",
+      "compilation_error": "编译错误",
+      "runtime_error": "运行错误",
+      "time_limit_exceeded": "运行超时",
+      "memory_limit_exceeded": "内存超限",
+      "environment_unavailable": "环境未就绪",
+      "internal_error": "运行失败"
+    }
+  },
   "growthDashboard": {
     "title": "单题成长仪表盘",
     "latestSubmission": "当前 #{{id}}",

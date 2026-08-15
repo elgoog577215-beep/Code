@@ -9,6 +9,8 @@ public final class TeachingBackendRouteCatalog {
 
     public static List<RouteEntry> routes() {
         return List.of(
+                route("POST", "/api/code-runs", TeachingBackendRole.KEEP_MAIN,
+                        "学生使用自定义输入临时运行代码，不产生提交或学习证据"),
                 route("POST", "/api/submissions", TeachingBackendRole.KEEP_MAIN,
                         "学生提交代码，启动判题事实链路"),
                 route("GET", "/api/submissions/{id}", TeachingBackendRole.KEEP_MAIN,
