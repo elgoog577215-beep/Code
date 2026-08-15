@@ -84,9 +84,9 @@ export function TeacherShell({ children }: { children: ReactNode }) {
           </div>
         </nav>
         <div className="teacher-shell-sidebar__foot">
-          <span>{session?.displayName || (inManagement ? t("teacherShell.managementFootnote") : t("teacherShell.footnote"))}</span>
-          <button type="button" className="teacher-shell-nav__item" onClick={() => void api.teacherLogout().finally(() => window.location.assign("/app/teacher"))}>
-            <span className="teacher-shell-nav__icon"><LogOut size={17} /></span><span><strong>{t("common.logout")}</strong></span>
+          <span className="teacher-shell-account" title={session?.displayName || undefined}>{session?.displayName || (inManagement ? t("teacherShell.managementFootnote") : t("teacherShell.footnote"))}</span>
+          <button type="button" className="teacher-shell-logout" onClick={() => void api.teacherLogout().finally(() => window.location.assign("/app/teacher"))}>
+            <LogOut size={16} aria-hidden="true" /><span>{t("common.logout")}</span>
           </button>
         </div>
       </aside>

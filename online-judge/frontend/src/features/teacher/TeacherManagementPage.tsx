@@ -758,17 +758,18 @@ function ClassManageSection({
             <span className="management-step__number">{roster.length}</span>
             <div className="management-step__body">
               <div className="management-step__head"><h3>{t("multiTeacher.roster.title")}</h3><p>{t("multiTeacher.roster.description")}</p></div>
-              <div className="management-problem-list">
+              <div className="management-roster-list">
                 {roster.length ? roster.map(student => (
-                  <div className="management-object-row" key={student.id}>
-                    <span className="management-object-row__content"><strong>{student.displayName}</strong><small>{student.studentNo}</small></span>
-                    <StatusPill tone={student.status === "ACTIVE" ? "success" : student.status === "NEEDS_REVIEW" ? "warning" : "neutral"}>
-                      {t(`multiTeacher.roster.status.${(student.status || "needs_review").toLowerCase()}`)}
-                    </StatusPill>
-                    <Button type="button" variant="ghost" disabled={busy || student.status === "NEEDS_REVIEW"} onClick={() => onUpdateRosterStatus(student)}>
+                  <article className="management-roster-row" key={student.id}>
+                    <span className="management-roster-row__avatar" aria-hidden="true">{student.displayName.trim().slice(0, 1) || "—"}</span>
+                    <span className="management-roster-row__identity">
+                      <span className="management-roster-row__title"><strong>{student.displayName}</strong><StatusPill tone={student.status === "ACTIVE" ? "success" : student.status === "NEEDS_REVIEW" ? "warning" : "neutral"}>{t(`multiTeacher.roster.status.${(student.status || "needs_review").toLowerCase()}`)}</StatusPill></span>
+                      <small>{student.studentNo ? `#${student.studentNo}` : "—"}</small>
+                    </span>
+                    <Button className="management-roster-row__action" type="button" variant="secondary" icon={student.status === "ACTIVE" ? <PowerOff size={15} /> : <Power size={15} />} disabled={busy || student.status === "NEEDS_REVIEW"} onClick={() => onUpdateRosterStatus(student)}>
                       {t(student.status === "ACTIVE" ? "multiTeacher.roster.deactivate" : "multiTeacher.roster.activate")}
                     </Button>
-                  </div>
+                  </article>
                 )) : <EmptyState title={t("multiTeacher.roster.empty")} description={t("multiTeacher.roster.emptyHint")} />}
               </div>
             </div>

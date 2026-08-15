@@ -530,8 +530,57 @@
 }
 
 .teacher-console-shell .teacher-shell-sidebar__foot {
-  padding: 0.58rem 0.58rem 0.08rem;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.48rem;
+  padding: 0.58rem 0.1rem 0.04rem;
   border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.teacher-console-shell .teacher-shell-account {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 880;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-console-shell .teacher-shell-logout {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.34rem;
+  padding: 0.38rem 0.58rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
+  cursor: pointer;
+  font: inherit;
+  transition: color 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.teacher-console-shell .teacher-shell-logout span {
+  color: inherit;
+  font-size: 0.76rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.teacher-console-shell .teacher-shell-logout:hover {
+  color: var(--brand-strong);
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 30%, var(--surface));
+}
+
+.teacher-console-shell .teacher-shell-logout:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus);
 }
 
 .teacher-console-shell .teacher-shell-main {
@@ -1443,6 +1492,75 @@
   color: var(--muted);
   font-size: 0.78rem;
   line-height: 1.42;
+}
+
+.teacher-manage-page .management-roster-list {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.teacher-manage-page .management-roster-row {
+  min-width: 0;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.68rem;
+  padding: 0.52rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+}
+
+.teacher-manage-page .management-roster-row__avatar {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--line));
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 42%, var(--surface));
+  font-size: 0.82rem;
+  font-weight: 920;
+}
+
+.teacher-manage-page .management-roster-row__identity {
+  min-width: 0;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.teacher-manage-page .management-roster-row__title {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.teacher-manage-page .management-roster-row__title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-manage-page .management-roster-row__identity > small {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 760;
+}
+
+.teacher-manage-page .management-roster-row__action {
+  min-width: 82px;
+  min-height: 38px;
+  justify-self: end;
+  padding-inline: 0.62rem;
 }
 
 .management-class-import .management-import-grid {
