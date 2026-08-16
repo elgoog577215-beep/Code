@@ -1828,6 +1828,28 @@ const scenarios = [
     ]
   },
   {
+    name: "teacher-auth-resilience",
+    path: "/app/teacher/manage/classes",
+    afterChecks: async page => {
+      record(
+        "teacher session recovers from one transient gateway failure",
+        accountSessionCallCount === 2 && await page.locator(".teacher-auth-panel").count() === 0,
+        `session calls ${accountSessionCallCount}`
+      );
+      await page.locator('a[href="/app/teacher/manage/problems"]').click();
+      await page.locator(".management-object-workbench--problems").waitFor({ state: "visible", timeout: 10000 });
+      record(
+        "teacher navigation reuses the resolved account session",
+        accountSessionCallCount === 2 && await page.locator(".teacher-auth-panel").count() === 0,
+        `session calls ${accountSessionCallCount}; url ${page.url()}`
+      );
+    },
+    selectors: [
+      [".teacher-shell-nav", "teacher shell nav after transient failure"],
+      [".management-object-workbench--classes", "class roster after transient failure"]
+    ]
+  },
+  {
     name: "teacher-management",
     path: "/app/teacher/manage",
     afterChecks: async (page, viewport) => {
@@ -2170,6 +2192,8 @@ const unmockedApis = [];
 let analysisLookupCount = 0;
 let studentFeedbackLookupCount = 0;
 let studentFeedbackViewCount = 0;
+let activeScenarioName = "";
+let accountSessionCallCount = 0;
 
 function record(name, passed, detail = "") {
   checks.push({ name, passed, detail });
@@ -2236,6 +2260,10 @@ async function routeApi(route) {
 
   if (path === "/api/invites/resolve" && method === "POST") return json(route, assignment);
   if (path === "/api/auth/account/session" || path === "/api/auth/teacher/session") {
+    accountSessionCallCount += 1;
+    if (activeScenarioName === "teacher-auth-resilience" && accountSessionCallCount === 1) {
+      return json(route, { code: "SERVICE_UNAVAILABLE", error: "服务暂不可用" }, 502);
+    }
     const referer = request.headers()["referer"] || "";
     const role = referer.includes("/app/platform-admin") ? "PLATFORM_ADMIN" : referer.includes("/app/school-admin") ? "SCHOOL_ADMIN" : "TEACHER";
     return json(route, {
@@ -2568,6 +2596,8 @@ async function checkDarkReadable(page, selector, label) {
 }
 
 async function runScenario(baseUrl, browser, viewport, scenario) {
+  activeScenarioName = scenario.name;
+  accountSessionCallCount = 0;
   const context = await browser.newContext({ viewport });
   await context.addInitScript(({ studentJson }) => {
     window.localStorage.setItem("wzai:theme", "light");

@@ -10,7 +10,9 @@ import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGro
 import com.onlinejudge.learning.standardlibrary.application.StandardLibraryGrowthProposal;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
 import com.onlinejudge.identity.domain.TeacherAccount;
+import com.onlinejudge.identity.domain.TeacherSession;
 import com.onlinejudge.identity.persistence.TeacherAccountRepository;
+import com.onlinejudge.identity.persistence.TeacherSessionRepository;
 import com.onlinejudge.organization.domain.School;
 import com.onlinejudge.organization.persistence.SchoolRepository;
 import com.onlinejudge.submission.domain.Submission;
@@ -87,6 +89,9 @@ class SchoolAccessControlTest {
     TeacherAccountRepository teacherAccounts;
 
     @Autowired
+    TeacherSessionRepository teacherSessions;
+
+    @Autowired
     SchoolRepository schools;
 
     @BeforeEach
@@ -128,6 +133,26 @@ class SchoolAccessControlTest {
                         .content("{\"username\":\"" + TEACHER_USERNAME + "\",\"password\":\"" + TEACHER_PASSWORD + "\",\"portal\":\"TEACHER\"}"))
                 .andExpect(status().isOk())
                 .andExpect(cookie().exists(TeacherSessionService.COOKIE_NAME));
+    }
+
+    @Test
+    void activeTeacherSessionRenewsBeforeItsIdleExpiry() throws Exception {
+        String cookie = loginTeacherCookie();
+        TeacherSession session = teacherSessions.findAll().stream()
+                .filter(candidate -> TEACHER_ID.equals(candidate.getTeacherId()))
+                .max(java.util.Comparator.comparing(TeacherSession::getCreatedAt))
+                .orElseThrow();
+        Instant nearExpiry = Instant.now().plusSeconds(30);
+        session.setExpiresAt(nearExpiry);
+        teacherSessions.saveAndFlush(session);
+
+        mockMvc.perform(get("/api/auth/account/session")
+                        .header("Cookie", cookie))
+                .andExpect(status().isOk())
+                .andExpect(cookie().exists(TeacherSessionService.COOKIE_NAME));
+
+        TeacherSession renewed = teacherSessions.findById(session.getId()).orElseThrow();
+        assertThat(renewed.getExpiresAt()).isAfter(Instant.now().plusSeconds(11 * 3600));
     }
 
     @Test
