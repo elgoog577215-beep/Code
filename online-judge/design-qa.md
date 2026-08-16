@@ -71,3 +71,37 @@ Accepted product constraints:
 - Automated checks passed: TypeScript typecheck, production build, 28 visual-smoke checks, problem workbench test, assignment overview test, six signed-in home tests, and guest layout test.
 
 final result: passed
+
+---
+
+# Design QA — Teacher Class Roster Workspace
+
+- reference: `C:\Users\Lenovo\.codex\generated_images\01a00477-a41a-72b3-8b1d-6d8adfb8e704\exec-a1258a50-83a1-4c87-853f-daa17fb1b2d8.png`
+- implementation capture: `output/playwright/teacher-management-desktop-light.png`
+- combined comparison: `output/design-qa-class-roster-comparison.png`
+- comparison viewport: 1680 × 900, light theme, roster tab selected
+- scope: the inner class selector and roster workspace only; the global header, permanent management sidebar, and page intro remain unchanged
+
+## Visual checks
+
+- The class selector stays narrow while the roster canvas carries the primary visual weight.
+- The class title, summary pills, and primary import action align in one compact header.
+- The default screen exposes the roster rather than the long import workflow.
+- The roster uses a single table-like row with clear student, number, status, and action columns.
+- Borders, radii, typography, brand color, and icon treatment reuse the existing product design system.
+- Tablet and mobile layouts stack cleanly without horizontal overflow; mobile actions retain touch-safe sizing.
+
+## Interaction checks
+
+- `导入或更新名单` opens the import workflow.
+- `学生名单`, `导入记录`, and `班级设置` switch panels and expose the expected content.
+- Returning to `学生名单` restores the compact default state.
+- Class selection resets the workspace to the roster tab.
+
+## Findings
+
+- P0: none
+- P1: none
+- P2: none after widening the scoped workbench and isolating class-row styles from the legacy global minimum-width rule
+
+final result: passed

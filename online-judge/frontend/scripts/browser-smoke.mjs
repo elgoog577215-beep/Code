@@ -1891,6 +1891,8 @@ const scenarios = [
       await page.locator("[data-class-tab='settings']").click();
       await checkVisible(page, ".management-class-panel--settings", `teacher management ${viewport.name} settings panel on demand`);
       record("teacher class settings owns join-code controls", ((await page.locator(".management-class-panel--settings").textContent()) || "").includes("轮换班级码"), await page.locator(".management-class-panel--settings").textContent());
+      await page.locator("[data-class-tab='roster']").click();
+      await checkVisible(page, ".management-class-panel--roster", `teacher management ${viewport.name} returns to roster panel`);
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],

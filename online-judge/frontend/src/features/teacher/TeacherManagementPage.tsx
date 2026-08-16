@@ -46,6 +46,7 @@ import TaskEditorPage from "../task-editor/TaskEditorPage";
 
 type Alert = { type: "success" | "error"; message: string };
 type ImportKind = "class" | "problem";
+type ClassWorkspaceTab = "roster" | "import" | "settings";
 type LibraryEnabledFilter = "" | "true" | "false";
 type StandardLibraryView = "library" | "review";
 type GrowthCandidateAction = "approve" | "merge" | "reject" | "ignore";
@@ -682,6 +683,14 @@ function ClassManageSection({
 }) {
   const { t } = useTranslation();
   const selectedClass = classes.find(item => String(item.id) === selectedClassGroupId) || classes[0] || null;
+  const [activeTab, setActiveTab] = useState<ClassWorkspaceTab>("roster");
+  const activeStudentCount = roster.filter(student => student.status === "ACTIVE").length;
+
+  useEffect(() => {
+    setActiveTab("roster");
+  }, [selectedClass?.id]);
+
+  const selectTab = (tab: ClassWorkspaceTab) => setActiveTab(tab);
 
   return (
     <section className="management-object-workbench management-object-workbench--classes">
@@ -694,7 +703,7 @@ function ClassManageSection({
           classes.map(item => (
             <button
               type="button"
-              className={`management-object-row ${String(item.id) === String(selectedClass?.id) ? "is-active" : ""}`}
+              className={`management-class-row ${String(item.id) === String(selectedClass?.id) ? "is-active" : ""}`}
               key={item.id}
               onClick={() => onSelectClass(String(item.id))}
             >
@@ -727,55 +736,91 @@ function ClassManageSection({
         </details>
       </aside>
 
-      <section className="management-object-main management-class-import">
-        <div className="management-object-main__head">
+      <section className="management-object-main management-class-workspace">
+        <div className="management-class-workspace__head">
           <div>
             <p className="eyebrow">{t("teacherManagement.classManage.import.eyebrow")}</p>
             <h2>{selectedClass?.name || t("teacherManagement.classManage.defaultClass")}</h2>
+            <div className="management-class-summary" aria-label={t("teacherManagement.classManage.summaryAria")}>
+              <StatusPill tone="info">{t("multiTeacher.classCode.studentCount", { count: activeStudentCount })}</StatusPill>
+              <StatusPill tone="neutral">{t("multiTeacher.classCode.hidden")}</StatusPill>
+            </div>
           </div>
-          {selectedClass ? <StatusPill tone="info">{t("teacherManagement.classManage.import.currentTarget")}</StatusPill> : <StatusPill tone="warning">{t("teacherManagement.classManage.import.waiting")}</StatusPill>}
+          <Button
+            className="management-class-primary-action"
+            type="button"
+            variant="primary"
+            icon={<UploadCloud size={17} />}
+            disabled={!selectedClass}
+            onClick={() => selectTab("import")}
+          >
+            {t("teacherManagement.classManage.importAction")}
+          </Button>
         </div>
-        {selectedClass ? (
-          <section className="management-step">
-            <span className="management-step__number">#</span>
-            <div className="management-step__body">
-              <div className="management-step__head">
-                <h3>{t("multiTeacher.classCode.title")}</h3>
-                <p>{t("multiTeacher.classCode.description")}</p>
+        <div className="management-class-tabs" role="tablist" aria-label={t("teacherManagement.classManage.tabs.aria")}>
+          {(["roster", "import", "settings"] as const).map(tab => (
+            <button
+              id={`class-workspace-tab-${tab}`}
+              type="button"
+              role="tab"
+              data-class-tab={tab}
+              aria-selected={activeTab === tab}
+              aria-controls={`class-workspace-panel-${tab}`}
+              className={`management-class-tab ${activeTab === tab ? "is-active" : ""}`}
+              key={tab}
+              onClick={() => selectTab(tab)}
+            >
+              {t(`teacherManagement.classManage.tabs.${tab}`)}
+              {tab === "roster" ? <span>{roster.length}</span> : null}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === "roster" ? (
+          <section
+            id="class-workspace-panel-roster"
+            className="management-class-panel management-class-panel--roster"
+            role="tabpanel"
+            aria-labelledby="class-workspace-tab-roster"
+          >
+            <div className="management-class-panel__head">
+              <div>
+                <h3>{t("multiTeacher.roster.title")}</h3>
+                <p>{t("multiTeacher.roster.description")}</p>
               </div>
-              <div className="actions">
-                {selectedClass.joinCode ? <StatusPill tone="success">{selectedClass.joinCode}</StatusPill> : <StatusPill tone="neutral">{t("multiTeacher.classCode.hidden")}</StatusPill>}
-                <StatusPill tone="info">{t("multiTeacher.classCode.studentCount", { count: selectedClass.activeStudentCount || 0 })}</StatusPill>
-                <Button type="button" variant="secondary" disabled={busy} onClick={() => onRotateClassCode(selectedClass.id)}>
-                  {t("multiTeacher.classCode.rotate")}
-                </Button>
-              </div>
+              <StatusPill tone="neutral">{t("teacherManagement.classManage.rosterCount", { count: roster.length })}</StatusPill>
             </div>
-          </section>
-        ) : null}
-        {selectedClass ? (
-          <section className="management-step">
-            <span className="management-step__number">{roster.length}</span>
-            <div className="management-step__body">
-              <div className="management-step__head"><h3>{t("multiTeacher.roster.title")}</h3><p>{t("multiTeacher.roster.description")}</p></div>
-              <div className="management-roster-list">
-                {roster.length ? roster.map(student => (
-                  <article className="management-roster-row" key={student.id}>
+            <div className="management-roster-columns" aria-hidden="true">
+              <span>{t("teacherManagement.classManage.rosterColumns.student")}</span>
+              <span>{t("teacherManagement.classManage.rosterColumns.number")}</span>
+              <span>{t("teacherManagement.classManage.rosterColumns.status")}</span>
+              <span>{t("teacherManagement.classManage.rosterColumns.action")}</span>
+            </div>
+            <div className="management-roster-list">
+              {roster.length ? roster.map(student => (
+                <article className="management-roster-row" key={student.id}>
+                  <span className="management-roster-row__student">
                     <span className="management-roster-row__avatar" aria-hidden="true">{student.displayName.trim().slice(0, 1) || "—"}</span>
-                    <span className="management-roster-row__identity">
-                      <span className="management-roster-row__title"><strong>{student.displayName}</strong><StatusPill tone={student.status === "ACTIVE" ? "success" : student.status === "NEEDS_REVIEW" ? "warning" : "neutral"}>{t(`multiTeacher.roster.status.${(student.status || "needs_review").toLowerCase()}`)}</StatusPill></span>
-                      <small>{student.studentNo ? `#${student.studentNo}` : "—"}</small>
-                    </span>
-                    <Button className="management-roster-row__action" type="button" variant="secondary" icon={student.status === "ACTIVE" ? <PowerOff size={15} /> : <Power size={15} />} disabled={busy || student.status === "NEEDS_REVIEW"} onClick={() => onUpdateRosterStatus(student)}>
-                      {t(student.status === "ACTIVE" ? "multiTeacher.roster.deactivate" : "multiTeacher.roster.activate")}
-                    </Button>
-                  </article>
-                )) : <EmptyState title={t("multiTeacher.roster.empty")} description={t("multiTeacher.roster.emptyHint")} />}
-              </div>
+                    <strong>{student.displayName}</strong>
+                  </span>
+                  <small className="management-roster-row__number">{student.studentNo ? `#${student.studentNo}` : "—"}</small>
+                  <StatusPill tone={student.status === "ACTIVE" ? "success" : student.status === "NEEDS_REVIEW" ? "warning" : "neutral"}>{t(`multiTeacher.roster.status.${(student.status || "needs_review").toLowerCase()}`)}</StatusPill>
+                  <Button className="management-roster-row__action" type="button" variant="secondary" icon={student.status === "ACTIVE" ? <PowerOff size={15} /> : <Power size={15} />} disabled={busy || student.status === "NEEDS_REVIEW"} onClick={() => onUpdateRosterStatus(student)}>
+                    {t(student.status === "ACTIVE" ? "multiTeacher.roster.deactivate" : "multiTeacher.roster.activate")}
+                  </Button>
+                </article>
+              )) : <EmptyState title={t("multiTeacher.roster.empty")} description={t("multiTeacher.roster.emptyHint")} />}
             </div>
           </section>
         ) : null}
-        <div className="management-step-list">
+
+        {activeTab === "import" ? (
+        <div
+          id="class-workspace-panel-import"
+          className="management-class-panel management-class-panel--import management-step-list"
+          role="tabpanel"
+          aria-labelledby="class-workspace-tab-import"
+        >
           <section className="management-step">
             <span className="management-step__number">1</span>
             <div className="management-step__body">
@@ -839,6 +884,33 @@ function ClassManageSection({
             </div>
           </section>
         </div>
+        ) : null}
+
+        {activeTab === "settings" ? (
+          <section
+            id="class-workspace-panel-settings"
+            className="management-class-panel management-class-panel--settings"
+            role="tabpanel"
+            aria-labelledby="class-workspace-tab-settings"
+          >
+            <div className="management-class-settings-card">
+              <span className="management-step__number">#</span>
+              <div className="management-step__body">
+                <div className="management-step__head">
+                  <h3>{t("multiTeacher.classCode.title")}</h3>
+                  <p>{t("multiTeacher.classCode.description")}</p>
+                </div>
+                <div className="actions">
+                  {selectedClass?.joinCode ? <StatusPill tone="success">{selectedClass.joinCode}</StatusPill> : <StatusPill tone="neutral">{t("multiTeacher.classCode.hidden")}</StatusPill>}
+                  <StatusPill tone="info">{t("multiTeacher.classCode.studentCount", { count: activeStudentCount })}</StatusPill>
+                  <Button type="button" variant="secondary" disabled={busy || !selectedClass} onClick={() => selectedClass && onRotateClassCode(selectedClass.id)}>
+                    {t("multiTeacher.classCode.rotate")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
       </section>
     </section>
   );

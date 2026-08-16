@@ -863,6 +863,21 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         emptyTitle: "暂无班级",
         emptyDescription: "先创建一个默认班级。",
         defaultClass: "默认班级",
+        summaryAria: "当前班级摘要",
+        importAction: "导入或更新名单",
+        rosterCount: "{{count}} 名学生",
+        tabs: {
+          aria: "班级名单工作区",
+          roster: "学生名单",
+          import: "导入记录",
+          settings: "班级设置"
+        },
+        rosterColumns: {
+          student: "学生",
+          number: "学号",
+          status: "状态",
+          action: "操作"
+        },
         create: {
           title: "创建班级",
           name: "班级名称",
@@ -1867,6 +1882,21 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         emptyTitle: "No classes yet",
         emptyDescription: "Create a default class first.",
         defaultClass: "Default class",
+        summaryAria: "Current class summary",
+        importAction: "Import or update roster",
+        rosterCount: "{{count}} students",
+        tabs: {
+          aria: "Class roster workspace",
+          roster: "Students",
+          import: "Import records",
+          settings: "Class settings"
+        },
+        rosterColumns: {
+          student: "Student",
+          number: "Student ID",
+          status: "Status",
+          action: "Action"
+        },
         create: {
           title: "Create class",
           name: "Class name",
