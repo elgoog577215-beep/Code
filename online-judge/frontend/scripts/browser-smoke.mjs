@@ -1825,8 +1825,12 @@ const scenarios = [
       record("teacher management redirects to class roster", page.url().includes("/app/teacher/manage/classes"), page.url());
       record("teacher management belongs to roster nav", activeNav.join("|").includes("班级名单"), activeNav.join("|"));
       record("teacher management does not also mark analytics", !activeNav.join("|").includes("教学分析"), activeNav.join("|"));
-      record("teacher management shows class roster only", managementText.includes("班级名单") && managementText.includes("名单维护") && managementText.includes("创建班级") && managementText.includes("导入名单"), managementText.slice(0, 900));
+      record("teacher management shows roster-first class workspace", managementText.includes("班级名单") && managementText.includes("学生名单") && managementText.includes("创建班级") && managementText.includes("导入或更新名单"), managementText.slice(0, 900));
       record("teacher management hides unrelated modules", !managementText.includes("AI标准库") && !managementText.includes("检测AI") && !managementText.includes("开课状态") && !managementText.includes("导入题目"), managementText.slice(0, 900));
+      const classTabs = page.locator(".management-class-tabs [role='tab']");
+      record("teacher class workspace exposes three focused tabs", await classTabs.count() === 3, String(await classTabs.count()));
+      await checkVisible(page, ".management-class-panel--roster", `teacher management ${viewport.name} roster default panel`);
+      record("teacher class import form stays collapsed by default", await page.locator(".management-class-panel--import").count() === 0, String(await page.locator(".management-class-panel--import").count()));
       const rosterRows = await page.locator(".management-roster-row").evaluateAll(elements => elements.map(element => {
         const rowRect = element.getBoundingClientRect();
         const actionRect = element.querySelector("button")?.getBoundingClientRect();
@@ -1843,6 +1847,21 @@ const scenarios = [
       );
       if (viewport.name === "desktop") {
         await checkVisible(page, ".management-object-main", "teacher management desktop roster workspace");
+        const classWorkspace = await page.locator(".management-object-workbench--classes").evaluate(element => {
+          const listRect = element.querySelector(".management-object-list")?.getBoundingClientRect();
+          const mainRect = element.querySelector(".management-object-main")?.getBoundingClientRect();
+          const actionRect = element.querySelector(".management-class-primary-action")?.getBoundingClientRect();
+          return {
+            listWidth: Math.round(listRect?.width ?? 0),
+            mainWidth: Math.round(mainRect?.width ?? 0),
+            actionWidth: Math.round(actionRect?.width ?? 0)
+          };
+        });
+        record(
+          "teacher class workspace keeps a narrow selector and wide roster canvas",
+          classWorkspace.listWidth >= 210 && classWorkspace.listWidth <= 280 && classWorkspace.mainWidth >= classWorkspace.listWidth * 2.3 && classWorkspace.actionWidth >= 120 && classWorkspace.actionWidth <= 220,
+          JSON.stringify(classWorkspace)
+        );
         const accountLayout = await page.locator(".teacher-shell-sidebar__foot").evaluate(element => {
           const footRect = element.getBoundingClientRect();
           const buttonRect = element.querySelector(".teacher-shell-logout")?.getBoundingClientRect();
@@ -1864,15 +1883,23 @@ const scenarios = [
       }
       if (viewport.name === "mobile") {
         await checkStacked(page, ".management-object-list", ".management-object-main", "teacher management mobile roster before editor");
-        await checkMinControlHeight(page, ".management-object-row", 44, "teacher management mobile class rows");
+        await checkMinControlHeight(page, ".management-class-row", 44, "teacher management mobile class rows");
       }
+      await page.locator(".management-class-primary-action").click();
+      await checkVisible(page, ".management-class-panel--import", `teacher management ${viewport.name} import panel on demand`);
+      record("teacher class roster hides while importing", await page.locator(".management-class-panel--roster").count() === 0, String(await page.locator(".management-class-panel--roster").count()));
+      await page.locator("[data-class-tab='settings']").click();
+      await checkVisible(page, ".management-class-panel--settings", `teacher management ${viewport.name} settings panel on demand`);
+      record("teacher class settings owns join-code controls", ((await page.locator(".management-class-panel--settings").textContent()) || "").includes("轮换班级码"), await page.locator(".management-class-panel--settings").textContent());
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],
       [".teacher-manage-page", "teacher manage page"],
       [".management-object-workbench--classes", "class roster workbench"],
       [".management-object-list", "class roster list"],
-      [".management-object-main", "class roster import panel"]
+      [".management-object-main", "class roster workspace"],
+      [".management-class-tabs", "class roster tabs"],
+      [".management-class-panel--roster", "class roster default panel"]
     ]
   },
   {
