@@ -1971,7 +1971,7 @@ const scenarios = [
       });
       record(
         `published problem content starts near the header at ${viewport.name}`,
-        layout.topOffset >= 80 && layout.topOffset <= 190 && layout.readonlyWidth > 0,
+        layout.topOffset >= 44 && layout.topOffset <= 190 && layout.readonlyWidth > 0,
         JSON.stringify(layout)
       );
       record(`published problem has no page overflow at ${viewport.name}`, layout.pageOverflow <= 1, JSON.stringify(layout));

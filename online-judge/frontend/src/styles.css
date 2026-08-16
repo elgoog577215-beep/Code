@@ -21418,6 +21418,309 @@ button.standard-library-governance-path {
   padding: 1rem;
 }
 
+.management-problem-readonly {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 0;
+  padding: 0.82rem 0.18rem 2rem;
+}
+
+.management-problem-readonly__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.64rem;
+  margin-bottom: 0.86rem;
+  padding: 0.68rem 0.76rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 20%, var(--line));
+  border-left: 3px solid color-mix(in srgb, var(--brand) 66%, var(--blue));
+  border-radius: 7px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 26%, var(--surface));
+}
+
+.management-problem-readonly__notice svg {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+}
+
+.management-problem-readonly__notice div {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.management-problem-readonly__notice strong {
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.management-problem-readonly__notice span {
+  color: var(--ink-soft);
+  font-size: 0.77rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.management-problem-readonly__facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0 0 0.98rem;
+  padding: 0;
+  border-block: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+}
+
+.management-problem-readonly__facts > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.7rem 0.78rem;
+}
+
+.management-problem-readonly__facts > div + div {
+  border-left: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.management-problem-readonly__facts dt,
+.management-problem-readonly__facts dd {
+  margin: 0;
+}
+
+.management-problem-readonly__facts dt {
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.management-problem-readonly__facts dd {
+  color: var(--ink);
+  font-size: 0.94rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+.management-problem-readonly__section {
+  min-width: 0;
+  padding: 0.92rem 0.12rem 1.05rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 74%, transparent);
+}
+
+.management-problem-readonly__section > header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.64rem;
+  margin-bottom: 0.72rem;
+}
+
+.management-problem-readonly__section > header > span {
+  min-width: 31px;
+  height: 31px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 32%, var(--line));
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 20%, transparent);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+.management-problem-readonly__section > header div {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.management-problem-readonly__section h3,
+.management-problem-readonly__section header p {
+  margin: 0;
+}
+
+.management-problem-readonly__section h3 {
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.management-problem-readonly__section header p {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.management-problem-readonly__statement {
+  min-width: 0;
+  padding: 0.12rem 0.14rem 0.1rem 2.56rem;
+  color: var(--ink);
+  line-height: 1.72;
+}
+
+.management-problem-readonly__statement h2,
+.management-problem-readonly__statement h3,
+.management-problem-readonly__statement h4,
+.management-problem-readonly__statement p,
+.management-problem-readonly__statement pre {
+  margin: 0;
+}
+
+.management-problem-readonly__statement h2,
+.management-problem-readonly__statement h3,
+.management-problem-readonly__statement h4 {
+  margin-top: 0.78rem;
+  color: var(--ink);
+  font-size: 0.96rem;
+}
+
+.management-problem-readonly__statement p + p,
+.management-problem-readonly__statement p + pre,
+.management-problem-readonly__statement pre + p {
+  margin-top: 0.54rem;
+}
+
+.management-problem-readonly__statement pre,
+.management-problem-readonly__starter pre {
+  overflow: auto;
+  padding: 0.68rem 0.74rem;
+  border-radius: 6px;
+  color: #e2e8f0;
+  background: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.management-problem-readonly__list-item {
+  display: flex;
+  gap: 0.42rem;
+}
+
+.management-problem-readonly__samples {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 0.68rem;
+  padding-left: 2.56rem;
+}
+
+.management-problem-readonly__sample {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.48rem;
+  padding: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+}
+
+.management-problem-readonly__sample > strong {
+  grid-column: 1 / -1;
+  color: var(--brand-strong);
+  font-size: 0.74rem;
+}
+
+.management-problem-readonly__sample > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.management-problem-readonly__sample span {
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.management-problem-readonly__sample pre {
+  min-width: 0;
+  min-height: 56px;
+  margin: 0;
+  overflow: auto;
+  padding: 0.5rem 0.58rem;
+  border-radius: 5px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.management-problem-readonly__hidden-note,
+.management-problem-readonly__empty {
+  margin: 0.62rem 0 0 2.56rem;
+  color: var(--ink-faint);
+  font-size: 0.74rem;
+  font-weight: 720;
+}
+
+.management-problem-readonly__metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.58rem 0.82rem;
+  padding-left: 2.56rem;
+}
+
+.management-problem-readonly__metadata > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.34rem;
+}
+
+.management-problem-readonly__metadata strong,
+.management-problem-readonly__teaching-note strong {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 860;
+}
+
+.management-problem-readonly__metadata > div > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem;
+}
+
+.management-problem-readonly__metadata em {
+  padding: 0.2rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 20%, var(--line));
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 24%, transparent);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 780;
+}
+
+.management-problem-readonly__teaching-note {
+  display: grid;
+  gap: 0.22rem;
+  margin: 0.72rem 0 0 2.56rem;
+  padding: 0.62rem 0.68rem;
+  border-left: 3px solid color-mix(in srgb, var(--brand) 44%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 18%, transparent);
+}
+
+.management-problem-readonly__teaching-note p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.management-problem-readonly__starter {
+  margin: 0.72rem 0 0 2.56rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+}
+
+.management-problem-readonly__starter summary {
+  width: fit-content;
+  padding: 0.62rem 0;
+  color: var(--brand-strong);
+  font-size: 0.76rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
 .management-object-workbench--problems .task-editor-page--embedded {
   gap: 0.68rem;
 }
@@ -21998,6 +22301,46 @@ button.standard-library-governance-path {
 
   .management-object-workbench--problems .management-object-row__content small {
     display: none;
+  }
+
+  .management-problem-readonly {
+    padding-inline: 0;
+  }
+
+  .management-problem-readonly__facts,
+  .management-problem-readonly__metadata,
+  .management-problem-readonly__samples {
+    grid-template-columns: 1fr;
+  }
+
+  .management-problem-readonly__facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .management-problem-readonly__facts > div:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  }
+
+  .management-problem-readonly__facts > div:nth-child(4) {
+    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  }
+
+  .management-problem-readonly__statement,
+  .management-problem-readonly__samples,
+  .management-problem-readonly__metadata {
+    padding-left: 0;
+  }
+
+  .management-problem-readonly__hidden-note,
+  .management-problem-readonly__empty,
+  .management-problem-readonly__teaching-note,
+  .management-problem-readonly__starter {
+    margin-left: 0;
+  }
+
+  .management-problem-readonly__sample {
+    grid-template-columns: 1fr;
   }
 
   .task-editor-page--embedded textarea.editor-statement-textarea {

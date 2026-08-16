@@ -974,6 +974,204 @@ function createVisibleProblemPages(current: number, total: number): Array<number
   return result;
 }
 
+function renderReadOnlyProblemStatement(value: string, title: string, emptyText: string): ReactNode[] {
+  if (!value.trim()) {
+    return [<p className="management-problem-readonly__empty" key="empty">{emptyText}</p>];
+  }
+
+  const nodes: ReactNode[] = [];
+  const codeLines: string[] = [];
+  let inCode = false;
+  let contentStarted = false;
+
+  function flushCode(key: string) {
+    if (!codeLines.length) {
+      return;
+    }
+    nodes.push(
+      <pre key={key}>
+        <code>{codeLines.join("\n")}</code>
+      </pre>
+    );
+    codeLines.length = 0;
+  }
+
+  value.split(/\r?\n/).forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```")) {
+      if (inCode) {
+        flushCode(`code-${index}`);
+      }
+      inCode = !inCode;
+      return;
+    }
+    if (inCode) {
+      codeLines.push(line);
+      return;
+    }
+    if (!trimmed) {
+      return;
+    }
+    if (!contentStarted && trimmed.replace(/^#\s+/, "") === title.trim()) {
+      contentStarted = true;
+      return;
+    }
+    contentStarted = true;
+    if (trimmed.startsWith("### ")) {
+      nodes.push(<h4 key={`h4-${index}`}>{trimmed.slice(4)}</h4>);
+      return;
+    }
+    if (trimmed.startsWith("## ")) {
+      nodes.push(<h3 key={`h3-${index}`}>{trimmed.slice(3)}</h3>);
+      return;
+    }
+    if (trimmed.startsWith("# ")) {
+      nodes.push(<h2 key={`h2-${index}`}>{trimmed.slice(2)}</h2>);
+      return;
+    }
+    if (/^[-*]\s+/.test(trimmed)) {
+      nodes.push(
+        <p className="management-problem-readonly__list-item" key={`list-${index}`}>
+          <span aria-hidden="true">•</span>
+          <span>{trimmed.replace(/^[-*]\s+/, "")}</span>
+        </p>
+      );
+      return;
+    }
+    nodes.push(<p key={`p-${index}`}>{line}</p>);
+  });
+  flushCode("code-tail");
+  return nodes.length ? nodes : [<p className="management-problem-readonly__empty" key="empty">{emptyText}</p>];
+}
+
+function ReadOnlyProblemDetail({ problem }: { problem: ProblemManage }) {
+  const { t } = useTranslation();
+  const samples = problem.sampleTestCases?.length
+    ? problem.sampleTestCases
+    : problem.testCases.filter(item => !item.hidden).map(item => ({ input: item.input, expectedOutput: item.expectedOutput }));
+  const hiddenTestCount = problem.testCases.filter(item => item.hidden).length;
+  const metadataGroups = [
+    { label: t("teacherManagement.problemManage.readOnly.knowledgePoints"), values: problem.knowledgePoints || [] },
+    { label: t("teacherManagement.problemManage.readOnly.algorithmStrategies"), values: problem.algorithmStrategies || [] },
+    { label: t("teacherManagement.problemManage.readOnly.commonMistakes"), values: problem.commonMistakes || [] },
+    { label: t("teacherManagement.problemManage.readOnly.boundaryTypes"), values: problem.boundaryTypes || [] }
+  ].filter(group => group.values.length);
+
+  return (
+    <article className="management-problem-readonly">
+      <div className="management-problem-readonly__notice" role="note">
+        <BookOpen size={19} aria-hidden="true" />
+        <div>
+          <strong>{t("multiTeacher.problem.readOnlyTitle")}</strong>
+          <span>{t("multiTeacher.problem.readOnlyDescription")}</span>
+        </div>
+      </div>
+
+      <dl className="management-problem-readonly__facts" aria-label={t("teacherManagement.problemManage.readOnly.factsAria")}>
+        <div>
+          <dt>{t("teacherManagement.problemManage.readOnly.difficulty")}</dt>
+          <dd>{problemDifficultyLabel(String(problem.difficulty), t)}</dd>
+        </div>
+        <div>
+          <dt>{t("teacherManagement.problemManage.readOnly.timeLimit")}</dt>
+          <dd>{problem.timeLimit} ms</dd>
+        </div>
+        <div>
+          <dt>{t("teacherManagement.problemManage.readOnly.memoryLimit")}</dt>
+          <dd>{Math.round(problem.memoryLimit / 1024)} MB</dd>
+        </div>
+        <div>
+          <dt>{t("teacherManagement.problemManage.readOnly.publicSamples")}</dt>
+          <dd>{samples.length}</dd>
+        </div>
+      </dl>
+
+      <section className="management-problem-readonly__section">
+        <header>
+          <span aria-hidden="true">01</span>
+          <div>
+            <h3>{t("teacherManagement.problemManage.readOnly.statementTitle")}</h3>
+            <p>{t("teacherManagement.problemManage.readOnly.statementDescription")}</p>
+          </div>
+        </header>
+        <div className="management-problem-readonly__statement">
+          {renderReadOnlyProblemStatement(problem.description, problem.title, t("teacherManagement.problemManage.readOnly.emptyStatement"))}
+        </div>
+      </section>
+
+      <section className="management-problem-readonly__section">
+        <header>
+          <span aria-hidden="true">02</span>
+          <div>
+            <h3>{t("teacherManagement.problemManage.readOnly.samplesTitle")}</h3>
+            <p>{t("teacherManagement.problemManage.readOnly.samplesDescription")}</p>
+          </div>
+        </header>
+        {samples.length ? (
+          <div className="management-problem-readonly__samples">
+            {samples.map((sample, index) => (
+              <article className="management-problem-readonly__sample" key={`${sample.input}-${sample.expectedOutput}-${index}`}>
+                <strong>{t("teacherManagement.problemManage.readOnly.sampleNumber", { number: index + 1 })}</strong>
+                <div>
+                  <span>{t("teacherManagement.problemManage.readOnly.sampleInput")}</span>
+                  <pre>{sample.input || t("teacherManagement.problemManage.readOnly.emptyValue")}</pre>
+                </div>
+                <div>
+                  <span>{t("teacherManagement.problemManage.readOnly.sampleOutput")}</span>
+                  <pre>{sample.expectedOutput || t("teacherManagement.problemManage.readOnly.emptyValue")}</pre>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="management-problem-readonly__empty">{t("teacherManagement.problemManage.readOnly.noSamples")}</p>
+        )}
+        {hiddenTestCount ? (
+          <p className="management-problem-readonly__hidden-note">
+            {t("teacherManagement.problemManage.readOnly.hiddenTests", { count: hiddenTestCount })}
+          </p>
+        ) : null}
+      </section>
+
+      {metadataGroups.length || problem.aiPromptDirection || problem.starterCode ? (
+        <section className="management-problem-readonly__section">
+          <header>
+            <span aria-hidden="true">03</span>
+            <div>
+              <h3>{t("teacherManagement.problemManage.readOnly.teachingTitle")}</h3>
+              <p>{t("teacherManagement.problemManage.readOnly.teachingDescription")}</p>
+            </div>
+          </header>
+          {metadataGroups.length ? (
+            <div className="management-problem-readonly__metadata">
+              {metadataGroups.map(group => (
+                <div key={group.label}>
+                  <strong>{group.label}</strong>
+                  <span>
+                    {group.values.map(value => <em key={value}>{value}</em>)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {problem.aiPromptDirection ? (
+            <div className="management-problem-readonly__teaching-note">
+              <strong>{t("teacherManagement.problemManage.readOnly.aiDirection")}</strong>
+              <p>{problem.aiPromptDirection}</p>
+            </div>
+          ) : null}
+          {problem.starterCode ? (
+            <details className="management-problem-readonly__starter">
+              <summary>{t("teacherManagement.problemManage.readOnly.starterCode")}</summary>
+              <pre><code>{problem.starterCode}</code></pre>
+            </details>
+          ) : null}
+        </section>
+      ) : null}
+    </article>
+  );
+}
+
 function ProblemManageSection({
   problems,
   selectedProblemId,
@@ -1256,9 +1454,7 @@ function ProblemManageSection({
                 }}
               />
             ) : (
-              <div className="management-object-empty">
-                <EmptyState title={t("multiTeacher.problem.readOnlyTitle")} description={t("multiTeacher.problem.readOnlyDescription")} />
-              </div>
+              selectedProblem ? <ReadOnlyProblemDetail problem={selectedProblem} /> : null
             )}
           </>
         ) : (
