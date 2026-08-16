@@ -1,7 +1,7 @@
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useState } from "react";
 import { KeyRound, LockKeyhole, LogIn, UserPlus } from "lucide-react";
 import { api } from "../../shared/api/client";
-import type { AuthSession } from "../../shared/api/types";
+import { useAccountSession } from "../../shared/auth/AccountSessionContext";
 import { useTranslation } from "../../shared/i18n";
 import { Button } from "../../shared/ui/Button";
 import { EmptyState } from "../../shared/ui/EmptyState";
@@ -9,11 +9,10 @@ import { Field, TextInput } from "../../shared/ui/Field";
 
 export type Portal = "TEACHER" | "SCHOOL_ADMIN" | "PLATFORM_ADMIN";
 type Props = { portal: Portal; children: ReactNode; allowTeacherRegistration?: boolean };
-const anonymous: AuthSession = { authenticated: false, mustChangePassword: false };
 
 export default function PortalAuthGate({ portal, children, allowTeacherRegistration = false }: Props) {
   const { t } = useTranslation();
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const { session, status, error, refresh, acceptSession, clearSession, logout } = useAccountSession();
   const [registering, setRegistering] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -23,16 +22,10 @@ export default function PortalAuthGate({ portal, children, allowTeacherRegistrat
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    api.accountSession().then(value => alive && setSession(value)).catch(() => alive && setSession(anonymous));
-    return () => { alive = false; };
-  }, []);
-
   async function login(event: FormEvent) {
     event.preventDefault(); setBusy(true); setNotice(null);
-    try { setSession(await api.accountLogin(username.trim(), password, portal)); }
-    catch (error) { setSession(anonymous); setNotice({ tone: "error", text: message(error, t("portals.loginFailed")) }); }
+    try { acceptSession(await api.accountLogin(username.trim(), password, portal)); }
+    catch (error) { setNotice({ tone: "error", text: message(error, t("portals.loginFailed")) }); }
     finally { setBusy(false); }
   }
   async function register(event: FormEvent) {
@@ -46,13 +39,23 @@ export default function PortalAuthGate({ portal, children, allowTeacherRegistrat
   async function changePassword(event: FormEvent) {
     event.preventDefault(); setBusy(true); setNotice(null);
     try {
-      await api.accountChangePassword(password, newPassword); setSession(anonymous); setPassword(""); setNewPassword("");
+      await api.accountChangePassword(password, newPassword); clearSession(); setPassword(""); setNewPassword("");
       setNotice({ tone: "success", text: t("portals.passwordChanged") });
     } catch (error) { setNotice({ tone: "error", text: message(error, t("portals.passwordFailed")) }); }
     finally { setBusy(false); }
   }
 
-  if (session === null) return <EmptyState title={t("portals.checking")} live />;
+  if (session === null && status === "checking") return <EmptyState title={t("portals.checking")} live />;
+  if (session === null) return (
+    <div className="teacher-auth-page portal-auth-page">
+      <div className="teacher-auth-panel" role="status">
+        <span className="teacher-auth-panel__icon"><LockKeyhole size={22} /></span>
+        <div><p className="eyebrow">{t("portals.reconnecting")}</p><h1>{t("portals.temporarilyUnavailable")}</h1><p>{t("portals.reconnectHint")}</p></div>
+        {error ? <div className="alert alert--warning">{message(error, t("portals.temporarilyUnavailable"))}</div> : null}
+        <Button type="button" variant="primary" onClick={() => void refresh()}>{t("portals.retry")}</Button>
+      </div>
+    </div>
+  );
   if (session.authenticated && session.role === portal && !session.mustChangePassword) return <>{children}</>;
   const changing = session.authenticated && session.role === portal && session.mustChangePassword;
   const wrongPortal = session.authenticated && session.role !== portal;
@@ -63,7 +66,7 @@ export default function PortalAuthGate({ portal, children, allowTeacherRegistrat
         <span className="teacher-auth-panel__icon">{changing ? <KeyRound size={22} /> : registering ? <UserPlus size={22} /> : <LockKeyhole size={22} />}</span>
         <div><p className="eyebrow">{t(`portals.${titleKey}.eyebrow`)}</p><h1>{t(changing ? "portals.changePassword" : `portals.${titleKey}.title`)}</h1><p>{t(changing ? "portals.changeHint" : `portals.${titleKey}.description`)}</p></div>
         {notice && <div className={`alert alert--${notice.tone}`}>{notice.text}</div>}
-        {wrongPortal && <div className="alert alert--warning">{t("portals.roleMismatch")}<Button type="button" variant="ghost" onClick={() => void api.accountLogout().then(() => setSession(anonymous))}>{t("common.logout")}</Button></div>}
+        {wrongPortal && <div className="alert alert--warning">{t("portals.roleMismatch")}<Button type="button" variant="ghost" onClick={() => void logout()}>{t("common.logout")}</Button></div>}
         {!changing && !wrongPortal && <Field label={t("teacherAuth.username")}><TextInput value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" /></Field>}
         {registering && !changing && !wrongPortal ? <>
           <Field label={t("teacherAuth.displayName")}><TextInput value={displayName} onChange={event => setDisplayName(event.target.value)} autoComplete="name" /></Field>

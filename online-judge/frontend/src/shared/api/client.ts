@@ -119,7 +119,7 @@ function queryString(params: Record<string, string | number | boolean | undefine
 }
 
 export const api = {
-  accountSession: () => request<AuthSession>("/api/auth/account/session"),
+  accountSession: (signal?: AbortSignal) => request<AuthSession>("/api/auth/account/session", { signal }),
   accountLogin: (username: string, password: string, portal: "TEACHER" | "SCHOOL_ADMIN" | "PLATFORM_ADMIN") =>
     request<AuthSession>("/api/auth/account/login", { method: "POST", body: jsonBody({ username, password, portal }) }),
   accountLogout: () => request<AuthSession>("/api/auth/account/logout", { method: "POST" }),

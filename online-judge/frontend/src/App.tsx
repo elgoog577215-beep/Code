@@ -25,6 +25,7 @@ import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
 import PortalAuthGate from "./features/admin/PortalAuthGate";
 import { TeacherShell } from "./features/teacher/TeacherShell";
 import { api } from "./shared/api/client";
+import { AccountSessionProvider } from "./shared/auth/AccountSessionContext";
 import { useTranslation } from "./shared/i18n";
 import { clearActiveStudent, loadStudent, onActiveStudentChange } from "./shared/storage";
 import { Button } from "./shared/ui/Button";
@@ -345,7 +346,8 @@ export default function App() {
   const { t } = useTranslation();
 
   return (
-    <div className="app-shell">
+    <AccountSessionProvider>
+      <div className="app-shell">
       <a className="skip-link" href="#main-content">
         {t("common.skipToMain")}
       </a>
@@ -388,6 +390,7 @@ export default function App() {
           </Routes>
         </Suspense>
       </main>
-    </div>
+      </div>
+    </AccountSessionProvider>
   );
 }

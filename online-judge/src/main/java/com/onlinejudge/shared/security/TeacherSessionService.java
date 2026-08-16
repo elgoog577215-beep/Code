@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.onlinejudge.system.application.TrialMetrics;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Optional;
@@ -30,6 +31,7 @@ public class TeacherSessionService {
 
     public static final String COOKIE_NAME = "OJ_TEACHER_SESSION";
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final String RESOLUTION_ATTRIBUTE = TeacherSessionService.class.getName() + ".resolution";
 
     private final SchoolSecurityProperties properties;
     private final TeacherAccountRepository accounts;
@@ -99,6 +101,24 @@ public class TeacherSessionService {
 
     @Transactional
     public Optional<TeacherPrincipal> resolve(HttpServletRequest request) {
+        return resolveInternal(request, null);
+    }
+
+    @Transactional
+    public Optional<TeacherPrincipal> resolve(HttpServletRequest request, HttpServletResponse response) {
+        return resolveInternal(request, response);
+    }
+
+    private Optional<TeacherPrincipal> resolveInternal(HttpServletRequest request, HttpServletResponse response) {
+        Object cached = request.getAttribute(RESOLUTION_ATTRIBUTE);
+        if (cached instanceof SessionResolution resolution) return resolution.principal();
+
+        Optional<TeacherPrincipal> resolved = resolveUncached(request, response);
+        request.setAttribute(RESOLUTION_ATTRIBUTE, new SessionResolution(resolved));
+        return resolved;
+    }
+
+    private Optional<TeacherPrincipal> resolveUncached(HttpServletRequest request, HttpServletResponse response) {
         if (properties.teacherDevAutoAuth()) {
             return Optional.of(new TeacherPrincipal(TeacherAccount.BOOTSTRAP_ADMIN_ID, "dev-admin", "开发管理员",
                     TeacherAccount.Role.PLATFORM_ADMIN, false));
@@ -116,6 +136,7 @@ public class TeacherSessionService {
         if (account == null || !account.canAuthenticateAt(now)) return Optional.empty();
         if (!schoolActive(account)) return Optional.empty();
         session.setLastSeenAt(now);
+        renewIdleWindow(session, token, now, response);
         return Optional.of(principal(account));
     }
 
@@ -194,6 +215,21 @@ public class TeacherSessionService {
                 + "; HttpOnly; SameSite=Lax" + secure);
     }
 
+    private void renewIdleWindow(TeacherSession session, String token, Instant now, HttpServletResponse response) {
+        if (response == null || session.getCreatedAt() == null || session.getExpiresAt() == null) return;
+        long idleSeconds = properties.teacherSessionTtlHours() * 3600;
+        long remainingSeconds = Duration.between(now, session.getExpiresAt()).getSeconds();
+        if (remainingSeconds > idleSeconds / 2) return;
+
+        Instant absoluteExpiry = session.getCreatedAt().plus(Duration.ofDays(properties.teacherSessionMaxTtlDays()));
+        Instant renewedExpiry = now.plusSeconds(idleSeconds);
+        if (renewedExpiry.isAfter(absoluteExpiry)) renewedExpiry = absoluteExpiry;
+        if (!renewedExpiry.isAfter(session.getExpiresAt())) return;
+
+        session.setExpiresAt(renewedExpiry);
+        writeCookie(response, token, Math.max(1, Duration.between(now, renewedExpiry).getSeconds()));
+    }
+
     private void clearCookie(HttpServletResponse response) {
         String secure = properties.schoolProfile() ? "; Secure" : "";
         response.addHeader("Set-Cookie", COOKIE_NAME + "=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax" + secure);
@@ -217,4 +253,6 @@ public class TeacherSessionService {
         String normalized = value == null ? "" : value;
         return normalized.length() > max ? normalized.substring(0, max) : normalized;
     }
+
+    private record SessionResolution(Optional<TeacherPrincipal> principal) {}
 }

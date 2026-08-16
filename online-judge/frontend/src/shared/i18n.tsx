@@ -146,6 +146,10 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
     },
     portals: {
       checking: "正在核验账号",
+      reconnecting: "正在恢复连接",
+      temporarilyUnavailable: "暂时无法核验登录状态",
+      reconnectHint: "不会清除已有登录信息。请确认本地服务已启动，然后重试。",
+      retry: "重新连接",
       secureWorkspace: "独立安全工作台",
       loginFailed: "登录失败",
       loadFailed: "数据加载失败",
@@ -1191,6 +1195,10 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
     },
     portals: {
       checking: "Checking account",
+      reconnecting: "Reconnecting",
+      temporarilyUnavailable: "Unable to verify your session right now",
+      reconnectHint: "Your existing sign-in is preserved. Make sure the local service is running, then try again.",
+      retry: "Try again",
       secureWorkspace: "Independent secure workspace",
       loginFailed: "Sign-in failed",
       loadFailed: "Failed to load data",

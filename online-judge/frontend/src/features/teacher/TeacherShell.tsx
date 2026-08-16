@@ -1,10 +1,9 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { BarChart3, BrainCircuit, Database, LogOut, Power, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "../../shared/i18n";
-import { api } from "../../shared/api/client";
-import type { AuthSession } from "../../shared/api/types";
+import { useAccountSession } from "../../shared/auth/AccountSessionContext";
 import "./TeacherHomeRefresh.css";
 
 type TeacherNavItem = {
@@ -19,8 +18,7 @@ export function TeacherShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const location = useLocation();
   const pathname = location.pathname;
-  const [session, setSession] = useState<AuthSession | null>(null);
-  useEffect(() => { api.teacherSession().then(setSession).catch(() => setSession(null)); }, []);
+  const { session, logout } = useAccountSession();
   const inManagement = pathname === "/app/teacher/manage" || pathname.startsWith("/app/teacher/manage") || pathname.startsWith("/app/task-editor");
   const primaryItems: TeacherNavItem[] = [
     {
@@ -85,7 +83,7 @@ export function TeacherShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="teacher-shell-sidebar__foot">
           <span className="teacher-shell-account" title={session?.displayName || undefined}>{session?.displayName || (inManagement ? t("teacherShell.managementFootnote") : t("teacherShell.footnote"))}</span>
-          <button type="button" className="teacher-shell-logout" onClick={() => void api.teacherLogout().finally(() => window.location.assign("/app/teacher"))}>
+          <button type="button" className="teacher-shell-logout" onClick={() => void logout().finally(() => window.location.assign("/app/teacher"))}>
             <LogOut size={16} aria-hidden="true" /><span>{t("common.logout")}</span>
           </button>
         </div>

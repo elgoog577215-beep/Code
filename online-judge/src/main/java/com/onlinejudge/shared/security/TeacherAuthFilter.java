@@ -34,7 +34,7 @@ public class TeacherAuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        Optional<TeacherPrincipal> resolved = teacherSessionService.resolve(request);
+        Optional<TeacherPrincipal> resolved = teacherSessionService.resolve(request, response);
         resolved.ifPresent(principal -> SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(principal, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + principal.role().name())))));

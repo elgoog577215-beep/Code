@@ -18,6 +18,9 @@ public class SchoolSecurityProperties {
     @Value("${security.teacher.session-ttl-hours:${TEACHER_SESSION_TTL_HOURS:12}}")
     private long teacherSessionTtlHours;
 
+    @Value("${security.teacher.session-max-ttl-days:${TEACHER_SESSION_MAX_TTL_DAYS:7}}")
+    private long teacherSessionMaxTtlDays;
+
     @Value("${security.teacher.dev-auto-auth:${TEACHER_DEV_AUTO_AUTH:false}}")
     private boolean teacherDevAutoAuth;
 
@@ -56,7 +59,12 @@ public class SchoolSecurityProperties {
     }
 
     public long teacherSessionTtlHours() {
-        return Math.max(1, teacherSessionTtlHours);
+        return Math.min(24 * 30, Math.max(1, teacherSessionTtlHours));
+    }
+
+    public long teacherSessionMaxTtlDays() {
+        long idleWindowDays = Math.max(1, (teacherSessionTtlHours() + 23) / 24);
+        return Math.min(365, Math.max(idleWindowDays, teacherSessionMaxTtlDays));
     }
 
     public String studentTokenSecret() {
