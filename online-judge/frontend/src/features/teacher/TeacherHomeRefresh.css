@@ -1425,6 +1425,10 @@
   justify-content: start;
 }
 
+.teacher-console-shell .teacher-manage-page--classes > .teacher-manage-header {
+  width: min(100%, 1160px);
+}
+
 .management-object-workbench--classes .management-object-list,
 .management-object-workbench--classes .management-object-main {
   background: color-mix(in srgb, var(--surface) 88%, transparent);
