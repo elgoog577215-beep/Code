@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import jakarta.servlet.http.Cookie;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.util.UUID;
@@ -108,23 +109,30 @@ class PostgresMigrationValidationTest {
     }
 
     @Test
-    void schoolProfileRequiresCsrfForAuthenticatedPlatformMutations() throws Exception {
-        MvcResult login = mockMvc.perform(post("/api/auth/account/login")
+    void codePrefixedPlatformMutationAcceptsBrowserCsrfCookieAfterLogin() throws Exception {
+        MvcResult login = mockMvc.perform(post("/code/api/auth/account/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"bootstrap-admin\",\"password\":\"Bootstrap123\",\"portal\":\"PLATFORM_ADMIN\"}"))
                 .andExpect(status().isOk()).andReturn();
-        String teacherCookie = login.getResponse().getHeaders("Set-Cookie").stream()
-                .map(value -> value.split(";", 2)[0])
-                .filter(value -> value.startsWith("OJ_TEACHER_SESSION="))
-                .findFirst().orElseThrow();
+        Cookie teacherCookie = responseCookie(login, "OJ_TEACHER_SESSION");
+        Cookie csrfCookie = responseCookie(login, "XSRF-TOKEN");
 
         String schoolJson = "{\"schoolName\":\"CSRF学校\",\"adminUsername\":\"csrf-admin\",\"adminDisplayName\":\"校管\",\"monthlyAiUnits\":10}";
-        mockMvc.perform(post("/api/platform-admin/schools").header("Cookie", teacherCookie)
+        mockMvc.perform(post("/code/api/platform-admin/schools").cookie(teacherCookie)
                         .contentType(MediaType.APPLICATION_JSON).content(schoolJson))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(post("/api/platform-admin/schools").with(csrf()).header("Cookie", teacherCookie)
+        mockMvc.perform(post("/code/api/platform-admin/schools").cookie(teacherCookie, csrfCookie)
+                        .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON).content(schoolJson))
                 .andExpect(status().isOk());
+    }
+
+    private Cookie responseCookie(MvcResult result, String name) {
+        return result.getResponse().getHeaders("Set-Cookie").stream()
+                .map(value -> value.split(";", 2)[0].split("=", 2))
+                .filter(parts -> parts.length == 2 && name.equals(parts[0]))
+                .map(parts -> new Cookie(parts[0], parts[1]))
+                .findFirst().orElseThrow();
     }
 
     private long count(java.sql.Statement statement, String sql) throws Exception {
