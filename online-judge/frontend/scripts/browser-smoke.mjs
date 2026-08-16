@@ -291,7 +291,18 @@ const problem = {
   algorithmStrategies: ["手推模拟"],
   commonMistakes: ["差一位错误"],
   boundaryTypes: ["n 等于 1"],
-  sampleTestCases: [{ input: "3\n1 2 3\n", expectedOutput: "6\n" }]
+  sampleTestCases: [{ input: "3\n1 2 3\n", expectedOutput: "6\n" }],
+  ownerTeacherId: null,
+  scope: "PUBLIC",
+  versionState: "PUBLISHED",
+  seriesId: "public-sum-boundary",
+  versionNo: 1,
+  sourceProblemId: null,
+  archivedAt: null,
+  testCases: [
+    { id: 1, input: "3\n1 2 3\n", expectedOutput: "6\n", hidden: false, orderIndex: 0 },
+    { id: 2, input: "1\n-5\n", expectedOutput: "-5\n", hidden: true, orderIndex: 1 }
+  ]
 };
 
 const submissionResult = {
@@ -1916,6 +1927,69 @@ const scenarios = [
       [".management-object-main", "class roster workspace"],
       [".management-class-tabs", "class roster tabs"],
       [".management-class-panel--roster", "class roster default panel"]
+    ]
+  },
+  {
+    name: "teacher-management-problems",
+    path: "/app/teacher/manage/problems",
+    afterChecks: async (page, viewport) => {
+      const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
+      const main = page.locator(".management-object-main").first();
+      const readonly = page.locator(".management-problem-readonly").first();
+      const readonlyText = ((await readonly.textContent()) || "").replace(/\s+/g, "");
+
+      record("teacher problem management belongs to problem nav", activeNav.join("|").includes("题库管理"), activeNav.join("|"));
+      record(
+        "published problem keeps complete statement visible",
+        readonlyText.includes("题目内容") && readonlyText.includes("读入n个整数") && readonlyText.includes("公开样例") && readonlyText.includes("123") && readonlyText.includes("6"),
+        readonlyText.slice(0, 1000)
+      );
+      record(
+        "published problem shows limits and teaching metadata",
+        readonlyText.includes("1000ms") && readonlyText.includes("64MB") && readonlyText.includes("循环") && readonlyText.includes("手推模拟") && readonlyText.includes("差一位错误"),
+        readonlyText.slice(0, 1000)
+      );
+      record(
+        "published problem remains read only",
+        (await main.locator("textarea").count()) === 0 && (await main.locator(".task-editor-page--embedded").count()) === 0 && readonlyText.includes("当前版本只读"),
+        `textareas=${await main.locator("textarea").count()}`
+      );
+
+      const layout = await main.evaluate(element => {
+        const mainRect = element.getBoundingClientRect();
+        const readonlyRect = element.querySelector(".management-problem-readonly")?.getBoundingClientRect();
+        const samplesRect = element.querySelector(".management-problem-readonly__samples")?.getBoundingClientRect();
+        const sampleCards = [...element.querySelectorAll(".management-problem-readonly__sample")].map(card => card.getBoundingClientRect());
+        return {
+          topOffset: Math.round((readonlyRect?.top ?? mainRect.bottom) - mainRect.top),
+          readonlyWidth: Math.round(readonlyRect?.width ?? 0),
+          mainWidth: Math.round(mainRect.width),
+          samplesWidth: Math.round(samplesRect?.width ?? 0),
+          sampleCardWidths: sampleCards.map(card => Math.round(card.width)),
+          pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+        };
+      });
+      record(
+        `published problem content starts near the header at ${viewport.name}`,
+        layout.topOffset >= 80 && layout.topOffset <= 190 && layout.readonlyWidth > 0,
+        JSON.stringify(layout)
+      );
+      record(`published problem has no page overflow at ${viewport.name}`, layout.pageOverflow <= 1, JSON.stringify(layout));
+      if (viewport.name === "desktop") {
+        record(
+          "published problem uses the wide reading canvas",
+          layout.readonlyWidth >= layout.mainWidth * 0.82 && layout.samplesWidth > 0 && layout.sampleCardWidths.every(width => width >= 220),
+          JSON.stringify(layout)
+        );
+      }
+    },
+    selectors: [
+      [".teacher-shell-nav", "teacher shell nav"],
+      [".management-object-workbench--problems", "problem workbench"],
+      [".management-object-main", "problem detail canvas"],
+      [".management-problem-readonly", "published problem reader"],
+      [".management-problem-readonly__statement", "published problem statement"],
+      [".management-problem-readonly__samples", "published problem samples"]
     ]
   },
   {
