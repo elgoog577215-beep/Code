@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -67,6 +68,12 @@ class PostgresMigrationValidationTest {
         mockMvc.perform(post("/code/api/auth/account/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"bootstrap-admin\",\"password\":\"Bootstrap123\",\"portal\":\"PLATFORM_ADMIN\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void publicCodePrefixKeepsReadinessProbeAnonymous() throws Exception {
+        mockMvc.perform(get("/code/api/system/readiness"))
                 .andExpect(status().isOk());
     }
 
