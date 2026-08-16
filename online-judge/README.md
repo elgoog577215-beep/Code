@@ -143,6 +143,16 @@ cd ..
 ./mvnw spring-boot:run
 ```
 
+Windows 上建议使用仓库内的常驻启动脚本。它会先构建前端和后端，再以隐藏的独立 Java 进程启动服务；关闭当前终端不会让网站随之退出：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1
+powershell -ExecutionPolicy Bypass -File scripts/status-local.ps1
+powershell -ExecutionPolicy Bypass -File scripts/stop-local.ps1
+```
+
+运行日志和 PID 文件保存在 `output/local-server/`。确认构建产物没有变化时，可以给启动命令增加 `-SkipBuild` 以直接启动已有 JAR。
+
 如果只跑后端测试、不重建前端：
 
 ```bash
