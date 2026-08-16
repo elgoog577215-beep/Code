@@ -45,7 +45,7 @@ class SchoolDeploymentScriptSafetyTest {
     void githubDeploymentRequiresManualDispatchAndExplicitBuildConfirmation() throws IOException {
         String workflow = readRepoFile(".github", "workflows", "deploy-online-judge.yml");
 
-        assertThat(workflow).contains("workflow_dispatch:", "deploy-online-judge --confirm-build");
+        assertThat(workflow).contains("workflow_dispatch:", "\"deploy-online-judge --confirm-build\"");
         assertThat(workflow).doesNotContain("push:");
     }
 
@@ -55,6 +55,9 @@ class SchoolDeploymentScriptSafetyTest {
 
         assertThat(deploy).contains(
                 "--confirm-build",
+                "EXPECTED_SSH_COMMAND=\"deploy-online-judge --confirm-build\"",
+                "${SSH_ORIGINAL_COMMAND:-}",
+                "set -- \"--confirm-build\"",
                 "git -C \"${REPO_ROOT}\" fetch origin main",
                 "bash scripts/build-school-images.sh --confirm-build",
                 "bash scripts/start-school.sh",

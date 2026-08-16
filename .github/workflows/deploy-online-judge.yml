@@ -33,4 +33,4 @@ jobs:
             -p "$port" \
             -o IdentitiesOnly=yes \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            deploy-online-judge --confirm-build
+            "deploy-online-judge --confirm-build"
