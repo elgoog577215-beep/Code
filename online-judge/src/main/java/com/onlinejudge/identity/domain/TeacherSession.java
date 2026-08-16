@@ -50,4 +50,3 @@ public class TeacherSession {
         return revokedAt == null && expiresAt != null && now.isBefore(expiresAt);
     }
 }
-

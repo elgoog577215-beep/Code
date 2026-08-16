@@ -22,4 +22,3 @@ public class AssignmentTargetingPolicy {
                 || recipientIds != null && recipientIds.contains(student.getId());
     }
 }
-

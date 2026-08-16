@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Plus, UsersRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
-import type { Assignment, AssignmentOverview } from "../../shared/api/types";
+import type { Assignment, AssignmentOverview, RecommendationActionEvidenceSignal } from "../../shared/api/types";
 import { displayText, issueLabel, looksCorruptText } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
 import { ButtonLink } from "../../shared/ui/Button";
@@ -82,10 +82,24 @@ function topSharedIssue(overview?: AssignmentOverview | null) {
   return overview?.problemSummaries?.find(problem => problem.topIssues?.[0])?.topIssues?.[0]?.label || null;
 }
 
+function actionOutcomeLabel(outcome: string | null | undefined, t: Translator) {
+  switch (outcome) {
+    case "UNRESOLVED_SAME_FOCUS":
+      return t("teacherHome.console.actionUnresolved");
+    case "TEACHER_INTERVENTION_NEEDED":
+      return t("teacherHome.console.actionHighRisk");
+    case "NO_FOLLOWUP_SUBMISSION":
+      return t("teacherHome.console.actionNoFollowup");
+    default:
+      return t("teacherHome.console.actionEvidencePending");
+  }
+}
+
 export default function TeacherPage() {
   const { t } = useTranslation();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [overviewByAssignment, setOverviewByAssignment] = useState<Record<number, AssignmentOverview | null>>({});
+  const [recommendationInterventions, setRecommendationInterventions] = useState<RecommendationActionEvidenceSignal[]>([]);
   const [alert, setAlert] = useState<Alert | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -149,8 +163,8 @@ export default function TeacherPage() {
         const evidence = targetStudent?.attentionEvidence?.find(item => item.problemId) || targetStudent?.attentionEvidence?.[0] || null;
         const href =
           targetStudent && evidence?.problemId
-            ? `/app/teacher/assignment/${assignment.id}/problems/${evidence.problemId}/students/${targetStudent.studentProfileId}`
-            : `/app/teacher/assignment/${assignment.id}`;
+            ? `/teacher/assignment/${assignment.id}/problems/${evidence.problemId}/students/${targetStudent.studentProfileId}`
+            : `/teacher/assignment/${assignment.id}`;
         return {
           assignment,
           overview,
@@ -164,13 +178,29 @@ export default function TeacherPage() {
       .sort((left, right) => right.count - left.count || right.recent - left.recent)
       .slice(0, 5);
   }, [activeAssignments, overviewByAssignment]);
+  const actionQueue = useMemo(() => {
+    const assignmentById = new Map(cleanAssignments.map(assignment => [assignment.id, assignment]));
+    return recommendationInterventions.slice(0, 5).map(signal => {
+      const assignment = signal.assignmentId ? assignmentById.get(signal.assignmentId) : null;
+      const href = signal.assignmentId && signal.problemId && signal.studentProfileId
+        ? `/teacher/assignment/${signal.assignmentId}/problems/${signal.problemId}/students/${signal.studentProfileId}`
+        : signal.assignmentId
+          ? `/teacher/assignment/${signal.assignmentId}`
+          : "/teacher/classes";
+      return { signal, assignment, href };
+    });
+  }, [cleanAssignments, recommendationInterventions]);
 
   async function loadTeacherHome() {
     setLoading(true);
     setAlert(null);
     try {
-      const assignmentResult = await api.assignments();
+      const [assignmentResult, interventionResult] = await Promise.all([
+        api.assignments(),
+        api.recommendationInterventions().catch(() => [])
+      ]);
       setAssignments(assignmentResult);
+      setRecommendationInterventions(interventionResult);
       if (!assignmentResult.length) {
         setOverviewByAssignment({});
         return;
@@ -210,10 +240,10 @@ export default function TeacherPage() {
           <p>{t("teacherHome.console.description")}</p>
         </div>
         <div className="teacher-console-header__actions">
-          <ButtonLink to="/app/teacher/classes" variant="secondary" icon={<UsersRound size={16} />}>
+          <ButtonLink to="/teacher/classes" variant="secondary" icon={<UsersRound size={16} />}>
             {t("teacherHome.classProgress")}
           </ButtonLink>
-          <ButtonLink to="/app/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
+          <ButtonLink to="/teacher/assignment/new" variant="primary" icon={<Plus size={17} />}>
             {t("teacherHome.newAssignment")}
           </ButtonLink>
         </div>
@@ -261,7 +291,7 @@ export default function TeacherPage() {
                 const status = assignmentStatusText(assignment.status, t);
                 const issue = topSharedIssue(overview);
                 return (
-                  <Link className="teacher-console-table__row" to={`/app/teacher/assignment/${assignment.id}`} key={assignment.id}>
+                  <Link className="teacher-console-table__row" to={`/teacher/assignment/${assignment.id}`} key={assignment.id}>
                     <span className="teacher-console-table__title">
                       <strong>{assignment.title}</strong>
                       <small>{issue ? issueLabel(issue) : t("teacherHome.console.noSharedIssue")}</small>
@@ -308,7 +338,22 @@ export default function TeacherPage() {
           </div>
           <div className="teacher-console-panel__body teacher-console-queue">
             <p className="teacher-console-panel__subtle">{t("teacherHome.console.queueHint")}</p>
-            {priorityQueue.length ? (
+            {actionQueue.length ? (
+              actionQueue.map(item => (
+                <Link className="teacher-console-queue__item" to={item.href} key={item.signal.recommendationToken || item.href}>
+                  <span>
+                    <strong>{item.assignment?.title || t("teacherHome.console.unboundAction")}</strong>
+                    <StatusPill tone="warning">{t("teacherHome.console.actionNeedsReview")}</StatusPill>
+                  </span>
+                  <p>
+                    {t("teacherHome.console.studentWithId", { id: item.signal.studentProfileId || "-" })}
+                    {" · "}
+                    {actionOutcomeLabel(item.signal.outcome, t)}
+                  </p>
+                  <small>{t("teacherHome.console.matchBasis", { basis: item.signal.matchBasis || "NONE" })}</small>
+                </Link>
+              ))
+            ) : priorityQueue.length ? (
               priorityQueue.map(item => (
                 <Link className="teacher-console-queue__item" to={item.href} key={item.assignment.id}>
                   <span>

@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { BarChart3, BrainCircuit, Database, LogOut, Power, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "../../shared/i18n";
@@ -9,7 +9,6 @@ import "./TeacherHomeRefresh.css";
 type TeacherNavItem = {
   to: string;
   label: string;
-  description: string;
   icon: LucideIcon;
   activeWhen: (pathname: string) => boolean;
 };
@@ -17,59 +16,54 @@ type TeacherNavItem = {
 export function TeacherShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const pathname = location.pathname;
   const { session, logout } = useAccountSession();
-  const inManagement = pathname === "/app/teacher/manage" || pathname.startsWith("/app/teacher/manage") || pathname.startsWith("/app/task-editor");
+  const inManagement = pathname === "/teacher/manage" || pathname.startsWith("/teacher/manage") || pathname.startsWith("/task-editor");
   const primaryItems: TeacherNavItem[] = [
     {
-      to: "/app/teacher/classes",
+      to: "/teacher/classes",
       label: t("teacherShell.nav.analytics"),
-      description: t("teacherShell.nav.analyticsDescription"),
       icon: BarChart3,
       activeWhen: current =>
-        current === "/app/teacher" ||
-        current.startsWith("/app/teacher/classes") ||
-        current.startsWith("/app/teacher/assignment")
+        current === "/teacher" ||
+        current.startsWith("/teacher/classes") ||
+        current.startsWith("/teacher/assignment")
     }
   ];
   const managementItems: TeacherNavItem[] = [
     {
-      to: "/app/teacher/manage/classes",
+      to: "/teacher/manage/classes",
       label: t("teacherShell.nav.roster"),
-      description: t("teacherShell.nav.rosterDescription"),
       icon: UsersRound,
-      activeWhen: current => current.startsWith("/app/teacher/manage/classes")
+      activeWhen: current => current.startsWith("/teacher/manage/classes")
     },
     {
-      to: "/app/teacher/manage/problems",
+      to: "/teacher/manage/problems",
       label: t("teacherShell.nav.problemBank"),
-      description: t("teacherShell.nav.problemBankDescription"),
       icon: Database,
       activeWhen: current =>
-        current.startsWith("/app/teacher/manage/problems") ||
-        current.startsWith("/app/task-editor")
+        current.startsWith("/teacher/manage/problems") ||
+        current.startsWith("/task-editor")
     },
     {
-      to: "/app/teacher/manage/ai-library",
+      to: "/teacher/manage/ai-library",
       label: t("teacherShell.nav.aiLibrary"),
-      description: t("teacherShell.nav.aiLibraryDescription"),
       icon: BrainCircuit,
-      activeWhen: current => current.startsWith("/app/teacher/manage/ai-library")
+      activeWhen: current => current.startsWith("/teacher/manage/ai-library")
     },
     {
-      to: "/app/teacher/manage/system",
+      to: "/teacher/manage/system",
       label: t("teacherShell.nav.system"),
-      description: t("teacherShell.nav.systemDescription"),
       icon: Power,
-      activeWhen: current => current.startsWith("/app/teacher/manage/system")
+      activeWhen: current => current.startsWith("/teacher/manage/system")
     }
   ];
   return (
     <div className="teacher-shell teacher-console-shell">
       <aside className="teacher-shell-sidebar" aria-label={t("teacherShell.aria")}>
         <div className="teacher-shell-sidebar__head">
-          <span>{t("teacherShell.kicker")}</span>
-          <strong>{inManagement ? t("teacherShell.managementTitle") : t("teacherShell.title")}</strong>
+          <strong>{t("teacherShell.workspaceTitle")}</strong>
         </div>
         <nav className="teacher-shell-nav" aria-label={t("teacherShell.aria")}>
           <div className="teacher-shell-nav__section teacher-shell-nav__section--primary">
@@ -83,12 +77,12 @@ export function TeacherShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="teacher-shell-sidebar__foot">
           <span className="teacher-shell-account" title={session?.displayName || undefined}>{session?.displayName || (inManagement ? t("teacherShell.managementFootnote") : t("teacherShell.footnote"))}</span>
-          <button type="button" className="teacher-shell-logout" onClick={() => void logout().finally(() => window.location.assign("/app/teacher"))}>
+          <button type="button" className="teacher-shell-logout" onClick={() => void logout().finally(() => navigate("/teacher", { replace: true }))}>
             <LogOut size={16} aria-hidden="true" /><span>{t("common.logout")}</span>
           </button>
         </div>
       </aside>
-      <main className="teacher-shell-main">{children}</main>
+      <div className="teacher-shell-main">{children}</div>
     </div>
   );
 }
@@ -106,7 +100,6 @@ function renderNavItem(item: TeacherNavItem, pathname: string) {
       </span>
       <span>
         <strong>{item.label}</strong>
-        <small>{item.description}</small>
       </span>
     </NavLink>
   );

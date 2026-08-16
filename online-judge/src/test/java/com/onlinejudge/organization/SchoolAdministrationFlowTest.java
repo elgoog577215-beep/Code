@@ -24,7 +24,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:h2:mem:school-administration-flow;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
         "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.jpa.hibernate.ddl-auto=validate",
+        "spring.flyway.enabled=false",
+        "spring.jpa.hibernate.ddl-auto=create-drop",
         "TEACHER_DEV_AUTO_AUTH=false",
         "BOOTSTRAP_ADMIN_USERNAME=platform-coder",
         "BOOTSTRAP_ADMIN_PASSWORD=PlatformPass123",
@@ -91,11 +92,13 @@ class SchoolAdministrationFlowTest {
     }
 
     @Test
-    void forwardsDeepAdminWorkspaceRoutesToSpa() throws Exception {
+    void redirectsLegacyAdminWorkspaceRoutesToCanonicalCodePath() throws Exception {
         mockMvc.perform(get("/app/platform-admin/schools/example"))
-                .andExpect(status().isOk()).andExpect(forwardedUrl("/app/index.html"));
+                .andExpect(status().isPermanentRedirect())
+                .andExpect(redirectedUrl("/code/platform-admin/schools/example"));
         mockMvc.perform(get("/app/school-admin/teaching/classes/1"))
-                .andExpect(status().isOk()).andExpect(forwardedUrl("/app/index.html"));
+                .andExpect(status().isPermanentRedirect())
+                .andExpect(redirectedUrl("/code/school-admin/teaching/classes/1"));
     }
 
     @Test

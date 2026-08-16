@@ -17,22 +17,32 @@ TBD - created by archiving change build-student-issue-lifecycle-and-class-diffic
 - **AND** 页面 MUST NOT 将该匹配描述为正式标准库同一问题
 
 ### Requirement: 问题生命周期必须由不可覆盖事实投影
-系统 SHALL 保留每次提交的完整问题集合，并以独立转换记录表达 `NEW`、`PERSISTED`、`NOT_OBSERVED`、`RECOVERED`、`RECURRED` 和 `UNCOMPARABLE`，不得回写覆盖历史事实。
+系统 SHALL 保留每次提交的完整问题集合，并以独立转换记录表达 `NEW`、`PERSISTED`、`NOT_OBSERVED`、`RECOVERED`、`RECURRED` 和 `UNCOMPARABLE`，不得回写覆盖历史事实；转换 SHALL 使用最近可比较有效提交作为基线，重复和不可比较记录不得错误打断问题生命周期。
 
 #### Scenario: 旧问题持续并出现新问题
-- **WHEN** 后续提交保留部分旧问题并新增一个规范化问题
+- **WHEN** 后续有效提交保留部分旧问题并新增一个规范化问题
 - **THEN** 系统 SHALL 为保留问题记录持续状态
 - **AND** 系统 SHALL 为新增问题记录新出现状态
 
 #### Scenario: 诊断失败导致不可比较
-- **WHEN** 相邻提交中任一提交没有完整诊断事实
+- **WHEN** 当前或候选基线提交没有完整诊断事实
 - **THEN** 系统 SHALL 记录不可比较或证据不足
 - **AND** 系统 MUST NOT 把旧问题缺失解释为已恢复
 
 #### Scenario: 问题消失后再次出现
-- **WHEN** 某规范化问题曾在可比较提交中消失，之后又再次出现
+- **WHEN** 某规范化问题曾在可比较提交中消失并形成恢复证据，之后又再次出现
 - **THEN** 系统 SHALL 将其记录为复发
 - **AND** 系统 SHALL 保留首次出现、消失和再次出现的提交引用
+
+#### Scenario: 单次未观察到问题
+- **WHEN** 某问题只在一次后续可比较提交中没有再次观察到且尚无更强验证
+- **THEN** 系统 SHALL 将其标记为 `NOT_OBSERVED`
+- **AND** 页面 MUST NOT 将其描述为已经彻底修复
+
+#### Scenario: 重复提交位于两个有效提交之间
+- **WHEN** 同一问题在一个有效提交后经过若干完全重复提交，并在下一次有效提交继续出现
+- **THEN** 下一次有效提交 SHALL 与最近有效基线比较并标记问题持续存在
+- **AND** 重复提交 MUST NOT 增加有效出现次数或重置连续次数
 
 ### Requirement: 个人难点必须从次数与证据派生
 系统 SHALL 根据有效出现次数、连续次数、涉及题目、复发次数和恢复证据派生单次观察、持续难点、复发易错点、跨题薄弱点和已恢复状态，并返回支撑数值。
@@ -72,3 +82,16 @@ TBD - created by archiving change build-student-issue-lifecycle-and-class-diffic
 - **WHEN** 管理员对同一历史范围执行两次生命周期回填
 - **THEN** 事实规范化键 SHALL 保持一致
 - **AND** 转换记录和聚合计数 MUST NOT 重复增加
+
+### Requirement: 下一步行动必须保持生命周期证据边界
+下一步学习行动 SHALL 使用后端已经归一化的问题生命周期和可信状态作为事实输入；单次观察、低置信度匹配和不可比较记录 MUST NOT 在学生页面被描述为长期缺陷、已恢复或稳定掌握。
+
+#### Scenario: 只有单次低置信度问题
+- **WHEN** 推荐依据仅包含单次观察或低置信度推断身份
+- **THEN** 页面 SHALL 使用当前观察或建议尝试的表述
+- **AND** 页面 MUST NOT 将学生固定标记为长期薄弱
+
+#### Scenario: 缺少可比较后续证据
+- **WHEN** 当前问题尚无可比较的后续提交
+- **THEN** 完成信号 SHALL 表达需要通过后续行动验证
+- **AND** 系统 MUST NOT 提前宣称问题已恢复

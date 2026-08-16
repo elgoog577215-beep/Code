@@ -95,6 +95,29 @@ class SubmissionGrowthSummaryServiceTest {
     }
 
     @Test
+    void batchSummaryNeverUsesAnotherStudentAsComparisonBaseline() {
+        Fixture fixture = fixture();
+        Submission firstStudent = submission(1L, "student-a", Submission.Verdict.WRONG_ANSWER, 0);
+        Submission secondStudent = submission(2L, "student-b", Submission.Verdict.WRONG_ANSWER, 1);
+        secondStudent.setStudentProfileId(12L);
+        fixture.stub(
+                List.of(firstStudent, secondStudent),
+                List.of(
+                        fact(101L, 1L, "point-a", "边界条件"),
+                        fact(201L, 2L, "point-b", "输入解析")
+                ),
+                List.of(stats(1L, 2, 8), stats(2L, 5, 8)),
+                List.of(1L, 2L)
+        );
+
+        var summaries = fixture.service.summarize(List.of(firstStudent, secondStudent));
+
+        assertThat(summaries.get(1L).getGrowthState()).isEqualTo("FIRST_RECORD");
+        assertThat(summaries.get(2L).getGrowthState()).isEqualTo("FIRST_RECORD");
+        assertThat(summaries.get(2L).getComparisonSubmissionId()).isNull();
+    }
+
+    @Test
     void classifiesFirstShiftedStalledAndRegressedAttemptsDeterministically() {
         Fixture fixture = fixture();
         Submission first = submission(1L, "first", Submission.Verdict.WRONG_ANSWER, 0);

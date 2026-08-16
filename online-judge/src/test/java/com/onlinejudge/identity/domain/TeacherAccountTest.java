@@ -37,4 +37,3 @@ class TeacherAccountTest {
         assertThat(account.canAuthenticateAt(now.plus(Duration.ofMinutes(16)))).isTrue();
     }
 }
-

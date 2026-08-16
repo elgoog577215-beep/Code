@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_diagnosis_fact_path", columnList = "knowledge_path_status,fact_type"),
                 @Index(name = "idx_diagnosis_fact_skill", columnList = "skill_unit_id"),
                 @Index(name = "idx_diagnosis_fact_mistake", columnList = "mistake_point_id"),
+                @Index(name = "idx_diagnosis_fact_provisional", columnList = "provisional_node_code"),
                 @Index(name = "idx_diagnosis_fact_normalized_point", columnList = "normalized_point_key,fact_type")
         }
 )
@@ -83,13 +84,16 @@ public class SubmissionDiagnosisFact {
     @Column(name = "improvement_point_id", length = 160)
     private String improvementPointId;
 
+    @Column(name = "provisional_node_code", length = 160)
+    private String provisionalNodeCode;
+
     @Column(name = "knowledge_path_json", columnDefinition = "TEXT")
     private String knowledgePathJson;
 
     @Column(name = "knowledge_path_status", nullable = false, length = 32)
     private String knowledgePathStatus;
 
-    @Column(name = "library_fit", length = 32)
+    @Column(name = "library_fit", nullable = false, length = 32)
     private String libraryFit;
 
     @Column(name = "evidence_refs_json", columnDefinition = "TEXT")

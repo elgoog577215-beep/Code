@@ -33,6 +33,13 @@ class ModelDiagnosisBriefBuilderTest {
                                 .inputPreview("secret input")
                                 .actualOutputPreview("secret actual")
                                 .expectedOutputPreview("secret expected")
+                                .semanticCode("TCI_HIDDEN_BOUNDARY")
+                                .intentType("BOUNDARY")
+                                .intentTitle("最小规模边界")
+                                .intentSummary("覆盖输入规模处在最小合法边界时的程序行为。")
+                                .learningObjective("能检查初始化、空循环和边界返回是否保持定义一致。")
+                                .contestRole("CORRECTNESS_GUARD")
+                                .revealPolicy("AI_GENERALIZED")
                                 .build()))
                         .build())
                 .build();
@@ -51,6 +58,14 @@ class ModelDiagnosisBriefBuilderTest {
                     assertThat(fact.getActualOutputPreview()).isNull();
                     assertThat(fact.getExpectedOutputPreview()).isNull();
                 });
+        assertThat(brief.getTestIntentFacts()).singleElement()
+                .satisfies(fact -> {
+                    assertThat(fact.getHidden()).isTrue();
+                    assertThat(fact.getEvidenceRef()).isEqualTo("judge:test-intent:TCI_HIDDEN_BOUNDARY");
+                    assertThat(fact.getIntentSummary()).contains("最小合法边界");
+                    assertThat(fact.toString()).doesNotContain("secret input", "secret expected", "secret actual");
+                });
+        assertThat(brief.getEvidenceRefs()).contains("judge:test-intent:TCI_HIDDEN_BOUNDARY");
         assertThat(brief.getHiddenDataBoundary().getHiddenFailureObserved()).isTrue();
         assertThat(brief.getHiddenDataBoundary().getHiddenInputVisible()).isFalse();
         assertThat(brief.getUncertainty()).contains("Hidden failure");

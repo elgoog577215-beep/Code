@@ -10,6 +10,8 @@ import com.onlinejudge.submission.domain.SubmissionAnalysis;
 import com.onlinejudge.submission.domain.SubmissionDiagnosisFact;
 import com.onlinejudge.submission.persistence.StudentAiFeedbackEventRepository;
 import com.onlinejudge.submission.persistence.SubmissionDiagnosisFactRepository;
+import com.onlinejudge.submission.application.SubmissionGrowthSummaryService;
+import com.onlinejudge.submission.dto.SubmissionGrowthSummaryResponse;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -103,7 +105,8 @@ class SubmissionEvidenceAnalyticsServiceTest {
                     assertThat(item.getRawOccurrenceCount()).isEqualTo(2);
                     assertThat(item.getEffectiveWeightedOccurrenceCount()).isEqualTo(1);
                     assertThat(item.getAffectedStudentCount()).isEqualTo(1);
-                    assertThat(item.getRepeatedStudentCount()).isEqualTo(1);
+                    assertThat(item.getRepeatedStudentCount()).isZero();
+                    assertThat(item.getRepeatedStudentIds()).isEmpty();
                     assertThat(item.getAffectedProblemCount()).isEqualTo(1);
                     assertThat(item.getRecoveredStudentCount()).isEqualTo(1);
                     assertThat(item.getUnresolvedStudentCount()).isZero();
@@ -111,11 +114,65 @@ class SubmissionEvidenceAnalyticsServiceTest {
                     assertThat(item.getDifficultyClassification()).isEqualTo("OCCASIONAL_INDIVIDUAL");
                 });
         assertThat(summary.recoverySummary().getRecoveryNumerator()).isEqualTo(1);
-        assertThat(summary.recoverySummary().getRecoveryDenominator()).isEqualTo(2);
-        assertThat(summary.recoverySummary().getSameIssueCount()).isEqualTo(1);
+        assertThat(summary.recoverySummary().getRecoveryDenominator()).isEqualTo(1);
+        assertThat(summary.recoverySummary().getSameIssueCount()).isZero();
         assertThat(summary.recoverySummary().getRecoveredCount()).isEqualTo(1);
-        assertThat(summary.recoverySummary().getFeedbackViewedRecoveredCount()).isEqualTo(1);
+        assertThat(summary.recoverySummary().getFeedbackViewedRecoveredCount()).isZero();
         assertThat(summary.recentStates().get(11L).getStatus()).isEqualTo("RECENTLY_RECOVERED");
+    }
+
+    @Test
+    void reusesStudentGrowthProjectionForRepeatedAndResolvedStudentSets() {
+        SubmissionDiagnosisFactRepository factRepository = mock(SubmissionDiagnosisFactRepository.class);
+        TeacherDiagnosisCorrectionRepository correctionRepository = mock(TeacherDiagnosisCorrectionRepository.class);
+        StudentAiFeedbackEventRepository eventRepository = mock(StudentAiFeedbackEventRepository.class);
+        SubmissionGrowthSummaryService growthService = mock(SubmissionGrowthSummaryService.class);
+        SubmissionEvidenceAnalyticsService service = new SubmissionEvidenceAnalyticsService(
+                factRepository, correctionRepository, eventRepository, new ObjectMapper()
+        );
+        service.setGrowthSummaryService(growthService);
+        LocalDateTime base = LocalDateTime.now().minusHours(1);
+        Submission first = submission(1L, 11L, Submission.Verdict.WRONG_ANSWER, base);
+        Submission repeated = submission(2L, 11L, Submission.Verdict.WRONG_ANSWER, base.plusMinutes(5));
+        Submission accepted = submission(3L, 11L, Submission.Verdict.ACCEPTED, base.plusMinutes(10));
+        when(factRepository.findBySubmissionIdIn(anyList())).thenReturn(List.of(fact(1L, 101L), fact(2L, 102L)));
+        when(correctionRepository.findBySubmissionIdIn(anyList())).thenReturn(List.of());
+        when(eventRepository.findBySubmissionIdIn(anyList())).thenReturn(List.of());
+        when(growthService.summarize(anyList())).thenReturn(Map.of(
+                1L, growth(1L, true, "NEW"),
+                2L, growth(2L, true, "PERSISTED"),
+                3L, growth(3L, true, "RECOVERED")
+        ));
+
+        var summary = service.summarize(
+                List.of(first, repeated, accepted),
+                List.of(student(11L)),
+                Map.of(1L, analysis(101L, 1L), 2L, analysis(102L, 2L), 3L, analysis(103L, 3L))
+        );
+
+        assertThat(summary.knowledgePathStats().stream()
+                .filter(item -> "mistakePoint".equals(item.getGranularity()))
+                .findFirst()).get().satisfies(item -> {
+                    assertThat(item.getEffectiveWeightedOccurrenceCount()).isEqualTo(2);
+                    assertThat(item.getRepeatedStudentIds()).containsExactly(11L);
+                    assertThat(item.getResolvedStudentIds()).containsExactly(11L);
+                    assertThat(item.getUnresolvedStudentCount()).isZero();
+                });
+    }
+
+    private SubmissionGrowthSummaryResponse growth(Long submissionId, boolean effective, String status) {
+        return SubmissionGrowthSummaryResponse.builder()
+                .submissionId(submissionId)
+                .growthState("COMPLETED")
+                .effectiveAttempt(effective)
+                .comparable(true)
+                .issueSignals(List.of(SubmissionGrowthSummaryResponse.IssueSignal.builder()
+                        .normalizedPointKey("MP_BOUNDARY")
+                        .title("边界错误")
+                        .displayCategory("REPAIR")
+                        .changeStatus(status)
+                        .build()))
+                .build();
     }
 
     private Submission submission(Long id, Long studentId, Submission.Verdict verdict, LocalDateTime time) {

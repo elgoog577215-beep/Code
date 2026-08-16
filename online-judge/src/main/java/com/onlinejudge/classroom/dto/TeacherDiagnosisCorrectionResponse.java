@@ -12,6 +12,7 @@ public class TeacherDiagnosisCorrectionResponse {
     private Long id;
     private Long assignmentId;
     private Long submissionId;
+    private Long feedbackRevisionId;
     private Long studentProfileId;
     private String originalIssueTag;
     private String originalFineGrainedTag;
@@ -34,6 +35,7 @@ public class TeacherDiagnosisCorrectionResponse {
                 .id(correction.getId())
                 .assignmentId(correction.getAssignmentId())
                 .submissionId(correction.getSubmissionId())
+                .feedbackRevisionId(correction.getFeedbackRevisionId())
                 .studentProfileId(correction.getStudentProfileId())
                 .originalIssueTag(correction.getOriginalIssueTag())
                 .originalFineGrainedTag(correction.getOriginalFineGrainedTag())

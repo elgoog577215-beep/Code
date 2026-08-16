@@ -30,4 +30,3 @@ Readiness SHALL 报告迁移版本、有效管理员、孤立数据、名单异�
 #### Scenario: 存在孤立教学数据
 - **WHEN** 任一班级或作业没有有效所有者
 - **THEN** Readiness SHALL 标记不可推广状态并给出不含敏感数据的原因
-

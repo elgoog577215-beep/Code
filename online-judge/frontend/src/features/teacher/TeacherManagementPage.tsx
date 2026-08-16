@@ -102,26 +102,18 @@ const PROBLEM_DIFFICULTY_ORDER: Record<string, number> = { EASY: 1, MEDIUM: 2, H
 
 const MANAGEMENT_SECTION_META = {
   classes: {
-    eyebrow: "teacherManagement.sections.classes.eyebrow",
-    title: "teacherManagement.sections.classes.title",
-    description: "teacherManagement.sections.classes.description"
+    title: "teacherManagement.sections.classes.title"
   },
   problems: {
-    eyebrow: "teacherManagement.sections.problems.eyebrow",
-    title: "teacherManagement.sections.problems.title",
-    description: "teacherManagement.sections.problems.description"
+    title: "teacherManagement.sections.problems.title"
   },
   "ai-library": {
-    eyebrow: "teacherManagement.sections.aiLibrary.eyebrow",
-    title: "teacherManagement.sections.aiLibrary.title",
-    description: "teacherManagement.sections.aiLibrary.description"
+    title: "teacherManagement.sections.aiLibrary.title"
   },
   system: {
-    eyebrow: "teacherManagement.sections.system.eyebrow",
-    title: "teacherManagement.sections.system.title",
-    description: "teacherManagement.sections.system.description"
+    title: "teacherManagement.sections.system.title"
   }
-} satisfies Record<ManagementSection, { eyebrow: string; title: string; description: string }>;
+} satisfies Record<ManagementSection, { title: string }>;
 
 export default function TeacherManagementPage({ section = "classes" }: { section?: ManagementSection }) {
   const { t } = useTranslation();
@@ -130,9 +122,7 @@ export default function TeacherManagementPage({ section = "classes" }: { section
     <div className={`teacher-page teacher-workflow teacher-manage-page teacher-manage-page--${section}`}>
       <section className="teacher-workflow-header teacher-workflow-header--simple teacher-manage-header">
         <div>
-          <p className="eyebrow">{t(meta.eyebrow)}</p>
           <h1>{t(meta.title)}</h1>
-          <p>{t(meta.description)}</p>
         </div>
       </section>
       <TeacherManagementTools section={section} />

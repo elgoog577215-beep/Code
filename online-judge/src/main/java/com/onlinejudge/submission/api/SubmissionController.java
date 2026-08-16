@@ -7,8 +7,10 @@ import com.onlinejudge.submission.dto.SubmissionRequest;
 import com.onlinejudge.submission.dto.SubmissionResponse;
 import com.onlinejudge.submission.dto.StudentAiFeedbackLookupResponse;
 import com.onlinejudge.classroom.application.CoachPromptService;
+import com.onlinejudge.classroom.application.LearningProofService;
 import com.onlinejudge.classroom.dto.CoachPromptResponse;
 import com.onlinejudge.classroom.dto.CoachReplyRequest;
+import com.onlinejudge.classroom.dto.LearningProofResponse;
 import com.onlinejudge.submission.application.JudgeService;
 import com.onlinejudge.submission.application.SubmissionAnalysisService;
 import com.onlinejudge.submission.application.SubmissionComparisonService;
@@ -39,6 +41,7 @@ public class SubmissionController {
     private final StudentAiFeedbackService studentAiFeedbackService;
     private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
     private final CoachPromptService coachPromptService;
+    private final LearningProofService learningProofService;
     private final StudentAccessTokenService studentAccessTokenService;
     private final SubmissionRepository submissionRepository;
     private final ClassroomSubmissionContextService classroomSubmissionContextService;
@@ -142,6 +145,29 @@ public class SubmissionController {
                                                                 HttpServletRequest request) {
         requireSubmissionAccess(request, id);
         return ResponseEntity.ok(coachPromptService.replyAndGenerateNext(id, coachRequest));
+    }
+
+    @GetMapping("/{id}/learning-proof")
+    public ResponseEntity<LearningProofResponse> getLearningProof(@PathVariable Long id,
+                                                                  HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
+        return ResponseEntity.ok(learningProofService.getForSubmission(id));
+    }
+
+    @PostMapping("/{id}/learning-reflection")
+    public ResponseEntity<LearningProofResponse> createLearningReflection(@PathVariable Long id,
+                                                                          HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
+        return ResponseEntity.ok(learningProofService.createReflection(id));
+    }
+
+    @PostMapping("/{id}/learning-reflection-answer")
+    public ResponseEntity<LearningProofResponse> answerLearningReflection(
+            @PathVariable Long id,
+            @Valid @RequestBody CoachReplyRequest coachRequest,
+            HttpServletRequest request) {
+        requireSubmissionAccess(request, id);
+        return ResponseEntity.ok(learningProofService.answerReflection(id, coachRequest));
     }
 
     @GetMapping("/problem/{problemId}/history-summary")

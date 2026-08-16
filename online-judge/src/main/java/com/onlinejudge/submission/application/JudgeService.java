@@ -192,6 +192,7 @@ public class JudgeService {
                                                  int memoryUsed) {
         return SubmissionCaseResult.builder()
                 .testCaseNumber(testCaseNumber)
+                .testCaseId(testCase.getId())
                 .passed(passed)
                 .inputSnapshot(testCase.getInput())
                 .actualOutput(actualOutput)
@@ -199,6 +200,13 @@ public class JudgeService {
                 .executionTime(executionTime)
                 .memoryUsed(memoryUsed)
                 .hidden(Boolean.TRUE.equals(testCase.getIsHidden()))
+                .testSemanticCode(testCase.getSemanticCode())
+                .testIntentType(testCase.getIntentType())
+                .testIntentTitle(testCase.getIntentTitle())
+                .testIntentSummary(testCase.getIntentSummary())
+                .testLearningObjective(testCase.getLearningObjective())
+                .testContestRole(testCase.getContestRole())
+                .testRevealPolicy(testCase.getRevealPolicy())
                 .build();
     }
 

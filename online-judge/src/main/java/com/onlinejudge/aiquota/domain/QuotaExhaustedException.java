@@ -5,4 +5,3 @@ public class QuotaExhaustedException extends RuntimeException {
         super("QUOTA_EXHAUSTED");
     }
 }
-

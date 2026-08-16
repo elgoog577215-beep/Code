@@ -1,5 +1,6 @@
 import type {
   Assignment,
+  AssignmentReadiness,
   AssignmentOverview,
   AiStandardLibraryItem,
   AiStandardLibraryItemPayload,
@@ -12,6 +13,7 @@ import type {
   AiQualityTrend,
   AuthSession,
   ClassGroup,
+  ClassLearningOverview,
   CoachPrompt,
   CodeRunResult,
   DiagnosisEvalCandidates,
@@ -22,11 +24,13 @@ import type {
   ImportCommit,
   ImportPreview,
   LeaderboardEntry,
+  LearningProof,
   Problem,
   ProblemCatalogItem,
   ProblemManage,
   Readiness,
   RecommendationEffectiveness,
+  RecommendationActionEvidenceSignal,
   StudentAbilityProfile,
   StudentAssignmentLeaderboard,
   StudentAssignmentSubmissionPage,
@@ -49,7 +53,9 @@ import type {
   SchoolTeachingStudent,
   SchoolTeachingAssignment,
   SchoolTeachingSubmission,
-  SchoolQuotaSummary
+  SchoolQuotaSummary,
+  TeacherProblemLearningProof,
+  TeacherSubmissionEvidence
 } from "./types";
 import { YINGQI_SIGNATURE } from "../identity/yingqiSignature";
 
@@ -63,6 +69,12 @@ export class ApiError extends Error {
     this.status = status;
     this.payload = payload;
   }
+}
+
+const publicBasePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+export function publicApiUrl(url: string): string {
+  return url === "/api" || url.startsWith("/api/") ? `${publicBasePath}${url}` : url;
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -99,7 +111,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
       ?.slice("XSRF-TOKEN=".length);
     if (csrfToken) headers.set("X-XSRF-TOKEN", decodeURIComponent(csrfToken));
   }
-  const response = await fetch(url, { ...init, headers, credentials: "same-origin" });
+  const response = await fetch(publicApiUrl(url), { ...init, headers, credentials: "same-origin" });
   return readJson<T>(response);
 }
 
@@ -239,12 +251,21 @@ export const api = {
       method: "POST",
       body: jsonBody({ answer })
     }),
+  learningProof: (id: number) => request<LearningProof>(`/api/submissions/${id}/learning-proof`),
+  createLearningReflection: (id: number) =>
+    request<LearningProof>(`/api/submissions/${id}/learning-reflection`, { method: "POST" }),
+  answerLearningReflection: (id: number, answer: string) =>
+    request<LearningProof>(`/api/submissions/${id}/learning-reflection-answer`, {
+      method: "POST",
+      body: jsonBody({ answer })
+    }),
   history: (problemId: number, assignmentId?: number | null) =>
     request<SubmissionHistorySummary[]>(
       `/api/submissions/problem/${problemId}/history-summary${queryString({ assignmentId })}`
     ),
 
   classes: () => request<ClassGroup[]>("/api/teacher/classes"),
+  classLearningOverview: (id: number) => request<ClassLearningOverview>(`/api/teacher/classes/${id}/learning-overview`),
   createClass: (payload: { name: string; grade?: string; teacherName?: string }) =>
     request<ClassGroup>("/api/teacher/classes", { method: "POST", body: jsonBody(payload) }),
   rotateClassJoinCode: (classGroupId: number) =>
@@ -272,6 +293,11 @@ export const api = {
   assignment: (id: number) => request<Assignment>(`/api/teacher/assignments/${id}`),
   createAssignment: (payload: unknown) =>
     request<Assignment>("/api/teacher/assignments", { method: "POST", body: jsonBody(payload) }),
+  assignmentReadiness: (problemIds: number[]) =>
+    request<AssignmentReadiness>("/api/teacher/assignments/readiness", {
+      method: "POST",
+      body: jsonBody({ problemIds })
+    }),
   updateAssignment: (id: number, payload: unknown) =>
     request<Assignment>(`/api/teacher/assignments/${id}`, { method: "PUT", body: jsonBody(payload) }),
   teacherProblems: () => request<ProblemManage[]>("/api/teacher/problems"),
@@ -342,6 +368,14 @@ export const api = {
     request<SubmissionHistorySummary[]>(
       `/api/teacher/assignments/${assignmentId}/problems/${problemId}/students/${studentProfileId}/growth`
     ),
+  teacherProblemLearningProof: (assignmentId: number, problemId: number) =>
+    request<TeacherProblemLearningProof>(
+      `/api/teacher/assignments/${assignmentId}/problems/${problemId}/learning-proof`
+    ),
+  teacherSubmissionEvidence: (assignmentId: number, submissionId: number) =>
+    request<TeacherSubmissionEvidence>(`/api/teacher/assignments/${assignmentId}/submissions/${submissionId}/evidence`),
+  regenerateTeacherSubmissionAnalysis: (assignmentId: number, submissionId: number) =>
+    request<void>(`/api/teacher/assignments/${assignmentId}/submissions/${submissionId}/analysis/regenerate`, { method: "POST" }),
   aiQualityOverview: (id: number) => request<AiQualityOverview>(`/api/teacher/assignments/${id}/ai-quality`),
   studentAiFeedbackObservability: (id: number) =>
     request<StudentAiFeedbackObservability>(`/api/teacher/assignments/${id}/student-ai-feedback-observability`),
@@ -351,6 +385,8 @@ export const api = {
     request<DiagnosisEvalFixtureDraft>(`/api/teacher/assignments/${id}/diagnosis-eval-fixture-draft`),
   aiQualityTrend: () => request<AiQualityTrend>("/api/teacher/ai-quality/trend"),
   recommendationEffectiveness: () => request<RecommendationEffectiveness>("/api/teacher/recommendations/effectiveness"),
+  recommendationInterventions: () =>
+    request<RecommendationActionEvidenceSignal[]>("/api/teacher/recommendations/interventions"),
   recordClassReviewFeedback: (
     assignmentId: number,
     payload: {
@@ -372,6 +408,7 @@ export const api = {
     assignmentId: number,
     payload: {
       submissionId: number;
+      feedbackRevisionId?: number | null;
       correctedIssueTag: string;
       correctedFineGrainedTag?: string | null;
       correctionType?: "DIAGNOSIS" | "KNOWLEDGE_PATH" | "EVIDENCE" | "ADVICE";

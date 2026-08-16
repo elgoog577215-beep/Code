@@ -14,4 +14,3 @@ public class PlatformApiException extends RuntimeException {
         this.code = code;
     }
 }
-

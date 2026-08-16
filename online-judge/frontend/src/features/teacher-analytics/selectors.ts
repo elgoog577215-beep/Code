@@ -1,4 +1,4 @@
-import type { Assignment, AssignmentOverview, ClassGroup, TeacherKnowledgePathStat } from "../../shared/api/types";
+import type { Assignment, AssignmentOverview, ClassGroup, ClassLearningOverview, TeacherKnowledgePathStat } from "../../shared/api/types";
 import { assignmentStatusLabel, displayText, issueLabel } from "../../shared/format";
 import type {
   AnalyticsEvidenceSample,
@@ -78,68 +78,41 @@ export function formatRatio(left: number, right: number) {
 }
 
 export function buildClassAnalyticsSnapshot(input: {
-  classGroup: ClassGroup;
-  assignments: Assignment[];
-  overviewByAssignment: AssignmentOverviewMap;
+  overview: ClassLearningOverview;
   t?: AnalyticsTranslator;
 }): AnalyticsSnapshot {
-  const assignments = classAssignments(input.assignments, input.classGroup.id, input.classGroup.name, input.t);
-  const overviews = assignments.map(assignment => input.overviewByAssignment[assignment.id]).filter(Boolean) as AssignmentOverview[];
-  const rosterStudentCount = overviews.length
-    ? Math.max(...overviews.map(overview => overview.rosterStudentCount || overview.participantCount || 0))
-    : 0;
-  const submittedStudentIds = new Set<number>();
-  const passedStudentIds = new Set<number>();
-  overviews.forEach(overview => overview.students.forEach(student => {
-    if (student.attemptCount > 0) {
-      submittedStudentIds.add(student.studentProfileId);
-    }
-    if (student.passedCount > 0) {
-      passedStudentIds.add(student.studentProfileId);
-    }
+  const classGroup = input.overview.classGroup;
+  const rows = input.overview.assignments.map(assignment => ({
+    id: assignment.assignmentId,
+    title: displayText(assignment.title, input.t?.("teacherAnalytics.defaultLabels.assignmentFallbackWithId", { id: assignment.assignmentId }) || `Class Assignment #${assignment.assignmentId}`),
+    status: localizedAssignmentStatus(assignment.status, input.t),
+    href: `/teacher/classes/${classGroup.id}/assignments/${assignment.assignmentId}`,
+    problemCount: assignment.problemCount,
+    submittedStudentCount: assignment.submittedStudentCount,
+    participantCount: assignment.rosterStudentCount,
+    completedRequiredStudentCount: assignment.completedRequiredStudentCount,
+    passRate: null,
+    topIssue: null
   }));
-  const attempts = overviews.reduce((sum, overview) => sum + overview.attemptCount, 0);
-  const passed = overviews.reduce((sum, overview) => sum + overview.passedAttemptCount, 0);
-  const completenessLegal = overviews.reduce((sum, overview) => sum + (overview.dataCompleteness?.legalIdentityCount || 0), 0);
-  const completenessReady = overviews.reduce((sum, overview) => sum + (overview.dataCompleteness?.completeSubmissionCount || 0), 0);
-  const identityMissing = overviews.reduce((sum, overview) => sum + (overview.dataCompleteness?.identityMissingCount || 0), 0);
-  const analysisMissing = overviews.reduce((sum, overview) => sum + (overview.dataCompleteness?.analysisMissingCount || 0), 0);
-  const recoveryNumerator = overviews.reduce((sum, overview) => sum + (overview.recoverySummary?.recoveryNumerator || 0), 0);
-  const recoveryDenominator = overviews.reduce((sum, overview) => sum + (overview.recoverySummary?.recoveryDenominator || 0), 0);
-  const issueCount = overviews.reduce(
-    (sum, overview) => sum + (overview.knowledgePathStats || [])
-      .filter(item => item.granularity === "mistakePoint")
-      .reduce((inner, item) => inner + item.errorOccurrenceCount, 0),
-    0
-  );
-  const affectedStudentIds = new Set<number>();
-  overviews.forEach(overview => {
-    overview.knowledgePathStats?.forEach(stat => stat.affectedStudentIds?.forEach(id => affectedStudentIds.add(id)));
-  });
-  const rows = assignments.map(assignment => assignmentRow(assignment, input.overviewByAssignment[assignment.id], input.classGroup.id, input.t));
-  const allProblems = overviews.flatMap(overview => problemRows(overview, input.classGroup.id));
-  const evidence = collectClassEvidence(assignments, input.overviewByAssignment, input.classGroup.id, input.t);
   return {
-    scope: { type: "class", classId: input.classGroup.id, className: input.classGroup.name },
-    classGroup: input.classGroup,
+    scope: { type: "class", classId: classGroup.id, className: classGroup.name },
+    classGroup,
     metrics: [
-      metric("assignments", assignments.length),
-      metric("rosterStudents", rosterStudentCount || "-"),
-      metric("submittedStudents", submittedStudentIds.size || "-"),
-      metric("unsubmittedStudents", Math.max(0, rosterStudentCount - submittedStudentIds.size)),
-      metric("studentAccuracy", submittedStudentIds.size ? formatPercent(passedStudentIds.size / submittedStudentIds.size) : "-"),
-      metric("attemptAccuracy", attempts ? formatPercent(passed / attempts) : "-"),
-      metric("dataCompleteness", completenessLegal ? formatPercent(completenessReady / completenessLegal) : "-", completenessNote(input.t, identityMissing, analysisMissing)),
-      metric("recoveryEvidence", recoveryDenominator ? `${recoveryNumerator}/${recoveryDenominator}` : "-", recoveryNote(input.t, recoveryDenominator)),
-      metric("errorCount", issueCount || "-"),
-      metric("affectedStudents", affectedStudentIds.size || "-")
+      metric("assignments", input.overview.assignmentCount),
+      metric("rosterStudents", input.overview.rosterStudentCount),
+      metric("submittedStudents", input.overview.submittedStudentCount),
+      metric("unsubmittedStudents", input.overview.unsubmittedStudentCount)
     ],
-    insightBuckets: buildBucketsFromOverviews(overviews, evidence, input.t),
+    insightBuckets: emptyInsightBuckets(),
     assignmentRows: rows,
-    problemRows: allProblems,
-    evidenceSamples: evidence,
-    emptyReason: assignments.length ? undefined : "noAssignments"
+    problemRows: [],
+    evidenceSamples: [],
+    emptyReason: input.overview.assignmentCount ? undefined : "noAssignments"
   };
+}
+
+function emptyInsightBuckets(): Record<AnalyticsGranularity, InsightBucket[]> {
+  return { chapter: [], knowledgePoint: [], skillUnit: [], mistakePoint: [] };
 }
 
 export function buildAssignmentAnalyticsSnapshot(input: {
@@ -162,19 +135,16 @@ export function buildAssignmentAnalyticsSnapshot(input: {
     assignment: input.assignment,
     overview: input.overview,
     metrics: [
+      metric("rosterStudents", input.overview.rosterStudentCount || input.overview.participantCount || 0),
       metric("submittedStudents", latestSubmittedStudentCount(input.overview)),
       metric("unsubmittedStudents", input.overview.unsubmittedStudentCount ?? Math.max(0, input.overview.participantCount - latestSubmittedStudentCount(input.overview))),
-      metric("studentAccuracy", formatPercent(input.overview.studentPassRate)),
-      metric("attemptAccuracy", formatPercent(assignmentPassRate(input.overview))),
-      metric("averageAttempts", averageAttempts(input.overview)),
-      metric("dataCompleteness", formatPercent(input.overview.dataCompleteness?.completeRate), completenessNote(
-        input.t,
-        input.overview.dataCompleteness?.identityMissingCount || 0,
-        input.overview.dataCompleteness?.analysisMissingCount || 0
-      )),
-      metric("recoveryEvidence", input.overview.recoverySummary?.recoveryDenominator
-        ? `${input.overview.recoverySummary.recoveryNumerator}/${input.overview.recoverySummary.recoveryDenominator}`
-        : "-", recoveryNote(input.t, input.overview.recoverySummary?.recoveryDenominator || 0))
+      metric(
+        "completedRequiredStudents",
+        input.overview.completedRequiredStudentCount || 0,
+        input.overview.requiredProblemCount
+          ? input.t?.("teacherAnalytics.metrics.requiredProblemNote", { count: input.overview.requiredProblemCount })
+          : undefined
+      )
     ],
     insightBuckets: buildBucketsFromOverviews([input.overview], evidence, input.t),
     assignmentRows: [assignmentRow(input.assignment, input.overview, input.classGroup.id, input.t)],
@@ -198,7 +168,7 @@ export function buildProblemAnalyticsSnapshot(input: {
   const students = problem.students || [];
   const submitted = problem.submittedStudentCount || students.filter(student => student.attemptCount > 0).length;
   const passed = problem.passedStudentCount || students.filter(student => student.passedCount > 0).length;
-  const failed = Math.max(0, submitted - passed);
+  const roster = problem.classStudentCount || input.overview.rosterStudentCount || students.length;
   const evidence = collectProblemEvidence(input.classGroup.id, input.assignment.id, problem, input.t);
   return {
     scope: {
@@ -214,19 +184,10 @@ export function buildProblemAnalyticsSnapshot(input: {
     assignment: input.assignment,
     overview: input.overview,
     metrics: [
-      metric("submittedStudents", submitted || "-"),
-      metric("passedStudents", passed || "-"),
-      metric("failedStudents", failed || "-"),
-      metric("studentAccuracy", formatPercent(problem.studentPassRate ?? rateToRatio(problem.passRate))),
-      metric("attemptAccuracy", formatPercent(problem.attemptPassRate)),
-      metric("dataCompleteness", formatPercent(problem.dataCompleteness?.completeRate), completenessNote(
-        input.t,
-        problem.dataCompleteness?.identityMissingCount || 0,
-        problem.dataCompleteness?.analysisMissingCount || 0
-      )),
-      metric("recoveryEvidence", problem.recoverySummary?.recoveryDenominator
-        ? `${problem.recoverySummary.recoveryNumerator}/${problem.recoverySummary.recoveryDenominator}`
-        : "-", recoveryNote(input.t, problem.recoverySummary?.recoveryDenominator || 0))
+      metric("submittedStudents", roster ? `${submitted}/${roster}` : submitted),
+      metric("firstPassStudents", problem.firstPassStudentCount || 0),
+      metric("eventualPassStudents", passed),
+      metric("effectiveAttempts", problem.effectiveAttemptCount || 0)
     ],
     insightBuckets: buildBucketsFromProblem(problem, evidence, input.t),
     assignmentRows: [assignmentRow(input.assignment, input.overview, input.classGroup.id, input.t)],
@@ -242,10 +203,17 @@ export function problemRows(overview: AssignmentOverview, classId: number, assig
     .map(problem => ({
       id: problem.problemId,
       title: problem.title,
-      href: `/app/teacher/classes/${classId}/assignments/${assignmentId}/problems/${problem.problemId}`,
+      href: `/teacher/classes/${classId}/assignments/${assignmentId}/problems/${problem.problemId}`,
       difficulty: problem.difficulty,
       submittedStudentCount: problem.submittedStudentCount,
+      unsubmittedStudentCount: Math.max(
+        0,
+        (problem.classStudentCount || overview.rosterStudentCount || overview.participantCount) - problem.submittedStudentCount
+      ),
       passedStudentCount: problem.passedStudentCount,
+      firstPassStudentCount: problem.firstPassStudentCount || 0,
+      effectiveAttemptCount: problem.effectiveAttemptCount || 0,
+      medianEffectiveAttempts: problem.medianEffectiveAttempts,
       participantCount: problem.classStudentCount || overview.rosterStudentCount || overview.participantCount,
       passRate: rateToRatio(problem.passRate),
       topIssue: problem.topIssues?.[0]?.label || null
@@ -257,10 +225,11 @@ function assignmentRow(assignment: AssignmentAnalyticsRecord, overview: Assignme
     id: assignment.id,
     title: assignment.title,
     status: localizedAssignmentStatus(assignment.status, t),
-    href: `/app/teacher/classes/${classId}/assignments/${assignment.id}`,
+    href: `/teacher/classes/${classId}/assignments/${assignment.id}`,
     problemCount: assignment.tasks?.length || overview?.problemSummaries?.length || 0,
     submittedStudentCount: latestSubmittedStudentCount(overview),
     participantCount: overview?.rosterStudentCount || overview?.participantCount || 0,
+    completedRequiredStudentCount: overview?.completedRequiredStudentCount || 0,
     passRate: assignmentPassRate(overview),
     topIssue: overview?.topIssues?.[0]?.label || overview?.problemSummaries?.find(problem => problem.topIssues?.[0])?.topIssues?.[0]?.label || null
   };
@@ -331,6 +300,7 @@ function buildBucketsFromStats(
     difficultyClassification?: string | null;
     studentIds: Set<number>;
     repeatedStudentIds: Set<number>;
+    resolvedStudentIds: Set<number>;
     problemIds: Set<number>;
     evidence: AnalyticsEvidenceSample[];
   };
@@ -358,6 +328,7 @@ function buildBucketsFromStats(
       difficultyClassification: null,
       studentIds: new Set<number>(),
       repeatedStudentIds: new Set<number>(),
+      resolvedStudentIds: new Set<number>(),
       problemIds: new Set<number>(),
       evidence: []
     };
@@ -372,6 +343,7 @@ function buildBucketsFromStats(
     current.difficultyClassification = strongerClassification(current.difficultyClassification, stat.difficultyClassification);
     (stat.affectedStudentIds || []).forEach(id => current.studentIds.add(id));
     (stat.repeatedStudentIds || []).forEach(id => current.repeatedStudentIds.add(id));
+    (stat.resolvedStudentIds || []).forEach(id => current.resolvedStudentIds.add(id));
     (stat.affectedProblemIds || []).forEach(id => current.problemIds.add(id));
     statEvidence(stat, fallbackEvidence, t).forEach(item => {
       if (!current.evidence.some(existing => existing.id === item.id)) {
@@ -396,6 +368,7 @@ function buildBucketsFromStats(
         difficultyClassification,
         studentIds,
         repeatedStudentIds,
+        resolvedStudentIds,
         problemIds,
         evidence
       }): InsightBucket => ({
@@ -411,6 +384,10 @@ function buildBucketsFromStats(
         unresolvedStudentCount: unresolvedCount,
         recurringStudentCount: recurringCount,
         recoveredStudentCount: recoveredCount,
+        resolvedStudentCount: resolvedStudentIds.size || recoveredCount,
+        affectedStudentIds: [...studentIds],
+        repeatedStudentIds: [...repeatedStudentIds],
+        resolvedStudentIds: [...resolvedStudentIds],
         recoveryRate: recoveryDenominator ? recoveryNumerator / recoveryDenominator : stat.recoveryRate,
         difficultyClassification,
         path: (stat.path || [])
@@ -548,7 +525,7 @@ function studentEvidence(
     aiFeedbackImpact: student.latestAiFeedbackImpact || null,
     href:
       classId && assignmentId && problem?.problemId && student.studentProfileId
-        ? `/app/teacher/classes/${classId}/assignments/${assignmentId}/problems/${problem.problemId}#student-${student.studentProfileId}`
+        ? `/teacher/classes/${classId}/assignments/${assignmentId}/problems/${problem.problemId}#student-${student.studentProfileId}`
         : undefined
   };
 }

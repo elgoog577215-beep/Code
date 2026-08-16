@@ -10,6 +10,6 @@ import java.util.List;
 public interface TestCaseRepository extends JpaRepository<TestCase, Long> {
     List<TestCase> findByProblemIdOrderByOrderIndexAsc(Long problemId);
     List<TestCase> findByProblemIdAndIsHiddenFalseOrderByOrderIndexAsc(Long problemId);
+    long countBySemanticCodeIsNotNullAndReviewStatus(String reviewStatus);
     long deleteByProblemId(Long problemId);
 }
-

@@ -35,4 +35,3 @@ class TeacherAiQuotaTest {
         assertThat(quota.remaining()).isEqualTo(500);
     }
 }
-

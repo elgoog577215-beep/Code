@@ -47,6 +47,7 @@ const AssignmentAnalyticsPage = lazy(() => import("./features/teacher-analytics/
 const ProblemAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ProblemAnalyticsPage"));
 const PlatformAdminPage = lazy(() => import("./features/admin/PlatformAdminPage"));
 const SchoolAdminPage = lazy(() => import("./features/admin/SchoolAdminPage"));
+const StudentProblemAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/StudentProblemAnalyticsPage"));
 
 type Theme = "light" | "dark";
 type NavItem = {
@@ -99,15 +100,15 @@ function RouteHubPage() {
           <p className="route-hub-summary">{t("routeHub.summary")}</p>
 
           <nav className="route-hub-role-actions" aria-label={t("routeHub.roleAria")}>
-            <NavLink to="/app/student" className="route-hub-role-action route-hub-role-action--primary">
+            <NavLink to="/student" className="route-hub-role-action route-hub-role-action--primary">
               <BookOpenCheck size={19} aria-hidden="true" />
               <span>{t("routeHub.studentCta")}</span>
             </NavLink>
-            <NavLink to="/app/teacher" className="route-hub-role-action">
+            <NavLink to="/teacher" className="route-hub-role-action">
               <UsersRound size={19} aria-hidden="true" />
               <span>{t("routeHub.teacherCta")}</span>
             </NavLink>
-            <NavLink to="/app/school-admin/login" className="route-hub-role-action">
+            <NavLink to="/school-admin/login" className="route-hub-role-action">
               <ShieldCheck size={19} aria-hidden="true" />
               <span>{t("routeHub.schoolAdminCta")}</span>
             </NavLink>
@@ -189,17 +190,21 @@ function AdminRoute({ portal, children }: { portal: "PLATFORM_ADMIN" | "SCHOOL_A
 
 function LegacyAssignmentRedirect({ level }: { level: "assignment" | "problem" | "student" }) {
   const location = useLocation();
-  const match = location.pathname.match(/\/app\/teacher\/assignment\/([^/]+)(?:\/problems\/([^/]+))?(?:\/students\/([^/]+))?/);
+  const match = location.pathname.match(/\/teacher\/assignment\/([^/]+)(?:\/problems\/([^/]+))?(?:\/students\/([^/]+))?/);
   const assignmentId = match?.[1];
   const problemId = match?.[2];
+  const studentProfileId = match?.[3];
   const search = location.search || "";
   if (!assignmentId) {
-    return <Navigate to="/app/teacher/classes" replace />;
+    return <Navigate to="/teacher/classes" replace />;
   }
   if (level !== "assignment" && problemId) {
-    return <Navigate to={`/app/teacher/classes/0/assignments/${assignmentId}/problems/${problemId}${search}`} replace />;
+    if (level === "student" && studentProfileId) {
+      return <Navigate to={`/teacher/classes/0/assignments/${assignmentId}/problems/${problemId}/students/${studentProfileId}${search}`} replace />;
+    }
+    return <Navigate to={`/teacher/classes/0/assignments/${assignmentId}/problems/${problemId}${search}`} replace />;
   }
-  return <Navigate to={`/app/teacher/classes/0/assignments/${assignmentId}${search}`} replace />;
+  return <Navigate to={`/teacher/classes/0/assignments/${assignmentId}${search}`} replace />;
 }
 
 function Header() {
@@ -209,21 +214,21 @@ function Header() {
   const [student, setStudent] = useState(() => loadStudent());
   const location = useLocation();
   const isProblemPage =
-    /^\/app\/student\/assignments\/[^/]+\/problems\//.test(location.pathname);
-  const isStudentContext = location.pathname.startsWith("/app/student") || isProblemPage;
-  const isTeacherContext = location.pathname.startsWith("/app/teacher") || location.pathname.startsWith("/app/task-editor");
+    /^\/student\/assignments\/[^/]+\/problems\//.test(location.pathname);
+  const isStudentContext = location.pathname.startsWith("/student") || isProblemPage;
+  const isTeacherContext = location.pathname.startsWith("/teacher") || location.pathname.startsWith("/task-editor");
   const navItems: NavItem[] = [
     {
-      to: "/app/student",
+      to: "/student",
       label: t("common.studentSide"),
       icon: BookOpenCheck,
-      activeWhen: (pathname: string) => pathname.startsWith("/app/student")
+      activeWhen: (pathname: string) => pathname.startsWith("/student")
     },
     {
-      to: "/app/teacher",
+      to: "/teacher",
       label: t("common.teacherSide"),
       icon: UsersRound,
-      activeWhen: (pathname: string) => pathname.startsWith("/app/teacher") || pathname.startsWith("/app/task-editor")
+      activeWhen: (pathname: string) => pathname.startsWith("/teacher") || pathname.startsWith("/task-editor")
     }
   ];
 
@@ -263,7 +268,7 @@ function Header() {
 
   return (
     <header className={headerClassName}>
-      <NavLink to="/app" className="brand" aria-label={t("common.appName")}>
+      <NavLink to="/" className="brand" aria-label={t("common.appName")}>
         <span className="brand__mark">
           <BookOpenCheck size={24} />
         </span>
@@ -303,7 +308,7 @@ function Header() {
         {isStudentContext ? (
           student ? (
             <div className="header-student-menu" aria-label="学生身份">
-              <NavLink to="/app/student/login" className="header-student-chip">
+              <NavLink to="/student/login" className="header-student-chip">
                 <UserRound size={16} />
                 <span>{student.displayName}</span>
               </NavLink>
@@ -312,7 +317,7 @@ function Header() {
               </Button>
             </div>
           ) : (
-            <NavLink to="/app/student/login" className="header-login-link">
+            <NavLink to="/student/login" className="header-login-link">
               <LogIn size={17} />
               <span>{t("common.login")}</span>
             </NavLink>
@@ -355,38 +360,37 @@ export default function App() {
       <main className="main-shell" id="main-content">
         <Suspense fallback={<EmptyState title={t("common.loadingPage")} live />}>
           <Routes>
-            <Route path="/" element={<Navigate to="/app" replace />} />
-            <Route path="/app" element={<RouteHubPage />} />
-            <Route path="/app/" element={<RouteHubPage />} />
-            <Route path="/app/student" element={<StudentPage />} />
-            <Route path="/app/student/login" element={<StudentLoginPage />} />
-            <Route path="/app/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
-            <Route path="/app/student/assignments/:assignmentId/ranking" element={<StudentAssignmentRankingPage />} />
-            <Route path="/app/student/assignments/:assignmentId/submissions" element={<StudentAssignmentSubmissionsPage />} />
-            <Route path="/app/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
-            <Route path="/app/teacher" element={<TeacherRoute><Navigate to="/app/teacher/classes" replace /></TeacherRoute>} />
-            <Route path="/app/teacher/login" element={<TeacherRoute><Navigate to="/app/teacher/classes" replace /></TeacherRoute>} />
-            <Route path="/app/teacher/classes" element={<TeacherRoute><TeacherAnalyticsLandingPage /></TeacherRoute>} />
-            <Route path="/app/teacher/classes/:classId" element={<TeacherRoute><ClassAnalyticsPage /></TeacherRoute>} />
-            <Route path="/app/teacher/classes/:classId/assignments/:assignmentId" element={<TeacherRoute><AssignmentAnalyticsPage /></TeacherRoute>} />
-            <Route path="/app/teacher/classes/:classId/assignments/:assignmentId/problems/:problemId" element={<TeacherRoute><ProblemAnalyticsPage /></TeacherRoute>} />
-            <Route path="/app/teacher/manage" element={<TeacherRoute><Navigate to="/app/teacher/manage/classes" replace /></TeacherRoute>} />
-            <Route path="/app/teacher/manage/classes" element={<TeacherRoute><TeacherManagementPage section="classes" /></TeacherRoute>} />
-            <Route path="/app/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
-            <Route path="/app/teacher/manage/ai-library" element={<TeacherRoute><TeacherManagementPage section="ai-library" /></TeacherRoute>} />
-            <Route path="/app/teacher/manage/system" element={<TeacherRoute><TeacherManagementPage section="system" /></TeacherRoute>} />
-            <Route path="/app/platform-admin/login" element={<AdminRoute portal="PLATFORM_ADMIN"><Navigate to="/app/platform-admin" replace /></AdminRoute>} />
-            <Route path="/app/platform-admin/*" element={<AdminRoute portal="PLATFORM_ADMIN"><PlatformAdminPage /></AdminRoute>} />
-            <Route path="/app/school-admin/login" element={<AdminRoute portal="SCHOOL_ADMIN"><Navigate to="/app/school-admin" replace /></AdminRoute>} />
-            <Route path="/app/school-admin/*" element={<AdminRoute portal="SCHOOL_ADMIN"><SchoolAdminPage /></AdminRoute>} />
-            <Route path="/app/teacher-management" element={<Navigate to="/app/teacher/manage/classes" replace />} />
-            <Route path="/app/class-overview" element={<Navigate to="/app/teacher/classes" replace />} />
-            <Route path="/app/task-editor" element={<TeacherRoute><TaskEditorPage /></TeacherRoute>} />
-            <Route path="/app/teacher/assignment/new" element={<TeacherRoute><AssignmentCreatePage /></TeacherRoute>} />
-            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherRoute><LegacyAssignmentRedirect level="student" /></TeacherRoute>} />
-            <Route path="/app/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherRoute><LegacyAssignmentRedirect level="problem" /></TeacherRoute>} />
-            <Route path="/app/teacher/assignment/:assignmentId" element={<TeacherRoute><LegacyAssignmentRedirect level="assignment" /></TeacherRoute>} />
-            <Route path="*" element={<Navigate to="/app" replace />} />
+            <Route path="/" element={<RouteHubPage />} />
+            <Route path="/student" element={<StudentPage />} />
+            <Route path="/student/login" element={<StudentLoginPage />} />
+            <Route path="/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
+            <Route path="/student/assignments/:assignmentId/ranking" element={<StudentAssignmentRankingPage />} />
+            <Route path="/student/assignments/:assignmentId/submissions" element={<StudentAssignmentSubmissionsPage />} />
+            <Route path="/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
+            <Route path="/teacher" element={<TeacherRoute><Navigate to="/teacher/classes" replace /></TeacherRoute>} />
+            <Route path="/teacher/login" element={<TeacherRoute><Navigate to="/teacher/classes" replace /></TeacherRoute>} />
+            <Route path="/teacher/classes" element={<TeacherRoute><TeacherAnalyticsLandingPage /></TeacherRoute>} />
+            <Route path="/teacher/classes/:classId" element={<TeacherRoute><ClassAnalyticsPage /></TeacherRoute>} />
+            <Route path="/teacher/classes/:classId/assignments/:assignmentId" element={<TeacherRoute><AssignmentAnalyticsPage /></TeacherRoute>} />
+            <Route path="/teacher/classes/:classId/assignments/:assignmentId/problems/:problemId" element={<TeacherRoute><ProblemAnalyticsPage /></TeacherRoute>} />
+            <Route path="/teacher/classes/:classId/assignments/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherRoute><StudentProblemAnalyticsPage /></TeacherRoute>} />
+            <Route path="/teacher/manage" element={<TeacherRoute><Navigate to="/teacher/manage/classes" replace /></TeacherRoute>} />
+            <Route path="/teacher/manage/classes" element={<TeacherRoute><TeacherManagementPage section="classes" /></TeacherRoute>} />
+            <Route path="/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
+            <Route path="/teacher/manage/ai-library" element={<TeacherRoute><TeacherManagementPage section="ai-library" /></TeacherRoute>} />
+            <Route path="/teacher/manage/system" element={<TeacherRoute><TeacherManagementPage section="system" /></TeacherRoute>} />
+            <Route path="/platform-admin/login" element={<AdminRoute portal="PLATFORM_ADMIN"><Navigate to="/platform-admin" replace /></AdminRoute>} />
+            <Route path="/platform-admin/*" element={<AdminRoute portal="PLATFORM_ADMIN"><PlatformAdminPage /></AdminRoute>} />
+            <Route path="/school-admin/login" element={<AdminRoute portal="SCHOOL_ADMIN"><Navigate to="/school-admin" replace /></AdminRoute>} />
+            <Route path="/school-admin/*" element={<AdminRoute portal="SCHOOL_ADMIN"><SchoolAdminPage /></AdminRoute>} />
+            <Route path="/teacher-management" element={<Navigate to="/teacher/manage/classes" replace />} />
+            <Route path="/class-overview" element={<Navigate to="/teacher/classes" replace />} />
+            <Route path="/task-editor" element={<TeacherRoute><TaskEditorPage /></TeacherRoute>} />
+            <Route path="/teacher/assignment/new" element={<TeacherRoute><AssignmentCreatePage /></TeacherRoute>} />
+            <Route path="/teacher/assignment/:assignmentId/problems/:problemId/students/:studentProfileId" element={<TeacherRoute><LegacyAssignmentRedirect level="student" /></TeacherRoute>} />
+            <Route path="/teacher/assignment/:assignmentId/problems/:problemId" element={<TeacherRoute><LegacyAssignmentRedirect level="problem" /></TeacherRoute>} />
+            <Route path="/teacher/assignment/:assignmentId" element={<TeacherRoute><LegacyAssignmentRedirect level="assignment" /></TeacherRoute>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </main>

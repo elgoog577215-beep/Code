@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, Search, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
-import type { AssignmentTargetMode, ClassGroup, Difficulty, ProblemCatalogItem, StudentProfile } from "../../shared/api/types";
+import type { AssignmentReadiness, AssignmentReadinessIssue, AssignmentTargetMode, ClassGroup, Difficulty, ProblemCatalogItem, StudentProfile } from "../../shared/api/types";
 import { difficultyLabel, displayText } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
 import { Button, ButtonLink } from "../../shared/ui/Button";
@@ -22,6 +22,7 @@ type AssignmentForm = {
   problemIds: number[];
 };
 type DifficultyFilter = "ALL" | Difficulty;
+type Translator = (key: string, params?: Record<string, string | number>) => string;
 
 const EMPTY_ASSIGNMENT: AssignmentForm = {
   title: "",
@@ -62,6 +63,22 @@ function teacherErrorMessage(error: unknown, fallback: string) {
   return detail ? `${base}，${detail}` : fallback;
 }
 
+function readinessIssueText(issue: AssignmentReadinessIssue, t: Translator) {
+  const knownCodes = new Set([
+    "PROBLEM_NOT_FOUND",
+    "NO_TEST_CASES",
+    "SEMANTIC_PROFILE_INCOMPLETE",
+    "SEMANTIC_CODE_DUPLICATE",
+    "STANDARD_LIBRARY_PATH_INVALID",
+    "REVEAL_POLICY_MISMATCH",
+    "LOW_INTENT_DIVERSITY",
+    "STARTER_CODE_MISSING"
+  ]);
+  return knownCodes.has(issue.code)
+    ? t(`assignmentReadiness.issues.${issue.code}`)
+    : issue.message || t("assignmentReadiness.issues.UNKNOWN");
+}
+
 export default function AssignmentCreatePage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -74,6 +91,8 @@ export default function AssignmentCreatePage() {
   const [alert, setAlert] = useState<Alert | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [readiness, setReadiness] = useState<AssignmentReadiness | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
 
   useEffect(() => {
     void loadCreateContext();
@@ -89,6 +108,29 @@ export default function AssignmentCreatePage() {
       .then(result => setStudents(result.filter(student => student.status === "ACTIVE")))
       .catch(() => setStudents([]));
   }, [form.classGroupId]);
+
+  useEffect(() => {
+    if (!form.problemIds.length) {
+      setReadiness(null);
+      setReadinessLoading(false);
+      return;
+    }
+    let ignore = false;
+    setReadinessLoading(true);
+    api.assignmentReadiness(form.problemIds)
+      .then(result => {
+        if (!ignore) setReadiness(result);
+      })
+      .catch(() => {
+        if (!ignore) setReadiness(null);
+      })
+      .finally(() => {
+        if (!ignore) setReadinessLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [form.problemIds]);
 
   const selectedProblems = useMemo(
     () => form.problemIds.map(id => problems.find(problem => problem.id === id)).filter(Boolean) as ProblemCatalogItem[],
@@ -168,6 +210,14 @@ export default function AssignmentCreatePage() {
     }
     setSaving(true);
     try {
+      if (form.status === "ACTIVE") {
+        const latestReadiness = await api.assignmentReadiness(form.problemIds);
+        setReadiness(latestReadiness);
+        if (!latestReadiness.publishable) {
+          setAlert({ type: "error", message: t("assignmentReadiness.publishBlocked") });
+          return;
+        }
+      }
       const payload = {
         title: form.title.trim(),
         description: form.description.trim(),
@@ -180,7 +230,7 @@ export default function AssignmentCreatePage() {
       };
       const saved = await api.createAssignment(payload);
       setAlert({ type: "success", message: `${cleanAssignmentTitle(saved.title)} 已保存。` });
-      navigate(`/app/teacher/classes/${classGroupId}/assignments/${saved.id}`);
+      navigate(`/teacher/classes/${classGroupId}/assignments/${saved.id}`);
     } catch (error) {
       setAlert({ type: "error", message: teacherErrorMessage(error, "作业保存失败。") });
     } finally {
@@ -193,7 +243,10 @@ export default function AssignmentCreatePage() {
     !form.title.trim() ? "填写作业名称" : null,
     !selectedProblems.length ? "至少选择 1 道题" : null,
     !selectedClass ? "默认班级未就绪" : null,
-    form.targetMode === "STUDENTS" && !form.studentProfileIds.length ? t("assignmentTarget.validation") : null
+    form.targetMode === "STUDENTS" && !form.studentProfileIds.length ? t("assignmentTarget.validation") : null,
+    form.status === "ACTIVE" && readiness && !readiness.publishable
+      ? t("assignmentReadiness.blockerSummary", { count: readiness.blockerCount })
+      : null
   ].filter(Boolean);
   const canPublish = publishIssues.length === 0 && !saving;
 
@@ -209,10 +262,9 @@ export default function AssignmentCreatePage() {
 
       <section className="teacher-workflow-header">
         <div>
-          <ButtonLink to="/app/teacher/classes" variant="ghost" icon={<ArrowLeft size={17} />}>
+          <ButtonLink to="/teacher/classes" variant="ghost" icon={<ArrowLeft size={17} />}>
             {t("teacherAnalytics.actions.backToAnalytics")}
           </ButtonLink>
-          <p className="eyebrow">新建作业</p>
           <h1>布置课堂练习</h1>
         </div>
         <Button
@@ -401,6 +453,35 @@ export default function AssignmentCreatePage() {
             <p className={`assignment-publish-hint ${publishIssues.length ? "is-warning" : "is-ready"}`}>
               {publishIssues.length ? `还差：${publishIssues.join("、")}` : "信息完整，可以发布给学生。"}
             </p>
+            <div className="assignment-readiness" aria-live="polite" aria-busy={readinessLoading}>
+              <strong>
+                {readinessLoading
+                  ? t("assignmentReadiness.checking")
+                  : readiness
+                    ? readiness.publishable
+                      ? t("assignmentReadiness.ready")
+                      : t("assignmentReadiness.notReady")
+                    : t("assignmentReadiness.empty")}
+              </strong>
+              {readiness?.problems.map(problem => {
+                const issues: AssignmentReadinessIssue[] = [...problem.blockers, ...problem.warnings];
+                return issues.length ? (
+                  <div className="assignment-readiness__problem" key={problem.problemId}>
+                    <span>{problem.problemTitle}</span>
+                    <ul>
+                      {issues.map((issue, index) => (
+                        <li key={`${issue.code}-${index}`}>
+                          <StatusPill tone={issue.severity === "BLOCKER" ? "warning" : "neutral"}>
+                            {t(issue.severity === "BLOCKER" ? "assignmentReadiness.blocker" : "assignmentReadiness.warning")}
+                          </StatusPill>
+                          {readinessIssueText(issue, t)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null;
+              })}
+            </div>
             <div className="actions assignment-builder-actions">
               <Button
                 type="button"

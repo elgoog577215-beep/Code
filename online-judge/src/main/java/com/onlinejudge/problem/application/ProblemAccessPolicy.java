@@ -30,4 +30,3 @@ public class ProblemAccessPolicy {
         return Objects.equals(teacherId, problem.getOwnerTeacherId());
     }
 }
-

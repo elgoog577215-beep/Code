@@ -31,6 +31,7 @@ public class ModelDiagnosisBriefBuilder {
                 .sourceCodeLineCount(submission == null ? null : submission.getSourceCodeLineCount())
                 .firstFailedCase(sanitizedFirstFailedCase(judgeFacts))
                 .visibleCaseFacts(visibleCaseFacts(judgeFacts))
+                .testIntentFacts(testIntentFacts(judgeFacts))
                 .evidenceRefs(evidenceRefs)
                 .allowedIssueTags(allowedIssueTags(evidencePackage, baseline))
                 .allowedFineGrainedTags(allowedFineTags(evidencePackage, baseline))
@@ -118,6 +119,30 @@ public class ModelDiagnosisBriefBuilder {
                 .toList();
     }
 
+    private List<ModelDiagnosisBrief.TestIntentFact> testIntentFacts(
+            DiagnosisEvidencePackage.JudgeFacts judgeFacts) {
+        if (judgeFacts == null || judgeFacts.getCaseResultsSummary() == null) {
+            return List.of();
+        }
+        return judgeFacts.getCaseResultsSummary().stream()
+                .filter(item -> !isBlank(item.getSemanticCode()))
+                .limit(MAX_CASE_FACTS)
+                .map(item -> ModelDiagnosisBrief.TestIntentFact.builder()
+                        .testCaseNumber(item.getTestCaseNumber())
+                        .passed(item.getPassed())
+                        .hidden(item.getHidden())
+                        .evidenceRef(testIntentEvidenceRef(item.getSemanticCode()))
+                        .semanticCode(item.getSemanticCode())
+                        .intentType(item.getIntentType())
+                        .intentTitle(item.getIntentTitle())
+                        .intentSummary(item.getIntentSummary())
+                        .learningObjective(item.getLearningObjective())
+                        .contestRole(item.getContestRole())
+                        .revealPolicy(item.getRevealPolicy())
+                        .build())
+                .toList();
+    }
+
     private List<String> collectEvidenceRefs(DiagnosisEvidencePackage.JudgeFacts judgeFacts,
                                              DiagnosisEvidencePackage evidencePackage,
                                              SubmissionAnalysisResponse baseline) {
@@ -128,6 +153,14 @@ public class ModelDiagnosisBriefBuilder {
         if (judgeFacts != null && Boolean.TRUE.equals(judgeFacts.getHiddenFailureObserved())) {
             refs.add("judge:hidden_failure");
         }
+        if (judgeFacts != null && judgeFacts.getCaseResultsSummary() != null) {
+            judgeFacts.getCaseResultsSummary().stream()
+                    .map(DiagnosisEvidencePackage.CaseSummary::getSemanticCode)
+                    .filter(code -> !isBlank(code))
+                    .limit(MAX_CASE_FACTS)
+                    .map(this::testIntentEvidenceRef)
+                    .forEach(refs::add);
+        }
         if (baseline != null && baseline.getEvidenceRefs() != null) {
             refs.addAll(baseline.getEvidenceRefs());
         }
@@ -137,6 +170,10 @@ public class ModelDiagnosisBriefBuilder {
             refs.addAll(memory.getEvidenceRefs());
         }
         return List.copyOf(refs);
+    }
+
+    private String testIntentEvidenceRef(String semanticCode) {
+        return "judge:test-intent:" + semanticCode;
     }
 
     private List<String> allowedIssueTags(DiagnosisEvidencePackage evidencePackage,

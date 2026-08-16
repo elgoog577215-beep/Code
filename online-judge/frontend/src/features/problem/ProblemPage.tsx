@@ -7,6 +7,7 @@ import type {
   AssignmentTask,
   AiDiagnosisProgress,
   CoachPrompt,
+  LearningProof,
   Problem,
   ProblemCatalogItem,
   StudentAiFeedback,
@@ -26,6 +27,7 @@ import { DifficultyPill, StatusPill, VerdictPill } from "../../shared/ui/StatusP
 import { StudentAssignmentHeader, StudentAssignmentNavigation } from "../student/StudentAssignmentWorkspace";
 import { CONTEST_LANGUAGES, DEFAULT_CONTEST_LANGUAGE_ID, contestLanguageById } from "./languages";
 import { GrowthTimeline, SingleProblemGrowthDashboard } from "../growth/SingleProblemGrowthDashboard";
+import { LearningProofPanel } from "../growth/LearningProofPanel";
 import { FeedbackRepairWorkbench } from "./FeedbackRepairWorkbench";
 import CodeRunPanel from "./CodeRunPanel";
 
@@ -599,7 +601,7 @@ export default function ProblemPage() {
   const studentProfileId = normalizeNumber(searchParams.get("studentProfileId")) ?? currentStudent?.id ?? null;
   const recommendationToken = searchParams.get("recommendationToken");
   const requestedSubmissionId = normalizeNumber(searchParams.get("submissionId"));
-  const assignmentBasePath = assignmentId ? `/app/student/assignments/${assignmentId}` : "/app/student/assignments/public";
+  const assignmentBasePath = assignmentId ? `/student/assignments/${assignmentId}` : "/student/assignments/public";
   const backTo = assignmentBasePath;
   const backLabel = isPublicWorkbench ? "返回题目列表" : "返回学生端";
 
@@ -618,6 +620,8 @@ export default function ProblemPage() {
   const [resultOpen, setResultOpen] = useState(false);
   const [resultView, setResultView] = useState<ResultView>("repair");
   const [coachPrompt, setCoachPrompt] = useState<CoachPrompt | null>(null);
+  const [learningProof, setLearningProof] = useState<LearningProof | null>(null);
+  const [learningProofBusy, setLearningProofBusy] = useState(false);
   const [coachAnswer, setCoachAnswer] = useState("");
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -671,6 +675,23 @@ export default function ProblemPage() {
   }, [latest, resultOpen]);
 
   useEffect(() => {
+    let ignore = false;
+    if (!resultOpen || !latest?.id || resultView !== "growth") {
+      return;
+    }
+    api.learningProof(latest.id)
+      .then(result => {
+        if (!ignore) setLearningProof(result);
+      })
+      .catch(() => {
+        if (!ignore) setLearningProof(null);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [latest?.id, resultOpen, resultView]);
+
+  useEffect(() => {
     return () => {
       feedbackPollTokenRef.current += 1;
       clearFeedbackTimer();
@@ -690,6 +711,7 @@ export default function ProblemPage() {
         setLatest(null);
         setResultOpen(false);
         setCoachPrompt(null);
+        setLearningProof(null);
         setCoachAnswer("");
         setAlert(null);
         feedbackPollTokenRef.current += 1;
@@ -879,9 +901,9 @@ export default function ProblemPage() {
   function buildTaskLink(nextProblemId: number) {
     const studentParam = studentProfileId ? `?studentProfileId=${studentProfileId}` : "";
     if (assignmentId) {
-      return `/app/student/assignments/${assignmentId}/problems/${nextProblemId}${studentParam}`;
+      return `/student/assignments/${assignmentId}/problems/${nextProblemId}${studentParam}`;
     }
-    return `/app/student/assignments/public/problems/${nextProblemId}${studentParam}`;
+    return `/student/assignments/public/problems/${nextProblemId}${studentParam}`;
   }
 
   function updateStatementShare(clientX: number) {
@@ -960,6 +982,7 @@ export default function ProblemPage() {
       setLatest(result);
       setResultOpen(true);
       setCoachPrompt(null);
+      setLearningProof(null);
       setStudentAiFeedback(null);
       setDiagnosisProgress(null);
       const feedbackToken = startFeedbackPollingState(Boolean(result.id));
@@ -1079,6 +1102,7 @@ export default function ProblemPage() {
   async function openHistorySubmission(summary: SubmissionHistorySummary) {
     const token = startFeedbackPollingState(false);
     setCoachPrompt(null);
+    setLearningProof(null);
     setCoachAnswer("");
     try {
       const [submissionResult, feedbackLookup] = await Promise.all([
@@ -1099,6 +1123,30 @@ export default function ProblemPage() {
       }
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : t("problemHistory.loadFailed") });
+    }
+  }
+
+  async function createLearningReflection() {
+    if (!latest?.id) return;
+    setLearningProofBusy(true);
+    try {
+      setLearningProof(await api.createLearningReflection(latest.id));
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : t("learningProof.error") });
+    } finally {
+      setLearningProofBusy(false);
+    }
+  }
+
+  async function answerLearningReflection(answer: string) {
+    if (!latest?.id) return;
+    setLearningProofBusy(true);
+    try {
+      setLearningProof(await api.answerLearningReflection(latest.id, answer));
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : t("learningProof.error") });
+    } finally {
+      setLearningProofBusy(false);
     }
   }
 
@@ -1323,7 +1371,7 @@ export default function ProblemPage() {
           <StudentAssignmentNavigation assignmentId={assignmentContext.id} taskPath={buildTaskLink(problemId)} activeTab="tasks" />
         ) : !isPublicWorkbench ? (
           <nav className="problem-workbench-rail" aria-label="作业页面导航">
-            <Link to="/app/student">
+            <Link to="/student">
               <LayoutGrid size={22} aria-hidden="true" /><span>概览</span>
             </Link>
             <Link className="is-active" aria-current="page" to={buildTaskLink(problemId)}>
@@ -1839,6 +1887,15 @@ export default function ProblemPage() {
                   id="problem-result-panel-growth"
                   aria-labelledby="problem-result-tab-growth"
                 >
+                  {learningProof ? (
+                    <LearningProofPanel
+                      proof={learningProof}
+                      editable
+                      busy={learningProofBusy}
+                      onCreateReflection={createLearningReflection}
+                      onAnswerReflection={answerLearningReflection}
+                    />
+                  ) : null}
                   <SingleProblemGrowthDashboard
                     history={history}
                     selectedSubmissionId={latest.id}

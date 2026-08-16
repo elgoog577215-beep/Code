@@ -40,6 +40,8 @@ AI_STANDARD_LIBRARY_AUTO_MERGE_ENABLED=false
 
 ## 2. 启动
 
+推送或合并 `main` 不会自动部署到学校服务器。需要使用已经加载的镜像时，直接运行安全启动脚本；只有明确接受服务器受控构建成本并预留维护窗口时，才人工触发 GitHub Actions 的 `Deploy online judge manually`，不得把它恢复成 push 自动部署。
+
 ```bash
 bash scripts/start-school.sh
 ```
@@ -47,10 +49,10 @@ bash scripts/start-school.sh
 访问：
 
 ```text
-http://服务器局域网IP:8081/app/
+http://服务器局域网IP:8081/code/
 ```
 
-平台管理员使用独立账号登录，教师注册后经管理员审核。教师进入 `/app/teacher-management` 查看“开课状态”；只有 `READY` 或明确接受 `DEGRADED` 时才上课。
+平台管理员和学校管理员使用独立账号登录，教师注册后经本校管理员审核。教师进入 `/code/teacher-management` 查看“开课状态”；只有 `READY` 或明确接受 `DEGRADED` 时才上课。
 
 ## 3. AI 数据外发
 
@@ -74,7 +76,7 @@ AI_ENABLED=false
 学生提交 -> 初步诊断 -> AI 标准库导航 -> 最终诊断 -> 学生三段反馈 -> 库外发现进入扩库候选池
 ```
 
-教师端 `/app/teacher/manage/ai-library` 会显示两类内容：
+教师端 `/code/teacher/manage/ai-library` 会显示两类内容：
 
 - 正式标准库：当前 AI 可用的能力点、易错点和知识锚点。
 - 扩库候选：AI 在 `PARTIAL` 或 `MISS` 场景发现的新细颗粒错因。
@@ -95,19 +97,35 @@ AI_ENABLED=false
 
 ## 5. 数据备份
 
-启动脚本会在应用启动、Flyway 执行前强制备份；另建议每天课后备份一次：
+学校部署使用 PostgreSQL。Schema 由 Flyway 版本化迁移，Hibernate 在 `school` profile 下只执行 `validate`，不会自动改表。
+
+已有非空数据库第一次接入 Flyway 时，必须使用受控基线入口：
+
+```bash
+bash scripts/baseline-postgres-flyway.sh --confirm-baseline
+```
+
+该脚本会先检查关键结构，创建并验证备份，记录迁移前计数，然后只登记 V1 基线。正式 `.env` 中的 `FLYWAY_BASELINE_ON_MIGRATE` 必须保持 `false`。
+
+启动脚本会在应用启动、Flyway 执行前强制备份；另建议每天课后生成一次可验证备份：
 
 ```bash
 bash scripts/backup-postgres.sh
 ```
 
-恢复：
+新备份采用 PostgreSQL custom format，同时生成 `.sha256` 和 `.meta`。定期执行不接触正式 Volume 的恢复演练：
 
 ```bash
-bash scripts/restore-postgres.sh backups/onlinejudge-YYYYMMDD-HHMMSS.sql
+bash scripts/rehearse-postgres-restore.sh backups/onlinejudge-YYYYMMDD-HHMMSS.dump
 ```
 
-备份文件默认在 `backups/`，不要提交到 Git。
+正式恢复前先停止 app 容器，并显式确认破坏性操作：
+
+```bash
+bash scripts/restore-postgres.sh --confirm-restore backups/onlinejudge-YYYYMMDD-HHMMSS.dump
+```
+
+历史 `.sql` 仍可兼容恢复，但缺少 custom-format 归档目录校验。备份文件和迁移审计默认在 `backups/`，不要提交到 Git。完整流程见 [数据库迁移与恢复指南](database-migration-guide.md)。
 
 ## 6. 常见故障
 

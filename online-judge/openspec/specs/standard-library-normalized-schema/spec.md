@@ -129,34 +129,6 @@ AI 标准库规范结构 SHALL 表达知识树、能力点、易错点和提升�
 - **AND** 系统 SHALL 保留候选中的错误表现、典型代码特征、学生解释和证据引用
 - **AND** 如候选提供相似正式条目，系统 SHOULD 继承其能力点和知识点锚点
 
-### Requirement: 手写提升点必须进入规范标准库结构
-AI 标准库 SHALL 支持手写提升点 seed 被同步到 `ai_standard_improvement_points`，并 SHALL 在候选包中作为结构化提升方向参与诊断建议。
-
-#### Scenario: 同步手写提升点
-- **WHEN** 标准库同步器处理 V8 `IMPROVEMENT_POINT` seed
-- **THEN** 系统 SHALL 保存该提升点到规范提升点表
-- **AND** SHALL 保留其能力点归属、知识节点路径、提升目标、练习策略、学生收益和教师解释
-
-#### Scenario: 提升点进入候选包
-- **WHEN** 系统根据规范标准库生成 AI 诊断候选包
-- **THEN** V8 手写提升点 SHALL 出现在 `improvementPoints`
-- **AND** 若其能力点位于结构化知识邻域内，SHALL 能被放入对应知识组
-
-### Requirement: V8 手写易错点与提升点必须具备细颗粒质量
-V8 标准库手写条目 SHALL 避免空泛命名，并 SHALL 以可观察症状、具体误解、修复策略或提升练习表达可教学颗粒度。
-
-#### Scenario: 易错点具备具体诊断信息
-- **WHEN** V8 `MISTAKE_POINT` seed 被校验
-- **THEN** 该易错点 SHALL 关联合法能力点和知识节点
-- **AND** 其名称 SHALL 描述具体错误行为，而不是泛化为“理解或应用偏差”
-- **AND** 其 commonMisconception SHALL 解释学生为什么会犯该错
-
-#### Scenario: 提升点具备具体提升方向
-- **WHEN** V8 `IMPROVEMENT_POINT` seed 被校验
-- **THEN** 该提升点 SHALL 关联合法知识节点
-- **AND** SHALL 包含适用场景、学生收益和教师解释
-- **AND** SHALL 关联相关易错点，帮助教师从修错过渡到提升
-
 ### Requirement: 标准库条目必须具备教学可用的内容质量
 AI 标准库 seed SHALL 通过具体条目的审校与升级提升质量；能力点、易错点和提升点 MUST 在名称、描述、误区解释、能力归属和知识路径上保持一致，并能支持教师或 AI 基于当前提交证据进行诊断表达。
 
@@ -175,75 +147,6 @@ AI 标准库 seed SHALL 通过具体条目的审校与升级提升质量；能�
 - **WHEN** 本轮升级后的标准库 seed 被校验
 - **THEN** 系统 SHALL 至少包含一批经过人工重写的代表性高频条目
 - **AND** 测试 SHALL 校验这些条目的名称、描述、误区和归属关系包含具体教学语义
-
-### Requirement: V9 标准库扩展必须补强高频算法与工程诊断主题
-AI 标准库 SHALL 新增 V9 手写扩展条目，覆盖滑动窗口、并查集、递归回溯、堆或优先队列、拓扑排序、前缀差分、二分答案、树遍历、map 频次和输出构造等高频诊断主题。
-
-#### Scenario: V9 扩展进入标准库 seed
-- **WHEN** 系统加载 AI 标准库 seed
-- **THEN** 标准库 SHALL 包含 `SK_V9_`、`MP_V9_` 和 `IP_V9_` 前缀的手写条目
-- **AND** V9 条目 SHALL 至少包含 10 个能力点、30 个易错点和 10 个提升点
-
-#### Scenario: V9 条目保持规范化归属
-- **WHEN** 系统校验 V9 seed
-- **THEN** 每个 V9 易错点 SHALL 归属于合法 V9 能力点
-- **AND** 每个 V9 提升点 SHALL 归属于合法 V9 能力点并关联至少一个 V9 易错点
-- **AND** 每个 V9 条目引用的知识节点 SHALL 存在于信息学知识树
-
-#### Scenario: V9 条目具备具体教学语义
-- **WHEN** 系统校验代表性 V9 条目
-- **THEN** 测试 SHALL 验证条目描述、误区或学生收益包含具体错误行为、触发条件、验证动作或提升练习
-- **AND** V9 条目名称 SHALL NOT 使用泛化的“理解或应用偏差”作为正式易错点名称
-
-### Requirement: 自动兜底层必须逐步被智能标准库吸收
-AI 标准库 SHALL 将自动兜底层保留为冷存档素材池，并 MUST 将高价值、模板化的兜底知识点逐步转化为手写智能标准库条目；只有完成人工精修的吸收条目才能进入活跃标准库。
-
-#### Scenario: 吸收一期进入标准库 seed
-- **WHEN** 系统加载 AI 标准库 seed
-- **THEN** 标准库 SHALL 包含 `SK_V10_`、`MP_V10_` 和 `IP_V10_` 前缀的兜底吸收手写条目
-- **AND** V10 吸收条目 SHALL 至少包含 8 个能力点、24 个易错点和 8 个提升点
-
-#### Scenario: 被吸收知识点拥有智能条目承接
-- **WHEN** 系统校验 V10 吸收条目
-- **THEN** 每个被选中的兜底知识点 SHALL 至少被一个 V10 手写能力点或易错点引用
-- **AND** V10 易错点 SHALL 归属于合法 V10 能力点
-- **AND** V10 提升点 SHALL 关联至少一个 V10 易错点
-
-#### Scenario: 吸收条目不复用兜底模板
-- **WHEN** 系统校验 V10 吸收条目文本
-- **THEN** V10 条目 SHALL NOT 使用“适用条件混用”“没有把知识点定义、适用条件或边界要求准确落实”等兜底模板表达
-- **AND** V10 条目 SHALL 使用具体错误行为、触发条件、代码表现或提升练习描述教学语义
-
-### Requirement: 兜底素材必须持续迁移为智能标准库
-AI 标准库 SHALL 将已经人工吸收的自动兜底高价值主题保留为智能标准库条目；后续如需参考未吸收兜底素材，MUST 只从备份目录进行人工离线查看，运行时代码 SHALL NOT 枚举、加载或分类自动兜底库。
-
-#### Scenario: 吸收二期进入标准库 seed
-- **WHEN** 系统加载 AI 标准库 seed
-- **THEN** 标准库 SHALL 包含 `SK_V11_`、`MP_V11_` 和 `IP_V11_` 前缀的兜底吸收手写条目
-- **AND** V11 吸收条目 SHALL 至少包含 8 个能力点、24 个易错点和 8 个提升点
-
-#### Scenario: 吸收二期不复用兜底模板
-- **WHEN** 系统校验 V11 吸收条目文本
-- **THEN** V11 条目 SHALL NOT 使用“适用条件混用”“理解或应用偏差”“没有把知识点定义、适用条件或边界要求准确落实”等模板表达
-- **AND** V11 易错点 SHALL 归属于合法 V11 能力点
-- **AND** V11 提升点 SHALL 关联至少一个 V11 易错点
-
-#### Scenario: 吸收三期榨取 archive-only 高价值主题
-- **WHEN** 系统加载 AI 标准库 seed
-- **THEN** 标准库 SHALL 包含 `SK_V12_`、`MP_V12_` 和 `IP_V12_` 前缀的兜底存档价值吸收条目
-- **AND** V12 吸收条目 SHALL 至少包含 8 个能力点、20 个易错点和 6 个提升点
-- **AND** V12 条目 SHALL 覆盖 A 类直接精修吸收和 B 类类型提炼重写两种来源
-
-#### Scenario: 吸收三期不复用兜底模板
-- **WHEN** 系统校验 V12 吸收条目文本
-- **THEN** V12 条目 SHALL NOT 使用“适用条件混用”“理解或应用偏差”“没有把知识点定义、适用条件或边界要求准确落实”“代码落点不清”等模板表达
-- **AND** V12 易错点 SHALL 归属于合法 V12 能力点
-- **AND** V12 提升点 SHALL 关联至少一个 V12 易错点
-
-#### Scenario: 未吸收兜底素材只在备份目录
-- **WHEN** 研发或教师需要查看删除前的自动兜底素材
-- **THEN** 系统 SHALL 只在 `backups/standard-library/` 下保留静态备份文件
-- **AND** 后端、前端、Seeder、候选包和外部 AI 标准库上下文 SHALL NOT 读取该备份目录
 
 ### Requirement: 自动兜底层必须退役为存档素材池
 AI 标准库 SHALL 将自动生成兜底层从活跃标准库和代码内冷存档中彻底退役，并 MUST 只保留静态备份目录用于人工审计、回滚参考或离线研究。
@@ -399,3 +302,224 @@ AI 标准库规范结构 SHALL 在现有知识树和规范化诊断层之上提�
 - **WHEN** AI 浏览高中和竞赛都覆盖的概念
 - **THEN** 系统 SHALL 返回同一标准库节点的主名和 aliases
 - **AND** 系统 SHALL NOT 创建高中库和竞赛库两套平行目录
+
+### Requirement: 标准库正式内容不得依赖运行时 seed
+AI 标准库正式内容 SHALL 以数据库规范化表为主库；运行时 SHALL NOT 通过 seed 文件、seed 类或启动播种器新增、覆盖或扩张正式标准库内容。
+
+#### Scenario: 启动读取标准库
+- **WHEN** 应用启动并需要 AI 标准库内容
+- **THEN** 系统 SHALL 从 `ai_standard_skill_units`、`ai_standard_mistake_points`、`ai_standard_improvement_points` 和兼容快照读取
+- **AND** 系统 SHALL NOT 调用 `AiStandardLibrarySeedCatalog.seeds()` 或 `AiStandardLibraryV*Seeds` 写入正式库
+
+#### Scenario: 数据库为空
+- **WHEN** 正式数据库缺少标准库内容
+- **THEN** 系统 SHALL 暴露可诊断的内容缺失状态
+- **AND** 系统 SHALL NOT 用代码 seed 静默补齐正式内容
+
+### Requirement: 历史 seed 迁移必须写入规范化主结构
+历史标准库 seed 中仍需保留的内容 SHALL 通过一次性迁移写入规范化主结构，而不是继续作为运行时 seed 保留。
+
+#### Scenario: 迁移能力点
+- **WHEN** 迁移历史能力点内容
+- **THEN** 系统 SHALL upsert 到 `ai_standard_skill_units`
+- **AND** SHALL 保留主知识节点、相关知识节点、学习目标和启用状态
+
+#### Scenario: 迁移易错点
+- **WHEN** 迁移历史易错点内容
+- **THEN** 系统 SHALL upsert 到 `ai_standard_mistake_points`
+- **AND** SHALL 保留能力点归属、误区解释、症状、修复策略和启用状态
+
+#### Scenario: 迁移提升点
+- **WHEN** 迁移历史提升点内容
+- **THEN** 系统 SHALL upsert 到 `ai_standard_improvement_points`
+- **AND** SHALL 保留能力点归属、提升目标、练习策略、学生收益和教师解释
+
+### Requirement: 旧平铺快照只能作为兼容层
+旧 `ai_standard_library_items` SHALL 只作为兼容快照和历史接口读取层，不得重新成为标准库正式内容主库。
+
+#### Scenario: 教师编辑正式条目
+- **WHEN** 教师编辑能力点、易错点或提升点
+- **THEN** 系统 SHALL 先更新规范化主结构
+- **AND** MAY 同步旧平铺快照以兼容现有接口
+
+#### Scenario: AI 导航读取
+- **WHEN** AI 导航构建标准库上下文
+- **THEN** 系统 SHALL 优先读取规范化主结构
+- **AND** SHALL 忽略被禁用的历史 `KB_*` 全覆盖模板条目
+
+### Requirement: 启用标准库关系必须指向启用规范对象
+启用的标准库关系和处于 `MAPPED` 状态的兼容映射 SHALL 只指向存在且启用的知识节点、能力点、易错点或提升点。
+
+#### Scenario: 历史兜底条目已停用
+- **WHEN** 能力点或易错点因历史兜底退役而停用
+- **THEN** 指向该条目的关系 SHALL 同步停用
+- **AND** 指向该条目的兼容映射 SHALL 标记为归档而不是继续处于 `MAPPED`
+
+#### Scenario: 教师批准条目归属无效
+- **WHEN** 教师批准的正式易错点引用不存在的能力点或占位知识路径
+- **THEN** 数据质量门禁 SHALL 阻断发布
+- **AND** 修正 SHALL 保留教师批准来源并重挂到最接近的合法能力点和知识点
+
+### Requirement: 正式分类不得泄漏扩库实现批次
+启用标准库条目的用户可读分类 SHALL 表达能力、错因或提升主题，不得包含 `V13/V14/V15/V16`、`兜底吸收`、`兜底榨取-A类/B类` 等实现来源词。
+
+#### Scenario: 保留稳定 code 清理分类
+- **WHEN** 历史条目的 category 含有扩库版本或兜底来源词
+- **THEN** 数据迁移 SHALL 清理 category 中的实现词并保留主题语义
+- **AND** 条目 code SHALL 保持不变以兼容历史引用
+
+### Requirement: 启用正式易错点不得保留同锚点同名重复项
+启用易错点在同一主知识节点下 SHALL 使用可区分的正式名称；语义完全重合的历史项 SHALL 选择一个主条目并保留兼容映射。
+
+#### Scenario: 检测同锚点同名错因
+- **WHEN** 两个启用易错点拥有相同规范化名称和相同主知识节点
+- **THEN** 学科质量门禁 SHALL 失败
+- **AND** 修正 SHALL 停用重复项或将其重写为可验证的不同错误行为
+
+### Requirement: 精确知识点诊断层必须解析所引用的启用能力点
+易错点或提升点的主知识节点与其能力点主知识节点不同时，诊断层 SHALL 保留内容的精确知识归属，并通过 `skill_unit_code` 解析启用能力点后返回完整嵌套结构。
+
+#### Scenario: 易错点比能力点使用更精确的主知识节点
+- **WHEN** 启用易错点挂在精确知识点，并引用一个主节点位于相关知识点的启用能力点
+- **THEN** 展开精确知识点诊断层 SHALL 返回该能力点
+- **AND** 该易错点 SHALL 出现在对应能力点的易错点列表中
+- **AND** 系统 SHALL NOT 为了导航可见性把易错点改挂到较粗的能力点主节点
+
+### Requirement: 新增正式提升点必须同步规范化主表和兼容读取结构
+通过数据库迁移新增正式提升点时，系统 SHALL 使用同一稳定 code 同步规范化提升点、启用平铺快照和 legacy mapping，并 SHALL 保持能力点、知识点和关联错因归属一致。
+
+#### Scenario: 新增第二批提升点
+- **WHEN** V3 为缺少提升点的正式能力点新增提升路径
+- **THEN** `ai_standard_improvement_points` SHALL 保存训练目标、练习策略、学生收益、教师解释和关联错因
+- **AND** `ai_standard_library_items` SHALL 保存同 code 的启用 `IMPROVEMENT_POINT` 快照
+- **AND** `ai_standard_library_legacy_mappings` SHALL 保存同 code 的 `MAPPED` 映射
+
+#### Scenario: 从精确知识点读取新增提升点
+- **WHEN** 教师或 AI 展开第二批提升点的主知识节点诊断层
+- **THEN** 系统 SHALL 返回其所属启用能力点和该提升点
+- **AND** 导航结果 SHALL 保留提升点的主知识节点、相关知识节点和关联错因
+
+### Requirement: 提升点必须提供可执行且可验证的迁移练习
+正式提升点 SHALL 描述学生修复当前错误后如何练习、用什么边界或状态检查结果以及教师如何观察掌握情况，不得只重复能力点名称或使用抽象鼓励语。
+
+#### Scenario: 审核第二批提升内容
+- **WHEN** 第二批提升点进入正式数据库
+- **THEN** 每条提升点 SHALL 关联至少一个启用易错点
+- **AND** `practice_strategy` SHALL 包含可执行动作或自测样例类别
+- **AND** `teacher_explanation` SHALL 包含可观察的讲解或验收方法
+
+### Requirement: 第三批正式提升点必须补齐算法与数据结构的可验证练习
+V4 新增的正式提升点 SHALL 归属于没有启用提升点的 ALGO 或 DS 正式能力，并 SHALL 将相关易错点转化为学生可执行练习和教师可观察验收。
+
+#### Scenario: 保存第三批提升点
+- **WHEN** 一个 `informatics-discipline-quality-v3` 提升点进入正式数据库
+- **THEN** 它 SHALL 关联至少一个启用易错点
+- **AND** `practice_strategy` SHALL 包含状态表、反例、手算轨迹、边界样例或复杂度预算中的至少一种可执行验证
+- **AND** `teacher_explanation` SHALL 说明教师如何观察学生是否真正掌握
+
+### Requirement: 第三批提升点必须保持规范表与兼容结构一致
+每个 V4 提升点 SHALL 使用同一稳定 code 同步到规范化提升点、启用平铺快照和 `MAPPED` legacy mapping，并 SHALL 保持能力点、主知识点、相关知识点和关联错因归属一致。
+
+#### Scenario: 三处归属不一致
+- **WHEN** V4 提升点在任一兼容结构中缺失、停用或指向不同能力点和主知识点
+- **THEN** 数据质量门禁 SHALL 失败
+- **AND** 应用 SHALL NOT 带着部分同步内容发布
+
+### Requirement: 第三批代表性导航必须返回完整算法与数据结构闭环
+系统 SHALL 对至少一个 ALGO 和一个 DS 第三批主知识点验证诊断层导航，返回所属启用能力点、关联易错点和新增提升点。
+
+#### Scenario: 展开算法知识点
+- **WHEN** 教师或 AI 展开第三批 Dijkstra、DP、二分、区间或图算法代表性知识点
+- **THEN** 响应 SHALL 包含对应正式能力和 `informatics-discipline-quality-v3` 提升点
+- **AND** 提升点 SHALL 保留其关联启用易错点
+
+#### Scenario: 展开数据结构知识点
+- **WHEN** 教师或 AI 展开第三批链表、队列、图建模或映射代表性知识点
+- **THEN** 响应 SHALL 包含对应正式能力和 `informatics-discipline-quality-v3` 提升点
+- **AND** 规范化主结构 SHALL 是返回内容的判断来源
+
+### Requirement: 第四批必须增加细颗粒易错点和可执行提升路径
+Flyway V6 SHALL 新增 22 个 `informatics-discipline-quality-v4` 易错点和 22 个同版本提升点；每个易错点 SHALL 描述可观察错误行为，每个提升点 SHALL 提供学生可执行练习和教师可观察验收。
+
+#### Scenario: 保存第四批易错点
+- **WHEN** 一个第四批易错点进入正式数据库
+- **THEN** 它 SHALL 归属于启用且非 `SK_COMPAT_*` 的正式能力点
+- **AND** `misconception`、`symptom`、`repair_strategy`、主知识点和相关知识点 SHALL 完整
+
+#### Scenario: 保存第四批提升点
+- **WHEN** 一个第四批提升点进入正式数据库
+- **THEN** 它 SHALL 关联至少一个同能力下的启用易错点
+- **AND** `improvement_goal`、`practice_strategy`、`student_benefit` 和 `teacher_explanation` SHALL 完整
+
+### Requirement: 第四批必须优先关闭正式提升路径缺口
+第四批 22 个提升点中 SHALL 有 14 个为此前没有启用提升点的 BASIC 或 CONTEST 正式能力补齐首条路径，其余 8 个 SHALL 为 MATH 或 ENG 正式能力补充不同于既有训练的专项路径。
+
+#### Scenario: BASIC 与 CONTEST 补齐完成
+- **WHEN** V6 执行完成
+- **THEN** 缺少启用提升点的能力总数 SHALL 从 41 降到不高于 27
+- **AND** 第四批 SHALL NOT 为兼容占位能力制造提升点
+
+#### Scenario: MATH 与 ENG 增加第二训练路径
+- **WHEN** 同一能力已经存在启用提升点
+- **THEN** 新提升点 SHALL 使用不同练习对象、检查表或验收证据
+- **AND** 新提升点 SHALL 关联第四批新增的细颗粒易错点
+
+### Requirement: 第四批规范条目必须保持三处一致
+每个第四批易错点和提升点 SHALL 使用同一稳定 code 同步到规范化主表、启用平铺快照和 `MAPPED` legacy mapping，并 SHALL 保持能力归属、主知识点、相关知识点和关联错因一致。
+
+#### Scenario: 第四批条目缺少兼容结构
+- **WHEN** 任一第四批规范条目缺少同 code 快照或映射，或关键归属不一致
+- **THEN** 学科质量门禁 SHALL 失败
+- **AND** 应用 SHALL NOT 发布部分同步内容
+
+#### Scenario: AI 展开第四批代表性知识点
+- **WHEN** AI 或教师展开 BASIC、MATH、ENG、CONTEST 任一第四批代表性知识点
+- **THEN** 导航 SHALL 从规范化结构返回所属能力、第四批易错点和对应提升点
+- **AND** 平铺快照 SHALL 只承担兼容用途
+
+### Requirement: 第六批标准库必须按完整主题包增长
+V11 SHALL 为 48 个精修知识点各新增 1 个启用正式能力、3 个启用易错点、1 个启用提升点和 1 组课堂—竞赛应用场景；每个主题包 SHALL 形成知识点到能力、易错、提升和场景的完整归属闭环。
+
+#### Scenario: 保存第六批主题包
+- **WHEN** V11 执行完成
+- **THEN** `informatics-discipline-quality-v6` SHALL 包含 48 个能力点、144 个易错点和 48 个提升点
+- **AND** `informatics-discipline-application-v2` SHALL 包含 96 个场景和 48 个完整迁移对
+- **AND** 每个知识点 SHALL 恰好拥有本批 1 个主能力、3 个易错点、1 个提升点、1 个课堂场景和 1 个竞赛场景
+
+#### Scenario: 主题包缺少一层
+- **WHEN** 任一主题缺少规范能力、三个不同易错点、提升点或成对场景
+- **THEN** 迁移 SHALL 失败
+- **AND** 系统 SHALL NOT 发布部分同步内容
+
+### Requirement: 第六批易错点必须描述不同可观察失败
+同一主题包的三个易错点 SHALL 分别表达不同的触发条件、状态偏差或验证缺口，并 SHALL 提供具体误区、代码或行为症状和修复动作；不得通过替换名词复制同一模板。
+
+#### Scenario: 三个错因语义重复
+- **WHEN** 同一能力下多个易错点拥有相同规范化名称、相同症状或相同修复三元组
+- **THEN** 学科质量门禁 SHALL 失败
+- **AND** 维护者 SHALL 将其重写为可由不同证据区分的错误行为
+
+#### Scenario: 错因无法由提交证据判断
+- **WHEN** 易错点只描述人格、态度或抽象“理解不足”，没有可观察代码、输出、状态或复测证据
+- **THEN** 该易错点 SHALL NOT 进入正式库
+
+### Requirement: 第六批提升点和场景必须可执行可验收
+每个第六批提升点 SHALL 关联本能力下至少两个启用易错点并描述具体练习、学生收益和教师验收；每组场景 SHALL 分别提供课堂产物与竞赛约束下的迁移任务。
+
+#### Scenario: 课堂与竞赛场景成对
+- **WHEN** AI 或教师展开第六批能力的诊断层
+- **THEN** 响应 SHALL 返回同一 `transfer_pair_code` 下的课堂与竞赛场景
+- **AND** 两个场景 SHALL 复用同一知识点、能力、提升点和合法易错点集合
+
+#### Scenario: 场景被误当作诊断证据
+- **WHEN** 场景中的 `common_failure` 与当前提交相似但代码、判题和 evidenceRefs 不支持
+- **THEN** AI 诊断 SHALL NOT 因场景文本强制命中该错因
+- **AND** 场景 code SHALL NOT 成为正式诊断 ID
+
+### Requirement: 第六批内容必须同步规范主表和兼容层
+V11 新增的能力、易错点和提升点 SHALL 使用同一稳定 code 同步规范化主表、启用平铺快照和 `MAPPED` legacy mapping，并 SHALL 保持主知识点、能力归属、相关知识点和启用状态一致。
+
+#### Scenario: 兼容结构缺失或错配
+- **WHEN** 任一第六批规范条目缺少同 code 平铺快照或 MAPPED 映射，或关键归属不一致
+- **THEN** 数据质量门禁 SHALL 失败
+- **AND** 应用 SHALL NOT 带着部分兼容内容发布

@@ -65,12 +65,16 @@ public class RecommendationEffectivenessResponse {
     @Builder
     public static class ActionEvidenceSignal {
         private String recommendationToken;
+        private Long studentProfileId;
+        private Long assignmentId;
+        private Long problemId;
         private String type;
         private String strategy;
         private String riskLevel;
         private String learningHypothesis;
         private String expectedCompletionSignal;
         private String outcome;
+        private String matchBasis;
         private String summary;
         private String recommendedAdjustment;
         private boolean needsTeacherAttention;
@@ -78,6 +82,10 @@ public class RecommendationEffectivenessResponse {
         private String followupVerdict;
         private String followupIssueTag;
         private String followupFineGrainedTag;
+        private List<String> focusPointKeys;
+        private List<String> focusTestSemanticCodes;
+        private List<String> followupPointKeys;
+        private List<String> followupFailedTestSemanticCodes;
         private List<String> evidenceRefs;
         private String lastEventAt;
     }

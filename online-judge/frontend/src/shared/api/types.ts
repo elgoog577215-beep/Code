@@ -38,6 +38,29 @@ export interface Assignment {
   tasks: AssignmentTask[];
 }
 
+export interface AssignmentReadinessIssue {
+  code: string;
+  severity: "BLOCKER" | "WARNING" | string;
+  message?: string | null;
+}
+
+export interface AssignmentProblemReadiness {
+  problemId: number;
+  problemTitle: string;
+  ready: boolean;
+  testCaseCount: number;
+  reviewedSemanticCount: number;
+  blockers: AssignmentReadinessIssue[];
+  warnings: AssignmentReadinessIssue[];
+}
+
+export interface AssignmentReadiness {
+  publishable: boolean;
+  blockerCount: number;
+  warningCount: number;
+  problems: AssignmentProblemReadiness[];
+}
+
 export interface StudentProfile {
   id: number;
   classGroupId?: number | null;
@@ -262,6 +285,10 @@ export interface StudentRecommendationItem {
   strategy?: string | null;
   riskLevel?: string | null;
   fallbackAction?: string | null;
+  actionOutcome?: string | null;
+  actionOutcomeSummary?: string | null;
+  actionMatchBasis?: string | null;
+  actionEvidenceRefs?: string[];
   priority: number;
 }
 
@@ -1003,6 +1030,7 @@ export interface TeacherKnowledgePathStat {
   affectedProblemCount: number;
   affectedStudentIds?: number[];
   repeatedStudentIds?: number[];
+  resolvedStudentIds?: number[];
   affectedProblemIds?: number[];
   evidenceSubmissionIds: number[];
   evidenceSamples?: Array<{
@@ -1079,6 +1107,8 @@ export interface AssignmentOverview {
   participantCount: number;
   submittedStudentCount: number;
   unsubmittedStudentCount: number;
+  completedRequiredStudentCount: number;
+  requiredProblemCount: number;
   attemptCount: number;
   passedAttemptCount: number;
   studentPassRate?: number | null;
@@ -1182,13 +1212,16 @@ export interface AssignmentOverview {
     classStudentCount?: number | null;
     submittedStudentCount: number;
     submissionCount: number;
+    effectiveAttemptCount: number;
     passedStudentCount: number;
+    firstPassStudentCount: number;
     passedAttemptCount: number;
     submissionRate?: number | null;
     passRate?: number | null;
     studentPassRate?: number | null;
     attemptPassRate?: number | null;
     averageAttempts?: number | null;
+    medianEffectiveAttempts?: number | null;
     attentionStudentCount: number;
     statusLabel?: string | null;
     dataCompleteness?: TeacherDataCompleteness | null;
@@ -1213,6 +1246,7 @@ export interface AssignmentOverview {
       displayName: string;
       studentNo?: string | null;
       attemptCount: number;
+      effectiveAttemptCount: number;
       passedCount: number;
       latestSubmissionId?: number | null;
       latestVerdict?: string | null;
@@ -1225,6 +1259,7 @@ export interface AssignmentOverview {
       latestHintAction?: string | null;
       latestProgressSignal?: string | null;
       latestConfidence?: number | null;
+      latestGrowthSummary?: SubmissionGrowthSummary | null;
       latestAiFeedbackImpact?: AiFeedbackImpact | null;
       recentLearningState?: TeacherStudentRecentState | null;
       needsAttention: boolean;
@@ -1876,12 +1911,16 @@ export interface RecommendationFeedbackSignal {
 
 export interface RecommendationActionEvidenceSignal {
   recommendationToken?: string | null;
+  studentProfileId?: number | null;
+  assignmentId?: number | null;
+  problemId?: number | null;
   type?: string | null;
   strategy?: string | null;
   riskLevel?: string | null;
   learningHypothesis?: string | null;
   expectedCompletionSignal?: string | null;
   outcome?: string | null;
+  matchBasis?: string | null;
   summary?: string | null;
   recommendedAdjustment?: string | null;
   needsTeacherAttention?: boolean;
@@ -1889,6 +1928,10 @@ export interface RecommendationActionEvidenceSignal {
   followupVerdict?: string | null;
   followupIssueTag?: string | null;
   followupFineGrainedTag?: string | null;
+  focusPointKeys?: string[];
+  focusTestSemanticCodes?: string[];
+  followupPointKeys?: string[];
+  followupFailedTestSemanticCodes?: string[];
   evidenceRefs?: string[];
   lastEventAt?: string | null;
 }
@@ -1897,6 +1940,7 @@ export interface TeacherDiagnosisCorrection {
   id: number;
   assignmentId: number;
   submissionId: number;
+  feedbackRevisionId?: number | null;
   studentProfileId?: number | null;
   originalIssueTag?: string | null;
   originalFineGrainedTag?: string | null;
@@ -1910,6 +1954,32 @@ export interface TeacherDiagnosisCorrection {
   evalCandidate: boolean;
   correctedBy?: string | null;
   correctedAt?: string;
+}
+
+export interface TeacherSubmissionAnalysisVersion {
+  id: number;
+  versionNumber: number;
+  generationKey?: string | null;
+  status: string;
+  source?: string | null;
+  officialVersion: boolean;
+  diagnosisRunId?: number | null;
+  diagnosisRunVersion?: number | null;
+  provider?: string | null;
+  model?: string | null;
+  promptVersion?: string | null;
+  schemaVersion?: string | null;
+  generatedAt?: string | null;
+  failureReason?: string | null;
+  analysis?: SubmissionAnalysis | null;
+  feedback?: StudentAiFeedback | null;
+  evidence?: unknown;
+}
+
+export interface TeacherSubmissionEvidence {
+  submission: SubmissionResult;
+  analysisVersions: TeacherSubmissionAnalysisVersion[];
+  corrections: TeacherDiagnosisCorrection[];
 }
 
 export interface DiagnosisTag {
@@ -1929,6 +1999,25 @@ export interface ClassGroup {
   joinCode?: string | null;
   activeStudentCount: number;
   createdAt?: string;
+}
+
+export interface ClassLearningOverview {
+  classGroup: ClassGroup;
+  assignmentCount: number;
+  rosterStudentCount: number;
+  submittedStudentCount: number;
+  unsubmittedStudentCount: number;
+  assignments: Array<{
+    assignmentId: number;
+    title: string;
+    status: string;
+    createdAt?: string | null;
+    problemCount: number;
+    rosterStudentCount: number;
+    submittedStudentCount: number;
+    unsubmittedStudentCount: number;
+    completedRequiredStudentCount: number;
+  }>;
 }
 
 export interface StudentIdentityAudit {
@@ -2335,4 +2424,62 @@ export interface LeaderboardEntry {
   acceptanceRate: number;
   bestAcceptedTime?: number | null;
   lastSubmittedAt?: string | null;
+}
+
+export interface LearningProof {
+  studentProfileId?: number | null;
+  assignmentId?: number | null;
+  problemId: number;
+  problemTitle?: string | null;
+  latestSubmissionId: number;
+  repair: {
+    status: "NOT_OBSERVED" | "IN_PROGRESS" | "REPAIRED" | string;
+    baselineSubmissionId?: number | null;
+    targetSubmissionId?: number | null;
+    passedTestCaseDelta?: number | null;
+    recoveredIssueCount: number;
+    recoveredIssues: string[];
+    evidenceRefs: string[];
+  };
+  explanation: {
+    status: "NOT_READY" | "TO_EXPLAIN" | "WAITING" | "PROVIDED" | "CHECKABLE" | string;
+    promptId?: number | null;
+    submissionId?: number | null;
+    question?: string | null;
+    answer?: string | null;
+    feedback?: string | null;
+    checkable: boolean;
+    evidenceTypes: string[];
+    evidenceRefs: string[];
+  };
+  independentUse: {
+    status: "NOT_READY" | "NOT_AVAILABLE" | "TARGET_AVAILABLE" | "NEEDS_SUPPORT" | "VERIFIED" | string;
+    sourceSubmissionId?: number | null;
+    targetProblemId?: number | null;
+    targetProblemTitle?: string | null;
+    targetSubmissionId?: number | null;
+    evidenceRefs: string[];
+  };
+}
+
+export interface TeacherProblemLearningProof {
+  assignmentId: number;
+  problemId: number;
+  problemTitle: string;
+  failedStudentCount: number;
+  repairedStudentCount: number;
+  explainedStudentCount: number;
+  independentVerifiedStudentCount: number;
+  students: Array<{
+    studentProfileId: number;
+    displayName: string;
+    studentNo?: string | null;
+    latestSubmissionId: number;
+    hadFailure: boolean;
+    repaired: boolean;
+    explained: boolean;
+    explanationCheckable: boolean;
+    independentVerified: boolean;
+    proof: LearningProof;
+  }>;
 }

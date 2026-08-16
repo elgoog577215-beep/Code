@@ -29,6 +29,8 @@ SELECT 'ai_standard_mistake_points', count(*) FROM ai_standard_mistake_points
 UNION ALL
 SELECT 'ai_standard_improvement_points', count(*) FROM ai_standard_improvement_points
 UNION ALL
+SELECT 'ai_standard_application_scenarios', count(*) FROM ai_standard_application_scenarios
+UNION ALL
 SELECT 'ai_standard_library_items', count(*) FROM ai_standard_library_items
 ORDER BY table_name;
 

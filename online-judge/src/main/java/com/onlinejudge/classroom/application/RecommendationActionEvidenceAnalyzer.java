@@ -25,6 +25,14 @@ public class RecommendationActionEvidenceAnalyzer {
     public static final String OUTCOME_EXPOSED_ONLY = "EXPOSED_ONLY";
     public static final String OUTCOME_WAITING_DIAGNOSIS = "WAITING_DIAGNOSIS";
     public static final String OUTCOME_TEACHER_INTERVENTION_NEEDED = "TEACHER_INTERVENTION_NEEDED";
+    public static final String MATCH_ISSUE_ID = "ISSUE_ID";
+    public static final String MATCH_POINT_KEY = "POINT_KEY";
+    public static final String MATCH_MISTAKE_POINT = "MISTAKE_POINT";
+    public static final String MATCH_SKILL_UNIT = "SKILL_UNIT";
+    public static final String MATCH_KNOWLEDGE_NODE = "KNOWLEDGE_NODE";
+    public static final String MATCH_TEST_SEMANTIC = "TEST_SEMANTIC";
+    public static final String MATCH_LEGACY_TAG = "LEGACY_TAG";
+    public static final String MATCH_NONE = "NONE";
 
     public List<RecommendationEffectivenessResponse.ActionEvidenceSignal> analyze(List<StudentRecommendationEvent> events) {
         if (events == null || events.isEmpty()) {
@@ -44,7 +52,7 @@ public class RecommendationActionEvidenceAnalyzer {
                 .sorted(Comparator
                         .comparingInt(this::outcomePriority)
                         .thenComparing(RecommendationEffectivenessResponse.ActionEvidenceSignal::getLastEventAt,
-                                Comparator.nullsLast(String::compareTo)).reversed()
+                                Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(RecommendationEffectivenessResponse.ActionEvidenceSignal::getRecommendationToken))
                 .limit(30)
                 .toList();
@@ -68,7 +76,8 @@ public class RecommendationActionEvidenceAnalyzer {
                 .anyMatch(event -> StudentRecommendationEventService.EVENT_CLICKED.equals(event.getEventType())
                         || StudentRecommendationEventService.EVENT_ENTERED_PROBLEM.equals(event.getEventType()));
         boolean highRisk = safeGroup.stream().anyMatch(event -> "HIGH".equalsIgnoreCase(nullToBlank(event.getRiskLevel())));
-        boolean sameFocus = sameFocusIssue(submitted == null ? anchor : submitted);
+        MatchResult match = match(submitted == null ? anchor : submitted);
+        boolean sameFocus = match.matched();
         String outcome = outcome(submitted, clickedOrEntered, highRisk, sameFocus);
         boolean teacherAttention = highRisk && submitted != null
                 && !Submission.Verdict.ACCEPTED.name().equals(submitted.getFollowupVerdict());
@@ -77,12 +86,16 @@ public class RecommendationActionEvidenceAnalyzer {
         }
         return RecommendationEffectivenessResponse.ActionEvidenceSignal.builder()
                 .recommendationToken(token)
+                .studentProfileId(anchor == null ? null : anchor.getStudentProfileId())
+                .assignmentId(anchor == null ? null : anchor.getAssignmentId())
+                .problemId(anchor == null ? null : anchor.getProblemId())
                 .type(anchor == null ? null : anchor.getType())
                 .strategy(anchor == null ? null : anchor.getStrategy())
                 .riskLevel(anchor == null ? null : anchor.getRiskLevel())
                 .learningHypothesis(anchor == null ? null : anchor.getLearningHypothesis())
                 .expectedCompletionSignal(anchor == null ? null : anchor.getExpectedCompletionSignal())
                 .outcome(outcome)
+                .matchBasis(match.basis())
                 .summary(summary(outcome, submitted, sameFocus))
                 .recommendedAdjustment(recommendedAdjustment(outcome, teacherAttention))
                 .needsTeacherAttention(teacherAttention)
@@ -90,6 +103,10 @@ public class RecommendationActionEvidenceAnalyzer {
                 .followupVerdict(submitted == null ? null : submitted.getFollowupVerdict())
                 .followupIssueTag(submitted == null ? null : submitted.getFollowupIssueTag())
                 .followupFineGrainedTag(submitted == null ? null : submitted.getFollowupFineGrainedTag())
+                .focusPointKeys(values(anchor == null ? null : anchor.getFocusPointKeys()).stream().toList())
+                .focusTestSemanticCodes(values(anchor == null ? null : anchor.getFocusTestSemanticCodes()).stream().toList())
+                .followupPointKeys(values(submitted == null ? null : submitted.getFollowupPointKeys()).stream().toList())
+                .followupFailedTestSemanticCodes(values(submitted == null ? null : submitted.getFollowupFailedTestSemanticCodes()).stream().toList())
                 .evidenceRefs(evidenceRefs(token, anchor, submitted, outcome))
                 .lastEventAt(toText(anchor == null ? null : anchor.getCreatedAt()))
                 .build();
@@ -102,11 +119,14 @@ public class RecommendationActionEvidenceAnalyzer {
         if (submitted == null) {
             return clickedOrEntered ? OUTCOME_NO_FOLLOWUP_SUBMISSION : OUTCOME_EXPOSED_ONLY;
         }
-        if (Submission.Verdict.ACCEPTED.name().equals(submitted.getFollowupVerdict())) {
+        if (Submission.Verdict.ACCEPTED.name().equals(submitted.getFollowupVerdict()) && !sameFocus) {
             return OUTCOME_CONTRACT_FULFILLED;
         }
         if (sameFocus) {
             return OUTCOME_UNRESOLVED_SAME_FOCUS;
+        }
+        if (Submission.Verdict.ACCEPTED.name().equals(submitted.getFollowupVerdict())) {
+            return OUTCOME_CONTRACT_FULFILLED;
         }
         if (highRisk) {
             return OUTCOME_TEACHER_INTERVENTION_NEEDED;
@@ -163,6 +183,14 @@ public class RecommendationActionEvidenceAnalyzer {
         if (submitted != null && !isBlank(submitted.getFollowupIssueTag())) {
             refs.add("followup-issue-tag:" + submitted.getFollowupIssueTag());
         }
+        values(anchor == null ? null : anchor.getFocusPointKeys())
+                .forEach(value -> refs.add("focus-point:" + value));
+        values(anchor == null ? null : anchor.getFocusTestSemanticCodes())
+                .forEach(value -> refs.add("focus-test-semantic:" + value));
+        values(submitted == null ? null : submitted.getFollowupPointKeys())
+                .forEach(value -> refs.add("followup-point:" + value));
+        values(submitted == null ? null : submitted.getFollowupFailedTestSemanticCodes())
+                .forEach(value -> refs.add("followup-test-semantic:" + value));
         return refs.stream().toList();
     }
 
@@ -181,19 +209,54 @@ public class RecommendationActionEvidenceAnalyzer {
         };
     }
 
-    private boolean sameFocusIssue(StudentRecommendationEvent event) {
+    private MatchResult match(StudentRecommendationEvent event) {
         if (event == null) {
-            return false;
+            return MatchResult.none();
+        }
+        if (overlaps(event.getFocusIssueIds(), event.getFollowupIssueIds())) {
+            return MatchResult.of(MATCH_ISSUE_ID);
+        }
+        if (overlaps(event.getFocusPointKeys(), event.getFollowupPointKeys())) {
+            return MatchResult.of(MATCH_POINT_KEY);
+        }
+        if (overlaps(event.getFocusMistakePointCodes(), event.getFollowupMistakePointCodes())) {
+            return MatchResult.of(MATCH_MISTAKE_POINT);
+        }
+        if (overlaps(event.getFocusSkillUnitCodes(), event.getFollowupSkillUnitCodes())) {
+            return MatchResult.of(MATCH_SKILL_UNIT);
+        }
+        if (overlaps(event.getFocusKnowledgeNodeCodes(), event.getFollowupKnowledgeNodeCodes())) {
+            return MatchResult.of(MATCH_KNOWLEDGE_NODE);
+        }
+        if (overlaps(event.getFocusTestSemanticCodes(), event.getFollowupFailedTestSemanticCodes())) {
+            return MatchResult.of(MATCH_TEST_SEMANTIC);
         }
         Set<String> tags = focusTags(event.getFocusTags()).stream()
                 .map(this::normalizeTag)
                 .filter(value -> !value.isBlank())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         if (tags.isEmpty()) {
+            return MatchResult.none();
+        }
+        boolean matched = tags.contains(normalizeTag(event.getFollowupFineGrainedTag()))
+                || tags.contains(normalizeTag(event.getFollowupIssueTag()));
+        return matched ? MatchResult.of(MATCH_LEGACY_TAG) : MatchResult.none();
+    }
+
+    private boolean overlaps(String left, String right) {
+        Set<String> leftValues = values(left).stream()
+                .map(this::normalizeTag)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (leftValues.isEmpty()) {
             return false;
         }
-        return tags.contains(normalizeTag(event.getFollowupFineGrainedTag()))
-                || tags.contains(normalizeTag(event.getFollowupIssueTag()));
+        return values(right).stream()
+                .map(this::normalizeTag)
+                .anyMatch(leftValues::contains);
+    }
+
+    private Set<String> values(String raw) {
+        return focusTags(raw);
     }
 
     private Set<String> focusTags(String raw) {
@@ -233,5 +296,15 @@ public class RecommendationActionEvidenceAnalyzer {
 
     private String toText(LocalDateTime value) {
         return value == null ? null : value.toString();
+    }
+
+    private record MatchResult(boolean matched, String basis) {
+        private static MatchResult of(String basis) {
+            return new MatchResult(true, basis);
+        }
+
+        private static MatchResult none() {
+            return new MatchResult(false, MATCH_NONE);
+        }
     }
 }

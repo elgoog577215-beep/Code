@@ -42,4 +42,3 @@ class ProblemAccessPolicyTest {
         assertThat(policy.isAnonymousCatalogVisible(sharedProblem)).isFalse();
     }
 }
-

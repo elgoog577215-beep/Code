@@ -3,6 +3,7 @@ package com.onlinejudge.learning.standardlibrary.application;
 import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNode;
 import com.onlinejudge.learning.knowledge.domain.InformaticsKnowledgeNodeType;
 import com.onlinejudge.learning.knowledge.persistence.InformaticsKnowledgeNodeRepository;
+import com.onlinejudge.learning.standardlibrary.domain.AiStandardApplicationScenario;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryGrowthCandidateStatus;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryLayer;
@@ -15,6 +16,7 @@ import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryItemRespons
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationExpansionResponse;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryNavigationNodeResponse;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovementPointRepository;
+import com.onlinejudge.learning.standardlibrary.persistence.AiStandardApplicationScenarioRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryGrowthCandidateRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardLibraryItemRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
@@ -30,10 +32,12 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -45,6 +49,7 @@ public class AiStandardLibraryService {
     private final AiStandardSkillUnitRepository skillUnitRepository;
     private final AiStandardMistakePointRepository mistakePointRepository;
     private final AiStandardImprovementPointRepository improvementPointRepository;
+    private final AiStandardApplicationScenarioRepository applicationScenarioRepository;
     private final InformaticsKnowledgeNodeRepository knowledgeRepository;
     private final AiStandardLibraryGrowthCandidateRepository growthCandidateRepository;
 
@@ -159,7 +164,7 @@ public class AiStandardLibraryService {
             return true;
         }
         return repository.findByEnabledTrueOrderByLayerAscCategoryAscCodeAsc().stream()
-                .anyMatch(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(item.getLayer(), item.getCode()));
+                .anyMatch(item -> !ArchivedFallbackCodePolicy.isArchivedFallback(item.getLayer(), item.getCode()));
     }
 
     @Transactional(readOnly = true)
@@ -170,7 +175,7 @@ public class AiStandardLibraryService {
                         || item.getLayer() == AiStandardLibraryLayer.MISTAKE_POINT
                         || item.getLayer() == AiStandardLibraryLayer.IMPROVEMENT_POINT
                         || item.getLayer() == AiStandardLibraryLayer.BASIC_CAUSE)
-                .filter(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(item.getLayer(), item.getCode()))
+                .filter(item -> !ArchivedFallbackCodePolicy.isArchivedFallback(item.getLayer(), item.getCode()))
                 .toList();
         if (normalizedItems.isEmpty()) {
             return legacyItems;
@@ -224,12 +229,35 @@ public class AiStandardLibraryService {
             throw new IllegalArgumentException("诊断层只能展开到知识点: " + knowledgePointCode);
         }
         String code = knowledgePoint.getCode();
-        List<AiStandardSkillUnit> skills =
+        List<AiStandardSkillUnit> directSkills =
                 skillUnitRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
         List<AiStandardMistakePoint> mistakes =
                 mistakePointRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
         List<AiStandardImprovementPoint> improvements =
                 improvementPointRepository.findByEnabledTrueAndPrimaryKnowledgeNodeCodeOrderByCategoryAscCodeAsc(code);
+        List<AiStandardApplicationScenario> applicationScenarios =
+                applicationScenarioRepository
+                        .findByEnabledTrueAndKnowledgePointCodeOrderBySortOrderAscCodeAsc(code);
+
+        Set<String> referencedSkillCodes = new LinkedHashSet<>();
+        directSkills.stream()
+                .map(AiStandardSkillUnit::getCode)
+                .map(this::normalizeText)
+                .filter(skillCode -> !skillCode.isBlank())
+                .forEach(referencedSkillCodes::add);
+        mistakes.stream()
+                .map(AiStandardMistakePoint::getSkillUnitCode)
+                .map(this::normalizeText)
+                .filter(skillCode -> !skillCode.isBlank())
+                .forEach(referencedSkillCodes::add);
+        improvements.stream()
+                .map(AiStandardImprovementPoint::getSkillUnitCode)
+                .map(this::normalizeText)
+                .filter(skillCode -> !skillCode.isBlank())
+                .forEach(referencedSkillCodes::add);
+        List<AiStandardSkillUnit> skills = referencedSkillCodes.isEmpty()
+                ? List.of()
+                : skillUnitRepository.findByEnabledTrueAndCodeInOrderByCategoryAscCodeAsc(referencedSkillCodes);
 
         Map<String, List<AiStandardLibraryDiagnosticLayerResponse.MistakePoint>> mistakesBySkill = mistakes.stream()
                 .map(AiStandardLibraryDiagnosticLayerResponse.MistakePoint::from)
@@ -245,13 +273,24 @@ public class AiStandardLibraryService {
                                 item -> normalizeText(item.getSkillUnitCode()),
                                 LinkedHashMap::new,
                                 Collectors.toList()));
+        Map<String, List<AiStandardLibraryDiagnosticLayerResponse.ApplicationScenario>> scenariosBySkill =
+                applicationScenarios.stream()
+                        .map(AiStandardLibraryDiagnosticLayerResponse.ApplicationScenario::from)
+                        .collect(Collectors.groupingBy(
+                                item -> normalizeText(item.getSkillUnitCode()),
+                                LinkedHashMap::new,
+                                Collectors.toList()));
         List<AiStandardLibraryDiagnosticLayerResponse.SkillUnit> skillUnits = skills.stream()
                 .map(skill -> AiStandardLibraryDiagnosticLayerResponse.SkillUnit.from(
                         skill,
                         mistakesBySkill.getOrDefault(skill.getCode(), List.of()),
-                        improvementsBySkill.getOrDefault(skill.getCode(), List.of())))
+                        improvementsBySkill.getOrDefault(skill.getCode(), List.of()),
+                        scenariosBySkill.getOrDefault(skill.getCode(), List.of())))
                 .toList();
-        List<String> skillCodes = skills.stream().map(AiStandardSkillUnit::getCode).toList();
+        Set<String> skillCodes = skills.stream()
+                .map(AiStandardSkillUnit::getCode)
+                .map(this::normalizeText)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         List<AiStandardLibraryDiagnosticLayerResponse.ImprovementPoint> directImprovements = improvements.stream()
                 .filter(item -> normalizeText(item.getSkillUnitCode()).isBlank()
                         || !skillCodes.contains(normalizeText(item.getSkillUnitCode())))
@@ -284,6 +323,47 @@ public class AiStandardLibraryService {
                 .directImprovementPoints(directImprovements)
                 .provisionalCandidates(provisionalCandidates)
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AiStandardApplicationScenario> findRelevantApplicationScenarios(
+            Set<String> skillUnitCodes,
+            Set<String> knowledgePointCodes,
+            int limit) {
+        LinkedHashMap<String, AiStandardApplicationScenario> scenarios = new LinkedHashMap<>();
+        Set<String> normalizedSkills = safeCodes(skillUnitCodes);
+        Set<String> normalizedKnowledge = safeCodes(knowledgePointCodes);
+        if (!normalizedSkills.isEmpty()) {
+            applicationScenarioRepository
+                    .findByEnabledTrueAndSkillUnitCodeInOrderBySortOrderAscCodeAsc(normalizedSkills)
+                    .forEach(item -> scenarios.putIfAbsent(item.getCode(), item));
+        } else if (!normalizedKnowledge.isEmpty()) {
+            applicationScenarioRepository
+                    .findByEnabledTrueAndKnowledgePointCodeInOrderBySortOrderAscCodeAsc(normalizedKnowledge)
+                    .forEach(item -> scenarios.putIfAbsent(item.getCode(), item));
+        }
+        int boundedLimit = Math.max(0, Math.min(limit, 12));
+        if (boundedLimit == 0) {
+            return List.of();
+        }
+        return scenarios.values().stream()
+                .sorted(Comparator
+                        .comparing(AiStandardApplicationScenario::getSkillUnitCode)
+                        .thenComparing(AiStandardApplicationScenario::getTransferPairCode)
+                        .thenComparingInt(AiStandardApplicationScenario::getSortOrder)
+                        .thenComparing(AiStandardApplicationScenario::getCode))
+                .limit(boundedLimit)
+                .toList();
+    }
+
+    private Set<String> safeCodes(Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return Set.of();
+        }
+        return codes.stream()
+                .map(this::normalizeText)
+                .filter(code -> !code.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private List<String> splitDotPath(String value) {
@@ -640,7 +720,7 @@ public class AiStandardLibraryService {
             return List.of();
         }
         return items.stream()
-                .filter(item -> !AiStandardLibrarySeedCatalog.isGeneratedFallbackCode(codeAccessor.apply(item)))
+                .filter(item -> !ArchivedFallbackCodePolicy.isArchivedFallback(codeAccessor.apply(item)))
                 .toList();
     }
 
@@ -848,7 +928,7 @@ public class AiStandardLibraryService {
         item.setPrerequisiteKnowledgeCodes(join(request.getPrerequisiteKnowledgeCodes()));
         item.setTeachingAction(normalizeText(request.getTeachingAction()));
         item.setLibraryVersion(normalizeText(request.getLibraryVersion()).isBlank()
-                ? AiStandardLibrarySeedCatalog.VERSION
+                ? "standard-library-db-v3"
                 : normalizeText(request.getLibraryVersion()));
         item.setEnabled(request.getEnabled() == null || request.getEnabled());
         validateKnowledgeItem(item);

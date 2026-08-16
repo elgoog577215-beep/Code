@@ -20,7 +20,7 @@ export default function StudentLoginPage() {
   useEffect(() => {
     api.studentSession().then(student => {
       saveActiveStudent(student);
-      navigate("/app/student", { replace: true });
+      navigate("/student", { replace: true });
     }).catch(() => clearActiveStudent());
   }, [navigate]);
 
@@ -35,7 +35,7 @@ export default function StudentLoginPage() {
     try {
       const student = await api.loginStudent({ classCode: classCode.trim().toUpperCase(), displayName: displayName.trim(), studentNo: studentNo.trim() });
       saveActiveStudent(student);
-      navigate("/app/student", { replace: true });
+      navigate("/student", { replace: true });
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : t("studentLogin.failed"));
     } finally {
@@ -47,7 +47,9 @@ export default function StudentLoginPage() {
     <div className="stack student-page student-login-page">
       <section className="student-home-command">
         <div><p className="eyebrow">{t("studentLogin.eyebrow")}</p><h1>{t("studentLogin.title")}</h1></div>
-        <ButtonLink to="/app/student" variant="ghost" icon={<ArrowLeft size={17} />}>{t("studentLogin.back")}</ButtonLink>
+        <ButtonLink to="/student" variant="ghost" icon={<ArrowLeft size={17} />}>
+          {t("studentLogin.back")}
+        </ButtonLink>
       </section>
       {error && <div className="alert alert--error">{error}</div>}
       <Panel className="student-login-panel" title={t("studentLogin.panelTitle")} eyebrow={t("studentLogin.panelEyebrow")}>

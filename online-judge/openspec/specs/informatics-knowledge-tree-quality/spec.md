@@ -62,3 +62,146 @@ TBD - created by archiving change expand-knowledge-tree-standard-library-v8. Upd
 - **WHEN** 系统吸收高中真题术语
 - **THEN** 该术语 SHALL 复用现有知识树路径并落到 topic 或 knowledge point
 - **AND** 系统 SHALL NOT 为能力点或易错点额外创建高中专用知识树分支
+
+### Requirement: 知识树正式内容必须由数据库维护
+信息学知识树正式节点 SHALL 由数据库中的 `informatics_knowledge_nodes` 维护；运行时 SHALL NOT 通过 `InformaticsKnowledgeSeedCatalog` 或启动播种器扩建正式知识树。
+
+#### Scenario: 读取知识树
+- **WHEN** 前端、AI 导航或教师端读取知识树
+- **THEN** 系统 SHALL 从数据库读取启用节点
+- **AND** 系统 SHALL NOT 在读取前从代码 seed 自动补齐节点
+
+#### Scenario: 新增知识节点
+- **WHEN** 需要新增大章节、小章节、知识点或小知识点
+- **THEN** 系统 SHALL 通过管理 API、迁移脚本或治理流程写入 `informatics_knowledge_nodes`
+- **AND** 系统 SHALL NOT 要求新增 `InformaticsKnowledgeSeedCatalog` 内容
+
+### Requirement: 知识树迁移必须保留路径和别名
+历史 seed 中需要保留的知识树节点 SHALL 在一次性迁移中写入数据库，并保留路径、父子关系、阶段、难度、别名和学习目标。
+
+#### Scenario: 迁移节点
+- **WHEN** 执行知识树历史 seed 迁移
+- **THEN** 系统 SHALL 使用节点 code 幂等 upsert
+- **AND** SHALL 保留 parentCode、type、name、path、stage、difficulty、aliases、prerequisites、learningObjectives 和 typicalProblems
+
+#### Scenario: 验证导航路径
+- **WHEN** 迁移完成后
+- **THEN** 系统 SHALL 验证代表性知识点可以沿父子路径导航
+- **AND** 标准库能力点的 `primaryKnowledgeNodeCode` SHALL 指向存在的数据库知识点
+
+### Requirement: 父子归属不得冒充真实前置知识
+知识树的 `parentCode` SHALL 只表达目录归属，`prerequisites` SHALL 只保存学习该节点前真正需要掌握的其他知识节点 code。
+
+#### Scenario: 历史父节点伪前置被清理
+- **WHEN** 历史主题或知识点的 `prerequisites` 仅等于自身 `parentCode`
+- **THEN** 数据迁移 SHALL 清空该伪前置关系
+- **AND** 导航路径 SHALL 继续由 `parentCode` 和 `path` 保持完整
+
+#### Scenario: 人工精修知识点保存真实前置
+- **WHEN** 首批知识点存在明确的学习先决条件
+- **THEN** `prerequisites` SHALL 只引用已存在的知识节点 code
+- **AND** 没有可靠先决条件时 SHALL 留空而不是复制父节点 code
+
+### Requirement: 学科精修必须替换占位描述而非改写模板
+人工精修知识点 SHALL 用概念对象、适用边界、状态或验证方法表达教学语义，并 SHALL 同步维护学习目标、典型问题和有效别名。
+
+#### Scenario: 首批高引用知识点完成精修
+- **WHEN** V2 数据质量迁移执行完成
+- **THEN** 至少 20 个跨 BASIC、DS、ALGO、MATH、ENG 或 CONTEST 的高引用知识点 SHALL 不再使用“细颗粒知识点”模板描述
+- **AND** 每个精修节点 SHALL 包含可观察学习目标和具体典型任务
+
+#### Scenario: 别名只保存不同叫法
+- **WHEN** 知识节点 aliases 仅重复主名
+- **THEN** 数据迁移 SHALL 清空该自指别名
+- **AND** 首批精修节点的 aliases SHALL 只保存高中、通用、竞赛或英文的不同叫法
+
+### Requirement: 后续知识点精修批次必须由生产使用证据和领域缺口驱动
+知识树内容精修 SHALL 优先选择已经被启用标准库条目引用、仍使用已知模板描述且位于薄弱领域或课堂高频路径的知识点，并 SHALL 保存独立批次版本以便复核质量增量。
+
+#### Scenario: 选择第二批精修节点
+- **WHEN** 系统从 MATH、ENG、BASIC 选择第二批知识点
+- **THEN** 候选 SHALL 是启用的 `KNOWLEDGE_POINT` 且仍使用模板描述
+- **AND** 排序 SHALL 使用规范化能力点、易错点和提升点的不同条目引用数
+- **AND** 人工审校 SHALL 优先最低覆盖领域与课堂高频入口，而不是按领域平均凑数
+
+#### Scenario: 保存第二批人工精修内容
+- **WHEN** 一个知识点进入第二批正式精修
+- **THEN** 系统 SHALL 更新概念边界、可观察学习目标、具体典型任务、有效别名和真实前置知识
+- **AND** `library_version` SHALL 标记为 `informatics-knowledge-discipline-v2`
+- **AND** 系统 SHALL NOT 只对原模板做同义改写
+
+### Requirement: 第三批算法与数据结构精修必须形成连贯学科分支
+第三批知识树内容精修 SHALL 在不新增节点和不改变稳定 code 的前提下，围绕算法与数据结构的高引用路径形成连贯分支，而不是只重写彼此无关的零散节点。
+
+#### Scenario: 保存第三批知识点
+- **WHEN** V4 执行第三批知识点精修
+- **THEN** 系统 SHALL 精修 20 个 ALGO 和 10 个 DS 启用模板知识点
+- **AND** 内容 SHALL 覆盖最短路、拓扑、区间与贪心、二分、DP、滑动窗口、链表、图建模、队列或映射中的多个连贯路径
+- **AND** `library_version` SHALL 标记为 `informatics-knowledge-discipline-v3`
+
+#### Scenario: 精修内容只改写占位模板
+- **WHEN** 一个第三批节点的新描述仍不能说明概念对象、状态不变量、适用边界或验证方法
+- **THEN** 该节点 SHALL NOT 计入第三批完成数量
+- **AND** 质量审校 SHALL 要求补齐可观察学习目标和具体典型任务
+
+### Requirement: 第三批知识点前置与别名必须保持学科有效性
+第三批精修节点的 `prerequisites` SHALL 只表示真实学习依赖，`aliases` SHALL 只保存不同叫法、英文术语或课堂常用表达。
+
+#### Scenario: 使用父目录或主名作为内容字段
+- **WHEN** 第三批节点把 `parent_code` 机械复制为前置，或把主名原样复制为唯一别名
+- **THEN** 学科质量门禁 SHALL 失败
+- **AND** 无可靠前置或别名时相应字段 SHALL 留空
+
+### Requirement: 第四批知识点必须按高中课程与信奥能力矩阵精修
+Flyway V6 SHALL 在不新增节点和不修改稳定 code 的前提下，精修 48 个仍使用占位描述的启用叶子知识点，并 SHALL 在 BASIC、MATH、ENG、CONTEST 四个领域各精修 12 个。
+
+#### Scenario: 保存第四批知识点
+- **WHEN** V6 在生产 V5 快照的隔离恢复库执行完成
+- **THEN** `informatics-knowledge-discipline-v4` 知识点 SHALL 恰好为 48 个
+- **AND** BASIC、MATH、ENG、CONTEST 各自 SHALL 恰好为 12 个
+- **AND** 系统 SHALL NOT 创建高中专用或竞赛专用平行节点
+
+#### Scenario: 精修文本仍是概念复述
+- **WHEN** 第四批知识点不能说明概念对象、适用边界、状态不变量或验证方法
+- **THEN** 该节点 SHALL NOT 计入第四批完成数
+- **AND** 学习目标 SHALL 补成可观察动作，典型问题 SHALL 补成具体任务或错误情形
+
+### Requirement: 第四批知识点必须保持统一术语和真实依赖
+第四批节点 SHALL 优先使用高中课堂可理解的主名，并 SHALL 只把通用、信奥、英文或教师习惯叫法保存为别名；前置知识 SHALL 只引用真实存在的知识节点。
+
+#### Scenario: 高中与竞赛术语重合
+- **WHEN** 一个第四批概念同时有高中与信奥常用叫法
+- **THEN** 系统 SHALL 复用同一个知识节点
+- **AND** `aliases` SHALL 保存不同叫法而不是重复主名
+
+#### Scenario: 前置知识无可靠依据
+- **WHEN** 一个第四批节点没有明确学习前置
+- **THEN** `prerequisites` SHALL 留空
+- **AND** 系统 SHALL NOT 把 `parent_code` 机械复制为前置知识
+
+### Requirement: 第六批知识点必须跨六领域形成可教学内容
+Flyway V11 SHALL 在不新增知识节点、不修改稳定 code 和不创建高中/竞赛平行树的前提下，精修 48 个仍使用占位描述且没有精确主能力点的启用叶子知识点；ALGO、BASIC、CONTEST、DS、ENG、MATH 每个领域 SHALL 恰好精修 8 个。
+
+#### Scenario: 第六批知识点完成精修
+- **WHEN** V11 在生产 V10 基线执行完成
+- **THEN** `informatics-knowledge-discipline-v6` 启用知识点 SHALL 恰好为 48 个
+- **AND** 六个领域各 SHALL 恰好为 8 个
+- **AND** 模板知识点债务 SHALL 从 454 降到不高于 406
+
+#### Scenario: 候选已有精确诊断能力
+- **WHEN** 候选知识点在 V10 已有以自身为主锚点的启用正式能力
+- **THEN** V11 SHALL NOT 为该节点新增同义能力
+- **AND** 维护者 SHALL 从同领域无精确能力的模板叶子中选择替代项
+
+### Requirement: 第六批知识文本必须表达对象边界状态和验证
+每个第六批知识点 SHALL 用具体概念对象、适用边界、关键状态或不变量和验证动作表达内容，并 SHALL 提供可观察学习目标、具体典型问题和有效别名。
+
+#### Scenario: 文本仍是模板改写
+- **WHEN** 知识点描述只重复名称、使用“细颗粒知识点”“掌握相关知识”或不能说明边界、状态和验证动作
+- **THEN** 学科质量门禁 SHALL 失败
+- **AND** 该知识点 SHALL NOT 计入第六批完成数量
+
+#### Scenario: 前置与别名无可靠依据
+- **WHEN** 第六批知识点没有可靠前置或不同叫法
+- **THEN** 相应字段 SHALL 留空
+- **AND** 系统 SHALL NOT 机械复制父节点或主名

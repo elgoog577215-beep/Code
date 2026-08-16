@@ -20,5 +20,5 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $Port = if ($env:SERVER_PORT) { $env:SERVER_PORT } else { "8081" }
-Write-Host "Wenzhong OJ is starting at http://localhost:$Port/app/"
-Write-Host "Teacher/system status: http://localhost:$Port/app/teacher-management"
+Write-Host "Wenzhong OJ is starting at http://localhost:$Port/code/"
+Write-Host "Teacher/system status: http://localhost:$Port/code/teacher-management"

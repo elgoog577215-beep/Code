@@ -23,6 +23,7 @@ public class IssuePointKeyFactory {
                 fact.getFactType(),
                 fact.getMistakePointId(),
                 fact.getImprovementPointId(),
+                fact.getProvisionalNodeCode(),
                 fact.getSkillUnitId(),
                 knowledgePath,
                 fact.getTitle()
@@ -37,11 +38,38 @@ public class IssuePointKeyFactory {
             List<String> knowledgePath,
             String title
     ) {
+        return identity(
+                factType,
+                mistakePointId,
+                improvementPointId,
+                null,
+                skillUnitId,
+                knowledgePath,
+                title
+        );
+    }
+
+    public Identity identity(
+            String factType,
+            String mistakePointId,
+            String improvementPointId,
+            String provisionalNodeCode,
+            String skillUnitId,
+            List<String> knowledgePath,
+            String title
+    ) {
         if (hasText(mistakePointId)) {
             return formal("mistake", mistakePointId);
         }
         if (hasText(improvementPointId)) {
             return formal("improvement", improvementPointId);
+        }
+        if (hasText(provisionalNodeCode)) {
+            return new Identity(
+                    "provisional:" + VERSION + ":" + normalizeId(provisionalNodeCode),
+                    "PROVISIONAL_ID",
+                    VERSION
+            );
         }
         if (hasText(skillUnitId)) {
             String value = normalizeId(skillUnitId) + ":" + normalizeId(factType);

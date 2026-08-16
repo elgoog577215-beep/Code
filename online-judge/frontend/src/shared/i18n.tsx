@@ -227,6 +227,24 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         viewReview: "查看复盘",
         emptyReview: "提交后可复盘错题。"
       },
+      nextLearning: {
+        title: "继续学习",
+        loading: "正在同步学习进度",
+        loadingHint: "马上为你接回最近的学习任务。",
+        fallbackTitle: "继续完成当前任务",
+        fallbackHint: "学习建议暂未更新，不影响进入课堂作业或自主练习。",
+        empty: "从一个明确任务开始",
+        emptyHint: "完成一次提交后，这里会接回最适合继续的内容。",
+        keepLearning: "继续学习",
+        goal: "目标：{{goal}}",
+        open: "开始行动",
+        openAria: "开始学习行动：{{title}}"
+      },
+      selfPractice: {
+        title: "自主练习",
+        meta: "{{count}} 道题，可按难度选择",
+        action: "查看题库"
+      },
       errors: {
         publicBank: "公共题库暂时不可用。",
         assignments: "老师作业加载失败。"
@@ -1276,6 +1294,24 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         viewReview: "Open review",
         emptyReview: "Submit solutions to review recent mistakes."
       },
+      nextLearning: {
+        title: "Continue Learning",
+        loading: "Syncing your progress",
+        loadingHint: "Your most recent learning task will be ready in a moment.",
+        fallbackTitle: "Continue your current task",
+        fallbackHint: "Guidance has not refreshed, but class work and self practice are still available.",
+        empty: "Start with one clear task",
+        emptyHint: "After your next submission, this area will bring back the best task to continue.",
+        keepLearning: "Continue learning",
+        goal: "Goal: {{goal}}",
+        open: "Start action",
+        openAria: "Start learning action: {{title}}"
+      },
+      selfPractice: {
+        title: "Self Practice",
+        meta: "{{count}} problems, choose by difficulty",
+        action: "Browse problems"
+      },
       errors: {
         publicBank: "The public problem bank is unavailable.",
         assignments: "Failed to load teacher assignments."
@@ -1508,15 +1544,15 @@ const dictionaries: Record<Locale, TranslationDictionary> = {
         management: "Management tools"
       },
       nav: {
-        analytics: "Teaching Analytics",
+        analytics: "Analytics",
         analyticsDescription: "Class, assignment, and problem results",
-        roster: "Class Roster",
+        roster: "Roster",
         rosterDescription: "Student import and class setup",
-        problemBank: "Problem Bank",
+        problemBank: "Problems",
         problemBankDescription: "Problem list and editor",
         aiLibrary: "AI Library",
         aiLibraryDescription: "Approved library and governance",
-        system: "System Status",
+        system: "System",
         systemDescription: "AI checks and runtime state"
       }
     },

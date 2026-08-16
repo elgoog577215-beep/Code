@@ -46,4 +46,3 @@ class AssignmentTargetingPolicyTest {
         assertThat(policy.isTargeted(assignment, student, Set.of(12L))).isFalse();
     }
 }
-

@@ -45,4 +45,3 @@ public class PlatformAuditEvent {
         if (createdAt == null) createdAt = Instant.now();
     }
 }
-

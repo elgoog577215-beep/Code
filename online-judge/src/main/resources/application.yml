@@ -25,6 +25,11 @@ spring:
     console:
       enabled: ${H2_CONSOLE_ENABLED:false}
       path: /h2-console
+  flyway:
+    enabled: ${FLYWAY_ENABLED:false}
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
+    baseline-version: 1
+    validate-on-migrate: true
   jpa:
     hibernate:
       ddl-auto: update
@@ -32,11 +37,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-  flyway:
-    enabled: ${FLYWAY_ENABLED:true}
-    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
-    baseline-version: 1
-    validate-on-migrate: true
 executor:
   mode: ${EXECUTOR_MODE:local}
   docker:
@@ -47,8 +47,8 @@ ai:
   enabled: ${AI_ENABLED:true}
   base-url: ${OJ_AI_BASE_URL:${AI_BASE_URL:https://api-inference.modelscope.cn/v1}}
   api-key: ${OJ_MODELSCOPE_API_KEY:${MODELSCOPE_API_KEY:}}
-  model: ${OJ_AI_MODEL:${AI_MODEL:deepseek-ai/DeepSeek-V4-Pro}}
-  model-pool: ${OJ_AI_MODEL_POOL:${AI_MODEL_POOL:deepseek-ai/DeepSeek-V4-Pro,Qwen/Qwen3.5-35B-A3B,Qwen/Qwen3.5-27B,Qwen/Qwen3.5-122B-A10B}}
+  model: ${OJ_AI_MODEL:${AI_MODEL:Qwen/Qwen3.5-35B-A3B}}
+  model-pool: ${OJ_AI_MODEL_POOL:${AI_MODEL_POOL:Qwen/Qwen3.5-35B-A3B,Qwen/Qwen3.5-397B-A17B,Qwen/Qwen3-235B-A22B-Instruct-2507}}
   modelscope-compatible-request: ${AI_MODELSCOPE_COMPATIBLE_REQUEST:auto}
   enable-thinking: ${AI_ENABLE_THINKING:false}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:30}
@@ -120,14 +120,20 @@ spring:
   h2:
     console:
       enabled: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
+    baseline-version: "1"
+    baseline-description: Existing Hibernate-managed schema
+    validate-on-migrate: true
+    clean-disabled: true
   jpa:
     hibernate:
       ddl-auto: validate
 
 app:
   profile: school
-  content-seed:
-    enabled: ${APP_CONTENT_SEED_ENABLED:false}
 
 ---
 spring:
@@ -137,8 +143,6 @@ spring:
 
 app:
   profile: dev
-  content-seed:
-    enabled: ${APP_CONTENT_SEED_ENABLED:false}
 
 logging:
   file:

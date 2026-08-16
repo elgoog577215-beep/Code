@@ -12,12 +12,12 @@ public class StaticResourceConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/app/assets/**")
-                .addResourceLocations("classpath:/static/app/assets/")
+        registry.addResourceHandler(OnlineJudgeWebPaths.PUBLIC_ASSETS_PREFIX + "/**")
+                .addResourceLocations("classpath:/static" + OnlineJudgeWebPaths.PUBLIC_ASSETS_PREFIX + "/")
                 .setCacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable());
 
-        registry.addResourceHandler("/app/**")
-                .addResourceLocations("classpath:/static/app/")
+        registry.addResourceHandler(OnlineJudgeWebPaths.PUBLIC_PREFIX + "/**")
+                .addResourceLocations("classpath:/static" + OnlineJudgeWebPaths.PUBLIC_PATH)
                 .setCacheControl(CacheControl.noStore());
 
         registry.addResourceHandler("/assets/**")

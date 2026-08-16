@@ -54,6 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.jpa.hibernate.ddl-auto=update",
         "TEACHER_DEV_AUTO_AUTH=false",
         "AI_ENABLED=false",
+        "app.assignment-readiness.enforce=false",
         "app.content-seed.enabled=false"
 })
 class MultiTeacherTrialFlowTest {

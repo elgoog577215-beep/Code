@@ -119,7 +119,7 @@ export function assignmentStatusLabel(value?: string | null): string {
   }
 }
 
-export function formatDateTime(value?: string | null): string {
+export function formatDateTime(value?: string | null, locale: "zh" | "en" = "zh"): string {
   if (!value) {
     return "-";
   }
@@ -127,11 +127,30 @@ export function formatDateTime(value?: string | null): string {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "zh-CN", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
+}
+
+export function formatFullDateTime(value?: string | null, locale: "zh" | "en" = "zh"): string {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
   }).format(date);
 }
 

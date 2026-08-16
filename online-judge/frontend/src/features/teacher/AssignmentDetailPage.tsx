@@ -335,7 +335,7 @@ export default function AssignmentDetailPage() {
       <div className="stack assignment-detail-page teacher-workflow">
         {alert && <div className="alert alert--error">{alert.message}</div>}
         <EmptyState title={t("assignmentDetail.notFound")} description={t("assignmentDetail.notFoundDescription")} />
-        <ButtonLink to="/app/teacher" variant="secondary" icon={<ArrowLeft size={16} />}>
+        <ButtonLink to="/teacher" variant="secondary" icon={<ArrowLeft size={16} />}>
           {t("assignmentDetail.backToAssignmentCenter")}
         </ButtonLink>
       </div>
@@ -381,18 +381,18 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
   const lectureProblem = priorityProblem(problems);
   const lectureIssue = lectureProblem?.topIssues?.[0] || null;
   const studentTargetHref = studentTarget?.problemId
-    ? `/app/teacher/assignment/${overview.assignment.id}/problems/${studentTarget.problemId}/students/${studentTarget.student.studentProfileId}`
-    : `/app/teacher/assignment/${overview.assignment.id}`;
+    ? `/teacher/assignment/${overview.assignment.id}/problems/${studentTarget.problemId}/students/${studentTarget.student.studentProfileId}`
+    : `/teacher/assignment/${overview.assignment.id}`;
   const lectureHref = lectureProblem
-    ? `/app/teacher/assignment/${overview.assignment.id}/problems/${lectureProblem.problemId}`
-    : `/app/teacher/assignment/${overview.assignment.id}`;
+    ? `/teacher/assignment/${overview.assignment.id}/problems/${lectureProblem.problemId}`
+    : `/teacher/assignment/${overview.assignment.id}`;
   const startReviewHref = studentTarget ? studentTargetHref : lectureHref;
   const historicalStudentCount = overview.students.filter(student => student.currentRoster === false).length;
   return (
     <>
       <section className="teacher-drill-header teacher-drill-header--compact">
         <div className="teacher-drill-header__main">
-          <Link to="/app/teacher" className="back-link">
+          <Link to="/teacher" className="back-link">
             <ArrowLeft size={16} /> {t("assignmentDetail.backToAssignmentCenter")}
           </Link>
           <h1>{cleanAssignmentTitle(overview.assignment.title, t)}</h1>
@@ -538,7 +538,7 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
             {problems.map(problem => (
               <Link
                 className="teacher-table-row teacher-table-row--link"
-                to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`}
+                to={`/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`}
                 key={problem.problemId}
               >
                 <span className="teacher-table-title">
@@ -585,7 +585,7 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
     <>
       <section className="teacher-drill-header">
         <div>
-          <Link to={`/app/teacher/assignment/${overview.assignment.id}`} className="back-link">
+          <Link to={`/teacher/assignment/${overview.assignment.id}`} className="back-link">
             <ArrowLeft size={16} /> 返回作业总览
           </Link>
           <h1>{problem.title}</h1>
@@ -636,7 +636,7 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
                 students.map(student => (
                   <Link
                     className="teacher-table-row teacher-table-row--link"
-                    to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}/students/${student.studentProfileId}`}
+                    to={`/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}/students/${student.studentProfileId}`}
                     key={student.studentProfileId}
                   >
                     <span className="teacher-table-title">
@@ -675,14 +675,14 @@ function ProblemOverviewView({ overview, problem }: { overview: AssignmentOvervi
           <p>{actionCopy}</p>
           {firstAttentionStudent ? (
             <ButtonLink
-              to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}/students/${firstAttentionStudent.studentProfileId}`}
+              to={`/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}/students/${firstAttentionStudent.studentProfileId}`}
               variant="primary"
               icon={<UserRound size={16} />}
             >
               查看优先学生
             </ButtonLink>
           ) : null}
-          <ButtonLink to={`/app/teacher/assignment/${overview.assignment.id}`} variant="ghost" icon={<ChartNoAxesCombined size={16} />}>
+          <ButtonLink to={`/teacher/assignment/${overview.assignment.id}`} variant="ghost" icon={<ChartNoAxesCombined size={16} />}>
             看作业推进
           </ButtonLink>
         </aside>
@@ -721,7 +721,7 @@ function StudentProblemView({
     <>
       <section className="teacher-drill-header">
         <div>
-          <Link to={`/app/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`} className="back-link">
+          <Link to={`/teacher/assignment/${overview.assignment.id}/problems/${problem.problemId}`} className="back-link">
             <ArrowLeft size={16} /> 返回题目总览
           </Link>
           <h1>{displayText(student.displayName, t("common.studentSide"))}</h1>

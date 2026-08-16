@@ -27,6 +27,7 @@ public class ModelDiagnosisBrief {
     private Integer sourceCodeLineCount;
     private SubmissionAnalysisResponse.FailedCaseSnapshot firstFailedCase;
     private List<VisibleCaseFact> visibleCaseFacts;
+    private List<TestIntentFact> testIntentFacts;
     private List<String> evidenceRefs;
     private List<String> allowedIssueTags;
     private List<String> allowedFineGrainedTags;
@@ -50,6 +51,25 @@ public class ModelDiagnosisBrief {
         private String inputPreview;
         private String actualOutputPreview;
         private String expectedOutputPreview;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class TestIntentFact {
+        private Integer testCaseNumber;
+        private Boolean passed;
+        private Boolean hidden;
+        private String evidenceRef;
+        private String semanticCode;
+        private String intentType;
+        private String intentTitle;
+        private String intentSummary;
+        private String learningObjective;
+        private String contestRole;
+        private String revealPolicy;
     }
 
     @Data

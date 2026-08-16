@@ -305,14 +305,14 @@ public class SubmissionAnalysisService {
                     );
                 }
         );
-        CompletableFuture<AiDiagnosisProjectionResult> recommendation = projectionFuture(
+        CompletableFuture<AiDiagnosisProjectionResult> recommendation = facts.thenCompose(ignored -> projectionFuture(
                 runId,
                 "RUNTIME_QUALITY_PROJECTION",
                 () -> {
                     recommendationEventService.backfillSubmissionAnalysis(submission, savedAnalysis);
                     return AiDiagnosisProjectionResult.completed("RUNTIME_QUALITY_PROJECTION", 1);
                 }
-        );
+        ));
         CompletableFuture<AiDiagnosisProjectionResult> teacher = facts.thenCompose(ignored -> projectionFuture(
                 runId,
                 "TEACHER_ANALYTICS_PROJECTION",

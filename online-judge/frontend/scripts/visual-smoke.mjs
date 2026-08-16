@@ -2,7 +2,7 @@ import { access, readFile, readdir } from "node:fs/promises";
 import { constants } from "node:fs";
 import { join, resolve } from "node:path";
 
-const appDir = resolve(import.meta.dirname, process.env.VISUAL_SMOKE_APP_DIR || "../../src/main/resources/static/app");
+const appDir = resolve(import.meta.dirname, process.env.VISUAL_SMOKE_APP_DIR || "../../src/main/resources/static/code");
 const indexPath = join(appDir, "index.html");
 const assetDir = join(appDir, "assets");
 const checks = [];
@@ -40,8 +40,9 @@ const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, fi
   ".student-assignment-grid",
   ".teacher-shell-nav",
   ".teacher-analytics-summary",
-  ".teacher-analytics-board",
-  ".teacher-analytics-granularity",
+  ".teacher-analytics-focus-panel",
+  ".teacher-issue-counts",
+  ".teacher-student-timeline-panel",
   ".problem-compact-details",
   ".editor-workbench",
   "@media(max-width:760px)",
@@ -55,7 +56,8 @@ const jsText = (await Promise.all(jsFiles.map(file => readFile(join(assetDir, fi
   "登录查看课堂学习",
   "暂无课堂作业",
   "教学结果分析",
-  "AI 知识归因",
+  "全班问题",
+  "当前正式版本",
   "/api/teacher/assignments/",
   "class-review-feedback",
   "ENTERED_PROBLEM"

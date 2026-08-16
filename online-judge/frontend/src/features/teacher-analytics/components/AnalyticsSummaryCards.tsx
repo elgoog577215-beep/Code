@@ -9,11 +9,10 @@ export function AnalyticsSummaryCards({ metrics, labelFor }: Props) {
   return (
     <section className="teacher-analytics-summary" aria-label={labelFor("teacherAnalytics.sections.metrics")}>
       {metrics.map(metric => (
-        <article className="teacher-analytics-metric" key={metric.key}>
+        <div className="teacher-analytics-metric" key={metric.key}>
           <span>{labelFor(metric.labelKey)}</span>
           <strong>{metric.value}</strong>
-          {metric.note ? <small>{metric.note}</small> : null}
-        </article>
+        </div>
       ))}
     </section>
   );

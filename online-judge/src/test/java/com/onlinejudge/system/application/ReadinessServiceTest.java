@@ -7,6 +7,7 @@ import com.onlinejudge.learning.standardlibrary.persistence.AiStandardImprovemen
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardMistakePointRepository;
 import com.onlinejudge.learning.standardlibrary.persistence.AiStandardSkillUnitRepository;
 import com.onlinejudge.problem.persistence.ProblemRepository;
+import com.onlinejudge.problem.persistence.TestCaseRepository;
 import com.onlinejudge.system.dto.AiSmokeResponse;
 import com.onlinejudge.system.dto.ExecutorStatusResponse;
 import com.onlinejudge.system.dto.ReadinessResponse;
@@ -110,6 +111,8 @@ class ReadinessServiceTest {
                 0,
                 0,
                 0,
+                0,
+                0,
                 0
         );
         ReflectionTestUtils.setField(service, "datasourceUrl", "jdbc:postgresql://postgres:5432/onlinejudge");
@@ -151,7 +154,7 @@ class ReadinessServiceTest {
     private ReadinessService service(ExecutorStatusResponse executorStatus,
                                      AiSmokeResponse aiSmoke,
                                      boolean schoolProfile) {
-        return service(executorStatus, aiSmoke, schoolProfile, 1, 1, 1, 1, 1);
+        return service(executorStatus, aiSmoke, schoolProfile, 1, 1, 1, 1, 1, 1, 1);
     }
 
     private ReadinessService service(ExecutorStatusResponse executorStatus,
@@ -161,7 +164,9 @@ class ReadinessServiceTest {
                                      long knowledgeNodes,
                                      long skills,
                                      long mistakes,
-                                     long improvements) {
+                                     long improvements,
+                                     long testCases,
+                                     long reviewedSemanticTestCases) {
         ExecutorStatusService executorStatusService = mock(ExecutorStatusService.class);
         when(executorStatusService.getStatus()).thenReturn(executorStatus);
 
@@ -176,6 +181,10 @@ class ReadinessServiceTest {
 
         ProblemRepository problemRepository = mock(ProblemRepository.class);
         when(problemRepository.count()).thenReturn(problems);
+        TestCaseRepository testCaseRepository = mock(TestCaseRepository.class);
+        when(testCaseRepository.count()).thenReturn(testCases);
+        when(testCaseRepository.countBySemanticCodeIsNotNullAndReviewStatus("REVIEWED"))
+                .thenReturn(reviewedSemanticTestCases);
         InformaticsKnowledgeNodeRepository knowledgeNodeRepository = mock(InformaticsKnowledgeNodeRepository.class);
         when(knowledgeNodeRepository.countByEnabledTrue()).thenReturn(knowledgeNodes);
         AiStandardSkillUnitRepository skillUnitRepository = mock(AiStandardSkillUnitRepository.class);
@@ -191,6 +200,7 @@ class ReadinessServiceTest {
                 securityProperties,
                 new AiStandardLibraryGrowthProperties(),
                 problemRepository,
+                testCaseRepository,
                 knowledgeNodeRepository,
                 skillUnitRepository,
                 mistakePointRepository,

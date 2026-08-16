@@ -59,12 +59,20 @@ class DiagnosisEvidencePackageBuilderTest {
                         .build(),
                 SubmissionCaseResult.builder()
                         .testCaseNumber(2)
+                        .testCaseId(202L)
                         .passed(false)
                         .hidden(true)
                         .actualOutput("wrong hidden output")
                         .expectedOutput("hidden expected")
                         .executionTime(0.02)
                         .memoryUsed(1024)
+                        .testSemanticCode("TCI_HIDDEN_BOUNDARY")
+                        .testIntentType("BOUNDARY")
+                        .testIntentTitle("最小规模边界")
+                        .testIntentSummary("覆盖输入规模处在最小合法边界时的程序行为。")
+                        .testLearningObjective("能检查初始化、空循环和边界返回是否保持定义一致。")
+                        .testContestRole("CORRECTNESS_GUARD")
+                        .testRevealPolicy("AI_GENERALIZED")
                         .build()
         );
 
@@ -89,9 +97,50 @@ class DiagnosisEvidencePackageBuilderTest {
         assertThat(evidence.getJudgeFacts().getHiddenFailureObserved()).isTrue();
         assertThat(evidence.getJudgeFacts().getFirstFailedCase().getTestCaseNumber()).isEqualTo(2);
         assertThat(evidence.getJudgeFacts().getCaseResultsSummary().get(1).getActualOutputPreview()).isEqualTo("[隐藏测试点]");
+        assertThat(evidence.getJudgeFacts().getCaseResultsSummary().get(1))
+                .satisfies(summary -> {
+                    assertThat(summary.getTestCaseId()).isEqualTo(202L);
+                    assertThat(summary.getSemanticCode()).isEqualTo("TCI_HIDDEN_BOUNDARY");
+                    assertThat(summary.getIntentType()).isEqualTo("BOUNDARY");
+                    assertThat(summary.getIntentSummary()).contains("最小合法边界");
+                    assertThat(summary.getInputPreview()).isEqualTo("[隐藏测试点]");
+                    assertThat(summary.getActualOutputPreview()).isEqualTo("[隐藏测试点]");
+                    assertThat(summary.getExpectedOutputPreview()).isEqualTo("[隐藏测试点]");
+                });
         assertThat(evidence.getPolicy().getHintPolicy()).isEqualTo("L3");
         assertThat(evidence.getPolicy().getAllowedHintLevels()).containsExactly("L1", "L2", "L3");
         assertThat(evidence.getHistory().getRecentIssueTags()).isEmpty();
+    }
+
+    @Test
+    void withholdsHiddenSemanticTextWhenRevealPolicyIsNotGeneralized() {
+        SubmissionCaseResult hidden = SubmissionCaseResult.builder()
+                .testCaseNumber(1)
+                .testCaseId(99L)
+                .passed(false)
+                .hidden(true)
+                .inputSnapshot("secret input")
+                .expectedOutput("secret expected")
+                .actualOutput("secret actual")
+                .testSemanticCode("TCI_UNSAFE")
+                .testIntentSummary("unsafe semantic text")
+                .testRevealPolicy("PUBLIC_EXAMPLE")
+                .build();
+
+        DiagnosisEvidencePackage evidence = builder.build(
+                Problem.builder().id(1L).title("题目").description("描述").build(),
+                Submission.builder().id(1L).languageName("Python 3").sourceCode("print(1)").build(),
+                List.of(hidden),
+                SubmissionAnalysisResponse.builder().build(),
+                null
+        );
+
+        assertThat(evidence.getJudgeFacts().getCaseResultsSummary()).singleElement()
+                .satisfies(summary -> {
+                    assertThat(summary.getSemanticCode()).isNull();
+                    assertThat(summary.getIntentSummary()).isNull();
+                    assertThat(summary.getInputPreview()).isEqualTo("[隐藏测试点]");
+                });
     }
 
     @Test

@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 
 const frontendDir = resolve(import.meta.dirname, "..");
 const repoDir = resolve(frontendDir, "..");
-const appDir = resolve(import.meta.dirname, process.env.BROWSER_SMOKE_APP_DIR || "../../src/main/resources/static/app");
+const appDir = resolve(import.meta.dirname, process.env.BROWSER_SMOKE_APP_DIR || "../../src/main/resources/static/code");
 const indexPath = join(appDir, "index.html");
 const artifactDir = resolve(repoDir, "output/playwright");
 const viteBin = join(frontendDir, "node_modules/vite/bin/vite.js");
@@ -566,6 +566,83 @@ const history = [
 
 const classes = [{ id: 3, name: "高一1班", grade: "10", teacherName: "信息技术老师" }];
 
+const classLearningOverview = {
+  classGroup: classes[0],
+  assignmentCount: 1,
+  rosterStudentCount: 18,
+  submittedStudentCount: 18,
+  unsubmittedStudentCount: 0,
+  assignments: [{
+    assignmentId: 7,
+    title: "课堂编程作业",
+    status: "ACTIVE",
+    createdAt: "2026-05-19T08:00:00",
+    problemCount: 2,
+    rosterStudentCount: 18,
+    submittedStudentCount: 18,
+    unsubmittedStudentCount: 0,
+    completedRequiredStudentCount: 0
+  }]
+};
+
+const learningProof = {
+  studentProfileId: 41,
+  assignmentId: 7,
+  problemId: 101,
+  problemTitle: "求和边界",
+  latestSubmissionId: 9001,
+  repair: {
+    status: "IN_PROGRESS",
+    baselineSubmissionId: 9001,
+    targetSubmissionId: null,
+    passedTestCaseDelta: 0,
+    recoveredIssueCount: 0,
+    recoveredIssues: [],
+    evidenceRefs: ["submission:9001"]
+  },
+  explanation: {
+    status: "TO_EXPLAIN",
+    promptId: null,
+    submissionId: 9001,
+    question: "当 n 为 1 时，循环应该执行几次？",
+    answer: null,
+    feedback: null,
+    checkable: false,
+    evidenceTypes: [],
+    evidenceRefs: []
+  },
+  independentUse: {
+    status: "NOT_READY",
+    sourceSubmissionId: 9001,
+    targetProblemId: null,
+    targetProblemTitle: null,
+    targetSubmissionId: null,
+    evidenceRefs: []
+  }
+};
+
+const teacherProblemLearningProof = {
+  assignmentId: 7,
+  problemId: 101,
+  problemTitle: "求和边界",
+  failedStudentCount: 1,
+  repairedStudentCount: 0,
+  explainedStudentCount: 0,
+  independentVerifiedStudentCount: 0,
+  students: [{
+    studentProfileId: 41,
+    displayName: "学生甲",
+    studentNo: "12",
+    latestSubmissionId: 9001,
+    hadFailure: true,
+    repaired: false,
+    explained: false,
+    explanationCheckable: false,
+    independentVerified: false,
+    proof: learningProof
+  }]
+};
+
 const problemCatalog = [
   { id: 101, title: "求和边界", summary: "练习输入循环。", difficulty: "EASY", timeLimit: 1000, memoryLimit: 65536 },
   { id: 102, title: "循环边界", summary: "练习循环端点。", difficulty: "MEDIUM", timeLimit: 1000, memoryLimit: 65536 }
@@ -1106,7 +1183,7 @@ const aiStandardLibraryGrowthGovernanceSummary = {
 const scenarios = [
   {
     name: "app-entry",
-    path: "/app/",
+    path: "/code/",
     selectors: [
       [".route-hub-page", "route hub page"],
       [".route-hub-hero-copy", "route hub hero copy"],
@@ -1115,7 +1192,7 @@ const scenarios = [
     ],
     afterChecks: async (page, viewport) => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      const roleActions = page.locator('.route-hub-role-actions a[href="/app/student"], .route-hub-role-actions a[href="/app/teacher"], .route-hub-role-actions a[href="/app/school-admin/login"]');
+      const roleActions = page.locator('.route-hub-role-actions a[href="/code/student"], .route-hub-role-actions a[href="/code/teacher"], .route-hub-role-actions a[href="/code/school-admin/login"]');
       const canonicalHrefs = await roleActions.evaluateAll(elements =>
         elements.map(element => element.getAttribute("href"))
       );
@@ -1128,12 +1205,12 @@ const scenarios = [
       }));
       const learningSteps = await page.locator(".route-hub-loop-step").count();
       const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-      record("app root is explicit route hub", page.url().endsWith("/app") || page.url().endsWith("/app/"), page.url());
+      record("app root is explicit route hub", page.url().endsWith("/code") || page.url().endsWith("/code/"), page.url());
       record("app root leads with the selected concept message", hubText.includes("从一道题开始") && hubText.includes("看见真正的进步"), hubText.slice(0, 700));
       record("app root presents the code experience as a static screenshot", previewText === "界面截图" && previewImage.naturalWidth >= 700 && previewImage.naturalHeight >= 400, JSON.stringify({ previewText, previewImage }));
       record("app root screenshot has explicit alternative text", Boolean(previewImage.alt?.includes("编程与评测界面预览")), previewImage.alt || "");
       record("app root explains the learning loop", learningSteps === 3 && hubText.includes("练习") && hubText.includes("评测") && hubText.includes("复盘"), `steps ${learningSteps}; ${hubText.slice(0, 500)}`);
-      record("app root exposes canonical paths", canonicalHrefs.includes("/app/student") && canonicalHrefs.includes("/app/teacher") && canonicalHrefs.includes("/app/school-admin/login"), canonicalHrefs.join("|"));
+      record("app root exposes canonical paths", canonicalHrefs.includes("/code/student") && canonicalHrefs.includes("/code/teacher") && canonicalHrefs.includes("/code/school-admin/login"), canonicalHrefs.join("|"));
       record("app root keeps one action per visible role", await roleActions.count() === 3, `role actions ${await roleActions.count()}`);
       record("app root keeps top nav simple", navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("app root fits the viewport", documentWidth <= viewport.width, `document ${documentWidth}; viewport ${viewport.width}`);
@@ -1141,7 +1218,7 @@ const scenarios = [
   },
   {
     name: "student-default",
-    path: "/app/student",
+    path: "/code/student",
     beforeChecks: async page => {
       await page.evaluate(() => {
         Object.keys(window.sessionStorage)
@@ -1162,44 +1239,44 @@ const scenarios = [
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       const loginActions = await page.locator(".student-guest-login-action").count();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-      record("student direct URL opens entry", page.url().includes("/app/student"), page.url());
+      record("student direct URL opens entry", page.url().includes("/code/student"), page.url());
       record("student entry keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("student guest page keeps one login action", loginActions === 1, `login actions ${loginActions}`);
       record("student guest page has no horizontal overflow", overflow <= 1, `overflow ${overflow}; viewport ${viewport.width}`);
-      const publicCatalogAction = page.locator('.student-guest-practice__action[href="/app/student/assignments/public"]');
+      const publicCatalogAction = page.locator('.student-guest-practice__action[href="/code/student/assignments/public"]');
       if (await publicCatalogAction.isVisible()) {
         await publicCatalogAction.click();
       } else {
         await publicCatalogAction.evaluate(element => element.click());
       }
-      await page.waitForURL(url => url.pathname === "/app/student/assignments/public", { timeout: 5000 });
-      record("student guest public practice action opens the catalog", page.url().includes("/app/student/assignments/public"), page.url());
+      await page.waitForURL(url => url.pathname === "/code/student/assignments/public", { timeout: 5000 });
+      record("student guest public practice action opens the catalog", page.url().includes("/code/student/assignments/public"), page.url());
       await page.goBack({ waitUntil: "domcontentloaded" });
       await page.locator(".student-guest-practice").first().waitFor({ state: "visible", timeout: 5000 });
       await page.locator(".student-guest-login-action").click();
-      await page.waitForURL(url => url.pathname === "/app/student/login", { timeout: 5000 });
-      record("student guest assignment action opens login", page.url().includes("/app/student/login"), page.url());
+      await page.waitForURL(url => url.pathname === "/code/student/login", { timeout: 5000 });
+      record("student guest assignment action opens login", page.url().includes("/code/student/login"), page.url());
       await page.goBack({ waitUntil: "domcontentloaded" });
       await page.locator(".student-guest-practice").first().waitFor({ state: "visible", timeout: 5000 });
     }
   },
   {
     name: "public-assignment",
-    path: "/app/student/assignments/public",
+    path: "/code/student/assignments/public",
     beforeChecks: async page => {
       let returnDocumentRequests = 0;
       const countReturnDocumentRequest = request => {
         const url = new URL(request.url());
-        if (request.isNavigationRequest() && request.resourceType() === "document" && url.pathname === "/app/student") {
+        if (request.isNavigationRequest() && request.resourceType() === "document" && url.pathname === "/code/student") {
           returnDocumentRequests += 1;
         }
       };
       page.on("request", countReturnDocumentRequest);
-      await page.locator('.student-home-command--entry a[href="/app/student"]').click();
-      await page.waitForURL(url => url.pathname === "/app/student", { timeout: 5000 });
+      await page.locator('.student-home-command--entry a[href="/code/student"]').click();
+      await page.waitForURL(url => url.pathname === "/code/student", { timeout: 5000 });
       record("public catalog back action performs a full navigation", returnDocumentRequests === 1, `document requests ${returnDocumentRequests}`);
       page.off("request", countReturnDocumentRequest);
-      await page.goto(new URL("/app/student/assignments/public", page.url()).href, { waitUntil: "domcontentloaded" });
+      await page.goto(new URL("/code/student/assignments/public", page.url()).href, { waitUntil: "domcontentloaded" });
       await page.locator(".public-problem-link").filter({ hasText: "求和边界" }).first().click();
       await page.locator(".problem-workbench").first().waitFor({ state: "visible", timeout: 10000 });
     },
@@ -1210,7 +1287,7 @@ const scenarios = [
       const navigationRailCount = await page.locator(".problem-workbench-rail").count();
       const shellColumns = await page.locator(".problem-workbench-shell").first().evaluate(element => window.getComputedStyle(element).gridTemplateColumns);
       record("public assignment keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
-      record("public assignment opens workbench", page.url().includes("/app/student/assignments/public/problems/101"), page.url());
+      record("public assignment opens workbench", page.url().includes("/code/student/assignments/public/problems/101"), page.url());
       record("public assignment keeps the problem list", taskSidebarCount === 1, `task sidebar count ${taskSidebarCount}`);
       record("public assignment omits the navigation rail", navigationRailCount === 0, `navigation rail count ${navigationRailCount}`);
       record("public assignment shell uses the full width", shellColumns.trim().split(/\s+/).length === 1, shellColumns);
@@ -1226,15 +1303,15 @@ const scenarios = [
   },
   {
     name: "student",
-    path: "/app/student",
+    path: "/code/student",
     afterChecks: async (page, viewport) => {
       await page.locator(".student-assignment-board").first().waitFor({ state: "visible", timeout: 10000 });
       const navCount = await page.locator(".top-nav__link").count();
       const inviteFormCount = await page.locator("text=输入邀请码").count();
       const homeText = ((await page.locator(".student-home").first().textContent()) || "").replace(/\s+/g, "");
       const taskRows = page.locator(".student-learning-task-list > .student-entry-link");
-      const assignmentRows = page.locator(".student-learning-task-list > .student-assignment-row:not(.student-public-task-row)");
-      const publicRows = page.locator(".student-public-task-row");
+      const assignmentRows = page.locator(".student-learning-task-list > .student-assignment-row");
+      const selfPracticeRows = page.locator(".student-self-practice-row");
       const taskRowCount = await taskRows.count();
       const assignmentRowCount = await assignmentRows.count();
       const progressCount = await assignmentRows.locator(".student-assignment-row__progress").count();
@@ -1243,10 +1320,10 @@ const scenarios = [
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
       record("student home keeps role top nav only", navCount === 2 && navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("student identity lives in header", headerLoginCount >= 1, `header identity count ${headerLoginCount}`);
-      record("student home uses one learning task board", homeText.includes("学习任务") && await page.locator(".student-assignment-board").count() === 1, homeText);
-      record("student home pins public practice as the first task", await publicRows.count() === 1 && await taskRows.first().evaluate(element => element.classList.contains("student-public-task-row")), `public rows ${await publicRows.count()}; task rows ${taskRowCount}`);
-      record("student home merges public practice with classroom assignments", taskRowCount === assignmentRowCount + 1 && await page.locator(".student-guest-practice").count() === 0, `tasks ${taskRowCount}; assignments ${assignmentRowCount}`);
-      record("student home keeps public catalog details", homeText.includes("公开练习") && homeText.includes("公共题库") && homeText.includes("基础") && homeText.includes("提高") && homeText.includes("挑战"), homeText);
+      record("student home keeps one classroom task board", homeText.includes("课堂作业") && await page.locator(".student-assignment-board").count() === 1, homeText);
+      record("student home keeps every classroom assignment in the board", taskRowCount === assignmentRowCount && assignmentRowCount === 4, `tasks ${taskRowCount}; assignments ${assignmentRowCount}`);
+      record("student home separates autonomous practice from classroom tasks", await selfPracticeRows.count() === 1 && await page.locator(".student-self-practice").count() === 1, `self practice rows ${await selfPracticeRows.count()}`);
+      record("student home keeps public catalog details", homeText.includes("自主练习") && homeText.includes("公共题库") && homeText.includes("2道题") && homeText.includes("查看题库"), homeText);
       record("student home shows assignment details", homeText.includes("课堂编程作业"), homeText);
       record("student home shows truthful progress for every assignment", progressCount === assignmentRowCount && homeText.includes("1/2") && homeText.includes("3/3"), `progress rows ${progressCount}; ${homeText}`);
       record("student home distinguishes learning states", homeText.includes("待开始") && homeText.includes("进行中") && homeText.includes("已完成") && !homeText.includes("信息技术老师"), homeText);
@@ -1269,31 +1346,31 @@ const scenarios = [
     selectors: [
       [".header-login-link, .header-student-chip", "student header identity"],
       [".student-assignment-board", "student assignment board"],
-      [".student-learning-task-list", "student unified learning task list"],
-      [".student-public-task-row", "student pinned public task"]
+      [".student-learning-task-list", "student classroom task list"],
+      [".student-self-practice-row", "student self practice entry"]
     ]
   },
   {
     name: "student-assignment",
-    path: "/app/student/assignments/7",
+    path: "/code/student/assignments/7",
     afterChecks: async page => {
       const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
       const tabHrefs = await page.locator("[data-student-assignment-navigation] a").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
       const rowCount = await page.locator(".student-assignment-progress-row").count();
       const continueHref = await page.locator(".student-assignment-continue").getAttribute("href");
-      record("student assignment stays on assignment overview", page.url().endsWith("/app/student/assignments/7"), page.url());
+      record("student assignment stays on assignment overview", page.url().endsWith("/code/student/assignments/7"), page.url());
       record(
         "student assignment has canonical four destination navigation",
         tabHrefs.length === 4
-          && tabHrefs[0] === "/app/student/assignments/7"
-          && tabHrefs[1]?.startsWith("/app/student/assignments/7/problems/")
-          && tabHrefs[2] === "/app/student/assignments/7/submissions"
-          && tabHrefs[3] === "/app/student/assignments/7/ranking",
+          && tabHrefs[0] === "/code/student/assignments/7"
+          && tabHrefs[1]?.startsWith("/code/student/assignments/7/problems/")
+          && tabHrefs[2] === "/code/student/assignments/7/submissions"
+          && tabHrefs[3] === "/code/student/assignments/7/ranking",
         tabHrefs.join("|")
       );
       record("student assignment summary uses trajectory facts", pageText.includes("进度1/2") && pageText.includes("已通过1题") && pageText.includes("总提交4"), pageText);
       record("student assignment lists every task", rowCount === assignment.tasks.length, `rows ${rowCount}`);
-      record("student assignment continue action opens coding page", continueHref?.startsWith("/app/student/assignments/7/problems/") === true, continueHref || "missing");
+      record("student assignment continue action opens coding page", continueHref?.startsWith("/code/student/assignments/7/problems/") === true, continueHref || "missing");
     },
     selectors: [
       [".student-assignment-insights-page", "student assignment overview"],
@@ -1303,13 +1380,13 @@ const scenarios = [
   },
   {
     name: "student-assignment-ranking",
-    path: "/app/student/assignments/7/ranking",
+    path: "/code/student/assignments/7/ranking",
     afterChecks: async page => {
       const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
       const currentRows = await page.locator(".student-ranking-row.is-current").count();
       const currentText = ((await page.locator(".student-ranking-row.is-current").textContent()) || "").replace(/\s+/g, "");
       const tabHrefs = await page.locator("[data-student-assignment-navigation] a").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
-      record("student ranking route is stable", page.url().endsWith("/app/student/assignments/7/ranking"), page.url());
+      record("student ranking route is stable", page.url().endsWith("/code/student/assignments/7/ranking"), page.url());
       record("student ranking highlights current student", currentRows === 1 && currentText.includes("学生甲（我）") && currentText.includes("4"), currentText);
       record("student ranking masks classmates", pageText.includes("王同学") && !pageText.includes("王小明"), pageText);
       record("student ranking explains progress-only ties", pageText.includes("按已通过题数排名") && pageText.includes("同完成度并列") && pageText.includes("不按运行时间或提交速度"), pageText);
@@ -1324,7 +1401,7 @@ const scenarios = [
   },
   {
     name: "student-assignment-submissions",
-    path: "/app/student/assignments/7/submissions",
+    path: "/code/student/assignments/7/submissions",
     afterChecks: async (page, viewport) => {
       const rowCount = await page.locator(".student-submission-row").count();
       const pageText = ((await page.locator(".student-assignment-insights-page").textContent()) || "").replace(/\s+/g, "");
@@ -1335,7 +1412,7 @@ const scenarios = [
       }));
       const visibleFilterLabels = await page.locator(".student-submission-filter-label").allTextContents();
       const languageOptions = await page.locator(".student-submission-filter--language option").allTextContents();
-      record("student submissions route is stable", page.url().endsWith("/app/student/assignments/7/submissions"), page.url());
+      record("student submissions route is stable", page.url().endsWith("/code/student/assignments/7/submissions"), page.url());
       record("student submissions omit the redundant summary band", await page.locator(".student-submission-summary").count() === 0);
       record("student submissions paginate first page", rowCount === 8, `rows ${rowCount}`);
       record("student submissions hides assistive-only labels", hiddenLabelMetrics.length === 4 && hiddenLabelMetrics.every(item => item.width <= 1 && item.height <= 1 && item.position === "absolute"), JSON.stringify(hiddenLabelMetrics));
@@ -1372,7 +1449,7 @@ const scenarios = [
       await page.getByRole("button", { name: "全部", exact: true }).click();
       await page.waitForFunction(() => document.querySelectorAll(".student-submission-row").length === 8);
       await page.getByRole("link", { name: "查看 AI 评测" }).first().click();
-      await page.waitForURL(url => url.pathname === "/app/student/assignments/7/problems/101" && url.searchParams.get("submissionId") === "9001", { timeout: 5000 });
+      await page.waitForURL(url => url.pathname === "/code/student/assignments/7/problems/101" && url.searchParams.get("submissionId") === "9001", { timeout: 5000 });
       await page.locator(".problem-result-modal").waitFor({ state: "visible", timeout: 10000 });
       await page.waitForFunction(() => document.querySelector(".problem-result-modal")?.textContent?.includes("输入没有完整读取"), null, { timeout: 10000 });
       const returnToSubmissions = page.getByRole("link", { name: "返回提交记录" });
@@ -1384,7 +1461,7 @@ const scenarios = [
         `${page.url()} | ${linkedReviewText}`
       );
       await page.getByRole("button", { name: "关闭结果" }).click();
-      await page.waitForURL("**/app/student/assignments/7/submissions", { timeout: 5000 });
+      await page.waitForURL("**/code/student/assignments/7/submissions", { timeout: 5000 });
       await page.locator(".student-submission-history").waitFor({ state: "visible", timeout: 10000 });
     },
     selectors: [
@@ -1395,7 +1472,7 @@ const scenarios = [
   },
   {
     name: "problem",
-    path: "/app/student/assignments/7/problems/101?studentProfileId=41&recommendationToken=rec-next-101",
+    path: "/code/student/assignments/7/problems/101?studentProfileId=41&recommendationToken=rec-next-101",
     beforeChecks: async page => {
       const runPanel = page.locator(".code-run-panel");
       const runToggle = runPanel.getByRole("button", { name: "展开测试运行" });
@@ -1754,14 +1831,14 @@ const scenarios = [
   },
   {
     name: "teacher",
-    path: "/app/teacher",
+    path: "/code/teacher",
     afterChecks: async (page, viewport) => {
       const shellText = ((await page.locator(".teacher-shell-nav").first().textContent()) || "").replace(/\s+/g, "");
       const teacherText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
       record("teacher shell nav uses analytics entry", shellText.includes("教学分析") && !shellText.includes("作业中心班级学情"), shellText);
       record("teacher root redirects to class chooser", teacherText.includes("选择班级") && teacherText.includes("高一1班"), teacherText.slice(0, 800));
       record("teacher analytics avoids decision copy", !teacherText.includes("下一步") && !teacherText.includes("建议") && !teacherText.includes("讲评"), teacherText.slice(0, 800));
-      record("teacher create action goes to dedicated page", await page.locator('a[href="/app/teacher/assignment/new"]').first().isVisible(), teacherText.slice(0, 800));
+      record("teacher create action goes to dedicated page", await page.locator('a[href="/code/teacher/assignment/new"]').first().isVisible(), teacherText.slice(0, 800));
       record(
         "teacher main copy hides engineering tokens",
         !/BLOCKED|RECOVERED|NOT_COMPARABLE|fallback|smoke|profile/i.test(teacherText),
@@ -1771,44 +1848,39 @@ const scenarios = [
         await checkElementMaxWidth(page, ".teacher-analytics-page", 1440, "teacher desktop analytics width");
       }
       if (viewport.name === "mobile") {
-        await checkMinControlHeight(page, ".teacher-analytics-hero .ui-button", 36, "teacher mobile primary action");
+        await checkMinControlHeight(page, ".teacher-analytics-pagebar .ui-button", 36, "teacher mobile primary action");
       }
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],
       [".teacher-analytics-page", "teacher analytics page"],
-      [".teacher-analytics-hero", "teacher analytics hero"],
+      [".teacher-analytics-pagebar", "teacher analytics page bar"],
       [".teacher-analytics-class-card", "teacher class card"]
     ]
   },
   {
     name: "assignment-analytics",
-    path: "/app/teacher/classes/3/assignments/7",
+    path: "/code/teacher/classes/3/assignments/7",
     afterChecks: async (page, viewport) => {
       const assignmentText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("assignment analytics exposes objective metrics", assignmentText.includes("提交人数") && assignmentText.includes("正确率") && assignmentText.includes("平均提交"), assignmentText.slice(0, 900));
+      record("assignment analytics exposes only decision-ready status", assignmentText.includes("在册人数") && assignmentText.includes("提交人数") && assignmentText.includes("未提交人数") && assignmentText.includes("完成全部必做题0"), assignmentText.slice(0, 900));
       record("assignment analytics lists problems", assignmentText.includes("求和边界") && assignmentText.includes("循环边界"), assignmentText.slice(0, 900));
-      record("assignment analytics has AI attribution", assignmentText.includes("AI知识归因") && assignmentText.includes("当前知识路径"), assignmentText.slice(0, 900));
       record("assignment analytics avoids teacher decision language", !assignmentText.includes("下一步") && !assignmentText.includes("讲评"), assignmentText.slice(0, 900));
-      record("assignment analytics normalizes percent fields", assignmentText.includes("40%") && assignmentText.includes("83%") && !assignmentText.includes("4000%") && !assignmentText.includes("8330%"), assignmentText.slice(0, 900));
       if (viewport.name === "desktop") {
         await checkElementMaxWidth(page, ".teacher-analytics-page", 1440, "assignment desktop analytics width");
-      }
-      if (viewport.name === "mobile") {
-        await checkMinControlHeight(page, ".teacher-analytics-granularity button", 32, "assignment mobile granularity controls");
       }
     },
     selectors: [
       [".teacher-analytics-page", "assignment analytics page"],
+      [".teacher-analytics-pagebar", "assignment page bar"],
       [".teacher-analytics-summary", "assignment analytics metrics"],
-      [".teacher-analytics-board", "assignment analytics board"],
-      [".teacher-analytics-ai-panel", "assignment AI attribution"],
-      [".teacher-analytics-table-row", "assignment problem rows"]
+      [".teacher-analytics-focus-panel", "assignment problem workspace"],
+      [".teacher-analytics-focus-row--problem", "assignment problem rows"]
     ]
   },
   {
     name: "assignment-create",
-    path: "/app/teacher/assignment/new",
+    path: "/code/teacher/assignment/new",
     afterChecks: async page => {
       const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
       const createText = ((await page.locator(".assignment-builder-page").first().textContent()) || "").replace(/\s+/g, "");
@@ -1829,14 +1901,14 @@ const scenarios = [
   },
   {
     name: "teacher-auth-resilience",
-    path: "/app/teacher/manage/classes",
+    path: "/code/teacher/manage/classes",
     afterChecks: async page => {
       record(
         "teacher session recovers from one transient gateway failure",
         accountSessionCallCount === 2 && await page.locator(".teacher-auth-panel").count() === 0,
         `session calls ${accountSessionCallCount}`
       );
-      await page.locator('a[href="/app/teacher/manage/problems"]').click();
+      await page.locator('a[href="/code/teacher/manage/problems"]').click();
       await page.locator(".management-object-workbench--problems").waitFor({ state: "visible", timeout: 10000 });
       record(
         "teacher navigation reuses the resolved account session",
@@ -1851,11 +1923,11 @@ const scenarios = [
   },
   {
     name: "teacher-management",
-    path: "/app/teacher/manage",
+    path: "/code/teacher/manage",
     afterChecks: async (page, viewport) => {
       const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
       const managementText = ((await page.locator(".teacher-manage-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("teacher management redirects to class roster", page.url().includes("/app/teacher/manage/classes"), page.url());
+      record("teacher management redirects to class roster", page.url().includes("/code/teacher/manage/classes"), page.url());
       record("teacher management belongs to roster nav", activeNav.join("|").includes("班级名单"), activeNav.join("|"));
       record("teacher management does not also mark analytics", !activeNav.join("|").includes("教学分析"), activeNav.join("|"));
       record("teacher management shows roster-first class workspace", managementText.includes("班级名单") && managementText.includes("学生名单") && managementText.includes("创建班级") && managementText.includes("导入或更新名单"), managementText.slice(0, 900));
@@ -1953,7 +2025,7 @@ const scenarios = [
   },
   {
     name: "teacher-management-problems",
-    path: "/app/teacher/manage/problems",
+    path: "/code/teacher/manage/problems",
     afterChecks: async (page, viewport) => {
       const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
       const main = page.locator(".management-object-main").first();
@@ -2016,7 +2088,7 @@ const scenarios = [
   },
   {
     name: "teacher-management-system",
-    path: "/app/teacher/manage/system",
+    path: "/code/teacher/manage/system",
     afterChecks: async (page, viewport) => {
       const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
       const systemText = ((await page.locator(".teacher-manage-page").first().textContent()) || "").replace(/\s+/g, "");
@@ -2038,54 +2110,43 @@ const scenarios = [
   },
   {
     name: "class-analytics",
-    path: "/app/teacher/classes/3",
+    path: "/code/teacher/classes/3",
     beforeChecks: async (page) => {
-      await checkVisible(page, ".teacher-analytics-board", "class analytics board");
+      await checkVisible(page, ".teacher-analytics-focus-panel", "class assignment workspace");
     },
     afterChecks: async page => {
       const classText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("class analytics keeps class assignment problem hierarchy", classText.includes("高一1班") && classText.includes("作业列表") && classText.includes("课堂编程作业"), classText.slice(0, 900));
-      record("class analytics shows knowledge attribution", classText.includes("AI知识归因") && classText.includes("知识路径"), classText.slice(0, 900));
-      record(
-        "class analytics exposes distinct and weighted issue metrics",
-        classText.includes("按涉及人数") && classText.includes("按有效次数") && classText.includes("原始8次") && classText.includes("有效6次") && classText.includes("班级重难点"),
-        classText.slice(0, 1100)
-      );
-      record("class analytics normalizes percent fields", classText.includes("40%") && classText.includes("83%") && !classText.includes("4000%") && !classText.includes("8330%"), classText.slice(0, 900));
+      record("class analytics keeps class assignment hierarchy", classText.includes("高一1班") && classText.includes("作业完成情况") && classText.includes("课堂编程作业"), classText.slice(0, 900));
+      record("class analytics exposes compact participation status", classText.includes("作业数") && classText.includes("在册人数") && classText.includes("提交人数") && classText.includes("未提交人数"), classText.slice(0, 900));
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],
       [".teacher-analytics-page", "class analytics page"],
+      [".teacher-analytics-pagebar", "class analytics page bar"],
       [".teacher-analytics-summary", "class metrics"],
-      [".teacher-analytics-board", "class analytics board"],
-      [".teacher-analytics-ai-panel", "class AI attribution"]
+      [".teacher-analytics-focus-panel", "class assignment workspace"],
+      [".teacher-analytics-focus-row", "class assignment rows"]
     ]
   },
   {
     name: "problem-analytics",
-    path: "/app/teacher/classes/3/assignments/7/problems/101",
+    path: "/code/teacher/classes/3/assignments/7/problems/101",
     afterChecks: async page => {
       const problemText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
-      record("problem analytics shows problem objective results", problemText.includes("求和边界") && problemText.includes("未通过人数") && problemText.includes("证据样本"), problemText.slice(0, 900));
-      record("problem analytics exposes correction in evidence layer", problemText.includes("校正归因") && !problemText.includes("教师动作"), problemText.slice(0, 900));
-      record("problem analytics shows observational feedback impact", problemText.includes("查看反馈后的表现") && problemText.includes("查看反馈后改善") && problemText.includes("不能单独证明"), problemText.slice(0, 900));
-      record("problem analytics exposes four correction types", problemText.includes("错因判断") && problemText.includes("知识路径") && problemText.includes("证据引用") && problemText.includes("反馈内容"), problemText.slice(0, 900));
+      record("problem analytics shows objective status", problemText.includes("求和边界") && problemText.includes("提交人数") && problemText.includes("一次通过人数") && problemText.includes("最终通过人数") && problemText.includes("有效修改"), problemText.slice(0, 900));
+      record("problem analytics exposes issue-to-student workspace", problemText.includes("全班问题") && problemText.includes("遇到过") && problemText.includes("反复出现") && problemText.includes("后来解决") && problemText.includes("学生提交情况"), problemText.slice(0, 900));
       record("problem analytics avoids decision copy", !problemText.includes("下一步") && !problemText.includes("讲评"), problemText.slice(0, 900));
-      record("problem analytics normalizes percent fields", problemText.includes("40%") && !problemText.includes("4000%"), problemText.slice(0, 900));
       await page.locator(".language-toggle").dispatchEvent("click");
       await page.waitForTimeout(80);
-      const englishProblemText = ((await page.locator(".teacher-analytics-evidence").first().textContent()) || "").replace(/\s+/g, "");
+      const englishProblemText = ((await page.locator(".teacher-problem-evidence-layout").first().textContent()) || "").replace(/\s+/g, "");
       record(
-        "problem analytics renders feedback loop and correction fields in English",
-        englishProblemText.includes("Performanceafterviewingfeedback") &&
-          englishProblemText.includes("Improvedafterviewingfeedback") &&
-          englishProblemText.includes("Correctiontype") &&
-          englishProblemText.includes("Issuediagnosis") &&
-          englishProblemText.includes("Knowledgepath") &&
-          englishProblemText.includes("Evidencereference") &&
-          englishProblemText.includes("Feedbackcontent") &&
-          !englishProblemText.includes("查看建议后") &&
-          !englishProblemText.includes("学生查看建议后"),
+        "problem analytics renders issue-to-student workspace in English",
+        englishProblemText.includes("Classissues") &&
+          englishProblemText.includes("Encountered") &&
+          englishProblemText.includes("Repeated") &&
+          englishProblemText.includes("Laterresolved") &&
+          !englishProblemText.includes("全班问题") &&
+          !englishProblemText.includes("反复出现"),
         englishProblemText.slice(0, 900)
       );
       await page.screenshot({
@@ -2097,14 +2158,16 @@ const scenarios = [
     },
     selectors: [
       [".teacher-analytics-page", "problem analytics page"],
+      [".teacher-analytics-pagebar", "problem page bar"],
       [".teacher-analytics-summary", "problem metrics"],
-      [".teacher-analytics-evidence", "problem evidence samples"],
-      [".teacher-analytics-correction", "problem correction layer"]
+      [".teacher-problem-evidence-layout", "problem issue and student workspace"],
+      [".teacher-issue-counts", "problem issue groups"],
+      [".teacher-student-growth-row", "problem student evidence row"]
     ]
   },
   {
     name: "platform-admin",
-    path: "/app/platform-admin",
+    path: "/code/platform-admin",
     afterChecks: async (page, viewport) => {
       const text = ((await page.locator(".admin-workspace").textContent()) || "").replace(/\s+/g, "");
       record("platform workspace only shows school and platform governance", text.includes("平台管理工作台") && text.includes("创建学校与校管") && text.includes("共建与公共题审核"), text.slice(0, 900));
@@ -2132,7 +2195,7 @@ const scenarios = [
   },
   {
     name: "school-admin",
-    path: "/app/school-admin",
+    path: "/code/school-admin",
     afterChecks: async (page, viewport) => {
       const text = ((await page.locator(".admin-workspace").textContent()) || "").replace(/\s+/g, "");
       record("school workspace shows delegated governance", text.includes("温州试点中学") && text.includes("教师申请") && text.includes("教师额度分配"), text.slice(0, 900));
@@ -2255,7 +2318,7 @@ async function empty(route, status = 204) {
 async function routeApi(route) {
   const request = route.request();
   const url = new URL(request.url());
-  const path = url.pathname;
+  const path = url.pathname.replace(/^\/code/, "");
   const method = request.method();
 
   if (path === "/api/invites/resolve" && method === "POST") return json(route, assignment);
@@ -2265,7 +2328,7 @@ async function routeApi(route) {
       return json(route, { code: "SERVICE_UNAVAILABLE", error: "服务暂不可用" }, 502);
     }
     const referer = request.headers()["referer"] || "";
-    const role = referer.includes("/app/platform-admin") ? "PLATFORM_ADMIN" : referer.includes("/app/school-admin") ? "SCHOOL_ADMIN" : "TEACHER";
+    const role = referer.includes("/code/platform-admin") ? "PLATFORM_ADMIN" : referer.includes("/code/school-admin") ? "SCHOOL_ADMIN" : "TEACHER";
     return json(route, {
       authenticated: true,
       teacherId: "00000000-0000-0000-0000-000000000101",
@@ -2395,8 +2458,10 @@ async function routeApi(route) {
     });
   }
   if (path === "/api/submissions/problem/101/history-summary") return json(route, history);
+  if (path === "/api/submissions/9001/learning-proof") return json(route, learningProof);
 
   if (path === "/api/teacher/classes") return json(route, classes);
+  if (path === "/api/teacher/classes/3/learning-overview") return json(route, classLearningOverview);
   if (path === "/api/teacher/classes/3/students") return json(route, [student]);
   if (path === "/api/teacher/usage/current") {
     return json(route, {
@@ -2416,6 +2481,7 @@ async function routeApi(route) {
   if (path === "/api/teacher/assignments") return json(route, [assignment]);
   if (path === "/api/teacher/assignments/7") return json(route, assignment);
   if (path === "/api/teacher/assignments/7/overview") return json(route, assignmentOverview);
+  if (path === "/api/teacher/assignments/7/problems/101/learning-proof") return json(route, teacherProblemLearningProof);
   if (path === "/api/teacher/assignments/7/ai-quality") return json(route, aiQualityOverview);
   if (path === "/api/teacher/assignments/7/student-ai-feedback-observability") return json(route, studentAiFeedbackObservability);
   if (path === "/api/teacher/ai-quality/trend") return json(route, aiQualityTrend);
@@ -2604,47 +2670,52 @@ async function runScenario(baseUrl, browser, viewport, scenario) {
     window.sessionStorage.setItem("wzai:student", studentJson);
     window.sessionStorage.setItem("wzai:student:7", studentJson);
   }, { studentJson: JSON.stringify(student) });
-  await context.route("**/api/**", routeApi);
+  await context.route("**/code/api/**", routeApi);
 
   const page = await context.newPage();
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
 
   const label = `${scenario.name} ${viewport.name}`;
-  await page.goto(`${baseUrl}${scenario.path}`, { waitUntil: "domcontentloaded" });
-  await page.locator(".app-shell").first().waitFor({ state: "visible", timeout: 10000 });
-  if (scenario.beforeChecks) {
-    await scenario.beforeChecks(page, viewport);
+  try {
+    await page.goto(`${baseUrl}${scenario.path}`, { waitUntil: "domcontentloaded" });
+    await page.locator(".app-shell").first().waitFor({ state: "visible", timeout: 10000 });
+    if (scenario.beforeChecks) {
+      await scenario.beforeChecks(page, viewport);
+    }
+
+    for (const [selector, selectorLabel] of scenario.selectors) {
+      await checkVisible(page, selector, `${label} ${selectorLabel}`);
+    }
+    if (scenario.afterChecks) {
+      await scenario.afterChecks(page, viewport);
+    }
+    await checkNoHorizontalOverflow(page, label);
+    await checkImportantControlsVisible(page, label);
+    record(`${label} no page errors`, pageErrors.length === 0, pageErrors.join(" | "));
+
+    await page.screenshot({
+      path: join(artifactDir, `${scenario.name}-${viewport.name}-light.png`),
+      fullPage: true
+    });
+
+    await page.evaluate(() => {
+      document.documentElement.dataset.theme = "dark";
+      window.localStorage.setItem("wzai:theme", "dark");
+    });
+    await page.waitForTimeout(120);
+    await checkNoHorizontalOverflow(page, `${label} dark`);
+    await checkDarkReadable(page, scenario.selectors[0][0], label);
+    await page.screenshot({
+      path: join(artifactDir, `${scenario.name}-${viewport.name}-dark.png`),
+      fullPage: true
+    });
+  } catch (error) {
+    const body = ((await page.locator("body").textContent().catch(() => "")) || "").replace(/\s+/g, " ").slice(0, 800);
+    throw new Error(`${label}: ${error.message}; url=${page.url()}; body=${body}; pageErrors=${pageErrors.join(" | ")}`);
+  } finally {
+    await context.close();
   }
-
-  for (const [selector, selectorLabel] of scenario.selectors) {
-    await checkVisible(page, selector, `${label} ${selectorLabel}`);
-  }
-  if (scenario.afterChecks) {
-    await scenario.afterChecks(page, viewport);
-  }
-  await checkNoHorizontalOverflow(page, label);
-  await checkImportantControlsVisible(page, label);
-  record(`${label} no page errors`, pageErrors.length === 0, pageErrors.join(" | "));
-
-  await page.screenshot({
-    path: join(artifactDir, `${scenario.name}-${viewport.name}-light.png`),
-    fullPage: true
-  });
-
-  await page.evaluate(() => {
-    document.documentElement.dataset.theme = "dark";
-    window.localStorage.setItem("wzai:theme", "dark");
-  });
-  await page.waitForTimeout(120);
-  await checkNoHorizontalOverflow(page, `${label} dark`);
-  await checkDarkReadable(page, scenario.selectors[0][0], label);
-  await page.screenshot({
-    path: join(artifactDir, `${scenario.name}-${viewport.name}-dark.png`),
-    fullPage: true
-  });
-
-  await context.close();
 }
 
 async function main() {
@@ -2678,7 +2749,7 @@ async function main() {
 
   let browser;
   try {
-    await waitForServer(`${baseUrl}/app/`, child, previewOutput);
+    await waitForServer(`${baseUrl}/code/`, child, previewOutput);
     try {
       browser = await chromium.launch({
         headless: true,

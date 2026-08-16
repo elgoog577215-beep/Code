@@ -16,4 +16,3 @@ public interface TeacherSessionRepository extends JpaRepository<TeacherSession, 
     @Query("update TeacherSession s set s.revokedAt = :now where s.teacherId = :teacherId and s.revokedAt is null")
     int revokeAll(UUID teacherId, Instant now);
 }
-

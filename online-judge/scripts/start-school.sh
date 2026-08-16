@@ -21,5 +21,5 @@ if ! docker compose up --no-build -d; then
   echo "Or load a verified release image before retrying. Production startup never builds images." >&2
   exit 1
 fi
-echo "Wenzhong OJ is starting at http://localhost:${SERVER_PORT:-8081}/app/"
-echo "Teacher/system status: http://localhost:${SERVER_PORT:-8081}/app/teacher-management"
+echo "Wenzhong OJ is starting at http://localhost:${SERVER_PORT:-8081}/code/"
+echo "Teacher/system status: http://localhost:${SERVER_PORT:-8081}/code/teacher-management"

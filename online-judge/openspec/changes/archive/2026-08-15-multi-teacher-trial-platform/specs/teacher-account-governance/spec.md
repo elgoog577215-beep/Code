@@ -47,4 +47,3 @@
 #### Scenario: 普通教师调用管理接口
 - **WHEN** `TEACHER` 角色请求任一管理接口
 - **THEN** 系统 SHALL 返回 `FORBIDDEN`
-

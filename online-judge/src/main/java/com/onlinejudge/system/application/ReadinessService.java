@@ -18,11 +18,13 @@ import com.onlinejudge.aiquota.persistence.TeacherAiQuotaRepository;
 import com.onlinejudge.aiquota.persistence.SchoolAiQuotaRepository;
 import com.onlinejudge.organization.domain.School;
 import com.onlinejudge.organization.persistence.SchoolRepository;
+import com.onlinejudge.problem.persistence.TestCaseRepository;
 import com.onlinejudge.system.dto.AiSmokeResponse;
 import com.onlinejudge.system.dto.ExecutorStatusResponse;
 import com.onlinejudge.system.dto.ReadinessResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.flywaydb.core.Flyway;
 
@@ -41,6 +43,7 @@ public class ReadinessService {
     private final SchoolSecurityProperties securityProperties;
     private final AiStandardLibraryGrowthProperties growthProperties;
     private final ProblemRepository problemRepository;
+    private final TestCaseRepository testCaseRepository;
     private final InformaticsKnowledgeNodeRepository knowledgeNodeRepository;
     private final AiStandardSkillUnitRepository skillUnitRepository;
     private final AiStandardMistakePointRepository mistakePointRepository;
@@ -67,8 +70,23 @@ public class ReadinessService {
                             AiStandardMistakePointRepository mistakePointRepository,
                             AiStandardImprovementPointRepository improvementPointRepository) {
         this(executorStatusService, aiSmokeService, securityProperties, growthProperties, problemRepository,
-                knowledgeNodeRepository, skillUnitRepository, mistakePointRepository, improvementPointRepository,
+                null, knowledgeNodeRepository, skillUnitRepository, mistakePointRepository, improvementPointRepository,
                 null, null, null, null, null, null, null);
+    }
+
+    public ReadinessService(ExecutorStatusService executorStatusService,
+                            AiSmokeService aiSmokeService,
+                            SchoolSecurityProperties securityProperties,
+                            AiStandardLibraryGrowthProperties growthProperties,
+                            ProblemRepository problemRepository,
+                            TestCaseRepository testCaseRepository,
+                            InformaticsKnowledgeNodeRepository knowledgeNodeRepository,
+                            AiStandardSkillUnitRepository skillUnitRepository,
+                            AiStandardMistakePointRepository mistakePointRepository,
+                            AiStandardImprovementPointRepository improvementPointRepository) {
+        this(executorStatusService, aiSmokeService, securityProperties, growthProperties, problemRepository,
+                testCaseRepository, knowledgeNodeRepository, skillUnitRepository, mistakePointRepository,
+                improvementPointRepository, null, null, null, null, null, null, null);
     }
 
     @Autowired
@@ -77,6 +95,7 @@ public class ReadinessService {
                             SchoolSecurityProperties securityProperties,
                             AiStandardLibraryGrowthProperties growthProperties,
                             ProblemRepository problemRepository,
+                            TestCaseRepository testCaseRepository,
                             InformaticsKnowledgeNodeRepository knowledgeNodeRepository,
                             AiStandardSkillUnitRepository skillUnitRepository,
                             AiStandardMistakePointRepository mistakePointRepository,
@@ -87,12 +106,13 @@ public class ReadinessService {
                             StudentProfileRepository studentProfileRepository,
                             TeacherAiQuotaRepository teacherAiQuotaRepository,
                             AiProviderGateway aiProviderGateway,
-                            Flyway flyway) {
+                            @Nullable Flyway flyway) {
         this.executorStatusService = executorStatusService;
         this.aiSmokeService = aiSmokeService;
         this.securityProperties = securityProperties;
         this.growthProperties = growthProperties;
         this.problemRepository = problemRepository;
+        this.testCaseRepository = testCaseRepository;
         this.knowledgeNodeRepository = knowledgeNodeRepository;
         this.skillUnitRepository = skillUnitRepository;
         this.mistakePointRepository = mistakePointRepository;
@@ -270,11 +290,16 @@ public class ReadinessService {
     private ReadinessResponse.Check databaseContentCheck() {
         try {
             long problems = problemRepository.count();
+            long testCases = testCaseRepository.count();
+            long reviewedSemanticTestCases =
+                    testCaseRepository.countBySemanticCodeIsNotNullAndReviewStatus("REVIEWED");
             long knowledgeNodes = knowledgeNodeRepository.countByEnabledTrue();
             long skills = skillUnitRepository.countByEnabledTrue();
             long mistakes = mistakePointRepository.countByEnabledTrue();
             long improvements = improvementPointRepository.countByEnabledTrue();
             boolean ready = problems > 0
+                    && testCases > 0
+                    && reviewedSemanticTestCases == testCases
                     && knowledgeNodes > 0
                     && skills > 0
                     && mistakes > 0
@@ -285,9 +310,10 @@ public class ReadinessService {
                     ready ? "PASS" : securityProperties.schoolProfile() ? "FAIL" : "WARN",
                     securityProperties.schoolProfile() && !ready,
                     ready
-                            ? "正式数据库已有题库、知识树和 AI 标准库内容。"
-                            : "正式数据库内容不完整：problems=%d, knowledgeNodes=%d, skills=%d, mistakes=%d, improvements=%d。"
-                            .formatted(problems, knowledgeNodes, skills, mistakes, improvements),
+                            ? "正式数据库已有题库、测试点语义、知识树和 AI 标准库内容。"
+                            : "正式数据库内容不完整：problems=%d, testCases=%d, reviewedSemanticTestCases=%d, knowledgeNodes=%d, skills=%d, mistakes=%d, improvements=%d。"
+                            .formatted(problems, testCases, reviewedSemanticTestCases,
+                                    knowledgeNodes, skills, mistakes, improvements),
                     ready
                             ? "继续使用数据库作为正式内容主库。"
                             : "先执行数据库内容迁移和验证，不要依赖运行时 seed 自动补齐。"

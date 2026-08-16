@@ -8,6 +8,7 @@ FROM ${NODE_BASE_IMAGE} AS frontend-build
 WORKDIR /workspace/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
+COPY config/route-ownership.json /workspace/config/route-ownership.json
 COPY frontend ./
 RUN npm run build
 
@@ -17,7 +18,7 @@ WORKDIR /workspace
 COPY pom.xml mvnw mvnw.cmd ./
 COPY .mvn .mvn
 COPY src src
-COPY --from=frontend-build /workspace/src/main/resources/static/app src/main/resources/static/app
+COPY --from=frontend-build /workspace/src/main/resources/static src/main/resources/static
 RUN ./mvnw -Dmaven.test.skip=true -Dskip.frontend=true package
 
 FROM ${DOCKER_CLI_IMAGE} AS docker-cli

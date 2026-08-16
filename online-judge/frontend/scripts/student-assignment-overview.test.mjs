@@ -54,8 +54,8 @@ test("assignment overview follows the left-rail workspace concept", async () => 
     window.sessionStorage.setItem("wzai:student", JSON.stringify(value));
     window.sessionStorage.setItem("wzai:student:7", JSON.stringify(value));
   }, student);
-  await context.route("**/api/**", async route => {
-    const path = new URL(route.request().url()).pathname;
+  await context.route("**/code/api/**", async route => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/code/, "");
     const body = path === "/api/student/profile/41/assignments"
       ? [assignment]
       : path === "/api/student/assignments/7/profile/41/trajectory"
@@ -75,7 +75,7 @@ test("assignment overview follows the left-rail workspace concept", async () => 
       if (message.type() === "error") browserErrors.push(message.text());
     });
     page.on("pageerror", error => browserErrors.push(error.message));
-    await page.goto(`${baseUrl}/app/student/assignments/7`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/code/student/assignments/7`, { waitUntil: "domcontentloaded" });
     await page.locator(".student-assignment-progress-row").first().waitFor({ state: "visible" });
 
     assert.equal(await page.locator(".student-assignment-insights-tabs").count(), 0);
@@ -102,7 +102,7 @@ test("assignment overview follows the left-rail workspace concept", async () => 
       await page.screenshot({ path: process.env.STUDENT_ASSIGNMENT_OVERVIEW_SCREENSHOT, fullPage: true });
     }
     await page.getByRole("link", { name: "题目", exact: true }).click();
-    await page.waitForURL(url => url.pathname === "/app/student/assignments/7/problems/102", { timeout: 5000 });
+    await page.waitForURL(url => url.pathname === "/code/student/assignments/7/problems/102", { timeout: 5000 });
     await page.locator(".panel--statement").waitFor({ state: "visible" });
     assert.equal(await page.locator("#code-workbench").count(), 1);
     assert.equal(await page.getByRole("button", { name: "提交代码" }).count(), 1);

@@ -112,6 +112,43 @@ class SubmissionIssueLifecycleServiceTest {
         assertThat(followupTransition.getTransitionType()).isEqualTo("PERSISTED");
     }
 
+    @Test
+    void upgradesTextFingerprintToStableProvisionalIdentityIdempotently() {
+        SubmissionDiagnosisFactRepository factRepository = mock(SubmissionDiagnosisFactRepository.class);
+        SubmissionIssueLifecycleService service = new SubmissionIssueLifecycleService(
+                mock(SubmissionRepository.class),
+                mock(SubmissionAnalysisRepository.class),
+                factRepository,
+                mock(SubmissionIssueTransitionRepository.class),
+                new IssuePointKeyFactory(),
+                new SubmissionEvidenceProperties(),
+                new ObjectMapper()
+        );
+        SubmissionDiagnosisFact fact = SubmissionDiagnosisFact.builder()
+                .id(88L)
+                .submissionId(9L)
+                .analysisId(10L)
+                .factKey("10:REPAIR:I1:0")
+                .factType("REPAIR")
+                .displayCategory("REPAIR")
+                .normalizedPointKey("text:point-key-v1:legacy")
+                .pointKeySource("TEXT_FINGERPRINT")
+                .pointKeyVersion(IssuePointKeyFactory.VERSION)
+                .title("Dijkstra 陈旧状态")
+                .provisionalNodeCode("MP_AI_DIJKSTRA_STALE")
+                .knowledgePathJson("[\"算法\",\"Dijkstra\",\"陈旧状态\"]")
+                .knowledgePathStatus("PROVISIONAL")
+                .libraryFit("PARTIAL")
+                .projectionStatus("READY")
+                .build();
+
+        assertThat(service.normalizeFacts(List.of(fact), false)).isEqualTo(1);
+        assertThat(fact.getNormalizedPointKey()).isEqualTo("provisional:point-key-v1:mp-ai-dijkstra-stale");
+        assertThat(fact.getPointKeySource()).isEqualTo("PROVISIONAL_ID");
+        verify(factRepository).save(fact);
+        assertThat(service.normalizeFacts(List.of(fact), false)).isZero();
+    }
+
     private Submission submission(Long id, String source, Submission.Verdict verdict, LocalDateTime submittedAt) {
         return Submission.builder()
                 .id(id)

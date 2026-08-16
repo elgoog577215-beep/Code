@@ -42,12 +42,54 @@ class SchoolDeploymentScriptSafetyTest {
     }
 
     @Test
+    void githubDeploymentRequiresManualDispatchAndExplicitBuildConfirmation() throws IOException {
+        String workflow = readRepoFile(".github", "workflows", "deploy-online-judge.yml");
+
+        assertThat(workflow).contains("workflow_dispatch:", "deploy-online-judge --confirm-build");
+        assertThat(workflow).doesNotContain("push:");
+    }
+
+    @Test
+    void serverDeploymentEntryUsesGuardedBuildAndSafeStartupScripts() throws IOException {
+        String deploy = read("deploy-online-judge.sh");
+
+        assertThat(deploy).contains(
+                "--confirm-build",
+                "git -C \"${REPO_ROOT}\" fetch origin main",
+                "bash scripts/build-school-images.sh --confirm-build",
+                "bash scripts/start-school.sh",
+                "ROUTE_CONTRACT=\"${OJ_ROUTE_CONTRACT:-${APP_ROOT}/config/route-ownership.json}\"",
+                "SCRIPT_SHA_BEFORE=",
+                "SCRIPT_SHA_AFTER=",
+                "OJ_DEPLOY_REFRESHED=true OJ_DEPLOY_LOCK_HELD=true",
+                "PUBLIC_HOST=\"$(jq -er '.productionHost' \"${ROUTE_CONTRACT}\")\"",
+                "PUBLIC_PATH=\"$(jq -er '.onlineJudge.publicPath' \"${ROUTE_CONTRACT}\")\"",
+                "APP_START_TIMEOUT_SECONDS=\"${OJ_APP_START_TIMEOUT_SECONDS:-120}\"",
+                "APP_START_DEADLINE=$((SECONDS + APP_START_TIMEOUT_SECONDS))",
+                "CADDY_CONFIG=\"${OJ_CADDY_CONFIG:-/etc/caddy/Caddyfile}\"",
+                "caddy validate --config \"${CADDY_CONFIG}\"",
+                "http://127.0.0.1:${SERVER_PORT:-8081}${PUBLIC_PATH}",
+                "http://127.0.0.1:${SERVER_PORT:-8081}${PUBLIC_API_PREFIX}/system/readiness",
+                "--resolve \"${PUBLIC_HOST}:443:127.0.0.1\"",
+                "\"https://${PUBLIC_HOST}${PUBLIC_API_PREFIX}/system/readiness\"",
+                "\"https://${PUBLIC_HOST}${PUBLIC_PREFIX}/student\"",
+                "jq -er '.platform.reservedPaths[]'",
+                "x-proxy-source: ${PROXY_MARKER}"
+        );
+        assertThat(deploy.indexOf("--confirm-build"))
+                .isLessThan(deploy.indexOf("git -C \"${REPO_ROOT}\" fetch origin main"));
+        assertThat(deploy)
+                .doesNotContain("docker compose up", "docker compose build", "code.tuotuzju.com", "nginx -t");
+    }
+
+    @Test
     void deploymentScriptsNeverDeleteDockerVolumesOrBroadRuntimeState() throws IOException {
         for (String scriptName : List.of(
                 "start-school.sh",
                 "start-school.ps1",
                 "build-school-images.sh",
-                "build-school-images.ps1"
+                "build-school-images.ps1",
+                "deploy-online-judge.sh"
         )) {
             assertThat(read(scriptName))
                     .as(scriptName)
@@ -57,5 +99,13 @@ class SchoolDeploymentScriptSafetyTest {
 
     private String read(String scriptName) throws IOException {
         return Files.readString(SCRIPTS.resolve(scriptName));
+    }
+
+    private String readRepoFile(String... parts) throws IOException {
+        Path fromProject = Path.of("..").resolve(Path.of("", parts));
+        if (Files.exists(fromProject)) {
+            return Files.readString(fromProject);
+        }
+        return Files.readString(Path.of("", parts));
     }
 }

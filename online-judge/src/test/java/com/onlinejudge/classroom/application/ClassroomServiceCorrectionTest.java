@@ -179,13 +179,21 @@ class ClassroomServiceCorrectionTest {
                     assertThat(problem.getTopIssues()).extracting("label").containsExactlyInAnyOrder("OFF_BY_ONE", "INPUT_PARSING");
                     assertThat(problem.getAbilityWeaknesses()).extracting("abilityPoint")
                             .containsExactlyInAnyOrder("循环与边界", "题意读取");
-                    assertThat(problem.getStudents()).extracting("studentProfileId").containsExactlyInAnyOrder(1L, 2L);
+                    assertThat(problem.getStudents()).extracting("studentProfileId").containsExactlyInAnyOrder(1L, 2L, 3L);
                     assertThat(problem.getStudents()).filteredOn(student -> student.getStudentProfileId().equals(1L))
                             .singleElement()
                             .satisfies(student -> {
-                                assertThat(student.getLatestAiFeedbackImpact()).isNotNull();
-                                assertThat(student.getLatestAiFeedbackImpact().getStatus()).isEqualTo("IMPROVED_AFTER_AI");
-                                assertThat(student.getLatestAiFeedbackImpact().getStatusLabel()).contains("查看建议后");
+                                assertThat(student.getLatestAiFeedbackImpact()).isNull();
+                                assertThat(student.getLatestVerdict()).isEqualTo("ACCEPTED");
+                            });
+                    assertThat(problem.getStudents()).filteredOn(student -> student.getStudentProfileId().equals(3L))
+                            .singleElement()
+                            .satisfies(student -> {
+                                assertThat(student.getAttemptCount()).isZero();
+                                assertThat(student.getEffectiveAttemptCount()).isZero();
+                                assertThat(student.getLatestSubmissionId()).isNull();
+                                assertThat(student.getLatestVerdict()).isEqualTo("暂无");
+                                assertThat(student.getLatestGrowthSummary()).isNull();
                             });
                 });
         assertThat(overview.getProblemSummaries().get(1))
@@ -195,6 +203,51 @@ class ClassroomServiceCorrectionTest {
                     assertThat(problem.getTopIssues()).extracting("label").containsExactly("DP_STATE_DESIGN");
                     assertThat(problem.getTopIssues()).extracting("label").doesNotContain("OFF_BY_ONE");
                 });
+    }
+
+    @Test
+    void problemSummaryKeepsRosterVisibleBeforeAnySubmission() {
+        FakeStudentProfileRepository studentProfiles = new FakeStudentProfileRepository();
+        FakeAssignmentRepository assignments = new FakeAssignmentRepository();
+        FakeAssignmentTaskRepository assignmentTasks = new FakeAssignmentTaskRepository();
+        FakeProblemRepository problems = new FakeProblemRepository();
+        FakeSubmissionRepository submissions = new FakeSubmissionRepository();
+        FakeSubmissionAnalysisRepository analyses = new FakeSubmissionAnalysisRepository();
+        ClassroomService localService = newClassroomService(assignments, studentProfiles, assignmentTasks, problems, submissions, analyses);
+        Assignment assignment = Assignment.builder()
+                .id(301L)
+                .title("empty roster assignment")
+                .classGroupId(9L)
+                .hintPolicy(Assignment.HintPolicy.L2)
+                .status(Assignment.AssignmentStatus.ACTIVE)
+                .createdAt(LocalDateTime.of(2026, 5, 18, 9, 0))
+                .build();
+        assignments.items.put(assignment.getId(), assignment);
+        assignmentTasks.items.add(AssignmentTask.builder()
+                .id(11L)
+                .assignmentId(assignment.getId())
+                .problemId(101L)
+                .orderIndex(0)
+                .required(true)
+                .build());
+        studentProfiles.items.add(studentProfile(1L, 9L, "01", "小一"));
+        studentProfiles.items.add(studentProfile(2L, 9L, "02", "小二"));
+        problems.items.put(101L, problem(101L, "两数求和"));
+        when(aiFeedbackEventRepository.findByAssignmentIdOrderByCreatedAtDesc(assignment.getId())).thenReturn(List.of());
+
+        var overview = localService.getAssignmentOverview(assignment.getId());
+
+        assertThat(overview.getSubmittedStudentCount()).isZero();
+        assertThat(overview.getProblemSummaries()).singleElement().satisfies(problem -> {
+            assertThat(problem.getSubmittedStudentCount()).isZero();
+            assertThat(problem.getPassedStudentCount()).isZero();
+            assertThat(problem.getEffectiveAttemptCount()).isZero();
+            assertThat(problem.getStudents()).extracting("studentProfileId", "attemptCount", "latestSubmissionId", "latestVerdict")
+                    .containsExactly(
+                            tuple(1L, 0L, null, "暂无"),
+                            tuple(2L, 0L, null, "暂无")
+                    );
+        });
     }
 
     @Test

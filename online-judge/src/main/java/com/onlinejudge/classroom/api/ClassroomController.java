@@ -1,6 +1,7 @@
 package com.onlinejudge.classroom.api;
 
 import com.onlinejudge.classroom.application.ClassroomService;
+import com.onlinejudge.classroom.application.AssignmentReadinessService;
 import com.onlinejudge.classroom.application.AiQualityOverviewService;
 import com.onlinejudge.classroom.application.AiQualityTrendService;
 import com.onlinejudge.classroom.application.ClassReviewFeedbackService;
@@ -12,8 +13,12 @@ import com.onlinejudge.classroom.application.StudentRecommendationEventService;
 import com.onlinejudge.classroom.application.StudentRecommendationService;
 import com.onlinejudge.classroom.application.StudentAiFeedbackObservabilityService;
 import com.onlinejudge.classroom.application.StudentTrajectoryService;
+import com.onlinejudge.classroom.application.TeacherSubmissionEvidenceService;
+import com.onlinejudge.classroom.application.TeacherLearningAnalysisService;
+import com.onlinejudge.classroom.application.LearningProofService;
 import com.onlinejudge.submission.application.SubmissionEvidenceBackfillService;
 import com.onlinejudge.submission.application.SubmissionAnalysisService;
+import com.onlinejudge.submission.application.StudentAiFeedbackAsyncService;
 import com.onlinejudge.submission.dto.SubmissionEvidenceBackfillResponse;
 import com.onlinejudge.submission.dto.SubmissionHistorySummaryResponse;
 import com.onlinejudge.classroom.dto.*;
@@ -35,6 +40,7 @@ import java.util.List;
 public class ClassroomController {
 
     private final ClassroomService classroomService;
+    private final AssignmentReadinessService assignmentReadinessService;
     private final AiQualityOverviewService aiQualityOverviewService;
     private final AiQualityTrendService aiQualityTrendService;
     private final ClassReviewFeedbackService classReviewFeedbackService;
@@ -52,6 +58,10 @@ public class ClassroomController {
     private final SubmissionEvidenceBackfillService submissionEvidenceBackfillService;
     private final SubmissionAnalysisService submissionAnalysisService;
     private final CurrentTeacherContext currentTeacherContext;
+    private final TeacherSubmissionEvidenceService teacherSubmissionEvidenceService;
+    private final TeacherLearningAnalysisService teacherLearningAnalysisService;
+    private final StudentAiFeedbackAsyncService studentAiFeedbackAsyncService;
+    private final LearningProofService learningProofService;
 
     @GetMapping("/api/teacher/classes")
     public ResponseEntity<List<ClassGroupResponse>> getClasses() {
@@ -86,6 +96,11 @@ public class ClassroomController {
         return ResponseEntity.ok(studentIdentityAuditService.auditClass(classGroupId));
     }
 
+    @GetMapping("/api/teacher/classes/{classGroupId}/learning-overview")
+    public ResponseEntity<ClassLearningOverviewResponse> getClassLearningOverview(@PathVariable Long classGroupId) {
+        return ResponseEntity.ok(teacherLearningAnalysisService.getClassOverview(classGroupId));
+    }
+
     @PostMapping("/api/teacher/classes/{classGroupId}/identity-merge")
     public ResponseEntity<StudentIdentityAuditResponse> mergeStudentIdentities(@PathVariable Long classGroupId,
                                                                                @Valid @RequestBody StudentIdentityMergeRequest request) {
@@ -113,6 +128,13 @@ public class ClassroomController {
     @PostMapping("/api/teacher/assignments")
     public ResponseEntity<AssignmentResponse> createAssignment(@Valid @RequestBody CreateAssignmentRequest request) {
         return ResponseEntity.ok(classroomService.createAssignment(request));
+    }
+
+    @PostMapping("/api/teacher/assignments/readiness")
+    public ResponseEntity<AssignmentReadinessResponse> inspectAssignmentReadiness(
+            @Valid @RequestBody AssignmentReadinessRequest request
+    ) {
+        return ResponseEntity.ok(assignmentReadinessService.inspect(request.getProblemIds()));
     }
 
     @PutMapping("/api/teacher/assignments/{assignmentId}")
@@ -164,6 +186,29 @@ public class ClassroomController {
         ));
     }
 
+    @GetMapping("/api/teacher/assignments/{assignmentId}/problems/{problemId}/learning-proof")
+    public ResponseEntity<TeacherProblemLearningProofResponse> getTeacherProblemLearningProof(
+            @PathVariable Long assignmentId,
+            @PathVariable Long problemId) {
+        return ResponseEntity.ok(learningProofService.getTeacherProblemProof(assignmentId, problemId));
+    }
+
+    @GetMapping("/api/teacher/assignments/{assignmentId}/submissions/{submissionId}/evidence")
+    public ResponseEntity<TeacherSubmissionEvidenceResponse> getTeacherSubmissionEvidence(
+            @PathVariable Long assignmentId,
+            @PathVariable Long submissionId) {
+        return ResponseEntity.ok(teacherSubmissionEvidenceService.getEvidence(assignmentId, submissionId));
+    }
+
+    @PostMapping("/api/teacher/assignments/{assignmentId}/submissions/{submissionId}/analysis/regenerate")
+    public ResponseEntity<Void> regenerateTeacherSubmissionAnalysis(
+            @PathVariable Long assignmentId,
+            @PathVariable Long submissionId) {
+        teacherSubmissionEvidenceService.requireSubmissionAccess(assignmentId, submissionId);
+        studentAiFeedbackAsyncService.enqueueRegeneration(submissionId);
+        return ResponseEntity.accepted().build();
+    }
+
     @GetMapping("/api/teacher/submission-evidence/backfill-preview")
     public ResponseEntity<SubmissionEvidenceBackfillResponse> previewSubmissionEvidenceBackfill(
             @RequestParam(required = false) Long cursor,
@@ -204,6 +249,11 @@ public class ClassroomController {
     @GetMapping("/api/teacher/recommendations/effectiveness")
     public ResponseEntity<RecommendationEffectivenessResponse> getRecommendationEffectiveness() {
         return ResponseEntity.ok(recommendationEffectivenessService.buildOverview());
+    }
+
+    @GetMapping("/api/teacher/recommendations/interventions")
+    public ResponseEntity<List<RecommendationEffectivenessResponse.ActionEvidenceSignal>> getRecommendationInterventions() {
+        return ResponseEntity.ok(recommendationEffectivenessService.buildInterventionQueue());
     }
 
     @PostMapping("/api/teacher/assignments/{assignmentId}/class-review-feedback")

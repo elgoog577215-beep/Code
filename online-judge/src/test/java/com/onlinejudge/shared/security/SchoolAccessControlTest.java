@@ -55,7 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "TEACHER_DEV_AUTO_AUTH=false",
         "STUDENT_TOKEN_SECRET=test-student-token-secret-1234567890",
         "AI_ENABLED=false",
-        "app.content-seed.enabled=true"
+        "app.content-migration.enabled=true"
 })
 class SchoolAccessControlTest {
     private static final UUID SCHOOL_ID = UUID.fromString("00000000-0000-0000-0000-000000000410");
@@ -153,6 +153,21 @@ class SchoolAccessControlTest {
 
         TeacherSession renewed = teacherSessions.findById(session.getId()).orElseThrow();
         assertThat(renewed.getExpiresAt()).isAfter(Instant.now().plusSeconds(11 * 3600));
+    }
+
+    @Test
+    void codeApiPrefixPreservesAccountAuthenticationAndPublicApiRouting() throws Exception {
+        mockMvc.perform(get("/code/api/teacher/assignments"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/code/api/auth/account/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + TEACHER_USERNAME + "\",\"password\":\"" + TEACHER_PASSWORD + "\",\"portal\":\"TEACHER\"}"))
+                .andExpect(status().isOk())
+                .andExpect(cookie().exists(TeacherSessionService.COOKIE_NAME));
+
+        mockMvc.perform(get("/code/api/system/readiness"))
+                .andExpect(status().isOk());
     }
 
     @Test

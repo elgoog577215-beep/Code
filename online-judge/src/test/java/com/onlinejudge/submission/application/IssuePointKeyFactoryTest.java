@@ -27,4 +27,20 @@ class IssuePointKeyFactoryTest {
         assertThat(first.key()).isEqualTo(second.key()).startsWith("text:point-key-v1:");
         assertThat(first.source()).isEqualTo("TEXT_FINGERPRINT");
     }
+
+    @Test
+    void usesStableProvisionalCodeBeforeSkillOrTextIdentity() {
+        var first = factory.identity(
+                "REPAIR", null, null, "MP_AI_DIJKSTRA_STALE", null,
+                List.of("算法", "Dijkstra", "旧标题"), "旧标题"
+        );
+        var second = factory.identity(
+                "REPAIR", null, null, "MP_AI_DIJKSTRA_STALE", "SK_OTHER",
+                List.of("完全", "不同", "路径"), "完全不同标题"
+        );
+
+        assertThat(first.key()).isEqualTo(second.key())
+                .isEqualTo("provisional:point-key-v1:mp-ai-dijkstra-stale");
+        assertThat(first.source()).isEqualTo("PROVISIONAL_ID");
+    }
 }
