@@ -106,7 +106,6 @@ public class TeacherAuthFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/teacher/")) return !path.startsWith("/api/teacher/auth/");
         if (path.matches("/api/problems/\\d+/manage")) return true;
         if (path.matches("/api/problems/\\d+/growth-report.*") || path.startsWith("/api/leaderboard/")) return true;
-        if (path.equals("/api/system/readiness")) return true;
         return path.equals("/api/problems") && "POST".equalsIgnoreCase(method)
                 || path.matches("/api/problems/\\d+") && !"GET".equalsIgnoreCase(method)
                 || path.startsWith("/api/system/ai-smoke");
@@ -114,7 +113,7 @@ public class TeacherAuthFilter extends OncePerRequestFilter {
 
     private boolean requiresPlatformRole(String path) {
         return path.startsWith("/api/platform-admin/") || path.startsWith("/api/system/ai-smoke")
-                || path.equals("/api/system/readiness") || path.equals("/actuator/prometheus");
+                || path.equals("/actuator/prometheus");
     }
 
     private boolean requiresTeacherRole(HttpServletRequest request) {
