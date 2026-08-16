@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 @Configuration
 public class SecurityConfig {
@@ -23,8 +24,8 @@ public class SecurityConfig {
                                             SchoolSecurityProperties properties) throws Exception {
         http.addFilterBefore(teacherAuthFilter, AuthorizationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/auth/**", "/api/teacher/auth/**").permitAll()
-                        .requestMatchers("/api/platform-admin/**", "/api/admin/problem-reviews/**", "/api/system/readiness",
+                        .requestMatchers("/api/auth/**", "/api/teacher/auth/**", "/api/system/readiness").permitAll()
+                        .requestMatchers("/api/platform-admin/**", "/api/admin/problem-reviews/**",
                                 "/api/system/ai-smoke/**", "/actuator/prometheus")
                         .hasRole("PLATFORM_ADMIN")
                         .requestMatchers("/api/school-admin/**", "/api/admin/**").hasRole("SCHOOL_ADMIN")
@@ -41,6 +42,7 @@ public class SecurityConfig {
             CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
             repository.setCookiePath("/");
             http.csrf(csrf -> csrf.csrfTokenRepository(repository)
+                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                     .ignoringRequestMatchers("/api/auth/teacher/register", "/api/auth/teacher/login", "/api/auth/account/login",
                             "/api/auth/student/login", "/api/teacher/auth/**"));
         } else {
