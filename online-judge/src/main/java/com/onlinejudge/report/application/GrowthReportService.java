@@ -2,7 +2,10 @@ package com.onlinejudge.report.application;
 
 import com.onlinejudge.report.dto.GrowthReportResponse;
 import com.onlinejudge.problem.domain.Problem;
+import com.onlinejudge.problem.application.ProblemAccessPolicy;
 import com.onlinejudge.problem.persistence.ProblemRepository;
+import com.onlinejudge.classroom.persistence.AssignmentRepository;
+import com.onlinejudge.identity.application.CurrentTeacherContext;
 import com.onlinejudge.submission.application.AiReportService;
 import com.onlinejudge.submission.application.SubmissionAnalysisService;
 import com.onlinejudge.submission.domain.Submission;
@@ -27,6 +30,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -38,13 +44,27 @@ public class GrowthReportService {
     private final SubmissionRepository submissionRepository;
     private final SubmissionAnalysisService submissionAnalysisService;
     private final AiReportService aiReportService;
+    private final AssignmentRepository assignmentRepository;
+    private final CurrentTeacherContext currentTeacherContext;
+    private final ProblemAccessPolicy problemAccessPolicy;
 
     public GrowthReportResponse buildGrowthReport(Long problemId) {
+        UUID teacherId = currentTeacherContext.requireTeacherId();
         Problem problem = problemRepository.findById(problemId)
                 .orElseThrow(() -> new IllegalArgumentException("题目不存在: " + problemId));
+        if (!problemAccessPolicy.isTeacherVisible(teacherId, problem)) {
+            throw new com.onlinejudge.shared.web.PlatformApiException(
+                    org.springframework.http.HttpStatus.NOT_FOUND, "NOT_FOUND", "题目不存在");
+        }
+        Set<Long> ownedAssignmentIds = assignmentRepository.findByOwnerTeacherIdOrderByCreatedAtDesc(teacherId)
+                .stream()
+                .map(assignment -> assignment.getId())
+                .collect(Collectors.toSet());
 
         List<SubmissionResponse> submissions = submissionRepository.findByProblemIdOrderBySubmittedAtAsc(problemId)
                 .stream()
+                .filter(submission -> submission.getAssignmentId() != null
+                        && ownedAssignmentIds.contains(submission.getAssignmentId()))
                 .map(submission -> submissionAnalysisService.getDetailedSubmission(submission.getId()))
                 .toList();
 

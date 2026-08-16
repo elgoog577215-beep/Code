@@ -4,6 +4,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import com.onlinejudge.shared.security.AccessDeniedException;
 import com.onlinejudge.shared.security.AuthenticationRequiredException;
+import com.onlinejudge.execution.application.CodeRunLimitException;
+import com.onlinejudge.aiquota.domain.QuotaExhaustedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -13,12 +15,32 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.onlinejudge.system.application.TrialMetrics;
 
 import java.util.Map;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @Autowired(required = false)
+    private TrialMetrics trialMetrics;
+
+    @ExceptionHandler(PlatformApiException.class)
+    public ResponseEntity<Map<String, String>> handlePlatformApi(PlatformApiException exception,
+                                                                 HttpServletRequest request) {
+        log.warn("Platform request rejected. method={}, uri={}, code={}",
+                request.getMethod(), request.getRequestURI(), exception.getCode());
+        if (trialMetrics != null) {
+            if ("ROSTER_MISMATCH".equals(exception.getCode())) trialMetrics.rosterMismatch();
+            if ("FORBIDDEN".equals(exception.getCode()) || "ASSIGNMENT_NOT_TARGETED".equals(exception.getCode())) {
+                trialMetrics.accessDenied();
+            }
+        }
+        return ResponseEntity.status(exception.getStatus())
+                .body(Map.of("code", exception.getCode(), "error", exception.getMessage()));
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException exception,
@@ -88,7 +110,7 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 exception.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", exception.getMessage()));
+                .body(Map.of("code", "AUTH_REQUIRED", "error", exception.getMessage()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -99,7 +121,27 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 exception.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(Map.of("error", exception.getMessage()));
+                .body(Map.of("code", "FORBIDDEN", "error", exception.getMessage()));
+    }
+
+    @ExceptionHandler(CodeRunLimitException.class)
+    public ResponseEntity<Map<String, String>> handleCodeRunLimit(CodeRunLimitException exception,
+                                                                  HttpServletRequest request) {
+        log.warn("Code run limited. method={}, uri={}, message={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                exception.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(Map.of("code", "FORBIDDEN", "error", exception.getMessage()));
+    }
+
+    @ExceptionHandler(QuotaExhaustedException.class)
+    public ResponseEntity<Map<String, String>> handleQuotaExhausted(QuotaExhaustedException exception,
+                                                                    HttpServletRequest request) {
+        log.warn("AI quota exhausted. method={}, uri={}", request.getMethod(), request.getRequestURI());
+        if (trialMetrics != null) trialMetrics.quotaRejected();
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(Map.of("code", "QUOTA_EXHAUSTED", "error", "本月课堂 AI 额度已用完，代码评测仍可正常使用"));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

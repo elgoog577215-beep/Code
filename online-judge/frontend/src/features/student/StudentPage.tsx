@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, BookOpen, CircleCheck, ClipboardList, LogIn, Play } from "lucide-react";
-import { api } from "../../shared/api/client";
+import { api, ApiError } from "../../shared/api/client";
 import type { Assignment, ProblemCatalogItem, StudentProfile, StudentRecommendation, StudentRecommendationItem } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
-import { loadStudent, onActiveStudentChange } from "../../shared/storage";
+import { clearActiveStudent, loadStudent, onActiveStudentChange } from "../../shared/storage";
 
 function visibleAssignmentTitle(assignment: Assignment) {
   return assignment.title.includes("试点任务") ? "课堂编程作业" : assignment.title;
@@ -114,7 +114,12 @@ export default function StudentPage() {
           setProgressByAssignmentId(Object.fromEntries(progressEntries));
         }
       })
-      .catch(() => {
+      .catch(error => {
+        if (!ignore && error instanceof ApiError && error.status === 401) {
+          clearActiveStudent();
+          setStudent(null);
+          return;
+        }
         if (!ignore) setFailed(t("studentHome.errors.assignments"));
       })
       .finally(() => {

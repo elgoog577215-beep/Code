@@ -387,6 +387,7 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
     ? `/teacher/assignment/${overview.assignment.id}/problems/${lectureProblem.problemId}`
     : `/teacher/assignment/${overview.assignment.id}`;
   const startReviewHref = studentTarget ? studentTargetHref : lectureHref;
+  const historicalStudentCount = overview.students.filter(student => student.currentRoster === false).length;
   return (
     <>
       <section className="teacher-drill-header teacher-drill-header--compact">
@@ -412,6 +413,12 @@ function AssignmentOverviewView({ overview, problems }: { overview: AssignmentOv
           </ButtonLink>
         </div>
       </section>
+
+      {historicalStudentCount > 0 ? (
+        <div className="alert alert--warning">
+          {t("assignmentDetail.historicalRosterNotice", { count: historicalStudentCount })}
+        </div>
+      ) : null}
 
       <section className="teacher-drill-overview">
         <section className="teacher-focus-panel" aria-label={t("assignmentDetail.focus.aria")}>

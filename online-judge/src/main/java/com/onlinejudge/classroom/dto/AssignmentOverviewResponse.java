@@ -70,6 +70,8 @@ public class AssignmentOverviewResponse {
         private Long studentProfileId;
         private String displayName;
         private String studentNo;
+        private boolean currentRoster;
+        private String rosterHistoryLabel;
         private long attemptCount;
         private long passedCount;
         private Long latestSubmissionId;

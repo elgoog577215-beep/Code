@@ -94,7 +94,7 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("student_ai_feedback_revisions', 'evidence_json")
                 .contains("teacher_diagnosis_corrections', 'feedback_revision_id")
                 .contains("idx_teacher_corrections_feedback_revision");
-        assertThat(migrationTest).contains("V1-V12", "${VERSION}\" == \"12", "${LEGACY_VERSION}\" == \"12");
+        assertThat(migrationTest).contains("V1-V20", "${VERSION}\" == \"20", "${LEGACY_VERSION}\" == \"20");
     }
 
     @Test
@@ -181,8 +181,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("library_fit_invalid")
                 .contains("post_v5_fact_rows");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"12\" ]]")
-                .contains("V1-V12");
+                .contains("[[ \"${VERSION}\" == \"20\" ]]")
+                .contains("V1-V20");
     }
 
     @Test
@@ -290,8 +290,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("uk_test_case_semantic_code")
                 .contains("idx_submission_case_results_test_case");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"12\" ]]")
-                .contains("V1-V12")
+                .contains("[[ \"${VERSION}\" == \"20\" ]]")
+                .contains("V1-V20")
                 .contains("check-test-case-semantic-quality.sh");
         assertThat(deploy).contains("check-test-case-semantic-quality.sh");
     }
@@ -380,8 +380,8 @@ class DatabaseMigrationScriptSafetyTest {
                 .contains("v12_v11_transfer_pair_same_teacher_move")
                 .contains("template_knowledge_descriptions_v12_limit");
         assertThat(integration)
-                .contains("[[ \"${VERSION}\" == \"12\" ]]")
-                .contains("V1-V12");
+                .contains("[[ \"${VERSION}\" == \"20\" ]]")
+                .contains("V1-V20");
     }
 
     private String read(String name) throws IOException {

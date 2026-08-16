@@ -71,3 +71,80 @@ Accepted product constraints:
 - Automated checks passed: TypeScript typecheck, production build, 28 visual-smoke checks, problem workbench test, assignment overview test, six signed-in home tests, and guest layout test.
 
 final result: passed
+
+---
+
+# Design QA — Read-only Problem Detail
+
+- source issue capture: `C:\Users\Lenovo\AppData\Local\Temp\codex-clipboard-70ac7c30-5a4d-404f-b0c0-f2989b9f4320.png`
+- implementation capture: `output/playwright/teacher-management-problems-desktop-light.png`
+- responsive captures: `output/playwright/teacher-management-problems-mobile-light.png`, `output/playwright/teacher-management-problems-tablet-light.png`
+- combined comparison: `output/design-qa-readonly-problem-comparison.png`
+- comparison state: published public problem, read-only teacher view, light theme
+- scope: the right-side read-only problem detail only; catalog navigation, draft editing, and version actions remain unchanged
+
+## Visual checks
+
+- The title, scope, version state, and revision action keep their existing hierarchy.
+- The former centered empty state is replaced by a compact read-only notice followed immediately by useful content.
+- Difficulty, time, memory, and public sample count form one scannable summary row.
+- The complete statement, public input/output samples, teaching metadata, AI guidance, and optional starter code are available without enabling editing.
+- Hidden judge data is summarized by count and is not exposed in the read-only teacher view.
+- Desktop uses the full reading canvas; tablet and mobile stack without horizontal overflow.
+- Existing typography, teal brand color, borders, radii, and Lucide icon treatment are reused.
+
+## Interaction and permission checks
+
+- Published, frozen, review-pending, rejected, and archived versions use the read-only detail.
+- Draft versions continue to open the existing editable task editor.
+- The shared published revision action still creates a new version; the selected version itself remains immutable.
+- The targeted browser suite verifies that no textarea or embedded editor appears in the published view.
+
+## Findings
+
+- P0: none
+- P1: none
+- P2: none after replacing the blank empty-state canvas with the complete problem reader
+
+## Automated checks
+
+- TypeScript typecheck: passed
+- Production build: passed
+- Targeted browser smoke: 74 checks passed across mobile, tablet, and desktop in light and dark themes
+- Horizontal overflow: none at all tested widths
+
+final result: passed
+
+---
+
+# Design QA — Teacher Class Roster Workspace
+
+- reference: `C:\Users\Lenovo\.codex\generated_images\01a00477-a41a-72b3-8b1d-6d8adfb8e704\exec-a1258a50-83a1-4c87-853f-daa17fb1b2d8.png`
+- implementation capture: `output/playwright/teacher-management-desktop-light.png`
+- combined comparison: `output/design-qa-class-roster-comparison.png`
+- comparison viewport: 1680 × 900, light theme, roster tab selected
+- scope: the inner class selector and roster workspace only; the global header, permanent management sidebar, and page intro remain unchanged
+
+## Visual checks
+
+- The class selector stays narrow while the roster canvas carries the primary visual weight.
+- The class title, summary pills, and primary import action align in one compact header.
+- The default screen exposes the roster rather than the long import workflow.
+- The roster uses a single table-like row with clear student, number, status, and action columns.
+- Borders, radii, typography, brand color, and icon treatment reuse the existing product design system.
+- Tablet and mobile layouts stack cleanly without horizontal overflow; mobile actions retain touch-safe sizing.
+
+## Interaction checks
+
+- `导入或更新名单` opens the import workflow.
+- `学生名单`, `导入记录`, and `班级设置` switch panels and expose the expected content.
+- Returning to `学生名单` restores the compact default state.
+- Class selection resets the workspace to the roster tab.
+
+## Findings
+
+- P0: none
+- P1: none
+- P2: none after widening the scoped workbench and isolating class-row styles from the legacy global minimum-width rule
+
+final result: passed

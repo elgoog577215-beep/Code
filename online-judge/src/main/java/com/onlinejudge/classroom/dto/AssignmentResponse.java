@@ -22,12 +22,20 @@ public class AssignmentResponse {
     private LocalDateTime endsAt;
     private LocalDateTime createdAt;
     private String inviteCode;
+    private Assignment.TargetMode targetMode;
+    private long targetCount;
+    private long currentVisibleCount;
     private List<TaskSummary> tasks;
 
     public static AssignmentResponse from(Assignment assignment,
                                           String className,
                                           AssignmentInvite invite,
                                           List<TaskSummary> tasks) {
+        return from(assignment, className, invite, tasks, 0, 0);
+    }
+
+    public static AssignmentResponse from(Assignment assignment, String className, AssignmentInvite invite,
+                                          List<TaskSummary> tasks, long targetCount, long currentVisibleCount) {
         return AssignmentResponse.builder()
                 .id(assignment.getId())
                 .title(assignment.getTitle())
@@ -40,6 +48,9 @@ public class AssignmentResponse {
                 .endsAt(assignment.getEndsAt())
                 .createdAt(assignment.getCreatedAt())
                 .inviteCode(invite == null ? null : invite.getCode())
+                .targetMode(assignment.getTargetMode())
+                .targetCount(targetCount)
+                .currentVisibleCount(currentVisibleCount)
                 .tasks(tasks)
                 .build();
     }

@@ -14,6 +14,7 @@ import {
   Menu,
   Moon,
   RotateCcw,
+  ShieldCheck,
   Sun,
   UserRound,
   UsersRound,
@@ -21,7 +22,10 @@ import {
 } from "lucide-react";
 import routeHubCodePreview from "./assets/route-hub-code-preview.png";
 import TeacherAuthGate from "./features/teacher/TeacherAuthGate";
+import PortalAuthGate from "./features/admin/PortalAuthGate";
 import { TeacherShell } from "./features/teacher/TeacherShell";
+import { api } from "./shared/api/client";
+import { AccountSessionProvider } from "./shared/auth/AccountSessionContext";
 import { useTranslation } from "./shared/i18n";
 import { clearActiveStudent, loadStudent, onActiveStudentChange } from "./shared/storage";
 import { Button } from "./shared/ui/Button";
@@ -41,6 +45,8 @@ const TeacherAnalyticsLandingPage = lazy(() => import("./features/teacher-analyt
 const ClassAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ClassAnalyticsPage"));
 const AssignmentAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/AssignmentAnalyticsPage"));
 const ProblemAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/ProblemAnalyticsPage"));
+const PlatformAdminPage = lazy(() => import("./features/admin/PlatformAdminPage"));
+const SchoolAdminPage = lazy(() => import("./features/admin/SchoolAdminPage"));
 const StudentProblemAnalyticsPage = lazy(() => import("./features/teacher-analytics/pages/StudentProblemAnalyticsPage"));
 
 type Theme = "light" | "dark";
@@ -101,6 +107,10 @@ function RouteHubPage() {
             <NavLink to="/teacher" className="route-hub-role-action">
               <UsersRound size={19} aria-hidden="true" />
               <span>{t("routeHub.teacherCta")}</span>
+            </NavLink>
+            <NavLink to="/school-admin/login" className="route-hub-role-action">
+              <ShieldCheck size={19} aria-hidden="true" />
+              <span>{t("routeHub.schoolAdminCta")}</span>
             </NavLink>
           </nav>
 
@@ -174,6 +184,10 @@ function TeacherRoute({ children }: { children: ReactNode }) {
   );
 }
 
+function AdminRoute({ portal, children }: { portal: "PLATFORM_ADMIN" | "SCHOOL_ADMIN"; children: ReactNode }) {
+  return <PortalAuthGate portal={portal}>{children}</PortalAuthGate>;
+}
+
 function LegacyAssignmentRedirect({ level }: { level: "assignment" | "problem" | "student" }) {
   const location = useLocation();
   const match = location.pathname.match(/\/teacher\/assignment\/([^/]+)(?:\/problems\/([^/]+))?(?:\/students\/([^/]+))?/);
@@ -225,7 +239,18 @@ function Header() {
 
   useEffect(() => onActiveStudentChange(() => setStudent(loadStudent())), []);
 
+  useEffect(() => {
+    if (!isStudentContext || !student) return;
+    void api.studentSession()
+      .then(current => setStudent(current))
+      .catch(() => {
+        clearActiveStudent();
+        setStudent(null);
+      });
+  }, [isStudentContext, location.pathname, student?.id]);
+
   function signOut() {
+    void api.studentLogout().catch(() => undefined);
     clearActiveStudent();
     setStudent(null);
   }
@@ -326,7 +351,8 @@ export default function App() {
   const { t } = useTranslation();
 
   return (
-    <div className="app-shell">
+    <AccountSessionProvider>
+      <div className="app-shell">
       <a className="skip-link" href="#main-content">
         {t("common.skipToMain")}
       </a>
@@ -342,6 +368,7 @@ export default function App() {
             <Route path="/student/assignments/:assignmentId/submissions" element={<StudentAssignmentSubmissionsPage />} />
             <Route path="/student/assignments/:assignmentId/problems/:problemId" element={<ProblemPage />} />
             <Route path="/teacher" element={<TeacherRoute><Navigate to="/teacher/classes" replace /></TeacherRoute>} />
+            <Route path="/teacher/login" element={<TeacherRoute><Navigate to="/teacher/classes" replace /></TeacherRoute>} />
             <Route path="/teacher/classes" element={<TeacherRoute><TeacherAnalyticsLandingPage /></TeacherRoute>} />
             <Route path="/teacher/classes/:classId" element={<TeacherRoute><ClassAnalyticsPage /></TeacherRoute>} />
             <Route path="/teacher/classes/:classId/assignments/:assignmentId" element={<TeacherRoute><AssignmentAnalyticsPage /></TeacherRoute>} />
@@ -352,6 +379,10 @@ export default function App() {
             <Route path="/teacher/manage/problems" element={<TeacherRoute><TeacherManagementPage section="problems" /></TeacherRoute>} />
             <Route path="/teacher/manage/ai-library" element={<TeacherRoute><TeacherManagementPage section="ai-library" /></TeacherRoute>} />
             <Route path="/teacher/manage/system" element={<TeacherRoute><TeacherManagementPage section="system" /></TeacherRoute>} />
+            <Route path="/platform-admin/login" element={<AdminRoute portal="PLATFORM_ADMIN"><Navigate to="/platform-admin" replace /></AdminRoute>} />
+            <Route path="/platform-admin/*" element={<AdminRoute portal="PLATFORM_ADMIN"><PlatformAdminPage /></AdminRoute>} />
+            <Route path="/school-admin/login" element={<AdminRoute portal="SCHOOL_ADMIN"><Navigate to="/school-admin" replace /></AdminRoute>} />
+            <Route path="/school-admin/*" element={<AdminRoute portal="SCHOOL_ADMIN"><SchoolAdminPage /></AdminRoute>} />
             <Route path="/teacher-management" element={<Navigate to="/teacher/manage/classes" replace />} />
             <Route path="/class-overview" element={<Navigate to="/teacher/classes" replace />} />
             <Route path="/task-editor" element={<TeacherRoute><TaskEditorPage /></TeacherRoute>} />
@@ -363,6 +394,7 @@ export default function App() {
           </Routes>
         </Suspense>
       </main>
-    </div>
+      </div>
+    </AccountSessionProvider>
   );
 }

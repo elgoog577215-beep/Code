@@ -26,6 +26,10 @@ public class StudentProfile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private RosterStatus status;
+
     @Column(name = "class_group_id")
     private Long classGroupId;
 
@@ -51,10 +55,17 @@ public class StudentProfile {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         lastSeenAt = now;
+        if (status == null) {
+            status = studentNo == null || studentNo.isBlank() ? RosterStatus.NEEDS_REVIEW : RosterStatus.ACTIVE;
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         lastSeenAt = LocalDateTime.now();
+    }
+
+    public enum RosterStatus {
+        ACTIVE, INACTIVE, NEEDS_REVIEW
     }
 }

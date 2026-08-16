@@ -1,5 +1,6 @@
 export type HintPolicy = "L1" | "L2" | "L3" | "L4";
 export type AssignmentStatus = "DRAFT" | "ACTIVE" | "CLOSED";
+export type AssignmentTargetMode = "CLASS" | "STUDENTS";
 export type Difficulty = "EASY" | "MEDIUM" | "HARD";
 export type Verdict =
   | "PENDING"
@@ -31,6 +32,9 @@ export interface Assignment {
   endsAt?: string | null;
   createdAt?: string;
   inviteCode?: string | null;
+  targetMode: AssignmentTargetMode;
+  targetCount: number;
+  currentVisibleCount: number;
   tasks: AssignmentTask[];
 }
 
@@ -63,7 +67,7 @@ export interface StudentProfile {
   className?: string | null;
   displayName: string;
   studentNo?: string | null;
-  studentAccessToken?: string | null;
+  status?: "ACTIVE" | "INACTIVE" | "NEEDS_REVIEW";
 }
 
 export interface StudentTrajectoryIssue {
@@ -327,6 +331,13 @@ export interface ProblemCatalogItem {
 }
 
 export interface ProblemManage extends Problem {
+  ownerTeacherId?: string | null;
+  scope: "PUBLIC" | "SHARED" | "PRIVATE";
+  versionState: "DRAFT" | "REVIEW_PENDING" | "PUBLISHED" | "FROZEN" | "REJECTED" | "ARCHIVED";
+  seriesId?: string | null;
+  versionNo: number;
+  sourceProblemId?: number | null;
+  archivedAt?: string | null;
   testCases: Array<{
     id?: number;
     input: string;
@@ -334,6 +345,26 @@ export interface ProblemManage extends Problem {
     hidden: boolean;
     orderIndex?: number;
   }>;
+}
+
+export type CodeRunStatus =
+  | "SUCCESS"
+  | "COMPILATION_ERROR"
+  | "RUNTIME_ERROR"
+  | "TIME_LIMIT_EXCEEDED"
+  | "MEMORY_LIMIT_EXCEEDED"
+  | "ENVIRONMENT_UNAVAILABLE"
+  | "INTERNAL_ERROR";
+
+export interface CodeRunResult {
+  status: CodeRunStatus | string;
+  stdout: string;
+  stderr: string;
+  exitCode?: number | null;
+  executionTimeMs: number;
+  stdoutTruncated: boolean;
+  stderrTruncated: boolean;
+  message?: string | null;
 }
 
 export interface StudentHintPlan {
@@ -1285,6 +1316,8 @@ export interface AssignmentOverview {
     studentProfileId: number;
     displayName: string;
     studentNo?: string | null;
+    currentRoster?: boolean;
+    rosterHistoryLabel?: string | null;
     attemptCount: number;
     passedCount: number;
     latestSubmissionId?: number | null;
@@ -1963,6 +1996,8 @@ export interface ClassGroup {
   name: string;
   grade?: string | null;
   teacherName?: string | null;
+  joinCode?: string | null;
+  activeStudentCount: number;
   createdAt?: string;
 }
 
@@ -2019,6 +2054,121 @@ export interface ExecutorStatus {
 
 export interface AuthSession {
   authenticated: boolean;
+  teacherId?: string | null;
+  username?: string | null;
+  displayName?: string | null;
+  role?: "TEACHER" | "SCHOOL_ADMIN" | "PLATFORM_ADMIN" | null;
+  mustChangePassword: boolean;
+  schoolId?: string | null;
+  schoolName?: string | null;
+}
+
+export interface TeacherAccount {
+  id: string;
+  username: string;
+  displayName: string;
+  schoolId?: string | null;
+  schoolName: string;
+  role: "TEACHER" | "SCHOOL_ADMIN" | "PLATFORM_ADMIN";
+  status: "BOOTSTRAP_REQUIRED" | "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
+  mustChangePassword: boolean;
+  createdAt?: string;
+}
+
+export interface SchoolQuotaSummary {
+  schoolId: string;
+  month: string;
+  totalUnits: number;
+  allocatedUnits: number;
+  usedUnits: number;
+  availableUnits: number;
+  resetsAt: string;
+}
+
+export interface SchoolSummary {
+  id: string;
+  name: string;
+  status: "ACTIVE" | "SUSPENDED";
+  adminAccountId: string;
+  monthlyAiUnits: number;
+  allocatedAiUnits: number;
+  usedAiUnits: number;
+  createdAt: string;
+}
+
+export interface CreatedSchool {
+  school: SchoolSummary;
+  temporaryPassword?: string | null;
+  schoolRegistrationCode?: string | null;
+}
+
+export interface SchoolTeachingClass {
+  id: number;
+  teacherId: string;
+  teacherName: string;
+  name: string;
+  grade?: string | null;
+  createdAt: string;
+  studentCount: number;
+  assignmentCount: number;
+}
+
+export interface SchoolTeachingStudent {
+  id: number;
+  displayName: string;
+  studentNo?: string | null;
+  status: "ACTIVE" | "INACTIVE" | "NEEDS_REVIEW";
+  createdAt: string;
+  lastSeenAt: string;
+}
+
+export interface SchoolTeachingAssignment {
+  id: number;
+  teacherId: string;
+  title: string;
+  description?: string | null;
+  classGroupId: number;
+  targetMode: AssignmentTargetMode;
+  status: AssignmentStatus;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  createdAt: string;
+}
+
+export interface SchoolTeachingSubmission {
+  id: number;
+  assignmentId: number;
+  problemId: number;
+  studentProfileId: number;
+  languageName: string;
+  sourceCode: string;
+  verdict: Verdict | string;
+  executionTime?: number | null;
+  memoryUsed?: number | null;
+  compileOutput?: string | null;
+  errorMessage?: string | null;
+  submittedAt: string;
+  analysis?: unknown;
+}
+
+export interface SchoolAdminOverview {
+  schoolId: string;
+  schoolName: string;
+  quota: SchoolQuotaSummary;
+  teachers: TeacherAccount[];
+  teacherQuotas: Record<string, TeacherAiUsage>;
+  pendingApplications: number;
+}
+
+export interface TeacherAiUsage {
+  teacherId: string;
+  month: string;
+  baseUnits: number;
+  additionalUnits: number;
+  usedUnits: number;
+  reservedUnits: number;
+  remainingUnits: number;
+  resetsAt: string;
 }
 
 export type ReadinessStatus = "READY" | "DEGRADED" | "BLOCKED" | string;

@@ -58,7 +58,7 @@ public class StudentTrajectoryService {
     private final TeachingActionOrchestrator teachingActionOrchestrator;
 
     public StudentTrajectoryResponse buildTrajectory(Long assignmentId, Long studentProfileId) {
-        AssignmentResponse assignment = classroomService.getAssignment(assignmentId);
+        AssignmentResponse assignment = classroomService.getStudentAssignment(assignmentId, studentProfileId);
         var student = studentProfileRepository.findById(studentProfileId)
                 .orElseThrow(() -> new IllegalArgumentException("学生画像不存在: " + studentProfileId));
         List<Submission> submissions = submissionRepository

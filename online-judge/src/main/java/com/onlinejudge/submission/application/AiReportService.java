@@ -6,6 +6,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryGrowthAgentService;
+import com.onlinejudge.aiquota.application.AiInvocationContext;
+import com.onlinejudge.aiquota.application.AiInvocationContextResolver;
+import com.onlinejudge.aiquota.application.AiProviderGateway;
+import com.onlinejudge.aiquota.domain.QuotaExhaustedException;
 import com.onlinejudge.learning.standardlibrary.application.AiStandardLibraryService;
 import com.onlinejudge.learning.standardlibrary.domain.AiStandardLibraryItem;
 import com.onlinejudge.learning.standardlibrary.dto.AiStandardLibraryDiagnosticLayerResponse;
@@ -71,11 +75,16 @@ public class AiReportService {
             ThreadLocal.withInitial(ExternalModelRequestContext::standard);
     private final ThreadLocal<String> lastModelStageRawContent = ThreadLocal.withInitial(() -> "");
     private final ThreadLocal<String> activeModel = ThreadLocal.withInitial(() -> "");
+    private final ThreadLocal<AiInvocationContext> activeInvocationContext = ThreadLocal.withInitial(
+            () -> AiInvocationContext.anonymous("SYSTEM_AI", "system-ai-unscoped"));
+    private final ThreadLocal<Boolean> providerHealthCheck = ThreadLocal.withInitial(() -> false);
     private static final ThreadLocal<Consumer<ModelCallTraceEvent>> MODEL_CALL_TRACE_SINK = new ThreadLocal<>();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
     private AiDiagnosisWorkflowService diagnosisWorkflowService;
+    private AiProviderGateway aiProviderGateway;
+    private AiInvocationContextResolver aiInvocationContextResolver;
     private Executor diagnosisBranchExecutor = Runnable::run;
 
     @Autowired(required = false)
@@ -88,6 +97,16 @@ public class AiReportService {
         if (diagnosisBranchExecutor != null) {
             this.diagnosisBranchExecutor = diagnosisBranchExecutor;
         }
+    }
+
+    @Autowired(required = false)
+    void setAiProviderGateway(AiProviderGateway aiProviderGateway) {
+        this.aiProviderGateway = aiProviderGateway;
+    }
+
+    @Autowired(required = false)
+    void setAiInvocationContextResolver(AiInvocationContextResolver aiInvocationContextResolver) {
+        this.aiInvocationContextResolver = aiInvocationContextResolver;
     }
 
     public AiReportService(ObjectMapper objectMapper, AiCodeAssistSupport aiCodeAssistSupport) {
@@ -159,7 +178,7 @@ public class AiReportService {
     @Value("${ai.base-url:https://api-inference.modelscope.cn/v1}")
     private String baseUrl;
 
-    @Value("${ai.api-key:}")
+    /** Test-only compatibility for directly constructed service instances; production keys live in AiProviderGateway. */
     private String apiKey;
 
     @Value("${ai.model:Qwen/Qwen3-235B-A22B-Instruct-2507}")
@@ -217,11 +236,14 @@ public class AiReportService {
                                                                 Submission submission,
                                                                 SubmissionAnalysisResponse baseline,
                                                                 DiagnosisEvidencePackage evidencePackage) {
-        if (!canCallAi()) {
+        AiInvocationContext invocationContext = submissionContext(submission, "SUBMISSION_FEEDBACK",
+                "submission-feedback:" + (submission == null ? "unknown" : submission.getId()));
+        if (!canCallAi() || (aiProviderGateway != null && invocationContext.teacherId() == null)) {
             log.info("AI submission analysis skipped because AI access is unavailable. submissionId={}", submission.getId());
             return runtimeFailure(baseline, aiUnavailableFailure("SUBMISSION_ANALYSIS"));
         }
 
+        activeInvocationContext.set(invocationContext);
         try {
             structuredRetryUsedInInvocation.set(false);
             log.info("AI submission analysis started. submissionId={}, problemId={}, language={}",
@@ -253,10 +275,16 @@ public class AiReportService {
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
+            if (exception instanceof QuotaExhaustedException) {
+                return runtimeFailure(baseline, stageFailure("SUBMISSION_ANALYSIS",
+                        ModelStageFailureReason.INSUFFICIENT_QUOTA, "QUOTA_EXHAUSTED"));
+            }
             if (shouldUseExternalRuntime(evidencePackage)) {
                 return runtimeFailure(baseline, stageFailureFromException("SUBMISSION_ANALYSIS", exception));
             }
             return runtimeFailure(baseline, stageFailureFromException("SUBMISSION_ANALYSIS", exception));
+        } finally {
+            activeInvocationContext.remove();
         }
     }
 
@@ -3092,7 +3120,18 @@ public class AiReportService {
     }
 
     private boolean canCallAi() {
-        return enabled && apiKey != null && !apiKey.isBlank();
+        return enabled && ((aiProviderGateway != null && aiProviderGateway.available())
+                || (apiKey != null && !apiKey.isBlank()));
+    }
+
+    private AiInvocationContext submissionContext(Submission submission, String purpose, String idempotencyKey) {
+        return aiInvocationContextResolver == null
+                ? AiInvocationContext.anonymous(purpose, idempotencyKey)
+                : aiInvocationContextResolver.forSubmission(submission, purpose, idempotencyKey);
+    }
+
+    private String providerBaseUrl() {
+        return aiProviderGateway == null ? baseUrl : aiProviderGateway.baseUrl();
     }
 
     public String providerName() {
@@ -3128,12 +3167,14 @@ public class AiReportService {
         if (!canCallAi()) {
             throw new IOException("AI is disabled or API key is blank");
         }
-        return chatCompletionWithOverrides(
-                "You are a production readiness smoke test. Reply with exactly OK.",
-                "Return OK.",
-                streamEnabled,
-                128
-        );
+        providerHealthCheck.set(true);
+        try {
+            return chatCompletionWithOverrides(
+                    "You are a production readiness smoke test. Reply with exactly OK.",
+                    "Return OK.", streamEnabled, 128);
+        } finally {
+            providerHealthCheck.remove();
+        }
     }
 
     protected String chatCompletion(String systemPrompt, String userPrompt) throws IOException, InterruptedException {
@@ -3258,8 +3299,9 @@ public class AiReportService {
                                     int outputTokens) throws IOException, InterruptedException {
         String effectiveModel = defaultIfBlank(selectedModel, model);
         activeModel.set(effectiveModel);
+        String providerBaseUrl = providerBaseUrl();
         Map<String, Object> requestBody = chatRequestFactory.build(
-                baseUrl,
+                providerBaseUrl,
                 modelScopeCompatibleRequest,
                 enableThinking,
                 effectiveModel,
@@ -3268,7 +3310,7 @@ public class AiReportService {
                 stream,
                 outputTokens
         );
-        String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
+        String endpoint = providerBaseUrl.endsWith("/") ? providerBaseUrl + "chat/completions" : providerBaseUrl + "/chat/completions";
         log.info("Calling AI chat completion. model={}, timeoutSeconds={}, stream={}, endpoint={}",
                 effectiveModel,
                 Math.max(timeoutSeconds, 5),
@@ -3360,6 +3402,12 @@ public class AiReportService {
     }
 
     protected String sendChatCompletionRequest(String requestBody, boolean stream) throws IOException, InterruptedException {
+        if (aiProviderGateway != null) {
+            AiProviderGateway.AiProviderRequest request = new AiProviderGateway.AiProviderRequest(requestBody, stream, modelName());
+            return (Boolean.TRUE.equals(providerHealthCheck.get())
+                    ? aiProviderGateway.healthCheck(request)
+                    : aiProviderGateway.invoke(activeInvocationContext.get(), request)).responseBody();
+        }
         String endpoint = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))

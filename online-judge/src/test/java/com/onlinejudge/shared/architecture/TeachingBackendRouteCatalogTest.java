@@ -17,6 +17,7 @@ class TeachingBackendRouteCatalogTest {
                         TeachingBackendRouteCatalog.RouteEntry::role
                 ));
 
+        assertThat(roles.get("POST /api/code-runs")).isEqualTo(TeachingBackendRole.KEEP_MAIN);
         assertThat(roles.get("POST /api/submissions")).isEqualTo(TeachingBackendRole.KEEP_MAIN);
         assertThat(roles.get("GET /api/submissions/{id}/student-ai-feedback")).isEqualTo(TeachingBackendRole.KEEP_MAIN);
         assertThat(roles.get("GET /api/teacher/assignments/{assignmentId}/overview")).isEqualTo(TeachingBackendRole.KEEP_MAIN);

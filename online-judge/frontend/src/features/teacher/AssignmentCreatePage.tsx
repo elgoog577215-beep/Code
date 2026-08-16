@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, Search, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, api } from "../../shared/api/client";
-import type { AssignmentReadiness, AssignmentReadinessIssue, ClassGroup, Difficulty, ProblemCatalogItem } from "../../shared/api/types";
+import type { AssignmentReadiness, AssignmentReadinessIssue, AssignmentTargetMode, ClassGroup, Difficulty, ProblemCatalogItem, StudentProfile } from "../../shared/api/types";
 import { difficultyLabel, displayText } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
 import { Button, ButtonLink } from "../../shared/ui/Button";
@@ -17,6 +17,8 @@ type AssignmentForm = {
   classGroupId: string;
   hintPolicy: string;
   status: string;
+  targetMode: AssignmentTargetMode;
+  studentProfileIds: number[];
   problemIds: number[];
 };
 type DifficultyFilter = "ALL" | Difficulty;
@@ -28,6 +30,8 @@ const EMPTY_ASSIGNMENT: AssignmentForm = {
   classGroupId: "",
   hintPolicy: "L2",
   status: "ACTIVE",
+  targetMode: "CLASS",
+  studentProfileIds: [],
   problemIds: []
 };
 
@@ -80,6 +84,7 @@ export default function AssignmentCreatePage() {
   const { t } = useTranslation();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
+  const [students, setStudents] = useState<StudentProfile[]>([]);
   const [form, setForm] = useState<AssignmentForm>(EMPTY_ASSIGNMENT);
   const [query, setQuery] = useState("");
   const [difficulty, setDifficulty] = useState<DifficultyFilter>("ALL");
@@ -92,6 +97,17 @@ export default function AssignmentCreatePage() {
   useEffect(() => {
     void loadCreateContext();
   }, []);
+
+  useEffect(() => {
+    const classGroupId = Number(form.classGroupId);
+    if (!classGroupId) {
+      setStudents([]);
+      return;
+    }
+    api.classRoster(classGroupId)
+      .then(result => setStudents(result.filter(student => student.status === "ACTIVE")))
+      .catch(() => setStudents([]));
+  }, [form.classGroupId]);
 
   useEffect(() => {
     if (!form.problemIds.length) {
@@ -137,7 +153,16 @@ export default function AssignmentCreatePage() {
     setLoading(true);
     setAlert(null);
     try {
-      const [classResult, problemResult] = await Promise.all([ensureDefaultClass(), api.problemCatalog()]);
+      const [classResult, teacherProblems] = await Promise.all([ensureDefaultClass(), api.teacherProblems()]);
+      const problemResult: ProblemCatalogItem[] = teacherProblems.map(problem => ({
+        id: problem.id,
+        title: problem.title,
+        summary: problem.description,
+        difficulty: problem.difficulty,
+        timeLimit: problem.timeLimit,
+        memoryLimit: problem.memoryLimit,
+        createdAt: problem.createdAt
+      }));
       setClasses(classResult);
       setProblems(problemResult);
       setForm(current => ({
@@ -197,6 +222,8 @@ export default function AssignmentCreatePage() {
         title: form.title.trim(),
         description: form.description.trim(),
         classGroupId: Number(classGroupId),
+        targetMode: form.targetMode,
+        studentProfileIds: form.targetMode === "STUDENTS" ? form.studentProfileIds : [],
         hintPolicy: form.hintPolicy,
         status: form.status,
         problemIds: form.problemIds
@@ -216,6 +243,7 @@ export default function AssignmentCreatePage() {
     !form.title.trim() ? "填写作业名称" : null,
     !selectedProblems.length ? "至少选择 1 道题" : null,
     !selectedClass ? "默认班级未就绪" : null,
+    form.targetMode === "STUDENTS" && !form.studentProfileIds.length ? t("assignmentTarget.validation") : null,
     form.status === "ACTIVE" && readiness && !readiness.publishable
       ? t("assignmentReadiness.blockerSummary", { count: readiness.blockerCount })
       : null
@@ -270,6 +298,11 @@ export default function AssignmentCreatePage() {
                   placeholder="例如：循环边界练习"
                 />
               </Field>
+              <Field label={t("assignmentTarget.classLabel")}>
+                <Select value={form.classGroupId} onChange={event => setForm({ ...form, classGroupId: event.target.value, studentProfileIds: [] })}>
+                  {classes.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
+                </Select>
+              </Field>
               <Field label="发布状态">
                 <Select value={form.status} onChange={event => setForm({ ...form, status: event.target.value })}>
                   <option value="ACTIVE">进行中</option>
@@ -277,10 +310,16 @@ export default function AssignmentCreatePage() {
                   <option value="CLOSED">已结束</option>
                 </Select>
               </Field>
+              <Field label={t("assignmentTarget.label")}>
+                <Select
+                  value={form.targetMode}
+                  onChange={event => setForm({ ...form, targetMode: event.target.value as AssignmentTargetMode, studentProfileIds: [] })}
+                >
+                  <option value="CLASS">{t("assignmentTarget.class")}</option>
+                  <option value="STUDENTS">{t("assignmentTarget.students")}</option>
+                </Select>
+              </Field>
             </div>
-            <p className="assignment-default-class">
-              默认发布到 <strong>{displayText(selectedClass?.name, DEFAULT_CLASS_NAME)}</strong>
-            </p>
             <Field label="作业说明">
               <TextArea
                 value={form.description}
@@ -288,6 +327,27 @@ export default function AssignmentCreatePage() {
                 placeholder="写给学生看的简短说明。"
               />
             </Field>
+            {form.targetMode === "STUDENTS" && (
+              <Field label={t("assignmentTarget.selectStudents")}>
+                <div className="assignment-problem-list">
+                  {students.length ? students.map(student => (
+                    <label className={`assignment-problem-row ${form.studentProfileIds.includes(student.id) ? "is-selected" : ""}`} key={student.id}>
+                      <input
+                        type="checkbox"
+                        checked={form.studentProfileIds.includes(student.id)}
+                        onChange={() => setForm(current => ({
+                          ...current,
+                          studentProfileIds: current.studentProfileIds.includes(student.id)
+                            ? current.studentProfileIds.filter(id => id !== student.id)
+                            : [...current.studentProfileIds, student.id]
+                        }))}
+                      />
+                      <span className="assignment-problem-row__info"><strong>{student.displayName}</strong><small>{student.studentNo}</small></span>
+                    </label>
+                  )) : <EmptyState title={t("assignmentTarget.emptyRoster")} description={t("assignmentTarget.emptyRosterHint")} />}
+                </div>
+              </Field>
+            )}
           </section>
 
           <section className="assignment-builder-section" aria-label="选择题目">
@@ -378,6 +438,10 @@ export default function AssignmentCreatePage() {
               <div>
                 <span>题目</span>
                 <strong>{selectedProblems.length} 题</strong>
+              </div>
+              <div>
+                <span>{t("assignmentTarget.label")}</span>
+                <strong>{form.targetMode === "CLASS" ? t("assignmentTarget.class") : t("assignmentTarget.studentCount", { count: form.studentProfileIds.length })}</strong>
               </div>
               <div>
                 <span>状态</span>

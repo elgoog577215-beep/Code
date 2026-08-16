@@ -78,6 +78,7 @@ async function readWorkspaceChrome(page, headerSelector, railSelector) {
 }
 
 test("problem workbench has persistent navigation, resizable split panels, and collapsible code", async () => {
+  const codeRunRequests = [];
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: {
@@ -92,6 +93,23 @@ test("problem workbench has persistent navigation, resizable split panels, and c
   }, student);
   await context.route("**/code/api/**", async route => {
     const path = new URL(route.request().url()).pathname.replace(/^\/code/, "");
+    if (path === "/api/code-runs" && route.request().method() === "POST") {
+      codeRunRequests.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "SUCCESS",
+          stdout: "8\n",
+          stderr: "",
+          exitCode: 0,
+          executionTimeMs: 12,
+          stdoutTruncated: false,
+          stderrTruncated: false
+        })
+      });
+      return;
+    }
     const body = path === "/api/problems/101"
       ? problem
       : path === "/api/student/profile/41/assignments"
@@ -183,6 +201,43 @@ test("problem workbench has persistent navigation, resizable split panels, and c
     await page.getByRole("button", { name: "展开代码" }).click();
     await page.locator(".problem-main-split > .panel--editor").waitFor({ state: "visible" });
     assert.equal(await page.getByRole("button", { name: "提交代码" }).count(), 1);
+    const codeRunToggle = page.getByRole("button", { name: "展开测试运行" });
+    assert.equal(await codeRunToggle.getAttribute("aria-expanded", { timeout: 5000 }), "false");
+    assert.equal(await page.getByText("快速验证", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("自定义输入运行", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("用一组输入运行当前代码，不计入正式提交和学习记录。", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("临时运行", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("内容会作为程序的标准输入 stdin。", { exact: true }).count(), 0);
+    if (process.env.STUDENT_PROBLEM_CODE_RUN_COLLAPSED_SCREENSHOT) {
+      await page.locator(".code-run-panel").screenshot({ path: process.env.STUDENT_PROBLEM_CODE_RUN_COLLAPSED_SCREENSHOT });
+    }
+    await codeRunToggle.click();
+    assert.equal(
+      await page.getByRole("button", { name: "收起测试运行" }).getAttribute("aria-expanded"),
+      "true"
+    );
+    const customInput = page.getByRole("textbox", { name: /自定义输入/ });
+    await customInput.waitFor({ state: "visible" });
+    assert.equal(await customInput.inputValue(), "");
+    await page.getByRole("button", { name: "载入首个样例" }).click();
+    assert.equal(await customInput.inputValue(), "3 5");
+    if (process.env.STUDENT_PROBLEM_CODE_RUN_EXPANDED_SCREENSHOT) {
+      await page.locator(".code-run-panel").screenshot({ path: process.env.STUDENT_PROBLEM_CODE_RUN_EXPANDED_SCREENSHOT });
+    }
+    await page.getByRole("button", { name: "运行代码" }).click();
+    await page.locator(".code-run-result").waitFor({ state: "visible", timeout: 5000 });
+    assert.equal((await page.locator(".code-run-stdout").textContent())?.trim(), "8");
+    assert.equal(codeRunRequests.length, 1);
+    assert.deepEqual(codeRunRequests[0], {
+      problemId: 101,
+      assignmentId: 7,
+      languageId: 71,
+      sourceCode: problem.starterCode,
+      stdin: "3 5"
+    });
+    assert.equal(await page.locator(".problem-result-modal").count(), 0);
+    await customInput.fill("2 4");
+    assert.match((await page.locator(".code-run-result").textContent()) || "", /内容已变化/);
     assert.deepEqual(browserErrors, []);
 
   } finally {

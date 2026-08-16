@@ -1,8 +1,9 @@
 import { ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { BarChart3, BrainCircuit, Database, Power, UsersRound } from "lucide-react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { BarChart3, BrainCircuit, Database, LogOut, Power, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "../../shared/i18n";
+import { useAccountSession } from "../../shared/auth/AccountSessionContext";
 import "./TeacherHomeRefresh.css";
 
 type TeacherNavItem = {
@@ -15,7 +16,10 @@ type TeacherNavItem = {
 export function TeacherShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const pathname = location.pathname;
+  const { session, logout } = useAccountSession();
+  const inManagement = pathname === "/teacher/manage" || pathname.startsWith("/teacher/manage") || pathname.startsWith("/task-editor");
   const primaryItems: TeacherNavItem[] = [
     {
       to: "/teacher/classes",
@@ -55,7 +59,6 @@ export function TeacherShell({ children }: { children: ReactNode }) {
       activeWhen: current => current.startsWith("/teacher/manage/system")
     }
   ];
-
   return (
     <div className="teacher-shell teacher-console-shell">
       <aside className="teacher-shell-sidebar" aria-label={t("teacherShell.aria")}>
@@ -72,6 +75,12 @@ export function TeacherShell({ children }: { children: ReactNode }) {
             {managementItems.map(item => renderNavItem(item, pathname))}
           </div>
         </nav>
+        <div className="teacher-shell-sidebar__foot">
+          <span className="teacher-shell-account" title={session?.displayName || undefined}>{session?.displayName || (inManagement ? t("teacherShell.managementFootnote") : t("teacherShell.footnote"))}</span>
+          <button type="button" className="teacher-shell-logout" onClick={() => void logout().finally(() => navigate("/teacher", { replace: true }))}>
+            <LogOut size={16} aria-hidden="true" /><span>{t("common.logout")}</span>
+          </button>
+        </div>
       </aside>
       <div className="teacher-shell-main">{children}</div>
     </div>

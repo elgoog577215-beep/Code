@@ -8,6 +8,8 @@ server:
     mime-types: application/json,application/javascript,text/html,text/xml,text/plain,text/css,application/xml,image/svg+xml,text/javascript
 
 spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   config:
     import: optional:file:.env[.properties]
   profiles:
@@ -24,7 +26,10 @@ spring:
       enabled: ${H2_CONSOLE_ENABLED:false}
       path: /h2-console
   flyway:
-    enabled: false
+    enabled: ${FLYWAY_ENABLED:false}
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
+    baseline-version: 1
+    validate-on-migrate: true
   jpa:
     hibernate:
       ddl-auto: update
@@ -71,6 +76,14 @@ ai:
     auto-merge-min-occurrences: ${AI_STANDARD_LIBRARY_AUTO_MERGE_MIN_OCCURRENCES:2}
 
 app:
+  code-run:
+    enabled: ${APP_CODE_RUN_ENABLED:true}
+    max-source-bytes: ${APP_CODE_RUN_MAX_SOURCE_BYTES:102400}
+    max-stdin-bytes: ${APP_CODE_RUN_MAX_STDIN_BYTES:65536}
+    max-output-bytes: ${APP_CODE_RUN_MAX_OUTPUT_BYTES:65536}
+    max-runs-per-minute: ${APP_CODE_RUN_MAX_RUNS_PER_MINUTE:10}
+    max-concurrent-per-key: ${APP_CODE_RUN_MAX_CONCURRENT_PER_KEY:1}
+    max-concurrent-global: ${APP_CODE_RUN_MAX_CONCURRENT_GLOBAL:4}
   submission-evidence:
     strict-classroom-context-enabled: ${APP_STRICT_CLASSROOM_SUBMISSION_ENABLED:true}
     analytics-read-enabled: ${APP_SUBMISSION_EVIDENCE_ANALYTICS_ENABLED:true}
@@ -84,6 +97,15 @@ app:
     class-coverage-threshold: ${APP_SUBMISSION_ISSUE_CLASS_COVERAGE_THRESHOLD:0.4}
     class-repeat-threshold: ${APP_SUBMISSION_ISSUE_CLASS_REPEAT_THRESHOLD:1.5}
     class-low-recovery-threshold: ${APP_SUBMISSION_ISSUE_CLASS_LOW_RECOVERY_THRESHOLD:0.6}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
 
 ---
 spring:

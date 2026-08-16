@@ -219,7 +219,7 @@ public class SubmissionEvidenceAnalyticsService {
         if (submission.getStudentProfileId() == null) {
             return false;
         }
-        return rosterIds.isEmpty() || rosterIds.contains(submission.getStudentProfileId());
+        return rosterIds.contains(submission.getStudentProfileId());
     }
 
     private boolean isErrorFact(SubmissionDiagnosisFact fact) {

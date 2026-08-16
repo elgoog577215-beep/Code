@@ -31,8 +31,10 @@ import type {
   InformaticsKnowledgeNode,
   ImportCommit,
   ImportPreview,
-  ProblemCatalogItem,
-  Readiness
+  ProblemManage,
+  Readiness,
+  StudentProfile,
+  TeacherAiUsage
 } from "../../shared/api/types";
 import { displayText } from "../../shared/format";
 import { useTranslation } from "../../shared/i18n";
@@ -44,6 +46,7 @@ import TaskEditorPage from "../task-editor/TaskEditorPage";
 
 type Alert = { type: "success" | "error"; message: string };
 type ImportKind = "class" | "problem";
+type ClassWorkspaceTab = "roster" | "import" | "settings";
 type LibraryEnabledFilter = "" | "true" | "false";
 type StandardLibraryView = "library" | "review";
 type GrowthCandidateAction = "approve" | "merge" | "reject" | "ignore";
@@ -130,7 +133,8 @@ export default function TeacherManagementPage({ section = "classes" }: { section
 export function TeacherManagementTools({ section = "classes" }: TeacherManagementToolsProps) {
   const { t } = useTranslation();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [problems, setProblems] = useState<ProblemCatalogItem[]>([]);
+  const [roster, setRoster] = useState<StudentProfile[]>([]);
+  const [problems, setProblems] = useState<ProblemManage[]>([]);
   const [classForm, setClassForm] = useState({ name: "", grade: "", teacherName: "" });
   const [targetClassGroupId, setTargetClassGroupId] = useState("");
   const [classImport, setClassImport] = useState({ format: "csv", content: "" });
@@ -142,6 +146,7 @@ export function TeacherManagementTools({ section = "classes" }: TeacherManagemen
   const [alert, setAlert] = useState<Alert | null>(null);
   const [busy, setBusy] = useState(true);
   const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [usage, setUsage] = useState<TeacherAiUsage | null>(null);
   const [aiSmokeBusy, setAiSmokeBusy] = useState(false);
   const [libraryItems, setLibraryItems] = useState<AiStandardLibraryItem[]>([]);
   const [growthCandidates, setGrowthCandidates] = useState<AiStandardLibraryGrowthCandidate[]>([]);
@@ -162,12 +167,21 @@ export function TeacherManagementTools({ section = "classes" }: TeacherManagemen
     }
     if (section === "system") {
       void loadReadiness();
+      void loadUsage();
     }
     if (section === "ai-library") {
       void loadKnowledgeTree();
       void loadStandardLibraryGrowth();
     }
   }, [section]);
+
+  useEffect(() => {
+    if (section !== "classes" || !targetClassGroupId) {
+      setRoster([]);
+      return;
+    }
+    void loadRoster(Number(targetClassGroupId));
+  }, [section, targetClassGroupId]);
 
   useEffect(() => {
     if (section !== "ai-library") {
@@ -208,7 +222,7 @@ export function TeacherManagementTools({ section = "classes" }: TeacherManagemen
   async function loadProblems() {
     setBusy(true);
     try {
-      const problemResult = await api.problemCatalog();
+      const problemResult = await api.teacherProblems();
       setProblems(problemResult);
       if (!selectedProblemId && problemResult[0]) {
         setSelectedProblemId(problemResult[0].id);
@@ -225,6 +239,22 @@ export function TeacherManagementTools({ section = "classes" }: TeacherManagemen
       setReadiness(await api.readiness());
     } catch {
       setReadiness(null);
+    }
+  }
+
+  async function loadRoster(classGroupId: number) {
+    try {
+      setRoster(await api.classRoster(classGroupId));
+    } catch {
+      setRoster([]);
+    }
+  }
+
+  async function loadUsage() {
+    try {
+      setUsage(await api.teacherUsage());
+    } catch {
+      setUsage(null);
     }
   }
 
@@ -376,16 +406,74 @@ export function TeacherManagementTools({ section = "classes" }: TeacherManagemen
     }
     setBusy(true);
     try {
-      await api.createClass({
+      const created = await api.createClass({
         name: classForm.name.trim(),
         grade: classForm.grade.trim(),
         teacherName: classForm.teacherName.trim()
       });
       setClassForm({ name: "", grade: "", teacherName: "" });
-      setAlert({ type: "success", message: "班级已创建。" });
+      setAlert({ type: "success", message: created.joinCode
+        ? t("multiTeacher.classCode.created", { code: created.joinCode })
+        : t("multiTeacher.classCode.createdWithoutCode") });
       await loadClasses();
+      setClasses(current => current.map(item => item.id === created.id ? { ...item, joinCode: created.joinCode } : item));
     } catch (error) {
       setAlert({ type: "error", message: error instanceof Error ? error.message : "班级创建失败。" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rotateClassCode(classGroupId: number) {
+    setBusy(true);
+    try {
+      const updated = await api.rotateClassJoinCode(classGroupId);
+      setClasses(current => current.map(item => item.id === classGroupId ? { ...item, joinCode: updated.joinCode } : item));
+      setAlert({ type: "success", message: t("multiTeacher.classCode.rotated", { code: updated.joinCode || "" }) });
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : t("multiTeacher.classCode.rotateFailed") });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateRosterStatus(student: StudentProfile) {
+    if (!student.classGroupId) return;
+    setBusy(true);
+    try {
+      await api.updateRosterStatus(student.classGroupId, student.id, student.status === "ACTIVE" ? "INACTIVE" : "ACTIVE");
+      await Promise.all([loadRoster(student.classGroupId), loadClasses()]);
+      setAlert({ type: "success", message: t("multiTeacher.roster.statusSaved") });
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : t("multiTeacher.roster.statusFailed") });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitProblemReview(problemId: number) {
+    setBusy(true);
+    try {
+      const created = await api.submitProblemReview(problemId);
+      setAlert({ type: "success", message: t("multiTeacher.problem.reviewSubmitted", { version: created.versionNo }) });
+      await loadProblems();
+      setSelectedProblemId(created.id);
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : t("multiTeacher.problem.actionFailed") });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reviseProblem(problemId: number) {
+    setBusy(true);
+    try {
+      const created = await api.reviseProblem(problemId);
+      await loadProblems();
+      setSelectedProblemId(created.id);
+      setAlert({ type: "success", message: t("multiTeacher.problem.revisionCreated", { version: created.versionNo }) });
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : t("multiTeacher.problem.actionFailed") });
     } finally {
       setBusy(false);
     }
@@ -427,6 +515,7 @@ export function TeacherManagementTools({ section = "classes" }: TeacherManagemen
       if (mode === "commit") {
         if (kind === "class") {
           await loadClasses();
+          if (targetClassGroupId) await loadRoster(Number(targetClassGroupId));
         } else {
           await loadProblems();
         }
@@ -466,6 +555,7 @@ export function TeacherManagementTools({ section = "classes" }: TeacherManagemen
           {section === "classes" ? (
             <ClassManageSection
               classes={cleanClasses}
+              roster={roster}
               selectedClassGroupId={targetClassGroupId}
               classForm={classForm}
               classImport={classImport}
@@ -479,6 +569,8 @@ export function TeacherManagementTools({ section = "classes" }: TeacherManagemen
               onCreateClass={() => void createClass()}
               onPickFile={readImportFile}
               onRunImport={mode => void runImport("class", mode)}
+              onRotateClassCode={classGroupId => void rotateClassCode(classGroupId)}
+              onUpdateRosterStatus={student => void updateRosterStatus(student)}
             />
           ) : null}
 
@@ -499,12 +591,15 @@ export function TeacherManagementTools({ section = "classes" }: TeacherManagemen
                 setSelectedProblemId(problem.id);
                 void loadProblems();
               }}
+              onSubmitReview={problemId => void submitProblemReview(problemId)}
+              onRevise={problemId => void reviseProblem(problemId)}
             />
           ) : null}
 
           {section === "system" ? (
             <ReadinessPanel
               readiness={readiness}
+              usage={usage}
               busy={aiSmokeBusy}
               onRefresh={loadReadiness}
               onAiSmoke={runAiSmoke}
@@ -541,6 +636,7 @@ export function TeacherManagementTools({ section = "classes" }: TeacherManagemen
 
 function ClassManageSection({
   classes,
+  roster,
   selectedClassGroupId,
   classForm,
   classImport,
@@ -552,10 +648,13 @@ function ClassManageSection({
   onClassFormChange,
   onClassImportChange,
   onCreateClass,
+  onRotateClassCode,
+  onUpdateRosterStatus,
   onPickFile,
   onRunImport
 }: {
   classes: ClassGroup[];
+  roster: StudentProfile[];
   selectedClassGroupId: string;
   classForm: { name: string; grade: string; teacherName: string };
   classImport: { format: string; content: string };
@@ -567,11 +666,21 @@ function ClassManageSection({
   onClassFormChange: (form: { name: string; grade: string; teacherName: string }) => void;
   onClassImportChange: (value: { format: string; content: string }) => void;
   onCreateClass: () => void;
+  onRotateClassCode: (classGroupId: number) => void;
+  onUpdateRosterStatus: (student: StudentProfile) => void;
   onPickFile: (kind: ImportKind, file: File | null) => void | Promise<void>;
   onRunImport: (mode: "preview" | "commit") => void;
 }) {
   const { t } = useTranslation();
   const selectedClass = classes.find(item => String(item.id) === selectedClassGroupId) || classes[0] || null;
+  const [activeTab, setActiveTab] = useState<ClassWorkspaceTab>("roster");
+  const activeStudentCount = roster.filter(student => student.status === "ACTIVE").length;
+
+  useEffect(() => {
+    setActiveTab("roster");
+  }, [selectedClass?.id]);
+
+  const selectTab = (tab: ClassWorkspaceTab) => setActiveTab(tab);
 
   return (
     <section className="management-object-workbench management-object-workbench--classes">
@@ -584,7 +693,7 @@ function ClassManageSection({
           classes.map(item => (
             <button
               type="button"
-              className={`management-object-row ${String(item.id) === String(selectedClass?.id) ? "is-active" : ""}`}
+              className={`management-class-row ${String(item.id) === String(selectedClass?.id) ? "is-active" : ""}`}
               key={item.id}
               onClick={() => onSelectClass(String(item.id))}
             >
@@ -617,15 +726,91 @@ function ClassManageSection({
         </details>
       </aside>
 
-      <section className="management-object-main management-class-import">
-        <div className="management-object-main__head">
+      <section className="management-object-main management-class-workspace">
+        <div className="management-class-workspace__head">
           <div>
             <p className="eyebrow">{t("teacherManagement.classManage.import.eyebrow")}</p>
             <h2>{selectedClass?.name || t("teacherManagement.classManage.defaultClass")}</h2>
+            <div className="management-class-summary" aria-label={t("teacherManagement.classManage.summaryAria")}>
+              <StatusPill tone="info">{t("multiTeacher.classCode.studentCount", { count: activeStudentCount })}</StatusPill>
+              <StatusPill tone="neutral">{t("multiTeacher.classCode.hidden")}</StatusPill>
+            </div>
           </div>
-          {selectedClass ? <StatusPill tone="info">{t("teacherManagement.classManage.import.currentTarget")}</StatusPill> : <StatusPill tone="warning">{t("teacherManagement.classManage.import.waiting")}</StatusPill>}
+          <Button
+            className="management-class-primary-action"
+            type="button"
+            variant="primary"
+            icon={<UploadCloud size={17} />}
+            disabled={!selectedClass}
+            onClick={() => selectTab("import")}
+          >
+            {t("teacherManagement.classManage.importAction")}
+          </Button>
         </div>
-        <div className="management-step-list">
+        <div className="management-class-tabs" role="tablist" aria-label={t("teacherManagement.classManage.tabs.aria")}>
+          {(["roster", "import", "settings"] as const).map(tab => (
+            <button
+              id={`class-workspace-tab-${tab}`}
+              type="button"
+              role="tab"
+              data-class-tab={tab}
+              aria-selected={activeTab === tab}
+              aria-controls={`class-workspace-panel-${tab}`}
+              className={`management-class-tab ${activeTab === tab ? "is-active" : ""}`}
+              key={tab}
+              onClick={() => selectTab(tab)}
+            >
+              {t(`teacherManagement.classManage.tabs.${tab}`)}
+              {tab === "roster" ? <span>{roster.length}</span> : null}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === "roster" ? (
+          <section
+            id="class-workspace-panel-roster"
+            className="management-class-panel management-class-panel--roster"
+            role="tabpanel"
+            aria-labelledby="class-workspace-tab-roster"
+          >
+            <div className="management-class-panel__head">
+              <div>
+                <h3>{t("multiTeacher.roster.title")}</h3>
+                <p>{t("multiTeacher.roster.description")}</p>
+              </div>
+              <StatusPill tone="neutral">{t("teacherManagement.classManage.rosterCount", { count: roster.length })}</StatusPill>
+            </div>
+            <div className="management-roster-columns" aria-hidden="true">
+              <span>{t("teacherManagement.classManage.rosterColumns.student")}</span>
+              <span>{t("teacherManagement.classManage.rosterColumns.number")}</span>
+              <span>{t("teacherManagement.classManage.rosterColumns.status")}</span>
+              <span>{t("teacherManagement.classManage.rosterColumns.action")}</span>
+            </div>
+            <div className="management-roster-list">
+              {roster.length ? roster.map(student => (
+                <article className="management-roster-row" key={student.id}>
+                  <span className="management-roster-row__student">
+                    <span className="management-roster-row__avatar" aria-hidden="true">{student.displayName.trim().slice(0, 1) || "—"}</span>
+                    <strong>{student.displayName}</strong>
+                  </span>
+                  <small className="management-roster-row__number">{student.studentNo ? `#${student.studentNo}` : "—"}</small>
+                  <StatusPill tone={student.status === "ACTIVE" ? "success" : student.status === "NEEDS_REVIEW" ? "warning" : "neutral"}>{t(`multiTeacher.roster.status.${(student.status || "needs_review").toLowerCase()}`)}</StatusPill>
+                  <Button className="management-roster-row__action" type="button" variant="secondary" icon={student.status === "ACTIVE" ? <PowerOff size={15} /> : <Power size={15} />} disabled={busy || student.status === "NEEDS_REVIEW"} onClick={() => onUpdateRosterStatus(student)}>
+                    {t(student.status === "ACTIVE" ? "multiTeacher.roster.deactivate" : "multiTeacher.roster.activate")}
+                  </Button>
+                </article>
+              )) : <EmptyState title={t("multiTeacher.roster.empty")} description={t("multiTeacher.roster.emptyHint")} />}
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "import" ? (
+        <div
+          id="class-workspace-panel-import"
+          className="management-class-panel management-class-panel--import management-step-list"
+          role="tabpanel"
+          aria-labelledby="class-workspace-tab-import"
+        >
           <section className="management-step">
             <span className="management-step__number">1</span>
             <div className="management-step__body">
@@ -689,23 +874,50 @@ function ClassManageSection({
             </div>
           </section>
         </div>
+        ) : null}
+
+        {activeTab === "settings" ? (
+          <section
+            id="class-workspace-panel-settings"
+            className="management-class-panel management-class-panel--settings"
+            role="tabpanel"
+            aria-labelledby="class-workspace-tab-settings"
+          >
+            <div className="management-class-settings-card">
+              <span className="management-step__number">#</span>
+              <div className="management-step__body">
+                <div className="management-step__head">
+                  <h3>{t("multiTeacher.classCode.title")}</h3>
+                  <p>{t("multiTeacher.classCode.description")}</p>
+                </div>
+                <div className="actions">
+                  {selectedClass?.joinCode ? <StatusPill tone="success">{selectedClass.joinCode}</StatusPill> : <StatusPill tone="neutral">{t("multiTeacher.classCode.hidden")}</StatusPill>}
+                  <StatusPill tone="info">{t("multiTeacher.classCode.studentCount", { count: activeStudentCount })}</StatusPill>
+                  <Button type="button" variant="secondary" disabled={busy || !selectedClass} onClick={() => selectedClass && onRotateClassCode(selectedClass.id)}>
+                    {t("multiTeacher.classCode.rotate")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
       </section>
     </section>
   );
 }
 
-function filterProblemCatalogItems(problems: ProblemCatalogItem[], query: string) {
+function filterProblemCatalogItems(problems: ProblemManage[], query: string) {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
     return problems;
   }
   return problems.filter(item => {
-    const haystack = `${item.title} ${item.summary || ""} ${item.difficulty}`.toLowerCase();
+    const haystack = `${item.title} ${item.description || ""} ${item.difficulty} ${item.scope} ${item.versionState}`.toLowerCase();
     return haystack.includes(normalizedQuery);
   });
 }
 
-function sortProblemCatalogItems(problems: ProblemCatalogItem[], mode: ProblemSortMode) {
+function sortProblemCatalogItems(problems: ProblemManage[], mode: ProblemSortMode) {
   const items = [...problems];
   items.sort((first, second) => {
     if (mode === "difficulty") {
@@ -752,6 +964,204 @@ function createVisibleProblemPages(current: number, total: number): Array<number
   return result;
 }
 
+function renderReadOnlyProblemStatement(value: string, title: string, emptyText: string): ReactNode[] {
+  if (!value.trim()) {
+    return [<p className="management-problem-readonly__empty" key="empty">{emptyText}</p>];
+  }
+
+  const nodes: ReactNode[] = [];
+  const codeLines: string[] = [];
+  let inCode = false;
+  let contentStarted = false;
+
+  function flushCode(key: string) {
+    if (!codeLines.length) {
+      return;
+    }
+    nodes.push(
+      <pre key={key}>
+        <code>{codeLines.join("\n")}</code>
+      </pre>
+    );
+    codeLines.length = 0;
+  }
+
+  value.split(/\r?\n/).forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```")) {
+      if (inCode) {
+        flushCode(`code-${index}`);
+      }
+      inCode = !inCode;
+      return;
+    }
+    if (inCode) {
+      codeLines.push(line);
+      return;
+    }
+    if (!trimmed) {
+      return;
+    }
+    if (!contentStarted && trimmed.replace(/^#\s+/, "") === title.trim()) {
+      contentStarted = true;
+      return;
+    }
+    contentStarted = true;
+    if (trimmed.startsWith("### ")) {
+      nodes.push(<h4 key={`h4-${index}`}>{trimmed.slice(4)}</h4>);
+      return;
+    }
+    if (trimmed.startsWith("## ")) {
+      nodes.push(<h3 key={`h3-${index}`}>{trimmed.slice(3)}</h3>);
+      return;
+    }
+    if (trimmed.startsWith("# ")) {
+      nodes.push(<h2 key={`h2-${index}`}>{trimmed.slice(2)}</h2>);
+      return;
+    }
+    if (/^[-*]\s+/.test(trimmed)) {
+      nodes.push(
+        <p className="management-problem-readonly__list-item" key={`list-${index}`}>
+          <span aria-hidden="true">•</span>
+          <span>{trimmed.replace(/^[-*]\s+/, "")}</span>
+        </p>
+      );
+      return;
+    }
+    nodes.push(<p key={`p-${index}`}>{line}</p>);
+  });
+  flushCode("code-tail");
+  return nodes.length ? nodes : [<p className="management-problem-readonly__empty" key="empty">{emptyText}</p>];
+}
+
+function ReadOnlyProblemDetail({ problem }: { problem: ProblemManage }) {
+  const { t } = useTranslation();
+  const samples = problem.sampleTestCases?.length
+    ? problem.sampleTestCases
+    : problem.testCases.filter(item => !item.hidden).map(item => ({ input: item.input, expectedOutput: item.expectedOutput }));
+  const hiddenTestCount = problem.testCases.filter(item => item.hidden).length;
+  const metadataGroups = [
+    { label: t("teacherManagement.problemManage.readOnly.knowledgePoints"), values: problem.knowledgePoints || [] },
+    { label: t("teacherManagement.problemManage.readOnly.algorithmStrategies"), values: problem.algorithmStrategies || [] },
+    { label: t("teacherManagement.problemManage.readOnly.commonMistakes"), values: problem.commonMistakes || [] },
+    { label: t("teacherManagement.problemManage.readOnly.boundaryTypes"), values: problem.boundaryTypes || [] }
+  ].filter(group => group.values.length);
+
+  return (
+    <article className="management-problem-readonly">
+      <div className="management-problem-readonly__notice" role="note">
+        <BookOpen size={19} aria-hidden="true" />
+        <div>
+          <strong>{t("multiTeacher.problem.readOnlyTitle")}</strong>
+          <span>{t("multiTeacher.problem.readOnlyDescription")}</span>
+        </div>
+      </div>
+
+      <dl className="management-problem-readonly__facts" aria-label={t("teacherManagement.problemManage.readOnly.factsAria")}>
+        <div>
+          <dt>{t("teacherManagement.problemManage.readOnly.difficulty")}</dt>
+          <dd>{problemDifficultyLabel(String(problem.difficulty), t)}</dd>
+        </div>
+        <div>
+          <dt>{t("teacherManagement.problemManage.readOnly.timeLimit")}</dt>
+          <dd>{problem.timeLimit} ms</dd>
+        </div>
+        <div>
+          <dt>{t("teacherManagement.problemManage.readOnly.memoryLimit")}</dt>
+          <dd>{Math.round(problem.memoryLimit / 1024)} MB</dd>
+        </div>
+        <div>
+          <dt>{t("teacherManagement.problemManage.readOnly.publicSamples")}</dt>
+          <dd>{samples.length}</dd>
+        </div>
+      </dl>
+
+      <section className="management-problem-readonly__section">
+        <header>
+          <span aria-hidden="true">01</span>
+          <div>
+            <h3>{t("teacherManagement.problemManage.readOnly.statementTitle")}</h3>
+            <p>{t("teacherManagement.problemManage.readOnly.statementDescription")}</p>
+          </div>
+        </header>
+        <div className="management-problem-readonly__statement">
+          {renderReadOnlyProblemStatement(problem.description, problem.title, t("teacherManagement.problemManage.readOnly.emptyStatement"))}
+        </div>
+      </section>
+
+      <section className="management-problem-readonly__section">
+        <header>
+          <span aria-hidden="true">02</span>
+          <div>
+            <h3>{t("teacherManagement.problemManage.readOnly.samplesTitle")}</h3>
+            <p>{t("teacherManagement.problemManage.readOnly.samplesDescription")}</p>
+          </div>
+        </header>
+        {samples.length ? (
+          <div className="management-problem-readonly__samples">
+            {samples.map((sample, index) => (
+              <article className="management-problem-readonly__sample" key={`${sample.input}-${sample.expectedOutput}-${index}`}>
+                <strong>{t("teacherManagement.problemManage.readOnly.sampleNumber", { number: index + 1 })}</strong>
+                <div>
+                  <span>{t("teacherManagement.problemManage.readOnly.sampleInput")}</span>
+                  <pre>{sample.input || t("teacherManagement.problemManage.readOnly.emptyValue")}</pre>
+                </div>
+                <div>
+                  <span>{t("teacherManagement.problemManage.readOnly.sampleOutput")}</span>
+                  <pre>{sample.expectedOutput || t("teacherManagement.problemManage.readOnly.emptyValue")}</pre>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="management-problem-readonly__empty">{t("teacherManagement.problemManage.readOnly.noSamples")}</p>
+        )}
+        {hiddenTestCount ? (
+          <p className="management-problem-readonly__hidden-note">
+            {t("teacherManagement.problemManage.readOnly.hiddenTests", { count: hiddenTestCount })}
+          </p>
+        ) : null}
+      </section>
+
+      {metadataGroups.length || problem.aiPromptDirection || problem.starterCode ? (
+        <section className="management-problem-readonly__section">
+          <header>
+            <span aria-hidden="true">03</span>
+            <div>
+              <h3>{t("teacherManagement.problemManage.readOnly.teachingTitle")}</h3>
+              <p>{t("teacherManagement.problemManage.readOnly.teachingDescription")}</p>
+            </div>
+          </header>
+          {metadataGroups.length ? (
+            <div className="management-problem-readonly__metadata">
+              {metadataGroups.map(group => (
+                <div key={group.label}>
+                  <strong>{group.label}</strong>
+                  <span>
+                    {group.values.map(value => <em key={value}>{value}</em>)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {problem.aiPromptDirection ? (
+            <div className="management-problem-readonly__teaching-note">
+              <strong>{t("teacherManagement.problemManage.readOnly.aiDirection")}</strong>
+              <p>{problem.aiPromptDirection}</p>
+            </div>
+          ) : null}
+          {problem.starterCode ? (
+            <details className="management-problem-readonly__starter">
+              <summary>{t("teacherManagement.problemManage.readOnly.starterCode")}</summary>
+              <pre><code>{problem.starterCode}</code></pre>
+            </details>
+          ) : null}
+        </section>
+      ) : null}
+    </article>
+  );
+}
+
 function ProblemManageSection({
   problems,
   selectedProblemId,
@@ -764,9 +1174,11 @@ function ProblemManageSection({
   onProblemImportChange,
   onPickFile,
   onRunImport,
-  onProblemSaved
+  onProblemSaved,
+  onSubmitReview,
+  onRevise
 }: {
-  problems: ProblemCatalogItem[];
+  problems: ProblemManage[];
   selectedProblemId: number | null;
   problemImport: { format: string; content: string };
   problemFileName: string;
@@ -778,6 +1190,8 @@ function ProblemManageSection({
   onPickFile: (kind: ImportKind, file: File | null) => void | Promise<void>;
   onRunImport: (mode: "preview" | "commit") => void;
   onProblemSaved: (problem: import("../../shared/api/types").Problem) => void;
+  onSubmitReview: (problemId: number) => void;
+  onRevise: (problemId: number) => void;
 }) {
   const { t } = useTranslation();
   const [problemQuery, setProblemQuery] = useState("");
@@ -904,11 +1318,11 @@ function ProblemManageSection({
                   <span className="management-object-row__number">{String(item.id).padStart(4, "0")}</span>
                   <span className="management-object-row__content">
                     <strong>{item.title}</strong>
-                    <small>{displayText(item.summary || "", t("teacherManagement.problemManage.noSummary"))}</small>
+                    <small>{displayText(item.description || "", t("teacherManagement.problemManage.noSummary"))}</small>
                   </span>
                   <span className="management-object-row__state">
-                    <span>{problemDifficultyLabel(item.difficulty, t)}</span>
-                    <strong>{item.timeLimit} ms</strong>
+                    <span>{t(`multiTeacher.problem.scope.${item.scope.toLowerCase()}`)}</span>
+                    <strong>v{item.versionNo}</strong>
                   </span>
                 </button>
               ))}
@@ -994,16 +1408,45 @@ function ProblemManageSection({
 
       <section className="management-object-main">
         {selectedProblem || creatingProblem ? (
-          <TaskEditorPage
-            embedded
-            selectedProblemId={selectedProblem?.id || null}
-            createDraftSignal={createDraftSignal}
-            showCatalogDrawer={false}
-            onSaved={problem => {
-              setCreatingProblem(false);
-              onProblemSaved(problem);
-            }}
-          />
+          <>
+            {selectedProblem ? (
+              <div className="management-object-main__head">
+                <div>
+                  <p className="eyebrow">{t(`multiTeacher.problem.scope.${selectedProblem.scope.toLowerCase()}`)}</p>
+                  <h2>{selectedProblem.title}</h2>
+                </div>
+                <div className="actions">
+                  <StatusPill tone={selectedProblem.versionState === "PUBLISHED" ? "success" : selectedProblem.versionState === "DRAFT" ? "neutral" : "info"}>
+                    {t(`multiTeacher.problem.state.${selectedProblem.versionState.toLowerCase()}`)} · v{selectedProblem.versionNo}
+                  </StatusPill>
+                  {selectedProblem.scope === "PRIVATE" && selectedProblem.versionState === "DRAFT" ? (
+                    <Button type="button" variant="secondary" disabled={busy} onClick={() => onSubmitReview(selectedProblem.id)}>
+                      {t("multiTeacher.problem.submitReview")}
+                    </Button>
+                  ) : null}
+                  {selectedProblem.scope === "SHARED" && selectedProblem.versionState === "PUBLISHED" ? (
+                    <Button type="button" variant="secondary" disabled={busy} onClick={() => onRevise(selectedProblem.id)}>
+                      {t("multiTeacher.problem.revise")}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+            {creatingProblem || selectedProblem?.versionState === "DRAFT" ? (
+              <TaskEditorPage
+                embedded
+                selectedProblemId={selectedProblem?.id || null}
+                createDraftSignal={createDraftSignal}
+                showCatalogDrawer={false}
+                onSaved={problem => {
+                  setCreatingProblem(false);
+                  onProblemSaved(problem);
+                }}
+              />
+            ) : (
+              selectedProblem ? <ReadOnlyProblemDetail problem={selectedProblem} /> : null
+            )}
+          </>
         ) : (
           <div className="management-object-empty">
             <EmptyState
@@ -1019,12 +1462,14 @@ function ProblemManageSection({
 
 function ReadinessPanel({
   readiness,
+  usage,
   busy,
   summary,
   onRefresh,
   onAiSmoke
 }: {
   readiness: Readiness | null;
+  usage: TeacherAiUsage | null;
   busy: boolean;
   summary?: ReactNode;
   onRefresh: () => void;
@@ -1045,6 +1490,11 @@ function ReadinessPanel({
         : t("teacherManagement.readiness.trialStart");
   return (
     <section className="management-readiness management-readiness--compact" aria-label={t("teacherManagement.readiness.aria")}>
+      <div className="management-readiness__chips">
+        <span><StatusPill tone={usage && usage.remainingUnits > 0 ? "success" : "warning"}>{usage ? usage.remainingUnits : "-"}</StatusPill>{t("multiTeacher.quota.remaining")}</span>
+        <span>{t("multiTeacher.quota.used", { used: usage?.usedUnits || 0, total: usage ? usage.baseUnits + usage.additionalUnits : 0 })}</span>
+        {usage ? <span>{t("multiTeacher.quota.resets", { time: new Date(usage.resetsAt).toLocaleString() })}</span> : null}
+      </div>
       <div className="management-readiness__head">
         <div>
           <span>{t("teacherManagement.readiness.summaryLabel")}</span>

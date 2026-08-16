@@ -5,10 +5,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -49,12 +47,8 @@ public class DockerCodeExecutor implements CodeExecutor {
     }
 
     @Override
-    public ExecutionResult execute(String sourceCode,
-                                   int languageId,
-                                   String stdin,
-                                   int timeLimitMs,
-                                   int memoryLimitKb) {
-        DockerLanguage language = dockerLanguage(languageId);
+    public ExecutionResult execute(CodeExecutionRequest request) {
+        DockerLanguage language = dockerLanguage(request.languageId());
         if (language == null) {
             return ExecutionResult.error("容器沙箱暂只开放 " + ContestLanguageRegistry.supportedLanguageNames());
         }
@@ -68,24 +62,32 @@ public class DockerCodeExecutor implements CodeExecutor {
             Files.createDirectories(workDir);
             Path sourceFile = workDir.resolve("solution." + language.extension());
             Path stdinFile = workDir.resolve("stdin.txt");
-            Files.writeString(sourceFile, sourceCode == null ? "" : sourceCode, StandardCharsets.UTF_8);
-            Files.writeString(stdinFile, stdin == null ? "" : stdin, StandardCharsets.UTF_8);
+            Files.writeString(sourceFile, request.sourceCode(), StandardCharsets.UTF_8);
+            Files.writeString(stdinFile, request.stdin(), StandardCharsets.UTF_8);
             createDockerVolume(volumeName);
             prepareDockerWorkspace(language, volumeName);
 
             long started = System.currentTimeMillis();
-            int compileTimeoutMs = Math.max(30000, timeLimitMs * 3);
+            int compileTimeoutMs = Math.max(30000, request.timeLimitMs() * 3);
             if (language.compileCommand() != null) {
-                ExecutionResult compileResult = runDocker(language, workDir, volumeName, language.compileCommand(), false, compileTimeoutMs, memoryLimitKb);
+                ExecutionResult compileResult = runDocker(
+                        language, workDir, volumeName, language.compileCommand(), false,
+                        compileTimeoutMs, request.memoryLimitKb(), request.maxOutputBytes()
+                );
                 if (compileResult.status == ExecutionResult.ResultStatus.TIME_LIMIT_EXCEEDED) {
                     return ExecutionResult.compilationError("编译超时，请检查模板、头文件和代码规模。");
                 }
                 if (compileResult.exitCode != 0) {
-                    return ExecutionResult.compilationError(firstNonBlank(compileResult.stderr, compileResult.stdout));
+                    return ExecutionResult.compilationError(firstNonBlank(compileResult.stderr, compileResult.stdout))
+                            .withOutput(compileResult.stdout, compileResult.stderr)
+                            .withCapturedOutput(compileResult.stdoutTruncated, compileResult.stderrTruncated);
                 }
             }
 
-            ExecutionResult runResult = runDocker(language, workDir, volumeName, language.runCommand(), true, timeLimitMs, memoryLimitKb);
+            ExecutionResult runResult = runDocker(
+                    language, workDir, volumeName, language.runCommand(), true,
+                    request.timeLimitMs(), request.memoryLimitKb(), request.maxOutputBytes()
+            );
             runResult.executionTimeMs = System.currentTimeMillis() - started;
             return runResult;
         } catch (IOException exception) {
@@ -103,7 +105,8 @@ public class DockerCodeExecutor implements CodeExecutor {
                                       String command,
                                       boolean feedStdinFile,
                                       int timeoutMs,
-                                      int memoryLimitKb) {
+                                      int memoryLimitKb,
+                                      int maxOutputBytes) {
         String script = "mkdir -p /workspace && tar -xf - -C /workspace && cd /workspace && " + command;
         if (feedStdinFile) {
             script += " < /workspace/stdin.txt";
@@ -139,8 +142,12 @@ public class DockerCodeExecutor implements CodeExecutor {
             }
 
             ExecutorService executor = Executors.newFixedThreadPool(2);
-            Future<String> stdoutFuture = executor.submit(() -> readStream(process.getInputStream()));
-            Future<String> stderrFuture = executor.submit(() -> readStream(process.getErrorStream()));
+            Future<BoundedOutputCollector.CapturedOutput> stdoutFuture = executor.submit(
+                    () -> BoundedOutputCollector.capture(process.getInputStream(), maxOutputBytes)
+            );
+            Future<BoundedOutputCollector.CapturedOutput> stderrFuture = executor.submit(
+                    () -> BoundedOutputCollector.capture(process.getErrorStream(), maxOutputBytes)
+            );
             boolean completed = process.waitFor(Math.max(timeoutMs, 100), TimeUnit.MILLISECONDS);
             if (!completed) {
                 process.destroyForcibly();
@@ -148,14 +155,20 @@ public class DockerCodeExecutor implements CodeExecutor {
                 return ExecutionResult.timeLimitExceeded();
             }
 
-            String stdout = stdoutFuture.get(1, TimeUnit.SECONDS);
-            String stderr = stderrFuture.get(1, TimeUnit.SECONDS);
+            BoundedOutputCollector.CapturedOutput stdout = stdoutFuture.get(1, TimeUnit.SECONDS);
+            BoundedOutputCollector.CapturedOutput stderr = stderrFuture.get(1, TimeUnit.SECONDS);
             executor.shutdown();
             int exitCode = process.exitValue();
             if (exitCode != 0) {
-                return ExecutionResult.runtimeError(firstNonBlank(stderr, stdout), exitCode);
+                if (exitCode == 137 || stderr.content().toLowerCase().contains("out of memory")) {
+                    return ExecutionResult.memoryLimitExceeded(stdout.content(), stderr.content(), exitCode)
+                            .withCapturedOutput(stdout.truncated(), stderr.truncated());
+                }
+                return new ExecutionResult(stdout.content(), stderr.content(), exitCode, 0)
+                        .withCapturedOutput(stdout.truncated(), stderr.truncated());
             }
-            return new ExecutionResult(stdout, stderr, exitCode, 0);
+            return new ExecutionResult(stdout.content(), stderr.content(), exitCode, 0)
+                    .withCapturedOutput(stdout.truncated(), stderr.truncated());
         } catch (TimeoutException exception) {
             return ExecutionResult.timeLimitExceeded();
         } catch (Exception exception) {
@@ -343,20 +356,6 @@ public class DockerCodeExecutor implements CodeExecutor {
             return firstNonBlank(python3Image, language.dockerImage());
         }
         return language.dockerImage();
-    }
-
-    private String readStream(InputStream inputStream) throws IOException {
-        StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!builder.isEmpty()) {
-                    builder.append('\n');
-                }
-                builder.append(line);
-            }
-        }
-        return builder.toString();
     }
 
     private String firstNonBlank(String primary, String fallback) {

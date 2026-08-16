@@ -291,7 +291,18 @@ const problem = {
   algorithmStrategies: ["手推模拟"],
   commonMistakes: ["差一位错误"],
   boundaryTypes: ["n 等于 1"],
-  sampleTestCases: [{ input: "3\n1 2 3\n", expectedOutput: "6\n" }]
+  sampleTestCases: [{ input: "3\n1 2 3\n", expectedOutput: "6\n" }],
+  ownerTeacherId: null,
+  scope: "PUBLIC",
+  versionState: "PUBLISHED",
+  seriesId: "public-sum-boundary",
+  versionNo: 1,
+  sourceProblemId: null,
+  archivedAt: null,
+  testCases: [
+    { id: 1, input: "3\n1 2 3\n", expectedOutput: "6\n", hidden: false, orderIndex: 0 },
+    { id: 2, input: "1\n-5\n", expectedOutput: "-5\n", hidden: true, orderIndex: 1 }
+  ]
 };
 
 const submissionResult = {
@@ -554,6 +565,83 @@ const history = [
 ];
 
 const classes = [{ id: 3, name: "高一1班", grade: "10", teacherName: "信息技术老师" }];
+
+const classLearningOverview = {
+  classGroup: classes[0],
+  assignmentCount: 1,
+  rosterStudentCount: 18,
+  submittedStudentCount: 18,
+  unsubmittedStudentCount: 0,
+  assignments: [{
+    assignmentId: 7,
+    title: "课堂编程作业",
+    status: "ACTIVE",
+    createdAt: "2026-05-19T08:00:00",
+    problemCount: 2,
+    rosterStudentCount: 18,
+    submittedStudentCount: 18,
+    unsubmittedStudentCount: 0,
+    completedRequiredStudentCount: 0
+  }]
+};
+
+const learningProof = {
+  studentProfileId: 41,
+  assignmentId: 7,
+  problemId: 101,
+  problemTitle: "求和边界",
+  latestSubmissionId: 9001,
+  repair: {
+    status: "IN_PROGRESS",
+    baselineSubmissionId: 9001,
+    targetSubmissionId: null,
+    passedTestCaseDelta: 0,
+    recoveredIssueCount: 0,
+    recoveredIssues: [],
+    evidenceRefs: ["submission:9001"]
+  },
+  explanation: {
+    status: "TO_EXPLAIN",
+    promptId: null,
+    submissionId: 9001,
+    question: "当 n 为 1 时，循环应该执行几次？",
+    answer: null,
+    feedback: null,
+    checkable: false,
+    evidenceTypes: [],
+    evidenceRefs: []
+  },
+  independentUse: {
+    status: "NOT_READY",
+    sourceSubmissionId: 9001,
+    targetProblemId: null,
+    targetProblemTitle: null,
+    targetSubmissionId: null,
+    evidenceRefs: []
+  }
+};
+
+const teacherProblemLearningProof = {
+  assignmentId: 7,
+  problemId: 101,
+  problemTitle: "求和边界",
+  failedStudentCount: 1,
+  repairedStudentCount: 0,
+  explainedStudentCount: 0,
+  independentVerifiedStudentCount: 0,
+  students: [{
+    studentProfileId: 41,
+    displayName: "学生甲",
+    studentNo: "12",
+    latestSubmissionId: 9001,
+    hadFailure: true,
+    repaired: false,
+    explained: false,
+    explanationCheckable: false,
+    independentVerified: false,
+    proof: learningProof
+  }]
+};
 
 const problemCatalog = [
   { id: 101, title: "求和边界", summary: "练习输入循环。", difficulty: "EASY", timeLimit: 1000, memoryLimit: 65536 },
@@ -1104,7 +1192,7 @@ const scenarios = [
     ],
     afterChecks: async (page, viewport) => {
       const navLabels = await page.locator(".top-nav__link span").allTextContents();
-      const roleActions = page.locator('.route-hub-role-actions a[href="/code/student"], .route-hub-role-actions a[href="/code/teacher"]');
+      const roleActions = page.locator('.route-hub-role-actions a[href="/code/student"], .route-hub-role-actions a[href="/code/teacher"], .route-hub-role-actions a[href="/code/school-admin/login"]');
       const canonicalHrefs = await roleActions.evaluateAll(elements =>
         elements.map(element => element.getAttribute("href"))
       );
@@ -1122,8 +1210,8 @@ const scenarios = [
       record("app root presents the code experience as a static screenshot", previewText === "界面截图" && previewImage.naturalWidth >= 700 && previewImage.naturalHeight >= 400, JSON.stringify({ previewText, previewImage }));
       record("app root screenshot has explicit alternative text", Boolean(previewImage.alt?.includes("编程与评测界面预览")), previewImage.alt || "");
       record("app root explains the learning loop", learningSteps === 3 && hubText.includes("练习") && hubText.includes("评测") && hubText.includes("复盘"), `steps ${learningSteps}; ${hubText.slice(0, 500)}`);
-      record("app root exposes canonical paths", canonicalHrefs.includes("/code/student") && canonicalHrefs.includes("/code/teacher"), canonicalHrefs.join("|"));
-      record("app root keeps one action per role", await roleActions.count() === 2, `role actions ${await roleActions.count()}`);
+      record("app root exposes canonical paths", canonicalHrefs.includes("/code/student") && canonicalHrefs.includes("/code/teacher") && canonicalHrefs.includes("/code/school-admin/login"), canonicalHrefs.join("|"));
+      record("app root keeps one action per visible role", await roleActions.count() === 3, `role actions ${await roleActions.count()}`);
       record("app root keeps top nav simple", navLabels.join("|") === "学生端|教师端", navLabels.join("|"));
       record("app root fits the viewport", documentWidth <= viewport.width, `document ${documentWidth}; viewport ${viewport.width}`);
     }
@@ -1386,6 +1474,28 @@ const scenarios = [
     name: "problem",
     path: "/code/student/assignments/7/problems/101?studentProfileId=41&recommendationToken=rec-next-101",
     beforeChecks: async page => {
+      const runPanel = page.locator(".code-run-panel");
+      const runToggle = runPanel.getByRole("button", { name: "展开测试运行" });
+      record("problem custom run starts collapsed", await runToggle.getAttribute("aria-expanded") === "false");
+      await runToggle.click();
+      const loadSample = runPanel.getByRole("button", { name: "载入首个样例" });
+      const sampleFrame = await loadSample.boundingBox();
+      const latestFrame = await page.locator(".problem-last-result").boundingBox();
+      record(
+        "problem custom run controls do not overlap the latest result",
+        Boolean(sampleFrame && latestFrame && (
+          sampleFrame.y + sampleFrame.height <= latestFrame.y
+          || sampleFrame.y >= latestFrame.y + latestFrame.height
+        )),
+        JSON.stringify({ sampleFrame, latestFrame })
+      );
+      await loadSample.click();
+      const customInput = runPanel.getByRole("textbox", { name: /自定义输入/ });
+      record("problem custom run loads the first public sample", await customInput.inputValue() === "3\n1 2 3\n");
+      await runPanel.getByRole("button", { name: "运行代码", exact: true }).click();
+      await runPanel.locator(".code-run-stdout").waitFor({ state: "visible", timeout: 10000 });
+      record("problem custom run displays stdout inline", ((await runPanel.locator(".code-run-stdout").textContent()) || "").trim() === "6");
+      record("problem custom run does not open the submission modal", await page.locator(".problem-result-modal").count() === 0);
       await page.locator(".panel--editor button.ui-button--primary").first().click();
       await page.locator(".problem-result-modal").first().waitFor({ state: "visible", timeout: 10000 });
     },
@@ -1706,6 +1816,9 @@ const scenarios = [
       }
     },
     selectors: [
+      [".code-run-panel", "custom code run panel"],
+      [".code-run-input", "custom code input"],
+      [".code-run-result", "custom code run result"],
       [".problem-layout", "problem main layout"],
       [".problem-task-sidebar", "problem task sidebar"],
       [".panel--statement", "problem statement panel"],
@@ -1787,6 +1900,28 @@ const scenarios = [
     ]
   },
   {
+    name: "teacher-auth-resilience",
+    path: "/code/teacher/manage/classes",
+    afterChecks: async page => {
+      record(
+        "teacher session recovers from one transient gateway failure",
+        accountSessionCallCount === 2 && await page.locator(".teacher-auth-panel").count() === 0,
+        `session calls ${accountSessionCallCount}`
+      );
+      await page.locator('a[href="/code/teacher/manage/problems"]').click();
+      await page.locator(".management-object-workbench--problems").waitFor({ state: "visible", timeout: 10000 });
+      record(
+        "teacher navigation reuses the resolved account session",
+        accountSessionCallCount === 2 && await page.locator(".teacher-auth-panel").count() === 0,
+        `session calls ${accountSessionCallCount}; url ${page.url()}`
+      );
+    },
+    selectors: [
+      [".teacher-shell-nav", "teacher shell nav after transient failure"],
+      [".management-object-workbench--classes", "class roster after transient failure"]
+    ]
+  },
+  {
     name: "teacher-management",
     path: "/code/teacher/manage",
     afterChecks: async (page, viewport) => {
@@ -1795,25 +1930,160 @@ const scenarios = [
       record("teacher management redirects to class roster", page.url().includes("/code/teacher/manage/classes"), page.url());
       record("teacher management belongs to roster nav", activeNav.join("|").includes("班级名单"), activeNav.join("|"));
       record("teacher management does not also mark analytics", !activeNav.join("|").includes("教学分析"), activeNav.join("|"));
-      record("teacher management shows class roster only", managementText.includes("班级名单") && managementText.includes("名单维护") && managementText.includes("创建班级") && managementText.includes("导入名单"), managementText.slice(0, 900));
+      record("teacher management shows roster-first class workspace", managementText.includes("班级名单") && managementText.includes("学生名单") && managementText.includes("创建班级") && managementText.includes("导入或更新名单"), managementText.slice(0, 900));
       record("teacher management hides unrelated modules", !managementText.includes("AI标准库") && !managementText.includes("检测AI") && !managementText.includes("开课状态") && !managementText.includes("导入题目"), managementText.slice(0, 900));
+      const classTabs = page.locator(".management-class-tabs [role='tab']");
+      record("teacher class workspace exposes three focused tabs", await classTabs.count() === 3, String(await classTabs.count()));
+      await checkVisible(page, ".management-class-panel--roster", `teacher management ${viewport.name} roster default panel`);
+      record("teacher class import form stays collapsed by default", await page.locator(".management-class-panel--import").count() === 0, String(await page.locator(".management-class-panel--import").count()));
+      const rosterRows = await page.locator(".management-roster-row").evaluateAll(elements => elements.map(element => {
+        const rowRect = element.getBoundingClientRect();
+        const actionRect = element.querySelector("button")?.getBoundingClientRect();
+        return {
+          rowWidth: Math.round(rowRect.width),
+          rowHeight: Math.round(rowRect.height),
+          actionWidth: Math.round(actionRect?.width ?? 0)
+        };
+      }));
+      record(
+        `teacher roster keeps student actions compact at ${viewport.name}`,
+        rosterRows.length > 0 && rosterRows.every(row => row.rowHeight <= (viewport.name === "mobile" ? 96 : 80) && row.actionWidth > 0 && row.actionWidth <= 160 && row.actionWidth < row.rowWidth * 0.45),
+        JSON.stringify(rosterRows)
+      );
       if (viewport.name === "desktop") {
         await checkVisible(page, ".management-object-main", "teacher management desktop roster workspace");
+        const managementAlignment = await page.evaluate(() => {
+          const headerRect = document.querySelector(".teacher-manage-header")?.getBoundingClientRect();
+          const workbenchRect = document.querySelector(".management-object-workbench--classes")?.getBoundingClientRect();
+          return {
+            headerWidth: Math.round(headerRect?.width ?? 0),
+            workbenchWidth: Math.round(workbenchRect?.width ?? 0)
+          };
+        });
+        record(
+          "teacher class header aligns with roster workspace",
+          managementAlignment.headerWidth > 0
+            && Math.abs(managementAlignment.headerWidth - managementAlignment.workbenchWidth) <= 1,
+          JSON.stringify(managementAlignment)
+        );
+        const classWorkspace = await page.locator(".management-object-workbench--classes").evaluate(element => {
+          const listRect = element.querySelector(".management-object-list")?.getBoundingClientRect();
+          const mainRect = element.querySelector(".management-object-main")?.getBoundingClientRect();
+          const actionRect = element.querySelector(".management-class-primary-action")?.getBoundingClientRect();
+          return {
+            listWidth: Math.round(listRect?.width ?? 0),
+            mainWidth: Math.round(mainRect?.width ?? 0),
+            actionWidth: Math.round(actionRect?.width ?? 0)
+          };
+        });
+        record(
+          "teacher class workspace keeps a narrow selector and wide roster canvas",
+          classWorkspace.listWidth >= 210 && classWorkspace.listWidth <= 280 && classWorkspace.mainWidth >= classWorkspace.listWidth * 2.3 && classWorkspace.actionWidth >= 120 && classWorkspace.actionWidth <= 220,
+          JSON.stringify(classWorkspace)
+        );
+        const accountLayout = await page.locator(".teacher-shell-sidebar__foot").evaluate(element => {
+          const footRect = element.getBoundingClientRect();
+          const buttonRect = element.querySelector(".teacher-shell-logout")?.getBoundingClientRect();
+          return {
+            footWidth: Math.round(footRect.width),
+            footHeight: Math.round(footRect.height),
+            buttonWidth: Math.round(buttonRect?.width ?? 0),
+            buttonHeight: Math.round(buttonRect?.height ?? 0)
+          };
+        });
+        record(
+          "teacher sidebar account action stays compact",
+          accountLayout.footHeight <= 72 && accountLayout.buttonWidth > 0 && accountLayout.buttonWidth <= 120 && accountLayout.buttonHeight <= 44 && accountLayout.buttonWidth < accountLayout.footWidth * 0.6,
+          JSON.stringify(accountLayout)
+        );
       }
       if (viewport.name === "tablet") {
         await checkVisible(page, ".management-object-main", "teacher management tablet roster workspace");
       }
       if (viewport.name === "mobile") {
         await checkStacked(page, ".management-object-list", ".management-object-main", "teacher management mobile roster before editor");
-        await checkMinControlHeight(page, ".management-object-row", 44, "teacher management mobile class rows");
+        await checkMinControlHeight(page, ".management-class-row", 44, "teacher management mobile class rows");
       }
+      await page.locator(".management-class-primary-action").click();
+      await checkVisible(page, ".management-class-panel--import", `teacher management ${viewport.name} import panel on demand`);
+      record("teacher class roster hides while importing", await page.locator(".management-class-panel--roster").count() === 0, String(await page.locator(".management-class-panel--roster").count()));
+      await page.locator("[data-class-tab='settings']").click();
+      await checkVisible(page, ".management-class-panel--settings", `teacher management ${viewport.name} settings panel on demand`);
+      record("teacher class settings owns join-code controls", ((await page.locator(".management-class-panel--settings").textContent()) || "").includes("轮换班级码"), await page.locator(".management-class-panel--settings").textContent());
+      await page.locator("[data-class-tab='roster']").click();
+      await checkVisible(page, ".management-class-panel--roster", `teacher management ${viewport.name} returns to roster panel`);
     },
     selectors: [
       [".teacher-shell-nav", "teacher shell nav"],
       [".teacher-manage-page", "teacher manage page"],
       [".management-object-workbench--classes", "class roster workbench"],
       [".management-object-list", "class roster list"],
-      [".management-object-main", "class roster import panel"]
+      [".management-object-main", "class roster workspace"],
+      [".management-class-tabs", "class roster tabs"],
+      [".management-class-panel--roster", "class roster default panel"]
+    ]
+  },
+  {
+    name: "teacher-management-problems",
+    path: "/code/teacher/manage/problems",
+    afterChecks: async (page, viewport) => {
+      const activeNav = await page.locator(".teacher-shell-nav a.is-active").allTextContents();
+      const main = page.locator(".management-object-main").first();
+      const readonly = page.locator(".management-problem-readonly").first();
+      const readonlyText = ((await readonly.textContent()) || "").replace(/\s+/g, "");
+
+      record("teacher problem management belongs to problem nav", activeNav.join("|").includes("题库管理"), activeNav.join("|"));
+      record(
+        "published problem keeps complete statement visible",
+        readonlyText.includes("题目内容") && readonlyText.includes("读入n个整数") && readonlyText.includes("公开样例") && readonlyText.includes("123") && readonlyText.includes("6"),
+        readonlyText.slice(0, 1000)
+      );
+      record(
+        "published problem shows limits and teaching metadata",
+        readonlyText.includes("1000ms") && readonlyText.includes("64MB") && readonlyText.includes("循环") && readonlyText.includes("手推模拟") && readonlyText.includes("差一位错误"),
+        readonlyText.slice(0, 1000)
+      );
+      record(
+        "published problem remains read only",
+        (await main.locator("textarea").count()) === 0 && (await main.locator(".task-editor-page--embedded").count()) === 0 && readonlyText.includes("当前版本只读"),
+        `textareas=${await main.locator("textarea").count()}`
+      );
+
+      const layout = await main.evaluate(element => {
+        const mainRect = element.getBoundingClientRect();
+        const readonlyRect = element.querySelector(".management-problem-readonly")?.getBoundingClientRect();
+        const samplesRect = element.querySelector(".management-problem-readonly__samples")?.getBoundingClientRect();
+        const sampleCards = [...element.querySelectorAll(".management-problem-readonly__sample")].map(card => card.getBoundingClientRect());
+        return {
+          topOffset: Math.round((readonlyRect?.top ?? mainRect.bottom) - mainRect.top),
+          readonlyWidth: Math.round(readonlyRect?.width ?? 0),
+          mainWidth: Math.round(mainRect.width),
+          samplesWidth: Math.round(samplesRect?.width ?? 0),
+          sampleCardWidths: sampleCards.map(card => Math.round(card.width)),
+          pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+        };
+      });
+      record(
+        `published problem content starts near the header at ${viewport.name}`,
+        layout.topOffset >= 44 && layout.topOffset <= 190 && layout.readonlyWidth > 0,
+        JSON.stringify(layout)
+      );
+      record(`published problem has no page overflow at ${viewport.name}`, layout.pageOverflow <= 1, JSON.stringify(layout));
+      if (viewport.name === "desktop") {
+        record(
+          "published problem uses the wide reading canvas",
+          layout.readonlyWidth >= layout.mainWidth * 0.82 && layout.samplesWidth > 0 && layout.sampleCardWidths.every(width => width >= 220),
+          JSON.stringify(layout)
+        );
+      }
+    },
+    selectors: [
+      [".teacher-shell-nav", "teacher shell nav"],
+      [".management-object-workbench--problems", "problem workbench"],
+      [".management-object-main", "problem detail canvas"],
+      [".management-problem-readonly", "published problem reader"],
+      [".management-problem-readonly__statement", "published problem statement"],
+      [".management-problem-readonly__samples", "published problem samples"]
     ]
   },
   {
@@ -1864,7 +2134,7 @@ const scenarios = [
     afterChecks: async page => {
       const problemText = ((await page.locator(".teacher-analytics-page").first().textContent()) || "").replace(/\s+/g, "");
       record("problem analytics shows objective status", problemText.includes("求和边界") && problemText.includes("提交人数") && problemText.includes("一次通过人数") && problemText.includes("最终通过人数") && problemText.includes("有效修改"), problemText.slice(0, 900));
-      record("problem analytics exposes issue-to-student workspace", problemText.includes("全班问题") && problemText.includes("遇到过") && problemText.includes("反复出现") && problemText.includes("后来解决") && problemText.includes("相关学生"), problemText.slice(0, 900));
+      record("problem analytics exposes issue-to-student workspace", problemText.includes("全班问题") && problemText.includes("遇到过") && problemText.includes("反复出现") && problemText.includes("后来解决") && problemText.includes("学生提交情况"), problemText.slice(0, 900));
       record("problem analytics avoids decision copy", !problemText.includes("下一步") && !problemText.includes("讲评"), problemText.slice(0, 900));
       await page.locator(".language-toggle").dispatchEvent("click");
       await page.waitForTimeout(80);
@@ -1894,6 +2164,79 @@ const scenarios = [
       [".teacher-issue-counts", "problem issue groups"],
       [".teacher-student-growth-row", "problem student evidence row"]
     ]
+  },
+  {
+    name: "platform-admin",
+    path: "/code/platform-admin",
+    afterChecks: async (page, viewport) => {
+      const text = ((await page.locator(".admin-workspace").textContent()) || "").replace(/\s+/g, "");
+      record("platform workspace only shows school and platform governance", text.includes("平台管理工作台") && text.includes("创建学校与校管") && text.includes("共建与公共题审核"), text.slice(0, 900));
+      record("platform workspace omits teacher and student detail controls", !text.includes("学生代码") && !text.includes("名单详情"), text.slice(0, 900));
+      const schoolCardLayout = await page.locator(".management-step").first().evaluate(card => {
+        const body = card.querySelector(":scope > .management-step__body");
+        const cardRect = card.getBoundingClientRect();
+        const bodyRect = body?.getBoundingClientRect();
+        return {
+          cardWidth: Math.round(cardRect.width),
+          bodyWidth: Math.round(bodyRect?.width ?? 0)
+        };
+      });
+      record(
+        `platform school card uses the full content column at ${viewport.name}`,
+        schoolCardLayout.cardWidth > 0 && schoolCardLayout.bodyWidth >= schoolCardLayout.cardWidth * 0.8,
+        JSON.stringify(schoolCardLayout)
+      );
+    },
+    selectors: [
+      [".admin-workspace", "platform admin workspace"],
+      [".management-step-list", "platform admin panels"],
+      [".management-step", "platform school summary"]
+    ]
+  },
+  {
+    name: "school-admin",
+    path: "/code/school-admin",
+    afterChecks: async (page, viewport) => {
+      const text = ((await page.locator(".admin-workspace").textContent()) || "").replace(/\s+/g, "");
+      record("school workspace shows delegated governance", text.includes("温州试点中学") && text.includes("教师申请") && text.includes("教师额度分配"), text.slice(0, 900));
+      record("school teaching view is explicitly read only", text.includes("校内教学数据") && text.includes("只读"), text.slice(0, 900));
+      const quotaLayout = await page.locator(".school-admin-quota-grid > *").evaluateAll(elements => {
+        const rects = elements.map(element => element.getBoundingClientRect());
+        return {
+          count: rects.length,
+          columns: new Set(rects.map(rect => Math.round(rect.x))).size,
+          widths: rects.map(rect => Math.round(rect.width))
+        };
+      });
+      const expectedQuotaColumns = viewport.width >= 700 ? 4 : 2;
+      record(
+        `school quota metrics use ${expectedQuotaColumns} compact columns at ${viewport.name}`,
+        quotaLayout.count === 4 && quotaLayout.columns === expectedQuotaColumns && quotaLayout.widths.every(width => width >= 120),
+        JSON.stringify(quotaLayout)
+      );
+      const teacherCardLayout = await page.locator(".school-admin-teacher-card").evaluateAll(elements => ({
+        count: elements.length,
+        heights: elements.map(element => Math.round(element.getBoundingClientRect().height))
+      }));
+      record(
+        `school teacher controls stay compact at ${viewport.name}`,
+        teacherCardLayout.count > 0 && (viewport.name !== "desktop" || teacherCardLayout.heights.every(height => height <= 180)),
+        JSON.stringify(teacherCardLayout)
+      );
+      await page.getByRole("button", { name: "查看明细" }).first().click();
+      await page.waitForTimeout(80);
+      const detailText = ((await page.locator(".admin-readonly-detail").first().textContent()) || "").replace(/\s+/g, "");
+      record("school admin can drill into roster and assignments without edit controls", detailText.includes("张同学") && detailText.includes("第一周作业"), detailText.slice(0, 900));
+      await page.getByRole("button", { name: "查看提交" }).first().click();
+      await page.waitForTimeout(80);
+      const submissionText = ((await page.locator(".admin-readonly-detail").last().textContent()) || "").replace(/\s+/g, "");
+      record("school admin can inspect submission evidence read only", submissionText.includes("ACCEPTED") && submissionText.includes("intmain"), submissionText.slice(0, 900));
+    },
+    selectors: [
+      [".admin-workspace", "school admin workspace"],
+      [".management-step-list", "school admin panels"],
+      [".management-step", "school teacher or class row"]
+    ]
   }
 ];
 
@@ -1912,6 +2255,8 @@ const unmockedApis = [];
 let analysisLookupCount = 0;
 let studentFeedbackLookupCount = 0;
 let studentFeedbackViewCount = 0;
+let activeScenarioName = "";
+let accountSessionCallCount = 0;
 
 function record(name, passed, detail = "") {
   checks.push({ name, passed, detail });
@@ -1977,6 +2322,40 @@ async function routeApi(route) {
   const method = request.method();
 
   if (path === "/api/invites/resolve" && method === "POST") return json(route, assignment);
+  if (path === "/api/auth/account/session" || path === "/api/auth/teacher/session") {
+    accountSessionCallCount += 1;
+    if (activeScenarioName === "teacher-auth-resilience" && accountSessionCallCount === 1) {
+      return json(route, { code: "SERVICE_UNAVAILABLE", error: "服务暂不可用" }, 502);
+    }
+    const referer = request.headers()["referer"] || "";
+    const role = referer.includes("/code/platform-admin") ? "PLATFORM_ADMIN" : referer.includes("/code/school-admin") ? "SCHOOL_ADMIN" : "TEACHER";
+    return json(route, {
+      authenticated: true,
+      teacherId: "00000000-0000-0000-0000-000000000101",
+      username: role === "TEACHER" ? "smoke-teacher" : "smoke-admin",
+      displayName: role === "TEACHER" ? "信息技术老师" : "管理员",
+      role,
+      mustChangePassword: false,
+      schoolId: role === "PLATFORM_ADMIN" ? null : "00000000-0000-0000-0000-000000000201",
+      schoolName: role === "PLATFORM_ADMIN" ? null : "温州试点中学"
+    });
+  }
+  if (path === "/api/auth/student/session") return json(route, student);
+  if (path === "/api/auth/student/logout" && method === "POST") return empty(route);
+  if ((path === "/api/auth/teacher/logout" || path === "/api/auth/account/logout") && method === "POST") return empty(route);
+  if (path === "/api/platform-admin/schools") return json(route, [{ id: "00000000-0000-0000-0000-000000000201", name: "温州试点中学", status: "ACTIVE", adminAccountId: "00000000-0000-0000-0000-000000000202", monthlyAiUnits: 1000, allocatedAiUnits: 500, usedAiUnits: 120, createdAt: "2026-08-15T12:00:00Z" }]);
+  if (path === "/api/platform-admin/problem-reviews") return json(route, []);
+  if (path === "/api/school-admin/overview") return json(route, {
+    schoolId: "00000000-0000-0000-0000-000000000201", schoolName: "温州试点中学", pendingApplications: 1,
+    quota: { schoolId: "00000000-0000-0000-0000-000000000201", month: "2026-08", totalUnits: 1000, allocatedUnits: 500, usedUnits: 120, availableUnits: 500, resetsAt: "2026-09-01T00:00:00+08:00" },
+    teachers: [{ id: "00000000-0000-0000-0000-000000000101", username: "smoke-teacher", displayName: "信息技术老师", schoolId: "00000000-0000-0000-0000-000000000201", schoolName: "温州试点中学", role: "TEACHER", status: "ACTIVE", mustChangePassword: false }],
+    teacherQuotas: { "00000000-0000-0000-0000-000000000101": { teacherId: "00000000-0000-0000-0000-000000000101", month: "2026-08", baseUnits: 500, additionalUnits: 0, usedUnits: 120, reservedUnits: 0, remainingUnits: 380, resetsAt: "2026-09-01T00:00:00+08:00" } }
+  });
+  if (path === "/api/school-admin/teacher-applications") return json(route, [{ id: "00000000-0000-0000-0000-000000000102", username: "pending-teacher", displayName: "待审教师", schoolId: "00000000-0000-0000-0000-000000000201", schoolName: "温州试点中学", role: "TEACHER", status: "PENDING", mustChangePassword: false }]);
+  if (path === "/api/school-admin/teaching/classes") return json(route, [{ id: 3, teacherId: "00000000-0000-0000-0000-000000000101", teacherName: "信息技术老师", name: "高一1班", grade: "高一", createdAt: "2026-08-15T12:00:00", studentCount: 40, assignmentCount: 3 }]);
+  if (path === "/api/school-admin/teaching/classes/3/students") return json(route, [{ id: 41, displayName: "张同学", studentNo: "S001", status: "ACTIVE", createdAt: "2026-08-15T12:00:00", lastSeenAt: "2026-08-15T12:30:00" }]);
+  if (path === "/api/school-admin/teaching/classes/3/assignments") return json(route, [{ id: 7, teacherId: "00000000-0000-0000-0000-000000000101", title: "第一周作业", classGroupId: 3, targetMode: "CLASS", status: "ACTIVE", createdAt: "2026-08-15T12:00:00" }]);
+  if (path === "/api/school-admin/teaching/assignments/7/submissions") return json(route, [{ id: 9001, assignmentId: 7, problemId: 101, studentProfileId: 41, languageName: "cpp", sourceCode: "int main() { return 0; }", verdict: "ACCEPTED", submittedAt: "2026-08-15T12:30:00" }]);
   if (path === "/api/teacher/auth/session") return json(route, { authenticated: true });
   if (path === "/api/teacher/auth/login" && method === "POST") return json(route, { authenticated: true });
   if (path === "/api/student/identity" && method === "POST") return json(route, student);
@@ -2007,11 +2386,24 @@ async function routeApi(route) {
   }
   if (path === "/api/problems") return json(route, [problem]);
   if (path === "/api/problems/catalog") return json(route, problemCatalog);
+  if (path === "/api/teacher/problems") return json(route, [problem]);
   if (path === "/api/leaderboard/problems") {
     return json(route, [
       { problemId: 101, problemTitle: "求和边界", difficulty: "EASY", totalSubmissions: 24, acceptedSubmissions: 8, acceptanceRate: 33.3 },
       { problemId: 102, problemTitle: "循环边界", difficulty: "MEDIUM", totalSubmissions: 18, acceptedSubmissions: 15, acceptanceRate: 83.3 }
     ]);
+  }
+
+  if (path === "/api/code-runs" && method === "POST") {
+    return json(route, {
+      status: "SUCCESS",
+      stdout: "6\n",
+      stderr: "",
+      exitCode: 0,
+      executionTimeMs: 12,
+      stdoutTruncated: false,
+      stderrTruncated: false
+    });
   }
 
   if (path === "/api/submissions" && method === "POST") {
@@ -2066,14 +2458,30 @@ async function routeApi(route) {
     });
   }
   if (path === "/api/submissions/problem/101/history-summary") return json(route, history);
+  if (path === "/api/submissions/9001/learning-proof") return json(route, learningProof);
 
   if (path === "/api/teacher/classes") return json(route, classes);
+  if (path === "/api/teacher/classes/3/learning-overview") return json(route, classLearningOverview);
+  if (path === "/api/teacher/classes/3/students") return json(route, [student]);
+  if (path === "/api/teacher/usage/current") {
+    return json(route, {
+      teacherId: "00000000-0000-0000-0000-000000000101",
+      month: "2026-08",
+      baseUnits: 500,
+      additionalUnits: 0,
+      usedUnits: 12,
+      reservedUnits: 0,
+      remainingUnits: 488,
+      resetsAt: "2026-09-01T00:00:00+08:00"
+    });
+  }
   if (path === "/api/teacher/classes/3/identity-audit") return json(route, identityAudit);
   if (path === "/api/teacher/classes/3/identity-merge" && method === "POST") return json(route, { ...identityAudit, manualIdentityCount: 2, duplicateGroupCount: 0, duplicateGroups: [] });
   if (path === "/api/teacher/classes/3/identity-split" && method === "POST") return json(route, { ...identityAudit, manualIdentityCount: 2, duplicateGroupCount: 0, duplicateGroups: [] });
   if (path === "/api/teacher/assignments") return json(route, [assignment]);
   if (path === "/api/teacher/assignments/7") return json(route, assignment);
   if (path === "/api/teacher/assignments/7/overview") return json(route, assignmentOverview);
+  if (path === "/api/teacher/assignments/7/problems/101/learning-proof") return json(route, teacherProblemLearningProof);
   if (path === "/api/teacher/assignments/7/ai-quality") return json(route, aiQualityOverview);
   if (path === "/api/teacher/assignments/7/student-ai-feedback-observability") return json(route, studentAiFeedbackObservability);
   if (path === "/api/teacher/ai-quality/trend") return json(route, aiQualityTrend);
@@ -2127,9 +2535,30 @@ async function checkImportantControlsVisible(page, label) {
     });
     const clipped = visibleControls.filter(element => {
       const rect = element.getBoundingClientRect();
-      return rect.right > window.innerWidth + 2 || rect.left < -2;
+      if (rect.right <= window.innerWidth + 2 && rect.left >= -2) return false;
+      let ancestor = element.parentElement;
+      while (ancestor) {
+        const style = window.getComputedStyle(ancestor);
+        if (/^(auto|scroll)$/.test(style.overflowX) && ancestor.scrollWidth > ancestor.clientWidth + 2) {
+          return false;
+        }
+        ancestor = ancestor.parentElement;
+      }
+      return true;
     });
-    return { visible: visibleControls.length, clipped: clipped.length };
+    return {
+      visible: visibleControls.length,
+      clipped: clipped.length,
+      clippedControls: clipped.map(element => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName,
+          text: (element.getAttribute("aria-label") || element.textContent || "").trim().slice(0, 80),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right)
+        };
+      })
+    };
   });
   record(`${label} controls visible`, result.visible > 0, JSON.stringify(result));
   record(`${label} controls not clipped`, result.clipped === 0, JSON.stringify(result));
@@ -2233,6 +2662,8 @@ async function checkDarkReadable(page, selector, label) {
 }
 
 async function runScenario(baseUrl, browser, viewport, scenario) {
+  activeScenarioName = scenario.name;
+  accountSessionCallCount = 0;
   const context = await browser.newContext({ viewport });
   await context.addInitScript(({ studentJson }) => {
     window.localStorage.setItem("wzai:theme", "light");
@@ -2246,40 +2677,45 @@ async function runScenario(baseUrl, browser, viewport, scenario) {
   page.on("pageerror", error => pageErrors.push(error.message));
 
   const label = `${scenario.name} ${viewport.name}`;
-  await page.goto(`${baseUrl}${scenario.path}`, { waitUntil: "domcontentloaded" });
-  await page.locator(".app-shell").first().waitFor({ state: "visible", timeout: 10000 });
-  if (scenario.beforeChecks) {
-    await scenario.beforeChecks(page, viewport);
+  try {
+    await page.goto(`${baseUrl}${scenario.path}`, { waitUntil: "domcontentloaded" });
+    await page.locator(".app-shell").first().waitFor({ state: "visible", timeout: 10000 });
+    if (scenario.beforeChecks) {
+      await scenario.beforeChecks(page, viewport);
+    }
+
+    for (const [selector, selectorLabel] of scenario.selectors) {
+      await checkVisible(page, selector, `${label} ${selectorLabel}`);
+    }
+    if (scenario.afterChecks) {
+      await scenario.afterChecks(page, viewport);
+    }
+    await checkNoHorizontalOverflow(page, label);
+    await checkImportantControlsVisible(page, label);
+    record(`${label} no page errors`, pageErrors.length === 0, pageErrors.join(" | "));
+
+    await page.screenshot({
+      path: join(artifactDir, `${scenario.name}-${viewport.name}-light.png`),
+      fullPage: true
+    });
+
+    await page.evaluate(() => {
+      document.documentElement.dataset.theme = "dark";
+      window.localStorage.setItem("wzai:theme", "dark");
+    });
+    await page.waitForTimeout(120);
+    await checkNoHorizontalOverflow(page, `${label} dark`);
+    await checkDarkReadable(page, scenario.selectors[0][0], label);
+    await page.screenshot({
+      path: join(artifactDir, `${scenario.name}-${viewport.name}-dark.png`),
+      fullPage: true
+    });
+  } catch (error) {
+    const body = ((await page.locator("body").textContent().catch(() => "")) || "").replace(/\s+/g, " ").slice(0, 800);
+    throw new Error(`${label}: ${error.message}; url=${page.url()}; body=${body}; pageErrors=${pageErrors.join(" | ")}`);
+  } finally {
+    await context.close();
   }
-
-  for (const [selector, selectorLabel] of scenario.selectors) {
-    await checkVisible(page, selector, `${label} ${selectorLabel}`);
-  }
-  if (scenario.afterChecks) {
-    await scenario.afterChecks(page, viewport);
-  }
-  await checkNoHorizontalOverflow(page, label);
-  await checkImportantControlsVisible(page, label);
-  record(`${label} no page errors`, pageErrors.length === 0, pageErrors.join(" | "));
-
-  await page.screenshot({
-    path: join(artifactDir, `${scenario.name}-${viewport.name}-light.png`),
-    fullPage: true
-  });
-
-  await page.evaluate(() => {
-    document.documentElement.dataset.theme = "dark";
-    window.localStorage.setItem("wzai:theme", "dark");
-  });
-  await page.waitForTimeout(120);
-  await checkNoHorizontalOverflow(page, `${label} dark`);
-  await checkDarkReadable(page, scenario.selectors[0][0], label);
-  await page.screenshot({
-    path: join(artifactDir, `${scenario.name}-${viewport.name}-dark.png`),
-    fullPage: true
-  });
-
-  await context.close();
 }
 
 async function main() {

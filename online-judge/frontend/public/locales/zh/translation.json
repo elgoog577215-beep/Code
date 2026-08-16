@@ -24,54 +24,192 @@
       "dark": "夜间"
     }
   },
-  "learningProof": {
-    "title": "学习证明",
-    "error": "学习证明暂时无法更新。",
-    "stage": {
-      "repair": "关键修改",
-      "explain": "学生说明",
-      "verify": "换题验证"
+  "teacherAuth": {
+    "eyebrow": "教师端",
+    "checking": "正在确认教师身份",
+    "loginTitle": "教师账号登录",
+    "loginDescription": "使用经管理员审核的用户名和密码进入自己的教学空间。",
+    "registerTitle": "申请教师账号",
+    "registerDescription": "提交后需由平台管理员审核，审核通过后才能登录。",
+    "changeTitle": "首次登录请修改密码",
+    "changeDescription": "临时密码只能使用一次，修改后请重新登录。",
+    "username": "用户名",
+    "password": "密码",
+    "currentPassword": "当前密码",
+    "newPassword": "新密码",
+    "displayName": "姓名",
+    "schoolName": "学校",
+    "loginAction": "进入教师端",
+    "registerAction": "提交申请",
+    "changeAction": "修改密码",
+    "processing": "处理中",
+    "toRegister": "还没有账号？申请教师账号",
+    "toLogin": "已有账号？返回登录",
+    "registrationPending": "申请已提交，管理员审核通过后即可登录。",
+    "passwordChanged": "密码已修改，请使用新密码重新登录。",
+    "loginFailed": "登录失败。",
+    "registerFailed": "注册申请提交失败。",
+    "passwordChangeFailed": "密码修改失败。",
+    "validation": {
+      "loginRequired": "请输入用户名和密码。",
+      "registerRequired": "请填写完整信息，密码至少 10 位。",
+      "passwordChange": "请输入当前密码，新密码至少 10 位。"
+    }
+  },
+  "studentLogin": {
+    "eyebrow": "学生登录",
+    "title": "匹配班级名单",
+    "back": "返回",
+    "panelTitle": "进入我的班级",
+    "panelEyebrow": "课堂身份",
+    "classCode": "班级码",
+    "classCodePlaceholder": "向老师获取 8 位班级码",
+    "displayName": "姓名",
+    "displayNamePlaceholder": "与老师导入的名单一致",
+    "studentNo": "学号/座号",
+    "studentNoPlaceholder": "必填，与名单一致",
+    "rosterHint": "三项信息必须同时匹配有效名单，系统不会在登录时自动创建学生。",
+    "validation": "请填写班级码、姓名和学号。",
+    "failed": "登录失败。",
+    "loggingIn": "登录中",
+    "action": "进入学生端"
+  },
+  "assignmentTarget": {
+    "label": "发布对象",
+    "classLabel": "班级",
+    "class": "全班（动态名单）",
+    "students": "指定学生",
+    "selectStudents": "选择有效名单中的学生",
+    "studentCount": "已选 {{count}} 人",
+    "emptyRoster": "当前班级没有有效名单",
+    "emptyRosterHint": "请先导入包含学号的学生名单。",
+    "validation": "至少选择 1 名学生"
+  },
+  "multiTeacher": {
+    "classCode": {
+      "title": "学生加入班级码",
+      "description": "明文只在创建或轮换后显示一次，请安全地发给本班学生。",
+      "hidden": "班级码已隐藏",
+      "studentCount": "有效名单 {{count}} 人",
+      "rotate": "轮换班级码",
+      "created": "班级已创建。一次性班级码：{{code}}",
+      "createdWithoutCode": "班级已创建。",
+      "rotated": "班级码已轮换，新班级码：{{code}}",
+      "rotateFailed": "班级码轮换失败。"
     },
-    "repair": {
-      "repaired": "关键修改已形成",
-      "inProgress": "仍在修正",
-      "notObserved": "尚未观察到关键修改",
-      "submissions": "提交 #{{before}} → #{{after}}",
-      "tests": "多通过 {{count}} 个测试点"
+    "roster": {
+      "title": "当前学生名单",
+      "description": "停用后学生已有会话立即失效，历史提交仍会保留。",
+      "empty": "还没有学生名单",
+      "emptyHint": "通过下方两阶段导入添加学生。",
+      "deactivate": "停用",
+      "activate": "恢复",
+      "statusSaved": "名单状态已更新。",
+      "statusFailed": "名单状态更新失败。",
+      "status": {
+        "active": "有效",
+        "inactive": "已停用",
+        "needs_review": "待修复"
+      }
     },
-    "explanation": {
-      "question": "这次真正改变结果的修改是什么？请说明改了哪里、原来为什么会失败，并写出一个可以验证这次修改的样例或边界。",
-      "notReady": "形成关键修改后再说明",
-      "waiting": "尚未说明",
-      "provided": "说明已保存",
-      "checkable": "说明可核验",
-      "providedHint": "再补充一个具体输入、边界或前后结果，会更容易核验。",
-      "checkableHint": "这段说明已经包含可检查的修改或样例，可以继续用另一道题验证。"
+    "problem": {
+      "submitReview": "提交共建审核",
+      "revise": "创建修订草稿",
+      "reviewSubmitted": "已提交共建审核，新版本为 v{{version}}。",
+      "revisionCreated": "已创建可编辑的 v{{version}} 修订草稿。",
+      "actionFailed": "题目状态更新失败。",
+      "readOnlyTitle": "当前版本只读",
+      "readOnlyDescription": "已送审、已发布或作业快照不可直接修改；修订会创建新版本。",
+      "scope": {
+        "public": "公共题库",
+        "shared": "共建题库",
+        "private": "我的题库"
+      },
+      "state": {
+        "draft": "草稿",
+        "review_pending": "待审核",
+        "published": "已发布",
+        "frozen": "作业快照",
+        "rejected": "已拒绝",
+        "archived": "已归档"
+      }
     },
-    "verify": {
-      "notReady": "完成说明后再换题",
-      "notAvailable": "尚未安排换题验证",
-      "available": "可以换一题验证",
-      "needsSupport": "换题仍需继续处理",
-      "verified": "换题已验证",
-      "submission": "验证提交 #{{id}}"
+    "quota": {
+      "remaining": "次课堂 AI 剩余",
+      "used": "本月已用 {{used}} / {{total}}",
+      "resets": "重置时间：{{time}}"
+    }
+  },
+  "adminConsole": {
+    "eyebrow": "平台管理员",
+    "title": "试用治理中心",
+    "description": "审核教师账号和共建题，并管理停用、临时密码与课堂 AI 额度。",
+    "refresh": "刷新",
+    "loadFailed": "管理数据读取失败。",
+    "actionFailed": "操作失败。",
+    "accountsTitle": "教师账号",
+    "accountsEyebrow": "账号审核与状态",
+    "reviewsTitle": "共建题审核",
+    "reviewsEyebrow": "题库治理",
+    "statusFilter": "账号状态",
+    "reason": "审核或停用原因",
+    "status": {
+      "pending": "待审核",
+      "active": "正常",
+      "suspended": "已停用",
+      "rejected": "已拒绝",
+      "bootstrap_required": "待激活"
     },
-    "action": {
-      "explain": "说明一下",
-      "save": "保存说明",
-      "verify": "去验证"
-    },
-    "teacher": {
-      "aria": "学习过程阶段筛选",
-      "allStudents": "全班学生",
-      "failed": "曾未通过",
-      "repaired": "已修正",
-      "explained": "已说明",
-      "verified": "换题已验证",
-      "failedStudents": "曾未通过的学生",
-      "repairedStudents": "已经修正的学生",
-      "explainedStudents": "已经说明的学生",
-      "verifiedStudents": "换题已验证的学生"
+    "approve": "审核通过",
+    "reject": "拒绝",
+    "suspend": "停用",
+    "restore": "恢复",
+    "resetPassword": "生成临时密码",
+    "temporaryPassword": "一次性临时密码：",
+    "baseUnits": "月基础额度",
+    "additionalUnits": "本月追加额度",
+    "saveQuota": "保存额度",
+    "approved": "教师账号已通过审核。",
+    "rejected": "教师账号已拒绝。",
+    "suspended": "教师账号已停用，会话已撤销。",
+    "restored": "教师账号已恢复。",
+    "passwordReset": "临时密码已生成，旧会话已撤销。",
+    "quotaSaved": "课堂 AI 额度已更新。",
+    "noAccounts": "当前状态没有教师账号",
+    "noReviews": "没有待审核共建题",
+    "approveShared": "通过为共建题",
+    "publishPublic": "通过并提升为公共题",
+    "problemApproved": "共建题已发布。",
+    "problemPublished": "公共版本已创建。",
+    "problemRejected": "共建题已拒绝。"
+  },
+  "codeRun": {
+    "panelTitle": "测试运行",
+    "expandPanel": "展开测试运行",
+    "collapsePanel": "收起测试运行",
+    "inputLabel": "自定义输入",
+    "inputPlaceholder": "例如：3 5",
+    "loadSample": "载入首个样例",
+    "noSample": "本题没有可载入的公开样例",
+    "clearInput": "清空输入",
+    "run": "运行代码",
+    "running": "运行中",
+    "runningHint": "正在编译并运行当前代码…",
+    "requestFailed": "运行请求失败。",
+    "duration": "{{value}} ms",
+    "stale": "内容已变化，请重新运行",
+    "stdout": "标准输出",
+    "stderr": "标准错误",
+    "noOutput": "程序没有输出",
+    "truncated": "输出已截断",
+    "status": {
+      "success": "运行成功",
+      "compilation_error": "编译错误",
+      "runtime_error": "运行错误",
+      "time_limit_exceeded": "运行超时",
+      "memory_limit_exceeded": "内存超限",
+      "environment_unavailable": "环境未就绪",
+      "internal_error": "运行失败"
     }
   },
   "growthDashboard": {
@@ -333,29 +471,6 @@
       "pinnedPublic": "置顶 · 公开练习",
       "classroom": "课堂作业"
     },
-    "nextLearning": {
-      "title": "继续学习",
-      "loading": "正在同步学习进度",
-      "loadingHint": "马上为你接回最近的学习任务。",
-      "fallbackTitle": "继续完成当前任务",
-      "fallbackHint": "学习建议暂未更新，不影响进入课堂作业或自主练习。",
-      "empty": "从一个明确任务开始",
-      "emptyHint": "完成一次提交后，这里会接回最适合继续的内容。",
-      "keepLearning": "继续学习",
-      "goal": "目标：{{goal}}",
-      "outcome": {
-        "fulfilled": "上一次行动已有完成证据",
-        "unresolved": "同类问题仍需继续处理",
-        "waiting": "正在等待下一次有效证据"
-      },
-      "open": "开始行动",
-      "openAria": "开始学习行动：{{title}}"
-    },
-    "selfPractice": {
-      "title": "自主练习",
-      "meta": "{{count}} 道题，可按难度选择",
-      "action": "查看题库"
-    },
     "errors": {
       "publicBank": "公共题库暂时不可用。",
       "assignments": "老师作业加载失败。"
@@ -415,6 +530,29 @@
       "focusHint": "先围绕 {{focus}} 做一次错题复盘。",
       "organizing": "正在整理最近错题。",
       "empty": "提交后会整理可复盘错题。"
+    },
+    "nextLearning": {
+      "title": "继续学习",
+      "loading": "正在同步学习进度",
+      "loadingHint": "马上为你接回最近的学习任务。",
+      "fallbackTitle": "继续完成当前任务",
+      "fallbackHint": "学习建议暂未更新，不影响进入课堂作业或自主练习。",
+      "empty": "从一个明确任务开始",
+      "emptyHint": "完成一次提交后，这里会接回最适合继续的内容。",
+      "keepLearning": "继续学习",
+      "goal": "目标：{{goal}}",
+      "outcome": {
+        "fulfilled": "上一次行动已有完成证据",
+        "unresolved": "同类问题仍需继续处理",
+        "waiting": "正在等待下一次有效证据"
+      },
+      "open": "开始行动",
+      "openAria": "开始学习行动：{{title}}"
+    },
+    "selfPractice": {
+      "title": "自主练习",
+      "meta": "{{count}} 道题，可按难度选择",
+      "action": "查看题库"
     }
   },
   "studentPublic": {
@@ -457,7 +595,6 @@
   },
   "teacherShell": {
     "aria": "教师工作台导航",
-    "workspaceTitle": "教师工作台",
     "kicker": "教师端",
     "title": "教学分析",
     "managementTitle": "管理工具",
@@ -477,8 +614,11 @@
       "aiLibrary": "AI 标准库",
       "aiLibraryDescription": "正式库与候选治理",
       "system": "系统状态",
-      "systemDescription": "AI 检测与运行状态"
-    }
+      "systemDescription": "AI 检测与运行状态",
+      "admin": "平台管理",
+      "adminDescription": "账号、题目审核与额度"
+    },
+    "workspaceTitle": "教师工作台"
   },
   "teacherAnalytics": {
     "kicker": "教学结果分析",
@@ -549,120 +689,13 @@
       "averageAttempts": "平均提交",
       "lowPassProblems": "低通过题",
       "passedStudents": "通过人数",
-      "failedStudents": "未通过人数"
-      ,"completedRequiredStudents": "完成全部必做题"
-      ,"firstPassStudents": "一次通过人数"
-      ,"eventualPassStudents": "最终通过人数"
-      ,"effectiveAttempts": "有效修改"
-      ,"medianEffectiveAttempts": "有效修改中位数"
-      ,"requiredProblemNote": "共 {{count}} 道必做题"
-    },
-    "focus": {
-      "assignmentList": "作业完成情况",
-      "assignmentListDescription": "选择一项作业，继续查看必做题完成情况。",
-      "problemList": "题目完成情况",
-      "problemListDescription": "一次通过与最终通过分开统计；重复点击不会放大有效修改。",
-      "problemCount": "{{count}} 道题",
-      "submitted": "已提交",
-      "unsubmitted": "未提交",
-      "submittedOfRoster": "{{submitted}} / {{roster}} 人已提交",
-      "completedRequired": "完成必做题",
-      "firstPass": "一次通过",
-      "eventualPass": "最终通过",
-      "medianEffective": "有效修改中位数",
-      "issueOverview": "全班问题",
-      "issueOverviewDescription": "三个数字可以重叠，不表示百分比组成。",
-      "issueCountsAria": "问题涉及、反复和解决人数",
-      "affected": "遇到过",
-      "repeated": "反复出现",
-      "resolved": "后来解决",
-      "studentList": "学生提交情况",
-      "submittedGroup": "已提交学生",
-      "unsubmittedGroup": "未提交学生",
-      "studentListDescription": "进入学生后查看每次有效修改、问题变化和原始提交证据。",
-      "filteredStudents": "{{issue}}相关学生",
-      "rosterMeta": "已提交 {{submitted}} · 未提交 {{unsubmitted}}",
-      "groupDescription": {
-        "affected": "至少一次有效提交出现过这个问题。",
-        "repeated": "这个问题在后续有效修改中持续或复发。",
-        "resolved": "这个问题后来形成了通过或恢复证据。"
-      },
-      "rawSubmissions": "原始提交",
-      "effectiveEdits": "有效修改",
-      "notSubmitted": "未提交",
-      "repairedAfterFailure": "曾未通过，现已修正",
-      "accepted": "已通过本题",
-      "noCurrentIssue": "当前没有可确认的问题信号"
-    },
-    "pattern": {
-      "commonRepeated": "多人遇到，而且部分学生反复卡住",
-      "commonQuick": "多人遇到，但目前没有形成反复证据",
-      "individualRepeated": "人数不多，但需要关注反复出现的学生",
-      "occasional": "目前属于个别一次性问题"
-    },
-    "student": {
-      "loading": "正在读取学生成长轨迹",
-      "notFound": "学生题目记录未找到",
-      "notFoundDescription": "返回题目页面重新选择学生。",
-      "kicker": "学生单题成长",
-      "description": "查看 {{problem}} 的逐次提交、问题变化和保存的 AI 分析版本。",
-      "yes": "是",
-      "no": "否",
-      "latestResult": "最新结果",
-      "workspaceAria": "学生题目分析分类",
-      "submissionContextAria": "当前查看的提交",
-      "currentSubmission": "当前提交",
-      "switchSubmission": "切换提交",
-      "workspace": {
-        "growth": "成长轨迹",
-        "evidence": "提交证据",
-        "analysis": "AI 分析"
-      },
-      "verdict": {
-        "accepted": "通过",
-        "wrong_answer": "答案需修正",
-        "compilation_error": "编译失败",
-        "runtime_error": "运行错误",
-        "time_limit_exceeded": "运行超时",
-        "memory_limit_exceeded": "内存超限",
-        "internal_error": "系统环境提示",
-        "pending": "等待评测",
-        "unknown": "未知结果"
-      },
-      "fullTimeline": "全部提交时间线",
-      "timelineCount": "当前显示 {{visible}} / {{total}} 次提交",
-      "loadEarlier": "继续显示更早提交",
-      "selectedChange": "所选提交变化",
-      "comparedSubmission": "对比有效提交 #{{id}}",
-      "firstRecordedSubmission": "首次记录，没有可比较的前次提交",
-      "testPointChange": "测试点变化",
-      "unresolvedIssues": "未解决问题",
-      "resolvedIssues": "本次解决",
-      "noIssueChange": "这次提交没有可展示的问题变化。",
-      "submissionEvidence": "提交证据",
-      "loadingEvidence": "正在读取提交证据",
-      "evidenceLoadFailed": "提交证据读取失败。",
-      "sourceCode": "原始代码",
-      "testEvidence": "评测证据",
-      "testPassed": "通过",
-      "testFailed": "未通过",
-      "analysisVersions": "AI 分析版本",
-      "version": "版本 {{version}}",
-      "official": "当前正式版本",
-      "noSavedVersions": "这次提交还没有保存的 AI 分析版本。",
-      "savedAnalysis": "保存的分析",
-      "legacyVersionNoAnalysis": "这个旧版本只保存了学生反馈，无法恢复当时的完整分析；系统不会用当前结果伪造历史。",
-      "regenerate": "重新生成并保留旧版本",
-      "regenerationStarted": "已开始生成新版本，旧版本会继续保留。",
-      "regenerationFailed": "新版本启动失败。",
-      "correctionForVersion": "针对当前版本校正",
-      "selectIssue": "选择主要错因",
-      "optional": "不指定",
-      "correctionSaved": "教师校正已保存，并绑定当前分析版本。",
-      "correctionFailed": "教师校正保存失败。",
-      "savedCorrections": "教师校正记录",
-      "boundVersion": "绑定分析修订 #{{id}}",
-      "unboundLegacyCorrection": "旧校正未绑定分析版本"
+      "failedStudents": "未通过人数",
+      "completedRequiredStudents": "完成全部必做题",
+      "firstPassStudents": "一次通过人数",
+      "eventualPassStudents": "最终通过人数",
+      "effectiveAttempts": "有效修改",
+      "medianEffectiveAttempts": "有效修改中位数",
+      "requiredProblemNote": "共 {{count}} 道必做题"
     },
     "sections": {
       "metrics": "基础指标",
@@ -823,6 +856,113 @@
       "noNormalizedIssues": "当前没有形成可用于班级统计的规范问题；已有判题和提交记录仍可从学生列表查看。",
       "noMatchingStudents": "当前筛选没有学生。",
       "noRosterStudents": "班级还没有学生。"
+    },
+    "focus": {
+      "assignmentList": "作业完成情况",
+      "assignmentListDescription": "选择一项作业，继续查看必做题完成情况。",
+      "problemList": "题目完成情况",
+      "problemListDescription": "一次通过与最终通过分开统计；重复点击不会放大有效修改。",
+      "problemCount": "{{count}} 道题",
+      "submitted": "已提交",
+      "unsubmitted": "未提交",
+      "submittedOfRoster": "{{submitted}} / {{roster}} 人已提交",
+      "completedRequired": "完成必做题",
+      "firstPass": "一次通过",
+      "eventualPass": "最终通过",
+      "medianEffective": "有效修改中位数",
+      "issueOverview": "全班问题",
+      "issueOverviewDescription": "三个数字可以重叠，不表示百分比组成。",
+      "issueCountsAria": "问题涉及、反复和解决人数",
+      "affected": "遇到过",
+      "repeated": "反复出现",
+      "resolved": "后来解决",
+      "studentList": "学生提交情况",
+      "submittedGroup": "已提交学生",
+      "unsubmittedGroup": "未提交学生",
+      "studentListDescription": "进入学生后查看每次有效修改、问题变化和原始提交证据。",
+      "filteredStudents": "{{issue}}相关学生",
+      "rosterMeta": "已提交 {{submitted}} · 未提交 {{unsubmitted}}",
+      "groupDescription": {
+        "affected": "至少一次有效提交出现过这个问题。",
+        "repeated": "这个问题在后续有效修改中持续或复发。",
+        "resolved": "这个问题后来形成了通过或恢复证据。"
+      },
+      "rawSubmissions": "原始提交",
+      "effectiveEdits": "有效修改",
+      "notSubmitted": "未提交",
+      "repairedAfterFailure": "曾未通过，现已修正",
+      "accepted": "已通过本题",
+      "noCurrentIssue": "当前没有可确认的问题信号"
+    },
+    "pattern": {
+      "commonRepeated": "多人遇到，而且部分学生反复卡住",
+      "commonQuick": "多人遇到，但目前没有形成反复证据",
+      "individualRepeated": "人数不多，但需要关注反复出现的学生",
+      "occasional": "目前属于个别一次性问题"
+    },
+    "student": {
+      "loading": "正在读取学生成长轨迹",
+      "notFound": "学生题目记录未找到",
+      "notFoundDescription": "返回题目页面重新选择学生。",
+      "kicker": "学生单题成长",
+      "description": "查看 {{problem}} 的逐次提交、问题变化和保存的 AI 分析版本。",
+      "yes": "是",
+      "no": "否",
+      "latestResult": "最新结果",
+      "workspaceAria": "学生题目分析分类",
+      "submissionContextAria": "当前查看的提交",
+      "currentSubmission": "当前提交",
+      "switchSubmission": "切换提交",
+      "workspace": {
+        "growth": "成长轨迹",
+        "evidence": "提交证据",
+        "analysis": "AI 分析"
+      },
+      "verdict": {
+        "accepted": "通过",
+        "wrong_answer": "答案需修正",
+        "compilation_error": "编译失败",
+        "runtime_error": "运行错误",
+        "time_limit_exceeded": "运行超时",
+        "memory_limit_exceeded": "内存超限",
+        "internal_error": "系统环境提示",
+        "pending": "等待评测",
+        "unknown": "未知结果"
+      },
+      "fullTimeline": "全部提交时间线",
+      "timelineCount": "当前显示 {{visible}} / {{total}} 次提交",
+      "loadEarlier": "继续显示更早提交",
+      "selectedChange": "所选提交变化",
+      "comparedSubmission": "对比有效提交 #{{id}}",
+      "firstRecordedSubmission": "首次记录，没有可比较的前次提交",
+      "testPointChange": "测试点变化",
+      "unresolvedIssues": "未解决问题",
+      "resolvedIssues": "本次解决",
+      "noIssueChange": "这次提交没有可展示的问题变化。",
+      "submissionEvidence": "提交证据",
+      "loadingEvidence": "正在读取提交证据",
+      "evidenceLoadFailed": "提交证据读取失败。",
+      "sourceCode": "原始代码",
+      "testEvidence": "评测证据",
+      "testPassed": "通过",
+      "testFailed": "未通过",
+      "analysisVersions": "AI 分析版本",
+      "version": "版本 {{version}}",
+      "official": "当前正式版本",
+      "noSavedVersions": "这次提交还没有保存的 AI 分析版本。",
+      "savedAnalysis": "保存的分析",
+      "legacyVersionNoAnalysis": "这个旧版本只保存了学生反馈，无法恢复当时的完整分析；系统不会用当前结果伪造历史。",
+      "regenerate": "重新生成并保留旧版本",
+      "regenerationStarted": "已开始生成新版本，旧版本会继续保留。",
+      "regenerationFailed": "新版本启动失败。",
+      "correctionForVersion": "针对当前版本校正",
+      "selectIssue": "选择主要错因",
+      "optional": "不指定",
+      "correctionSaved": "教师校正已保存，并绑定当前分析版本。",
+      "correctionFailed": "教师校正保存失败。",
+      "savedCorrections": "教师校正记录",
+      "boundVersion": "绑定分析修订 #{{id}}",
+      "unboundLegacyCorrection": "旧校正未绑定分析版本"
     }
   },
   "teacherHome": {
@@ -842,6 +982,20 @@
     "emptyAssignmentsDescription": "先新建一项作业。",
     "viewDetails": "查看详情",
     "needsAttentionWithCount": "需看 {{count}}",
+    "metrics": {
+      "assignments": "作业",
+      "students": "学生",
+      "needsAttention": "需看",
+      "recentSubmissions": "新增",
+      "problems": "题目",
+      "status": "状态"
+    },
+    "errors": {
+      "loadFailed": "教师端数据读取失败。",
+      "serviceUnavailable": "教师端数据读取失败，服务暂时不可用。",
+      "notFound": "教师端数据读取失败，未找到课堂资源。",
+      "separator": "，"
+    },
     "console": {
       "title": "课堂教学工作台",
       "description": "先看需要介入的学生，再进入作业与题目证据。",
@@ -868,41 +1022,6 @@
       "actionNoFollowup": "已经进入行动，但还没有后续提交",
       "actionEvidencePending": "行动证据尚不足",
       "matchBasis": "匹配依据：{{basis}}"
-    },
-    "metrics": {
-      "assignments": "作业",
-      "students": "学生",
-      "needsAttention": "需看",
-      "recentSubmissions": "新增",
-      "problems": "题目",
-      "status": "状态"
-    },
-    "errors": {
-      "loadFailed": "教师端数据读取失败。",
-      "serviceUnavailable": "教师端数据读取失败，服务暂时不可用。",
-      "notFound": "教师端数据读取失败，未找到课堂资源。",
-      "separator": "，"
-    }
-  },
-  "assignmentReadiness": {
-    "checking": "正在检查题目与测试点质量",
-    "ready": "发布质检通过",
-    "notReady": "正式发布前还需修复阻断项",
-    "empty": "选择题目后自动检查发布质量",
-    "blocker": "阻断",
-    "warning": "提醒",
-    "publishBlocked": "所选题目尚未通过发布质检，可先保存为草稿后继续修复。",
-    "blockerSummary": "{{count}} 个质量阻断项",
-    "issues": {
-      "PROBLEM_NOT_FOUND": "题目不存在或已被删除",
-      "NO_TEST_CASES": "缺少测试用例，无法可靠判题",
-      "SEMANTIC_PROFILE_INCOMPLETE": "存在缺少完整审核语义的测试点",
-      "SEMANTIC_CODE_DUPLICATE": "测试点语义标识重复",
-      "STANDARD_LIBRARY_PATH_INVALID": "测试点的知识点与能力路径无效或不一致",
-      "REVEAL_POLICY_MISMATCH": "隐藏属性与测试点揭示策略冲突",
-      "LOW_INTENT_DIVERSITY": "多个测试点只覆盖一种评测意图",
-      "STARTER_CODE_MISSING": "未提供起步代码，初学者缺少结构支架",
-      "UNKNOWN": "存在尚未识别的发布质量问题"
     }
   },
   "assignmentDetail": {
@@ -914,6 +1033,7 @@
     "notFound": "作业未找到",
     "notFoundDescription": "返回作业中心重新选择作业。",
     "backToAssignmentCenter": "返回作业中心",
+    "historicalRosterNotice": "保留了 {{count}} 名非当前名单学生的历史提交；他们不计入当前完成率。",
     "header": {
       "problemCount": "{{count}} 题",
       "submitted": "{{count}} 人已提交",
@@ -1128,6 +1248,77 @@
           "ignored": "已忽略"
         }
       }
+    }
+  },
+  "learningProof": {
+    "title": "学习证明",
+    "error": "学习证明暂时无法更新。",
+    "stage": {
+      "repair": "关键修改",
+      "explain": "学生说明",
+      "verify": "换题验证"
+    },
+    "repair": {
+      "repaired": "关键修改已形成",
+      "inProgress": "仍在修正",
+      "notObserved": "尚未观察到关键修改",
+      "submissions": "提交 #{{before}} → #{{after}}",
+      "tests": "多通过 {{count}} 个测试点"
+    },
+    "explanation": {
+      "question": "这次真正改变结果的修改是什么？请说明改了哪里、原来为什么会失败，并写出一个可以验证这次修改的样例或边界。",
+      "notReady": "形成关键修改后再说明",
+      "waiting": "尚未说明",
+      "provided": "说明已保存",
+      "checkable": "说明可核验",
+      "providedHint": "再补充一个具体输入、边界或前后结果，会更容易核验。",
+      "checkableHint": "这段说明已经包含可检查的修改或样例，可以继续用另一道题验证。"
+    },
+    "verify": {
+      "notReady": "完成说明后再换题",
+      "notAvailable": "尚未安排换题验证",
+      "available": "可以换一题验证",
+      "needsSupport": "换题仍需继续处理",
+      "verified": "换题已验证",
+      "submission": "验证提交 #{{id}}"
+    },
+    "action": {
+      "explain": "说明一下",
+      "save": "保存说明",
+      "verify": "去验证"
+    },
+    "teacher": {
+      "aria": "学习过程阶段筛选",
+      "allStudents": "全班学生",
+      "failed": "曾未通过",
+      "repaired": "已修正",
+      "explained": "已说明",
+      "verified": "换题已验证",
+      "failedStudents": "曾未通过的学生",
+      "repairedStudents": "已经修正的学生",
+      "explainedStudents": "已经说明的学生",
+      "verifiedStudents": "换题已验证的学生"
+    }
+  },
+  "assignmentReadiness": {
+    "checking": "正在检查题目与测试点质量",
+    "ready": "发布质检通过",
+    "notReady": "正式发布前还需修复阻断项",
+    "empty": "选择题目后自动检查发布质量",
+    "blocker": "阻断",
+    "warning": "提醒",
+    "publishBlocked": "所选题目尚未通过发布质检，可先保存为草稿后继续修复。",
+    "blockerSummary": "{{count}} 个质量阻断项",
+    "issues": {
+      "PROBLEM_NOT_FOUND": "题目不存在或已被删除",
+      "NO_TEST_CASES": "缺少测试用例，无法可靠判题",
+      "SEMANTIC_PROFILE_INCOMPLETE": "存在缺少完整审核语义的测试点",
+      "SEMANTIC_CODE_DUPLICATE": "测试点语义标识重复",
+      "STANDARD_LIBRARY_PATH_INVALID": "测试点的知识点与能力路径无效或不一致",
+      "REVEAL_POLICY_MISMATCH": "隐藏属性与测试点揭示策略冲突",
+      "LOW_INTENT_DIVERSITY": "多个测试点只覆盖一种评测意图",
+      "STARTER_CODE_MISSING": "未提供起步代码，初学者缺少结构支架",
+      "UNKNOWN": "存在尚未识别的发布质量问题"
     }
   }
 }

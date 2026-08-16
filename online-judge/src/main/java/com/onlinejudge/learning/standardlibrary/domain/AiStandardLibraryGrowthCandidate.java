@@ -8,7 +8,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -84,13 +83,13 @@ public class AiStandardLibraryGrowthCandidate {
     @Column(length = 1600)
     private String teacherNote;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String beforeSnapshot;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String diffSummary;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String rollbackInfo;
 
     @Column(nullable = false)

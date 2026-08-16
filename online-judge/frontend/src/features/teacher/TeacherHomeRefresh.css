@@ -620,8 +620,57 @@
 }
 
 .teacher-console-shell .teacher-shell-sidebar__foot {
-  padding: 0.58rem 0.58rem 0.08rem;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.48rem;
+  padding: 0.58rem 0.1rem 0.04rem;
   border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.teacher-console-shell .teacher-shell-account {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 880;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-console-shell .teacher-shell-logout {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.34rem;
+  padding: 0.38rem 0.58rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
+  cursor: pointer;
+  font: inherit;
+  transition: color 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.teacher-console-shell .teacher-shell-logout span {
+  color: inherit;
+  font-size: 0.76rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.teacher-console-shell .teacher-shell-logout:hover {
+  color: var(--brand-strong);
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 30%, var(--surface));
+}
+
+.teacher-console-shell .teacher-shell-logout:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus);
 }
 
 .teacher-console-shell .teacher-shell-main {
@@ -1471,9 +1520,15 @@
   -webkit-line-clamp: 1;
 }
 
-.management-object-workbench--classes {
-  grid-template-columns: minmax(220px, 260px) minmax(0, 900px);
+.teacher-manage-page .management-object-workbench--classes {
+  width: min(100%, 1160px);
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 0.72rem;
   justify-content: start;
+}
+
+.teacher-console-shell .teacher-manage-page--classes > .teacher-manage-header {
+  width: min(100%, 1160px);
 }
 
 .management-object-workbench--classes .management-object-list,
@@ -1482,8 +1537,189 @@
   box-shadow: none;
 }
 
-.management-class-import {
-  max-width: 900px;
+.management-object-workbench--classes .management-object-list {
+  gap: 0.42rem;
+  padding: 0.54rem;
+}
+
+.management-class-row {
+  width: 100%;
+  min-width: 0;
+  min-height: 58px;
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.management-class-row:hover,
+.management-class-row.is-active {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  color: var(--ink);
+  background: color-mix(in srgb, var(--brand-soft) 30%, transparent);
+}
+
+.management-class-row strong,
+.management-class-row small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.management-class-row strong {
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.management-class-row small {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 720;
+}
+
+.management-class-workspace {
+  min-height: 430px;
+  align-content: start;
+  gap: 0;
+  padding: 0.72rem 0.78rem 0.8rem;
+}
+
+.management-class-workspace__head {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.8rem;
+  padding: 0.1rem 0.08rem 0.7rem;
+}
+
+.management-class-workspace__head > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.14rem;
+}
+
+.management-class-workspace__head h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.3rem, 2.2vw, 1.72rem);
+  line-height: 1.18;
+}
+
+.management-class-summary {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.36rem;
+  margin-top: 0.34rem;
+}
+
+.management-class-primary-action {
+  min-width: 154px;
+  min-height: 42px;
+  justify-content: center;
+  padding-inline: 0.8rem;
+}
+
+.management-class-tabs {
+  min-width: 0;
+  display: flex;
+  align-items: end;
+  gap: 1.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  scrollbar-width: none;
+}
+
+.management-class-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.management-class-tab {
+  min-width: max-content;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: -1px;
+  padding: 0.2rem 0.05rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-soft);
+  background: transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 840;
+  cursor: pointer;
+}
+
+.management-class-tab:hover,
+.management-class-tab.is-active {
+  color: var(--brand-strong);
+}
+
+.management-class-tab.is-active {
+  border-bottom-color: var(--brand);
+}
+
+.management-class-tab span {
+  min-width: 20px;
+  min-height: 20px;
+  display: inline-grid;
+  place-items: center;
+  padding-inline: 0.32rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-soft) 58%, transparent);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.management-class-panel {
+  min-width: 0;
+  padding: 0.78rem 0.08rem 0.12rem;
+}
+
+.management-class-panel__head {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.72rem;
+  margin-bottom: 0.58rem;
+}
+
+.management-class-panel__head > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.management-class-panel__head h3,
+.management-class-panel__head p {
+  margin: 0;
+}
+
+.management-class-panel__head h3 {
+  color: var(--ink);
+  font-size: 0.98rem;
+}
+
+.management-class-panel__head p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.42;
+}
+
+.management-class-panel--import {
+  padding-top: 0;
 }
 
 .management-step-list {
@@ -1547,13 +1783,101 @@
   line-height: 1.42;
 }
 
-.management-class-import .management-import-grid {
+.teacher-manage-page .management-roster-list {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.teacher-manage-page .management-roster-columns,
+.teacher-manage-page .management-roster-row {
+  grid-template-columns: minmax(180px, 1.35fr) minmax(88px, 0.48fr) minmax(86px, 0.42fr) minmax(86px, auto);
+}
+
+.teacher-manage-page .management-roster-columns {
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  gap: 0.68rem;
+  padding: 0.22rem 0.72rem 0.38rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.teacher-manage-page .management-roster-row {
+  min-width: 0;
+  min-height: 58px;
+  display: grid;
+  align-items: center;
+  gap: 0.68rem;
+  padding: 0.52rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+}
+
+.teacher-manage-page .management-roster-row__student {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.62rem;
+}
+
+.teacher-manage-page .management-roster-row__avatar {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--line));
+  border-radius: 999px;
+  color: var(--brand-strong);
+  background: color-mix(in srgb, var(--brand-soft) 42%, var(--surface));
+  font-size: 0.82rem;
+  font-weight: 920;
+}
+
+.teacher-manage-page .management-roster-row__student strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-manage-page .management-roster-row__number {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 760;
+}
+
+.teacher-manage-page .management-roster-row__action {
+  min-width: 82px;
+  min-height: 38px;
+  justify-self: end;
+  padding-inline: 0.62rem;
+}
+
+.management-class-panel--import .management-import-grid {
   grid-template-columns: minmax(0, 1fr) minmax(180px, 0.42fr);
   align-items: end;
 }
 
-.management-class-import .control--textarea {
+.management-class-panel--import .control--textarea {
   min-height: 96px;
+}
+
+.management-class-settings-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 0.68rem;
+  padding: 0.76rem;
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
 }
 
 .management-step--actions .actions {
@@ -1629,12 +1953,18 @@
     min-width: 142px;
   }
 
-  .management-object-workbench--classes {
+  .teacher-manage-page .management-object-workbench--classes {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .management-class-import {
-    max-width: none;
+  .management-object-workbench--classes .management-object-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .management-object-workbench--classes .management-object-list__head,
+  .management-object-workbench--classes .management-import-drawer--create,
+  .management-object-workbench--classes .empty-state {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1647,8 +1977,69 @@
 
   .teacher-manage-page .management-home-grid,
   .teacher-manage-page .management-home-entry,
-  .management-class-import .management-import-grid,
+  .management-class-panel--import .management-import-grid,
   .teacher-manage-page .management-readiness--compact .management-readiness__head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .management-object-workbench--classes .management-object-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .management-class-workspace {
+    min-height: 0;
+    padding: 0.62rem;
+  }
+
+  .management-class-workspace__head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .management-class-primary-action {
+    width: 100%;
+  }
+
+  .management-class-tabs {
+    gap: 0.92rem;
+  }
+
+  .management-class-panel__head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-manage-page .management-roster-columns {
+    display: none;
+  }
+
+  .teacher-manage-page .management-roster-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.38rem 0.58rem;
+  }
+
+  .teacher-manage-page .management-roster-row__student {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .teacher-manage-page .management-roster-row__number {
+    grid-column: 1;
+    grid-row: 2;
+    padding-left: 2.9rem;
+  }
+
+  .teacher-manage-page .management-roster-row > .status-pill {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .teacher-manage-page .management-roster-row__action {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 34px;
+  }
+
+  .management-class-settings-card {
     grid-template-columns: minmax(0, 1fr);
   }
 

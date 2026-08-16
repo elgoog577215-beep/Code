@@ -29,6 +29,7 @@ import { CONTEST_LANGUAGES, DEFAULT_CONTEST_LANGUAGE_ID, contestLanguageById } f
 import { GrowthTimeline, SingleProblemGrowthDashboard } from "../growth/SingleProblemGrowthDashboard";
 import { LearningProofPanel } from "../growth/LearningProofPanel";
 import { FeedbackRepairWorkbench } from "./FeedbackRepairWorkbench";
+import CodeRunPanel from "./CodeRunPanel";
 
 const CodeEditor = lazy(() => import("./CodeEditor"));
 
@@ -624,6 +625,7 @@ export default function ProblemPage() {
   const [coachAnswer, setCoachAnswer] = useState("");
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [runBusy, setRunBusy] = useState(false);
   const [studentAiFeedback, setStudentAiFeedback] = useState<StudentAiFeedback | null>(null);
   const [diagnosisProgress, setDiagnosisProgress] = useState<AiDiagnosisProgress | null>(null);
   const [feedbackPollState, setFeedbackPollState] = useState<FeedbackPollState>("idle");
@@ -1258,7 +1260,7 @@ export default function ProblemPage() {
           : testCaseSummary;
   const selectedLanguage = contestLanguageById(languageId);
   const draftChanged = sourceCode !== defaultSourceFor(problem, languageId);
-  const canSubmit = Boolean(sourceCode.trim()) && !busy;
+  const canSubmit = Boolean(sourceCode.trim()) && !busy && !runBusy;
   const codeLineCount = sourceCode ? sourceCode.split(/\r?\n/).length : 0;
   const repairCheckQuestion = canShowStudentReport ? nextActionReportText || (modelFeedbackReady ? studentAiFeedback?.nextQuestion || "" : "") : "";
   const showRepairSection =
@@ -1508,7 +1510,7 @@ export default function ProblemPage() {
           action={
             <div className="problem-editor-header-actions">
               <Field label="语言">
-                <Select value={languageId} onChange={event => setLanguageId(Number(event.target.value))}>
+                <Select value={languageId} onChange={event => setLanguageId(Number(event.target.value))} disabled={busy || runBusy}>
                   {CONTEST_LANGUAGES.map(language => (
                     <option value={language.id} key={language.id}>
                       {language.label}
@@ -1545,6 +1547,15 @@ export default function ProblemPage() {
                 />
               </Suspense>
             </div>
+            <CodeRunPanel
+              problemId={problem.id}
+              assignmentId={assignmentId}
+              languageId={languageId}
+              sourceCode={sourceCode}
+              sampleInput={problem.sampleTestCases[0]?.input}
+              disabled={busy}
+              onRunningChange={setRunBusy}
+            />
             {latest && (
               <button type="button" className="problem-last-result" onClick={() => setResultOpen(true)}>
                 <span>
@@ -1569,7 +1580,7 @@ export default function ProblemPage() {
                 type="button"
                 variant="ghost"
                 onClick={resetCode}
-                disabled={!draftChanged}
+                disabled={!draftChanged || busy || runBusy}
                 title={draftChanged ? undefined : "当前已经是初始代码"}
                 icon={<RotateCcw size={18} />}
               >

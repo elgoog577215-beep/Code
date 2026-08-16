@@ -24,54 +24,192 @@
       "dark": "Dark"
     }
   },
-  "learningProof": {
-    "title": "Learning evidence",
-    "error": "Learning evidence could not be updated.",
-    "stage": {
-      "repair": "Key change",
-      "explain": "Student explanation",
-      "verify": "New-problem check"
+  "teacherAuth": {
+    "eyebrow": "Teacher",
+    "checking": "Checking teacher session",
+    "loginTitle": "Teacher account sign-in",
+    "loginDescription": "Use an administrator-approved account to enter your private teaching workspace.",
+    "registerTitle": "Apply for a teacher account",
+    "registerDescription": "An administrator must approve your application before you can sign in.",
+    "changeTitle": "Change your temporary password",
+    "changeDescription": "A temporary password can only be used once. Sign in again after changing it.",
+    "username": "Username",
+    "password": "Password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "displayName": "Name",
+    "schoolName": "School",
+    "loginAction": "Enter teacher workspace",
+    "registerAction": "Submit application",
+    "changeAction": "Change password",
+    "processing": "Processing",
+    "toRegister": "Need an account? Apply here",
+    "toLogin": "Already registered? Back to sign-in",
+    "registrationPending": "Application submitted. You can sign in after administrator approval.",
+    "passwordChanged": "Password changed. Sign in again with your new password.",
+    "loginFailed": "Sign-in failed.",
+    "registerFailed": "Could not submit the application.",
+    "passwordChangeFailed": "Could not change the password.",
+    "validation": {
+      "loginRequired": "Enter your username and password.",
+      "registerRequired": "Complete every field and use a password of at least 10 characters.",
+      "passwordChange": "Enter your current password and a new password of at least 10 characters."
+    }
+  },
+  "studentLogin": {
+    "eyebrow": "Student sign-in",
+    "title": "Match your class roster",
+    "back": "Back",
+    "panelTitle": "Enter my class",
+    "panelEyebrow": "Classroom identity",
+    "classCode": "Class code",
+    "classCodePlaceholder": "Get the 8-character code from your teacher",
+    "displayName": "Name",
+    "displayNamePlaceholder": "Use the exact name on the imported roster",
+    "studentNo": "Student number",
+    "studentNoPlaceholder": "Required; must match the roster",
+    "rosterHint": "All three fields must match an active roster entry. Signing in never creates a new student.",
+    "validation": "Enter the class code, name, and student number.",
+    "failed": "Sign-in failed.",
+    "loggingIn": "Signing in",
+    "action": "Enter student workspace"
+  },
+  "assignmentTarget": {
+    "label": "Recipients",
+    "classLabel": "Class",
+    "class": "Whole class (dynamic roster)",
+    "students": "Selected students",
+    "selectStudents": "Select students from the active roster",
+    "studentCount": "{{count}} selected",
+    "emptyRoster": "No active roster entries",
+    "emptyRosterHint": "Import a student roster with student numbers first.",
+    "validation": "select at least one student"
+  },
+  "multiTeacher": {
+    "classCode": {
+      "title": "Student class code",
+      "description": "The plain code is shown only after creation or rotation. Share it only with this class.",
+      "hidden": "Class code hidden",
+      "studentCount": "{{count}} active students",
+      "rotate": "Rotate class code",
+      "created": "Class created. One-time class code: {{code}}",
+      "createdWithoutCode": "Class created.",
+      "rotated": "Class code rotated. New code: {{code}}",
+      "rotateFailed": "Could not rotate the class code."
     },
-    "repair": {
-      "repaired": "Key change identified",
-      "inProgress": "Still revising",
-      "notObserved": "No key change observed yet",
-      "submissions": "Submission #{{before}} → #{{after}}",
-      "tests": "{{count}} more tests passed"
+    "roster": {
+      "title": "Current roster",
+      "description": "Deactivation immediately invalidates student sessions while preserving historical submissions.",
+      "empty": "No roster entries yet",
+      "emptyHint": "Use the two-step import below to add students.",
+      "deactivate": "Deactivate",
+      "activate": "Restore",
+      "statusSaved": "Roster status updated.",
+      "statusFailed": "Could not update roster status.",
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "needs_review": "Needs review"
+      }
     },
-    "explanation": {
-      "question": "What change actually altered the result? Explain what changed, why the original failed, and give one test case or boundary that checks the change.",
-      "notReady": "Explain after a key change is observed",
-      "waiting": "Not explained yet",
-      "provided": "Explanation saved",
-      "checkable": "Explanation is checkable",
-      "providedHint": "Add a concrete input, boundary, or before-and-after result to make this easier to check.",
-      "checkableHint": "This explanation includes a checkable change or example and is ready for another-problem verification."
+    "problem": {
+      "submitReview": "Submit for shared review",
+      "revise": "Create revision draft",
+      "reviewSubmitted": "Submitted for review as version {{version}}.",
+      "revisionCreated": "Created editable revision v{{version}}.",
+      "actionFailed": "Could not update the problem state.",
+      "readOnlyTitle": "This version is read-only",
+      "readOnlyDescription": "Review, published, and assignment snapshot versions cannot be edited. Revising creates a new version.",
+      "scope": {
+        "public": "Public",
+        "shared": "Shared",
+        "private": "My problems"
+      },
+      "state": {
+        "draft": "Draft",
+        "review_pending": "Review pending",
+        "published": "Published",
+        "frozen": "Assignment snapshot",
+        "rejected": "Rejected",
+        "archived": "Archived"
+      }
     },
-    "verify": {
-      "notReady": "Explain the change before trying another problem",
-      "notAvailable": "No verification problem assigned yet",
-      "available": "Ready to verify on another problem",
-      "needsSupport": "The verification problem still needs work",
-      "verified": "Verified on another problem",
-      "submission": "Verification submission #{{id}}"
+    "quota": {
+      "remaining": "classroom AI units remaining",
+      "used": "Used {{used}} / {{total}} this month",
+      "resets": "Resets: {{time}}"
+    }
+  },
+  "adminConsole": {
+    "eyebrow": "Platform administrator",
+    "title": "Trial governance center",
+    "description": "Review teacher accounts and shared problems, manage suspension, temporary passwords, and classroom AI quotas.",
+    "refresh": "Refresh",
+    "loadFailed": "Could not load administration data.",
+    "actionFailed": "The action failed.",
+    "accountsTitle": "Teacher accounts",
+    "accountsEyebrow": "Review and account status",
+    "reviewsTitle": "Shared problem reviews",
+    "reviewsEyebrow": "Problem governance",
+    "statusFilter": "Account status",
+    "reason": "Review or suspension reason",
+    "status": {
+      "pending": "Pending",
+      "active": "Active",
+      "suspended": "Suspended",
+      "rejected": "Rejected",
+      "bootstrap_required": "Activation required"
     },
-    "action": {
-      "explain": "Explain the change",
-      "save": "Save explanation",
-      "verify": "Verify now"
-    },
-    "teacher": {
-      "aria": "Filter by learning stage",
-      "allStudents": "All students",
-      "failed": "Previously failed",
-      "repaired": "Repaired",
-      "explained": "Explained",
-      "verified": "Verified on another problem",
-      "failedStudents": "Students who previously failed",
-      "repairedStudents": "Students who repaired the problem",
-      "explainedStudents": "Students who explained the change",
-      "verifiedStudents": "Students verified on another problem"
+    "approve": "Approve",
+    "reject": "Reject",
+    "suspend": "Suspend",
+    "restore": "Restore",
+    "resetPassword": "Create temporary password",
+    "temporaryPassword": "One-time temporary password:",
+    "baseUnits": "Monthly base quota",
+    "additionalUnits": "Additional units this month",
+    "saveQuota": "Save quota",
+    "approved": "Teacher account approved.",
+    "rejected": "Teacher account rejected.",
+    "suspended": "Teacher account suspended and sessions revoked.",
+    "restored": "Teacher account restored.",
+    "passwordReset": "Temporary password created and old sessions revoked.",
+    "quotaSaved": "Classroom AI quota updated.",
+    "noAccounts": "No teacher accounts have this status",
+    "noReviews": "No shared problems are waiting for review",
+    "approveShared": "Approve as shared",
+    "publishPublic": "Approve and publish a public version",
+    "problemApproved": "Shared problem published.",
+    "problemPublished": "Public version created.",
+    "problemRejected": "Shared problem rejected."
+  },
+  "codeRun": {
+    "panelTitle": "Test run",
+    "expandPanel": "Expand test run",
+    "collapsePanel": "Collapse test run",
+    "inputLabel": "Custom input",
+    "inputPlaceholder": "For example: 3 5",
+    "loadSample": "Load first sample",
+    "noSample": "This problem has no public sample to load",
+    "clearInput": "Clear input",
+    "run": "Run code",
+    "running": "Running",
+    "runningHint": "Compiling and running the current code…",
+    "requestFailed": "The run request failed.",
+    "duration": "{{value}} ms",
+    "stale": "Content changed; run again",
+    "stdout": "Standard output",
+    "stderr": "Standard error",
+    "noOutput": "The program produced no output",
+    "truncated": "Output truncated",
+    "status": {
+      "success": "Run succeeded",
+      "compilation_error": "Compilation error",
+      "runtime_error": "Runtime error",
+      "time_limit_exceeded": "Time limit exceeded",
+      "memory_limit_exceeded": "Memory limit exceeded",
+      "environment_unavailable": "Environment unavailable",
+      "internal_error": "Run failed"
     }
   },
   "growthDashboard": {
@@ -333,29 +471,6 @@
       "pinnedPublic": "Pinned · Public Practice",
       "classroom": "Class Assignments"
     },
-    "nextLearning": {
-      "title": "Continue Learning",
-      "loading": "Syncing your progress",
-      "loadingHint": "Your most recent learning task will be ready in a moment.",
-      "fallbackTitle": "Continue your current task",
-      "fallbackHint": "Guidance has not refreshed, but class work and self practice are still available.",
-      "empty": "Start with one clear task",
-      "emptyHint": "After your next submission, this area will bring back the best task to continue.",
-      "keepLearning": "Continue learning",
-      "goal": "Goal: {{goal}}",
-      "outcome": {
-        "fulfilled": "The previous action now has completion evidence",
-        "unresolved": "The same issue still needs attention",
-        "waiting": "Waiting for the next valid evidence"
-      },
-      "open": "Start action",
-      "openAria": "Start learning action: {{title}}"
-    },
-    "selfPractice": {
-      "title": "Self Practice",
-      "meta": "{{count}} problems, choose by difficulty",
-      "action": "Browse problems"
-    },
     "errors": {
       "publicBank": "The public problem bank is unavailable.",
       "assignments": "Failed to load teacher assignments."
@@ -415,6 +530,29 @@
       "focusHint": "Review one problem around {{focus}} first.",
       "organizing": "Organizing recent mistakes.",
       "empty": "Mistake review appears after submissions."
+    },
+    "nextLearning": {
+      "title": "Continue Learning",
+      "loading": "Syncing your progress",
+      "loadingHint": "Your most recent learning task will be ready in a moment.",
+      "fallbackTitle": "Continue your current task",
+      "fallbackHint": "Guidance has not refreshed, but class work and self practice are still available.",
+      "empty": "Start with one clear task",
+      "emptyHint": "After your next submission, this area will bring back the best task to continue.",
+      "keepLearning": "Continue learning",
+      "goal": "Goal: {{goal}}",
+      "outcome": {
+        "fulfilled": "The previous action now has completion evidence",
+        "unresolved": "The same issue still needs attention",
+        "waiting": "Waiting for the next valid evidence"
+      },
+      "open": "Start action",
+      "openAria": "Start learning action: {{title}}"
+    },
+    "selfPractice": {
+      "title": "Self Practice",
+      "meta": "{{count}} problems, choose by difficulty",
+      "action": "Browse problems"
     }
   },
   "studentPublic": {
@@ -457,7 +595,6 @@
   },
   "teacherShell": {
     "aria": "Teacher workbench navigation",
-    "workspaceTitle": "Teacher Workbench",
     "kicker": "Teacher",
     "title": "Teaching Analytics",
     "managementTitle": "Management Tools",
@@ -477,8 +614,11 @@
       "aiLibrary": "AI Library",
       "aiLibraryDescription": "Approved library and governance",
       "system": "System",
-      "systemDescription": "AI checks and runtime state"
-    }
+      "systemDescription": "AI checks and runtime state",
+      "admin": "Platform Admin",
+      "adminDescription": "Accounts, reviews, and quotas"
+    },
+    "workspaceTitle": "Teacher Workbench"
   },
   "teacherAnalytics": {
     "kicker": "Teaching Results",
@@ -549,120 +689,13 @@
       "averageAttempts": "Avg attempts",
       "lowPassProblems": "Low-pass problems",
       "passedStudents": "Passed",
-      "failedStudents": "Failed"
-      ,"completedRequiredStudents": "Completed all required"
-      ,"firstPassStudents": "First-pass students"
-      ,"eventualPassStudents": "Eventually passed"
-      ,"effectiveAttempts": "Effective edits"
-      ,"medianEffectiveAttempts": "Median effective edits"
-      ,"requiredProblemNote": "{{count}} required problems"
-    },
-    "focus": {
-      "assignmentList": "Assignment completion",
-      "assignmentListDescription": "Choose an assignment to review required-problem completion.",
-      "problemList": "Problem completion",
-      "problemListDescription": "First-pass and eventual passes are separate; duplicate clicks do not inflate effective edits.",
-      "problemCount": "{{count}} problems",
-      "submitted": "Submitted",
-      "unsubmitted": "Not submitted",
-      "submittedOfRoster": "{{submitted}} / {{roster}} submitted",
-      "completedRequired": "Completed required",
-      "firstPass": "First pass",
-      "eventualPass": "Eventual pass",
-      "medianEffective": "Median effective edits",
-      "issueOverview": "Class issues",
-      "issueOverviewDescription": "These three counts may overlap and are not parts of a percentage.",
-      "issueCountsAria": "Affected, repeated, and resolved student counts",
-      "affected": "Encountered",
-      "repeated": "Repeated",
-      "resolved": "Later resolved",
-      "studentList": "Student submissions",
-      "submittedGroup": "Submitted students",
-      "unsubmittedGroup": "Students not submitted",
-      "studentListDescription": "Open a student to review effective edits, issue changes, and raw submission evidence.",
-      "filteredStudents": "Students related to {{issue}}",
-      "rosterMeta": "{{submitted}} submitted · {{unsubmitted}} not submitted",
-      "groupDescription": {
-        "affected": "The issue appeared in at least one effective submission.",
-        "repeated": "The issue persisted or recurred after an effective edit.",
-        "resolved": "Later submissions provide accepted or recovery evidence for this issue."
-      },
-      "rawSubmissions": "Raw submissions",
-      "effectiveEdits": "Effective edits",
-      "notSubmitted": "Not submitted",
-      "repairedAfterFailure": "Previously failed, now repaired",
-      "accepted": "Problem passed",
-      "noCurrentIssue": "No confirmed current issue signal"
-    },
-    "pattern": {
-      "commonRepeated": "Many students encountered it, and some remain stuck",
-      "commonQuick": "Many students encountered it, but no repeated pattern is established",
-      "individualRepeated": "Few students are affected, but repeated cases need attention",
-      "occasional": "Currently an isolated one-time issue"
-    },
-    "student": {
-      "loading": "Loading the student trajectory",
-      "notFound": "Student problem record not found",
-      "notFoundDescription": "Return to the problem page and select the student again.",
-      "kicker": "Student problem trajectory",
-      "description": "Review each submission, issue change, and saved AI analysis version for {{problem}}.",
-      "yes": "Yes",
-      "no": "No",
-      "latestResult": "Latest result",
-      "workspaceAria": "Student problem analysis sections",
-      "submissionContextAria": "Currently selected submission",
-      "currentSubmission": "Current submission",
-      "switchSubmission": "Submission",
-      "workspace": {
-        "growth": "Growth",
-        "evidence": "Submission evidence",
-        "analysis": "AI analysis"
-      },
-      "verdict": {
-        "accepted": "Accepted",
-        "wrong_answer": "Wrong answer",
-        "compilation_error": "Compilation error",
-        "runtime_error": "Runtime error",
-        "time_limit_exceeded": "Time limit exceeded",
-        "memory_limit_exceeded": "Memory limit exceeded",
-        "internal_error": "System judge issue",
-        "pending": "Pending",
-        "unknown": "Unknown result"
-      },
-      "fullTimeline": "Complete submission timeline",
-      "timelineCount": "Showing {{visible}} of {{total}} submissions",
-      "loadEarlier": "Show earlier submissions",
-      "selectedChange": "Selected submission change",
-      "comparedSubmission": "Compared with effective submission #{{id}}",
-      "firstRecordedSubmission": "First record with no earlier comparison",
-      "testPointChange": "Test-point change",
-      "unresolvedIssues": "Unresolved issues",
-      "resolvedIssues": "Resolved now",
-      "noIssueChange": "No issue change is available for this submission.",
-      "submissionEvidence": "Submission evidence",
-      "loadingEvidence": "Loading submission evidence",
-      "evidenceLoadFailed": "Failed to load submission evidence.",
-      "sourceCode": "Source code",
-      "testEvidence": "Judge evidence",
-      "testPassed": "Passed",
-      "testFailed": "Failed",
-      "analysisVersions": "AI analysis versions",
-      "version": "Version {{version}}",
-      "official": "Current official version",
-      "noSavedVersions": "No saved AI analysis version exists for this submission yet.",
-      "savedAnalysis": "Saved analysis",
-      "legacyVersionNoAnalysis": "This legacy version saved only student feedback. The original full analysis cannot be recovered, so the current result is not used to fabricate history.",
-      "regenerate": "Regenerate and keep history",
-      "regenerationStarted": "A new version is being generated; older versions remain available.",
-      "regenerationFailed": "Failed to start a new version.",
-      "correctionForVersion": "Correct the selected version",
-      "selectIssue": "Select the primary issue",
-      "optional": "Not specified",
-      "correctionSaved": "The teacher correction was saved and linked to this analysis version.",
-      "correctionFailed": "Failed to save the teacher correction.",
-      "savedCorrections": "Teacher corrections",
-      "boundVersion": "Linked to analysis revision #{{id}}",
-      "unboundLegacyCorrection": "Legacy correction without a linked analysis version"
+      "failedStudents": "Failed",
+      "completedRequiredStudents": "Completed all required",
+      "firstPassStudents": "First-pass students",
+      "eventualPassStudents": "Eventually passed",
+      "effectiveAttempts": "Effective edits",
+      "medianEffectiveAttempts": "Median effective edits",
+      "requiredProblemNote": "{{count}} required problems"
     },
     "sections": {
       "metrics": "Core metrics",
@@ -823,6 +856,113 @@
       "noNormalizedIssues": "No normalized issue is ready for class statistics. Judge facts and submissions remain available from the student list.",
       "noMatchingStudents": "No students match this filter.",
       "noRosterStudents": "No students in this class yet."
+    },
+    "focus": {
+      "assignmentList": "Assignment completion",
+      "assignmentListDescription": "Choose an assignment to review required-problem completion.",
+      "problemList": "Problem completion",
+      "problemListDescription": "First-pass and eventual passes are separate; duplicate clicks do not inflate effective edits.",
+      "problemCount": "{{count}} problems",
+      "submitted": "Submitted",
+      "unsubmitted": "Not submitted",
+      "submittedOfRoster": "{{submitted}} / {{roster}} submitted",
+      "completedRequired": "Completed required",
+      "firstPass": "First pass",
+      "eventualPass": "Eventual pass",
+      "medianEffective": "Median effective edits",
+      "issueOverview": "Class issues",
+      "issueOverviewDescription": "These three counts may overlap and are not parts of a percentage.",
+      "issueCountsAria": "Affected, repeated, and resolved student counts",
+      "affected": "Encountered",
+      "repeated": "Repeated",
+      "resolved": "Later resolved",
+      "studentList": "Student submissions",
+      "submittedGroup": "Submitted students",
+      "unsubmittedGroup": "Students not submitted",
+      "studentListDescription": "Open a student to review effective edits, issue changes, and raw submission evidence.",
+      "filteredStudents": "Students related to {{issue}}",
+      "rosterMeta": "{{submitted}} submitted · {{unsubmitted}} not submitted",
+      "groupDescription": {
+        "affected": "The issue appeared in at least one effective submission.",
+        "repeated": "The issue persisted or recurred after an effective edit.",
+        "resolved": "Later submissions provide accepted or recovery evidence for this issue."
+      },
+      "rawSubmissions": "Raw submissions",
+      "effectiveEdits": "Effective edits",
+      "notSubmitted": "Not submitted",
+      "repairedAfterFailure": "Previously failed, now repaired",
+      "accepted": "Problem passed",
+      "noCurrentIssue": "No confirmed current issue signal"
+    },
+    "pattern": {
+      "commonRepeated": "Many students encountered it, and some remain stuck",
+      "commonQuick": "Many students encountered it, but no repeated pattern is established",
+      "individualRepeated": "Few students are affected, but repeated cases need attention",
+      "occasional": "Currently an isolated one-time issue"
+    },
+    "student": {
+      "loading": "Loading the student trajectory",
+      "notFound": "Student problem record not found",
+      "notFoundDescription": "Return to the problem page and select the student again.",
+      "kicker": "Student problem trajectory",
+      "description": "Review each submission, issue change, and saved AI analysis version for {{problem}}.",
+      "yes": "Yes",
+      "no": "No",
+      "latestResult": "Latest result",
+      "workspaceAria": "Student problem analysis sections",
+      "submissionContextAria": "Currently selected submission",
+      "currentSubmission": "Current submission",
+      "switchSubmission": "Submission",
+      "workspace": {
+        "growth": "Growth",
+        "evidence": "Submission evidence",
+        "analysis": "AI analysis"
+      },
+      "verdict": {
+        "accepted": "Accepted",
+        "wrong_answer": "Wrong answer",
+        "compilation_error": "Compilation error",
+        "runtime_error": "Runtime error",
+        "time_limit_exceeded": "Time limit exceeded",
+        "memory_limit_exceeded": "Memory limit exceeded",
+        "internal_error": "System judge issue",
+        "pending": "Pending",
+        "unknown": "Unknown result"
+      },
+      "fullTimeline": "Complete submission timeline",
+      "timelineCount": "Showing {{visible}} of {{total}} submissions",
+      "loadEarlier": "Show earlier submissions",
+      "selectedChange": "Selected submission change",
+      "comparedSubmission": "Compared with effective submission #{{id}}",
+      "firstRecordedSubmission": "First record with no earlier comparison",
+      "testPointChange": "Test-point change",
+      "unresolvedIssues": "Unresolved issues",
+      "resolvedIssues": "Resolved now",
+      "noIssueChange": "No issue change is available for this submission.",
+      "submissionEvidence": "Submission evidence",
+      "loadingEvidence": "Loading submission evidence",
+      "evidenceLoadFailed": "Failed to load submission evidence.",
+      "sourceCode": "Source code",
+      "testEvidence": "Judge evidence",
+      "testPassed": "Passed",
+      "testFailed": "Failed",
+      "analysisVersions": "AI analysis versions",
+      "version": "Version {{version}}",
+      "official": "Current official version",
+      "noSavedVersions": "No saved AI analysis version exists for this submission yet.",
+      "savedAnalysis": "Saved analysis",
+      "legacyVersionNoAnalysis": "This legacy version saved only student feedback. The original full analysis cannot be recovered, so the current result is not used to fabricate history.",
+      "regenerate": "Regenerate and keep history",
+      "regenerationStarted": "A new version is being generated; older versions remain available.",
+      "regenerationFailed": "Failed to start a new version.",
+      "correctionForVersion": "Correct the selected version",
+      "selectIssue": "Select the primary issue",
+      "optional": "Not specified",
+      "correctionSaved": "The teacher correction was saved and linked to this analysis version.",
+      "correctionFailed": "Failed to save the teacher correction.",
+      "savedCorrections": "Teacher corrections",
+      "boundVersion": "Linked to analysis revision #{{id}}",
+      "unboundLegacyCorrection": "Legacy correction without a linked analysis version"
     }
   },
   "teacherHome": {
@@ -842,6 +982,20 @@
     "emptyAssignmentsDescription": "Create an assignment first.",
     "viewDetails": "View details",
     "needsAttentionWithCount": "Review {{count}}",
+    "metrics": {
+      "assignments": "Assignments",
+      "students": "Students",
+      "needsAttention": "Review",
+      "recentSubmissions": "New",
+      "problems": "Problems",
+      "status": "Status"
+    },
+    "errors": {
+      "loadFailed": "Failed to load teacher data.",
+      "serviceUnavailable": "Failed to load teacher data. The service is temporarily unavailable.",
+      "notFound": "Failed to load teacher data. Classroom resources were not found.",
+      "separator": ": "
+    },
     "console": {
       "title": "Classroom Teaching Workbench",
       "description": "Review students who need intervention, then open assignment and submission evidence.",
@@ -868,41 +1022,6 @@
       "actionNoFollowup": "The action was opened but has no follow-up submission",
       "actionEvidencePending": "Action evidence is still insufficient",
       "matchBasis": "Match basis: {{basis}}"
-    },
-    "metrics": {
-      "assignments": "Assignments",
-      "students": "Students",
-      "needsAttention": "Review",
-      "recentSubmissions": "New",
-      "problems": "Problems",
-      "status": "Status"
-    },
-    "errors": {
-      "loadFailed": "Failed to load teacher data.",
-      "serviceUnavailable": "Failed to load teacher data. The service is temporarily unavailable.",
-      "notFound": "Failed to load teacher data. Classroom resources were not found.",
-      "separator": ": "
-    }
-  },
-  "assignmentReadiness": {
-    "checking": "Checking problem and test-case quality",
-    "ready": "Publish readiness passed",
-    "notReady": "Resolve blockers before publishing",
-    "empty": "Select problems to run the publish check",
-    "blocker": "Blocker",
-    "warning": "Warning",
-    "publishBlocked": "Selected problems are not ready to publish. Save as a draft and continue fixing them.",
-    "blockerSummary": "{{count}} quality blockers",
-    "issues": {
-      "PROBLEM_NOT_FOUND": "The problem no longer exists",
-      "NO_TEST_CASES": "No test cases are available for reliable judging",
-      "SEMANTIC_PROFILE_INCOMPLETE": "Some test cases do not have a complete reviewed semantic profile",
-      "SEMANTIC_CODE_DUPLICATE": "Test-case semantic identifiers are duplicated",
-      "STANDARD_LIBRARY_PATH_INVALID": "The knowledge and skill path is invalid or inconsistent",
-      "REVEAL_POLICY_MISMATCH": "Hidden visibility conflicts with the reveal policy",
-      "LOW_INTENT_DIVERSITY": "Multiple test cases cover only one evaluation intent",
-      "STARTER_CODE_MISSING": "Starter code is missing for learners who need structure",
-      "UNKNOWN": "An unrecognized publish-quality issue remains"
     }
   },
   "assignmentDetail": {
@@ -914,6 +1033,7 @@
     "notFound": "Assignment not found",
     "notFoundDescription": "Go back to assignments and choose another item.",
     "backToAssignmentCenter": "Back to assignments",
+    "historicalRosterNotice": "Historical submissions from {{count}} students outside the current roster are retained and excluded from the current completion rate.",
     "header": {
       "problemCount": "{{count}} problems",
       "submitted": "{{count}} submitted",
@@ -1128,6 +1248,77 @@
           "ignored": "Ignored"
         }
       }
+    }
+  },
+  "learningProof": {
+    "title": "Learning evidence",
+    "error": "Learning evidence could not be updated.",
+    "stage": {
+      "repair": "Key change",
+      "explain": "Student explanation",
+      "verify": "New-problem check"
+    },
+    "repair": {
+      "repaired": "Key change identified",
+      "inProgress": "Still revising",
+      "notObserved": "No key change observed yet",
+      "submissions": "Submission #{{before}} → #{{after}}",
+      "tests": "{{count}} more tests passed"
+    },
+    "explanation": {
+      "question": "What change actually altered the result? Explain what changed, why the original failed, and give one test case or boundary that checks the change.",
+      "notReady": "Explain after a key change is observed",
+      "waiting": "Not explained yet",
+      "provided": "Explanation saved",
+      "checkable": "Explanation is checkable",
+      "providedHint": "Add a concrete input, boundary, or before-and-after result to make this easier to check.",
+      "checkableHint": "This explanation includes a checkable change or example and is ready for another-problem verification."
+    },
+    "verify": {
+      "notReady": "Explain the change before trying another problem",
+      "notAvailable": "No verification problem assigned yet",
+      "available": "Ready to verify on another problem",
+      "needsSupport": "The verification problem still needs work",
+      "verified": "Verified on another problem",
+      "submission": "Verification submission #{{id}}"
+    },
+    "action": {
+      "explain": "Explain the change",
+      "save": "Save explanation",
+      "verify": "Verify now"
+    },
+    "teacher": {
+      "aria": "Filter by learning stage",
+      "allStudents": "All students",
+      "failed": "Previously failed",
+      "repaired": "Repaired",
+      "explained": "Explained",
+      "verified": "Verified on another problem",
+      "failedStudents": "Students who previously failed",
+      "repairedStudents": "Students who repaired the problem",
+      "explainedStudents": "Students who explained the change",
+      "verifiedStudents": "Students verified on another problem"
+    }
+  },
+  "assignmentReadiness": {
+    "checking": "Checking problem and test-case quality",
+    "ready": "Publish readiness passed",
+    "notReady": "Resolve blockers before publishing",
+    "empty": "Select problems to run the publish check",
+    "blocker": "Blocker",
+    "warning": "Warning",
+    "publishBlocked": "Selected problems are not ready to publish. Save as a draft and continue fixing them.",
+    "blockerSummary": "{{count}} quality blockers",
+    "issues": {
+      "PROBLEM_NOT_FOUND": "The problem no longer exists",
+      "NO_TEST_CASES": "No test cases are available for reliable judging",
+      "SEMANTIC_PROFILE_INCOMPLETE": "Some test cases do not have a complete reviewed semantic profile",
+      "SEMANTIC_CODE_DUPLICATE": "Test-case semantic identifiers are duplicated",
+      "STANDARD_LIBRARY_PATH_INVALID": "The knowledge and skill path is invalid or inconsistent",
+      "REVEAL_POLICY_MISMATCH": "Hidden visibility conflicts with the reveal policy",
+      "LOW_INTENT_DIVERSITY": "Multiple test cases cover only one evaluation intent",
+      "STARTER_CODE_MISSING": "Starter code is missing for learners who need structure",
+      "UNKNOWN": "An unrecognized publish-quality issue remains"
     }
   }
 }
