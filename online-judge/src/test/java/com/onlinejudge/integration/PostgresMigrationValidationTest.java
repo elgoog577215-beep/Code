@@ -63,6 +63,14 @@ class PostgresMigrationValidationTest {
     }
 
     @Test
+    void publicCodePrefixAllowsColdAccountLoginWithoutCsrfToken() throws Exception {
+        mockMvc.perform(post("/code/api/auth/account/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"bootstrap-admin\",\"password\":\"Bootstrap123\",\"portal\":\"PLATFORM_ADMIN\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void existingNonEmptySchemaIsBaselinedAtV1ThenMigratedWithoutDataLoss() throws Exception {
         String databaseName = "legacy_copy_" + UUID.randomUUID().toString().replace("-", "");
         try (var connection = dataSource.getConnection(); var statement = connection.createStatement()) {
