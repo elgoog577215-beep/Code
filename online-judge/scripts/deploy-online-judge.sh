@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 || "$1" != "--confirm-build" ]]; then
+EXPECTED_SSH_COMMAND="deploy-online-judge --confirm-build"
+
+if [[ $# -eq 1 && "$1" == "--confirm-build" ]]; then
+  :
+elif [[ $# -eq 0 && "${SSH_ORIGINAL_COMMAND:-}" == "${EXPECTED_SSH_COMMAND}" ]]; then
+  # A restricted authorized_keys entry invokes this script without argv and
+  # exposes the requested command through SSH_ORIGINAL_COMMAND. Normalize the
+  # already verified command so a self-refresh preserves the confirmation.
+  set -- "--confirm-build"
+else
   echo "生产构建必须由人工明确确认。" >&2
   echo "用法：deploy-online-judge --confirm-build" >&2
   exit 2
