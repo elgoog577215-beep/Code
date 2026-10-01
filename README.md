@@ -4,6 +4,14 @@ NBOJ is an AI-powered online judge platform for problem management, code evaluat
 
 NBOJ 是一个集题目管理、在线评测、排行榜与 AI 分析于一体的智能 OJ 项目，面向算法练习、课程实验与个人作品展示场景。
 
+## 项目文档
+
+- [项目认知](docs/项目认知.md)：内容、逻辑、交互与技术设计，及项目文档入口。
+- [在线判题运行说明](online-judge/README.md)：当前子项目环境、启动、配置和运行方式。
+- [功能设计](docs/项目认知.md#六功能设计入口)：提交与诊断、学生学习、教师教学、标准库、发布与运行、学校与教师管理的详细要求。
+- [项目协作规则](AGENTS.md)：本项目长期规则与验收经验。
+- [历史专项资料](docs/specs/)：带日期的设计和评测材料，仅用于追溯；本地规则备份与旧记忆不随本次提交发布。
+
 ## Highlights | 项目亮点
 
 - AI-powered submission analysis, comparison, and growth reports

@@ -150,7 +150,6 @@ bash scripts/start-school.sh
 ```bash
 bash scripts/test-postgres-migrations.sh
 ./mvnw -q -Dskip.frontend=true test
-openspec validate --all --strict
 ```
 
 PostgreSQL 迁移测试覆盖：
