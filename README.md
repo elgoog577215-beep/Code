@@ -1,197 +1,46 @@
-# NBOJ
+# Code 在线编程平台
 
-NBOJ is an AI-powered online judge platform for problem management, code evaluation, leaderboard tracking, and intelligent feedback.
+Code 面向课堂教学、算法训练和信息竞赛，将在线判题、AI 诊断、学生学习与教师教学连接起来。学生提交代码后获得判题与诊断反馈，教师从同一批学习记录中了解学生问题，标准知识库为诊断和教学提供依据。
 
-NBOJ 是一个集题目管理、在线评测、排行榜与 AI 分析于一体的智能 OJ 项目，面向算法练习、课程实验与个人作品展示场景。
+网站入口：[Code 在线编程平台](https://tuotuzju.com/code/)。
+
+## 运行与开发
+
+应用位于 `online-judge/`，不是仓库根目录。先进入该目录，再按[运行说明](online-judge/README.md)选择对应操作：
+
+```bash
+cd online-judge
+```
+
+- [本机开发与测试](online-judge/README.md#本机开发)：环境要求、前后端构建、启动与测试。
+- [学校部署](online-judge/README.md#学校开箱部署)：配置、环境检查、镜像构建与启动。
+- [生产发布](online-judge/README.md#生产发布)：备份、镜像替换、验证与恢复。普通 Git 推送不等于生产发布。
+- [数据库迁移与恢复](online-judge/docs/database-migration-guide.md)：已有数据库接入、结构变更与恢复步骤。
+
+运行命令与配置说明统一维护在上述位置，根目录不再复制一套。真实口令与密钥保存在本地环境或部署平台，不写入仓库。
+
+## 工程位置
+
+| 位置 | 内容 |
+| --- | --- |
+| `online-judge/frontend/` | React/Vite 前端 |
+| `online-judge/src/main/java/` | Spring Boot 后端 |
+| `online-judge/src/main/resources/` | 应用配置、资源与数据库迁移 |
+| `online-judge/scripts/` | 构建、启动、测试与发布脚本 |
+| `online-judge/docs/` | 运行、迁移和排障说明 |
+| `docs/` | 项目整体设计、功能设计与历史参考 |
+
+学校部署使用 PostgreSQL，H2 用于本机开发；具体环境与运行方式见子项目说明。
 
 ## 项目文档
 
-- [项目认知](docs/项目认知.md)：内容、逻辑、交互与技术设计，及项目文档入口。
-- [在线判题运行说明](online-judge/README.md)：当前子项目环境、启动、配置和运行方式。
-- [功能设计](docs/项目认知.md#六功能设计入口)：提交与诊断、学生学习、教师教学、标准库、发布与运行、学校与教师管理的详细要求。
-- [项目协作规则](AGENTS.md)：本项目长期规则与验收经验。
-- [历史专项资料](docs/specs/)：带日期的设计和评测材料，仅用于追溯；本地规则备份与旧记忆不随本次提交发布。
+- [项目认知](docs/项目认知.md)：整体定位、内容、逻辑、交互与技术设计，以及当前维护状态。
+- [功能设计](docs/项目认知.md#六功能设计入口)：提交与诊断、学生学习、教师教学、标准库、发布与运行、学校与教师管理。
+- [项目协作规则](AGENTS.md)：项目边界、文档维护与协作约定。
+- [历史专项资料](docs/specs/)：带日期的设计和评测材料，仅用于追溯。
 
-## Highlights | 项目亮点
+设计描述已确认的要求，不代表所有能力已经实现或通过生产验证；实际进展以当前代码、运行结果和相应验证记录为准。
 
-- AI-powered submission analysis, comparison, and growth reports
-- Problem creation workflow with Markdown statement editing and testcase management
-- Leaderboard and submission history for problem-level tracking
-- Local-first development setup based on Spring Boot + H2
-- 中文界面友好，适合课程项目、毕业设计与个人作品集展示
+## 许可
 
-## Tech Stack | 技术栈
-
-- Java 17
-- Spring Boot 3
-- Spring Web
-- Spring Data JPA
-- Spring Validation
-- H2 Database
-- HTML / CSS / JavaScript
-- Apache PDFBox
-- Lombok
-
-## Project Structure | 项目结构
-
-```text
-src/main/java/com/onlinejudge
-|- execution        Code execution capability
-|- leaderboard      Leaderboard APIs and application services
-|- problem          Problem management domain
-|- report           Growth report generation
-|- shared           Shared bootstrap and web utilities
-|- submission       Submission, judging, AI analysis, and comparison
-
-src/main/resources
-|- application.yml
-|- static
-   |- index.html
-   |- leaderboard.html
-   |- problem.html
-   |- problem-create.html
-   |- assets
-```
-
-## Requirements | 运行要求
-
-Please make sure the following tools are installed:
-
-请先确保本机安装了以下环境：
-
-- Java 17+
-- Maven, or use the bundled Maven Wrapper
-- At least one runtime/compiler for judging:
-- Python: `python`
-- Java: `javac` / `java`
-- C / C++: `gcc` / `g++`
-- JavaScript: `node`
-
-## Quick Start | 快速启动
-
-Run the project in development mode:
-
-开发模式启动：
-
-```powershell
-./mvnw.cmd spring-boot:run
-```
-
-Package and run the jar:
-
-打包后启动：
-
-```powershell
-./mvnw.cmd clean package -DskipTests
-java -jar target/nboj-1.0.0.jar
-```
-
-Default URLs | 默认访问地址：
-
-- Home: `http://localhost:8081/`
-- Problem editor: `http://localhost:8081/problem-create.html`
-- Leaderboard: `http://localhost:8081/leaderboard.html`
-- H2 Console: `http://localhost:8081/h2-console`
-
-## AI Configuration | AI 配置
-
-NBOJ currently uses a ModelScope OpenAI-compatible API endpoint.
-
-当前项目默认接入 ModelScope 的 OpenAI 兼容接口。
-
-Configuration file:
-
-配置文件位置：
-
-`src/main/resources/application.yml`
-
-```yaml
-ai:
-  enabled: true
-  base-url: https://api-inference.modelscope.cn/v1
-  api-key: ${OJ_MODELSCOPE_API_KEY:${MODELSCOPE_API_KEY:}}
-  model: ${OJ_AI_MODEL:${AI_MODEL:Qwen/Qwen3-235B-A22B-Instruct-2507}}
-  external-runtime-mode: single-call
-  stream-enabled: true
-```
-
-Set your token before startup:
-
-启动前设置环境变量：
-
-```powershell
-$env:OJ_MODELSCOPE_API_KEY="your-token"
-```
-
-`MODELSCOPE_API_KEY` 仍作为兼容旧部署的别名保留；学校 Docker 部署推荐使用 `OJ_MODELSCOPE_API_KEY`。
-
-默认提交诊断使用 `single-call` 外部模型 runtime，一次请求同时生成结构化错因和教学提示，以降低 ModelScope 额度与限流风险。若需要回滚到两阶段诊断，可设置：
-
-```powershell
-$env:AI_EXTERNAL_RUNTIME_MODE="staged"
-```
-
-运行真实 live eval 时可复用同一 token：
-
-```powershell
-$env:AI_EVAL_API_KEY=$env:OJ_MODELSCOPE_API_KEY
-```
-
-If the token is missing, the core judge flow can still run, but AI-related features may fall back or become unavailable.
-
-如果没有配置 Token，基础评测通常仍可运行，但 AI 相关能力可能不可用或退化为非模型分析流程。
-
-## Core Features | 核心功能
-
-- Problem catalog browsing and filtering
-- Problem creation and editing
-- Sample and hidden testcase management
-- Multi-language submission and judging
-- AI analysis for failed or accepted submissions
-- Submission comparison and growth report export
-
-## Persistence | 数据持久化
-
-The default H2 file database is stored at:
-
-默认 H2 文件数据库位于：
-
-```text
-data/onlinejudge.mv.db
-```
-
-This means problem data, submission records, and related analysis can be persisted locally during development.
-
-这意味着题目、提交记录与分析数据都会在本地开发环境中持久保存。
-
-## Build Check | 构建校验
-
-Recommended verification commands:
-
-建议执行以下校验命令：
-
-```powershell
-./mvnw.cmd -q -DskipTests compile
-node --check src/main/resources/static/assets/js/core/ui.js
-node --check src/main/resources/static/assets/js/pages/index-page.js
-node --check src/main/resources/static/assets/js/pages/leaderboard-page.js
-node --check src/main/resources/static/assets/js/pages/problem-page.js
-node --check src/main/resources/static/assets/js/pages/problem-form-page.js
-```
-
-## Positioning | 项目定位
-
-NBOJ is suitable for:
-
-NBOJ 适合这些场景：
-
-- Graduation project / 毕业设计
-- Course project / 课程作业
-- Personal portfolio / 个人作品集
-- Internal demo for AI-enhanced judging workflows / AI 评测流程演示
-
-## License | 许可
-
-No license file is included yet.
-
-当前仓库暂未附带 License 文件，可根据你的开源或私有发布计划后续补充。
+当前仓库未附带 License 文件。
